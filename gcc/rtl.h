@@ -265,7 +265,8 @@ struct GTY((chain_next ("RTX_NEXT (&%h)"),
      when we access a component.
      1 in a CALL_INSN if it is a sibling call.
      1 in a SET that is for a return.
-     In a CODE_LABEL, part of the two-bit alternate entry field.  */
+     In a CODE_LABEL, part of the two-bit alternate entry field.
+     1 in a CONCAT is VAL_EXPR_IS_COPIED in var-tracking.c.  */
   unsigned int jump : 1;
   /* In a CODE_LABEL, part of the two-bit alternate entry field.
      1 in a MEM if it cannot trap.
@@ -278,7 +279,9 @@ struct GTY((chain_next ("RTX_NEXT (&%h)"),
      constants pool.
      1 in a CALL_INSN logically equivalent to ECF_CONST and TREE_READONLY.
      1 in a NOTE, or EXPR_LIST for a const call.
-     1 in a JUMP_INSN of an annulling branch.  */
+     1 in a JUMP_INSN of an annulling branch.
+     1 in a CONCAT is VAL_EXPR_IS_CLOBBERED in var-tracking.c.
+     1 in a preserved VALUE is PRESERVED_VALUE_P in cselib.c.  */
   unsigned int unchanging : 1;
   /* 1 in a MEM or ASM_OPERANDS expression if the memory reference is volatile.
      1 in an INSN, CALL_INSN, JUMP_INSN, CODE_LABEL, BARRIER, or NOTE
@@ -290,12 +293,10 @@ struct GTY((chain_next ("RTX_NEXT (&%h)"),
      non-local label.
      In a SYMBOL_REF, this flag is used for machine-specific purposes.
      In a PREFETCH, this flag indicates that it should be considered a scheduling
-     barrier.  */
+     barrier.
+     1 in a CONCAT is VAL_NEEDS_RESOLUTION in var-tracking.c.  */
   unsigned int volatil : 1;
-  /* 1 in a MEM referring to a field of an aggregate.
-     0 if the MEM was a variable or the result of a * operator in C;
-     1 if it was the result of a . or -> operator (on a struct) in C.
-     1 in a REG if the register is used only in exit code a loop.
+  /* 1 in a REG if the register is used only in exit code a loop.
      1 in a SUBREG expression if was generated from a variable with a
      promoted mode.
      1 in a CODE_LABEL if the label is used for nonlocal gotos
@@ -304,26 +305,33 @@ struct GTY((chain_next ("RTX_NEXT (&%h)"),
      together with the preceding insn.  Valid only within sched.
      1 in an INSN, JUMP_INSN, or CALL_INSN if insn is in a delay slot and
      from the target of a branch.  Valid from reorg until end of compilation;
-     cleared before used.  */
+     cleared before used.
+
+     The name of the field is historical.  It used to be used in MEMs
+     to record whether the MEM accessed part of a structure.  */
   unsigned int in_struct : 1;
   /* At the end of RTL generation, 1 if this rtx is used.  This is used for
      copying shared structure.  See `unshare_all_rtl'.
      In a REG, this is not needed for that purpose, and used instead
      in `leaf_renumber_regs_insn'.
      1 in a SYMBOL_REF, means that emit_library_call
-     has used it as the function.  */
+     has used it as the function.
+     1 in a CONCAT is VAL_HOLDS_TRACK_EXPR in var-tracking.c.
+     1 in a VALUE or DEBUG_EXPR is VALUE_RECURSED_INTO in var-tracking.c.  */
   unsigned int used : 1;
   /* 1 in an INSN or a SET if this rtx is related to the call frame,
      either changing how we compute the frame address or saving and
      restoring registers in the prologue and epilogue.
      1 in a REG or MEM if it is a pointer.
      1 in a SYMBOL_REF if it addresses something in the per-function
-     constant string pool.  */
+     constant string pool.
+     1 in a VALUE is VALUE_CHANGED in var-tracking.c.  */
   unsigned frame_related : 1;
   /* 1 in a REG or PARALLEL that is the current function's return value.
-     1 in a MEM if it refers to a scalar.
      1 in a SYMBOL_REF for a weak symbol.
-     1 in a CALL_INSN logically equivalent to ECF_PURE and DECL_PURE_P. */
+     1 in a CALL_INSN logically equivalent to ECF_PURE and DECL_PURE_P.
+     1 in a CONCAT is VAL_EXPR_HAS_REVERSE in var-tracking.c.
+     1 in a VALUE or DEBUG_EXPR is NO_LOC_P in var-tracking.c.  */
   unsigned return_val : 1;
 
   /* The first element of the operands of this rtx.
@@ -1326,17 +1334,6 @@ do {									\
   (RTL_FLAG_CHECK3("MEM_VOLATILE_P", (RTX), MEM, ASM_OPERANDS,		\
 		   ASM_INPUT)->volatil)
 
-/* 1 if RTX is a mem that refers to an aggregate, either to the
-   aggregate itself or to a field of the aggregate.  If zero, RTX may
-   or may not be such a reference.  */
-#define MEM_IN_STRUCT_P(RTX)						\
-  (RTL_FLAG_CHECK1("MEM_IN_STRUCT_P", (RTX), MEM)->in_struct)
-
-/* 1 if RTX is a MEM that refers to a scalar.  If zero, RTX may or may
-   not refer to a scalar.  */
-#define MEM_SCALAR_P(RTX)						\
-  (RTL_FLAG_CHECK1("MEM_SCALAR_P", (RTX), MEM)->return_val)
-
 /* 1 if RTX is a mem that cannot trap.  */
 #define MEM_NOTRAP_P(RTX) \
   (RTL_FLAG_CHECK1("MEM_NOTRAP_P", (RTX), MEM)->call)
@@ -1395,8 +1392,6 @@ do {									\
 /* Copy the attributes that apply to memory locations from RHS to LHS.  */
 #define MEM_COPY_ATTRIBUTES(LHS, RHS)				\
   (MEM_VOLATILE_P (LHS) = MEM_VOLATILE_P (RHS),			\
-   MEM_IN_STRUCT_P (LHS) = MEM_IN_STRUCT_P (RHS),		\
-   MEM_SCALAR_P (LHS) = MEM_SCALAR_P (RHS),			\
    MEM_NOTRAP_P (LHS) = MEM_NOTRAP_P (RHS),			\
    MEM_READONLY_P (LHS) = MEM_READONLY_P (RHS),			\
    MEM_KEEP_ALIAS_SET_P (LHS) = MEM_KEEP_ALIAS_SET_P (RHS),	\
@@ -1803,7 +1798,6 @@ extern rtx next_real_insn (rtx);
 extern rtx prev_active_insn (rtx);
 extern rtx next_active_insn (rtx);
 extern int active_insn_p (const_rtx);
-extern rtx prev_label (rtx);
 extern rtx next_label (rtx);
 extern rtx skip_consecutive_labels (rtx);
 extern rtx next_cc0_user (rtx);
@@ -1885,6 +1879,7 @@ extern enum machine_mode choose_hard_reg_mode (unsigned int, unsigned int,
 
 /* In emit-rtl.c  */
 extern rtx set_unique_reg_note (rtx, enum reg_note, rtx);
+extern rtx set_dst_reg_note (rtx, enum reg_note, rtx, rtx);
 extern void set_insn_deleted (rtx);
 
 /* Functions in rtlanal.c */
@@ -1932,6 +1927,11 @@ extern rtx find_last_value (rtx, rtx *, rtx, int);
 extern int refers_to_regno_p (unsigned int, unsigned int, const_rtx, rtx *);
 extern int reg_overlap_mentioned_p (const_rtx, const_rtx);
 extern const_rtx set_of (const_rtx, const_rtx);
+extern void record_hard_reg_sets (rtx, const_rtx, void *);
+extern void record_hard_reg_uses (rtx *, void *);
+#ifdef HARD_CONST
+extern void find_all_hard_reg_sets (const_rtx, HARD_REG_SET *);
+#endif
 extern void note_stores (const_rtx, void (*) (rtx, const_rtx, void *), void *);
 extern void note_uses (rtx *, void (*) (rtx *, void *), void *);
 extern int dead_or_set_p (const_rtx, const_rtx);
@@ -2027,12 +2027,14 @@ extern void subreg_get_info (unsigned int, enum machine_mode,
 
 /* lists.c */
 
-extern void free_EXPR_LIST_list		(rtx *);
-extern void free_INSN_LIST_list		(rtx *);
-extern void free_EXPR_LIST_node		(rtx);
-extern void free_INSN_LIST_node		(rtx);
-extern rtx alloc_INSN_LIST			(rtx, rtx);
-extern rtx alloc_EXPR_LIST			(int, rtx, rtx);
+extern void free_EXPR_LIST_list (rtx *);
+extern void free_INSN_LIST_list (rtx *);
+extern void free_EXPR_LIST_node (rtx);
+extern void free_INSN_LIST_node (rtx);
+extern rtx alloc_INSN_LIST (rtx, rtx);
+extern rtx copy_INSN_LIST (rtx);
+extern rtx concat_INSN_LIST (rtx, rtx);
+extern rtx alloc_EXPR_LIST (int, rtx, rtx);
 extern void remove_free_INSN_LIST_elem (rtx, rtx *);
 extern rtx remove_list_elem (rtx, rtx *);
 extern rtx remove_free_INSN_LIST_node (rtx *);
@@ -2381,7 +2383,7 @@ extern int exp_equiv_p (const_rtx, const_rtx, int, bool);
 extern unsigned hash_rtx (const_rtx x, enum machine_mode, int *, int *, bool);
 
 /* In dse.c */
-extern void check_for_inc_dec (rtx insn);
+extern bool check_for_inc_dec (rtx insn);
 
 /* In jump.c */
 extern int comparison_dominates_p (enum rtx_code, enum rtx_code);
@@ -2503,6 +2505,7 @@ extern int sibcall_epilogue_contains (const_rtx);
 extern void mark_temp_addr_taken (rtx);
 extern void update_temp_slot_address (rtx, rtx);
 extern void maybe_copy_prologue_epilogue_insn (rtx, rtx);
+extern void set_return_jump_label (rtx);
 
 /* In stmt.c */
 extern void expand_null_return (void);
@@ -2585,10 +2588,10 @@ extern bool read_rtx (const char *, rtx *);
 
 /* In alias.c */
 extern rtx canon_rtx (rtx);
-extern int true_dependence (const_rtx, enum machine_mode, const_rtx, bool (*)(const_rtx, bool));
+extern int true_dependence (const_rtx, enum machine_mode, const_rtx);
 extern rtx get_addr (rtx);
-extern int canon_true_dependence (const_rtx, enum machine_mode, rtx, const_rtx,
-				  rtx, bool (*)(const_rtx, bool));
+extern int canon_true_dependence (const_rtx, enum machine_mode, rtx,
+				  const_rtx, rtx);
 extern int read_dependence (const_rtx, const_rtx);
 extern int anti_dependence (const_rtx, const_rtx);
 extern int output_dependence (const_rtx, const_rtx);

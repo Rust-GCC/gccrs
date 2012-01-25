@@ -91,6 +91,7 @@ func TestTe(t *testing.T) {
 		s2 := mul(s, 2)
 		s3 := mul(s, 3)
 		w := s2<<24 | s<<16 | s<<8 | s3
+		te := [][256]uint32{te0, te1, te2, te3}
 		for j := 0; j < 4; j++ {
 			if x := te[j][i]; x != w {
 				t.Fatalf("te[%d][%d] = %#x, want %#x", j, i, x, w)
@@ -110,6 +111,7 @@ func TestTd(t *testing.T) {
 		sd := mul(s, 0xd)
 		se := mul(s, 0xe)
 		w := se<<24 | s9<<16 | sd<<8 | sb
+		td := [][256]uint32{td0, td1, td2, td3}
 		for j := 0; j < 4; j++ {
 			if x := td[j][i]; x != w {
 				t.Fatalf("td[%d][%d] = %#x, want %#x", j, i, x, w)
@@ -346,5 +348,19 @@ func TestCipherDecrypt(t *testing.T) {
 				break
 			}
 		}
+	}
+}
+
+func BenchmarkEncrypt(b *testing.B) {
+	b.StopTimer()
+	tt := encryptTests[0]
+	c, err := NewCipher(tt.key)
+	if err != nil {
+		b.Fatal("NewCipher:", err)
+	}
+	out := make([]byte, len(tt.in))
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		c.Encrypt(out, tt.in)
 	}
 }

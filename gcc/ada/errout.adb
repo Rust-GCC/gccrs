@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -143,8 +143,10 @@ package body Errout is
    --  parameter Suffix, (spec) or (body) is appended after the unit name.
 
    procedure Set_Msg_Node (Node : Node_Id);
-   --  Add the sequence of characters for the name associated with the
-   --  given node to the current message.
+   --  Add the sequence of characters for the name associated with the given
+   --  node to the current message. For N_Designator, N_Selected_Component,
+   --  N_Defining_Program_Unit_Name, and N_Expanded_Name, the Prefix is
+   --  included as well.
 
    procedure Set_Msg_Text (Text : String; Flag : Source_Ptr);
    --  Add a sequence of characters to the current message. The characters may
@@ -439,7 +441,6 @@ package body Errout is
                      Error_Msg_Internal
                        ("?in inlined body #",
                         Actual_Error_Loc, Flag_Location, Msg_Cont_Status);
-
                   else
                      Error_Msg_Internal
                        ("error in inlined body #",
@@ -453,7 +454,6 @@ package body Errout is
                      Error_Msg_Internal
                        ("?in instantiation #",
                         Actual_Error_Loc, Flag_Location, Msg_Cont_Status);
-
                   else
                      Error_Msg_Internal
                        ("instantiation error #",
@@ -1288,30 +1288,37 @@ package body Errout is
 
       Cur := First_Error_Msg;
       while Cur /= No_Error_Msg loop
-         if not Errors.Table (Cur).Deleted
-           and then Warning_Specifically_Suppressed
-                      (Errors.Table (Cur).Sptr, Errors.Table (Cur).Text)
-         then
-            Delete_Warning (Cur);
+         declare
+            CE : Error_Msg_Object renames Errors.Table (Cur);
 
-            --  If this is a continuation, delete previous messages
+         begin
+            if not CE.Deleted
+              and then
+                (Warning_Specifically_Suppressed (CE.Sptr, CE.Text)
+                   or else
+                 Warning_Specifically_Suppressed (CE.Optr, CE.Text))
+            then
+               Delete_Warning (Cur);
 
-            F := Cur;
-            while Errors.Table (F).Msg_Cont loop
-               F := Errors.Table (F).Prev;
-               Delete_Warning (F);
-            end loop;
+               --  If this is a continuation, delete previous messages
 
-            --  Delete any following continuations
+               F := Cur;
+               while Errors.Table (F).Msg_Cont loop
+                  F := Errors.Table (F).Prev;
+                  Delete_Warning (F);
+               end loop;
 
-            F := Cur;
-            loop
-               F := Errors.Table (F).Next;
-               exit when F = No_Error_Msg;
-               exit when not Errors.Table (F).Msg_Cont;
-               Delete_Warning (F);
-            end loop;
-         end if;
+               --  Delete any following continuations
+
+               F := Cur;
+               loop
+                  F := Errors.Table (F).Next;
+                  exit when F = No_Error_Msg;
+                  exit when not Errors.Table (F).Msg_Cont;
+                  Delete_Warning (F);
+               end loop;
+            end if;
+         end;
 
          Cur := Errors.Table (Cur).Next;
       end loop;
@@ -2494,24 +2501,28 @@ package body Errout is
       Nam : Name_Id;
 
    begin
-      if Nkind (Node) = N_Designator then
-         Set_Msg_Node (Name (Node));
-         Set_Msg_Char ('.');
-         Set_Msg_Node (Identifier (Node));
-         return;
+      case Nkind (Node) is
+         when N_Designator =>
+            Set_Msg_Node (Name (Node));
+            Set_Msg_Char ('.');
+            Set_Msg_Node (Identifier (Node));
+            return;
 
-      elsif Nkind (Node) = N_Defining_Program_Unit_Name then
-         Set_Msg_Node (Name (Node));
-         Set_Msg_Char ('.');
-         Set_Msg_Node (Defining_Identifier (Node));
-         return;
+         when N_Defining_Program_Unit_Name =>
+            Set_Msg_Node (Name (Node));
+            Set_Msg_Char ('.');
+            Set_Msg_Node (Defining_Identifier (Node));
+            return;
 
-      elsif Nkind (Node) = N_Selected_Component then
-         Set_Msg_Node (Prefix (Node));
-         Set_Msg_Char ('.');
-         Set_Msg_Node (Selector_Name (Node));
-         return;
-      end if;
+         when N_Selected_Component | N_Expanded_Name =>
+            Set_Msg_Node (Prefix (Node));
+            Set_Msg_Char ('.');
+            Set_Msg_Node (Selector_Name (Node));
+            return;
+
+         when others =>
+            null;
+      end case;
 
       --  The only remaining possibilities are identifiers, defining
       --  identifiers, pragmas, and pragma argument associations.

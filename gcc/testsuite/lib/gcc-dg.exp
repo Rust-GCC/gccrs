@@ -41,6 +41,11 @@ if { [ishost "*-*-cygwin*"] } {
   setenv LANG C.ASCII
 }
 
+global GCC_UNDER_TEST
+if ![info exists GCC_UNDER_TEST] {
+    set GCC_UNDER_TEST "[find_gcc]"
+}
+
 if [info exists TORTURE_OPTIONS] {
     set DG_TORTURE_OPTIONS $TORTURE_OPTIONS
 } else {
@@ -68,17 +73,28 @@ if [info exists ADDITIONAL_TORTURE_OPTIONS] {
 }
 
 set LTO_TORTURE_OPTIONS ""
+
+# Some torture-options cause intermediate code output, unusable for
+# testing using e.g. scan-assembler.  In this variable are the options
+# how to force it, when needed.
+global gcc_force_conventional_output
+set gcc_force_conventional_output ""
+
 if [check_effective_target_lto] {
-    set LTO_TORTURE_OPTIONS [list \
-	{ -O2 -flto -flto-partition=none } \
-	{ -O2 -flto }
-    ]
-}
-
-
-global GCC_UNDER_TEST
-if ![info exists GCC_UNDER_TEST] {
-    set GCC_UNDER_TEST "[find_gcc]"
+    # When having plugin test both slim and fat LTO and plugin/nonplugin
+    # path.
+    if [check_linker_plugin_available] {
+      set LTO_TORTURE_OPTIONS [list \
+	  { -O2 -flto -fno-use-linker-plugin -flto-partition=none } \
+	  { -O2 -flto -fuse-linker-plugin -fno-fat-lto-objects }
+      ]
+      set gcc_force_conventional_output "-ffat-lto-objects"
+    } else {
+      set LTO_TORTURE_OPTIONS [list \
+	  { -O2 -flto -flto-partition=none } \
+	  { -O2 -flto }
+      ]
+    }
 }
 
 global orig_environment_saved
@@ -145,6 +161,19 @@ proc gcc-dg-test-1 { target_compile prog do_what extra_tool_flags } {
 	default {
 	    perror "$do_what: not a valid dg-do keyword"
 	    return ""
+	}
+    }
+
+    # Let { dg-final { action } } force options as returned by an
+    # optional proc ${action}_required_options.
+    upvar 2 dg-final-code finalcode
+    foreach x [split $finalcode "\n"] {
+	set finalcmd [lindex $x 0]
+	if { [info procs ${finalcmd}_required_options] != "" } {
+	    set req [${finalcmd}_required_options]
+	    if { $req != "" } {
+		lappend extra_tool_flags $req
+	    }
 	}
     }
 
@@ -569,6 +598,24 @@ proc scan-module { args } {
     }
 }
 
+# Scan Fortran modules for absence of a given regexp.
+#
+# Argument 0 is the module name
+# Argument 1 is the regexp to match
+proc scan-module-absence { args } {
+    set modfilename [string tolower [lindex $args 0]].mod
+    set fd [open $modfilename r]
+    set text [read $fd]
+    close $fd
+
+    upvar 2 name testcase
+    if [regexp -- [lindex $args 1] $text] {
+      fail "$testcase scan-module [lindex $args 1]"
+    } else {
+      pass "$testcase scan-module [lindex $args 1]"
+    }
+}
+
 # Verify that the compiler output file exists, invoked via dg-final.
 proc output-exists { args } {
     # Process an optional target or xfail list.
@@ -745,6 +792,28 @@ proc process-message { msgproc msgprefix dgargs } {
 proc dg-message { args } {
     upvar dg-messages dg-messages
     process-message saved-dg-warning "" $args
+}
+
+# Check the existence of a gdb in the path, and return true if there
+# is one.
+#
+# Set env(GDB_FOR_GCC_TESTING) accordingly.
+
+proc gdb-exists { args } {
+    if ![info exists ::env(GDB_FOR_GCC_TESTING)] {
+	global GDB
+	if ![info exists ::env(GDB_FOR_GCC_TESTING)] {
+	    if [info exists GDB] {
+		setenv GDB_FOR_GCC_TESTING "$GDB"
+	    } else {
+		setenv GDB_FOR_GCC_TESTING "[transform gdb]"
+	    }
+	}
+    }
+    if { [which $::env(GDB_FOR_GCC_TESTING)] != 0 } {
+	return 1;
+    }
+    return 0;
 }
 
 set additional_prunes ""

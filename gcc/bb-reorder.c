@@ -1,6 +1,6 @@
 /* Basic block reordering routines for the GNU compiler.
-   Copyright (C) 2000, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2010, 2011
-   Free Software Foundation, Inc.
+   Copyright (C) 2000, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2010, 2011,
+   2012 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -181,7 +181,6 @@ static fibheapkey_t bb_to_key (basic_block);
 static bool better_edge_p (const_basic_block, const_edge, int, int, int, int, const_edge);
 static void connect_traces (int, struct trace *);
 static bool copy_bb_p (const_basic_block, int);
-static int get_uncond_jump_length (void);
 static bool push_to_next_round_p (const_basic_block, int, int, int, gcov_type);
 
 /* Check to see if bb should be pushed into the next round of trace
@@ -1193,7 +1192,7 @@ copy_bb_p (const_basic_block bb, int code_may_grow)
 
 /* Return the length of unconditional jump instruction.  */
 
-static int
+int
 get_uncond_jump_length (void)
 {
   rtx label, jump;
@@ -2254,6 +2253,9 @@ partition_hot_cold_basic_blocks (void)
     fix_crossing_unconditional_branches ();
 
   add_reg_crossing_jump_notes ();
+
+  /* Clear bb->aux fields that the above routines were using.  */
+  clear_aux_for_blocks ();
 
   VEC_free (edge, heap, crossing_edges);
 

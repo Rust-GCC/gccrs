@@ -1,5 +1,5 @@
 /* Interprocedural constant propagation
-   Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010, 2011
+   Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
 
    Contributed by Razya Ladelsky <RAZYA@il.ibm.com> and Martin Jambor
@@ -693,7 +693,7 @@ ipa_value_from_known_type_jfunc (struct ipa_jump_func *jfunc)
    describes the caller node so that pass-through jump functions can be
    evaluated.  */
 
-static tree
+tree
 ipa_value_from_jfunc (struct ipa_node_params *info, struct ipa_jump_func *jfunc)
 {
   if (jfunc->type == IPA_JF_CONST)
@@ -751,21 +751,6 @@ ipa_value_from_jfunc (struct ipa_node_params *info, struct ipa_jump_func *jfunc)
     }
   else
     return NULL_TREE;
-}
-
-/* Determine whether JFUNC evaluates to a constant and if so, return it.
-   Otherwise return NULL. INFO describes the caller node so that pass-through
-   jump functions can be evaluated.  */
-
-tree
-ipa_cst_from_jfunc (struct ipa_node_params *info, struct ipa_jump_func *jfunc)
-{
-  tree res = ipa_value_from_jfunc (info, jfunc);
-
-  if (res && TREE_CODE (res) == TREE_BINFO)
-    return NULL_TREE;
-  else
-    return res;
 }
 
 
@@ -1112,10 +1097,10 @@ propagate_constants_accross_call (struct cgraph_edge *cs)
    (which can contain both constants and binfos) or KNOWN_BINFOS (which can be
    NULL) return the destination.  */
 
-static tree
-get_indirect_edge_target (struct cgraph_edge *ie,
-			  VEC (tree, heap) *known_vals,
-			  VEC (tree, heap) *known_binfos)
+tree
+ipa_get_indirect_edge_target (struct cgraph_edge *ie,
+			      VEC (tree, heap) *known_vals,
+			      VEC (tree, heap) *known_binfos)
 {
   int param_index = ie->indirect_info->param_index;
   HOST_WIDE_INT token, anc_offset;
@@ -1127,7 +1112,8 @@ get_indirect_edge_target (struct cgraph_edge *ie,
 
   if (!ie->indirect_info->polymorphic)
     {
-      tree t = VEC_index (tree, known_vals, param_index);
+      tree t = (VEC_length (tree, known_vals) > (unsigned int) param_index
+	        ? VEC_index (tree, known_vals, param_index) : NULL);
       if (t &&
 	  TREE_CODE (t) == ADDR_EXPR
 	  && TREE_CODE (TREE_OPERAND (t, 0)) == FUNCTION_DECL)
@@ -1141,7 +1127,8 @@ get_indirect_edge_target (struct cgraph_edge *ie,
   otr_type = ie->indirect_info->otr_type;
 
   t = VEC_index (tree, known_vals, param_index);
-  if (!t && known_binfos)
+  if (!t && known_binfos
+      && VEC_length (tree, known_binfos) > (unsigned int) param_index)
     t = VEC_index (tree, known_binfos, param_index);
   if (!t)
     return NULL_TREE;
@@ -1185,7 +1172,7 @@ devirtualization_time_bonus (struct cgraph_node *node,
       struct inline_summary *isummary;
       tree target;
 
-      target = get_indirect_edge_target (ie, known_csts, known_binfos);
+      target = ipa_get_indirect_edge_target (ie, known_csts, known_binfos);
       if (!target)
 	continue;
 
@@ -1225,19 +1212,19 @@ good_cloning_opportunity_p (struct cgraph_node *node, int time_benefit,
       || !optimize_function_for_speed_p (DECL_STRUCT_FUNCTION (node->decl)))
     return false;
 
-  gcc_checking_assert (size_cost >= 0);
+  gcc_assert (size_cost > 0);
 
-  /* FIXME:  These decisions need tuning.  */
   if (max_count)
     {
-      int evaluation, factor = (count_sum * 1000) / max_count;
-
-      evaluation = (time_benefit * factor) / size_cost;
+      int factor = (count_sum * 1000) / max_count;
+      HOST_WIDEST_INT evaluation = (((HOST_WIDEST_INT) time_benefit * factor)
+				    / size_cost);
 
       if (dump_file && (dump_flags & TDF_DETAILS))
 	fprintf (dump_file, "     good_cloning_opportunity_p (time: %i, "
 		 "size: %i, count_sum: " HOST_WIDE_INT_PRINT_DEC
-		 ") -> evaluation: %i, threshold: %i\n",
+		 ") -> evaluation: " HOST_WIDEST_INT_PRINT_DEC
+		 ", threshold: %i\n",
 		 time_benefit, size_cost, (HOST_WIDE_INT) count_sum,
 		 evaluation, 500);
 
@@ -1245,11 +1232,13 @@ good_cloning_opportunity_p (struct cgraph_node *node, int time_benefit,
     }
   else
     {
-      int evaluation = (time_benefit * freq_sum) / size_cost;
+      HOST_WIDEST_INT evaluation = (((HOST_WIDEST_INT) time_benefit * freq_sum)
+				    / size_cost);
 
       if (dump_file && (dump_flags & TDF_DETAILS))
 	fprintf (dump_file, "     good_cloning_opportunity_p (time: %i, "
-		 "size: %i, freq_sum: %i) -> evaluation: %i, threshold: %i\n",
+		 "size: %i, freq_sum: %i) -> evaluation: "
+		 HOST_WIDEST_INT_PRINT_DEC ", threshold: %i\n",
 		 time_benefit, size_cost, freq_sum, evaluation,
 		 CGRAPH_FREQ_BASE /2);
 
@@ -1344,7 +1333,8 @@ estimate_local_effects (struct cgraph_node *node)
 
       init_caller_stats (&stats);
       cgraph_for_node_and_aliases (node, gather_caller_stats, &stats, false);
-      estimate_ipcp_clone_size_and_time (node, known_csts, &size, &time);
+      estimate_ipcp_clone_size_and_time (node, known_csts, known_binfos,
+					 &size, &time);
       time -= devirtualization_time_bonus (node, known_csts, known_binfos);
       time -= removable_params_cost;
       size -= stats.n_calls * removable_params_cost;
@@ -1415,10 +1405,19 @@ estimate_local_effects (struct cgraph_node *node)
 	  else
 	    continue;
 
-	  estimate_ipcp_clone_size_and_time (node, known_csts, &size, &time);
+	  estimate_ipcp_clone_size_and_time (node, known_csts, known_binfos,
+					     &size, &time);
 	  time_benefit = base_time - time
 	    + devirtualization_time_bonus (node, known_csts, known_binfos)
 	    + removable_params_cost + emc;
+
+	  gcc_checking_assert (size >=0);
+	  /* The inliner-heuristics based estimates may think that in certain
+	     contexts some functions do not have any size at all but we want
+	     all specializations to have at least a tiny cost, not least not to
+	     divide by zero.  */
+	  if (size == 0)
+	    size = 1;
 
 	  if (dump_file && (dump_flags & TDF_DETAILS))
 	    {
@@ -1574,6 +1573,20 @@ propagate_constants_topo (struct topo_info *topo)
     }
 }
 
+
+/* Return the sum of A and B if none of them is bigger than INT_MAX/2, return
+   the bigger one if otherwise.  */
+
+static int
+safe_add (int a, int b)
+{
+  if (a > INT_MAX/2 || b > INT_MAX/2)
+    return a > b ? a : b;
+  else
+    return a + b;
+}
+
+
 /* Propagate the estimated effects of individual values along the topological
    from the dependant values to those they depend on.  */
 
@@ -1590,8 +1603,9 @@ propagate_effects (void)
 
       for (val = base; val; val = val->scc_next)
 	{
-	  time += val->local_time_benefit + val->prop_time_benefit;
-	  size += val->local_size_cost + val->prop_size_cost;
+	  time = safe_add (time,
+			   val->local_time_benefit + val->prop_time_benefit);
+	  size = safe_add (size, val->local_size_cost + val->prop_size_cost);
 	}
 
       for (val = base; val; val = val->scc_next)
@@ -1599,8 +1613,10 @@ propagate_effects (void)
 	  if (src->val
 	      && cgraph_maybe_hot_edge_p (src->cs))
 	    {
-	      src->val->prop_time_benefit += time;
-	      src->val->prop_size_cost += size;
+	      src->val->prop_time_benefit = safe_add (time,
+						src->val->prop_time_benefit);
+	      src->val->prop_size_cost = safe_add (size,
+						   src->val->prop_size_cost);
 	    }
     }
 }
@@ -1673,7 +1689,7 @@ ipcp_discover_new_direct_edges (struct cgraph_node *node,
       tree target;
 
       next_ie = ie->next_callee;
-      target = get_indirect_edge_target (ie, known_vals, NULL);
+      target = ipa_get_indirect_edge_target (ie, known_vals, NULL);
       if (target)
 	ipa_make_edge_direct_to_target (ie, target);
     }

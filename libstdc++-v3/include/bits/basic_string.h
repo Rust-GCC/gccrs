@@ -40,7 +40,9 @@
 
 #include <ext/atomicity.h>
 #include <debug/debug.h>
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
 #include <initializer_list>
+#endif
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
@@ -201,7 +203,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	void
 	_M_set_length_and_sharable(size_type __n)
 	{
-#ifndef _GLIBCXX_FULLY_DYNAMIC_STRING
+#if _GLIBCXX_FULLY_DYNAMIC_STRING == 0
 	  if (__builtin_expect(this != &_S_empty_rep(), false))
 #endif
 	    {
@@ -231,7 +233,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	void
 	_M_dispose(const _Alloc& __a)
 	{
-#ifndef _GLIBCXX_FULLY_DYNAMIC_STRING
+#if _GLIBCXX_FULLY_DYNAMIC_STRING == 0
 	  if (__builtin_expect(this != &_S_empty_rep(), false))
 #endif
 	    {
@@ -252,7 +254,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	_CharT*
 	_M_refcopy() throw()
 	{
-#ifndef _GLIBCXX_FULLY_DYNAMIC_STRING
+#if _GLIBCXX_FULLY_DYNAMIC_STRING == 0
 	  if (__builtin_expect(this != &_S_empty_rep(), false))
 #endif
             __gnu_cxx::__atomic_add_dispatch(&this->_M_refcount, 1);
@@ -430,7 +432,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
        *  @brief  Default constructor creates an empty string.
        */
       basic_string()
-#ifndef _GLIBCXX_FULLY_DYNAMIC_STRING
+#if _GLIBCXX_FULLY_DYNAMIC_STRING == 0
       : _M_dataplus(_S_empty_rep()._M_refdata(), _Alloc()) { }
 #else
       : _M_dataplus(_S_construct(size_type(), _CharT(), _Alloc()), _Alloc()){ }
@@ -502,7 +504,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       basic_string(basic_string&& __str) noexcept
       : _M_dataplus(__str._M_dataplus)
       {
-#ifndef _GLIBCXX_FULLY_DYNAMIC_STRING	
+#if _GLIBCXX_FULLY_DYNAMIC_STRING == 0
 	__str._M_data(_S_empty_rep()._M_refdata());
 #else
 	__str._M_data(_S_construct(size_type(), _CharT(), get_allocator()));
@@ -863,6 +865,26 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	return _M_data()[__n];
       }
 
+      /**
+       *  @brief  Provides access to the data contained in the %string.
+       *  @param __n The index of the character to access.
+       *  @return  Read/write reference to the character.
+       *  @throw  std::out_of_range  If @a n is an invalid index.
+       *
+       *  This function provides for safer data access.  The parameter is
+       *  first checked that it is in the range of the string.  The function
+       *  throws out_of_range if the check fails.  Success results in
+       *  unsharing the string.
+       */
+      reference
+      at(size_type __n)
+      {
+	if (__n >= size())
+	  __throw_out_of_range(__N("basic_string::at"));
+	_M_leak();
+	return _M_data()[__n];
+      }
+
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
       /**
        *  Returns a read/write reference to the data at the first
@@ -896,26 +918,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       back() const
       { return operator[](this->size() - 1); }
 #endif
-
-      /**
-       *  @brief  Provides access to the data contained in the %string.
-       *  @param __n The index of the character to access.
-       *  @return  Read/write reference to the character.
-       *  @throw  std::out_of_range  If @a n is an invalid index.
-       *
-       *  This function provides for safer data access.  The parameter is
-       *  first checked that it is in the range of the string.  The function
-       *  throws out_of_range if the check fails.  Success results in
-       *  unsharing the string.
-       */
-      reference
-      at(size_type __n)
-      {
-	if (__n >= size())
-	  __throw_out_of_range(__N("basic_string::at"));
-	_M_leak();
-	return _M_data()[__n];
-      }
 
       // Modifiers:
       /**
@@ -1392,6 +1394,17 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       iterator
       erase(iterator __first, iterator __last);
  
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      /**
+       *  @brief  Remove the last character.
+       *
+       *  The string must be non-empty.
+       */
+      void
+      pop_back()
+      { erase(size()-1, 1); }
+#endif // __GXX_EXPERIMENTAL_CXX0X__
+
       /**
        *  @brief  Replace characters with value from another string.
        *  @param __pos  Index of first character to replace.
@@ -3031,7 +3044,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     : public __hash_base<size_t, string>
     {
       size_t
-      operator()(const string& __s) const
+      operator()(const string& __s) const noexcept
       { return std::_Hash_impl::hash(__s.data(), __s.length()); }
     };
 
@@ -3042,7 +3055,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     : public __hash_base<size_t, wstring>
     {
       size_t
-      operator()(const wstring& __s) const
+      operator()(const wstring& __s) const noexcept
       { return std::_Hash_impl::hash(__s.data(),
                                      __s.length() * sizeof(wchar_t)); }
     };
@@ -3056,7 +3069,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     : public __hash_base<size_t, u16string>
     {
       size_t
-      operator()(const u16string& __s) const
+      operator()(const u16string& __s) const noexcept
       { return std::_Hash_impl::hash(__s.data(),
                                      __s.length() * sizeof(char16_t)); }
     };
@@ -3067,7 +3080,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     : public __hash_base<size_t, u32string>
     {
       size_t
-      operator()(const u32string& __s) const
+      operator()(const u32string& __s) const noexcept
       { return std::_Hash_impl::hash(__s.data(),
                                      __s.length() * sizeof(char32_t)); }
     };

@@ -2872,12 +2872,15 @@ make_err_class:
   return eh_id;
 }
 
+/* For NeXT ABI 0 and 1, the personality routines are just those of the 
+   underlying language.  */
+
 static tree
 objc_eh_personality (void)
 {
   if (!objc_eh_personality_decl)
 #ifndef OBJCPLUS
-    objc_eh_personality_decl = build_personality_function ("objc");
+    objc_eh_personality_decl = build_personality_function ("gcc");
 #else
     objc_eh_personality_decl = build_personality_function ("gxx");
 #endif
@@ -2919,7 +2922,7 @@ objc_build_exc_ptr (struct objc_try_context **cur_try_context)
   else
     {
       tree t;
-      t = built_in_decls[BUILT_IN_EH_POINTER];
+      t = builtin_decl_explicit (BUILT_IN_EH_POINTER);
       t = build_call_expr (t, 1, integer_zero_node);
       return fold_convert (objc_object_type, t);
     }

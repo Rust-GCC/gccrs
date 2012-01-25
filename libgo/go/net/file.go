@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build darwin freebsd linux netbsd openbsd
+
 package net
 
 import (
@@ -9,17 +11,18 @@ import (
 	"syscall"
 )
 
-func newFileFD(f *os.File) (nfd *netFD, err os.Error) {
+func newFileFD(f *os.File) (nfd *netFD, err error) {
 	fd, errno := syscall.Dup(f.Fd())
-	if errno != 0 {
+	if errno != nil {
 		return nil, os.NewSyscallError("dup", errno)
 	}
 
 	proto, errno := syscall.GetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_TYPE)
-	if errno != 0 {
+	if errno != nil {
 		return nil, os.NewSyscallError("getsockopt", errno)
 	}
 
+	family := syscall.AF_UNSPEC
 	toAddr := sockaddrToTCP
 	sa, _ := syscall.Getsockname(fd)
 	switch sa.(type) {
@@ -27,18 +30,21 @@ func newFileFD(f *os.File) (nfd *netFD, err os.Error) {
 		closesocket(fd)
 		return nil, os.EINVAL
 	case *syscall.SockaddrInet4:
+		family = syscall.AF_INET
 		if proto == syscall.SOCK_DGRAM {
 			toAddr = sockaddrToUDP
 		} else if proto == syscall.SOCK_RAW {
 			toAddr = sockaddrToIP
 		}
 	case *syscall.SockaddrInet6:
+		family = syscall.AF_INET6
 		if proto == syscall.SOCK_DGRAM {
 			toAddr = sockaddrToUDP
 		} else if proto == syscall.SOCK_RAW {
 			toAddr = sockaddrToIP
 		}
 	case *syscall.SockaddrUnix:
+		family = syscall.AF_UNIX
 		toAddr = sockaddrToUnix
 		if proto == syscall.SOCK_DGRAM {
 			toAddr = sockaddrToUnixgram
@@ -50,7 +56,7 @@ func newFileFD(f *os.File) (nfd *netFD, err os.Error) {
 	sa, _ = syscall.Getpeername(fd)
 	raddr := toAddr(sa)
 
-	if nfd, err = newFD(fd, 0, proto, laddr.Network()); err != nil {
+	if nfd, err = newFD(fd, family, proto, laddr.Network()); err != nil {
 		return nil, err
 	}
 	nfd.setAddr(laddr, raddr)
@@ -61,7 +67,7 @@ func newFileFD(f *os.File) (nfd *netFD, err os.Error) {
 // the open file f.  It is the caller's responsibility to close f when
 // finished.  Closing c does not affect f, and closing f does not
 // affect c.
-func FileConn(f *os.File) (c Conn, err os.Error) {
+func FileConn(f *os.File) (c Conn, err error) {
 	fd, err := newFileFD(f)
 	if err != nil {
 		return nil, err
@@ -84,7 +90,7 @@ func FileConn(f *os.File) (c Conn, err os.Error) {
 // to the open file f.  It is the caller's responsibility to close l
 // when finished.  Closing c does not affect l, and closing l does not
 // affect c.
-func FileListener(f *os.File) (l Listener, err os.Error) {
+func FileListener(f *os.File) (l Listener, err error) {
 	fd, err := newFileFD(f)
 	if err != nil {
 		return nil, err
@@ -103,7 +109,7 @@ func FileListener(f *os.File) (l Listener, err os.Error) {
 // corresponding to the open file f.  It is the caller's
 // responsibility to close f when finished.  Closing c does not affect
 // f, and closing f does not affect c.
-func FilePacketConn(f *os.File) (c PacketConn, err os.Error) {
+func FilePacketConn(f *os.File) (c PacketConn, err error) {
 	fd, err := newFileFD(f)
 	if err != nil {
 		return nil, err

@@ -50,7 +50,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "c-family/c-pragma.h"
 #include "c-lang.h"
 #include "langhooks.h"
-#include "tree-mudflap.h"
 #include "tree-iterator.h"
 #include "diagnostic-core.h"
 #include "tree-dump.h"
@@ -719,7 +718,7 @@ c_finish_incomplete_decl (tree decl)
 
 	  complete_array_type (&TREE_TYPE (decl), NULL_TREE, true);
 
-	  layout_decl (decl, 0);
+	  relayout_decl (decl);
 	}
     }
 }
@@ -1196,7 +1195,7 @@ pop_scope (void)
 	      DECL_CHAIN (p) = BLOCK_VARS (block);
 	      BLOCK_VARS (block) = p;
 	    }
-	  else if (VAR_OR_FUNCTION_DECL_P (p))
+	  else if (VAR_OR_FUNCTION_DECL_P (p) && scope != file_scope)
 	    {
 	      /* For block local externs add a special
 		 DECL_EXTERNAL decl for debug info generation.  */
@@ -1786,7 +1785,7 @@ diagnose_mismatched_decls (tree newdecl, tree olddecl,
   /* Redeclaration of a type is a constraint violation (6.7.2.3p1),
      but silently ignore the redeclaration if either is in a system
      header.  (Conflicting redeclarations were handled above.)  This
-     is allowed for C1X if the types are the same, not just
+     is allowed for C11 if the types are the same, not just
      compatible.  */
   if (TREE_CODE (newdecl) == TYPE_DECL)
     {
@@ -1815,7 +1814,7 @@ diagnose_mismatched_decls (tree newdecl, tree olddecl,
 		 newdecl);
 	  locate_old_decl (olddecl);
 	}
-      else if (pedantic && !flag_isoc1x)
+      else if (pedantic && !flag_isoc11)
 	{
 	  pedwarn (input_location, OPT_pedantic,
 		   "redefinition of typedef %q+D", newdecl);
@@ -2372,17 +2371,21 @@ merge_decls (tree newdecl, tree olddecl, tree newtype, tree oldtype)
 	    {
 	      C_DECL_BUILTIN_PROTOTYPE (newdecl) = 0;
 	      if (DECL_BUILT_IN_CLASS (newdecl) == BUILT_IN_NORMAL)
-		switch (DECL_FUNCTION_CODE (newdecl))
-		  {
-		  /* If a compatible prototype of these builtin functions
-		     is seen, assume the runtime implements it with the
-		     expected semantics.  */
-		  case BUILT_IN_STPCPY:
-		    implicit_built_in_decls[DECL_FUNCTION_CODE (newdecl)]
-		      = built_in_decls[DECL_FUNCTION_CODE (newdecl)];
-		  default:
-		    break;
-		  }
+		{
+		  enum built_in_function fncode = DECL_FUNCTION_CODE (newdecl);
+		  switch (fncode)
+		    {
+		      /* If a compatible prototype of these builtin functions
+			 is seen, assume the runtime implements it with the
+			 expected semantics.  */
+		    case BUILT_IN_STPCPY:
+		      if (builtin_decl_explicit_p (fncode))
+			set_builtin_decl_implicit_p (fncode, true);
+		      break;
+		    default:
+		      break;
+		    }
+		}
 	    }
 	  else
 	    C_DECL_BUILTIN_PROTOTYPE (newdecl)
@@ -2530,7 +2533,10 @@ warn_if_shadowing (tree new_decl)
 
   /* Is anything being shadowed?  Invisible decls do not count.  */
   for (b = I_SYMBOL_BINDING (DECL_NAME (new_decl)); b; b = b->shadowed)
-    if (b->decl && b->decl != new_decl && !b->invisible)
+    if (b->decl && b->decl != new_decl && !b->invisible
+	&& (b->decl == error_mark_node
+	    || diagnostic_report_warnings_p (global_dc,
+					     DECL_SOURCE_LOCATION (b->decl))))
       {
 	tree old_decl = b->decl;
 
@@ -3703,6 +3709,17 @@ shadow_tag_warned (const struct c_declspecs *declspecs, int warned)
 	      warned = 1;
 	      pending_xref_error ();
 	    }
+	  else if (declspecs->typespec_kind != ctsk_tagdef
+                   && declspecs->typespec_kind != ctsk_tagfirstref
+		   && declspecs->alignas_p)
+	    {
+	      if (warned != 1)
+		pedwarn (input_location, 0,
+			 "empty declaration with %<_Alignas%> "
+			  "does not redeclare tag");
+	      warned = 1;
+	      pending_xref_error ();
+	    }
 	  else
 	    {
 	      pending_invalid_xref = 0;
@@ -3775,6 +3792,12 @@ shadow_tag_warned (const struct c_declspecs *declspecs, int warned)
 				       || declspecs->address_space))
     {
       warning (0, "useless type qualifier in empty declaration");
+      warned = 2;
+    }
+
+  if (!warned && !in_system_header && declspecs->alignas_p)
+    {
+      warning (0, "useless %<_Alignas%> in empty declaration");
       warned = 2;
     }
 
@@ -4287,7 +4310,7 @@ finish_decl (tree decl, location_t init_loc, tree init,
       if (DECL_INITIAL (decl))
 	TREE_TYPE (DECL_INITIAL (decl)) = type;
 
-      layout_decl (decl, 0);
+      relayout_decl (decl);
     }
 
   if (TREE_CODE (decl) == VAR_DECL)
@@ -4338,7 +4361,7 @@ finish_decl (tree decl, location_t init_loc, tree init,
     }
 
   /* If this is a function and an assembler name is specified, reset DECL_RTL
-     so we can give it its new name.  Also, update built_in_decls if it
+     so we can give it its new name.  Also, update builtin_decl if it
      was a normal built-in.  */
   if (TREE_CODE (decl) == FUNCTION_DECL && asmspec)
     {
@@ -4890,6 +4913,7 @@ grokdeclarator (const struct c_declarator *declarator,
   tree expr_dummy;
   bool expr_const_operands_dummy;
   enum c_declarator_kind first_non_attr_kind;
+  unsigned int alignas_align = 0;
 
   if (TREE_CODE (type) == ERROR_MARK)
     return error_mark_node;
@@ -5733,6 +5757,46 @@ grokdeclarator (const struct c_declarator *declarator,
   if (bitfield)
     check_bitfield_type_and_width (&type, width, name);
 
+  /* Reject invalid uses of _Alignas.  */
+  if (declspecs->alignas_p)
+    {
+      if (storage_class == csc_typedef)
+	error_at (loc, "alignment specified for typedef %qE", name);
+      else if (storage_class == csc_register)
+	error_at (loc, "alignment specified for %<register%> object %qE",
+		  name);
+      else if (decl_context == PARM)
+	{
+	  if (name)
+	    error_at (loc, "alignment specified for parameter %qE", name);
+	  else
+	    error_at (loc, "alignment specified for unnamed parameter");
+	}
+      else if (bitfield)
+	{
+	  if (name)
+	    error_at (loc, "alignment specified for bit-field %qE", name);
+	  else
+	    error_at (loc, "alignment specified for unnamed bit-field");
+	}
+      else if (TREE_CODE (type) == FUNCTION_TYPE)
+	error_at (loc, "alignment specified for function %qE", name);
+      else if (declspecs->align_log != -1)
+	{
+	  alignas_align = 1U << declspecs->align_log;
+	  if (alignas_align < TYPE_ALIGN_UNIT (type))
+	    {
+	      if (name)
+		error_at (loc, "%<_Alignas%> specifiers cannot reduce "
+			  "alignment of %qE", name);
+	      else
+		error_at (loc, "%<_Alignas%> specifiers cannot reduce "
+			  "alignment of unnamed field");
+	      alignas_align = 0;
+	    }
+	}
+    }
+
   /* Did array size calculations overflow?  */
 
   if (TREE_CODE (type) == ARRAY_TYPE
@@ -6012,7 +6076,7 @@ grokdeclarator (const struct c_declarator *declarator,
 	      DECL_DECLARED_INLINE_P (decl) = 1;
 	    if (declspecs->noreturn_p)
 	      {
-		if (!flag_isoc1x)
+		if (!flag_isoc11)
 		  {
 		    if (flag_isoc99)
 		      pedwarn (loc, OPT_pedantic,
@@ -6112,6 +6176,13 @@ grokdeclarator (const struct c_declarator *declarator,
 
     /* Record constancy and volatility.  */
     c_apply_type_quals_to_decl (type_quals, decl);
+
+    /* Apply _Alignas specifiers.  */
+    if (alignas_align)
+      {
+	DECL_ALIGN (decl) = alignas_align * BITS_PER_UNIT;
+	DECL_USER_ALIGN (decl) = 1;
+      }
 
     /* If a type has volatile components, it should be stored in memory.
        Otherwise, the fact that those components are volatile
@@ -6689,7 +6760,7 @@ grokfield (location_t loc,
 
 	 If this is something of the form "foo;" and foo is a TYPE_DECL, then
 	   If foo names a structure or union without a tag, then this
-	     is an anonymous struct (this is permitted by C1X).
+	     is an anonymous struct (this is permitted by C11).
 	   If MS or Plan 9 extensions are enabled and foo names a
 	     structure, then again this is an anonymous struct.
 	   Otherwise this is an error.
@@ -6720,7 +6791,7 @@ grokfield (location_t loc,
 	  pedwarn (loc, 0, "declaration does not declare anything");
 	  return NULL_TREE;
 	}
-      if (!flag_isoc1x)
+      if (!flag_isoc11)
 	{
 	  if (flag_isoc99)
 	    pedwarn (loc, OPT_pedantic,
@@ -7000,7 +7071,7 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
 	{
 	  if (DECL_NAME (x) != 0)
 	    break;
-	  if (flag_isoc1x
+	  if (flag_isoc11
 	      && (TREE_CODE (TREE_TYPE (x)) == RECORD_TYPE
 		  || TREE_CODE (TREE_TYPE (x)) == UNION_TYPE))
 	    break;
@@ -8705,6 +8776,7 @@ build_null_declspecs (void)
   ret->expr = 0;
   ret->decl_attr = 0;
   ret->attrs = 0;
+  ret->align_log = -1;
   ret->typespec_word = cts_none;
   ret->storage_class = csc_none;
   ret->expr_const_operands = true;
@@ -8728,6 +8800,7 @@ build_null_declspecs (void)
   ret->volatile_p = false;
   ret->restrict_p = false;
   ret->saturating_p = false;
+  ret->alignas_p = false;
   ret->address_space = ADDR_SPACE_GENERIC;
   return ret;
 }
@@ -9518,6 +9591,22 @@ declspecs_add_attrs (struct c_declspecs *specs, tree attrs)
   return specs;
 }
 
+/* Add an _Alignas specifier (expression ALIGN, or type whose
+   alignment is ALIGN) to the declaration specifiers SPECS, returning
+   SPECS.  */
+struct c_declspecs *
+declspecs_add_alignas (struct c_declspecs *specs, tree align)
+{
+  int align_log;
+  specs->alignas_p = true;
+  if (align == error_mark_node)
+    return specs;
+  align_log = check_user_alignment (align, true);
+  if (align_log > specs->align_log)
+    specs->align_log = align_log;
+  return specs;
+}
+
 /* Combine "long", "short", "signed", "unsigned" and "_Complex" type
    specifiers with any other type specifier to determine the resulting
    type.  This is where ISO C checks on complex types are made, since
@@ -9842,6 +9931,9 @@ collect_source_ref_cb (tree decl)
     collect_source_ref (LOCATION_FILE (decl_sloc (decl, false)));
 }
 
+/* Preserve the external declarations scope across a garbage collect.  */
+static GTY(()) tree ext_block;
+
 /* Collect all references relevant to SOURCE_FILE.  */
 
 static void
@@ -9852,6 +9944,8 @@ collect_all_refs (const char *source_file)
 
   FOR_EACH_VEC_ELT (tree, all_translation_units, i, t)
     collect_ada_nodes (BLOCK_VARS (DECL_INITIAL (t)), source_file);
+
+  collect_ada_nodes (BLOCK_VARS (ext_block), source_file);
 }
 
 /* Iterate over all global declarations and call CALLBACK.  */
@@ -9870,10 +9964,10 @@ for_each_global_decl (void (*callback) (tree decl))
       for (decl = BLOCK_VARS (decls); decl; decl = TREE_CHAIN (decl))
 	callback (decl);
     }
-}
 
-/* Preserve the external declarations scope across a garbage collect.  */
-static GTY(()) tree ext_block;
+  for (decl = BLOCK_VARS (ext_block); decl; decl = TREE_CHAIN (decl))
+    callback (decl);
+}
 
 void
 c_write_global_declarations (void)

@@ -7,7 +7,6 @@ package openpgp
 import (
 	"bytes"
 	"crypto/rand"
-	"os"
 	"io"
 	"io/ioutil"
 	"testing"
@@ -55,7 +54,7 @@ func TestNewEntity(t *testing.T) {
 		return
 	}
 
-	e, err := NewEntity(rand.Reader, time.Seconds(), "Test User", "test", "test@example.com")
+	e, err := NewEntity(rand.Reader, time.Now(), "Test User", "test", "test@example.com")
 	if err != nil {
 		t.Errorf("failed to create entity: %s", err)
 		return
@@ -106,7 +105,7 @@ func TestSymmetricEncryption(t *testing.T) {
 		t.Errorf("error closing plaintext writer: %s", err)
 	}
 
-	md, err := ReadMessage(buf, nil, func(keys []Key, symmetric bool) ([]byte, os.Error) {
+	md, err := ReadMessage(buf, nil, func(keys []Key, symmetric bool) ([]byte, error) {
 		return []byte("testing"), nil
 	})
 	if err != nil {
@@ -223,7 +222,7 @@ func TestEncryption(t *testing.T) {
 
 		if test.isSigned {
 			if md.SignatureError != nil {
-				t.Errorf("#%d: signature error: %s", i, err)
+				t.Errorf("#%d: signature error: %s", i, md.SignatureError)
 			}
 			if md.Signature == nil {
 				t.Error("signature missing")

@@ -7,7 +7,6 @@ package math_test
 import (
 	"fmt"
 	. "math"
-	"runtime"
 	"testing"
 )
 
@@ -23,6 +22,7 @@ var vf = []float64{
 	1.8253080916808550e+00,
 	-8.6859247685756013e+00,
 }
+
 // The expected results below were computed by the high precision calculators
 // at http://keisan.casio.com/.  More exact input values (array vf[], above)
 // were obtained by printing them with "%.26f".  The answers were calculated
@@ -159,6 +159,20 @@ var cos = []float64{
 	-9.1565869021018925545016502e-01,
 	-2.517729313893103197176091e-01,
 	-7.39241351595676573201918e-01,
+}
+
+// Results for 100000 * Pi + vf[i]
+var cosLarge = []float64{
+	2.634752141185559426744e-01,
+	1.14855126055543100712e-01,
+	9.61912973266488928113e-01,
+	2.9381411499556122552e-01,
+	-9.777138189880161924641e-01,
+	-9.76930413445147608049e-01,
+	4.940088097314976789841e-01,
+	-9.15658690217517835002e-01,
+	-2.51772931436786954751e-01,
+	-7.3924135157173099849e-01,
 }
 var cosh = []float64{
 	7.2668796942212842775517446e+01,
@@ -502,6 +516,20 @@ var sin = []float64{
 	9.6778633541687993721617774e-01,
 	-6.734405869050344734943028e-01,
 }
+
+// Results for 100000 * Pi + vf[i]
+var sinLarge = []float64{
+	-9.646661658548936063912e-01,
+	9.933822527198506903752e-01,
+	-2.7335587036246899796e-01,
+	9.55862576853689321268e-01,
+	-2.099421066862688873691e-01,
+	2.13557878070308981163e-01,
+	-8.694568970959221300497e-01,
+	4.01956668098863248917e-01,
+	9.67786335404528727927e-01,
+	-6.7344058693131973066e-01,
+}
 var sinh = []float64{
 	7.2661916084208532301448439e+01,
 	1.1479409110035194500526446e+03,
@@ -537,6 +565,20 @@ var tan = []float64{
 	-4.389808914752818126249079e-01,
 	-3.843885560201130679995041e+00,
 	9.10988793377685105753416e-01,
+}
+
+// Results for 100000 * Pi + vf[i]
+var tanLarge = []float64{
+	-3.66131656475596512705e+00,
+	8.6490023287202547927e+00,
+	-2.841794195104782406e-01,
+	3.2532901861033120983e+00,
+	2.14727564046880001365e-01,
+	-2.18600910700688062874e-01,
+	-1.760002817699722747043e+00,
+	-4.38980891453536115952e-01,
+	-3.84388555942723509071e+00,
+	9.1098879344275101051e-01,
 }
 var tanh = []float64{
 	9.9990531206936338549262119e-01,
@@ -920,6 +962,75 @@ var fabsSC = []float64{
 	NaN(),
 }
 
+var vffdimSC = [][2]float64{
+	{Inf(-1), Inf(-1)},
+	{Inf(-1), Inf(1)},
+	{Inf(-1), NaN()},
+	{Copysign(0, -1), Copysign(0, -1)},
+	{Copysign(0, -1), 0},
+	{0, Copysign(0, -1)},
+	{0, 0},
+	{Inf(1), Inf(-1)},
+	{Inf(1), Inf(1)},
+	{Inf(1), NaN()},
+	{NaN(), Inf(-1)},
+	{NaN(), Copysign(0, -1)},
+	{NaN(), 0},
+	{NaN(), Inf(1)},
+	{NaN(), NaN()},
+}
+var fdimSC = []float64{
+	NaN(),
+	0,
+	NaN(),
+	0,
+	0,
+	0,
+	0,
+	Inf(1),
+	NaN(),
+	NaN(),
+	NaN(),
+	NaN(),
+	NaN(),
+	NaN(),
+	NaN(),
+}
+var fmaxSC = []float64{
+	Inf(-1),
+	Inf(1),
+	NaN(),
+	Copysign(0, -1),
+	0,
+	0,
+	0,
+	Inf(1),
+	Inf(1),
+	Inf(1),
+	NaN(),
+	NaN(),
+	NaN(),
+	Inf(1),
+	NaN(),
+}
+var fminSC = []float64{
+	Inf(-1),
+	Inf(-1),
+	Inf(-1),
+	Copysign(0, -1),
+	Copysign(0, -1),
+	Copysign(0, -1),
+	0,
+	Inf(-1),
+	Inf(1),
+	NaN(),
+	Inf(-1),
+	NaN(),
+	NaN(),
+	NaN(),
+	NaN(),
+}
+
 var vffmodSC = [][2]float64{
 	{Inf(-1), Inf(-1)},
 	{Inf(-1), -Pi},
@@ -1221,12 +1332,26 @@ var modfSC = [][2]float64{
 }
 
 var vfnextafterSC = [][2]float64{
+	{0, 0},
+	{0, Copysign(0, -1)},
+	{0, -1},
 	{0, NaN()},
+	{Copysign(0, -1), 1},
+	{Copysign(0, -1), 0},
+	{Copysign(0, -1), Copysign(0, -1)},
+	{Copysign(0, -1), -1},
 	{NaN(), 0},
 	{NaN(), NaN()},
 }
 var nextafterSC = []float64{
+	0,
+	0,
+	-4.9406564584124654418e-324, // Float64frombits(0x8000000000000001)
 	NaN(),
+	4.9406564584124654418e-324, // Float64frombits(0x0000000000000001)
+	Copysign(0, -1),
+	Copysign(0, -1),
+	-4.9406564584124654418e-324, // Float64frombits(0x8000000000000001)
 	NaN(),
 	NaN(),
 }
@@ -1357,6 +1482,20 @@ var powSC = []float64{
 	NaN(),           // pow(NaN, 1)
 	NaN(),           // pow(NaN, +Pi)
 	NaN(),           // pow(NaN, NaN)
+}
+
+var vfpow10SC = []int{
+	MinInt32,
+	MaxInt32,
+	-325,
+	309,
+}
+
+var pow10SC = []float64{
+	0,      // pow10(MinInt32)
+	Inf(1), // pow10(MaxInt32)
+	0,      // pow10(-325)
+	Inf(1), // pow10(309)
 }
 
 var vfsignbitSC = []float64{
@@ -1570,7 +1709,7 @@ func TestAcos(t *testing.T) {
 
 func TestAcosh(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
-		a := 1 + Fabs(vf[i])
+		a := 1 + Abs(vf[i])
 		if f := Acosh(a); !veryclose(acosh[i], f) {
 			t.Errorf("Acosh(%g) = %g, want %g", a, f, acosh[i])
 		}
@@ -1695,7 +1834,7 @@ func TestCopysign(t *testing.T) {
 
 func TestCos(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
-		if f := Cos(vf[i]); !close(cos[i], f) {
+		if f := Cos(vf[i]); !veryclose(cos[i], f) {
 			t.Errorf("Cos(%g) = %g, want %g", vf[i], f, cos[i])
 		}
 	}
@@ -1804,23 +1943,28 @@ func testExp2(t *testing.T, Exp2 func(float64) float64, name string) {
 	}
 }
 
-func TestFabs(t *testing.T) {
+func TestAbs(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
-		if f := Fabs(vf[i]); fabs[i] != f {
-			t.Errorf("Fabs(%g) = %g, want %g", vf[i], f, fabs[i])
+		if f := Abs(vf[i]); fabs[i] != f {
+			t.Errorf("Abs(%g) = %g, want %g", vf[i], f, fabs[i])
 		}
 	}
 	for i := 0; i < len(vffabsSC); i++ {
-		if f := Fabs(vffabsSC[i]); !alike(fabsSC[i], f) {
-			t.Errorf("Fabs(%g) = %g, want %g", vffabsSC[i], f, fabsSC[i])
+		if f := Abs(vffabsSC[i]); !alike(fabsSC[i], f) {
+			t.Errorf("Abs(%g) = %g, want %g", vffabsSC[i], f, fabsSC[i])
 		}
 	}
 }
 
-func TestFdim(t *testing.T) {
+func TestDim(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
-		if f := Fdim(vf[i], 0); fdim[i] != f {
-			t.Errorf("Fdim(%g, %g) = %g, want %g", vf[i], 0.0, f, fdim[i])
+		if f := Dim(vf[i], 0); fdim[i] != f {
+			t.Errorf("Dim(%g, %g) = %g, want %g", vf[i], 0.0, f, fdim[i])
+		}
+	}
+	for i := 0; i < len(vffdimSC); i++ {
+		if f := Dim(vffdimSC[i][0], vffdimSC[i][1]); !alike(fdimSC[i], f) {
+			t.Errorf("Dim(%g, %g) = %g, want %g", vffdimSC[i][0], vffdimSC[i][1], f, fdimSC[i])
 		}
 	}
 }
@@ -1838,31 +1982,41 @@ func TestFloor(t *testing.T) {
 	}
 }
 
-func TestFmax(t *testing.T) {
+func TestMax(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
-		if f := Fmax(vf[i], ceil[i]); ceil[i] != f {
-			t.Errorf("Fmax(%g, %g) = %g, want %g", vf[i], ceil[i], f, ceil[i])
+		if f := Max(vf[i], ceil[i]); ceil[i] != f {
+			t.Errorf("Max(%g, %g) = %g, want %g", vf[i], ceil[i], f, ceil[i])
+		}
+	}
+	for i := 0; i < len(vffdimSC); i++ {
+		if f := Max(vffdimSC[i][0], vffdimSC[i][1]); !alike(fmaxSC[i], f) {
+			t.Errorf("Max(%g, %g) = %g, want %g", vffdimSC[i][0], vffdimSC[i][1], f, fmaxSC[i])
 		}
 	}
 }
 
-func TestFmin(t *testing.T) {
+func TestMin(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
-		if f := Fmin(vf[i], floor[i]); floor[i] != f {
-			t.Errorf("Fmin(%g, %g) = %g, want %g", vf[i], floor[i], f, floor[i])
+		if f := Min(vf[i], floor[i]); floor[i] != f {
+			t.Errorf("Min(%g, %g) = %g, want %g", vf[i], floor[i], f, floor[i])
+		}
+	}
+	for i := 0; i < len(vffdimSC); i++ {
+		if f := Min(vffdimSC[i][0], vffdimSC[i][1]); !alike(fminSC[i], f) {
+			t.Errorf("Min(%g, %g) = %g, want %g", vffdimSC[i][0], vffdimSC[i][1], f, fminSC[i])
 		}
 	}
 }
 
-func TestFmod(t *testing.T) {
+func TestMod(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
-		if f := Fmod(10, vf[i]); fmod[i] != f {
-			t.Errorf("Fmod(10, %g) = %g, want %g", vf[i], f, fmod[i])
+		if f := Mod(10, vf[i]); fmod[i] != f {
+			t.Errorf("Mod(10, %g) = %g, want %g", vf[i], f, fmod[i])
 		}
 	}
 	for i := 0; i < len(vffmodSC); i++ {
-		if f := Fmod(vffmodSC[i][0], vffmodSC[i][1]); !alike(fmodSC[i], f) {
-			t.Errorf("Fmod(%g, %g) = %g, want %g", vffmodSC[i][0], vffmodSC[i][1], f, fmodSC[i])
+		if f := Mod(vffmodSC[i][0], vffmodSC[i][1]); !alike(fmodSC[i], f) {
+			t.Errorf("Mod(%g, %g) = %g, want %g", vffmodSC[i][0], vffmodSC[i][1], f, fmodSC[i])
 		}
 	}
 }
@@ -1900,7 +2054,7 @@ func TestGamma(t *testing.T) {
 
 func TestHypot(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
-		a := Fabs(1e200 * tanh[i] * Sqrt(2))
+		a := Abs(1e200 * tanh[i] * Sqrt(2))
 		if f := Hypot(1e200*tanh[i], 1e200*tanh[i]); !veryclose(a, f) {
 			t.Errorf("Hypot(%g, %g) = %g, want %g", 1e200*tanh[i], 1e200*tanh[i], f, a)
 		}
@@ -1908,6 +2062,20 @@ func TestHypot(t *testing.T) {
 	for i := 0; i < len(vfhypotSC); i++ {
 		if f := Hypot(vfhypotSC[i][0], vfhypotSC[i][1]); !alike(hypotSC[i], f) {
 			t.Errorf("Hypot(%g, %g) = %g, want %g", vfhypotSC[i][0], vfhypotSC[i][1], f, hypotSC[i])
+		}
+	}
+}
+
+func TestHypotGo(t *testing.T) {
+	for i := 0; i < len(vf); i++ {
+		a := Abs(1e200 * tanh[i] * Sqrt(2))
+		if f := HypotGo(1e200*tanh[i], 1e200*tanh[i]); !veryclose(a, f) {
+			t.Errorf("HypotGo(%g, %g) = %g, want %g", 1e200*tanh[i], 1e200*tanh[i], f, a)
+		}
+	}
+	for i := 0; i < len(vfhypotSC); i++ {
+		if f := HypotGo(vfhypotSC[i][0], vfhypotSC[i][1]); !alike(hypotSC[i], f) {
+			t.Errorf("HypotGo(%g, %g) = %g, want %g", vfhypotSC[i][0], vfhypotSC[i][1], f, hypotSC[i])
 		}
 	}
 }
@@ -2019,7 +2187,7 @@ func TestLgamma(t *testing.T) {
 
 func TestLog(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
-		a := Fabs(vf[i])
+		a := Abs(vf[i])
 		if f := Log(a); log[i] != f {
 			t.Errorf("Log(%g) = %g, want %g", a, f, log[i])
 		}
@@ -2046,15 +2214,15 @@ func TestLogb(t *testing.T) {
 		}
 	}
 	for i := 0; i < len(vffrexpBC); i++ {
-		if e := Logb(vffrexpBC[i]); !alike(logbBC[i], e) {
-			t.Errorf("Ilogb(%g) = %g, want %g", vffrexpBC[i], e, logbBC[i])
+		if f := Logb(vffrexpBC[i]); !alike(logbBC[i], f) {
+			t.Errorf("Logb(%g) = %g, want %g", vffrexpBC[i], f, logbBC[i])
 		}
 	}
 }
 
 func TestLog10(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
-		a := Fabs(vf[i])
+		a := Abs(vf[i])
 		if f := Log10(a); !veryclose(log10[i], f) {
 			t.Errorf("Log10(%g) = %g, want %g", a, f, log10[i])
 		}
@@ -2089,7 +2257,7 @@ func TestLog1p(t *testing.T) {
 
 func TestLog2(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
-		a := Fabs(vf[i])
+		a := Abs(vf[i])
 		if f := Log2(a); !veryclose(log2[i], f) {
 			t.Errorf("Log2(%g) = %g, want %g", a, f, log2[i])
 		}
@@ -2123,7 +2291,7 @@ func TestNextafter(t *testing.T) {
 			t.Errorf("Nextafter(%g, %g) = %g want %g", vf[i], 10.0, f, nextafter[i])
 		}
 	}
-	for i := 0; i < len(vfmodfSC); i++ {
+	for i := 0; i < len(vfnextafterSC); i++ {
 		if f := Nextafter(vfnextafterSC[i][0], vfnextafterSC[i][1]); !alike(nextafterSC[i], f) {
 			t.Errorf("Nextafter(%g, %g) = %g want %g", vfnextafterSC[i][0], vfnextafterSC[i][1], f, nextafterSC[i])
 		}
@@ -2139,6 +2307,14 @@ func TestPow(t *testing.T) {
 	for i := 0; i < len(vfpowSC); i++ {
 		if f := Pow(vfpowSC[i][0], vfpowSC[i][1]); !alike(powSC[i], f) {
 			t.Errorf("Pow(%g, %g) = %g, want %g", vfpowSC[i][0], vfpowSC[i][1], f, powSC[i])
+		}
+	}
+}
+
+func TestPow10(t *testing.T) {
+	for i := 0; i < len(vfpow10SC); i++ {
+		if f := Pow10(vfpow10SC[i]); !alike(pow10SC[i], f) {
+			t.Errorf("Pow10(%d) = %g, want %g", vfpow10SC[i], f, pow10SC[i])
 		}
 	}
 }
@@ -2170,7 +2346,7 @@ func TestSignbit(t *testing.T) {
 }
 func TestSin(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
-		if f := Sin(vf[i]); !close(sin[i], f) {
+		if f := Sin(vf[i]); !veryclose(sin[i], f) {
 			t.Errorf("Sin(%g) = %g, want %g", vf[i], f, sin[i])
 		}
 	}
@@ -2183,7 +2359,7 @@ func TestSin(t *testing.T) {
 
 func TestSincos(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
-		if s, c := Sincos(vf[i]); !close(sin[i], s) || !close(cos[i], c) {
+		if s, c := Sincos(vf[i]); !veryclose(sin[i], s) || !veryclose(cos[i], c) {
 			t.Errorf("Sincos(%g) = %g, %g want %g, %g", vf[i], s, c, sin[i], cos[i])
 		}
 	}
@@ -2204,11 +2380,11 @@ func TestSinh(t *testing.T) {
 
 func TestSqrt(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
-		a := Fabs(vf[i])
+		a := Abs(vf[i])
 		if f := SqrtGo(a); sqrt[i] != f {
 			t.Errorf("SqrtGo(%g) = %g, want %g", a, f, sqrt[i])
 		}
-		a = Fabs(vf[i])
+		a = Abs(vf[i])
 		if f := Sqrt(a); sqrt[i] != f {
 			t.Errorf("Sqrt(%g) = %g, want %g", a, f, sqrt[i])
 		}
@@ -2225,7 +2401,7 @@ func TestSqrt(t *testing.T) {
 
 func TestTan(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
-		if f := Tan(vf[i]); !close(tan[i], f) {
+		if f := Tan(vf[i]); !veryclose(tan[i], f) {
 			t.Errorf("Tan(%g) = %g, want %g", vf[i], f, tan[i])
 		}
 	}
@@ -2233,16 +2409,6 @@ func TestTan(t *testing.T) {
 	for i := 0; i < len(vfsinSC); i++ {
 		if f := Tan(vfsinSC[i]); !alike(sinSC[i], f) {
 			t.Errorf("Tan(%g) = %g, want %g", vfsinSC[i], f, sinSC[i])
-		}
-	}
-
-	// Make sure portable Tan(Pi/2) doesn't panic (it used to).
-	// The portable implementation returns NaN.
-	// Assembly implementations might not,
-	// because Pi/2 is not exactly representable.
-	if runtime.GOARCH != "386" {
-		if f := Tan(Pi / 2); !alike(f, NaN()) {
-			t.Errorf("Tan(%g) = %g, want %g", Pi/2, f, NaN())
 		}
 	}
 }
@@ -2275,7 +2441,7 @@ func TestTrunc(t *testing.T) {
 
 func TestY0(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
-		a := Fabs(vf[i])
+		a := Abs(vf[i])
 		if f := Y0(a); !close(y0[i], f) {
 			t.Errorf("Y0(%g) = %g, want %g", a, f, y0[i])
 		}
@@ -2289,7 +2455,7 @@ func TestY0(t *testing.T) {
 
 func TestY1(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
-		a := Fabs(vf[i])
+		a := Abs(vf[i])
 		if f := Y1(a); !soclose(y1[i], f, 2e-14) {
 			t.Errorf("Y1(%g) = %g, want %g", a, f, y1[i])
 		}
@@ -2303,7 +2469,7 @@ func TestY1(t *testing.T) {
 
 func TestYn(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
-		a := Fabs(vf[i])
+		a := Abs(vf[i])
 		if f := Yn(2, a); !close(y2[i], f) {
 			t.Errorf("Yn(2, %g) = %g, want %g", a, f, y2[i])
 		}
@@ -2322,13 +2488,15 @@ func TestYn(t *testing.T) {
 }
 
 // Check that math functions of high angle values
-// return similar results to low angle values
+// return accurate results. [Since (vf[i] + large) - large != vf[i],
+// testing for Trig(vf[i] + large) == Trig(vf[i]), where large is
+// a multiple of 2*Pi, is misleading.]
 func TestLargeCos(t *testing.T) {
 	large := float64(100000 * Pi)
 	for i := 0; i < len(vf); i++ {
-		f1 := Cos(vf[i])
+		f1 := cosLarge[i]
 		f2 := Cos(vf[i] + large)
-		if !kindaclose(f1, f2) {
+		if !close(f1, f2) {
 			t.Errorf("Cos(%g) = %g, want %g", vf[i]+large, f2, f1)
 		}
 	}
@@ -2337,9 +2505,9 @@ func TestLargeCos(t *testing.T) {
 func TestLargeSin(t *testing.T) {
 	large := float64(100000 * Pi)
 	for i := 0; i < len(vf); i++ {
-		f1 := Sin(vf[i])
+		f1 := sinLarge[i]
 		f2 := Sin(vf[i] + large)
-		if !kindaclose(f1, f2) {
+		if !close(f1, f2) {
 			t.Errorf("Sin(%g) = %g, want %g", vf[i]+large, f2, f1)
 		}
 	}
@@ -2348,9 +2516,9 @@ func TestLargeSin(t *testing.T) {
 func TestLargeSincos(t *testing.T) {
 	large := float64(100000 * Pi)
 	for i := 0; i < len(vf); i++ {
-		f1, g1 := Sincos(vf[i])
+		f1, g1 := sinLarge[i], cosLarge[i]
 		f2, g2 := Sincos(vf[i] + large)
-		if !kindaclose(f1, f2) || !kindaclose(g1, g2) {
+		if !close(f1, f2) || !close(g1, g2) {
 			t.Errorf("Sincos(%g) = %g, %g, want %g, %g", vf[i]+large, f2, g2, f1, g1)
 		}
 	}
@@ -2359,16 +2527,16 @@ func TestLargeSincos(t *testing.T) {
 func TestLargeTan(t *testing.T) {
 	large := float64(100000 * Pi)
 	for i := 0; i < len(vf); i++ {
-		f1 := Tan(vf[i])
+		f1 := tanLarge[i]
 		f2 := Tan(vf[i] + large)
-		if !kindaclose(f1, f2) {
+		if !close(f1, f2) {
 			t.Errorf("Tan(%g) = %g, want %g", vf[i]+large, f2, f1)
 		}
 	}
 }
 
 // Check that math constants are accepted by compiler
-// and have right value (assumes strconv.Atof works).
+// and have right value (assumes strconv.ParseFloat works).
 // http://code.google.com/p/go/issues/detail?id=201
 
 type floatTest struct {
@@ -2509,15 +2677,15 @@ func BenchmarkExp2Go(b *testing.B) {
 	}
 }
 
-func BenchmarkFabs(b *testing.B) {
+func BenchmarkAbs(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		Fabs(.5)
+		Abs(.5)
 	}
 }
 
-func BenchmarkFdim(b *testing.B) {
+func BenchmarkDim(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		Fdim(10, 3)
+		Dim(10, 3)
 	}
 }
 
@@ -2527,21 +2695,21 @@ func BenchmarkFloor(b *testing.B) {
 	}
 }
 
-func BenchmarkFmax(b *testing.B) {
+func BenchmarkMax(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		Fmax(10, 3)
+		Max(10, 3)
 	}
 }
 
-func BenchmarkFmin(b *testing.B) {
+func BenchmarkMin(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		Fmin(10, 3)
+		Min(10, 3)
 	}
 }
 
-func BenchmarkFmod(b *testing.B) {
+func BenchmarkMod(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		Fmod(10, 3)
+		Mod(10, 3)
 	}
 }
 
@@ -2656,6 +2824,18 @@ func BenchmarkPowInt(b *testing.B) {
 func BenchmarkPowFrac(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		Pow(2.5, 1.5)
+	}
+}
+
+func BenchmarkPow10Pos(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		Pow10(300)
+	}
+}
+
+func BenchmarkPow10Neg(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		Pow10(-300)
 	}
 }
 

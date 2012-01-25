@@ -605,6 +605,10 @@ package Sinfo is
    --    Since the back end is expected to ignore generic templates, this is
    --    harmless.
 
+   --  Atomic_Sync_Required (Flag14-Sem)
+   --    This flag is set on a node for which atomic synchronization is
+   --    required for the corresponding reference or modification.
+
    --  At_End_Proc (Node1)
    --    This field is present in an N_Handled_Sequence_Of_Statements node.
    --    It contains an identifier reference for the cleanup procedure to be
@@ -756,6 +760,9 @@ package Sinfo is
    --    renaming declaration when it is a Renaming_As_Body. The field is Empty
    --    if there is no corresponding spec, as in the case of a subprogram body
    --    that serves as its own spec.
+   --
+   --    In Ada 2012, Corresponding_Spec is set on expression functions that
+   --    complete a subprogram declaration.
 
    --  Corresponding_Stub (Node3-Sem)
    --    This field is present in an N_Subunit node. It holds the node in
@@ -1199,6 +1206,13 @@ package Sinfo is
    --    code outside the Wide_Character range) appears in the string. Used to
    --    implement pragma preference rules.
 
+   --  Header_Size_Added (Flag11-Sem)
+   --    Present in N_Attribute_Reference nodes, set only for attribute
+   --    Max_Size_In_Storage_Elements. The flag indicates that the size of the
+   --    hidden list header used by the runtime finalization support has been
+   --    added to the size of the prefix. The flag also prevents the infinite
+   --    expansion of the same attribute in the said context.
+
    --  Hidden_By_Use_Clause (Elist4-Sem)
    --     An entity list present in use clauses that appear within
    --     instantiations. For the resolution of local entities, entities
@@ -1320,6 +1334,12 @@ package Sinfo is
    --    the exponentiation and the multiply/divide node. If this set of
    --    conditions holds, and the flag is set, then the division or
    --    multiplication can be (and is) converted to a shift.
+
+   --  Is_Prefixed_Call (Flag17-Sem)
+   --    This flag is set in a selected component within a generic unit, if
+   --    it resolves to a prefixed call to a primitive operation. The flag
+   --    is used to prevent accidental overloadings in an instance, when a
+   --    primitive operation and a private record component may be homographs.
 
    --  Is_Protected_Subprogram_Body (Flag7-Sem)
    --    A flag set in a Subprogram_Body block to indicate that it is the
@@ -1917,6 +1937,7 @@ package Sinfo is
       --  Associated_Node (Node4-Sem)
       --  Original_Discriminant (Node2-Sem)
       --  Redundant_Use (Flag13-Sem)
+      --  Atomic_Sync_Required (Flag14-Sem)
       --  Has_Private_View (Flag11-Sem) (set in generic units)
       --  plus fields for expression
 
@@ -2161,7 +2182,6 @@ package Sinfo is
       --    type DEFINING_IDENTIFIER [KNOWN_DISCRIMINANT_PART]
       --      is TYPE_DEFINITION
       --        [ASPECT_SPECIFICATIONS];
-
       --  | TASK_TYPE_DECLARATION
       --  | PROTECTED_TYPE_DECLARATION
 
@@ -3168,6 +3188,7 @@ package Sinfo is
       --  Sloc points to ALL
       --  Prefix (Node3)
       --  Actual_Designated_Subtype (Node4-Sem)
+      --  Atomic_Sync_Required (Flag14-Sem)
       --  plus fields for expression
 
       -------------------------------
@@ -3190,6 +3211,7 @@ package Sinfo is
       --  Sloc contains a copy of the Sloc value of the Prefix
       --  Prefix (Node3)
       --  Expressions (List1)
+      --  Atomic_Sync_Required (Flag14-Sem)
       --  plus fields for expression
 
       --  Note: if any of the subscripts requires a range check, then the
@@ -3233,6 +3255,8 @@ package Sinfo is
       --  Associated_Node (Node4-Sem)
       --  Do_Discriminant_Check (Flag13-Sem)
       --  Is_In_Discriminant_Check (Flag11-Sem)
+      --  Is_Prefixed_Call (Flag17-Sem)
+      --  Atomic_Sync_Required (Flag14-Sem)
       --  plus fields for expression
 
       --------------------------
@@ -3316,6 +3340,7 @@ package Sinfo is
       --  Entity (Node4-Sem) used if the attribute yields a type
       --  Associated_Node (Node4-Sem)
       --  Do_Overflow_Check (Flag17-Sem)
+      --  Header_Size_Added (Flag11-Sem)
       --  Redundant_Use (Flag13-Sem)
       --  Must_Be_Byte_Aligned (Flag14)
       --  plus fields for expression
@@ -4599,6 +4624,7 @@ package Sinfo is
       --  Sloc points to FUNCTION
       --  Specification (Node1)
       --  Expression (Node3)
+      --  Corresponding_Spec (Node5-Sem)
 
       -----------------------------------
       -- 6.4  Procedure Call Statement --
@@ -6552,7 +6578,7 @@ package Sinfo is
       --  We modify the RM grammar here, the RM grammar is:
 
       --     ASPECT_SPECIFICATION ::=
-      --       with ASPECT_MARK [=> ASPECT_DEFINITION] {.
+      --       with ASPECT_MARK [=> ASPECT_DEFINITION] {,
       --            ASPECT_MARK [=> ASPECT_DEFINITION] }
 
       --     ASPECT_MARK ::= aspect_IDENTIFIER['Class]
@@ -6982,8 +7008,9 @@ package Sinfo is
       --  Selector_Name (Node2)
       --  Entity (Node4-Sem)
       --  Associated_Node (Node4-Sem)
-      --  Redundant_Use (Flag13-Sem)
       --  Has_Private_View (Flag11-Sem) set in generic units.
+      --  Redundant_Use (Flag13-Sem)
+      --  Atomic_Sync_Required (Flag14-Sem)
       --  plus fields for expression
 
       -----------------------------
@@ -7300,6 +7327,11 @@ package Sinfo is
       --  nodes for the 'Access and related attributes. Logically it would make
       --  more sense to call it an Expression field, but then we would have to
       --  special case the treatment of the N_Reference node.
+
+      --  Note: evaluating a N_Reference node is guaranteed to yield a non-null
+      --  value at run time. Therefore, it is valid to set Is_Known_Non_Null on
+      --  a temporary initialized to a N_Reference node in order to eliminate
+      --  superfluous access checks.
 
       --  Sprint syntax: prefix'reference
 
@@ -8121,6 +8153,9 @@ package Sinfo is
    function Ancestor_Part
      (N : Node_Id) return Node_Id;    -- Node3
 
+   function Atomic_Sync_Required
+     (N : Node_Id) return Boolean;    -- Flag14
+
    function Array_Aggregate
      (N : Node_Id) return Node_Id;    -- Node3
 
@@ -8535,6 +8570,9 @@ package Sinfo is
    function Has_Wide_Wide_Character
      (N : Node_Id) return Boolean;    -- Flag13
 
+   function Header_Size_Added
+     (N : Node_Id) return Boolean;    -- Flag11
+
    function Hidden_By_Use_Clause
      (N : Node_Id) return Elist_Id;   -- Elist4
 
@@ -8621,6 +8659,9 @@ package Sinfo is
 
    function Is_Power_Of_2_For_Shift
      (N : Node_Id) return Boolean;    -- Flag13
+
+   function Is_Prefixed_Call
+     (N : Node_Id) return Boolean;    -- Flag17
 
    function Is_Protected_Subprogram_Body
      (N : Node_Id) return Boolean;    -- Flag7
@@ -9096,6 +9137,9 @@ package Sinfo is
    procedure Set_Ancestor_Part
      (N : Node_Id; Val : Node_Id);            -- Node3
 
+   procedure Set_Atomic_Sync_Required
+     (N : Node_Id; Val : Boolean := True);    -- Flag14
+
    procedure Set_Array_Aggregate
      (N : Node_Id; Val : Node_Id);            -- Node3
 
@@ -9507,6 +9551,9 @@ package Sinfo is
    procedure Set_Has_Wide_Wide_Character
      (N : Node_Id; Val : Boolean := True);    -- Flag13
 
+   procedure Set_Header_Size_Added
+     (N : Node_Id; Val : Boolean := True);    -- Flag11
+
    procedure Set_Hidden_By_Use_Clause
      (N : Node_Id; Val : Elist_Id);           -- Elist4
 
@@ -9593,6 +9640,9 @@ package Sinfo is
 
    procedure Set_Is_Power_Of_2_For_Shift
      (N : Node_Id; Val : Boolean := True);    -- Flag13
+
+   procedure Set_Is_Prefixed_Call
+     (N : Node_Id; Val : Boolean := True);    -- Flag17
 
    procedure Set_Is_Protected_Subprogram_Body
      (N : Node_Id; Val : Boolean := True);    -- Flag7
@@ -11764,6 +11814,7 @@ package Sinfo is
    pragma Inline (All_Present);
    pragma Inline (Alternatives);
    pragma Inline (Ancestor_Part);
+   pragma Inline (Atomic_Sync_Required);
    pragma Inline (Array_Aggregate);
    pragma Inline (Aspect_Rep_Item);
    pragma Inline (Assignment_OK);
@@ -11902,6 +11953,7 @@ package Sinfo is
    pragma Inline (Has_Task_Name_Pragma);
    pragma Inline (Has_Wide_Character);
    pragma Inline (Has_Wide_Wide_Character);
+   pragma Inline (Header_Size_Added);
    pragma Inline (Hidden_By_Use_Clause);
    pragma Inline (High_Bound);
    pragma Inline (Identifier);
@@ -11932,6 +11984,7 @@ package Sinfo is
    pragma Inline (Is_Null_Loop);
    pragma Inline (Is_Overloaded);
    pragma Inline (Is_Power_Of_2_For_Shift);
+   pragma Inline (Is_Prefixed_Call);
    pragma Inline (Is_Protected_Subprogram_Body);
    pragma Inline (Is_Static_Coextension);
    pragma Inline (Is_Static_Expression);
@@ -12086,6 +12139,7 @@ package Sinfo is
    pragma Inline (Set_All_Present);
    pragma Inline (Set_Alternatives);
    pragma Inline (Set_Ancestor_Part);
+   pragma Inline (Set_Atomic_Sync_Required);
    pragma Inline (Set_Array_Aggregate);
    pragma Inline (Set_Aspect_Rep_Item);
    pragma Inline (Set_Assignment_OK);
@@ -12222,6 +12276,7 @@ package Sinfo is
    pragma Inline (Set_Has_Task_Name_Pragma);
    pragma Inline (Set_Has_Wide_Character);
    pragma Inline (Set_Has_Wide_Wide_Character);
+   pragma Inline (Set_Header_Size_Added);
    pragma Inline (Set_Hidden_By_Use_Clause);
    pragma Inline (Set_High_Bound);
    pragma Inline (Set_Identifier);
@@ -12252,6 +12307,7 @@ package Sinfo is
    pragma Inline (Set_Is_Null_Loop);
    pragma Inline (Set_Is_Overloaded);
    pragma Inline (Set_Is_Power_Of_2_For_Shift);
+   pragma Inline (Set_Is_Prefixed_Call);
    pragma Inline (Set_Is_Protected_Subprogram_Body);
    pragma Inline (Set_Has_Self_Reference);
    pragma Inline (Set_Is_Static_Coextension);

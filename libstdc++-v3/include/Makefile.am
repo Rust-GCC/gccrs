@@ -79,12 +79,10 @@ std_headers = \
 bits_srcdir = ${glibcxx_srcdir}/include/bits
 bits_builddir = ./bits
 bits_headers = \
-        ${bits_srcdir}/algorithmfwd.h \
+	${bits_srcdir}/algorithmfwd.h \
 	${bits_srcdir}/alloc_traits.h \
 	${bits_srcdir}/allocator.h \
 	${bits_srcdir}/atomic_base.h \
-	${bits_srcdir}/atomic_0.h \
-	${bits_srcdir}/atomic_2.h \
 	${bits_srcdir}/basic_ios.h \
 	${bits_srcdir}/basic_ios.tcc \
 	${bits_srcdir}/basic_string.h \
@@ -179,11 +177,12 @@ bits_headers = \
 
 bits_sup_srcdir = ${glibcxx_srcdir}/libsupc++
 bits_sup_headers = \
-        ${bits_sup_srcdir}/cxxabi_forced.h \
-        ${bits_sup_srcdir}/exception_defines.h \
-        ${bits_sup_srcdir}/exception_ptr.h \
-        ${bits_sup_srcdir}/hash_bytes.h \
-        ${bits_sup_srcdir}/nested_exception.h
+	${bits_sup_srcdir}/atomic_lockfree_defines.h \
+	${bits_sup_srcdir}/cxxabi_forced.h \
+	${bits_sup_srcdir}/exception_defines.h \
+	${bits_sup_srcdir}/exception_ptr.h \
+	${bits_sup_srcdir}/hash_bytes.h \
+	${bits_sup_srcdir}/nested_exception.h
 
 backward_srcdir = ${glibcxx_srcdir}/include/backward
 backward_builddir = ./backward
@@ -269,7 +268,7 @@ pb_headers1 = \
 	${pb_srcdir}/detail/binomial_heap_/binomial_heap_.hpp \
 	${pb_srcdir}/detail/binomial_heap_/constructors_destructor_fn_imps.hpp \
 	${pb_srcdir}/detail/binomial_heap_/debug_fn_imps.hpp \
-	${pb_srcdir}/detail/bin_search_tree_/bin_search_tree_.hpp 
+	${pb_srcdir}/detail/bin_search_tree_/bin_search_tree_.hpp
 
 pb_headers2 = \
 	${pb_srcdir}/detail/bin_search_tree_/constructors_destructor_fn_imps.hpp \
@@ -604,6 +603,15 @@ tr1_headers = \
 	${tr1_srcdir}/wchar.h \
 	${tr1_srcdir}/wctype.h
 
+tr2_srcdir = ${glibcxx_srcdir}/include/tr2
+tr2_builddir = ./tr2
+tr2_headers = \
+	${tr2_srcdir}/bool_set \
+	${tr2_srcdir}/bool_set.tcc \
+	${tr2_srcdir}/dynamic_bitset \
+	${tr2_srcdir}/ratio \
+	${tr2_srcdir}/type_traits
+
 decimal_srcdir = ${glibcxx_srcdir}/include/decimal
 decimal_builddir = ./decimal
 decimal_headers = \
@@ -627,6 +635,7 @@ c_base_headers = \
 	${c_base_srcdir}/cmath \
 	${c_base_srcdir}/csetjmp \
 	${c_base_srcdir}/csignal \
+	${c_base_srcdir}/cstdalign \
 	${c_base_srcdir}/cstdarg \
 	${c_base_srcdir}/cstdbool \
 	${c_base_srcdir}/cstddef \
@@ -720,49 +729,49 @@ parallel_srcdir = ${glibcxx_srcdir}/include/parallel
 parallel_builddir = ./parallel
 if ENABLE_PARALLEL
 parallel_headers = \
-        ${parallel_srcdir}/algo.h \
-        ${parallel_srcdir}/algobase.h \
-        ${parallel_srcdir}/algorithm \
-        ${parallel_srcdir}/algorithmfwd.h \
-        ${parallel_srcdir}/balanced_quicksort.h \
-        ${parallel_srcdir}/base.h \
-        ${parallel_srcdir}/basic_iterator.h \
-        ${parallel_srcdir}/checkers.h \
-        ${parallel_srcdir}/compatibility.h \
-        ${parallel_srcdir}/compiletime_settings.h \
-        ${parallel_srcdir}/equally_split.h \
-        ${parallel_srcdir}/features.h \
-        ${parallel_srcdir}/find.h \
-        ${parallel_srcdir}/find_selectors.h \
-        ${parallel_srcdir}/for_each.h \
-        ${parallel_srcdir}/for_each_selectors.h \
-        ${parallel_srcdir}/iterator.h \
-        ${parallel_srcdir}/list_partition.h \
-        ${parallel_srcdir}/losertree.h \
-        ${parallel_srcdir}/merge.h \
-        ${parallel_srcdir}/multiseq_selection.h \
-        ${parallel_srcdir}/multiway_merge.h \
-        ${parallel_srcdir}/multiway_mergesort.h \
-        ${parallel_srcdir}/numeric \
-        ${parallel_srcdir}/numericfwd.h \
-        ${parallel_srcdir}/omp_loop.h \
-        ${parallel_srcdir}/omp_loop_static.h \
-        ${parallel_srcdir}/par_loop.h \
-        ${parallel_srcdir}/parallel.h \
-        ${parallel_srcdir}/partial_sum.h \
-        ${parallel_srcdir}/partition.h \
-        ${parallel_srcdir}/queue.h \
-        ${parallel_srcdir}/quicksort.h \
-        ${parallel_srcdir}/random_number.h \
-        ${parallel_srcdir}/random_shuffle.h \
-        ${parallel_srcdir}/search.h \
-        ${parallel_srcdir}/set_operations.h \
-        ${parallel_srcdir}/settings.h \
-        ${parallel_srcdir}/sort.h \
-        ${parallel_srcdir}/tags.h \
-        ${parallel_srcdir}/types.h \
-        ${parallel_srcdir}/unique_copy.h \
-        ${parallel_srcdir}/workstealing.h
+	${parallel_srcdir}/algo.h \
+	${parallel_srcdir}/algobase.h \
+	${parallel_srcdir}/algorithm \
+	${parallel_srcdir}/algorithmfwd.h \
+	${parallel_srcdir}/balanced_quicksort.h \
+	${parallel_srcdir}/base.h \
+	${parallel_srcdir}/basic_iterator.h \
+	${parallel_srcdir}/checkers.h \
+	${parallel_srcdir}/compatibility.h \
+	${parallel_srcdir}/compiletime_settings.h \
+	${parallel_srcdir}/equally_split.h \
+	${parallel_srcdir}/features.h \
+	${parallel_srcdir}/find.h \
+	${parallel_srcdir}/find_selectors.h \
+	${parallel_srcdir}/for_each.h \
+	${parallel_srcdir}/for_each_selectors.h \
+	${parallel_srcdir}/iterator.h \
+	${parallel_srcdir}/list_partition.h \
+	${parallel_srcdir}/losertree.h \
+	${parallel_srcdir}/merge.h \
+	${parallel_srcdir}/multiseq_selection.h \
+	${parallel_srcdir}/multiway_merge.h \
+	${parallel_srcdir}/multiway_mergesort.h \
+	${parallel_srcdir}/numeric \
+	${parallel_srcdir}/numericfwd.h \
+	${parallel_srcdir}/omp_loop.h \
+	${parallel_srcdir}/omp_loop_static.h \
+	${parallel_srcdir}/par_loop.h \
+	${parallel_srcdir}/parallel.h \
+	${parallel_srcdir}/partial_sum.h \
+	${parallel_srcdir}/partition.h \
+	${parallel_srcdir}/queue.h \
+	${parallel_srcdir}/quicksort.h \
+	${parallel_srcdir}/random_number.h \
+	${parallel_srcdir}/random_shuffle.h \
+	${parallel_srcdir}/search.h \
+	${parallel_srcdir}/set_operations.h \
+	${parallel_srcdir}/settings.h \
+	${parallel_srcdir}/sort.h \
+	${parallel_srcdir}/tags.h \
+	${parallel_srcdir}/types.h \
+	${parallel_srcdir}/unique_copy.h \
+	${parallel_srcdir}/workstealing.h
 else
 parallel_headers =
 endif
@@ -846,7 +855,6 @@ thread_host_headers = \
 	${host_builddir}/gthr.h \
 	${host_builddir}/gthr-single.h \
 	${host_builddir}/gthr-posix.h \
-	${host_builddir}/gthr-tpf.h \
 	${host_builddir}/gthr-default.h
 
 
@@ -887,9 +895,9 @@ endif
 # CLEANFILES and all-local are kept up-to-date.
 allstamped = \
 	stamp-std stamp-bits stamp-bits-sup stamp-c_base stamp-c_compatibility \
-	stamp-backward stamp-ext stamp-pb stamp-tr1 stamp-decimal \
+	stamp-backward stamp-ext stamp-pb stamp-tr1 stamp-tr2 stamp-decimal \
 	stamp-debug stamp-parallel stamp-profile stamp-profile-impl \
-	stamp-host 
+	stamp-host
 
 # List of all files that are created by explicit building, editing, or
 # catenation.
@@ -1002,6 +1010,11 @@ stamp-tr1: ${tr1_headers}
 	@-cd ${tr1_builddir} && $(LN_S) $? . 2>/dev/null
 	@$(STAMP) stamp-tr1
 
+stamp-tr2: ${tr2_headers}
+	@-mkdir -p ${tr2_builddir}
+	@-cd ${tr2_builddir} && $(LN_S) $? . 2>/dev/null
+	@$(STAMP) stamp-tr2
+
 stamp-decimal: ${decimal_headers}
 	@-mkdir -p ${decimal_builddir}
 	@-cd ${decimal_builddir} && $(LN_S) $? . 2>/dev/null
@@ -1094,7 +1107,7 @@ ${host_builddir}/c++config.h: ${CONFIG_HEADER} \
 	-e "s,define _GLIBCXX_HAVE_ATTRIBUTE_VISIBILITY, define _GLIBCXX_HAVE_ATTRIBUTE_VISIBILITY $$visibility," \
 	-e "s,define _GLIBCXX_EXTERN_TEMPLATE, define _GLIBCXX_EXTERN_TEMPLATE $$externtemplate," \
 	-e "$$ldbl_compat" \
-            < ${glibcxx_srcdir}/include/bits/c++config > $@ ;\
+	    < ${glibcxx_srcdir}/include/bits/c++config > $@ ;\
 	sed -e 's/HAVE_/_GLIBCXX_HAVE_/g' \
 	    -e 's/PACKAGE/_GLIBCXX_PACKAGE/g' \
 	    -e 's/VERSION/_GLIBCXX_VERSION/g' \
@@ -1108,43 +1121,35 @@ ${host_builddir}/c++config.h: ${CONFIG_HEADER} \
 # Host includes for threads
 uppercase = [ABCDEFGHIJKLMNOPQRSTUVWXYZ_]
 
-${host_builddir}/gthr.h: ${toplevel_srcdir}/gcc/gthr.h stamp-${host_alias}
+${host_builddir}/gthr.h: ${toplevel_srcdir}/libgcc/gthr.h stamp-${host_alias}
 	sed -e '/^#pragma/b' \
 	    -e '/^#/s/\(${uppercase}${uppercase}*\)/_GLIBCXX_\1/g' \
 	    -e 's/_GLIBCXX_SUPPORTS_WEAK/__GXX_WEAK__/g' \
 	    -e 's,^#include "\(.*\)",#include <bits/\1>,g' \
-	    < ${toplevel_srcdir}/gcc/gthr.h > $@
+	    < $< > $@
 
-${host_builddir}/gthr-single.h: ${toplevel_srcdir}/gcc/gthr-single.h \
+${host_builddir}/gthr-single.h: ${toplevel_srcdir}/libgcc/gthr-single.h \
 				  stamp-${host_alias}
 	sed -e 's/\(UNUSED\)/_GLIBCXX_\1/g' \
 	    -e 's/\(GCC${uppercase}*_H\)/_GLIBCXX_\1/g' \
-	    < ${toplevel_srcdir}/gcc/gthr-single.h > $@
+	    < $< > $@
 
-${host_builddir}/gthr-posix.h: ${toplevel_srcdir}/gcc/gthr-posix.h \
+${host_builddir}/gthr-posix.h: ${toplevel_srcdir}/libgcc/gthr-posix.h \
 				   stamp-${host_alias}
 	sed -e 's/\(UNUSED\)/_GLIBCXX_\1/g' \
 	    -e 's/\(GCC${uppercase}*_H\)/_GLIBCXX_\1/g' \
 	    -e 's/SUPPORTS_WEAK/__GXX_WEAK__/g' \
 	    -e 's/\(${uppercase}*USE_WEAK\)/_GLIBCXX_\1/g' \
-	    < ${toplevel_srcdir}/gcc/gthr-posix.h > $@
+	    < $< > $@
 
-${host_builddir}/gthr-tpf.h: ${toplevel_srcdir}/gcc/gthr-tpf.h \
-				   stamp-${host_alias}
-	sed -e 's/\(UNUSED\)/_GLIBCXX_\1/g' \
-	    -e 's/\(GCC${uppercase}*_H\)/_GLIBCXX_\1/g' \
-	    -e 's/SUPPORTS_WEAK/__GXX_WEAK__/g' \
-	    -e 's/\(${uppercase}*USE_WEAK\)/_GLIBCXX_\1/g' \
-	    < ${toplevel_srcdir}/gcc/gthr-tpf.h > $@
-
-${host_builddir}/gthr-default.h: ${toplevel_srcdir}/gcc/${glibcxx_thread_h} \
+${host_builddir}/gthr-default.h: ${toplevel_builddir}/libgcc/gthr-default.h \
 				   stamp-${host_alias}
 	sed -e 's/\(UNUSED\)/_GLIBCXX_\1/g' \
 	    -e 's/\(GCC${uppercase}*_H\)/_GLIBCXX_\1/g' \
 	    -e 's/SUPPORTS_WEAK/__GXX_WEAK__/g' \
 	    -e 's/\(${uppercase}*USE_WEAK\)/_GLIBCXX_\1/g' \
 	    -e 's,^#include "\(.*\)",#include <bits/\1>,g' \
-	    < ${toplevel_srcdir}/gcc/${glibcxx_thread_h} > $@
+	    < $< > $@
 
 # Build two precompiled C++ includes, stdc++.h.gch/*.gch
 ${pch1a_output}: ${allstamped} ${host_builddir}/c++config.h ${pch1_source}
@@ -1187,8 +1192,10 @@ endif
 # are installed by libsupc++, so only the first four and the sub-includes
 # are copied here.
 install-freestanding-headers:
-	$(mkinstalldirs) $(DESTDIR)${gxx_include_dir}
+	$(mkinstalldirs) $(DESTDIR)${gxx_include_dir}/bits
 	$(mkinstalldirs) $(DESTDIR)${host_installdir}
+	$(INSTALL_DATA) ${glibcxx_srcdir}/include/bits/c++0x_warning.h \
+	  $(DESTDIR)${gxx_include_dir}/bits
 	for file in ${host_srcdir}/os_defines.h ${host_builddir}/c++config.h \
 	  ${glibcxx_srcdir}/$(ABI_TWEAKS_SRCDIR)/cxxabi_tweaks.h \
 	  ${glibcxx_srcdir}/$(CPU_DEFINES_SRCDIR)/cpu_defines.h; do \
@@ -1245,6 +1252,9 @@ install-headers:
 	$(mkinstalldirs) $(DESTDIR)${gxx_include_dir}/${tr1_builddir}
 	for file in ${tr1_headers}; do \
 	  $(INSTALL_DATA) $${file} $(DESTDIR)${gxx_include_dir}/${tr1_builddir}; done
+	$(mkinstalldirs) $(DESTDIR)${gxx_include_dir}/${tr2_builddir}
+	for file in ${tr2_headers}; do \
+	  $(INSTALL_DATA) $${file} $(DESTDIR)${gxx_include_dir}/${tr2_builddir}; done
 	$(mkinstalldirs) $(DESTDIR)${gxx_include_dir}/${decimal_builddir}
 	for file in ${decimal_headers}; do \
 	  $(INSTALL_DATA) $${file} $(DESTDIR)${gxx_include_dir}/${decimal_builddir}; done
@@ -1291,7 +1301,7 @@ clean-local:
 # developer tries to create them via make in the include build
 # directory. (This is more of an example of how this kind of rule can
 # be made.)
-.PRECIOUS: $(std_headers) $(c_base_headers) $(tr1_headers)
+.PRECIOUS: $(std_headers) $(c_base_headers) $(tr1_headers) $(tr2_headers)
 	   $(decimal_headers) $(ext_headers)
 $(std_headers): ; @:
 $(c_base_headers): ; @:

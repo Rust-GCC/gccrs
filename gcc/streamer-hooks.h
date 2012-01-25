@@ -41,9 +41,10 @@ struct streamer_hooks {
      a tree node.  The arguments are: output_block where to write the
      node, the tree node to write and a boolean flag that should be true
      if the caller wants to write a reference to the tree, instead of the
-     tree itself.  The referencing mechanism is up to each streamer to
-     implement.  */
-  void (*write_tree) (struct output_block *, tree, bool);
+     tree itself.  The second boolean parameter specifies this for
+     the tree itself, the first for all siblings that are streamed.
+     The referencing mechanism is up to each streamer to implement.  */
+  void (*write_tree) (struct output_block *, tree, bool, bool);
 
   /* [REQ] Called by every tree streaming routine that needs to read
      a tree node.  It takes two arguments: an lto_input_block pointing
@@ -51,10 +52,23 @@ struct streamer_hooks {
      and descriptors needed by the unpickling routines.  It returns the
      tree instantiated from the stream.  */
   tree (*read_tree) (struct lto_input_block *, struct data_in *);
+
+  /* [OPT] Called by lto_input_location to retrieve the source location of the
+     tree currently being read. If this hook returns NULL, lto_input_location
+     defaults to calling lto_input_location_bitpack.  */
+  location_t (*input_location) (struct lto_input_block *, struct data_in *);
+
+  /* [OPT] Called by lto_output_location to write the source_location of the
+     tree currently being written. If this hook returns NULL,
+     lto_output_location defaults to calling lto_output_location_bitpack.  */
+  void (*output_location) (struct output_block *, location_t);
 };
 
 #define stream_write_tree(OB, EXPR, REF_P) \
-    streamer_hooks.write_tree(OB, EXPR, REF_P)
+    streamer_hooks.write_tree(OB, EXPR, REF_P, REF_P)
+
+#define stream_write_tree_shallow_non_ref(OB, EXPR, REF_P) \
+    streamer_hooks.write_tree(OB, EXPR, REF_P, false)
 
 #define stream_read_tree(IB, DATA_IN) \
     streamer_hooks.read_tree(IB, DATA_IN)

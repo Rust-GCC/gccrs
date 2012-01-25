@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"reflect"
 	"testing"
+	"time"
 )
 
 type untarTest struct {
@@ -23,24 +23,24 @@ type untarTest struct {
 var gnuTarTest = &untarTest{
 	file: "testdata/gnu.tar",
 	headers: []*Header{
-		&Header{
+		{
 			Name:     "small.txt",
 			Mode:     0640,
 			Uid:      73025,
 			Gid:      5000,
 			Size:     5,
-			Mtime:    1244428340,
+			ModTime:  time.Unix(1244428340, 0),
 			Typeflag: '0',
 			Uname:    "dsymonds",
 			Gname:    "eng",
 		},
-		&Header{
+		{
 			Name:     "small2.txt",
 			Mode:     0640,
 			Uid:      73025,
 			Gid:      5000,
 			Size:     11,
-			Mtime:    1244436044,
+			ModTime:  time.Unix(1244436044, 0),
 			Typeflag: '0',
 			Uname:    "dsymonds",
 			Gname:    "eng",
@@ -54,56 +54,56 @@ var gnuTarTest = &untarTest{
 
 var untarTests = []*untarTest{
 	gnuTarTest,
-	&untarTest{
+	{
 		file: "testdata/star.tar",
 		headers: []*Header{
-			&Header{
-				Name:     "small.txt",
-				Mode:     0640,
-				Uid:      73025,
-				Gid:      5000,
-				Size:     5,
-				Mtime:    1244592783,
-				Typeflag: '0',
-				Uname:    "dsymonds",
-				Gname:    "eng",
-				Atime:    1244592783,
-				Ctime:    1244592783,
+			{
+				Name:       "small.txt",
+				Mode:       0640,
+				Uid:        73025,
+				Gid:        5000,
+				Size:       5,
+				ModTime:    time.Unix(1244592783, 0),
+				Typeflag:   '0',
+				Uname:      "dsymonds",
+				Gname:      "eng",
+				AccessTime: time.Unix(1244592783, 0),
+				ChangeTime: time.Unix(1244592783, 0),
 			},
-			&Header{
-				Name:     "small2.txt",
-				Mode:     0640,
-				Uid:      73025,
-				Gid:      5000,
-				Size:     11,
-				Mtime:    1244592783,
-				Typeflag: '0',
-				Uname:    "dsymonds",
-				Gname:    "eng",
-				Atime:    1244592783,
-				Ctime:    1244592783,
+			{
+				Name:       "small2.txt",
+				Mode:       0640,
+				Uid:        73025,
+				Gid:        5000,
+				Size:       11,
+				ModTime:    time.Unix(1244592783, 0),
+				Typeflag:   '0',
+				Uname:      "dsymonds",
+				Gname:      "eng",
+				AccessTime: time.Unix(1244592783, 0),
+				ChangeTime: time.Unix(1244592783, 0),
 			},
 		},
 	},
-	&untarTest{
+	{
 		file: "testdata/v7.tar",
 		headers: []*Header{
-			&Header{
+			{
 				Name:     "small.txt",
 				Mode:     0444,
 				Uid:      73025,
 				Gid:      5000,
 				Size:     5,
-				Mtime:    1244593104,
+				ModTime:  time.Unix(1244593104, 0),
 				Typeflag: '\x00',
 			},
-			&Header{
+			{
 				Name:     "small2.txt",
 				Mode:     0444,
 				Uid:      73025,
 				Gid:      5000,
 				Size:     11,
-				Mtime:    1244593104,
+				ModTime:  time.Unix(1244593104, 0),
 				Typeflag: '\x00',
 			},
 		},
@@ -126,13 +126,13 @@ testLoop:
 				f.Close()
 				continue testLoop
 			}
-			if !reflect.DeepEqual(hdr, header) {
+			if *hdr != *header {
 				t.Errorf("test %d, entry %d: Incorrect header:\nhave %+v\nwant %+v",
 					i, j, *hdr, *header)
 			}
 		}
 		hdr, err := tr.Next()
-		if err == os.EOF {
+		if err == io.EOF {
 			break
 		}
 		if hdr != nil || err != nil {
@@ -195,12 +195,12 @@ func TestIncrementalRead(t *testing.T) {
 	// loop over all files
 	for ; ; nread++ {
 		hdr, err := tr.Next()
-		if hdr == nil || err == os.EOF {
+		if hdr == nil || err == io.EOF {
 			break
 		}
 
 		// check the header
-		if !reflect.DeepEqual(hdr, headers[nread]) {
+		if *hdr != *headers[nread] {
 			t.Errorf("Incorrect header:\nhave %+v\nwant %+v",
 				*hdr, headers[nread])
 		}
@@ -211,7 +211,7 @@ func TestIncrementalRead(t *testing.T) {
 		rdbuf := make([]uint8, 8)
 		for {
 			nr, err := tr.Read(rdbuf)
-			if err == os.EOF {
+			if err == io.EOF {
 				break
 			}
 			if err != nil {
@@ -221,7 +221,7 @@ func TestIncrementalRead(t *testing.T) {
 			h.Write(rdbuf[0:nr])
 		}
 		// verify checksum
-		have := fmt.Sprintf("%x", h.Sum())
+		have := fmt.Sprintf("%x", h.Sum(nil))
 		want := cksums[nread]
 		if want != have {
 			t.Errorf("Bad checksum on file %s:\nhave %+v\nwant %+v", hdr.Name, have, want)
@@ -250,7 +250,7 @@ func TestNonSeekable(t *testing.T) {
 		for {
 			nr, err := f.Read(rdbuf)
 			w.Write(rdbuf[0:nr])
-			if err == os.EOF {
+			if err == io.EOF {
 				break
 			}
 		}
@@ -262,7 +262,7 @@ func TestNonSeekable(t *testing.T) {
 
 	for ; ; nread++ {
 		hdr, err := tr.Next()
-		if hdr == nil || err == os.EOF {
+		if hdr == nil || err == io.EOF {
 			break
 		}
 	}

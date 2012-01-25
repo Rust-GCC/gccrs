@@ -121,10 +121,12 @@
 
 ;; Attributes for instruction and branch scheduling
 
-;; For conditional branches.
+;; For conditional branches. Frame related instructions are not allowed
+;; because they confuse the unwind support.
 (define_attr "in_branch_delay" "false,true"
   (if_then_else (and (eq_attr "type" "!uncond_branch,btable_branch,branch,cbranch,fbranch,call,dyncall,multi,milli,parallel_branch")
-		     (eq_attr "length" "4"))
+		     (eq_attr "length" "4")
+		     (not (match_test "RTX_FRAME_RELATED_P (insn)")))
 		(const_string "true")
 		(const_string "false")))
 
@@ -132,7 +134,8 @@
 ;; even if the instruction is nullified.
 (define_attr "in_nullified_branch_delay" "false,true"
   (if_then_else (and (eq_attr "type" "!uncond_branch,btable_branch,branch,cbranch,fbranch,call,dyncall,multi,milli,fpcc,fpalu,fpmulsgl,fpmuldbl,fpdivsgl,fpdivdbl,fpsqrtsgl,fpsqrtdbl,parallel_branch")
-		     (eq_attr "length" "4"))
+		     (eq_attr "length" "4")
+		     (not (match_test "RTX_FRAME_RELATED_P (insn)")))
 		(const_string "true")
 		(const_string "false")))
 
@@ -140,7 +143,8 @@
 ;; delay slot.
 (define_attr "in_call_delay" "false,true"
   (cond [(and (eq_attr "type" "!uncond_branch,btable_branch,branch,cbranch,fbranch,call,dyncall,multi,milli,parallel_branch")
-	      (eq_attr "length" "4"))
+	      (eq_attr "length" "4")
+	      (not (match_test "RTX_FRAME_RELATED_P (insn)")))
 	   (const_string "true")
 	 (eq_attr "type" "uncond_branch")
 	   (if_then_else (match_test "TARGET_JUMP_IN_DELAY")
@@ -180,7 +184,7 @@
 	(attr_flag "backward"))])
 
 (define_delay (and (eq_attr "type" "uncond_branch")
-		   (not (match_test "following_call (insn)")))
+		   (not (match_test "pa_following_call (insn)")))
   [(eq_attr "in_branch_delay" "true") (nil) (nil)])
 
 ;; Memory. Disregarding Cache misses, the Mustang memory times are:
@@ -286,14 +290,14 @@
 
 ;; We have a bypass for all computations in the FP unit which feed an
 ;; FP store as long as the sizes are the same.
-(define_bypass 2 "W1,W2" "W10,W11" "hppa_fpstore_bypass_p")
-(define_bypass 9 "W3" "W10,W11" "hppa_fpstore_bypass_p")
-(define_bypass 11 "W4" "W10,W11" "hppa_fpstore_bypass_p")
-(define_bypass 13 "W5" "W10,W11" "hppa_fpstore_bypass_p")
-(define_bypass 17 "W6" "W10,W11" "hppa_fpstore_bypass_p")
+(define_bypass 2 "W1,W2" "W10,W11" "pa_fpstore_bypass_p")
+(define_bypass 9 "W3" "W10,W11" "pa_fpstore_bypass_p")
+(define_bypass 11 "W4" "W10,W11" "pa_fpstore_bypass_p")
+(define_bypass 13 "W5" "W10,W11" "pa_fpstore_bypass_p")
+(define_bypass 17 "W6" "W10,W11" "pa_fpstore_bypass_p")
 
 ;; We have an "anti-bypass" for FP loads which feed an FP store.
-(define_bypass 4 "W8,W12" "W10,W11" "hppa_fpstore_bypass_p")
+(define_bypass 4 "W8,W12" "W10,W11" "pa_fpstore_bypass_p")
 
 ;; Function units for the 7100 and 7150.  The 7100/7150 can dual-issue
 ;; floating point computations with non-floating point computations (fp loads
@@ -382,12 +386,12 @@
 
 ;; We have a bypass for all computations in the FP unit which feed an
 ;; FP store as long as the sizes are the same.
-(define_bypass 1 "X0" "X6,X7" "hppa_fpstore_bypass_p")
-(define_bypass 7 "X1" "X6,X7" "hppa_fpstore_bypass_p")
-(define_bypass 14 "X2" "X6,X7" "hppa_fpstore_bypass_p")
+(define_bypass 1 "X0" "X6,X7" "pa_fpstore_bypass_p")
+(define_bypass 7 "X1" "X6,X7" "pa_fpstore_bypass_p")
+(define_bypass 14 "X2" "X6,X7" "pa_fpstore_bypass_p")
 
 ;; We have an "anti-bypass" for FP loads which feed an FP store.
-(define_bypass 3 "X4,X8" "X6,X7" "hppa_fpstore_bypass_p")
+(define_bypass 3 "X4,X8" "X6,X7" "pa_fpstore_bypass_p")
 
 ;; The 7100LC has three floating-point units: ALU, MUL, and DIV.
 ;; There's no value in modeling the ALU and MUL separately though
@@ -543,7 +547,7 @@
   "i1_7100lc,i1_7100lc+mem_7100lc")
 
 ;; We have an "anti-bypass" for FP loads which feed an FP store.
-(define_bypass 3 "Y3,Y7,Y13,Y17" "Y5,Y6,Y11,Y12,Y15,Y16" "hppa_fpstore_bypass_p")
+(define_bypass 3 "Y3,Y7,Y13,Y17" "Y5,Y6,Y11,Y12,Y15,Y16" "pa_fpstore_bypass_p")
 
 ;; Scheduling for the PA8000 is somewhat different than scheduling for a
 ;; traditional architecture.
@@ -1301,7 +1305,7 @@
   ""
   "
 {
-  emit_bcond_fp (operands);
+  pa_emit_bcond_fp (operands);
   DONE;
 }")
 
@@ -1316,7 +1320,7 @@
   ""
   "
 {
-  emit_bcond_fp (operands);
+  pa_emit_bcond_fp (operands);
   DONE;
 }")
 
@@ -1336,7 +1340,7 @@
   ""
   "*
 {
-  return output_cbranch (operands, 0, insn);
+  return pa_output_cbranch (operands, 0, insn);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1365,7 +1369,7 @@
   ""
   "*
 {
-  return output_cbranch (operands, 1, insn);
+  return pa_output_cbranch (operands, 1, insn);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1392,7 +1396,7 @@
   "TARGET_64BIT"
   "*
 {
-  return output_cbranch (operands, 0, insn);
+  return pa_output_cbranch (operands, 0, insn);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1421,7 +1425,7 @@
   "TARGET_64BIT"
   "*
 {
-  return output_cbranch (operands, 1, insn);
+  return pa_output_cbranch (operands, 1, insn);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1447,7 +1451,7 @@
   "TARGET_64BIT"
   "*
 {
-  return output_cbranch (operands, 0, insn);
+  return pa_output_cbranch (operands, 0, insn);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1476,7 +1480,7 @@
   "TARGET_64BIT"
   "*
 {
-  return output_cbranch (operands, 1, insn);
+  return pa_output_cbranch (operands, 1, insn);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1505,7 +1509,7 @@
   ""
   "*
 {
-  return output_bb (operands, 0, insn, 0);
+  return pa_output_bb (operands, 0, insn, 0);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1533,7 +1537,7 @@
   "TARGET_64BIT"
   "*
 {
-  return output_bb (operands, 0, insn, 0);
+  return pa_output_bb (operands, 0, insn, 0);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1561,7 +1565,7 @@
   ""
   "*
 {
-  return output_bb (operands, 1, insn, 0);
+  return pa_output_bb (operands, 1, insn, 0);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1589,7 +1593,7 @@
   "TARGET_64BIT"
   "*
 {
-  return output_bb (operands, 1, insn, 0);
+  return pa_output_bb (operands, 1, insn, 0);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1617,7 +1621,7 @@
   ""
   "*
 {
-  return output_bb (operands, 0, insn, 1);
+  return pa_output_bb (operands, 0, insn, 1);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1645,7 +1649,7 @@
   "TARGET_64BIT"
   "*
 {
-  return output_bb (operands, 0, insn, 1);
+  return pa_output_bb (operands, 0, insn, 1);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1673,7 +1677,7 @@
   ""
   "*
 {
-  return output_bb (operands, 1, insn, 1);
+  return pa_output_bb (operands, 1, insn, 1);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1701,7 +1705,7 @@
   "TARGET_64BIT"
   "*
 {
-  return output_bb (operands, 1, insn, 1);
+  return pa_output_bb (operands, 1, insn, 1);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1730,7 +1734,7 @@
   ""
   "*
 {
-  return output_bvb (operands, 0, insn, 0);
+  return pa_output_bvb (operands, 0, insn, 0);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1758,7 +1762,7 @@
   "TARGET_64BIT"
   "*
 {
-  return output_bvb (operands, 0, insn, 0);
+  return pa_output_bvb (operands, 0, insn, 0);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1786,7 +1790,7 @@
   ""
   "*
 {
-  return output_bvb (operands, 1, insn, 0);
+  return pa_output_bvb (operands, 1, insn, 0);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1814,7 +1818,7 @@
   "TARGET_64BIT"
   "*
 {
-  return output_bvb (operands, 1, insn, 0);
+  return pa_output_bvb (operands, 1, insn, 0);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1842,7 +1846,7 @@
   ""
   "*
 {
-  return output_bvb (operands, 0, insn, 1);
+  return pa_output_bvb (operands, 0, insn, 1);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1870,7 +1874,7 @@
   "TARGET_64BIT"
   "*
 {
-  return output_bvb (operands, 0, insn, 1);
+  return pa_output_bvb (operands, 0, insn, 1);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1898,7 +1902,7 @@
   ""
   "*
 {
-  return output_bvb (operands, 1, insn, 1);
+  return pa_output_bvb (operands, 1, insn, 1);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1926,7 +1930,7 @@
   "TARGET_64BIT"
   "*
 {
-  return output_bvb (operands, 1, insn, 1);
+  return pa_output_bvb (operands, 1, insn, 1);
 }"
 [(set_attr "type" "cbranch")
  (set (attr "length")
@@ -1978,7 +1982,7 @@
     output_asm_insn (\"ftest\;add,tr %%r0,%%r0,%%r0\;b,n .+%0\", xoperands);
   else
     output_asm_insn (\"ftest\;add,tr %%r0,%%r0,%%r0\;b .+%0\", xoperands);
-  return output_lbranch (operands[0], insn, xdelay);
+  return pa_output_lbranch (operands[0], insn, xdelay);
 }"
 [(set_attr "type" "fbranch")
  (set (attr "length")
@@ -2022,7 +2026,7 @@
     output_asm_insn (\"ftest\;b,n .+%0\", xoperands);
   else
     output_asm_insn (\"ftest\;b .+%0\", xoperands);
-  return output_lbranch (operands[0], insn, xdelay);
+  return pa_output_lbranch (operands[0], insn, xdelay);
 }"
 [(set_attr "type" "fbranch")
  (set (attr "length")
@@ -2043,7 +2047,7 @@
   ""
   "
 {
-  if (emit_move_sequence (operands, SImode, 0))
+  if (pa_emit_move_sequence (operands, SImode, 0))
     DONE;
 }")
 
@@ -2055,7 +2059,7 @@
   ""
   "
 {
-  if (emit_move_sequence (operands, SImode, operands[2]))
+  if (pa_emit_move_sequence (operands, SImode, operands[2]))
     DONE;
 
   /* We don't want the clobber emitted, so handle this ourselves.  */
@@ -2072,7 +2076,7 @@
   ""
   "
 {
-  if (emit_move_sequence (operands, SImode, operands[2]))
+  if (pa_emit_move_sequence (operands, SImode, operands[2]))
     DONE;
 
   /* We don't want the clobber emitted, so handle this ourselves.  */
@@ -2089,7 +2093,7 @@
   ""
   "
 {
-  if (emit_move_sequence (operands, SImode, operands[2]))
+  if (pa_emit_move_sequence (operands, SImode, operands[2]))
     DONE;
 
   /* We don't want the clobber emitted, so handle this ourselves.  */
@@ -2624,7 +2628,7 @@
   [(set (match_operand:SI 0 "register_operand" "=r")
 	(high:SI (match_operand 1 "" "")))]
   "(!flag_pic || !symbolic_operand (operands[1], Pmode))
-    && !is_function_label_plus_const (operands[1])"
+    && !pa_is_function_label_plus_const (operands[1])"
   "*
 {
   if (symbolic_operand (operands[1], Pmode))
@@ -2656,7 +2660,7 @@
   [(set (match_operand:SI 0 "register_operand" "=r")
 	(lo_sum:SI (match_operand:SI 1 "register_operand" "r")
 		   (match_operand:SI 2 "immediate_operand" "i")))]
-  "!is_function_label_plus_const (operands[2])"
+  "!pa_is_function_label_plus_const (operands[2])"
   "*
 {
   gcc_assert (!flag_pic || !symbolic_operand (operands[2], Pmode));
@@ -2735,7 +2739,7 @@
   ""
   "
 {
-  if (emit_move_sequence (operands, HImode, 0))
+  if (pa_emit_move_sequence (operands, HImode, 0))
     DONE;
 }")
 
@@ -2748,7 +2752,7 @@
   ""
   "
 {
-  if (emit_move_sequence (operands, HImode, operands[2]))
+  if (pa_emit_move_sequence (operands, HImode, operands[2]))
     DONE;
 
   /* We don't want the clobber emitted, so handle this ourselves.  */
@@ -2765,7 +2769,7 @@
   ""
   "
 {
-  if (emit_move_sequence (operands, HImode, operands[2]))
+  if (pa_emit_move_sequence (operands, HImode, operands[2]))
     DONE;
 
   /* We don't want the clobber emitted, so handle this ourselves.  */
@@ -2893,7 +2897,7 @@
   ""
   "
 {
-  if (emit_move_sequence (operands, QImode, 0))
+  if (pa_emit_move_sequence (operands, QImode, 0))
     DONE;
 }")
 
@@ -2906,7 +2910,7 @@
   ""
   "
 {
-  if (emit_move_sequence (operands, QImode, operands[2]))
+  if (pa_emit_move_sequence (operands, QImode, operands[2]))
     DONE;
 
   /* We don't want the clobber emitted, so handle this ourselves.  */
@@ -2923,7 +2927,7 @@
   ""
   "
 {
-  if (emit_move_sequence (operands, QImode, operands[2]))
+  if (pa_emit_move_sequence (operands, QImode, operands[2]))
     DONE;
 
   /* We don't want the clobber emitted, so handle this ourselves.  */
@@ -3121,7 +3125,7 @@
 }")
 
 ;; The operand constraints are written like this to support both compile-time
-;; and run-time determined byte counts.  The expander and output_block_move
+;; and run-time determined byte counts.  The expander and pa_output_block_move
 ;; only support compile-time determined counts at this time.
 ;;
 ;; If the count is run-time determined, the register with the byte count
@@ -3238,7 +3242,7 @@
    (use (match_operand:SI 5 "const_int_operand" "n,n"))  ;alignment
    (const_int 0)]
   "!TARGET_64BIT && reload_completed"
-  "* return output_block_move (operands, !which_alternative);"
+  "* return pa_output_block_move (operands, !which_alternative);"
   [(set_attr "type" "multi,multi")])
 
 (define_expand "movmemdi"
@@ -3309,7 +3313,7 @@
 }")
 
 ;; The operand constraints are written like this to support both compile-time
-;; and run-time determined byte counts.  The expander and output_block_move
+;; and run-time determined byte counts.  The expander and pa_output_block_move
 ;; only support compile-time determined counts at this time.
 ;;
 ;; If the count is run-time determined, the register with the byte count
@@ -3426,7 +3430,7 @@
    (use (match_operand:DI 5 "const_int_operand" "n,n"))  ;alignment
    (const_int 0)]
   "TARGET_64BIT && reload_completed"
-  "* return output_block_move (operands, !which_alternative);"
+  "* return pa_output_block_move (operands, !which_alternative);"
   [(set_attr "type" "multi,multi")])
 
 (define_expand "setmemsi"
@@ -3540,7 +3544,7 @@
    (use (match_operand:SI 3 "const_int_operand" "n,n"))  ;alignment
    (const_int 0)]
   "!TARGET_64BIT && reload_completed"
-  "* return output_block_clear (operands, !which_alternative);"
+  "* return pa_output_block_clear (operands, !which_alternative);"
   [(set_attr "type" "multi,multi")])
 
 (define_expand "setmemdi"
@@ -3654,7 +3658,7 @@
    (use (match_operand:DI 3 "const_int_operand" "n,n"))  ;alignment
    (const_int 0)]
   "TARGET_64BIT && reload_completed"
-  "* return output_block_clear (operands, !which_alternative);"
+  "* return pa_output_block_clear (operands, !which_alternative);"
   [(set_attr "type" "multi,multi")])
 
 ;; Floating point move insns
@@ -3675,7 +3679,7 @@
    && operands[1] != CONST0_RTX (DFmode)
    && !TARGET_64BIT
    && !TARGET_SOFT_FLOAT"
-  "* return (which_alternative == 0 ? output_move_double (operands)
+  "* return (which_alternative == 0 ? pa_output_move_double (operands)
 				    : \"fldd%F1 %1,%0\");"
   [(set_attr "type" "move,fpload")
    (set_attr "length" "16,4")])
@@ -3701,7 +3705,7 @@
 	operands[1] = force_const_mem (DFmode, operands[1]);
     }
 
-  if (emit_move_sequence (operands, DFmode, 0))
+  if (pa_emit_move_sequence (operands, DFmode, 0))
     DONE;
 }")
 
@@ -3714,7 +3718,7 @@
   ""
   "
 {
-  if (emit_move_sequence (operands, DFmode, operands[2]))
+  if (pa_emit_move_sequence (operands, DFmode, operands[2]))
     DONE;
 
   /* We don't want the clobber emitted, so handle this ourselves.  */
@@ -3731,7 +3735,7 @@
   ""
   "
 {
-  if (emit_move_sequence (operands, DFmode, operands[2]))
+  if (pa_emit_move_sequence (operands, DFmode, operands[2]))
     DONE;
 
   /* We don't want the clobber emitted, so handle this ourselves.  */
@@ -3756,8 +3760,8 @@
        || operands[1] == CONST0_RTX (DFmode))
       && !(REG_P (operands[0]) && REG_P (operands[1])
 	   && FP_REG_P (operands[0]) ^ FP_REG_P (operands[1])))
-    return output_fp_move_double (operands);
-  return output_move_double (operands);
+    return pa_output_fp_move_double (operands);
+  return pa_output_move_double (operands);
 }"
   [(set_attr "type" "fpalu,move,fpstore,store,store,fpload,load,load,fpstore_load,store_fpload")
    (set_attr "length" "4,8,4,8,16,4,8,16,12,12")])
@@ -3924,7 +3928,7 @@
    && TARGET_SOFT_FLOAT"
   "*
 {
-  return output_move_double (operands);
+  return pa_output_move_double (operands);
 }"
   [(set_attr "type" "move,store,store,load,load")
    (set_attr "length" "8,8,16,8,16")])
@@ -3970,7 +3974,7 @@
       && REGNO (operands[0]) >= 32)
     FAIL;
 
-  if (emit_move_sequence (operands, DImode, 0))
+  if (pa_emit_move_sequence (operands, DImode, 0))
     DONE;
 }")
 
@@ -3982,7 +3986,7 @@
   ""
   "
 {
-  if (emit_move_sequence (operands, DImode, operands[2]))
+  if (pa_emit_move_sequence (operands, DImode, operands[2]))
     DONE;
 
   /* We don't want the clobber emitted, so handle this ourselves.  */
@@ -3999,7 +4003,7 @@
   ""
   "
 {
-  if (emit_move_sequence (operands, DImode, operands[2]))
+  if (pa_emit_move_sequence (operands, DImode, operands[2]))
     DONE;
 
   /* We don't want the clobber emitted, so handle this ourselves.  */
@@ -4016,7 +4020,7 @@
   ""
   "
 {
-  if (emit_move_sequence (operands, DImode, operands[2]))
+  if (pa_emit_move_sequence (operands, DImode, operands[2]))
     DONE;
 
   /* We don't want the clobber emitted, so handle this ourselves.  */
@@ -4052,7 +4056,7 @@
 
       operands[0] = operand_subword (op0, 0, 0, DImode);
       operands[1] = GEN_INT (INTVAL (op1) >> 32);
-      output_asm_insn (singlemove_string (operands), operands);
+      output_asm_insn (pa_singlemove_string (operands), operands);
 #endif
       break;
 
@@ -4063,7 +4067,7 @@
 
       operands[0] = operand_subword (op0, 0, 0, DImode);
       operands[1] = GEN_INT (CONST_DOUBLE_HIGH (op1));
-      output_asm_insn (singlemove_string (operands), operands);
+      output_asm_insn (pa_singlemove_string (operands), operands);
       break;
 
     default:
@@ -4089,8 +4093,8 @@
        || operands[1] == CONST0_RTX (DFmode))
       && !(REG_P (operands[0]) && REG_P (operands[1])
 	   && FP_REG_P (operands[0]) ^ FP_REG_P (operands[1])))
-    return output_fp_move_double (operands);
-  return output_move_double (operands);
+    return pa_output_fp_move_double (operands);
+  return pa_output_move_double (operands);
 }"
   [(set_attr "type"
     "move,store,store,load,load,multi,fpalu,fpload,fpstore,fpstore_load,store_fpload")
@@ -4216,7 +4220,7 @@
    && TARGET_SOFT_FLOAT"
   "*
 {
-  return output_move_double (operands);
+  return pa_output_move_double (operands);
 }"
   [(set_attr "type" "move,store,store,load,load,multi")
    (set_attr "length" "8,8,16,8,16,16")])
@@ -4257,7 +4261,7 @@
   "GET_CODE (operands[1]) == CONST_DOUBLE
    && operands[1] != CONST0_RTX (SFmode)
    && ! TARGET_SOFT_FLOAT"
-  "* return (which_alternative == 0 ? singlemove_string (operands)
+  "* return (which_alternative == 0 ? pa_singlemove_string (operands)
 				    : \" fldw%F1 %1,%0\");"
   [(set_attr "type" "move,fpload")
    (set_attr "length" "8,4")])
@@ -4276,7 +4280,7 @@
       && REGNO (operands[0]) >= 32)
     FAIL;
 
-  if (emit_move_sequence (operands, SFmode, 0))
+  if (pa_emit_move_sequence (operands, SFmode, 0))
     DONE;
 }")
 
@@ -4289,7 +4293,7 @@
   ""
   "
 {
-  if (emit_move_sequence (operands, SFmode, operands[2]))
+  if (pa_emit_move_sequence (operands, SFmode, operands[2]))
     DONE;
 
   /* We don't want the clobber emitted, so handle this ourselves.  */
@@ -4306,7 +4310,7 @@
   ""
   "
 {
-  if (emit_move_sequence (operands, SFmode, operands[2]))
+  if (pa_emit_move_sequence (operands, SFmode, operands[2]))
     DONE;
 
   /* We don't want the clobber emitted, so handle this ourselves.  */
@@ -5026,7 +5030,7 @@
 	(plus:SI (match_operand:SI 1 "register_operand" "")
 		 (match_operand:SI 2 "const_int_operand" "")))
    (clobber (match_operand:SI 4 "register_operand" ""))]
-  "! cint_ok_for_move (INTVAL (operands[2]))
+  "! pa_cint_ok_for_move (INTVAL (operands[2]))
    && VAL_14_BITS_P (INTVAL (operands[2]) >> 1)"
   [(set (match_dup 4) (plus:SI (match_dup 1) (match_dup 2)))
    (set (match_dup 0) (plus:SI (match_dup 4) (match_dup 3)))]
@@ -5045,7 +5049,7 @@
 	(plus:SI (match_operand:SI 1 "register_operand" "")
 		 (match_operand:SI 2 "const_int_operand" "")))
    (clobber (match_operand:SI 4 "register_operand" ""))]
-  "! cint_ok_for_move (INTVAL (operands[2]))"
+  "! pa_cint_ok_for_move (INTVAL (operands[2]))"
   [(set (match_dup 4) (match_dup 2))
    (set (match_dup 0) (plus:SI (mult:SI (match_dup 4) (match_dup 3))
 			       (match_dup 1)))]
@@ -5055,26 +5059,26 @@
 
   /* Try dividing the constant by 2, then 4, and finally 8 to see
      if we can get a constant which can be loaded into a register
-     in a single instruction (cint_ok_for_move). 
+     in a single instruction (pa_cint_ok_for_move). 
 
      If that fails, try to negate the constant and subtract it
      from our input operand.  */
-  if (intval % 2 == 0 && cint_ok_for_move (intval / 2))
+  if (intval % 2 == 0 && pa_cint_ok_for_move (intval / 2))
     {
       operands[2] = GEN_INT (intval / 2);
       operands[3] = const2_rtx;
     }
-  else if (intval % 4 == 0 && cint_ok_for_move (intval / 4))
+  else if (intval % 4 == 0 && pa_cint_ok_for_move (intval / 4))
     {
       operands[2] = GEN_INT (intval / 4);
       operands[3] = GEN_INT (4);
     }
-  else if (intval % 8 == 0 && cint_ok_for_move (intval / 8))
+  else if (intval % 8 == 0 && pa_cint_ok_for_move (intval / 8))
     {
       operands[2] = GEN_INT (intval / 8);
       operands[3] = GEN_INT (8);
     }
-  else if (cint_ok_for_move (-intval))
+  else if (pa_cint_ok_for_move (-intval))
     {
       emit_insn (gen_rtx_SET (VOIDmode, operands[4], GEN_INT (-intval)));
       emit_insn (gen_subsi3 (operands[0], operands[1], operands[4]));
@@ -5328,9 +5332,9 @@
    (clobber (reg:SI 25))
    (clobber (reg:SI 31))]
   "!TARGET_64BIT"
-  "* return output_mul_insn (0, insn);"
+  "* return pa_output_mul_insn (0, insn);"
   [(set_attr "type" "milli")
-   (set (attr "length") (symbol_ref "attr_length_millicode_call (insn)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_millicode_call (insn)"))])
 
 (define_insn ""
   [(set (reg:SI 29) (mult:SI (reg:SI 26) (reg:SI 25)))
@@ -5339,9 +5343,9 @@
    (clobber (reg:SI 25))
    (clobber (reg:SI 2))]
   "TARGET_64BIT"
-  "* return output_mul_insn (0, insn);"
+  "* return pa_output_mul_insn (0, insn);"
   [(set_attr "type" "milli")
-   (set (attr "length") (symbol_ref "attr_length_millicode_call (insn)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_millicode_call (insn)"))])
 
 (define_expand "muldi3"
   [(set (match_operand:DI 0 "register_operand" "")
@@ -5416,7 +5420,7 @@
       operands[5] = gen_rtx_REG (SImode, 31);
       operands[4] = gen_reg_rtx (SImode);
     }
-  if (GET_CODE (operands[2]) == CONST_INT && emit_hpdiv_const (operands, 0))
+  if (GET_CODE (operands[2]) == CONST_INT && pa_emit_hpdiv_const (operands, 0))
     DONE;
 }")
 
@@ -5430,9 +5434,9 @@
    (clobber (reg:SI 31))]
   "!TARGET_64BIT"
   "*
-   return output_div_insn (operands, 0, insn);"
+   return pa_output_div_insn (operands, 0, insn);"
   [(set_attr "type" "milli")
-   (set (attr "length") (symbol_ref "attr_length_millicode_call (insn)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_millicode_call (insn)"))])
 
 (define_insn ""
   [(set (reg:SI 29)
@@ -5444,9 +5448,9 @@
    (clobber (reg:SI 2))]
   "TARGET_64BIT"
   "*
-   return output_div_insn (operands, 0, insn);"
+   return pa_output_div_insn (operands, 0, insn);"
   [(set_attr "type" "milli")
-   (set (attr "length") (symbol_ref "attr_length_millicode_call (insn)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_millicode_call (insn)"))])
 
 (define_expand "udivsi3"
   [(set (reg:SI 26) (match_operand:SI 1 "move_src_operand" ""))
@@ -5473,7 +5477,7 @@
       operands[5] = gen_rtx_REG (SImode, 31);
       operands[4] = gen_reg_rtx (SImode);
     }
-  if (GET_CODE (operands[2]) == CONST_INT && emit_hpdiv_const (operands, 1))
+  if (GET_CODE (operands[2]) == CONST_INT && pa_emit_hpdiv_const (operands, 1))
     DONE;
 }")
 
@@ -5487,9 +5491,9 @@
    (clobber (reg:SI 31))]
   "!TARGET_64BIT"
   "*
-   return output_div_insn (operands, 1, insn);"
+   return pa_output_div_insn (operands, 1, insn);"
   [(set_attr "type" "milli")
-   (set (attr "length") (symbol_ref "attr_length_millicode_call (insn)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_millicode_call (insn)"))])
 
 (define_insn ""
   [(set (reg:SI 29)
@@ -5501,9 +5505,9 @@
    (clobber (reg:SI 2))]
   "TARGET_64BIT"
   "*
-   return output_div_insn (operands, 1, insn);"
+   return pa_output_div_insn (operands, 1, insn);"
   [(set_attr "type" "milli")
-   (set (attr "length") (symbol_ref "attr_length_millicode_call (insn)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_millicode_call (insn)"))])
 
 (define_expand "modsi3"
   [(set (reg:SI 26) (match_operand:SI 1 "move_src_operand" ""))
@@ -5540,9 +5544,9 @@
    (clobber (reg:SI 31))]
   "!TARGET_64BIT"
   "*
-  return output_mod_insn (0, insn);"
+  return pa_output_mod_insn (0, insn);"
   [(set_attr "type" "milli")
-   (set (attr "length") (symbol_ref "attr_length_millicode_call (insn)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_millicode_call (insn)"))])
 
 (define_insn ""
   [(set (reg:SI 29) (mod:SI (reg:SI 26) (reg:SI 25)))
@@ -5553,9 +5557,9 @@
    (clobber (reg:SI 2))]
   "TARGET_64BIT"
   "*
-  return output_mod_insn (0, insn);"
+  return pa_output_mod_insn (0, insn);"
   [(set_attr "type" "milli")
-   (set (attr "length") (symbol_ref "attr_length_millicode_call (insn)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_millicode_call (insn)"))])
 
 (define_expand "umodsi3"
   [(set (reg:SI 26) (match_operand:SI 1 "move_src_operand" ""))
@@ -5592,9 +5596,9 @@
    (clobber (reg:SI 31))]
   "!TARGET_64BIT"
   "*
-  return output_mod_insn (1, insn);"
+  return pa_output_mod_insn (1, insn);"
   [(set_attr "type" "milli")
-   (set (attr "length") (symbol_ref "attr_length_millicode_call (insn)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_millicode_call (insn)"))])
 
 (define_insn ""
   [(set (reg:SI 29) (umod:SI (reg:SI 26) (reg:SI 25)))
@@ -5605,9 +5609,9 @@
    (clobber (reg:SI 2))]
   "TARGET_64BIT"
   "*
-  return output_mod_insn (1, insn);"
+  return pa_output_mod_insn (1, insn);"
   [(set_attr "type" "milli")
-   (set (attr "length") (symbol_ref "attr_length_millicode_call (insn)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_millicode_call (insn)"))])
 
 ;;- and instructions
 ;; We define DImode `and` so with DImode `not` we can get
@@ -5639,7 +5643,7 @@
 	(and:DI (match_operand:DI 1 "register_operand" "%?r,0")
 		(match_operand:DI 2 "and_operand" "rO,P")))]
   "TARGET_64BIT"
-  "* return output_64bit_and (operands); "
+  "* return pa_output_64bit_and (operands); "
   [(set_attr "type" "binary")
    (set_attr "length" "4")])
 
@@ -5650,7 +5654,7 @@
 	(and:SI (match_operand:SI 1 "register_operand" "%?r,0")
 		(match_operand:SI 2 "and_operand" "rO,P")))]
   ""
-  "* return output_and (operands); "
+  "* return pa_output_and (operands); "
   [(set_attr "type" "binary,shift")
    (set_attr "length" "4,4")])
 
@@ -5707,7 +5711,7 @@
 	(ior:DI (match_operand:DI 1 "register_operand" "0,0")
 		(match_operand:DI 2 "cint_ior_operand" "M,i")))]
   "TARGET_64BIT"
-  "* return output_64bit_ior (operands); "
+  "* return pa_output_64bit_ior (operands); "
   [(set_attr "type" "binary,shift")
    (set_attr "length" "4,4")])
 
@@ -5733,7 +5737,7 @@
 	(ior:SI (match_operand:SI 1 "register_operand" "0,0")
 		(match_operand:SI 2 "cint_ior_operand" "M,i")))]
   ""
-  "* return output_ior (operands); "
+  "* return pa_output_ior (operands); "
   [(set_attr "type" "binary,shift")
    (set_attr "length" "4,4")])
 
@@ -6711,14 +6715,14 @@
 (define_expand "prologue"
   [(const_int 0)]
   ""
-  "hppa_expand_prologue ();DONE;")
+  "pa_expand_prologue ();DONE;")
 
 (define_expand "sibcall_epilogue"
   [(return)]
   ""
   "
 {
-  hppa_expand_epilogue ();
+  pa_expand_epilogue ();
   DONE;
 }")
 
@@ -6734,7 +6738,7 @@
     x = gen_return ();
   else
     {
-      hppa_expand_epilogue ();
+      pa_expand_epilogue ();
 
       /* EH returns bypass the normal return stub.  Thus, we must do an
 	 interspace branch to return from functions that call eh_return.
@@ -6808,12 +6812,12 @@
   if (get_attr_length (insn) < 16)
     return \"b%* %l0\";
 
-  return output_lbranch (operands[0], insn, 1);
+  return pa_output_lbranch (operands[0], insn, 1);
 }"
   [(set_attr "type" "uncond_branch")
    (set_attr "pa_combine_type" "uncond_branch")
    (set (attr "length")
-    (cond [(match_test "jump_in_call_delay (insn)")
+    (cond [(match_test "pa_jump_in_call_delay (insn)")
 	   (if_then_else (lt (abs (minus (match_dup 0)
 					 (plus (pc) (const_int 8))))
 			     (const_int MAX_12BIT_OFFSET))
@@ -7179,11 +7183,11 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   "!TARGET_PORTABLE_RUNTIME && !TARGET_64BIT"
   "*
 {
-  output_arg_descriptor (insn);
-  return output_call (insn, operands[0], 0);
+  pa_output_arg_descriptor (insn);
+  return pa_output_call (insn, operands[0], 0);
 }"
   [(set_attr "type" "call")
-   (set (attr "length") (symbol_ref "attr_length_call (insn, 0)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_call (insn, 0)"))])
 
 (define_insn "call_symref_pic"
   [(set (match_operand:SI 2 "register_operand" "=&r") (reg:SI 19))
@@ -7256,11 +7260,11 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   "!TARGET_PORTABLE_RUNTIME && !TARGET_64BIT"
   "*
 {
-  output_arg_descriptor (insn);
-  return output_call (insn, operands[0], 0);
+  pa_output_arg_descriptor (insn);
+  return pa_output_call (insn, operands[0], 0);
 }"
   [(set_attr "type" "call")
-   (set (attr "length") (symbol_ref "attr_length_call (insn, 0)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_call (insn, 0)"))])
 
 ;; This pattern is split if it is necessary to save and restore the
 ;; PIC register.
@@ -7341,11 +7345,11 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   "TARGET_64BIT"
   "*
 {
-  output_arg_descriptor (insn);
-  return output_call (insn, operands[0], 0);
+  pa_output_arg_descriptor (insn);
+  return pa_output_call (insn, operands[0], 0);
 }"
   [(set_attr "type" "call")
-   (set (attr "length") (symbol_ref "attr_length_call (insn, 0)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_call (insn, 0)"))])
 
 (define_insn "call_reg"
   [(call (mem:SI (reg:SI 22))
@@ -7356,10 +7360,10 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   "!TARGET_64BIT"
   "*
 {
-  return output_indirect_call (insn, gen_rtx_REG (word_mode, 22));
+  return pa_output_indirect_call (insn, gen_rtx_REG (word_mode, 22));
 }"
   [(set_attr "type" "dyncall")
-   (set (attr "length") (symbol_ref "attr_length_indirect_call (insn)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_indirect_call (insn)"))])
 
 ;; This pattern is split if it is necessary to save and restore the
 ;; PIC register.
@@ -7434,10 +7438,10 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   "!TARGET_64BIT"
   "*
 {
-  return output_indirect_call (insn, gen_rtx_REG (word_mode, 22));
+  return pa_output_indirect_call (insn, gen_rtx_REG (word_mode, 22));
 }"
   [(set_attr "type" "dyncall")
-   (set (attr "length") (symbol_ref "attr_length_indirect_call (insn)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_indirect_call (insn)"))])
 
 ;; This pattern is split if it is necessary to save and restore the
 ;; PIC register.
@@ -7518,10 +7522,10 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   "TARGET_64BIT"
   "*
 {
-  return output_indirect_call (insn, operands[0]);
+  return pa_output_indirect_call (insn, operands[0]);
 }"
   [(set_attr "type" "dyncall")
-   (set (attr "length") (symbol_ref "attr_length_indirect_call (insn)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_indirect_call (insn)"))])
 
 (define_expand "call_value"
   [(parallel [(set (match_operand 0 "" "")
@@ -7643,11 +7647,11 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   "!TARGET_PORTABLE_RUNTIME && !TARGET_64BIT"
   "*
 {
-  output_arg_descriptor (insn);
-  return output_call (insn, operands[1], 0);
+  pa_output_arg_descriptor (insn);
+  return pa_output_call (insn, operands[1], 0);
 }"
   [(set_attr "type" "call")
-   (set (attr "length") (symbol_ref "attr_length_call (insn, 0)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_call (insn, 0)"))])
 
 (define_insn "call_val_symref_pic"
   [(set (match_operand:SI 3 "register_operand" "=&r") (reg:SI 19))
@@ -7726,11 +7730,11 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   "!TARGET_PORTABLE_RUNTIME && !TARGET_64BIT"
   "*
 {
-  output_arg_descriptor (insn);
-  return output_call (insn, operands[1], 0);
+  pa_output_arg_descriptor (insn);
+  return pa_output_call (insn, operands[1], 0);
 }"
   [(set_attr "type" "call")
-   (set (attr "length") (symbol_ref "attr_length_call (insn, 0)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_call (insn, 0)"))])
 
 ;; This pattern is split if it is necessary to save and restore the
 ;; PIC register.
@@ -7817,11 +7821,11 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   "TARGET_64BIT"
   "*
 {
-  output_arg_descriptor (insn);
-  return output_call (insn, operands[1], 0);
+  pa_output_arg_descriptor (insn);
+  return pa_output_call (insn, operands[1], 0);
 }"
   [(set_attr "type" "call")
-   (set (attr "length") (symbol_ref "attr_length_call (insn, 0)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_call (insn, 0)"))])
 
 (define_insn "call_val_reg"
   [(set (match_operand 0 "" "")
@@ -7833,10 +7837,10 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   "!TARGET_64BIT"
   "*
 {
-  return output_indirect_call (insn, gen_rtx_REG (word_mode, 22));
+  return pa_output_indirect_call (insn, gen_rtx_REG (word_mode, 22));
 }"
   [(set_attr "type" "dyncall")
-   (set (attr "length") (symbol_ref "attr_length_indirect_call (insn)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_indirect_call (insn)"))])
 
 ;; This pattern is split if it is necessary to save and restore the
 ;; PIC register.
@@ -7917,10 +7921,10 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   "!TARGET_64BIT"
   "*
 {
-  return output_indirect_call (insn, gen_rtx_REG (word_mode, 22));
+  return pa_output_indirect_call (insn, gen_rtx_REG (word_mode, 22));
 }"
   [(set_attr "type" "dyncall")
-   (set (attr "length") (symbol_ref "attr_length_indirect_call (insn)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_indirect_call (insn)"))])
 
 ;; This pattern is split if it is necessary to save and restore the
 ;; PIC register.
@@ -8007,10 +8011,10 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   "TARGET_64BIT"
   "*
 {
-  return output_indirect_call (insn, operands[1]);
+  return pa_output_indirect_call (insn, operands[1]);
 }"
   [(set_attr "type" "dyncall")
-   (set (attr "length") (symbol_ref "attr_length_indirect_call (insn)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_indirect_call (insn)"))])
 
 ;; Call subroutine returning any type.
 
@@ -8100,11 +8104,11 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   "!TARGET_PORTABLE_RUNTIME && !TARGET_64BIT"
   "*
 {
-  output_arg_descriptor (insn);
-  return output_call (insn, operands[0], 1);
+  pa_output_arg_descriptor (insn);
+  return pa_output_call (insn, operands[0], 1);
 }"
   [(set_attr "type" "call")
-   (set (attr "length") (symbol_ref "attr_length_call (insn, 1)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_call (insn, 1)"))])
 
 (define_insn "sibcall_internal_symref_64bit"
   [(call (mem:SI (match_operand 0 "call_operand_address" ""))
@@ -8115,11 +8119,11 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   "TARGET_64BIT"
   "*
 {
-  output_arg_descriptor (insn);
-  return output_call (insn, operands[0], 1);
+  pa_output_arg_descriptor (insn);
+  return pa_output_call (insn, operands[0], 1);
 }"
   [(set_attr "type" "call")
-   (set (attr "length") (symbol_ref "attr_length_call (insn, 1)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_call (insn, 1)"))])
 
 (define_expand "sibcall_value"
   [(set (match_operand 0 "" "")
@@ -8184,11 +8188,11 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   "!TARGET_PORTABLE_RUNTIME && !TARGET_64BIT"
   "*
 {
-  output_arg_descriptor (insn);
-  return output_call (insn, operands[1], 1);
+  pa_output_arg_descriptor (insn);
+  return pa_output_call (insn, operands[1], 1);
 }"
   [(set_attr "type" "call")
-   (set (attr "length") (symbol_ref "attr_length_call (insn, 1)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_call (insn, 1)"))])
 
 (define_insn "sibcall_value_internal_symref_64bit"
   [(set (match_operand 0 "" "")
@@ -8200,11 +8204,11 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   "TARGET_64BIT"
   "*
 {
-  output_arg_descriptor (insn);
-  return output_call (insn, operands[1], 1);
+  pa_output_arg_descriptor (insn);
+  return pa_output_call (insn, operands[1], 1);
 }"
   [(set_attr "type" "call")
-   (set (attr "length") (symbol_ref "attr_length_call (insn, 1)"))])
+   (set (attr "length") (symbol_ref "pa_attr_length_call (insn, 1)"))])
 
 (define_insn "nop"
   [(const_int 0)]
@@ -8593,7 +8597,7 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
 	(plus:SI (match_dup 0) (match_dup 1)))
    (clobber (match_scratch:SI 4 "=X,r,r"))]
   ""
-  "* return output_dbra (operands, insn, which_alternative); "
+  "* return pa_output_dbra (operands, insn, which_alternative); "
 ;; Do not expect to understand this the first time through.
 [(set_attr "type" "cbranch,multi,multi")
  (set (attr "length")
@@ -8676,7 +8680,7 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
    (set (match_operand:SI 0 "reg_before_reload_operand" "=!r,!*f,*m,!*q")
 	(match_dup 1))]
   ""
-"* return output_movb (operands, insn, which_alternative, 0); "
+"* return pa_output_movb (operands, insn, which_alternative, 0); "
 ;; Do not expect to understand this the first time through.
 [(set_attr "type" "cbranch,multi,multi,multi")
  (set (attr "length")
@@ -8748,7 +8752,7 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
    (set (match_operand:SI 0 "reg_before_reload_operand" "=!r,!*f,*m,!*q")
 	(match_dup 1))]
   ""
-"* return output_movb (operands, insn, which_alternative, 1); "
+"* return pa_output_movb (operands, insn, which_alternative, 1); "
 ;; Do not expect to understand this the first time through.
 [(set_attr "type" "cbranch,multi,multi,multi")
  (set (attr "length")
@@ -8817,7 +8821,7 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   "(reload_completed && operands[0] == operands[1]) || operands[0] == operands[2]"
   "*
 {
-  return output_parallel_addb (operands, insn);
+  return pa_output_parallel_addb (operands, insn);
 }"
 [(set_attr "type" "parallel_branch")
  (set (attr "length")
@@ -8840,7 +8844,7 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   "reload_completed"
   "*
 {
-  return output_parallel_movb (operands, insn);
+  return pa_output_parallel_movb (operands, insn);
 }"
 [(set_attr "type" "parallel_branch")
  (set (attr "length")
@@ -8863,7 +8867,7 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   "reload_completed"
   "*
 {
-  return output_parallel_movb (operands, insn);
+  return pa_output_parallel_movb (operands, insn);
 }"
 [(set_attr "type" "parallel_branch")
  (set (attr "length")
@@ -8886,7 +8890,7 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   "reload_completed"
   "*
 {
-  return output_parallel_movb (operands, insn);
+  return pa_output_parallel_movb (operands, insn);
 }"
 [(set_attr "type" "parallel_branch")
  (set (attr "length")
@@ -8909,7 +8913,7 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   "reload_completed"
   "*
 {
-  return output_parallel_movb (operands, insn);
+  return pa_output_parallel_movb (operands, insn);
 }"
 [(set_attr "type" "parallel_branch")
  (set (attr "length")
@@ -8933,7 +8937,7 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
 	(plus (match_operand 4 "register_operand" "f")
 	      (match_operand 5 "register_operand" "f")))]
   "TARGET_PA_11 && ! TARGET_SOFT_FLOAT
-   && reload_completed && fmpyaddoperands (operands)"
+   && reload_completed && pa_fmpyaddoperands (operands)"
   "*
 {
   if (GET_MODE (operands[0]) == DFmode)
@@ -8962,7 +8966,7 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
 	(mult (match_operand 1 "register_operand" "f")
 	      (match_operand 2 "register_operand" "f")))]
   "TARGET_PA_11 && ! TARGET_SOFT_FLOAT
-   && reload_completed && fmpyaddoperands (operands)"
+   && reload_completed && pa_fmpyaddoperands (operands)"
   "*
 {
   if (GET_MODE (operands[0]) == DFmode)
@@ -8991,7 +8995,7 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
 	(minus (match_operand 4 "register_operand" "f")
 	       (match_operand 5 "register_operand" "f")))]
   "TARGET_PA_11 && ! TARGET_SOFT_FLOAT
-   && reload_completed && fmpysuboperands (operands)"
+   && reload_completed && pa_fmpysuboperands (operands)"
   "*
 {
   if (GET_MODE (operands[0]) == DFmode)
@@ -9010,7 +9014,7 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
 	(mult (match_operand 1 "register_operand" "f")
 	      (match_operand 2 "register_operand" "f")))]
   "TARGET_PA_11 && ! TARGET_SOFT_FLOAT
-   && reload_completed && fmpysuboperands (operands)"
+   && reload_completed && pa_fmpysuboperands (operands)"
   "*
 {
   if (GET_MODE (operands[0]) == DFmode)
@@ -9236,13 +9240,13 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   output_asm_insn (\"{comb|cmpb},<<,n %%r26,%%r31,.+%1\", xoperands);
 
   /* Finally, call $$sh_func_adrs to extract the function's real add24.  */
-  return output_millicode_call (insn,
-				gen_rtx_SYMBOL_REF (SImode,
-						    \"$$sh_func_adrs\"));
+  return pa_output_millicode_call (insn,
+				   gen_rtx_SYMBOL_REF (SImode,
+						       \"$$sh_func_adrs\"));
 }"
   [(set_attr "type" "multi")
    (set (attr "length")
-	(plus (symbol_ref "attr_length_millicode_call (insn)")
+	(plus (symbol_ref "pa_attr_length_millicode_call (insn)")
 	      (const_int 20)))])
 
 ;; On the PA, the PIC register is call clobbered, so it must

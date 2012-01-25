@@ -171,10 +171,6 @@
 /* Define if _Unwind_GetIPInfo is available. */
 #undef HAVE_GETIPINFO
 
-/* Define if gthr-default.h exists (meaning that threading support is
-   enabled). */
-#undef HAVE_GTHR_DEFAULT
-
 /* Define to 1 if you have the `hypot' function. */
 #undef HAVE_HYPOT
 
@@ -333,6 +329,9 @@
 
 /* Define to 1 if you have the `sqrtl' function. */
 #undef HAVE_SQRTL
+
+/* Define to 1 if you have the <stdalign.h> header file. */
+#undef HAVE_STDALIGN_H
 
 /* Define to 1 if you have the <stdbool.h> header file. */
 #undef HAVE_STDBOOL_H
@@ -690,24 +689,14 @@
 /* Version number of package */
 #undef VERSION
 
-/* Define if builtin atomic operations for bool are supported on this host. */
-#undef _GLIBCXX_ATOMIC_BUILTINS_1
-
-/* Define if builtin atomic operations for short are supported on this host.
-   */
-#undef _GLIBCXX_ATOMIC_BUILTINS_2
-
-/* Define if builtin atomic operations for int are supported on this host. */
-#undef _GLIBCXX_ATOMIC_BUILTINS_4
-
-/* Define if builtin atomic operations for long long are supported on this
-   host. */
-#undef _GLIBCXX_ATOMIC_BUILTINS_8
+/* Define if the compiler supports C++11 atomics. */
+#undef _GLIBCXX_ATOMIC_BUILTINS
 
 /* Define to use concept checking code from the boost libraries. */
 #undef _GLIBCXX_CONCEPT_CHECKS
 
-/* Define if a fully dynamic basic_string is wanted. */
+/* Define to 1 if a fully dynamic basic_string is wanted, 0 to disable,
+   undefined for platform defaults */
 #undef _GLIBCXX_FULLY_DYNAMIC_STRING
 
 /* Define if gthreads library is available. */
@@ -831,6 +820,9 @@
 /* Define if NLS translations are to be used. */
 #undef _GLIBCXX_USE_NLS
 
+/* Define if pthreads_num_processors_np is available in <pthread.h>. */
+#undef _GLIBCXX_USE_PTHREADS_NUM_PROCESSORS_NP
+
 /* Define if /dev/random and /dev/urandom are available for the random_device
    of TR1 (Chapter 5.1). */
 #undef _GLIBCXX_USE_RANDOM_TR1
@@ -840,6 +832,12 @@
 
 /* Define if _SC_NPROCESSORS_ONLN is available in <unistd.h>. */
 #undef _GLIBCXX_USE_SC_NPROCESSORS_ONLN
+
+/* Define if _SC_NPROC_ONLN is available in <unistd.h>. */
+#undef _GLIBCXX_USE_SC_NPROC_ONLN
+
+/* Define if sysctl(), CTL_HW and HW_NCPU are available in <sys/sysctl.h>. */
+#undef _GLIBCXX_USE_SYSCTL_HW_NCPU
 
 /* Define if code specialized for wchar_t should be used. */
 #undef _GLIBCXX_USE_WCHAR_T

@@ -313,6 +313,14 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 #define HAVE_AS_TLS 0
 #endif
 
+#ifndef TARGET_LINK_STACK
+#define TARGET_LINK_STACK 0
+#endif
+
+#ifndef SET_TARGET_LINK_STACK
+#define SET_TARGET_LINK_STACK(X) do { } while (0)
+#endif
+
 /* Return 1 for a symbol ref for a thread-local storage symbol.  */
 #define RS6000_SYMBOL_REF_TLS_P(RTX) \
   (GET_CODE (RTX) == SYMBOL_REF && SYMBOL_REF_TLS_MODEL (RTX) != 0)
@@ -365,12 +373,14 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 #define MASK_DEBUG_ADDR		0x08	/* debug memory addressing */
 #define MASK_DEBUG_COST		0x10	/* debug rtx codes */
 #define MASK_DEBUG_TARGET	0x20	/* debug target attribute/pragma */
+#define MASK_DEBUG_BUILTIN	0x40	/* debug builtins */
 #define MASK_DEBUG_ALL		(MASK_DEBUG_STACK \
 				 | MASK_DEBUG_ARG \
 				 | MASK_DEBUG_REG \
 				 | MASK_DEBUG_ADDR \
 				 | MASK_DEBUG_COST \
-				 | MASK_DEBUG_TARGET)
+				 | MASK_DEBUG_TARGET \
+				 | MASK_DEBUG_BUILTIN)
 
 #define	TARGET_DEBUG_STACK	(rs6000_debug & MASK_DEBUG_STACK)
 #define	TARGET_DEBUG_ARG	(rs6000_debug & MASK_DEBUG_ARG)
@@ -378,6 +388,7 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 #define TARGET_DEBUG_ADDR	(rs6000_debug & MASK_DEBUG_ADDR)
 #define TARGET_DEBUG_COST	(rs6000_debug & MASK_DEBUG_COST)
 #define TARGET_DEBUG_TARGET	(rs6000_debug & MASK_DEBUG_TARGET)
+#define TARGET_DEBUG_BUILTIN	(rs6000_debug & MASK_DEBUG_BUILTIN)
 
 extern enum rs6000_vector rs6000_vector_unit[];
 
@@ -472,6 +483,24 @@ extern int rs6000_vector_align[];
 #define TARGET_FCTIDUZ	TARGET_POPCNTD
 #define TARGET_FCTIWUZ	TARGET_POPCNTD
 
+/* For power systems, we want to enable Altivec and VSX builtins even if the
+   user did not use -maltivec or -mvsx to allow the builtins to be used inside
+   of #pragma GCC target or the target attribute to change the code level for a
+   given system.  The SPE and Paired builtins are only enabled if you configure
+   the compiler for those builtins, and those machines don't support altivec or
+   VSX.  */
+
+#define TARGET_EXTRA_BUILTINS	(!TARGET_SPE && !TARGET_PAIRED_FLOAT	 \
+				 && ((TARGET_POWERPC64			 \
+				      || TARGET_PPC_GPOPT /* 970 */	 \
+				      || TARGET_POPCNTB	  /* ISA 2.02 */ \
+				      || TARGET_CMPB	  /* ISA 2.05 */ \
+				      || TARGET_POPCNTD	  /* ISA 2.06 */ \
+				      || TARGET_ALTIVEC			 \
+				      || TARGET_VSX)))
+
+
+
 /* E500 processors only support plain "sync", not lwsync.  */
 #define TARGET_NO_LWSYNC TARGET_E500
 
@@ -523,6 +552,7 @@ extern unsigned char rs6000_recip_bits[];
   c_register_pragma (0, "longcall", rs6000_pragma_longcall);	\
   targetm.target_option.pragma_parse = rs6000_pragma_target_parse; \
   targetm.resolve_overloaded_builtin = altivec_resolve_overloaded_builtin; \
+  rs6000_target_modify_macros_ptr = rs6000_target_modify_macros; \
 } while (0)
 
 /* Target #defines.  */
@@ -894,10 +924,11 @@ extern unsigned rs6000_pointer_size;
 	cr1		(not saved, but used for FP operations)
 	cr0		(not saved, but used for arithmetic operations)
 	cr4, cr3, cr2	(saved)
-	r0		(not saved; cannot be base reg)
 	r9		(not saved; best for TImode)
-	r11, r10, r8-r4	(not saved; highest used first to make less conflict)
+	r10, r8-r4	(not saved; highest first for less conflict with params)
 	r3		(not saved; return value register)
+	r11		(not saved; later alloc to help shrink-wrap)
+	r0		(not saved; cannot be base reg)
 	r31 - r13	(saved; order given to save least number)
 	r12		(not saved; if used for DImode or DFmode would use r13)
 	mq		(not saved; best to use it if we can)
@@ -922,6 +953,14 @@ extern unsigned rs6000_pointer_size;
 #define MAYBE_R2_FIXED
 #endif
 
+#if FIXED_R13 == 1
+#define EARLY_R12 12,
+#define LATE_R12
+#else
+#define EARLY_R12
+#define LATE_R12 12,
+#endif
+
 #define REG_ALLOC_ORDER						\
   {32,								\
    45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34,		\
@@ -929,11 +968,11 @@ extern unsigned rs6000_pointer_size;
    63, 62, 61, 60, 59, 58, 57, 56, 55, 54, 53, 52, 51,		\
    50, 49, 48, 47, 46,						\
    75, 74, 69, 68, 72, 71, 70,					\
-   0, MAYBE_R2_AVAILABLE					\
-   9, 11, 10, 8, 7, 6, 5, 4,					\
-   3,								\
+   MAYBE_R2_AVAILABLE						\
+   9, 10, 8, 7, 6, 5, 4,					\
+   3, EARLY_R12 11, 0,						\
    31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19,		\
-   18, 17, 16, 15, 14, 13, 12,					\
+   18, 17, 16, 15, 14, 13, LATE_R12				\
    64, 66, 65,							\
    73, 1, MAYBE_R2_FIXED 67, 76,				\
    /* AltiVec registers.  */					\
@@ -2254,24 +2293,83 @@ extern char rs6000_reg_names[][8];	/* register names (0 vs. %r0).  */
 /* General flags.  */
 extern int frame_pointer_needed;
 
-/* Classification of the builtin functions to properly set the declaration tree
-   flags.  */
-enum rs6000_btc
-{
-  RS6000_BTC_MISC,		/* assume builtin can do anything */
-  RS6000_BTC_CONST,		/* builtin is a 'const' function.  */
-  RS6000_BTC_PURE,		/* builtin is a 'pure' function.  */
-  RS6000_BTC_FP_PURE		/* builtin is 'pure' if rounding math.  */
-};
+/* Classification of the builtin functions as to which switches enable the
+   builtin, and what attributes it should have.  We used to use the target
+   flags macros, but we've run out of bits, so we now map the options into new
+   settings used here.  */
+
+/* Builtin attributes.  */
+#define RS6000_BTC_SPECIAL	0x00000000	/* Special function.  */
+#define RS6000_BTC_UNARY	0x00000001	/* normal unary function.  */
+#define RS6000_BTC_BINARY	0x00000002	/* normal binary function.  */
+#define RS6000_BTC_TERNARY	0x00000003	/* normal ternary function.  */
+#define RS6000_BTC_PREDICATE	0x00000004	/* predicate function.  */
+#define RS6000_BTC_ABS		0x00000005	/* Altivec/VSX ABS function.  */
+#define RS6000_BTC_EVSEL	0x00000006	/* SPE EVSEL function.  */
+#define RS6000_BTC_DST		0x00000007	/* Altivec DST function.  */
+#define RS6000_BTC_TYPE_MASK	0x0000000f	/* Mask to isolate types */
+
+#define RS6000_BTC_MISC		0x00000000	/* No special attributes.  */
+#define RS6000_BTC_CONST	0x00000100	/* uses no global state.  */
+#define RS6000_BTC_PURE		0x00000200	/* reads global state/mem.  */
+#define RS6000_BTC_FP		0x00000400	/* depends on rounding mode.  */
+#define RS6000_BTC_ATTR_MASK	0x00000700	/* Mask of the attributes.  */
+
+/* Miscellaneous information.  */
+#define RS6000_BTC_OVERLOADED	0x4000000	/* function is overloaded.  */
 
 /* Convenience macros to document the instruction type.  */
-#define RS6000_BTC_MEM	RS6000_BTC_MISC	/* load/store touches memory */
-#define RS6000_BTC_SAT	RS6000_BTC_MISC	/* VMX saturate sets VSCR register */
+#define RS6000_BTC_MEM		RS6000_BTC_MISC	/* load/store touches mem.  */
+#define RS6000_BTC_SAT		RS6000_BTC_MISC	/* saturate sets VSCR.  */
 
-#undef RS6000_BUILTIN
-#undef RS6000_BUILTIN_EQUATE
-#define RS6000_BUILTIN(NAME, TYPE) NAME,
-#define RS6000_BUILTIN_EQUATE(NAME, VALUE) NAME = VALUE,
+/* Builtin targets.  For now, we reuse the masks for those options that are in
+   target flags, and pick two random bits for SPE and paired which aren't in
+   target_flags.  */
+#define RS6000_BTM_ALTIVEC	MASK_ALTIVEC	/* VMX/altivec vectors.  */
+#define RS6000_BTM_VSX		MASK_VSX	/* VSX (vector/scalar).  */
+#define RS6000_BTM_SPE		MASK_STRING	/* E500 */
+#define RS6000_BTM_PAIRED	MASK_MULHW	/* 750CL paired insns.  */
+#define RS6000_BTM_FRE		MASK_POPCNTB	/* FRE instruction.  */
+#define RS6000_BTM_FRES		MASK_PPC_GFXOPT	/* FRES instruction.  */
+#define RS6000_BTM_FRSQRTE	MASK_PPC_GFXOPT	/* FRSQRTE instruction.  */
+#define RS6000_BTM_FRSQRTES	MASK_POPCNTB	/* FRSQRTES instruction.  */
+#define RS6000_BTM_POPCNTD	MASK_POPCNTD	/* Target supports ISA 2.06.  */
+#define RS6000_BTM_POWERPC	MASK_POWERPC	/* Target is powerpc.  */
+#define RS6000_BTM_CELL		MASK_FPRND	/* Target is cell powerpc.  */
+
+#define RS6000_BTM_COMMON	(RS6000_BTM_ALTIVEC			\
+				 | RS6000_BTM_VSX			\
+				 | RS6000_BTM_FRE			\
+				 | RS6000_BTM_FRES			\
+				 | RS6000_BTM_FRSQRTE			\
+				 | RS6000_BTM_FRSQRTES			\
+				 | RS6000_BTM_POPCNTD			\
+				 | RS6000_BTM_POWERPC			\
+				 | RS6000_BTM_CELL)
+
+/* Define builtin enum index.  */
+
+#undef RS6000_BUILTIN_1
+#undef RS6000_BUILTIN_2
+#undef RS6000_BUILTIN_3
+#undef RS6000_BUILTIN_A
+#undef RS6000_BUILTIN_D
+#undef RS6000_BUILTIN_E
+#undef RS6000_BUILTIN_P
+#undef RS6000_BUILTIN_Q
+#undef RS6000_BUILTIN_S
+#undef RS6000_BUILTIN_X
+
+#define RS6000_BUILTIN_1(ENUM, NAME, MASK, ATTR, ICODE) ENUM,
+#define RS6000_BUILTIN_2(ENUM, NAME, MASK, ATTR, ICODE) ENUM,
+#define RS6000_BUILTIN_3(ENUM, NAME, MASK, ATTR, ICODE) ENUM,
+#define RS6000_BUILTIN_A(ENUM, NAME, MASK, ATTR, ICODE) ENUM,
+#define RS6000_BUILTIN_D(ENUM, NAME, MASK, ATTR, ICODE) ENUM,
+#define RS6000_BUILTIN_E(ENUM, NAME, MASK, ATTR, ICODE) ENUM,
+#define RS6000_BUILTIN_P(ENUM, NAME, MASK, ATTR, ICODE) ENUM,
+#define RS6000_BUILTIN_Q(ENUM, NAME, MASK, ATTR, ICODE) ENUM,
+#define RS6000_BUILTIN_S(ENUM, NAME, MASK, ATTR, ICODE) ENUM,
+#define RS6000_BUILTIN_X(ENUM, NAME, MASK, ATTR, ICODE) ENUM,
 
 enum rs6000_builtins
 {
@@ -2280,8 +2378,16 @@ enum rs6000_builtins
   RS6000_BUILTIN_COUNT
 };
 
-#undef RS6000_BUILTIN
-#undef RS6000_BUILTIN_EQUATE
+#undef RS6000_BUILTIN_1
+#undef RS6000_BUILTIN_2
+#undef RS6000_BUILTIN_3
+#undef RS6000_BUILTIN_A
+#undef RS6000_BUILTIN_D
+#undef RS6000_BUILTIN_E
+#undef RS6000_BUILTIN_P
+#undef RS6000_BUILTIN_Q
+#undef RS6000_BUILTIN_S
+#undef RS6000_BUILTIN_X
 
 enum rs6000_builtin_type_index
 {

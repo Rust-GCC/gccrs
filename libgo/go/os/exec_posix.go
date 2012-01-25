@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build darwin freebsd linux netbsd openbsd windows
+
 package os
 
 import (
@@ -22,9 +24,9 @@ func (sig UnixSignal) String() string {
 // StartProcess starts a new process with the program, arguments and attributes
 // specified by name, argv and attr.
 //
-// StartProcess is a low-level interface. The exec package provides
+// StartProcess is a low-level interface. The os/exec package provides
 // higher-level interfaces.
-func StartProcess(name string, argv []string, attr *ProcAttr) (p *Process, err Error) {
+func StartProcess(name string, argv []string, attr *ProcAttr) (p *Process, err error) {
 	sysattr := &syscall.ProcAttr{
 		Dir: attr.Dir,
 		Env: attr.Env,
@@ -38,30 +40,30 @@ func StartProcess(name string, argv []string, attr *ProcAttr) (p *Process, err E
 	}
 
 	pid, h, e := syscall.StartProcess(name, argv, sysattr)
-	if iserror(e) {
-		return nil, &PathError{"fork/exec", name, Errno(e)}
+	if e != nil {
+		return nil, &PathError{"fork/exec", name, e}
 	}
 	return newProcess(pid, h), nil
 }
 
 // Kill causes the Process to exit immediately.
-func (p *Process) Kill() Error {
+func (p *Process) Kill() error {
 	return p.Signal(SIGKILL)
 }
 
 // Exec replaces the current process with an execution of the
 // named binary, with arguments argv and environment envv.
-// If successful, Exec never returns.  If it fails, it returns an Error.
+// If successful, Exec never returns.  If it fails, it returns an error.
 //
 // To run a child process, see StartProcess (for a low-level interface)
-// or the exec package (for higher-level interfaces).
-func Exec(name string, argv []string, envv []string) Error {
+// or the os/exec package (for higher-level interfaces).
+func Exec(name string, argv []string, envv []string) error {
 	if envv == nil {
 		envv = Environ()
 	}
 	e := syscall.Exec(name, argv, envv)
-	if iserror(e) {
-		return &PathError{"exec", name, Errno(e)}
+	if e != nil {
+		return &PathError{"exec", name, e}
 	}
 	return nil
 }
@@ -81,11 +83,11 @@ type Waitmsg struct {
 }
 
 // Wait waits for process pid to exit or stop, and then returns a
-// Waitmsg describing its status and an Error, if any. The options
+// Waitmsg describing its status and an error, if any. The options
 // (WNOHANG etc.) affect the behavior of the Wait call.
 // Wait is equivalent to calling FindProcess and then Wait
 // and Release on the result.
-func Wait(pid int, options int) (w *Waitmsg, err Error) {
+func Wait(pid int, options int) (w *Waitmsg, err error) {
 	p, e := FindProcess(pid)
 	if e != nil {
 		return nil, e

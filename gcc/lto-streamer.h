@@ -825,7 +825,7 @@ tree lto_input_tree (struct lto_input_block *, struct data_in *);
 extern void lto_register_decl_definition (tree, struct lto_file_decl_data *);
 extern struct output_block *create_output_block (enum lto_section_type);
 extern void destroy_output_block (struct output_block *);
-extern void lto_output_tree (struct output_block *, tree, bool);
+extern void lto_output_tree (struct output_block *, tree, bool, bool);
 extern void lto_output_toplevel_asms (void);
 extern void produce_asm (struct output_block *ob, tree fn);
 void lto_output_decl_state_streams (struct output_block *,
@@ -882,12 +882,7 @@ extern GTY(()) VEC(tree,gc) *lto_global_var_decls;
 
 
 /* In lto-opts.c.  */
-extern void lto_register_user_option (size_t, const char *, int, unsigned int);
-extern void lto_read_file_options (struct lto_file_decl_data *);
 extern void lto_write_options (void);
-extern void lto_reissue_options (void);
-void lto_clear_user_options (void);
-void lto_clear_file_options (void);
 
 
 /* In lto-wpa-fixup.c  */

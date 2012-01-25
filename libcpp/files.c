@@ -1,7 +1,7 @@
 /* Part of CPP library.  File handling.
    Copyright (C) 1986, 1987, 1989, 1992, 1993, 1994, 1995, 1998,
-   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
-   Free Software Foundation, Inc.
+   1999, 2000, 2001, 2002, 2003, 2004, 2005,
+   2006, 2007, 2008, 2009, 2010, 2011, 2012 Free Software Foundation, Inc.
    Written by Per Bothner, 1994.
    Based on CCCP program by Paul Rubin, June 1986
    Adapted to ANSI C, Richard Stallman, Jan 1987
@@ -1220,13 +1220,12 @@ cpp_make_system_header (cpp_reader *pfile, int syshdr, int externc)
 {
   int flags = 0;
   const struct line_maps *line_table = pfile->line_table;
-  const struct line_map *map = &line_table->maps[line_table->used-1];
-
+  const struct line_map *map = LINEMAPS_LAST_ORDINARY_MAP (line_table);
   /* 1 = system header, 2 = system header to be treated as C.  */
   if (syshdr)
     flags = 1 + (externc != 0);
   pfile->buffer->sysp = flags;
-  _cpp_do_file_change (pfile, LC_RENAME, map->to_file,
+  _cpp_do_file_change (pfile, LC_RENAME, ORDINARY_MAP_FILE_NAME (map),
 		       SOURCE_LINE (map, pfile->line_table->highest_line), flags);
 }
 
@@ -1369,6 +1368,13 @@ _cpp_pop_file_buffer (cpp_reader *pfile, _cpp_file *file)
       file->buffer = NULL;
       file->buffer_valid = false;
     }
+}
+
+/* Return the file name associated with FILE.  */
+const char *
+_cpp_get_file_name (_cpp_file *file)
+{
+  return file->name;
 }
 
 /* Inteface to file statistics record in _cpp_file structure. */

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -332,6 +332,19 @@ package body Sem_Util is
          Set_Is_Static_Expression (N);
       end if;
    end Apply_Compile_Time_Constraint_Error;
+
+   --------------------------------------
+   -- Available_Full_View_Of_Component --
+   --------------------------------------
+
+   function Available_Full_View_Of_Component (T : Entity_Id) return Boolean is
+      ST  : constant Entity_Id := Scope (T);
+      SCT : constant Entity_Id := Scope (Component_Type (T));
+   begin
+      return In_Open_Scopes (ST)
+        and then In_Open_Scopes (SCT)
+        and then Scope_Depth (ST) >= Scope_Depth (SCT);
+   end Available_Full_View_Of_Component;
 
    --------------------------------
    -- Bad_Predicated_Subtype_Use --
@@ -2424,6 +2437,12 @@ package body Sem_Util is
                          (Defining_Identifier
                            (Associated_Node_For_Itype (Typ))));
 
+      --  For generic formal type, return Int'Last (infinite).
+      --  See comment preceding Is_Generic_Type call in Type_Access_Level.
+
+      elsif Is_Generic_Type (Root_Type (Typ)) then
+         return UI_From_Int (Int'Last);
+
       else
          return Type_Access_Level (Typ);
       end if;
@@ -2448,7 +2467,8 @@ package body Sem_Util is
            N_Subprogram_Body_Stub                   |
            N_Generic_Subprogram_Declaration         |
            N_Generic_Package_Declaration            |
-           N_Formal_Subprogram_Declaration
+           N_Formal_Subprogram_Declaration          |
+           N_Expression_Function
          =>
             return Defining_Entity (Specification (N));
 
@@ -2739,7 +2759,7 @@ package body Sem_Util is
          end if;
 
       elsif Is_Entity_Name (A2) then
-         return Denotes_Same_Prefix (A2, A1);
+         return Denotes_Same_Prefix (A1 => A2, A2 => A1);
 
       elsif Nkind_In (A1, N_Selected_Component, N_Indexed_Component, N_Slice)
               and then
@@ -2993,7 +3013,7 @@ package body Sem_Util is
             if not Is_Local_Anonymous_Access (Etype (Expr)) then
 
                --  Handle type conversions introduced for a rename of an
-               --  Ada2012 stand-alone object of an anonymous access type.
+               --  Ada 2012 stand-alone object of an anonymous access type.
 
                return Dynamic_Accessibility_Level (Expression (Expr));
             end if;
@@ -3012,7 +3032,8 @@ package body Sem_Util is
    function Effective_Extra_Accessibility (Id : Entity_Id) return Entity_Id is
    begin
       if Present (Renamed_Object (Id))
-        and then Is_Entity_Name (Renamed_Object (Id)) then
+        and then Is_Entity_Name (Renamed_Object (Id))
+      then
          return Effective_Extra_Accessibility (Entity (Renamed_Object (Id)));
       end if;
 
@@ -3896,8 +3917,8 @@ package body Sem_Util is
             end if;
          end loop;
 
-         --  This loop checks the form of the prefix for an entity,
-         --  using recursion to deal with intermediate components.
+         --  This loop checks the form of the prefix for an entity, using
+         --  recursion to deal with intermediate components.
 
          loop
             --  Check for Y where Y is an entity
@@ -3909,8 +3930,8 @@ package body Sem_Util is
             --  Check for components
 
             elsif
-               Nkind_In (Expr, N_Selected_Component, N_Indexed_Component) then
-
+              Nkind_In (Expr, N_Selected_Component, N_Indexed_Component)
+            then
                Expr := Prefix (Expr);
                Off := True;
 
@@ -5951,6 +5972,29 @@ package body Sem_Util is
       return Name_Buffer (Name_Len) = Suffix;
    end Has_Suffix;
 
+   ----------------
+   -- Add_Suffix --
+   ----------------
+
+   function Add_Suffix (E : Entity_Id; Suffix : Character) return Name_Id is
+   begin
+      Get_Name_String (Chars (E));
+      Add_Char_To_Name_Buffer (Suffix);
+      return Name_Find;
+   end Add_Suffix;
+
+   -------------------
+   -- Remove_Suffix --
+   -------------------
+
+   function Remove_Suffix (E : Entity_Id; Suffix : Character) return Name_Id is
+   begin
+      pragma Assert (Has_Suffix (E, Suffix));
+      Get_Name_String (Chars (E));
+      Name_Len := Name_Len - 1;
+      return Name_Find;
+   end Remove_Suffix;
+
    --------------------------
    -- Has_Tagged_Component --
    --------------------------
@@ -5993,10 +6037,11 @@ package body Sem_Util is
 
    function Implementation_Kind (Subp : Entity_Id) return Name_Id is
       Impl_Prag : constant Node_Id := Get_Rep_Pragma (Subp, Name_Implemented);
+      Arg       : Node_Id;
    begin
       pragma Assert (Present (Impl_Prag));
-      return
-        Chars (Expression (Last (Pragma_Argument_Associations (Impl_Prag))));
+      Arg := Last (Pragma_Argument_Associations (Impl_Prag));
+      return Chars (Get_Pragma_Arg (Arg));
    end Implementation_Kind;
 
    --------------------------
@@ -6546,27 +6591,22 @@ package body Sem_Util is
       if Is_Entity_Name (Obj) then
          E := Entity (Obj);
 
-         if Is_Object (E) and then not Is_Aliased (E) then
-            Check_Restriction (No_Implicit_Aliasing, Obj);
-         end if;
-
          return
            (Is_Object (E)
              and then
                (Is_Aliased (E)
-                  or else (Present (Renamed_Object (E))
-                             and then Is_Aliased_View (Renamed_Object (E)))))
+                 or else (Present (Renamed_Object (E))
+                           and then Is_Aliased_View (Renamed_Object (E)))))
 
            or else ((Is_Formal (E)
                       or else Ekind (E) = E_Generic_In_Out_Parameter
                       or else Ekind (E) = E_Generic_In_Parameter)
                     and then Is_Tagged_Type (Etype (E)))
 
-           or else (Is_Concurrent_Type (E)
-                     and then In_Open_Scopes (E))
+           or else (Is_Concurrent_Type (E) and then In_Open_Scopes (E))
 
-            --  Current instance of type, either directly or as rewritten
-            --  reference to the current object.
+           --  Current instance of type, either directly or as rewritten
+           --  reference to the current object.
 
            or else (Is_Entity_Name (Original_Node (Obj))
                      and then Present (Entity (Original_Node (Obj)))
@@ -6575,7 +6615,13 @@ package body Sem_Util is
            or else (Is_Type (E) and then E = Current_Scope)
 
            or else (Is_Incomplete_Or_Private_Type (E)
-                     and then Full_View (E) = Current_Scope);
+                     and then Full_View (E) = Current_Scope)
+
+           --  Ada 2012 AI05-0053: the return object of an extended return
+           --  statement is aliased if its type is immutably limited.
+
+           or else (Is_Return_Object (E)
+                     and then Is_Immutably_Limited_Type (Etype (E)));
 
       elsif Nkind (Obj) = N_Selected_Component then
          return Is_Aliased (Entity (Selector_Name (Obj)));
@@ -6901,8 +6947,9 @@ package body Sem_Util is
                   --  designated object is known to be constrained.
 
                   if Ekind (Prefix_Type) = E_Access_Type
-                    and then not Has_Constrained_Partial_View
-                                   (Designated_Type (Prefix_Type))
+                    and then not Effectively_Has_Constrained_Partial_View
+                                   (Typ  => Designated_Type (Prefix_Type),
+                                    Scop => Current_Scope)
                   then
                      return False;
 
@@ -7345,6 +7392,34 @@ package body Sem_Util is
       end if;
    end Is_Fully_Initialized_Variant;
 
+   ----------------------------
+   -- Is_Inherited_Operation --
+   ----------------------------
+
+   function Is_Inherited_Operation (E : Entity_Id) return Boolean is
+      pragma Assert (Is_Overloadable (E));
+      Kind : constant Node_Kind := Nkind (Parent (E));
+   begin
+      return Kind = N_Full_Type_Declaration
+        or else Kind = N_Private_Extension_Declaration
+        or else Kind = N_Subtype_Declaration
+        or else (Ekind (E) = E_Enumeration_Literal
+                  and then Is_Derived_Type (Etype (E)));
+   end Is_Inherited_Operation;
+
+   -------------------------------------
+   -- Is_Inherited_Operation_For_Type --
+   -------------------------------------
+
+   function Is_Inherited_Operation_For_Type
+     (E   : Entity_Id;
+      Typ : Entity_Id) return Boolean
+   is
+   begin
+      return Is_Inherited_Operation (E)
+        and then Etype (Parent (E)) = Typ;
+   end Is_Inherited_Operation_For_Type;
+
    -----------------
    -- Is_Iterator --
    -----------------
@@ -7415,33 +7490,6 @@ package body Sem_Util is
       end if;
    end Is_LHS;
 
-   ----------------------------
-   -- Is_Inherited_Operation --
-   ----------------------------
-
-   function Is_Inherited_Operation (E : Entity_Id) return Boolean is
-      Kind : constant Node_Kind := Nkind (Parent (E));
-   begin
-      pragma Assert (Is_Overloadable (E));
-      return Kind = N_Full_Type_Declaration
-        or else Kind = N_Private_Extension_Declaration
-        or else Kind = N_Subtype_Declaration
-        or else (Ekind (E) = E_Enumeration_Literal
-                  and then Is_Derived_Type (Etype (E)));
-   end Is_Inherited_Operation;
-
-   -------------------------------------
-   -- Is_Inherited_Operation_For_Type --
-   -------------------------------------
-
-   function Is_Inherited_Operation_For_Type
-     (E : Entity_Id; Typ : Entity_Id) return Boolean
-   is
-   begin
-      return Is_Inherited_Operation (E)
-        and then Etype (Parent (E)) = Typ;
-   end Is_Inherited_Operation_For_Type;
-
    -----------------------------
    -- Is_Library_Level_Entity --
    -----------------------------
@@ -7461,6 +7509,17 @@ package body Sem_Util is
 
       return Enclosing_Dynamic_Scope (E) = Standard_Standard;
    end Is_Library_Level_Entity;
+
+   --------------------------------
+   -- Is_Limited_Class_Wide_Type --
+   --------------------------------
+
+   function Is_Limited_Class_Wide_Type (Typ : Entity_Id) return Boolean is
+   begin
+      return
+        Is_Class_Wide_Type (Typ)
+          and then Is_Limited_Type (Typ);
+   end Is_Limited_Class_Wide_Type;
 
    ---------------------------------
    -- Is_Local_Variable_Reference --
@@ -7501,7 +7560,7 @@ package body Sem_Util is
                  Is_Object_Reference (Prefix (N))
                    or else Is_Access_Type (Etype (Prefix (N)));
 
-            --  In Ada95, a function call is a constant object; a procedure
+            --  In Ada 95, a function call is a constant object; a procedure
             --  call is not.
 
             when N_Function_Call =>
@@ -7617,7 +7676,7 @@ package body Sem_Util is
 
       elsif Original_Node (AV) /= AV then
 
-         --  In Ada2012, the explicit dereference may be a rewritten call to a
+         --  In Ada 2012, the explicit dereference may be a rewritten call to a
          --  Reference function.
 
          if Ada_Version >= Ada_2012
@@ -8677,10 +8736,15 @@ package body Sem_Util is
       then
          return True;
 
-      elsif Nkind (N) = N_Indexed_Component
-        or else Nkind (N) = N_Selected_Component
+      elsif Nkind_In (N, N_Indexed_Component, N_Selected_Component)
+        and then Is_Volatile_Prefix (Prefix (N))
       then
-         return Is_Volatile_Prefix (Prefix (N));
+         return True;
+
+      elsif Nkind (N) = N_Selected_Component
+        and then Is_Volatile (Entity (Selector_Name (N)))
+      then
+         return True;
 
       else
          return False;
@@ -9268,7 +9332,6 @@ package body Sem_Util is
               and then Nkind (Expression (Expression (N))) = N_Op_Concat
             then
                Set_Is_Dynamic_Coextension (N);
-
             else
                Set_Is_Static_Coextension (N);
             end if;
@@ -9283,12 +9346,33 @@ package body Sem_Util is
 
    begin
       case Nkind (Context_Nod) is
-         when N_Assignment_Statement    |
-              N_Simple_Return_Statement =>
+
+         --  Comment here ???
+
+         when N_Assignment_Statement    =>
             Is_Dynamic := Nkind (Expression (Context_Nod)) = N_Allocator;
 
+         --  An allocator that is a component of a returned aggregate
+         --  must be dynamic.
+
+         when N_Simple_Return_Statement =>
+            declare
+               Expr : constant Node_Id := Expression (Context_Nod);
+            begin
+               Is_Dynamic :=
+                 Nkind (Expr) = N_Allocator
+                   or else
+                     (Nkind (Expr) = N_Qualified_Expression
+                       and then Nkind (Expression (Expr)) = N_Aggregate);
+            end;
+
+         --  An alloctor within an object declaration in an extended return
+         --  statement is of necessity dynamic.
+
          when N_Object_Declaration =>
-            Is_Dynamic := Nkind (Root_Nod) = N_Allocator;
+            Is_Dynamic := Nkind (Root_Nod) = N_Allocator
+              or else
+                Nkind (Parent (Context_Nod)) = N_Extended_Return_Statement;
 
          --  This routine should not be called for constructs which may not
          --  contain coextensions.
@@ -9308,9 +9392,9 @@ package body Sem_Util is
       Formal : Entity_Id;
 
    begin
-      if Ada_Version >= Ada_2005
-        and then Present (First_Formal (E))
-      then
+      --  Ada 2005 or later, and formals present
+
+      if Ada_Version >= Ada_2005 and then Present (First_Formal (E)) then
          Formal := Next_Formal (First_Formal (E));
          while Present (Formal) loop
             if No (Default_Value (Formal)) then
@@ -9321,6 +9405,8 @@ package body Sem_Util is
          end loop;
 
          return True;
+
+      --  Ada 83/95 or no formals
 
       else
          return False;
@@ -10783,7 +10869,7 @@ package body Sem_Util is
                --  source. This excludes, for example, calls to a dispatching
                --  assignment operation when the left-hand side is tagged.
 
-               if Modification_Comes_From_Source then
+               if Modification_Comes_From_Source or else Alfa_Mode then
                   Generate_Reference (Ent, Exp, 'm');
 
                   --  If the target of the assignment is the bound variable
@@ -12148,8 +12234,16 @@ package body Sem_Util is
                end loop;
             end;
 
+            --  For a packed array type, we also need debug information for
+            --  the type used to represent the packed array. Conversely, we
+            --  also need it for the former if we need it for the latter.
+
             if Is_Packed (T) then
                Set_Debug_Info_Needed_If_Not_Set (Packed_Array_Type (T));
+            end if;
+
+            if Is_Packed_Array_Type (T) then
+               Set_Debug_Info_Needed_If_Not_Set (Original_Array_Type (T));
             end if;
 
          elsif Is_Access_Type (T) then
@@ -12659,6 +12753,25 @@ package body Sem_Util is
          end if;
       end if;
 
+      --  Return library level for a generic formal type. This is done because
+      --  RM(10.3.2) says that "The statically deeper relationship does not
+      --  apply to ... a descendant of a generic formal type". Rather than
+      --  checking at each point where a static accessibility check is
+      --  performed to see if we are dealing with a formal type, this rule is
+      --  implemented by having Type_Access_Level and Deepest_Type_Access_Level
+      --  return extreme values for a formal type; Deepest_Type_Access_Level
+      --  returns Int'Last. By calling the appropriate function from among the
+      --  two, we ensure that the static accessibility check will pass if we
+      --  happen to run into a formal type. More specifically, we should call
+      --  Deepest_Type_Access_Level instead of Type_Access_Level whenever the
+      --  call occurs as part of a static accessibility check and the error
+      --  case is the case where the type's level is too shallow (as opposed
+      --  to too deep).
+
+      if Is_Generic_Type (Root_Type (Btyp)) then
+         return Scope_Depth (Standard_Standard);
+      end if;
+
       return Scope_Depth (Enclosing_Dynamic_Scope (Btyp));
    end Type_Access_Level;
 
@@ -12775,10 +12888,20 @@ package body Sem_Util is
 
             if Nkind (P) = N_Subprogram_Body_Stub then
                if Present (Library_Unit (P)) then
-                  U := Get_Body_From_Stub (P);
+
+                  --  Get to the function or procedure (generic) entity through
+                  --  the body entity.
+
+                  U :=
+                    Unique_Entity (Defining_Entity (Get_Body_From_Stub (P)));
                end if;
             else
                U := Corresponding_Spec (P);
+            end if;
+
+         when Formal_Kind =>
+            if Present (Spec_Entity (E)) then
+               U := Spec_Entity (E);
             end if;
 
          when others =>
@@ -12793,6 +12916,11 @@ package body Sem_Util is
    -----------------
 
    function Unique_Name (E : Entity_Id) return String is
+
+      --  Names of E_Subprogram_Body or E_Package_Body entities are not
+      --  reliable, as they may not include the overloading suffix. Instead,
+      --  when looking for the name of E or one of its enclosing scope, we get
+      --  the name of the corresponding Unique_Entity.
 
       function Get_Scoped_Name (E : Entity_Id) return String;
       --  Return the name of E prefixed by all the names of the scopes to which
@@ -12810,7 +12938,7 @@ package body Sem_Util is
          then
             return Name;
          else
-            return Get_Scoped_Name (Scope (E)) & "__" & Name;
+            return Get_Scoped_Name (Unique_Entity (Scope (E))) & "__" & Name;
          end if;
       end Get_Scoped_Name;
 
@@ -12830,58 +12958,9 @@ package body Sem_Util is
          return Unique_Name (Etype (E)) & "__" & Get_Name_String (Chars (E));
 
       else
-         return Get_Scoped_Name (E);
+         return Get_Scoped_Name (Unique_Entity (E));
       end if;
    end Unique_Name;
-
-   --------------------------
-   -- Unit_Declaration_Node --
-   --------------------------
-
-   function Unit_Declaration_Node (Unit_Id : Entity_Id) return Node_Id is
-      N : Node_Id := Parent (Unit_Id);
-
-   begin
-      --  Predefined operators do not have a full function declaration
-
-      if Ekind (Unit_Id) = E_Operator then
-         return N;
-      end if;
-
-      --  Isn't there some better way to express the following ???
-
-      while Nkind (N) /= N_Abstract_Subprogram_Declaration
-        and then Nkind (N) /= N_Formal_Package_Declaration
-        and then Nkind (N) /= N_Function_Instantiation
-        and then Nkind (N) /= N_Generic_Package_Declaration
-        and then Nkind (N) /= N_Generic_Subprogram_Declaration
-        and then Nkind (N) /= N_Package_Declaration
-        and then Nkind (N) /= N_Package_Body
-        and then Nkind (N) /= N_Package_Instantiation
-        and then Nkind (N) /= N_Package_Renaming_Declaration
-        and then Nkind (N) /= N_Procedure_Instantiation
-        and then Nkind (N) /= N_Protected_Body
-        and then Nkind (N) /= N_Subprogram_Declaration
-        and then Nkind (N) /= N_Subprogram_Body
-        and then Nkind (N) /= N_Subprogram_Body_Stub
-        and then Nkind (N) /= N_Subprogram_Renaming_Declaration
-        and then Nkind (N) /= N_Task_Body
-        and then Nkind (N) /= N_Task_Type_Declaration
-        and then Nkind (N) not in N_Formal_Subprogram_Declaration
-        and then Nkind (N) not in N_Generic_Renaming_Declaration
-      loop
-         N := Parent (N);
-
-         --  We don't use Assert here, because that causes an infinite loop
-         --  when assertions are turned off. Better to crash.
-
-         if No (N) then
-            raise Program_Error;
-         end if;
-      end loop;
-
-      return N;
-   end Unit_Declaration_Node;
 
    ---------------------
    -- Unit_Is_Visible --

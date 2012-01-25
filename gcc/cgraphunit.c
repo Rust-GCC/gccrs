@@ -1,6 +1,6 @@
 /* Callgraph based interprocedural optimizations.
    Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
-   2011 Free Software Foundation, Inc.
+   2011, 2012 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -195,6 +195,7 @@ cgraph_decide_is_function_needed (struct cgraph_node *node, tree decl)
      to change the behavior here.  */
   if (((TREE_PUBLIC (decl)
 	|| (!optimize
+	    && !node->same_body_alias
 	    && !DECL_DISREGARD_INLINE_LIMITS (decl)
 	    && !DECL_DECLARED_INLINE_P (decl)
 	    && !(DECL_CONTEXT (decl)
@@ -1219,7 +1220,6 @@ handle_alias_pairs (void)
   for (i = 0; VEC_iterate (alias_pair, alias_pairs, i, p);)
     {
       if (TREE_CODE (p->decl) == FUNCTION_DECL
-	   && !lookup_attribute ("weakref", DECL_ATTRIBUTES (p->decl))
 	  && (target_node = cgraph_node_for_asm (p->target)) != NULL)
 	{
 	  src_node = cgraph_get_node (p->decl);
@@ -1231,12 +1231,12 @@ handle_alias_pairs (void)
 	     However for weakref we insist on EXTERNAL flag being set.
 	     See gcc.dg/attr-alias-5.c  */
 	  if (DECL_EXTERNAL (p->decl))
-	    DECL_EXTERNAL (p->decl) = 0;
+	    DECL_EXTERNAL (p->decl) = lookup_attribute ("weakref",
+							DECL_ATTRIBUTES (p->decl)) != NULL;
 	  cgraph_create_function_alias (p->decl, target_node->decl);
 	  VEC_unordered_remove (alias_pair, alias_pairs, i);
 	}
       else if (TREE_CODE (p->decl) == VAR_DECL
-	       && !lookup_attribute ("weakref", DECL_ATTRIBUTES (p->decl))
 	       && (target_vnode = varpool_node_for_asm (p->target)) != NULL)
 	{
 	  /* Normally EXTERNAL flag is used to mark external inlines,
@@ -1245,8 +1245,24 @@ handle_alias_pairs (void)
 	     However for weakref we insist on EXTERNAL flag being set.
 	     See gcc.dg/attr-alias-5.c  */
 	  if (DECL_EXTERNAL (p->decl))
-	    DECL_EXTERNAL (p->decl) = 0;
+	    DECL_EXTERNAL (p->decl) = lookup_attribute ("weakref",
+							DECL_ATTRIBUTES (p->decl)) != NULL;
 	  varpool_create_variable_alias (p->decl, target_vnode->decl);
+	  VEC_unordered_remove (alias_pair, alias_pairs, i);
+	}
+      /* Weakrefs with target not defined in current unit are easy to handle; they
+	 behave just as external variables except we need to note the alias flag
+	 to later output the weakref pseudo op into asm file.  */
+      else if (lookup_attribute ("weakref", DECL_ATTRIBUTES (p->decl)) != NULL
+	       && (TREE_CODE (p->decl) == FUNCTION_DECL
+		   ? (varpool_node_for_asm (p->target) == NULL)
+		   : (cgraph_node_for_asm (p->target) == NULL)))
+	{
+	  if (TREE_CODE (p->decl) == FUNCTION_DECL)
+	    cgraph_get_create_node (p->decl)->alias = true;
+	  else
+	    varpool_get_node (p->decl)->alias = true;
+	  DECL_EXTERNAL (p->decl) = 1;
 	  VEC_unordered_remove (alias_pair, alias_pairs, i);
 	}
       else
@@ -1679,7 +1695,6 @@ assemble_thunk (struct cgraph_node *node)
         VEC_quick_push (tree, vargs, arg);
       call = gimple_build_call_vec (build_fold_addr_expr_loc (0, alias), vargs);
       VEC_free (tree, heap, vargs);
-      gimple_call_set_cannot_inline (call, true);
       gimple_call_set_from_thunk (call, true);
       if (restmp)
         gimple_call_set_lhs (call, restmp);
@@ -1798,7 +1813,6 @@ cgraph_expand_function (struct cgraph_node *node)
 
   announce_function (decl);
   node->process = 0;
-  assemble_thunks_and_aliases (node);
   gcc_assert (node->lowered);
 
   /* Generate RTL for the body of DECL.  */
@@ -1808,6 +1822,14 @@ cgraph_expand_function (struct cgraph_node *node)
   gcc_assert (TREE_ASM_WRITTEN (decl));
   current_function_decl = NULL;
   gcc_assert (!cgraph_preserve_function_body_p (node));
+
+  /* It would make a lot more sense to output thunks before function body to get more
+     forward and lest backwarding jumps.  This is however would need solving problem
+     with comdats. See PR48668.  Also aliases must come after function itself to
+     make one pass assemblers, like one on AIX happy.  See PR 50689.
+     FIXME: Perhaps thunks should be move before function IFF they are not in comdat
+     groups.  */
+  assemble_thunks_and_aliases (node);
   cgraph_release_function_body (node);
   /* Eliminate all call edges.  This is important so the GIMPLE_CALL no longer
      points to the dead function body.  */
@@ -2058,6 +2080,42 @@ ipa_passes (void)
 }
 
 
+/* Return string alias is alias of.  */
+
+static tree
+get_alias_symbol (tree decl)
+{
+  tree alias = lookup_attribute ("alias", DECL_ATTRIBUTES (decl));
+  return get_identifier (TREE_STRING_POINTER
+			  (TREE_VALUE (TREE_VALUE (alias))));
+}
+
+
+/* Weakrefs may be associated to external decls and thus not output
+   at expansion time.  Emit all neccesary aliases.  */
+
+static void
+output_weakrefs (void)
+{
+  struct cgraph_node *node;
+  struct varpool_node *vnode;
+  for (node = cgraph_nodes; node; node = node->next)
+    if (node->alias && DECL_EXTERNAL (node->decl)
+        && !TREE_ASM_WRITTEN (node->decl)
+	&& lookup_attribute ("weakref", DECL_ATTRIBUTES (node->decl)))
+      assemble_alias (node->decl,
+		      node->thunk.alias ? DECL_ASSEMBLER_NAME (node->thunk.alias)
+		      : get_alias_symbol (node->decl));
+  for (vnode = varpool_nodes; vnode; vnode = vnode->next)
+    if (vnode->alias && DECL_EXTERNAL (vnode->decl)
+        && !TREE_ASM_WRITTEN (vnode->decl)
+	&& lookup_attribute ("weakref", DECL_ATTRIBUTES (vnode->decl)))
+      assemble_alias (vnode->decl,
+		      vnode->alias_of ? DECL_ASSEMBLER_NAME (vnode->alias_of)
+		      : get_alias_symbol (vnode->decl));
+}
+
+
 /* Perform simple optimizations based on callgraph.  */
 
 void
@@ -2130,6 +2188,7 @@ cgraph_optimize (void)
 #endif
   bitmap_obstack_release (NULL);
   cgraph_mark_functions_to_output ();
+  output_weakrefs ();
 
   cgraph_state = CGRAPH_STATE_EXPANSION;
   if (!flag_toplevel_reorder)
@@ -2143,6 +2202,7 @@ cgraph_optimize (void)
 
       varpool_assemble_pending_decls ();
     }
+
   cgraph_process_new_functions ();
   cgraph_state = CGRAPH_STATE_FINISHED;
 
@@ -2214,7 +2274,7 @@ update_call_expr (struct cgraph_node *new_version)
    was copied to prevent duplications of calls that are dead
    in the clone.  */
 
-static struct cgraph_node *
+struct cgraph_node *
 cgraph_copy_node_for_versioning (struct cgraph_node *old_version,
 				 tree new_decl,
 				 VEC(cgraph_edge_p,heap) *redirect_callers,
@@ -2228,7 +2288,7 @@ cgraph_copy_node_for_versioning (struct cgraph_node *old_version,
 
    new_version = cgraph_create_node (new_decl);
 
-   new_version->analyzed = true;
+   new_version->analyzed = old_version->analyzed;
    new_version->local = old_version->local;
    new_version->local.externally_visible = false;
    new_version->local.local = true;
@@ -2258,6 +2318,8 @@ cgraph_copy_node_for_versioning (struct cgraph_node *old_version,
        cgraph_redirect_edge_callee (e, new_version);
      }
 
+   cgraph_call_node_duplication_hooks (old_version, new_version);
+
    return new_version;
  }
 
@@ -2272,17 +2334,21 @@ cgraph_copy_node_for_versioning (struct cgraph_node *old_version,
     TREE_MAP is a mapping of tree nodes we want to replace with
     new ones (according to results of prior analysis).
     OLD_VERSION_NODE is the node that is versioned.
-    It returns the new version's cgraph node.
+
     If non-NULL ARGS_TO_SKIP determine function parameters to remove
     from new version.
+    If SKIP_RETURN is true, the new version will return void.
     If non-NULL BLOCK_TO_COPY determine what basic blocks to copy.
-    If non_NULL NEW_ENTRY determine new entry BB of the clone.  */
+    If non_NULL NEW_ENTRY determine new entry BB of the clone.
+
+    Return the new version's cgraph node.  */
 
 struct cgraph_node *
 cgraph_function_versioning (struct cgraph_node *old_version_node,
 			    VEC(cgraph_edge_p,heap) *redirect_callers,
 			    VEC (ipa_replace_map_p,gc)* tree_map,
 			    bitmap args_to_skip,
+			    bool skip_return,
 			    bitmap bbs_to_copy,
 			    basic_block new_entry_block,
 			    const char *clone_name)
@@ -2296,17 +2362,21 @@ cgraph_function_versioning (struct cgraph_node *old_version_node,
 
   gcc_assert (old_version_node->local.can_change_signature || !args_to_skip);
 
-  /* Make a new FUNCTION_DECL tree node for the
-     new version. */
-  if (!args_to_skip)
+  /* Make a new FUNCTION_DECL tree node for the new version. */
+  if (!args_to_skip && !skip_return)
     new_decl = copy_node (old_decl);
   else
-    new_decl = build_function_decl_skip_args (old_decl, args_to_skip);
+    new_decl
+      = build_function_decl_skip_args (old_decl, args_to_skip, skip_return);
 
   /* Generate a new name for the new version. */
   DECL_NAME (new_decl) = clone_function_name (old_decl, clone_name);
   SET_DECL_ASSEMBLER_NAME (new_decl, DECL_NAME (new_decl));
   SET_DECL_RTL (new_decl, NULL);
+
+  /* When the old decl was a con-/destructor make sure the clone isn't.  */
+  DECL_STATIC_CONSTRUCTOR(new_decl) = 0;
+  DECL_STATIC_DESTRUCTOR(new_decl) = 0;
 
   /* Create the new version's call-graph node.
      and update the edges of the new node. */
@@ -2316,7 +2386,7 @@ cgraph_function_versioning (struct cgraph_node *old_version_node,
 
   /* Copy the OLD_VERSION_NODE function tree to the new version.  */
   tree_function_versioning (old_decl, new_decl, tree_map, false, args_to_skip,
-			    bbs_to_copy, new_entry_block);
+			    skip_return, bbs_to_copy, new_entry_block);
 
   /* Update the new version's properties.
      Make The new version visible only within this translation unit.  Make sure
@@ -2347,7 +2417,8 @@ cgraph_materialize_clone (struct cgraph_node *node)
   /* Copy the OLD_VERSION_NODE function tree to the new version.  */
   tree_function_versioning (node->clone_of->decl, node->decl,
   			    node->clone.tree_map, true,
-			    node->clone.args_to_skip, NULL, NULL);
+			    node->clone.args_to_skip, false,
+			    NULL, NULL);
   if (cgraph_dump_file)
     {
       dump_function_to_file (node->clone_of->decl, cgraph_dump_file, dump_flags);

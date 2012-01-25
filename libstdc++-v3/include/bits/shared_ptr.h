@@ -100,6 +100,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       constexpr shared_ptr() noexcept
       : __shared_ptr<_Tp>() { }
 
+      shared_ptr(const shared_ptr&) noexcept = default;
+
       /**
        *  @brief  Construct a %shared_ptr that owns the pointer @a __p.
        *  @param  __p  A pointer that is convertible to element_type*.
@@ -263,6 +265,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
        */
       constexpr shared_ptr(nullptr_t __p) noexcept
       : __shared_ptr<_Tp>(__p) { }
+
+      shared_ptr& operator=(const shared_ptr&) noexcept = default;
 
       template<typename _Tp1>
 	shared_ptr&
@@ -617,7 +621,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     : public __hash_base<size_t, shared_ptr<_Tp>>
     {
       size_t
-      operator()(const shared_ptr<_Tp>& __s) const
+      operator()(const shared_ptr<_Tp>& __s) const noexcept
       { return std::hash<_Tp*>()(__s.get()); }
     };
 

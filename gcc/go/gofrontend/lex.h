@@ -11,6 +11,7 @@
 #include <mpfr.h>
 
 #include "operator.h"
+#include "go-linemap.h"
 
 struct Unicode_range;
 
@@ -69,6 +70,8 @@ class Token
     TOKEN_STRING,
     // Token is an operator.
     TOKEN_OPERATOR,
+    // Token is a character constant.
+    TOKEN_CHARACTER,
     // Token is an integer.
     TOKEN_INTEGER,
     // Token is a floating point number.
@@ -88,17 +91,17 @@ class Token
 
   // Make a token for an invalid value.
   static Token
-  make_invalid_token(source_location location)
+  make_invalid_token(Location location)
   { return Token(TOKEN_INVALID, location); }
 
   // Make a token representing end of file.
   static Token
-  make_eof_token(source_location location)
+  make_eof_token(Location location)
   { return Token(TOKEN_EOF, location); }
 
   // Make a keyword token.
   static Token
-  make_keyword_token(Keyword keyword, source_location location)
+  make_keyword_token(Keyword keyword, Location location)
   {
     Token tok(TOKEN_KEYWORD, location);
     tok.u_.keyword = keyword;
@@ -108,7 +111,7 @@ class Token
   // Make an identifier token.
   static Token
   make_identifier_token(const std::string& value, bool is_exported,
-			source_location location)
+			Location location)
   {
     Token tok(TOKEN_IDENTIFIER, location);
     tok.u_.identifier_value.name = new std::string(value);
@@ -118,7 +121,7 @@ class Token
 
   // Make a quoted string token.
   static Token
-  make_string_token(const std::string& value, source_location location)
+  make_string_token(const std::string& value, Location location)
   {
     Token tok(TOKEN_STRING, location);
     tok.u_.string_value = new std::string(value);
@@ -127,16 +130,26 @@ class Token
 
   // Make an operator token.
   static Token
-  make_operator_token(Operator op, source_location location)
+  make_operator_token(Operator op, Location location)
   {
     Token tok(TOKEN_OPERATOR, location);
     tok.u_.op = op;
     return tok;
   }
 
+  // Make a character constant token.
+  static Token
+  make_character_token(mpz_t val, Location location)
+  {
+    Token tok(TOKEN_CHARACTER, location);
+    mpz_init(tok.u_.integer_value);
+    mpz_swap(tok.u_.integer_value, val);
+    return tok;
+  }
+
   // Make an integer token.
   static Token
-  make_integer_token(mpz_t val, source_location location)
+  make_integer_token(mpz_t val, Location location)
   {
     Token tok(TOKEN_INTEGER, location);
     mpz_init(tok.u_.integer_value);
@@ -146,7 +159,7 @@ class Token
 
   // Make a float token.
   static Token
-  make_float_token(mpfr_t val, source_location location)
+  make_float_token(mpfr_t val, Location location)
   {
     Token tok(TOKEN_FLOAT, location);
     mpfr_init(tok.u_.float_value);
@@ -156,7 +169,7 @@ class Token
 
   // Make a token for an imaginary number.
   static Token
-  make_imaginary_token(mpfr_t val, source_location location)
+  make_imaginary_token(mpfr_t val, Location location)
   {
     Token tok(TOKEN_IMAGINARY, location);
     mpfr_init(tok.u_.float_value);
@@ -165,7 +178,7 @@ class Token
   }
 
   // Get the location of the token.
-  source_location
+  Location
   location() const
   { return this->location_; }
 
@@ -224,6 +237,14 @@ class Token
     return *this->u_.string_value;
   }
 
+  // Return the value of a character constant.
+  const mpz_t*
+  character_value() const
+  {
+    go_assert(this->classification_ == TOKEN_CHARACTER);
+    return &this->u_.integer_value;
+  }
+
   // Return the value of an integer.
   const mpz_t*
   integer_value() const
@@ -275,7 +296,7 @@ class Token
 
  private:
   // Private constructor used by make_..._token functions above.
-  Token(Classification, source_location);
+  Token(Classification, Location);
 
   // Clear the token.
   void
@@ -299,7 +320,7 @@ class Token
     } identifier_value;
     // The string value for TOKEN_STRING.
     std::string* string_value;
-    // The token value for TOKEN_INTEGER.
+    // The token value for TOKEN_CHARACTER or TOKEN_INTEGER.
     mpz_t integer_value;
     // The token value for TOKEN_FLOAT or TOKEN_IMAGINARY.
     mpfr_t float_value;
@@ -307,7 +328,7 @@ class Token
     Operator op;
   } u_;
   // The source location.
-  source_location location_;
+  Location location_;
 };
 
 // The lexer itself.
@@ -315,7 +336,7 @@ class Token
 class Lex
 {
  public:
-  Lex(const char* input_file_name, FILE* input_file);
+  Lex(const char* input_file_name, FILE* input_file, Linemap *linemap);
 
   ~Lex();
 
@@ -328,13 +349,20 @@ class Lex
   static bool
   is_exported_name(const std::string& name);
 
+  // Return whether the identifier NAME is invalid.  When we see an
+  // invalid character we still build an identifier, but we use a
+  // magic string to indicate that the identifier is invalid.  We then
+  // use this to avoid knockon errors.
+  static bool
+  is_invalid_identifier(const std::string& name);
+
   // A helper function.  Append V to STR.  IS_CHARACTER is true if V
   // is a Unicode character which should be converted into UTF-8,
   // false if it is a byte value to be appended directly.  The
   // location is used to warn about an out of range character.
   static void
   append_char(unsigned int v, bool is_charater, std::string* str,
-	      source_location);
+	      Location);
 
   // A helper function.  Fetch a UTF-8 character from STR and store it
   // in *VALUE.  Return the number of bytes read from STR.  Return 0
@@ -350,11 +378,11 @@ class Lex
   require_line();
 
   // The current location.
-  source_location
+  Location
   location() const;
 
   // A position CHARS column positions before the current location.
-  source_location
+  Location
   earlier_location(int chars) const;
 
   static bool
@@ -432,6 +460,8 @@ class Lex
   const char* input_file_name_;
   // The input file.
   FILE* input_file_;
+  // The object used to keep track of file names and line numbers.
+  Linemap* linemap_;
   // The line buffer.  This holds the current line.
   char* linebuf_;
   // The size of the line buffer.

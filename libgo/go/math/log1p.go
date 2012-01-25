@@ -44,7 +44,7 @@ package math
 //                      2      4      6      8      10      12      14
 //          R(z) ~ Lp1*s +Lp2*s +Lp3*s +Lp4*s +Lp5*s  +Lp6*s  +Lp7*s
 //      (the values of Lp1 to Lp7 are listed in the program)
-//      a-0.2929nd
+//      and
 //          |      2          14          |     -58.45
 //          | Lp1*s +...+Lp7*s    -  R(z) | <= 2
 //          |                             |
@@ -88,10 +88,16 @@ package math
 //
 // Special cases are:
 //	Log1p(+Inf) = +Inf
+//	Log1p(±0) = ±0
 //	Log1p(-1) = -Inf
 //	Log1p(x < -1) = NaN
 //	Log1p(NaN) = NaN
+func libc_log1p(float64) float64 __asm__("log1p")
 func Log1p(x float64) float64 {
+	return libc_log1p(x)
+}
+
+func log1p(x float64) float64 {
 	const (
 		Sqrt2M1     = 4.142135623730950488017e-01  // Sqrt(2)-1 = 0x3fda827999fcef34
 		Sqrt2HalfM1 = -2.928932188134524755992e-01 // Sqrt(2)/2-1 = 0xbfd2bec333018866

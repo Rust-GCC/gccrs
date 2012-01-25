@@ -7,13 +7,13 @@ package html
 import (
 	"bytes"
 	"strings"
-	"utf8"
+	"unicode/utf8"
 )
 
 // These replacements permit compatibility with old numeric entities that 
 // assumed Windows-1252 encoding.
 // http://www.whatwg.org/specs/web-apps/current-work/multipage/tokenization.html#consume-a-character-reference
-var replacementTable = [...]int{
+var replacementTable = [...]rune{
 	'\u20AC', // First entry is what 0x80 should be replaced with.
 	'\u0081',
 	'\u201A',
@@ -78,23 +78,23 @@ func unescapeEntity(b []byte, dst, src int, attribute bool) (dst1, src1 int) {
 			i++
 		}
 
-		x := 0
+		x := '\x00'
 		for i < len(s) {
 			c = s[i]
 			i++
 			if hex {
 				if '0' <= c && c <= '9' {
-					x = 16*x + int(c) - '0'
+					x = 16*x + rune(c) - '0'
 					continue
 				} else if 'a' <= c && c <= 'f' {
-					x = 16*x + int(c) - 'a' + 10
+					x = 16*x + rune(c) - 'a' + 10
 					continue
 				} else if 'A' <= c && c <= 'F' {
-					x = 16*x + int(c) - 'A' + 10
+					x = 16*x + rune(c) - 'A' + 10
 					continue
 				}
 			} else if '0' <= c && c <= '9' {
-				x = 10*x + int(c) - '0'
+				x = 10*x + rune(c) - '0'
 				continue
 			}
 			if c != ';' {
@@ -182,12 +182,24 @@ func unescape(b []byte) []byte {
 	return b
 }
 
+// lower lower-cases the A-Z bytes in b in-place, so that "aBc" becomes "abc".
+func lower(b []byte) []byte {
+	for i, c := range b {
+		if 'A' <= c && c <= 'Z' {
+			b[i] = c + 'a' - 'A'
+		}
+	}
+	return b
+}
+
 const escapedChars = `&'<>"`
 
-func escape(buf *bytes.Buffer, s string) {
+func escape(w writer, s string) error {
 	i := strings.IndexAny(s, escapedChars)
 	for i != -1 {
-		buf.WriteString(s[0:i])
+		if _, err := w.WriteString(s[:i]); err != nil {
+			return err
+		}
 		var esc string
 		switch s[i] {
 		case '&':
@@ -204,10 +216,13 @@ func escape(buf *bytes.Buffer, s string) {
 			panic("unrecognized escape character")
 		}
 		s = s[i+1:]
-		buf.WriteString(esc)
+		if _, err := w.WriteString(esc); err != nil {
+			return err
+		}
 		i = strings.IndexAny(s, escapedChars)
 	}
-	buf.WriteString(s)
+	_, err := w.WriteString(s)
+	return err
 }
 
 // EscapeString escapes special characters like "<" to become "&lt;". It

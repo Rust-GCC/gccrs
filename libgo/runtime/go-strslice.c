@@ -7,6 +7,7 @@
 #include "go-string.h"
 #include "go-panic.h"
 #include "runtime.h"
+#include "arch.h"
 #include "malloc.h"
 
 struct __go_string
@@ -19,7 +20,7 @@ __go_string_slice (struct __go_string s, int start, int end)
   if (end == -1)
     end = len;
   if (start > len || end < start || end > len)
-    __go_panic_msg ("string index out of bounds");
+    runtime_panicstring ("string index out of bounds");
   ret.__data = s.__data + start;
   ret.__length = end - start;
   return ret;

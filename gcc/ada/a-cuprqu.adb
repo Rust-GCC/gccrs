@@ -65,6 +65,45 @@ package body Ada.Containers.Unbounded_Priority_Queues is
          Free (X);
       end Dequeue;
 
+      procedure Dequeue
+        (List     : in out List_Type;
+         At_Least : Queue_Priority;
+         Element  : in out Queue_Interfaces.Element_Type;
+         Success  : out Boolean)
+      is
+      begin
+         --  This operation dequeues a high priority item if it exists in the
+         --  queue. By "high priority" we mean an item whose priority is equal
+         --  or greater than the value At_Least. The generic formal operation
+         --  Before has the meaning "has higher priority than". To dequeue an
+         --  item (meaning that we return True as our Success value), we need
+         --  as our predicate the equivalent of "has equal or higher priority
+         --  than", but we cannot say that directly, so we require some logical
+         --  gymnastics to make it so.
+
+         --  If E is the element at the head of the queue, and symbol ">"
+         --  refers to the "is higher priority than" function Before, then we
+         --  derive our predicate as follows:
+         --    original: P(E) >= At_Least
+         --    same as:  not (P(E) < At_Least)
+         --    same as:  not (At_Least > P(E))
+         --    same as:  not Before (At_Least, P(E))
+
+         --  But that predicate needs to be true in order to successfully
+         --  dequeue an item. If it's false, it means no item is dequeued, and
+         --  we return False as the Success value.
+
+         if List.Length = 0
+           or else Before (At_Least, Get_Priority (List.First.Element))
+         then
+            Success := False;
+            return;
+         end if;
+
+         List.Dequeue (Element);
+         Success := True;
+      end Dequeue;
+
       -------------
       -- Enqueue --
       -------------
@@ -132,22 +171,6 @@ package body Ada.Containers.Unbounded_Priority_Queues is
          end loop;
       end Finalize;
 
-      ------------------------
-      -- Have_High_Priority --
-      ------------------------
-
-      --  ???
-      --  function Have_High_Priority
-      --    (List         : List_Type;
-      --     Low_Priority : Queue_Priority) return Boolean
-      --  is
-      --  begin
-      --     if List.Length = 0 then
-      --        return False;
-      --     end if;
-      --     return Before (Get_Priority (List.First.Element), Low_Priority);
-      --  end Have_High_Priority;
-
       ------------
       -- Length --
       ------------
@@ -190,14 +213,18 @@ package body Ada.Containers.Unbounded_Priority_Queues is
          List.Dequeue (Element);
       end Dequeue;
 
-      --  ???
-      --  entry Dequeue_Only_High_Priority
-      --    (Low_Priority : Queue_Priority;
-      --     Element      : out Queue_Interfaces.Element_Type) when True
-      --  is
-      --  begin
-      --     null;
-      --  end Dequeue_Only_High_Priority;
+      --------------------------------
+      -- Dequeue_Only_High_Priority --
+      --------------------------------
+
+      procedure Dequeue_Only_High_Priority
+        (At_Least : Queue_Priority;
+         Element  : in out Queue_Interfaces.Element_Type;
+         Success  : out Boolean)
+      is
+      begin
+         List.Dequeue (At_Least, Element, Success);
+      end Dequeue_Only_High_Priority;
 
       -------------
       -- Enqueue --

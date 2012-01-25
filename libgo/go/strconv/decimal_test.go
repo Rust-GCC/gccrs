@@ -32,7 +32,9 @@ var shifttests = []shiftTest{
 func TestDecimalShift(t *testing.T) {
 	for i := 0; i < len(shifttests); i++ {
 		test := &shifttests[i]
-		s := NewDecimal(test.i).Shift(test.shift).String()
+		d := NewDecimal(test.i)
+		d.Shift(test.shift)
+		s := d.String()
 		if s != test.out {
 			t.Errorf("Decimal %v << %v = %v, want %v",
 				test.i, test.shift, s, test.out)
@@ -68,17 +70,23 @@ var roundtests = []roundTest{
 func TestDecimalRound(t *testing.T) {
 	for i := 0; i < len(roundtests); i++ {
 		test := &roundtests[i]
-		s := NewDecimal(test.i).RoundDown(test.nd).String()
+		d := NewDecimal(test.i)
+		d.RoundDown(test.nd)
+		s := d.String()
 		if s != test.down {
 			t.Errorf("Decimal %v RoundDown %d = %v, want %v",
 				test.i, test.nd, s, test.down)
 		}
-		s = NewDecimal(test.i).Round(test.nd).String()
+		d = NewDecimal(test.i)
+		d.Round(test.nd)
+		s = d.String()
 		if s != test.round {
 			t.Errorf("Decimal %v Round %d = %v, want %v",
 				test.i, test.nd, s, test.down)
 		}
-		s = NewDecimal(test.i).RoundUp(test.nd).String()
+		d = NewDecimal(test.i)
+		d.RoundUp(test.nd)
+		s = d.String()
 		if s != test.up {
 			t.Errorf("Decimal %v RoundUp %d = %v, want %v",
 				test.i, test.nd, s, test.up)
@@ -108,7 +116,9 @@ var roundinttests = []roundIntTest{
 func TestDecimalRoundedInteger(t *testing.T) {
 	for i := 0; i < len(roundinttests); i++ {
 		test := roundinttests[i]
-		int := NewDecimal(test.i).Shift(test.shift).RoundedInteger()
+		d := NewDecimal(test.i)
+		d.Shift(test.shift)
+		int := d.RoundedInteger()
 		if int != test.int {
 			t.Errorf("Decimal %v >> %v RoundedInteger = %v, want %v",
 				test.i, test.shift, int, test.int)

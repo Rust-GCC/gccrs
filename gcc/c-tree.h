@@ -130,6 +130,22 @@ struct c_expr
   tree original_type;
 };
 
+/* Type alias for struct c_expr. This allows to use the structure
+   inside the VEC types.  */
+typedef struct c_expr c_expr_t;
+
+/* A varray of c_expr_t.  */
+DEF_VEC_O (c_expr_t);
+DEF_VEC_ALLOC_O (c_expr_t, gc);
+DEF_VEC_ALLOC_O (c_expr_t, heap);
+
+/* Append a new c_expr_t element to V.  */
+#define C_EXPR_APPEND(V, ELEM) \
+  do { \
+    c_expr_t *__elem_p = VEC_safe_push (c_expr_t, gc, V, NULL); \
+    *__elem_p = (ELEM); \
+  } while (0)
+
 /* A kind of type specifier.  Note that this information is currently
    only used to distinguish tag definitions, tag references and typeof
    uses.  */
@@ -222,6 +238,10 @@ struct c_declspecs {
      NULL; attributes (possibly from multiple lists) will be passed
      separately.  */
   tree attrs;
+  /* The base-2 log of the greatest alignment required by an _Alignas
+     specifier, in bytes, or -1 if no such specifiers with nonzero
+     alignment.  */
+  int align_log;
   /* The storage class specifier, or csc_none if none.  */
   enum c_storage_class storage_class;
   /* Any type specifier keyword used such as "int", not reflecting
@@ -278,6 +298,9 @@ struct c_declspecs {
   BOOL_BITFIELD restrict_p : 1;
   /* Whether "_Sat" was specified.  */
   BOOL_BITFIELD saturating_p : 1;
+  /* Whether any alignment specifier (even with zero alignment) was
+     specified.  */
+  BOOL_BITFIELD alignas_p : 1;
   /* The address space that the declaration belongs to.  */
   addr_space_t address_space;
 };
@@ -494,6 +517,7 @@ extern struct c_declspecs *declspecs_add_scspec (struct c_declspecs *, tree);
 extern struct c_declspecs *declspecs_add_attrs (struct c_declspecs *, tree);
 extern struct c_declspecs *declspecs_add_addrspace (struct c_declspecs *,
 						    addr_space_t);
+extern struct c_declspecs *declspecs_add_alignas (struct c_declspecs *, tree);
 extern struct c_declspecs *finish_declspecs (struct c_declspecs *);
 
 /* in c-objc-common.c */
@@ -579,7 +603,8 @@ extern tree c_begin_omp_task (void);
 extern tree c_finish_omp_task (location_t, tree, tree);
 extern tree c_finish_omp_clauses (tree);
 extern tree c_build_va_arg (location_t, tree, tree);
-extern tree c_build_vec_shuffle_expr (location_t, tree, tree, tree);
+extern tree c_finish_transaction (location_t, tree, int);
+extern tree c_build_vec_perm_expr (location_t, tree, tree, tree);
 
 /* Set to 0 at beginning of a function definition, set to 1 if
    a return statement that specifies a return value is seen.  */

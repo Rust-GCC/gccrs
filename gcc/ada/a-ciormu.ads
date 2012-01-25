@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2004-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -35,6 +35,7 @@
 private with Ada.Containers.Red_Black_Trees;
 private with Ada.Finalization;
 private with Ada.Streams;
+with Ada.Iterator_Interfaces;
 
 generic
    type Element_Type (<>) is private;
@@ -50,7 +51,10 @@ package Ada.Containers.Indefinite_Ordered_Multisets is
    --  Returns False if Left is less than Right, or Right is less than Left;
    --  otherwise, it returns True.
 
-   type Set is tagged private;
+   type Set is tagged private
+   with Default_Iterator => Iterate,
+        Iterator_Element => Element_Type;
+
    pragma Preelaborable_Initialization (Set);
 
    type Cursor is private;
@@ -63,6 +67,12 @@ package Ada.Containers.Indefinite_Ordered_Multisets is
    No_Element : constant Cursor;
    --  The default value for cursor objects declared without an explicit
    --  initialization expression.
+
+   function Has_Element (Position : Cursor) return Boolean;
+   --  Equivalent to Position /= No_Element
+
+   package Set_Iterator_Interfaces is new
+     Ada.Iterator_Interfaces (Cursor, Has_Element);
 
    function "=" (Left, Right : Set) return Boolean;
    --  If Left denotes the same set object as Right, then equality returns
@@ -117,6 +127,10 @@ package Ada.Containers.Indefinite_Ordered_Multisets is
    --  Position as the parameter. This call locks the container, so attempts to
    --  change the value of the element while Process is executing (to "tamper
    --  with elements") will raise Program_Error.
+
+   procedure Assign (Target : in out Set; Source : Set);
+
+   function Copy (Source : Set) return Set;
 
    procedure Move (Target : in out Set; Source : in out Set);
    --  If Target denotes the same object as Source, the operation does
@@ -282,9 +296,6 @@ package Ada.Containers.Indefinite_Ordered_Multisets is
    function Contains (Container : Set; Item : Element_Type) return Boolean;
    --  Equivalent to Container.Find (Item) /= No_Element
 
-   function Has_Element (Position : Cursor) return Boolean;
-   --  Equivalent to Position /= No_Element
-
    function "<" (Left, Right : Cursor) return Boolean;
    --  Equivalent to Element (Left) < Element (Right)
 
@@ -328,6 +339,15 @@ package Ada.Containers.Indefinite_Ordered_Multisets is
       Process   : not null access procedure (Position : Cursor));
    --  Call Process with a cursor designating each element equivalent to Item,
    --  in order from Container.Ceiling (Item) to Container.Floor (Item).
+
+   function Iterate
+     (Container : Set)
+      return Set_Iterator_Interfaces.Reversible_Iterator'class;
+
+   function Iterate
+     (Container : Set;
+      Start     : Cursor)
+      return Set_Iterator_Interfaces.Reversible_Iterator'class;
 
    generic
       type Key_Type (<>) is private;

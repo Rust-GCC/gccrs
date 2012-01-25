@@ -19,7 +19,7 @@
 
 ;;; Unused letters:
 ;;;     B     H           T  W
-;;;           h jk          v
+;;;           h  k          v
 
 ;; Integer register constraints.
 ;; It is not necessary to define 'r' here.
@@ -127,6 +127,11 @@
   (and (not (match_test "TARGET_X32"))
        (match_operand 0 "memory_operand")))
 
+(define_address_constraint "j"
+  "@internal Address operand that can be zero extended in LEA instruction."
+  (and (not (match_code "const_int"))
+       (match_operand 0 "address_operand")))
+
 ;; Integer constant constraints.
 (define_constraint "I"
   "Integer constant in the range 0 @dots{} 31, for 32-bit shifts."
@@ -144,9 +149,11 @@
        (match_test "IN_RANGE (ival, -128, 127)")))
 
 (define_constraint "L"
-  "@code{0xFF} or @code{0xFFFF}, for andsi as a zero-extending move."
+  "@code{0xFF}, @code{0xFFFF} or @code{0xFFFFFFFF}
+   for AND as a zero-extending move."
   (and (match_code "const_int")
-       (match_test "ival == 0xFF || ival == 0xFFFF")))
+       (match_test "ival == 0xff || ival == 0xffff
+		    || ival == (HOST_WIDE_INT) 0xffffffff")))
 
 (define_constraint "M"
   "0, 1, 2, or 3 (shifts for the @code{lea} instruction)."

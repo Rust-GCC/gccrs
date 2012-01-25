@@ -45,21 +45,17 @@ AWK=@AWK@
 
 # Variables for the user (or the top level) to override.
 objext=.o
-GNATLIBFLAGS= -W -Wall -gnatpg
 THREAD_KIND=native
 TRACE=no
 LDFLAGS=
 
 # The tedious process of getting CFLAGS right.
 CFLAGS=-g
-LOOSE_WARN = -W -Wall -Wwrite-strings -Wstrict-prototypes -Wmissing-prototypes
-GCC_WARN_CFLAGS = $(LOOSE_WARN)
-WARN_CFLAGS = @warn_cflags@
-
 PICFLAG = @PICFLAG@
+GNATLIBFLAGS= -W -Wall -gnatpg -nostdinc
 GNATLIBCFLAGS= -g -O2
-GNATLIBCFLAGS_FOR_C = $(GNATLIBCFLAGS) $(PICFLAG) -fexceptions \
-	-DIN_RTS @have_getipinfo@
+GNATLIBCFLAGS_FOR_C = -W -Wall $(GNATLIBCFLAGS) $(PICFLAG) \
+	-fexceptions -DIN_RTS @have_getipinfo@
 
 host_subdir = @host_subdir@
 GCC_DIR=$(MULTIBUILDTOP)../../$(host_subdir)/gcc
@@ -68,6 +64,7 @@ target_noncanonical:=@target_noncanonical@
 version := $(shell cat $(srcdir)/../gcc/BASE-VER)
 libsubdir := $(libdir)/gcc/$(target_noncanonical)/$(version)$(MULTISUBDIR)
 ADA_RTS_DIR=$(GCC_DIR)/ada/rts$(subst /,_,$(MULTISUBDIR))
+ADA_RTS_SUBDIR=./rts$(subst /,_,$(MULTISUBDIR))
 
 # exeext should not be used because it's the *host* exeext.  We're building
 # a *target* library, aren't we?!?  Likewise for CC.  Still, provide bogus
@@ -91,13 +88,13 @@ LIBADA_FLAGS_TO_PASS = \
         "exeext=.exeext.should.not.be.used " \
 	'CC=the.host.compiler.should.not.be.needed' \
 	"GCC_FOR_TARGET=$(CC)" \
-        "CFLAGS=$(CFLAGS) $(WARN_CFLAGS)"
+        "CFLAGS=$(CFLAGS)"
 
 # Rules to build gnatlib.
-.PHONY: gnatlib gnatlib-plain gnatlib-sjlj gnatlib-zcx gnatlib-shared oscons
+.PHONY: gnatlib gnatlib-plain gnatlib-sjlj gnatlib-zcx gnatlib-shared osconstool
 gnatlib: @default_gnatlib_target@
 
-gnatlib-plain: oscons $(GCC_DIR)/ada/Makefile
+gnatlib-plain: osconstool $(GCC_DIR)/ada/Makefile
 	test -f stamp-libada || \
 	$(MAKE) -C $(GCC_DIR)/ada $(LIBADA_FLAGS_TO_PASS) gnatlib \
 	&& touch stamp-libada
@@ -106,7 +103,7 @@ gnatlib-plain: oscons $(GCC_DIR)/ada/Makefile
 	$(LN_S) $(ADA_RTS_DIR) adainclude
 	$(LN_S) $(ADA_RTS_DIR) adalib
 
-gnatlib-sjlj gnatlib-zcx gnatlib-shared: oscons $(GCC_DIR)/ada/Makefile
+gnatlib-sjlj gnatlib-zcx gnatlib-shared: osconstool $(GCC_DIR)/ada/Makefile
 	test -f stamp-libada || \
 	$(MAKE) -C $(GCC_DIR)/ada $(LIBADA_FLAGS_TO_PASS) $@ \
 	&& touch stamp-libada
@@ -115,8 +112,8 @@ gnatlib-sjlj gnatlib-zcx gnatlib-shared: oscons $(GCC_DIR)/ada/Makefile
 	$(LN_S) $(ADA_RTS_DIR) adainclude
 	$(LN_S) $(ADA_RTS_DIR) adalib
 
-oscons:
-	$(MAKE) -C $(GCC_DIR) $(LIBADA_FLAGS_TO_PASS) ada/s-oscons.ads
+osconstool:
+	$(MAKE) -C $(GCC_DIR)/ada $(LIBADA_FLAGS_TO_PASS) ./bldtools/oscons/xoscons
 
 install-gnatlib: $(GCC_DIR)/ada/Makefile
 	$(MAKE) -C $(GCC_DIR)/ada $(LIBADA_FLAGS_TO_PASS) install-gnatlib

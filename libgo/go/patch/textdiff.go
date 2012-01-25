@@ -1,8 +1,12 @@
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 package patch
 
 import (
 	"bytes"
-	"os"
+	"errors"
 )
 
 type TextDiff []TextChunk
@@ -16,7 +20,7 @@ type TextChunk struct {
 	New  []byte
 }
 
-func ParseTextDiff(raw []byte) (TextDiff, os.Error) {
+func ParseTextDiff(raw []byte) (TextDiff, error) {
 	var chunkHeader []byte
 
 	// Copy raw so it is safe to keep references to slices.
@@ -151,11 +155,11 @@ ErrChunkHdr:
 	return nil, SyntaxError("unexpected chunk header line: " + string(chunkHeader))
 }
 
-var ErrPatchFailure = os.NewError("patch did not apply cleanly")
+var ErrPatchFailure = errors.New("patch did not apply cleanly")
 
 // Apply applies the changes listed in the diff
 // to the data, returning the new version.
-func (d TextDiff) Apply(data []byte) ([]byte, os.Error) {
+func (d TextDiff) Apply(data []byte) ([]byte, error) {
 	var buf bytes.Buffer
 	line := 1
 	for _, c := range d {

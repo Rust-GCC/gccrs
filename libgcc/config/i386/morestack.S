@@ -1,5 +1,5 @@
 # x86/x86_64 support for -fsplit-stack.
-# Copyright (C) 2009, 2010 Free Software Foundation, Inc.
+# Copyright (C) 2009, 2010, 2011 Free Software Foundation, Inc.
 # Contributed by Ian Lance Taylor <iant@google.com>.
 
 # This file is part of GCC.
@@ -96,13 +96,104 @@
 #endif
 
 __morestack_non_split:
+	.cfi_startproc
 
 #ifndef __x86_64__
-	addl	$0x4000,4(%esp)
+
+	# See below for an extended explanation of this.
+	.cfi_def_cfa %esp,16
+
+	pushl	%eax			# Save %eax in case it is a parameter.
+
+	.cfi_adjust_cfa_offset 4	# Account for pushed register.
+
+	movl	%esp,%eax		# Current stack,
+	subl	8(%esp),%eax		# less required stack frame size,
+	subl	$0x4000,%eax		# less space for non-split code.
+	cmpl	%gs:0x30,%eax		# See if we have enough space.
+	jb	2f			# Get more space if we need it.
+
+	# Here the stack is
+	#	%esp + 20:	stack pointer after two returns
+	#	%esp + 16:	return address of morestack caller's caller
+	#	%esp + 12:	size of parameters
+	#	%esp + 8:	new stack frame size
+	#	%esp + 4:	return address of this function
+	#	%esp:		saved %eax
+	#
+	# Since we aren't doing a full split stack, we don't need to
+	# do anything when our caller returns.  So we return to our
+	# caller rather than calling it, and let it return as usual.
+	# To make that work we adjust the return address.
+
+	# This breaks call/return address prediction for the call to
+	# this function.  I can't figure out a way to make it work
+	# short of copying the parameters down the stack, which will
+	# probably take more clock cycles than we will lose breaking
+	# call/return address prediction.  We will only break
+	# prediction for this call, not for our caller.
+
+	movl	4(%esp),%eax		# Increment the return address
+	cmpb	$0xc3,(%eax)		# to skip the ret instruction;
+	je	1f			# see above.
+	addl	$2,%eax
+1:	inc	%eax
+	movl	%eax,4(%esp)		# Update return address.
+
+	popl	%eax			# Restore %eax and stack.
+
+	.cfi_adjust_cfa_offset -4	# Account for popped register.
+
+	ret	$8			# Return to caller, popping args.
+
+2:
+	.cfi_adjust_cfa_offset 4	# Back to where we were.
+
+	popl	%eax			# Restore %eax and stack.
+
+	.cfi_adjust_cfa_offset -4	# Account for popped register.
+
+	addl	$0x5000+BACKOFF,4(%esp)	# Increment space we request.
+
+	# Fall through into morestack.
+
 #else
-	addq	$0x4000,%r10
+
+	# See below for an extended explanation of this.
+	.cfi_def_cfa %rsp,16
+
+	pushq	%rax			# Save %rax in case caller is using
+					# it to preserve original %r10.
+	.cfi_adjust_cfa_offset 8	# Adjust for pushed register.
+
+	movq	%rsp,%rax		# Current stack,
+	subq	%r10,%rax		# less required stack frame size,
+	subq	$0x4000,%rax		# less space for non-split code.
+
+#ifdef __LP64__
+	cmpq	%fs:0x70,%rax		# See if we have enough space.
+#else
+	cmpl	%fs:0x40,%eax
+#endif
+	popq	%rax			# Restore register.
+
+	.cfi_adjust_cfa_offset -8	# Adjust for popped register.
+
+	jb	2f			# Get more space if we need it.
+
+	# This breaks call/return prediction, as described above.
+	incq	(%rsp)			# Increment the return address.
+
+	ret				# Return to caller.
+
+2:
+	addq	$0x5000+BACKOFF,%r10	# Increment space we request.
+
+	# Fall through into morestack.
+
 #endif
 
+	.cfi_endproc
 #ifdef __ELF__
 	.size	__morestack_non_split, . - __morestack_non_split
 #endif
@@ -139,44 +230,65 @@ __morestack:
 	.cfi_lsda 0x1b,.LLSDA1
 #endif
 
-	# Set up a normal backtrace.
-	pushl	%ebp
-	.cfi_def_cfa_offset 8
-	.cfi_offset %ebp, -8
-	movl	%esp, %ebp
-	.cfi_def_cfa_register %ebp
-
 	# We return below with a ret $8.  We will return to a single
 	# return instruction, which will return to the caller of our
 	# caller.  We let the unwinder skip that single return
 	# instruction, and just return to the real caller.
-	.cfi_offset 8, 8
-	.cfi_escape 0x15, 4, 0x7d	# DW_CFA_val_offset_sf, %esp, 12/-4
+
+	# Here CFA points just past the return address on the stack,
+	# e.g., on function entry it is %esp + 4.  The stack looks
+	# like this:
+	#	CFA + 12:	stack pointer after two returns
+	#	CFA + 8:	return address of morestack caller's caller
+	#	CFA + 4:	size of parameters
+	#	CFA:		new stack frame size
+	#	CFA - 4:	return address of this function
+	#	CFA - 8:	previous value of %ebp; %ebp points here
+	# Setting the new CFA to be the current CFA + 12 (i.e., %esp +
+	# 16) will make the unwinder pick up the right return address.
+
+	.cfi_def_cfa %esp,16
+
+	pushl	%ebp
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset %ebp, -20
+	movl	%esp,%ebp
+	.cfi_def_cfa_register %ebp
 
 	# In 32-bit mode the parameters are pushed on the stack.  The
 	# argument size is pushed then the new stack frame size is
 	# pushed.
 
+	# Align stack to 16-byte boundary with enough space for saving
+	# registers and passing parameters to functions we call.
+	subl	$40,%esp
+
+	# Because our cleanup code may need to clobber %ebx, we need
+	# to save it here so the unwinder can restore the value used
+	# by the caller.  Note that we don't have to restore the
+	# register, since we don't change it, we just have to save it
+	# for the unwinder.
+	movl	%ebx,-4(%ebp)
+	.cfi_offset %ebx, -24
+
 	# In 32-bit mode the registers %eax, %edx, and %ecx may be
 	# used for parameters, depending on the regparm and fastcall
 	# attributes.
 
-	pushl	%eax
-	pushl	%edx
-	pushl	%ecx
+	movl	%eax,-8(%ebp)
+	movl	%edx,-12(%ebp)
+	movl	%ecx,-16(%ebp)
 
 	call	__morestack_block_signals
 
-	pushl	12(%ebp)		# The size of the parameters.
+	movl	12(%ebp),%eax		# The size of the parameters.
+	movl	%eax,8(%esp)
 	leal	20(%ebp),%eax		# Address of caller's parameters.
-	pushl	%eax
+	movl	%eax,4(%esp)
 	addl	$BACKOFF,8(%ebp)	# Ask for backoff bytes.
 	leal	8(%ebp),%eax		# The address of the new frame size.
-	pushl	%eax
+	movl	%eax,(%esp)
 
-	# Note that %esp is exactly 32 bytes below the CFA -- perfect for
-	# a 16-byte aligned stack.  That said, we still ought to compile
-	# generic-morestack.c with -mpreferred-stack-boundary=2.  FIXME.
 	call	__generic_morestack
 
 	movl	%eax,%esp		# Switch to the new stack.
@@ -191,8 +303,8 @@ __morestack:
 
 	call	__morestack_unblock_signals
 
-	movl	-8(%ebp),%edx		# Restore registers.
-	movl	-12(%ebp),%ecx
+	movl	-12(%ebp),%edx		# Restore registers.
+	movl	-16(%ebp),%ecx
 
 	movl	4(%ebp),%eax		# Increment the return address
 	cmpb	$0xc3,(%eax)		# to skip the ret instruction;
@@ -200,12 +312,12 @@ __morestack:
 	addl	$2,%eax
 1:	inc	%eax
 
-	movl	%eax,-8(%ebp)		# Store return address in an
+	movl	%eax,-12(%ebp)		# Store return address in an
 					# unused slot.
 
-	movl	-4(%ebp),%eax		# Restore the last register.
+	movl	-8(%ebp),%eax		# Restore the last register.
 
-	call	*-8(%ebp)		# Call our caller!
+	call	*-12(%ebp)		# Call our caller!
 
 	# The caller will return here, as predicted.
 
@@ -255,9 +367,13 @@ __morestack:
 	popl	%eax
 
 	.cfi_remember_state
+
+	# We never changed %ebx, so we don't have to actually restore it.
+	.cfi_restore %ebx
+
 	popl	%ebp
 	.cfi_restore %ebp
-	.cfi_def_cfa %esp, 12
+	.cfi_def_cfa %esp, 16
 	ret	$8			# Return to caller, which will
 					# immediately return.  Pop
 					# arguments as we go.
@@ -300,19 +416,18 @@ __morestack:
 	.cfi_lsda 0x1b,.LLSDA1
 #endif
 
-	# Set up a normal backtrace.
-	pushq	%rbp
-	.cfi_def_cfa_offset 16
-	.cfi_offset %rbp, -16
-	movq	%rsp, %rbp
-	.cfi_def_cfa_register %rbp
-
 	# We will return a single return instruction, which will
 	# return to the caller of our caller.  Let the unwinder skip
 	# that single return instruction, and just return to the real
 	# caller.
-	.cfi_offset 16, 0
-	.cfi_escape 0x15, 7, 0x7f	# DW_CFA_val_offset_sf, %esp, 8/-8
+	.cfi_def_cfa %rsp,16
+
+	# Set up a normal backtrace.
+	pushq	%rbp
+	.cfi_adjust_cfa_offset 8
+	.cfi_offset %rbp, -24
+	movq	%rsp, %rbp
+	.cfi_def_cfa_register %rbp
 
 	# In 64-bit mode the new stack frame size is passed in r10
         # and the argument size is passed in r11.
@@ -423,7 +538,7 @@ __morestack:
 	.cfi_remember_state
 	popq	%rbp
 	.cfi_restore %rbp
-	.cfi_def_cfa %rsp, 8
+	.cfi_def_cfa %rsp, 16
 	ret				# Return to caller, which will
 					# immediately return.
 
@@ -592,6 +707,82 @@ __stack_split_initialize:
 	.size	__stack_split_initialize, . - __stack_split_initialize
 #endif
 
+# Routines to get and set the guard, for __splitstack_getcontext,
+# __splitstack_setcontext, and __splitstack_makecontext.
+
+# void *__morestack_get_guard (void) returns the current stack guard.
+	.text
+	.global	__morestack_get_guard
+	.hidden	__morestack_get_guard
+
+#ifdef __ELF__
+	.type	__morestack_get_guard,@function
+#endif
+
+__morestack_get_guard:
+
+#ifndef __x86_64__
+	movl	%gs:0x30,%eax
+#else
+#ifdef __LP64__
+	movq	%fs:0x70,%rax
+#else
+	movl	%fs:0x40,%eax
+#endif
+#endif
+	ret
+
+#ifdef __ELF__
+	.size	__morestack_get_guard, . - __morestack_get_guard
+#endif
+
+# void __morestack_set_guard (void *) sets the stack guard.
+	.global	__morestack_set_guard
+	.hidden	__morestack_set_guard
+
+#ifdef __ELF__
+	.type	__morestack_set_guard,@function
+#endif
+
+__morestack_set_guard:
+
+#ifndef __x86_64__
+	movl	4(%esp),%eax
+	movl	%eax,%gs:0x30
+#else
+	X86_64_SAVE_NEW_STACK_BOUNDARY (di)
+#endif
+	ret
+
+#ifdef __ELF__
+	.size	__morestack_set_guard, . - __morestack_set_guard
+#endif
+
+# void *__morestack_make_guard (void *, size_t) returns the stack
+# guard value for a stack.
+	.global	__morestack_make_guard
+	.hidden	__morestack_make_guard
+
+#ifdef __ELF__
+	.type	__morestack_make_guard,@function
+#endif
+
+__morestack_make_guard:
+
+#ifndef __x86_64__
+	movl	4(%esp),%eax
+	subl	8(%esp),%eax
+	addl	$BACKOFF,%eax
+#else
+	subq	%rsi,%rdi
+	addq	$BACKOFF,%rdi
+	movq	%rdi,%rax
+#endif
+	ret
+
+#ifdef __ELF__
+	.size	__morestack_make_guard, . - __morestack_make_guard
+#endif
 
 # Make __stack_split_initialize a high priority constructor.  FIXME:
 # This is ELF specific.

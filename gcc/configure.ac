@@ -2,7 +2,7 @@
 # Process this file with autoconf to generate a configuration script.
 
 # Copyright 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
-# 2007, 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
+# 2007, 2008, 2009, 2010, 2011, 2012 Free Software Foundation, Inc.
 
 #This file is part of GCC.
 
@@ -142,6 +142,15 @@ if test x${gcc_gxx_include_dir} = x; then
        libstdcxx_incdir="$target_alias/$libstdcxx_incdir"
     fi
     gcc_gxx_include_dir="\$(libsubdir)/\$(libsubdir_to_prefix)$libstdcxx_incdir"
+  fi
+fi
+
+gcc_gxx_include_dir_add_sysroot=0
+if test "${with_sysroot+set}" = set; then
+  gcc_gxx_without_sysroot=`expr "${gcc_gxx_include_dir}" : "${with_sysroot}"'\(.*\)'`
+  if test "${gcc_gxx_without_sysroot}"; then
+    gcc_gxx_include_dir="${gcc_gxx_without_sysroot}"
+    gcc_gxx_include_dir_add_sysroot=1
   fi
 fi
 
@@ -329,10 +338,11 @@ GCC_STDINT_TYPES
 # * 'long long'
 # * variadic macros
 # * overlong strings
+# * C++11 narrowing conversions in { }
 # So, we only use -pedantic if we can disable those warnings.
 
 ACX_PROG_CC_WARNING_OPTS(
-	m4_quote(m4_do([-W -Wall -Wwrite-strings -Wcast-qual])), [loose_warn])
+	m4_quote(m4_do([-W -Wall -Wno-narrowing -Wwrite-strings -Wcast-qual])), [loose_warn])
 ACX_PROG_CC_WARNING_OPTS(
 	m4_quote(m4_do([-Wstrict-prototypes -Wmissing-prototypes])),
 	[c_loose_warn])
@@ -357,6 +367,10 @@ fi
 AC_SUBST(warn_cflags)
 AC_SUBST(warn_cxxflags)
 
+# Disable exceptions and RTTI if building with g++
+ACX_PROG_CC_WARNING_OPTS(
+	m4_quote(m4_do([-fno-exceptions -fno-rtti])), [noexception_flags])
+	
 # Enable expensive internal checks
 is_release=
 if test x"`cat $srcdir/DEV-PHASE`" != xexperimental; then
@@ -725,6 +739,19 @@ AC_ARG_ENABLE(shared,
 ], [enable_shared=yes])
 AC_SUBST(enable_shared)
 
+AC_ARG_WITH([native-system-header-dir],
+  [  --with-native-system-header-dir=dir
+                          use dir as the directory to look for standard
+                          system header files in.  Defaults to /usr/include.],
+[
+ case ${with_native_system_header_dir} in
+ yes|no) AC_MSG_ERROR([bad value ${withval} given for --with-native-system-header-dir]) ;;
+ /* | [[A-Za-z]]:[[\\/]]*) ;;
+ *) AC_MSG_ERROR([--with-native-system-header-dir argument ${withval} must be an absolute directory]) ;;
+ esac
+ configured_native_system_header_dir="${withval}"
+], [configured_native_system_header_dir=])
+
 AC_ARG_WITH(build-sysroot, 
   [AS_HELP_STRING([--with-build-sysroot=sysroot],
                   [use sysroot as the system root during the build])],
@@ -829,17 +856,7 @@ esac
 gcc_AC_PROG_LN_S
 ACX_PROG_LN($LN_S)
 AC_PROG_RANLIB
-case "${host}" in
-*-*-darwin*)
-  # By default, the Darwin ranlib will not treat common symbols as
-  # definitions when  building the archive table of contents.  Other 
-  # ranlibs do that; pass an option to the Darwin ranlib that makes
-  # it behave similarly.
-  ranlib_flags="-c" 
-  ;;
-*)
-  ranlib_flags=""
-esac
+ranlib_flags=""
 AC_SUBST(ranlib_flags)
      
 gcc_AC_PROG_INSTALL
@@ -1027,7 +1044,7 @@ define(gcc_UNLOCKED_FUNCS, clearerr_unlocked feof_unlocked dnl
 AC_CHECK_FUNCS(times clock kill getrlimit setrlimit atoll atoq \
 	sysconf strsignal getrusage nl_langinfo \
 	gettimeofday mbstowcs wcswidth mmap setlocale \
-	gcc_UNLOCKED_FUNCS)
+	gcc_UNLOCKED_FUNCS madvise)
 
 if test x$ac_cv_func_mbstowcs = xyes; then
   AC_CACHE_CHECK(whether mbstowcs works, gcc_cv_func_mbstowcs_works,
@@ -1081,8 +1098,10 @@ AM_LANGINFO_CODESET
 # We will need to find libiberty.h and ansidecl.h
 saved_CFLAGS="$CFLAGS"
 CFLAGS="$CFLAGS -I${srcdir} -I${srcdir}/../include"
+saved_CXXFLAGS="$CXXFLAGS"
+CXXFLAGS="$CXXFLAGS -I${srcdir} -I${srcdir}/../include"
 gcc_AC_CHECK_DECLS(getenv atol asprintf sbrk abort atof getcwd getwd \
-	strsignal strstr strverscmp \
+	strsignal strstr stpcpy strverscmp \
 	errno snprintf vsnprintf vasprintf malloc realloc calloc \
 	free basename getopt clock getpagesize gcc_UNLOCKED_FUNCS, , ,[
 #include "ansidecl.h"
@@ -1133,6 +1152,21 @@ gcc_AC_CHECK_DECLS(sigaltstack, , ,[
 #include <signal.h>
 ])
 
+# g++ on Solaris 10+ defines _XOPEN_SOURCE=600, which hides the madvise()
+# prototype.
+AS_IF([test "$ENABLE_BUILD_WITH_CXX" = "yes"],
+  [AC_LANG_PUSH([C++])
+   gcc_AC_CHECK_DECLS(madvise, , ,[
+     #include "ansidecl.h"
+     #include "system.h"
+   ])
+   AC_LANG_POP([C++])],
+  [gcc_AC_CHECK_DECLS(madvise, , ,[
+     #include "ansidecl.h"
+     #include "system.h"
+   ])
+])
+
 # More time-related stuff.
 AC_CACHE_CHECK(for struct tms, ac_cv_struct_tms, [
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
@@ -1159,10 +1193,9 @@ if test $gcc_cv_type_clock_t = yes; then
   [Define if <time.h> defines clock_t.])
 fi
 
-# Restore CFLAGS from before the gcc_AC_NEED_DECLARATIONS tests.
+# Restore CFLAGS, CXXFLAGS from before the gcc_AC_NEED_DECLARATIONS tests.
 CFLAGS="$saved_CFLAGS"
-
-gcc_AC_INITFINI_ARRAY
+CXXFLAGS="$saved_CXXFLAGS"
 
 # mkdir takes a single argument on some systems. 
 gcc_AC_FUNC_MKDIR_TAKES_ONE_ARG
@@ -1234,6 +1267,11 @@ then out_file=$cpu_type/$cpu_type.c; fi
 
 if test x"$tmake_file" = x
 then tmake_file=$cpu_type/t-$cpu_type
+fi
+
+# Support --enable-initfini-array.
+if test x$enable_initfini_array != xno; then
+  tm_file="${tm_file} initfini-array.h"
 fi
 
 if test x"$dwarf2" = xyes
@@ -1331,6 +1369,12 @@ if test "$host_xm_file" != "$build_xm_file"; then
 	fi
 fi
 
+if test -n "$configured_native_system_header_dir"; then
+  native_system_header_dir=$configured_native_system_header_dir
+fi
+NATIVE_SYSTEM_HEADER_DIR="$native_system_header_dir"
+AC_SUBST(NATIVE_SYSTEM_HEADER_DIR)
+
 case ${host} in
   powerpc*-*-darwin*)
     AC_CACHE_CHECK([whether mcontext_t fields have underscores],
@@ -1378,19 +1422,6 @@ if test x${thread_file} = x; then
   # so use file chosen by default logic above
   thread_file=${target_thread_file}
 fi
-
-# Make gthr-default.h if we have a thread file.
-gthread_flags=
-if test $thread_file != single; then
-  echo "#include \"gthr-${thread_file}.h\"" > gthr-default.h-t
-  if diff gthr-default.h-t gthr-default.h 2>/dev/null; then
-    rm -f gthr-default.h-t
-  else
-    mv -f gthr-default.h-t gthr-default.h
-  fi
-  gthread_flags=-DHAVE_GTHR_DEFAULT
-fi
-AC_SUBST(gthread_flags)
 
 # --------
 # UNSORTED
@@ -1676,13 +1707,6 @@ for f in $tm_file; do
        tm_include_list="${tm_include_list} config/$f"
        ;;
   esac
-done
-
-libgcc_tm_file_list=
-libgcc_tm_include_list=
-for f in $libgcc_tm_file; do
-  libgcc_tm_file_list="${libgcc_tm_file_list} \$(srcdir)/../libgcc/config/$f"
-  libgcc_tm_include_list="${libgcc_tm_include_list} ../libgcc/config/$f"
 done
 
 tm_p_file_list=
@@ -2400,6 +2424,8 @@ if test x$gcc_cv_ld_ro_rw_mix = xread-write; then
    and read-write sections into a read-write section.])
 fi
 AC_MSG_RESULT($gcc_cv_ld_ro_rw_mix)
+
+gcc_AC_INITFINI_ARRAY
 
 # Check if we have .[us]leb128, and support symbol arithmetic with it.
 gcc_GAS_CHECK_FEATURE([.sleb128 and .uleb128], gcc_cv_as_leb128,
@@ -3491,6 +3517,8 @@ foo:
       gcc_cv_as_sparc_fmaf,,
       [-xarch=v9d],
       [.text
+       .register %g2, #scratch
+       .register %g3, #scratch
        .align 4
        fmaddd %f0, %f2, %f4, %f6
        addxccc %g1, %g2, %g3
@@ -3523,7 +3551,7 @@ changequote([,])dnl
 	   Cygwin DLL exports wrappers to support libstdc++ function replacement.])
     esac
     case $target_os in
-      cygwin* | pe | mingw32*)
+      cygwin* | pe | mingw32* | interix*)
 	# Recent binutils allows the three-operand form of ".comm" on PE.  This
 	# definition is used unconditionally to initialise the default state of
 	# the target option variable that governs usage of the feature.
@@ -3651,15 +3679,25 @@ foo:	nop
 
     gcc_GAS_CHECK_FEATURE([R_386_TLS_GD_PLT reloc],
         gcc_cv_as_ix86_tlsgdplt,,,
-	[call    tls_gd@tlsgdplt],,
+	[call    tls_gd@tlsgdplt],
+	[if test x$gcc_cv_ld != x \
+	 && $gcc_cv_ld -o conftest conftest.o -G > /dev/null 2>&1; then
+	   gcc_cv_as_ix86_tlsgdplt=yes
+	 fi
+	 rm -f conftest],
       [AC_DEFINE(HAVE_AS_IX86_TLSGDPLT, 1,
-        [Define if your assembler supports @tlsgdplt.])])
+        [Define if your assembler and linker support @tlsgdplt.])])
 
     gcc_GAS_CHECK_FEATURE([R_386_TLS_LDM_PLT reloc],
         gcc_cv_as_ix86_tlsldmplt,,,
-	[call    tls_ld@tlsldmplt],,
+	[call    tls_ld@tlsldmplt],
+	[if test x$gcc_cv_ld != x \
+	 && $gcc_cv_ld -o conftest conftest.o -G > /dev/null 2>&1; then
+	   gcc_cv_as_ix86_tlsldmplt=yes
+	 fi
+	 rm -f conftest],
       [AC_DEFINE(HAVE_AS_IX86_TLSLDMPLT, 1,
-        [Define if your assembler supports @tlsldmplt.])])
+        [Define if your assembler and linker support @tlsldmplt.])])
 
     ;;
 
@@ -4515,14 +4553,14 @@ if test x$host != x$target || test "x$TARGET_SYSTEM_ROOT" != x; then
   elif test "x$with_sysroot" = x; then
     target_header_dir="${exec_prefix}/${target_noncanonical}/sys-include"
   elif test "x$with_build_sysroot" != "x"; then
-    target_header_dir="${with_build_sysroot}/usr/include"
+    target_header_dir="${with_build_sysroot}${native_system_header_dir}"
   elif test "x$with_sysroot" = xyes; then
-    target_header_dir="${exec_prefix}/${target_noncanonical}/sys-root/usr/include"
+    target_header_dir="${exec_prefix}/${target_noncanonical}/sys-root${native_system_header_dir}"
   else
-    target_header_dir="${with_sysroot}/usr/include"
+    target_header_dir="${with_sysroot}${native_system_header_dir}"
   fi
 else
-  target_header_dir=/usr/include
+  target_header_dir=${native_system_header_dir}
 fi
 
 # Test for stack protector support in target C library.
@@ -4576,6 +4614,7 @@ GCC_TARGET_TEMPLATE([HAVE_SYS_SDT_H])
 AC_MSG_CHECKING(sys/sdt.h in the target C library)
 have_sys_sdt_h=no
 if test -f $target_header_dir/sys/sdt.h; then
+  have_sys_sdt_h=yes
   AC_DEFINE(HAVE_SYS_SDT_H, 1,
             [Define if your target C library provides sys/sdt.h])
 fi
@@ -4608,7 +4647,11 @@ fi
 AC_MSG_CHECKING(dl_iterate_phdr in target C library)
 gcc_cv_target_dl_iterate_phdr=unknown
 case "$target" in
-  *-*-solaris2*)
+  # Restrict to Solaris 11+.  While most of the Solaris 11 linker changes
+  # were backported to Solaris 10 Update 10, dl_iterate_phdr only lives in
+  # libdl there, both complicating its use and breaking compatibility
+  # between Solaris 10 updates.
+  *-*-solaris2.1[[1-9]]*)
     # <link.h> needs both a dl_iterate_phdr declaration and support for
     # compilation with largefile support.
     if grep dl_iterate_phdr $target_header_dir/link.h > /dev/null 2>&1 \
@@ -4881,18 +4924,6 @@ AC_ARG_ENABLE(version-specific-runtime-libs,
                 [specify that runtime libraries should be
                  installed in a compiler-specific directory])])
 
-AC_ARG_WITH(slibdir,
-[AS_HELP_STRING([--with-slibdir=DIR], [shared libraries in DIR @<:@LIBDIR@:>@])],
-slibdir="$with_slibdir",
-if test "${enable_version_specific_runtime_libs+set}" = set; then
-  slibdir='$(libsubdir)'
-elif test "$host" != "$target"; then
-  slibdir='$(build_tooldir)/lib'
-else
-  slibdir='$(libdir)'
-fi)
-AC_SUBST(slibdir)
-
 # Substitute configuration variables
 AC_SUBST(subdirs)
 AC_SUBST(srcdir)
@@ -4919,12 +4950,12 @@ AC_SUBST(user_headers_inc_next_pre)
 AC_SUBST(user_headers_inc_next_post)
 AC_SUBST(extra_headers_list)
 AC_SUBST(extra_objs)
-AC_SUBST(extra_parts)
 AC_SUBST(extra_passes)
 AC_SUBST(extra_programs)
 AC_SUBST(float_h_file)
 AC_SUBST(gcc_config_arguments)
 AC_SUBST(gcc_gxx_include_dir)
+AC_SUBST(gcc_gxx_include_dir_add_sysroot)
 AC_SUBST(host_exeext)
 AC_SUBST(host_xm_file_list)
 AC_SUBST(host_xm_include_list)
@@ -4941,12 +4972,9 @@ AC_SUBST(out_file)
 AC_SUBST(out_object_file)
 AC_SUBST(common_out_file)
 AC_SUBST(common_out_object_file)
-AC_SUBST(thread_file)
 AC_SUBST(tm_file_list)
 AC_SUBST(tm_include_list)
 AC_SUBST(tm_defines)
-AC_SUBST(libgcc_tm_file_list)
-AC_SUBST(libgcc_tm_include_list)
 AC_SUBST(tm_p_file_list)
 AC_SUBST(tm_p_include_list)
 AC_SUBST(xm_file_list)

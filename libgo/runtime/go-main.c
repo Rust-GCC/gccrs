@@ -8,6 +8,7 @@
 
 #include <stdlib.h>
 #include <time.h>
+#include <unistd.h>
 
 #ifdef HAVE_FPU_CONTROL_H
 #include <fpu_control.h>
@@ -15,10 +16,10 @@
 
 #include "go-alloc.h"
 #include "array.h"
-#include "go-signal.h"
 #include "go-string.h"
 
 #include "runtime.h"
+#include "arch.h"
 #include "malloc.h"
 
 #undef int
@@ -31,60 +32,25 @@
 
 extern char **environ;
 
-extern struct __go_open_array Args asm ("libgo_os.os.Args");
-
-extern struct __go_open_array Envs asm ("libgo_os.os.Envs");
-
-/* These functions are created for the main package.  */
-extern void __go_init_main (void);
-extern void real_main (void) asm ("main.main");
+extern void runtime_main (void);
+static void mainstart (void *);
 
 /* The main function.  */
 
 int
 main (int argc, char **argv)
 {
-  int i;
-  struct __go_string *values;
+  runtime_initsig (0);
+  runtime_args (argc, (byte **) argv);
+  runtime_osinit ();
+  runtime_schedinit ();
+  __go_go (mainstart, NULL);
+  runtime_mstart (runtime_m ());
+  abort ();
+}
 
-  runtime_mallocinit ();
-  runtime_cpuprofinit ();
-  __go_gc_goroutine_init (&argc);
-
-  Args.__count = argc;
-  Args.__capacity = argc;
-  values = __go_alloc (argc * sizeof (struct __go_string));
-  for (i = 0; i < argc; ++i)
-    {
-      values[i].__data = (unsigned char *) argv[i];
-      values[i].__length = __builtin_strlen (argv[i]);
-    }
-  Args.__values = values;
-
-  for (i = 0; environ[i] != NULL; ++i)
-    ;
-  Envs.__count = i;
-  Envs.__capacity = i;
-  values = __go_alloc (i * sizeof (struct __go_string));
-  for (i = 0; environ[i] != NULL; ++i)
-    {
-      values[i].__data = (unsigned char *) environ[i];
-      values[i].__length = __builtin_strlen (environ[i]);
-    }
-  Envs.__values = values;
-
-  __initsig ();
-
-#if defined(HAVE_SRANDOM)
-  srandom ((unsigned int) time (NULL));
-#else
-  srand ((unsigned int) time (NULL));
-#endif
-  __go_init_main ();
-
-  __go_enable_gc ();
-
-  real_main ();
-
-  return 0;
+static void
+mainstart (void *arg __attribute__ ((unused)))
+{
+  runtime_main ();
 }

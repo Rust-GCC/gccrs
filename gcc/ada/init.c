@@ -219,6 +219,19 @@ nanosleep (struct timestruc_t *Rqtp, struct timestruc_t *Rmtp)
 
 #endif /* _AIXVERSION_430 */
 
+/* Version of AIX before 5.3 don't have pthread_condattr_setclock:
+ * supply it as a weak symbol here so that if linking on a 5.3 or newer
+ * machine, we get the real one.
+ */
+
+#ifndef _AIXVERSION_530
+#pragma weak pthread_condattr_setclock
+int
+pthread_condattr_setclock (pthread_condattr_t *attr, clockid_t cl) {
+  return 0;
+}
+#endif
+
 static void
 __gnat_error_handler (int sig,
 		      siginfo_t *si ATTRIBUTE_UNUSED,
@@ -1808,8 +1821,8 @@ __gnat_error_handler (int sig,
       break;
 
     case SIGBUS:
-      exception = &constraint_error;
-      msg = "SIGBUS";
+      exception = &storage_error;
+      msg = "SIGBUS: possible stack overflow";
       break;
 
     default:
@@ -1906,7 +1919,8 @@ __gnat_clear_exception_count (void)
 /* Handle different SIGnal to exception mappings in different VxWorks
    versions.   */
 static void
-__gnat_map_signal (int sig)
+__gnat_map_signal (int sig, void *si ATTRIBUTE_UNUSED,
+		   struct sigcontext *sc ATTRIBUTE_UNUSED)
 {
   struct Exception_Data *exception;
   const char *msg;
@@ -2001,9 +2015,7 @@ __gnat_map_signal (int sig)
    propagation after the required low level adjustments.  */
 
 void
-__gnat_error_handler (int sig,
-		      void *si ATTRIBUTE_UNUSED,
-		      struct sigcontext *sc ATTRIBUTE_UNUSED)
+__gnat_error_handler (int sig, void *si, struct sigcontext *sc)
 {
   sigset_t mask;
 
@@ -2015,7 +2027,22 @@ __gnat_error_handler (int sig,
   sigdelset (&mask, sig);
   sigprocmask (SIG_SETMASK, &mask, NULL);
 
-  __gnat_map_signal (sig);
+#if defined (__PPC__) && defined(_WRS_KERNEL)
+  /* On PowerPC, kernel mode, we process signals through a Call Frame Info
+     trampoline, voiding the need for myriads of fallback_frame_state
+     variants in the ZCX runtime.  We have no simple way to distinguish ZCX
+     from SJLJ here, so we do this for SJLJ as well even though this is not
+     necessary.  This only incurs a few extra instructions and a tiny
+     amount of extra stack usage.  */
+
+  #include "sigtramp.h"
+
+  __gnat_sigtramp (sig, (void *)si, (void *)sc,
+		   (sighandler_t *)&__gnat_map_signal);
+
+#else
+  __gnat_map_signal (sig, si, sc);
+#endif
 }
 
 void
@@ -2268,11 +2295,32 @@ __gnat_is_stack_guard (mach_vm_address_t addr)
   return 0;
 }
 
+#define HAVE_GNAT_ADJUST_CONTEXT_FOR_RAISE
+
+void
+__gnat_adjust_context_for_raise (int signo ATTRIBUTE_UNUSED,
+				 void *ucontext ATTRIBUTE_UNUSED)
+{
+#if defined (__x86_64__)
+  /* Work around radar #10302855/pr50678, where the unwinders (libunwind or
+     libgcc_s depending on the system revision) and the DWARF unwind data for
+     the sigtramp have different ideas about register numbering (causing rbx
+     and rdx to be transposed)..  */
+  ucontext_t *uc = (ucontext_t *)ucontext ;
+  unsigned long t = uc->uc_mcontext->__ss.__rbx;
+
+  uc->uc_mcontext->__ss.__rbx = uc->uc_mcontext->__ss.__rdx;
+  uc->uc_mcontext->__ss.__rdx = t;
+#endif
+}
+
 static void
-__gnat_error_handler (int sig, siginfo_t *si, void *ucontext ATTRIBUTE_UNUSED)
+__gnat_error_handler (int sig, siginfo_t *si, void *ucontext)
 {
   struct Exception_Data *exception;
   const char *msg;
+
+  __gnat_adjust_context_for_raise (sig, ucontext);
 
   switch (sig)
     {

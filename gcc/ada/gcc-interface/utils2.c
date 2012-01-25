@@ -29,6 +29,7 @@
 #include "tm.h"
 #include "tree.h"
 #include "flags.h"
+#include "toplev.h"
 #include "ggc.h"
 #include "output.h"
 #include "tree-inline.h"
@@ -590,6 +591,112 @@ nonbinary_modular_operation (enum tree_code op_code, tree type, tree lhs,
   return convert (type, result);
 }
 
+/* This page contains routines that implement the Ada semantics with regard
+   to atomic objects.  They are fully piggybacked on the middle-end support
+   for atomic loads and stores.
+
+   *** Memory barriers and volatile objects ***
+
+   We implement the weakened form of the C.6(16) clause that was introduced
+   in Ada 2012 (AI05-117).  Earlier forms of this clause wouldn't have been
+   implementable without significant performance hits on modern platforms.
+
+   We also take advantage of the requirements imposed on shared variables by
+   9.10 (conditions for sequential actions) to have non-erroneous execution
+   and consider that C.6(16) and C.6(17) only prescribe an uniform order of
+   volatile updates with regard to sequential actions, i.e. with regard to
+   reads or updates of atomic objects.
+
+   As such, an update of an atomic object by a task requires that all earlier
+   accesses to volatile objects have completed.  Similarly, later accesses to
+   volatile objects cannot be reordered before the update of the atomic object.
+   So, memory barriers both before and after the atomic update are needed.
+
+   For a read of an atomic object, to avoid seeing writes of volatile objects
+   by a task earlier than by the other tasks, a memory barrier is needed before
+   the atomic read.  Finally, to avoid reordering later reads or updates of
+   volatile objects to before the atomic read, a barrier is needed after the
+   atomic read.
+
+   So, memory barriers are needed before and after atomic reads and updates.
+   And, in order to simplify the implementation, we use full memory barriers
+   in all cases, i.e. we enforce sequential consistency for atomic accesses.  */
+
+/* Return the size of TYPE, which must be a positive power of 2.  */
+
+static unsigned int
+resolve_atomic_size (tree type)
+{
+  unsigned HOST_WIDE_INT size = tree_low_cst (TYPE_SIZE_UNIT (type), 1);
+
+  if (size == 1 || size == 2 || size == 4 || size == 8 || size == 16)
+    return size;
+
+  /* We shouldn't reach here without having already detected that the size
+     isn't compatible with an atomic access.  */
+  gcc_assert (Serious_Errors_Detected);
+
+  return 0;
+}
+
+/* Build an atomic load for the underlying atomic object in SRC.  */
+
+tree
+build_atomic_load (tree src)
+{
+  tree ptr_type
+    = build_pointer_type
+      (build_qualified_type (void_type_node, TYPE_QUAL_VOLATILE));
+  tree mem_model = build_int_cst (integer_type_node, MEMMODEL_SEQ_CST);
+  tree orig_src = src;
+  tree type = TREE_TYPE (src);
+  tree t, val;
+  unsigned int size;
+  int fncode;
+
+  src = remove_conversions (src, false);
+  size = resolve_atomic_size (TREE_TYPE (src));
+  if (size == 0)
+    return orig_src;
+
+  fncode = (int) BUILT_IN_ATOMIC_LOAD_N + exact_log2 (size) + 1;
+  t = builtin_decl_implicit ((enum built_in_function) fncode);
+
+  src = build_unary_op (ADDR_EXPR, ptr_type, src);
+  val = build_call_expr (t, 2, src, mem_model);
+
+  return unchecked_convert (type, val, true);
+}
+
+/* Build an atomic store from SRC to the underlying atomic object in DEST.  */
+
+tree
+build_atomic_store (tree dest, tree src)
+{
+  tree ptr_type
+    = build_pointer_type
+      (build_qualified_type (void_type_node, TYPE_QUAL_VOLATILE));
+  tree mem_model = build_int_cst (integer_type_node, MEMMODEL_SEQ_CST);
+  tree orig_dest = dest;
+  tree t, int_type;
+  unsigned int size;
+  int fncode;
+
+  dest = remove_conversions (dest, false);
+  size = resolve_atomic_size (TREE_TYPE (dest));
+  if (size == 0)
+    return build_binary_op (MODIFY_EXPR, NULL_TREE, orig_dest, src);
+
+  fncode = (int) BUILT_IN_ATOMIC_STORE_N + exact_log2 (size) + 1;
+  t = builtin_decl_implicit ((enum built_in_function) fncode);
+  int_type = gnat_type_for_size (BITS_PER_UNIT * size, 1);
+
+  dest = build_unary_op (ADDR_EXPR, ptr_type, dest);
+  src = unchecked_convert (int_type, src, true);
+
+  return build_call_expr (t, 3, dest, src, mem_model);
+}
+
 /* Make a binary operation of kind OP_CODE.  RESULT_TYPE is the type
    desired for the result.  Usually the operation is to be performed
    in that type.  For INIT_EXPR and MODIFY_EXPR, RESULT_TYPE must be
@@ -798,7 +905,7 @@ build_binary_op (enum tree_code op_code, tree result_type,
       /* Then convert the right operand to its base type.  This will prevent
 	 unneeded sign conversions when sizetype is wider than integer.  */
       right_operand = convert (right_base_type, right_operand);
-      right_operand = convert (sizetype, right_operand);
+      right_operand = convert_to_index_type (right_operand);
       modulus = NULL_TREE;
       break;
 
@@ -1277,13 +1384,8 @@ build_unary_op (enum tree_code op_code, tree result_type, tree operand)
 
     case INDIRECT_REF:
       {
-	bool can_never_be_null;
-	tree t = operand;
-
-	while (CONVERT_EXPR_P (t) || TREE_CODE (t) == VIEW_CONVERT_EXPR)
-	  t = TREE_OPERAND (t, 0);
-
-	can_never_be_null = DECL_P (t) && DECL_CAN_NEVER_BE_NULL_P (t);
+	tree t = remove_conversions (operand, false);
+	bool can_never_be_null = DECL_P (t) && DECL_CAN_NEVER_BE_NULL_P (t);
 
 	/* If TYPE is a thin pointer, first convert to the fat pointer.  */
 	if (TYPE_IS_THIN_POINTER_P (type)
@@ -1715,7 +1817,7 @@ gnat_build_constructor (tree type, VEC(constructor_elt,gc) *v)
   FOR_EACH_CONSTRUCTOR_ELT (v, n_elmts, obj, val)
     {
       /* The predicate must be in keeping with output_constructor.  */
-      if (!TREE_CONSTANT (val)
+      if ((!TREE_CONSTANT (val) && !TREE_STATIC (val))
 	  || (TREE_CODE (type) == RECORD_TYPE
 	      && CONSTRUCTOR_BITFIELD_P (obj)
 	      && !initializer_constant_valid_for_bitfield_p (val))
@@ -1753,9 +1855,7 @@ build_simple_component_ref (tree record_variable, tree component,
   tree record_type = TYPE_MAIN_VARIANT (TREE_TYPE (record_variable));
   tree ref, inner_variable;
 
-  gcc_assert ((TREE_CODE (record_type) == RECORD_TYPE
-	       || TREE_CODE (record_type) == UNION_TYPE
-	       || TREE_CODE (record_type) == QUAL_UNION_TYPE)
+  gcc_assert (RECORD_OR_UNION_TYPE_P (record_type)
 	      && COMPLETE_TYPE_P (record_type)
 	      && (component == NULL_TREE) != (field == NULL_TREE));
 
@@ -2026,7 +2126,7 @@ maybe_wrap_malloc (tree data_size, tree data_type, Node_Id gnat_node)
 
       return
 	build2 (COMPOUND_EXPR, TREE_TYPE (aligning_field_addr),
-		build_binary_op (MODIFY_EXPR, NULL_TREE,
+		build_binary_op (INIT_EXPR, NULL_TREE,
 				 storage_ptr_slot, storage_ptr),
 		aligning_field_addr);
     }
@@ -2179,12 +2279,12 @@ build_allocator (tree type, tree init, tree result_type, Entity_Id gnat_proc,
 	  CONSTRUCTOR_APPEND_ELT (v, DECL_CHAIN (TYPE_FIELDS (storage_type)),
 				  init);
 	  storage_init
-	    = build_binary_op (MODIFY_EXPR, NULL_TREE, storage_deref,
+	    = build_binary_op (INIT_EXPR, NULL_TREE, storage_deref,
 			       gnat_build_constructor (storage_type, v));
 	}
       else
 	storage_init
-	  = build_binary_op (MODIFY_EXPR, NULL_TREE,
+	  = build_binary_op (INIT_EXPR, NULL_TREE,
 			     build_component_ref (storage_deref, NULL_TREE,
 						  TYPE_FIELDS (storage_type),
 						  false),
@@ -2232,7 +2332,7 @@ build_allocator (tree type, tree init, tree result_type, Entity_Id gnat_proc,
       storage_deref = build_unary_op (INDIRECT_REF, NULL_TREE, storage);
       TREE_THIS_NOTRAP (storage_deref) = 1;
       storage_init
-	= build_binary_op (MODIFY_EXPR, NULL_TREE, storage_deref, init);
+	= build_binary_op (INIT_EXPR, NULL_TREE, storage_deref, init);
       return build2 (COMPOUND_EXPR, result_type, storage_init, storage);
     }
 
@@ -2597,4 +2697,86 @@ gnat_stabilize_reference (tree ref, bool force, bool *success)
     TREE_THIS_NOTRAP (result) = TREE_THIS_NOTRAP (ref);
 
   return result;
+}
+
+/* If EXPR is an expression that is invariant in the current function, in the
+   sense that it can be evaluated anywhere in the function and any number of
+   times, return EXPR or an equivalent expression.  Otherwise return NULL.  */
+
+tree
+gnat_invariant_expr (tree expr)
+{
+  tree type = TREE_TYPE (expr), t;
+
+  expr = remove_conversions (expr, false);
+
+  while ((TREE_CODE (expr) == CONST_DECL
+	  || (TREE_CODE (expr) == VAR_DECL && TREE_READONLY (expr)))
+	 && decl_function_context (expr) == current_function_decl
+	 && DECL_INITIAL (expr))
+    expr = remove_conversions (DECL_INITIAL (expr), false);
+
+  if (TREE_CONSTANT (expr))
+    return fold_convert (type, expr);
+
+  t = expr;
+
+  while (true)
+    {
+      switch (TREE_CODE (t))
+	{
+	case COMPONENT_REF:
+	  if (TREE_OPERAND (t, 2) != NULL_TREE)
+	    return NULL_TREE;
+	  break;
+
+	case ARRAY_REF:
+	case ARRAY_RANGE_REF:
+	  if (!TREE_CONSTANT (TREE_OPERAND (t, 1))
+	      || TREE_OPERAND (t, 2) != NULL_TREE
+	      || TREE_OPERAND (t, 3) != NULL_TREE)
+	    return NULL_TREE;
+	  break;
+
+	case BIT_FIELD_REF:
+	case VIEW_CONVERT_EXPR:
+	case REALPART_EXPR:
+	case IMAGPART_EXPR:
+	  break;
+
+	case INDIRECT_REF:
+	  if (!TREE_READONLY (t)
+	      || TREE_SIDE_EFFECTS (t)
+	      || !TREE_THIS_NOTRAP (t))
+	    return NULL_TREE;
+	  break;
+
+	default:
+	  goto object;
+	}
+
+      t = TREE_OPERAND (t, 0);
+    }
+
+object:
+  if (TREE_SIDE_EFFECTS (t))
+    return NULL_TREE;
+
+  if (TREE_CODE (t) == CONST_DECL
+      && (DECL_EXTERNAL (t)
+	  || decl_function_context (t) != current_function_decl))
+    return fold_convert (type, expr);
+
+  if (!TREE_READONLY (t))
+    return NULL_TREE;
+
+  if (TREE_CODE (t) == PARM_DECL)
+    return fold_convert (type, expr);
+
+  if (TREE_CODE (t) == VAR_DECL
+      && (DECL_EXTERNAL (t)
+	  || decl_function_context (t) != current_function_decl))
+    return fold_convert (type, expr);
+
+  return NULL_TREE;
 }

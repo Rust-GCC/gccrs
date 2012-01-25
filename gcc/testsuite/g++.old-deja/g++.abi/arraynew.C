@@ -1,5 +1,7 @@
 // { dg-do run  }
 // Origin: Mark Mitchell <mark@codesourcery.com>
+// Avoid use of none-overridable new/delete operators in shared
+// { dg-options "-static" { target *-*-mingw* } }
 
 #if defined (__GXX_ABI_VERSION) && __GXX_ABI_VERSION >= 100
 
@@ -8,7 +10,10 @@
 
 void* p;
 
-void* operator new[](size_t s) throw (std::bad_alloc)
+void* operator new[](size_t s)
+#if __cplusplus <= 199711L
+  throw (std::bad_alloc)
+#endif
 {
   // Record the base of the last array allocated.
   p = malloc (s);

@@ -1805,9 +1805,9 @@ execute_optimize_bswap (void)
   if (sizeof (HOST_WIDEST_INT) < 8)
     return 0;
 
-  bswap32_p = (built_in_decls[BUILT_IN_BSWAP32]
+  bswap32_p = (builtin_decl_explicit_p (BUILT_IN_BSWAP32)
 	       && optab_handler (bswap_optab, SImode) != CODE_FOR_nothing);
-  bswap64_p = (built_in_decls[BUILT_IN_BSWAP64]
+  bswap64_p = (builtin_decl_explicit_p (BUILT_IN_BSWAP64)
 	       && (optab_handler (bswap_optab, DImode) != CODE_FOR_nothing
 		   || (bswap32_p && word_mode == SImode)));
 
@@ -1818,13 +1818,13 @@ execute_optimize_bswap (void)
      assumes that the return and argument type are the same.  */
   if (bswap32_p)
     {
-      tree fndecl = built_in_decls[BUILT_IN_BSWAP32];
+      tree fndecl = builtin_decl_explicit (BUILT_IN_BSWAP32);
       bswap32_type = TREE_VALUE (TYPE_ARG_TYPES (TREE_TYPE (fndecl)));
     }
 
   if (bswap64_p)
     {
-      tree fndecl = built_in_decls[BUILT_IN_BSWAP64];
+      tree fndecl = builtin_decl_explicit (BUILT_IN_BSWAP64);
       bswap64_type = TREE_VALUE (TYPE_ARG_TYPES (TREE_TYPE (fndecl)));
     }
 
@@ -1858,14 +1858,14 @@ execute_optimize_bswap (void)
 	    case 32:
 	      if (bswap32_p)
 		{
-		  fndecl = built_in_decls[BUILT_IN_BSWAP32];
+		  fndecl = builtin_decl_explicit (BUILT_IN_BSWAP32);
 		  bswap_type = bswap32_type;
 		}
 	      break;
 	    case 64:
 	      if (bswap64_p)
 		{
-		  fndecl = built_in_decls[BUILT_IN_BSWAP64];
+		  fndecl = builtin_decl_explicit (BUILT_IN_BSWAP64);
 		  bswap_type = bswap64_type;
 		}
 	      break;
@@ -2039,10 +2039,12 @@ is_widening_mult_rhs_p (tree type, tree rhs, tree *type_out,
    and *TYPE2_OUT would give the operands of the multiplication.  */
 
 static bool
-is_widening_mult_p (tree type, gimple stmt,
+is_widening_mult_p (gimple stmt,
 		    tree *type1_out, tree *rhs1_out,
 		    tree *type2_out, tree *rhs2_out)
 {
+  tree type = TREE_TYPE (gimple_assign_lhs (stmt));
+
   if (TREE_CODE (type) != INTEGER_TYPE
       && TREE_CODE (type) != FIXED_POINT_TYPE)
     return false;
@@ -2104,7 +2106,7 @@ convert_mult_to_widen (gimple stmt, gimple_stmt_iterator *gsi)
   if (TREE_CODE (type) != INTEGER_TYPE)
     return false;
 
-  if (!is_widening_mult_p (type, stmt, &type1, &rhs1, &type2, &rhs2))
+  if (!is_widening_mult_p (stmt, &type1, &rhs1, &type2, &rhs2))
     return false;
 
   to_mode = TYPE_MODE (type);
@@ -2281,7 +2283,7 @@ convert_plusminus_to_widen (gimple_stmt_iterator *gsi, gimple stmt,
   if (code == PLUS_EXPR
       && (rhs1_code == MULT_EXPR || rhs1_code == WIDEN_MULT_EXPR))
     {
-      if (!is_widening_mult_p (type, rhs1_stmt, &type1, &mult_rhs1,
+      if (!is_widening_mult_p (rhs1_stmt, &type1, &mult_rhs1,
 			       &type2, &mult_rhs2))
 	return false;
       add_rhs = rhs2;
@@ -2289,7 +2291,7 @@ convert_plusminus_to_widen (gimple_stmt_iterator *gsi, gimple stmt,
     }
   else if (rhs2_code == MULT_EXPR || rhs2_code == WIDEN_MULT_EXPR)
     {
-      if (!is_widening_mult_p (type, rhs2_stmt, &type1, &mult_rhs1,
+      if (!is_widening_mult_p (rhs2_stmt, &type1, &mult_rhs1,
 			       &type2, &mult_rhs2))
 	return false;
       add_rhs = rhs1;
@@ -2302,10 +2304,13 @@ convert_plusminus_to_widen (gimple_stmt_iterator *gsi, gimple stmt,
   from_mode = TYPE_MODE (type1);
   from_unsigned1 = TYPE_UNSIGNED (type1);
   from_unsigned2 = TYPE_UNSIGNED (type2);
+  optype = type1;
 
   /* There's no such thing as a mixed sign madd yet, so use a wider mode.  */
   if (from_unsigned1 != from_unsigned2)
     {
+      if (!INTEGRAL_TYPE_P (type))
+	return false;
       /* We can use a signed multiply with unsigned types as long as
 	 there is a wider mode to use, or it is the smaller of the two
 	 types that is unsigned.  Note that type1 >= type2, always.  */
@@ -2320,6 +2325,8 @@ convert_plusminus_to_widen (gimple_stmt_iterator *gsi, gimple stmt,
 	}
 
       from_unsigned1 = from_unsigned2 = false;
+      optype = build_nonstandard_integer_type (GET_MODE_PRECISION (from_mode),
+					       false);
     }
 
   /* If there was a conversion between the multiply and addition
@@ -2353,7 +2360,6 @@ convert_plusminus_to_widen (gimple_stmt_iterator *gsi, gimple stmt,
   /* Verify that the machine can perform a widening multiply
      accumulate in this mode/signedness combination, otherwise
      this transformation is likely to pessimize code.  */
-  optype = build_nonstandard_integer_type (from_mode, from_unsigned1);
   this_optab = optab_for_tree_code (wmult_code, optype, optab_default);
   handler = find_widening_optab_handler_and_mode (this_optab, to_mode,
 						  from_mode, 0, &actual_mode);
@@ -2425,6 +2431,12 @@ convert_mult_to_fma (gimple mul_stmt, tree op1, tree op2)
   /* If the target doesn't support it, don't generate it.  We assume that
      if fma isn't available then fms, fnma or fnms are not either.  */
   if (optab_handler (fma_optab, TYPE_MODE (type)) == CODE_FOR_nothing)
+    return false;
+
+  /* If the multiplication has zero uses, it is kept around probably because
+     of -fnon-call-exceptions.  Don't optimize it away in that case,
+     it is DCE job.  */
+  if (has_zero_uses (mul_result))
     return false;
 
   /* Make sure that the multiplication statement becomes dead after

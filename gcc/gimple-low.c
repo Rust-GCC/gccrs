@@ -169,7 +169,7 @@ lower_function_body (void)
 	 and insert.  */
       disp_var = create_tmp_var (ptr_type_node, "setjmpvar");
       arg = build_addr (disp_label, current_function_decl);
-      t = implicit_built_in_decls[BUILT_IN_SETJMP_DISPATCHER];
+      t = builtin_decl_implicit (BUILT_IN_SETJMP_DISPATCHER);
       x = gimple_build_call (t, 1, arg);
       gimple_call_set_lhs (x, disp_var);
 
@@ -396,6 +396,11 @@ lower_stmt (gimple_stmt_iterator *gsi, struct lower_data *data)
       lower_sequence (gimple_eh_filter_failure (stmt), data);
       break;
 
+    case GIMPLE_EH_ELSE:
+      lower_sequence (gimple_eh_else_n_body (stmt), data);
+      lower_sequence (gimple_eh_else_e_body (stmt), data);
+      break;
+
     case GIMPLE_NOP:
     case GIMPLE_ASM:
     case GIMPLE_ASSIGN:
@@ -445,6 +450,10 @@ lower_stmt (gimple_stmt_iterator *gsi, struct lower_data *data)
       lower_omp_directive (gsi, data);
       data->cannot_fallthru = false;
       return;
+
+    case GIMPLE_TRANSACTION:
+      lower_sequence (gimple_transaction_body (stmt), data);
+      break;
 
     default:
       gcc_unreachable ();
@@ -727,6 +736,10 @@ gimple_stmt_may_fallthru (gimple stmt)
       return (gimple_seq_may_fallthru (gimple_try_eval (stmt))
 	      && gimple_seq_may_fallthru (gimple_try_cleanup (stmt)));
 
+    case GIMPLE_EH_ELSE:
+      return (gimple_seq_may_fallthru (gimple_eh_else_n_body (stmt))
+	      || gimple_seq_may_fallthru (gimple_eh_else_e_body (stmt)));
+
     case GIMPLE_CALL:
       /* Functions that do not return do not fall through.  */
       return (gimple_call_flags (stmt) & ECF_NORETURN) == 0;
@@ -861,7 +874,7 @@ lower_builtin_setjmp (gimple_stmt_iterator *gsi)
 
   /* Build '__builtin_setjmp_setup (BUF, NEXT_LABEL)' and insert.  */
   arg = build_addr (next_label, current_function_decl);
-  t = implicit_built_in_decls[BUILT_IN_SETJMP_SETUP];
+  t = builtin_decl_implicit (BUILT_IN_SETJMP_SETUP);
   g = gimple_build_call (t, 2, gimple_call_arg (stmt, 0), arg);
   gimple_set_location (g, loc);
   gimple_set_block (g, gimple_block (stmt));
@@ -886,7 +899,7 @@ lower_builtin_setjmp (gimple_stmt_iterator *gsi)
 
   /* Build '__builtin_setjmp_receiver (NEXT_LABEL)' and insert.  */
   arg = build_addr (next_label, current_function_decl);
-  t = implicit_built_in_decls[BUILT_IN_SETJMP_RECEIVER];
+  t = builtin_decl_implicit (BUILT_IN_SETJMP_RECEIVER);
   g = gimple_build_call (t, 1, arg);
   gimple_set_location (g, loc);
   gimple_set_block (g, gimple_block (stmt));

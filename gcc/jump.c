@@ -1086,6 +1086,7 @@ mark_jump_label_1 (rtx x, rtx insn, bool in_mem, bool is_target)
       return;
 
     case RETURN:
+    case SIMPLE_RETURN:
       if (is_target)
 	{
 	  gcc_assert (JUMP_LABEL (insn) == NULL || JUMP_LABEL (insn) == x);
@@ -1408,7 +1409,7 @@ redirect_exp_1 (rtx *loc, rtx olabel, rtx nlabel, rtx insn)
   int i;
   const char *fmt;
 
-      if ((code == LABEL_REF && XEXP (x, 0) == olabel)
+  if ((code == LABEL_REF && XEXP (x, 0) == olabel)
       || x == olabel)
     {
       x = redirect_target (nlabel);
@@ -1494,7 +1495,18 @@ redirect_jump (rtx jump, rtx nlabel, int delete_unused)
 {
   rtx olabel = JUMP_LABEL (jump);
 
-  gcc_assert (nlabel != NULL_RTX);
+  if (!nlabel)
+    {
+      /* If there is no label, we are asked to redirect to the EXIT block.
+	 When before the epilogue is emitted, return/simple_return cannot be
+	 created so we return 0 immediately.  After the epilogue is emitted,
+	 we always expect a label, either a non-null label, or a
+	 return/simple_return RTX.  */
+
+      if (!epilogue_completed)
+	return 0;
+      gcc_unreachable ();
+    }
 
   if (nlabel == olabel)
     return 1;

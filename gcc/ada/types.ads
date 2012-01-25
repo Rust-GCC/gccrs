@@ -102,12 +102,8 @@ package Types is
    --  Graphic characters, as defined in ARM
 
    subtype Line_Terminator is Character range ASCII.LF .. ASCII.CR;
-   --  Line terminator characters (LF, VT, FF, CR)
-   --
-   --  This definition is dubious now that we have two more wide character
-   --  sequences that constitute a line terminator. Every reference to this
-   --  subtype needs checking to make sure the wide character case is handled
-   --  appropriately. ???
+   --  Line terminator characters (LF, VT, FF, CR). For further details,
+   --  see the extensive discussion of line termination in the Sinput spec.
 
    subtype Upper_Half_Character is
      Character range Character'Val (16#80#) .. Character'Val (16#FF#);
@@ -660,22 +656,25 @@ package Types is
    No_Check_Id         : constant := 0;
    --  Check_Id value used to indicate no check
 
-   Access_Check        : constant :=  1;
-   Accessibility_Check : constant :=  2;
-   Alignment_Check     : constant :=  3;
-   Discriminant_Check  : constant :=  4;
-   Division_Check      : constant :=  5;
-   Elaboration_Check   : constant :=  6;
-   Index_Check         : constant :=  7;
-   Length_Check        : constant :=  8;
-   Overflow_Check      : constant :=  9;
-   Range_Check         : constant := 10;
-   Storage_Check       : constant := 11;
-   Tag_Check           : constant := 12;
-   Validity_Check      : constant := 13;
-   --  Values used to represent individual predefined checks
+   Access_Check           : constant :=  1;
+   Accessibility_Check    : constant :=  2;
+   Alignment_Check        : constant :=  3;
+   Atomic_Synchronization : constant :=  4;
+   Discriminant_Check     : constant :=  5;
+   Division_Check         : constant :=  6;
+   Elaboration_Check      : constant :=  7;
+   Index_Check            : constant :=  8;
+   Length_Check           : constant :=  9;
+   Overflow_Check         : constant := 10;
+   Range_Check            : constant := 11;
+   Storage_Check          : constant := 12;
+   Tag_Check              : constant := 13;
+   Validity_Check         : constant := 14;
+   --  Values used to represent individual predefined checks (including the
+   --  setting of Atomic_Synchronization, which is implemented internally using
+   --  a "check" whose name is Atomic_Synchronization.
 
-   All_Checks          : constant := 14;
+   All_Checks : constant := 15;
    --  Value used to represent All_Checks value
 
    subtype Predefined_Check_Id is Check_Id range 1 .. All_Checks;

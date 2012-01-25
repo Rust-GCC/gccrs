@@ -1,3 +1,35 @@
+2012-01-11  Bruce Korb <bkorb@gnu.org>
+	    Steven G. Kargl  <kargl@gcc.gnu.org>
+	    Andreas Tobler  <andreast@fgznet.ch>
+
+	PR bootstrap/51705
+	PR preprocessor/51776
+	* inclhack.def (cdef_cplusplus): Add a replacement for [[noreturn]].
+	* fixincl.x: Regenerate.
+	* tests/base/sys/cdefs.h: Update.
+
+	* genfixes: Remove the 'Ver.' from the version check.
+
+2011-12-20  Andreas Schwab  <schwab@linux-m68k.org>
+
+	* configure: Regenerate.
+
+2011-12-19  Andreas Schwab  <schwab@linux-m68k.org>
+
+	* configure: Regenerate.
+
+2011-11-16  David Edelsohn  <dje.gcc@gmail.com>
+
+	* inclhack.def (aix_once_init_[12]): New fixes.
+	* fixincl.x: Regenerate.
+	* tests/base/pthread.h: Update.
+
+2011-10-25  Mike Stump  <mikestump@comcast.net>
+
+	PR target/48851
+	* inclhack.def (void_null): New bypass.
+	* fixincl.x: Regenerate.
+
 2011-09-26  Tristan Gingold  <gingold@adacore.com>
 
 	* inclhack.def (ms_define_can_use_extern_prefix):

@@ -33,6 +33,15 @@
 ;; A list of integer modes that are up to one word long
 (define_mode_iterator QHSI [QI HI SI])
 
+;; A list of integer modes that are less than a word
+(define_mode_iterator NARROW [QI HI])
+
+;; A list of all the integer modes upto 64bit
+(define_mode_iterator QHSD [QI HI SI DI])
+
+;; A list of the 32bit and 64bit integer modes
+(define_mode_iterator SIDI [SI DI])
+
 ;; Integer element sizes implemented by IWMMXT.
 (define_mode_iterator VMMX [V2SI V4HI V8QI])
 
@@ -187,6 +196,10 @@
 ;; (Opposite) mode to convert to/from for NEON mode conversions.
 (define_mode_attr V_CVTTO [(V2SI "V2SF") (V2SF "V2SI")
                (V4SI "V4SF") (V4SF "V4SI")])
+
+;; As above but in lower case.
+(define_mode_attr V_cvtto [(V2SI "v2sf") (V2SF "v2si")
+                           (V4SI "v4sf") (V4SF "v4si")])
 
 ;; Define element mode for each vector mode.
 (define_mode_attr V_elem [(V8QI "QI") (V16QI "QI")
@@ -404,6 +417,9 @@
 			       (V2UHA "16") (UHA "16")
 			       (V4QQ "8") (V2HQ "16") (QQ "8") (HQ "16")
 			       (V2HA "16") (HA "16") (SQ "") (SA "")])
+
+;; Mode attribute for vshll.
+(define_mode_attr V_innermode [(V8QI "QI") (V4HI "HI") (V2SI "SI")])
 
 ;;----------------------------------------------------------------------------
 ;; Code attributes

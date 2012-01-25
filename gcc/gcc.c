@@ -1,7 +1,7 @@
 /* Compiler driver program that can handle many languages.
    Copyright (C) 1987, 1989, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
    1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
-   2010, 2011
+   2010, 2011, 2012
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -2988,6 +2988,8 @@ display_help (void)
   fputs (_("  -S                       Compile only; do not assemble or link\n"), stdout);
   fputs (_("  -c                       Compile and assemble, but do not link\n"), stdout);
   fputs (_("  -o <file>                Place the output into <file>\n"), stdout);
+  fputs (_("  -pie                     Create a position independent executable\n"), stdout);
+  fputs (_("  -shared                  Create a shared library\n"), stdout);
   fputs (_("\
   -x <language>            Specify the language of the following input files\n\
                            Permissible languages include: c c++ assembler none\n\
@@ -3135,16 +3137,6 @@ driver_wrong_lang_callback (const struct cl_decoded_option *decoded,
     save_switch (decoded->canonical_option[0],
 		 decoded->canonical_option_num_elements - 1,
 		 &decoded->canonical_option[1], false);
-}
-
-/* Note that an option (index OPT_INDEX, argument ARG, value VALUE)
-   has been successfully handled with a handler for mask MASK.  */
-
-static void
-driver_post_handling_callback (const struct cl_decoded_option *decoded ATTRIBUTE_UNUSED,
-			       unsigned int mask ATTRIBUTE_UNUSED)
-{
-  /* Nothing to do here.  */
 }
 
 static const char *spec_lang = 0;
@@ -3533,7 +3525,6 @@ set_option_handlers (struct cl_option_handlers *handlers)
 {
   handlers->unknown_option_callback = driver_unknown_option_callback;
   handlers->wrong_lang_callback = driver_wrong_lang_callback;
-  handlers->post_handling_callback = driver_post_handling_callback;
   handlers->num_handlers = 3;
   handlers->handlers[0].handler = driver_handle_option;
   handlers->handlers[0].mask = CL_DRIVER;
@@ -6568,7 +6559,7 @@ main (int argc, char **argv)
     {
       printf (_("%s %s%s\n"), progname, pkgversion_string,
 	      version_string);
-      printf ("Copyright %s 2011 Free Software Foundation, Inc.\n",
+      printf ("Copyright %s 2012 Free Software Foundation, Inc.\n",
 	      _("(C)"));
       fputs (_("This is free software; see the source for copying conditions.  There is NO\n\
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"),
@@ -6851,7 +6842,7 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"
 						 LTOPLUGINSONAME, R_OK,
 						 false);
 	  if (!linker_plugin_file_spec)
-	    fatal_error ("-fuse-linker-plugin, but " LTOPLUGINSONAME " not found");
+	    fatal_error ("-fuse-linker-plugin, but %s not found", LTOPLUGINSONAME);
 	}
 #endif
       lto_gcc_spec = argv[0];

@@ -6,46 +6,100 @@ package mime
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"unicode"
 )
 
-func validMediaTypeOrDisposition(s string) bool {
+// FormatMediaType serializes mediatype t and the parameters
+// param as a media type conforming to RFC 2045 and RFC 2616.
+// The type and parameter names are written in lower-case.
+// When any of the arguments result in a standard violation then
+// FormatMediaType returns the empty string.
+func FormatMediaType(t string, param map[string]string) string {
+	slash := strings.Index(t, "/")
+	if slash == -1 {
+		return ""
+	}
+	major, sub := t[:slash], t[slash+1:]
+	if !IsToken(major) || !IsToken(sub) {
+		return ""
+	}
+	var b bytes.Buffer
+	b.WriteString(strings.ToLower(major))
+	b.WriteByte('/')
+	b.WriteString(strings.ToLower(sub))
+
+	for attribute, value := range param {
+		b.WriteByte(';')
+		b.WriteByte(' ')
+		if !IsToken(attribute) {
+			return ""
+		}
+		b.WriteString(strings.ToLower(attribute))
+		b.WriteByte('=')
+		if IsToken(value) {
+			b.WriteString(value)
+			continue
+		}
+
+		b.WriteByte('"')
+		offset := 0
+		for index, character := range value {
+			if character == '"' || character == '\r' {
+				b.WriteString(value[offset:index])
+				offset = index
+				b.WriteByte('\\')
+			}
+			if character&0x80 != 0 {
+				return ""
+			}
+		}
+		b.WriteString(value[offset:])
+		b.WriteByte('"')
+	}
+	return b.String()
+}
+
+func checkMediaTypeDisposition(s string) error {
 	typ, rest := consumeToken(s)
 	if typ == "" {
-		return false
+		return errors.New("mime: no media type")
 	}
 	if rest == "" {
-		return true
+		return nil
 	}
 	if !strings.HasPrefix(rest, "/") {
-		return false
+		return errors.New("mime: expected slash after first token")
 	}
 	subtype, rest := consumeToken(rest[1:])
 	if subtype == "" {
-		return false
+		return errors.New("mime: expected token after slash")
 	}
-	return rest == ""
+	if rest != "" {
+		return errors.New("mime: unexpected content after media subtype")
+	}
+	return nil
 }
 
 // ParseMediaType parses a media type value and any optional
 // parameters, per RFC 1521.  Media types are the values in
 // Content-Type and Content-Disposition headers (RFC 2183).
 // On success, ParseMediaType returns the media type converted
-// to lowercase and trimmed of white space. The returned params
-// is always a non-nil map. Params maps from the lowercase
+// to lowercase and trimmed of white space and a non-nil map.
+// The returned map, params, maps from the lowercase
 // attribute to the attribute value with its case preserved.
-// On error, it returns an empty string and a nil params.
-func ParseMediaType(v string) (mediatype string, params map[string]string) {
+func ParseMediaType(v string) (mediatype string, params map[string]string, err error) {
 	i := strings.Index(v, ";")
 	if i == -1 {
 		i = len(v)
 	}
 	mediatype = strings.TrimSpace(strings.ToLower(v[0:i]))
-	if !validMediaTypeOrDisposition(mediatype) {
-		return "", nil
+
+	err = checkMediaTypeDisposition(mediatype)
+	if err != nil {
+		return
 	}
 
 	params = make(map[string]string)
@@ -69,7 +123,7 @@ func ParseMediaType(v string) (mediatype string, params map[string]string) {
 				return
 			}
 			// Parse error.
-			return "", nil
+			return "", nil, errors.New("mime: invalid media parameter")
 		}
 
 		pmap := params
@@ -86,7 +140,7 @@ func ParseMediaType(v string) (mediatype string, params map[string]string) {
 		}
 		if _, exists := pmap[key]; exists {
 			// Duplicate parameter name is bogus.
-			return "", nil
+			return "", nil, errors.New("mime: duplicate parameter name")
 		}
 		pmap[key] = value
 		v = rest
@@ -150,8 +204,8 @@ func decode2231Enc(v string) string {
 	return encv
 }
 
-func isNotTokenChar(rune int) bool {
-	return !IsTokenChar(rune)
+func isNotTokenChar(r rune) bool {
+	return !IsTokenChar(r)
 }
 
 // consumeToken consumes a token from the beginning of provided
@@ -179,24 +233,25 @@ func consumeValue(v string) (value, rest string) {
 		return consumeToken(v)
 	}
 
-	leadQuote := int(v[0])
+	leadQuote := rune(v[0])
 
 	// parse a quoted-string
 	rest = v[1:] // consume the leading quote
 	buffer := new(bytes.Buffer)
-	var idx, rune int
+	var idx int
+	var r rune
 	var nextIsLiteral bool
-	for idx, rune = range rest {
+	for idx, r = range rest {
 		switch {
 		case nextIsLiteral:
-			buffer.WriteRune(rune)
+			buffer.WriteRune(r)
 			nextIsLiteral = false
-		case rune == leadQuote:
+		case r == leadQuote:
 			return buffer.String(), rest[idx+1:]
-		case rune == '\\':
+		case r == '\\':
 			nextIsLiteral = true
-		case rune != '\r' && rune != '\n':
-			buffer.WriteRune(rune)
+		case r != '\r' && r != '\n':
+			buffer.WriteRune(r)
 		default:
 			return "", v
 		}
@@ -231,7 +286,7 @@ func consumeMediaParam(v string) (param, value, rest string) {
 	return param, value, rest
 }
 
-func percentHexUnescape(s string) (string, os.Error) {
+func percentHexUnescape(s string) (string, error) {
 	// Count %, check that they're well-formed.
 	percents := 0
 	for i := 0; i < len(s); {

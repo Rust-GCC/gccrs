@@ -115,9 +115,10 @@ package body Prj.Env is
       Buffer_Last : Natural := 0;
 
       procedure Add
-        (Project : Project_Id;
-         In_Tree : Project_Tree_Ref;
-         Dummy   : in out Boolean);
+        (Project          : Project_Id;
+         In_Tree          : Project_Tree_Ref;
+         In_Aggregate_Lib : Boolean;
+         Dummy            : in out Boolean);
       --  Add source dirs of Project to the path
 
       ---------
@@ -125,11 +126,12 @@ package body Prj.Env is
       ---------
 
       procedure Add
-        (Project : Project_Id;
-         In_Tree : Project_Tree_Ref;
-         Dummy   : in out Boolean)
+        (Project          : Project_Id;
+         In_Tree          : Project_Tree_Ref;
+         In_Aggregate_Lib : Boolean;
+         Dummy            : in out Boolean)
       is
-         pragma Unreferenced (Dummy);
+         pragma Unreferenced (Dummy, In_Aggregate_Lib);
       begin
          Add_To_Path
            (Project.Source_Dirs, In_Tree.Shared, Buffer, Buffer_Last);
@@ -185,9 +187,10 @@ package body Prj.Env is
       Buffer_Last : Natural := 0;
 
       procedure Add
-        (Project : Project_Id;
-         In_Tree : Project_Tree_Ref;
-         Dummy   : in out Boolean);
+        (Project          : Project_Id;
+         In_Tree          : Project_Tree_Ref;
+         In_Aggregate_Lib : Boolean;
+         Dummy            : in out Boolean);
       --  Add all the object directories of a project to the path
 
       ---------
@@ -195,11 +198,12 @@ package body Prj.Env is
       ---------
 
       procedure Add
-        (Project : Project_Id;
-         In_Tree : Project_Tree_Ref;
-         Dummy   : in out Boolean)
+        (Project          : Project_Id;
+         In_Tree          : Project_Tree_Ref;
+         In_Aggregate_Lib : Boolean;
+         Dummy            : in out Boolean)
       is
-         pragma Unreferenced (Dummy, In_Tree);
+         pragma Unreferenced (Dummy, In_Tree, In_Aggregate_Lib);
 
          Path : constant Path_Name_Type :=
                   Get_Object_Directory
@@ -472,9 +476,10 @@ package body Prj.Env is
       Current_Naming : Naming_Id;
 
       procedure Check
-        (Project : Project_Id;
-         In_Tree : Project_Tree_Ref;
-         State   : in out Integer);
+        (Project          : Project_Id;
+         In_Tree          : Project_Tree_Ref;
+         In_Aggregate_Lib : Boolean;
+         State            : in out Integer);
       --  Recursive procedure that put in the config pragmas file any non
       --  standard naming schemes, if it is not already in the file, then call
       --  itself for any imported project.
@@ -496,11 +501,12 @@ package body Prj.Env is
       -----------
 
       procedure Check
-        (Project : Project_Id;
-         In_Tree : Project_Tree_Ref;
-         State   : in out Integer)
+        (Project          : Project_Id;
+         In_Tree          : Project_Tree_Ref;
+         In_Aggregate_Lib : Boolean;
+         State            : in out Integer)
       is
-         pragma Unreferenced (State);
+         pragma Unreferenced (State, In_Aggregate_Lib);
 
          Lang   : constant Language_Ptr :=
                     Get_Language_From_Name (Project, "ada");
@@ -786,9 +792,10 @@ package body Prj.Env is
       --  Put the line contained in the Name_Buffer in the global buffer
 
       procedure Process
-        (Project : Project_Id;
-         In_Tree : Project_Tree_Ref;
-         State   : in out Integer);
+        (Project          : Project_Id;
+         In_Tree          : Project_Tree_Ref;
+         In_Aggregate_Lib : Boolean;
+         State            : in out Integer);
       --  Generate the mapping file for Project (not recursively)
 
       ---------------------
@@ -811,11 +818,12 @@ package body Prj.Env is
       -------------
 
       procedure Process
-        (Project : Project_Id;
-         In_Tree : Project_Tree_Ref;
-         State   : in out Integer)
+        (Project          : Project_Id;
+         In_Tree          : Project_Tree_Ref;
+         In_Aggregate_Lib : Boolean;
+         State            : in out Integer)
       is
-         pragma Unreferenced (State);
+         pragma Unreferenced (State, In_Aggregate_Lib);
 
          Source : Source_Id;
          Suffix : File_Name_Type;
@@ -1225,9 +1233,10 @@ package body Prj.Env is
       Tree    : Project_Tree_Ref)
    is
       procedure For_Project
-        (Prj   : Project_Id;
-         Tree  : Project_Tree_Ref;
-         Dummy : in out Integer);
+        (Prj              : Project_Id;
+         Tree             : Project_Tree_Ref;
+         In_Aggregate_Lib : Boolean;
+         Dummy            : in out Integer);
       --  Get all object directories of Prj
 
       -----------------
@@ -1235,11 +1244,12 @@ package body Prj.Env is
       -----------------
 
       procedure For_Project
-        (Prj   : Project_Id;
-         Tree  : Project_Tree_Ref;
-         Dummy : in out Integer)
+        (Prj              : Project_Id;
+         Tree             : Project_Tree_Ref;
+         In_Aggregate_Lib : Boolean;
+         Dummy            : in out Integer)
       is
-         pragma Unreferenced (Dummy, Tree);
+         pragma Unreferenced (Dummy, Tree, In_Aggregate_Lib);
 
       begin
          --  ??? Set_Ada_Paths has a different behavior for library project
@@ -1270,9 +1280,10 @@ package body Prj.Env is
       In_Tree : Project_Tree_Ref)
    is
       procedure For_Project
-        (Prj     : Project_Id;
-         In_Tree : Project_Tree_Ref;
-         Dummy   : in out Integer);
+        (Prj              : Project_Id;
+         In_Tree          : Project_Tree_Ref;
+         In_Aggregate_Lib : Boolean;
+         Dummy            : in out Integer);
       --  Get all object directories of Prj
 
       -----------------
@@ -1280,11 +1291,12 @@ package body Prj.Env is
       -----------------
 
       procedure For_Project
-        (Prj     : Project_Id;
-         In_Tree : Project_Tree_Ref;
-         Dummy   : in out Integer)
+        (Prj              : Project_Id;
+         In_Tree          : Project_Tree_Ref;
+         In_Aggregate_Lib : Boolean;
+         Dummy            : in out Integer)
       is
-         pragma Unreferenced (Dummy);
+         pragma Unreferenced (Dummy, In_Aggregate_Lib);
 
          Current    : String_List_Id := Prj.Source_Dirs;
          The_String : String_Element;
@@ -1400,6 +1412,45 @@ package body Prj.Env is
          Write_Eol;
       end if;
    end Get_Reference;
+
+   ----------------------
+   -- Get_Runtime_Path --
+   ----------------------
+
+   function Get_Runtime_Path
+     (Self : Project_Search_Path;
+      Name : String) return String_Access
+   is
+      function Is_Base_Name (Path : String) return Boolean;
+      --  Returns True if Path has no directory separator
+
+      ------------------
+      -- Is_Base_Name --
+      ------------------
+
+      function Is_Base_Name (Path : String) return Boolean is
+      begin
+         for J in Path'Range loop
+            if Path (J) = Directory_Separator or else Path (J) = '/' then
+               return False;
+            end if;
+         end loop;
+
+         return True;
+      end Is_Base_Name;
+
+      function Find_Rts_In_Path is new Prj.Env.Find_Name_In_Path
+        (Check_Filename => Is_Directory);
+
+      --  Start of processing for Get_Runtime_Path
+
+   begin
+      if not Is_Base_Name (Name) then
+         return Find_Rts_In_Path (Self, Name);
+      else
+         return null;
+      end if;
+   end Get_Runtime_Path;
 
    ----------------
    -- Initialize --
@@ -1603,9 +1654,10 @@ package body Prj.Env is
       Buffer_Last : Natural := 0;
 
       procedure Recursive_Add
-        (Project : Project_Id;
-         In_Tree : Project_Tree_Ref;
-         Dummy   : in out Boolean);
+        (Project          : Project_Id;
+         In_Tree          : Project_Tree_Ref;
+         In_Aggregate_Lib : Boolean;
+         Dummy            : in out Boolean);
       --  Recursive procedure to add the source/object paths of extended/
       --  imported projects.
 
@@ -1614,11 +1666,12 @@ package body Prj.Env is
       -------------------
 
       procedure Recursive_Add
-        (Project : Project_Id;
-         In_Tree : Project_Tree_Ref;
-         Dummy   : in out Boolean)
+        (Project          : Project_Id;
+         In_Tree          : Project_Tree_Ref;
+         In_Aggregate_Lib : Boolean;
+         Dummy            : in out Boolean)
       is
-         pragma Unreferenced (Dummy, In_Tree);
+         pragma Unreferenced (Dummy, In_Tree, In_Aggregate_Lib);
 
          Path : Path_Name_Type;
 
@@ -2058,6 +2111,76 @@ package body Prj.Env is
       Projects_Paths.Reset (Self.Cache);
    end Set_Path;
 
+   -----------------------
+   -- Find_Name_In_Path --
+   -----------------------
+
+   function Find_Name_In_Path
+     (Self : Project_Search_Path;
+      Path : String) return String_Access
+   is
+      First  : Natural;
+      Last   : Natural;
+
+   begin
+      if Current_Verbosity = High then
+         Debug_Output ("Trying " & Path);
+      end if;
+
+      if Is_Absolute_Path (Path) then
+         if Check_Filename (Path) then
+            return new String'(Path);
+         else
+            return null;
+         end if;
+
+      else
+         --  Because we don't want to resolve symbolic links, we cannot use
+         --  Locate_Regular_File. So, we try each possible path successively.
+
+         First := Self.Path'First;
+         while First <= Self.Path'Last loop
+            while First <= Self.Path'Last
+              and then Self.Path (First) = Path_Separator
+            loop
+               First := First + 1;
+            end loop;
+
+            exit when First > Self.Path'Last;
+
+            Last := First;
+            while Last < Self.Path'Last
+              and then Self.Path (Last + 1) /= Path_Separator
+            loop
+               Last := Last + 1;
+            end loop;
+
+            Name_Len := 0;
+
+            if not Is_Absolute_Path (Self.Path (First .. Last)) then
+               Add_Str_To_Name_Buffer (Get_Current_Dir);  -- ??? System call
+               Add_Char_To_Name_Buffer (Directory_Separator);
+            end if;
+
+            Add_Str_To_Name_Buffer (Self.Path (First .. Last));
+            Add_Char_To_Name_Buffer (Directory_Separator);
+            Add_Str_To_Name_Buffer (Path);
+
+            if Current_Verbosity = High then
+               Debug_Output ("Testing file " & Name_Buffer (1 .. Name_Len));
+            end if;
+
+            if Check_Filename (Name_Buffer (1 .. Name_Len)) then
+               return new String'(Name_Buffer (1 .. Name_Len));
+            end if;
+
+            First := Last + 1;
+         end loop;
+      end if;
+
+      return null;
+   end Find_Name_In_Path;
+
    ------------------
    -- Find_Project --
    ------------------
@@ -2072,77 +2195,9 @@ package body Prj.Env is
       --  Have to do a copy, in case the parameter is Name_Buffer, which we
       --  modify below
 
-      function Try_Path_Name (Path : String) return String_Access;
-      pragma Inline (Try_Path_Name);
-      --  Try the specified Path
-
-      -------------------
-      -- Try_Path_Name --
-      -------------------
-
-      function Try_Path_Name (Path : String) return String_Access is
-         First  : Natural;
-         Last   : Natural;
-         Result : String_Access := null;
-
-      begin
-         if Current_Verbosity = High then
-            Debug_Output ("Trying " & Path);
-         end if;
-
-         if Is_Absolute_Path (Path) then
-            if Is_Regular_File (Path) then
-               Result := new String'(Path);
-            end if;
-
-         else
-            --  Because we don't want to resolve symbolic links, we cannot use
-            --  Locate_Regular_File. So, we try each possible path
-            --  successively.
-
-            First := Self.Path'First;
-            while First <= Self.Path'Last loop
-               while First <= Self.Path'Last
-                 and then Self.Path (First) = Path_Separator
-               loop
-                  First := First + 1;
-               end loop;
-
-               exit when First > Self.Path'Last;
-
-               Last := First;
-               while Last < Self.Path'Last
-                 and then Self.Path (Last + 1) /= Path_Separator
-               loop
-                  Last := Last + 1;
-               end loop;
-
-               Name_Len := 0;
-
-               if not Is_Absolute_Path (Self.Path (First .. Last)) then
-                  Add_Str_To_Name_Buffer (Get_Current_Dir);  -- ??? System call
-                  Add_Char_To_Name_Buffer (Directory_Separator);
-               end if;
-
-               Add_Str_To_Name_Buffer (Self.Path (First .. Last));
-               Add_Char_To_Name_Buffer (Directory_Separator);
-               Add_Str_To_Name_Buffer (Path);
-
-               if Current_Verbosity = High then
-                  Debug_Output ("Testing file " & Name_Buffer (1 .. Name_Len));
-               end if;
-
-               if Is_Regular_File (Name_Buffer (1 .. Name_Len)) then
-                  Result := new String'(Name_Buffer (1 .. Name_Len));
-                  exit;
-               end if;
-
-               First := Last + 1;
-            end loop;
-         end if;
-
-         return Result;
-      end Try_Path_Name;
+      function Try_Path_Name is new Find_Name_In_Path
+        (Check_Filename => Is_Regular_File);
+      --  Find a file in the project search path.
 
       --  Local Declarations
 
@@ -2194,27 +2249,29 @@ package body Prj.Env is
 
          if not Has_Dot then
             Result := Try_Path_Name
-              (Directory & Directory_Separator &
+              (Self,
+               Directory & Directory_Separator &
                File & Project_File_Extension);
          end if;
 
          --  Then we try <directory>/<file_name>
 
          if Result = null then
-            Result := Try_Path_Name (Directory & Directory_Separator & File);
+            Result := Try_Path_Name
+                       (Self, Directory & Directory_Separator & File);
          end if;
       end if;
 
       --  Then we try <file_name>.<extension>
 
       if Result = null and then not Has_Dot then
-         Result := Try_Path_Name (File & Project_File_Extension);
+         Result := Try_Path_Name (Self, File & Project_File_Extension);
       end if;
 
       --  Then we try <file_name>
 
       if Result = null then
-         Result := Try_Path_Name (File);
+         Result := Try_Path_Name (Self, File);
       end if;
 
       --  If we cannot find the project file, we return an empty string

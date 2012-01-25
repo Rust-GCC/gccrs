@@ -7,15 +7,14 @@ package packet
 import (
 	"crypto"
 	"crypto/dsa"
-	"crypto/openpgp/error"
+	"crypto/openpgp/errors"
 	"crypto/openpgp/s2k"
-	"crypto/rand"
 	"crypto/rsa"
 	"encoding/binary"
 	"hash"
 	"io"
-	"os"
 	"strconv"
+	"time"
 )
 
 // Signature represents a signature. See RFC 4880, section 5.2.
@@ -29,7 +28,7 @@ type Signature struct {
 	// HashTag contains the first two bytes of the hash for fast rejection
 	// of bad signed data.
 	HashTag      [2]byte
-	CreationTime uint32 // Unix epoch time
+	CreationTime time.Time
 
 	RSASignature     parsedMPI
 	DSASigR, DSASigS parsedMPI
@@ -53,7 +52,7 @@ type Signature struct {
 	outSubpackets []outputSubpacket
 }
 
-func (sig *Signature) parse(r io.Reader) (err os.Error) {
+func (sig *Signature) parse(r io.Reader) (err error) {
 	// RFC 4880, section 5.2.3
 	var buf [5]byte
 	_, err = readFull(r, buf[:1])
@@ -61,7 +60,7 @@ func (sig *Signature) parse(r io.Reader) (err os.Error) {
 		return
 	}
 	if buf[0] != 4 {
-		err = error.UnsupportedError("signature packet version " + strconv.Itoa(int(buf[0])))
+		err = errors.UnsupportedError("signature packet version " + strconv.Itoa(int(buf[0])))
 		return
 	}
 
@@ -74,14 +73,14 @@ func (sig *Signature) parse(r io.Reader) (err os.Error) {
 	switch sig.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA:
 	default:
-		err = error.UnsupportedError("public key algorithm " + strconv.Itoa(int(sig.PubKeyAlgo)))
+		err = errors.UnsupportedError("public key algorithm " + strconv.Itoa(int(sig.PubKeyAlgo)))
 		return
 	}
 
 	var ok bool
 	sig.Hash, ok = s2k.HashIdToHash(buf[2])
 	if !ok {
-		return error.UnsupportedError("hash function " + strconv.Itoa(int(buf[2])))
+		return errors.UnsupportedError("hash function " + strconv.Itoa(int(buf[2])))
 	}
 
 	hashedSubpacketsLength := int(buf[3])<<8 | int(buf[4])
@@ -144,7 +143,7 @@ func (sig *Signature) parse(r io.Reader) (err os.Error) {
 
 // parseSignatureSubpackets parses subpackets of the main signature packet. See
 // RFC 4880, section 5.2.3.1.
-func parseSignatureSubpackets(sig *Signature, subpackets []byte, isHashed bool) (err os.Error) {
+func parseSignatureSubpackets(sig *Signature, subpackets []byte, isHashed bool) (err error) {
 	for len(subpackets) > 0 {
 		subpackets, err = parseSignatureSubpacket(sig, subpackets, isHashed)
 		if err != nil {
@@ -152,8 +151,8 @@ func parseSignatureSubpackets(sig *Signature, subpackets []byte, isHashed bool) 
 		}
 	}
 
-	if sig.CreationTime == 0 {
-		err = error.StructuralError("no creation time in signature")
+	if sig.CreationTime.IsZero() {
+		err = errors.StructuralError("no creation time in signature")
 	}
 
 	return
@@ -164,7 +163,7 @@ type signatureSubpacketType uint8
 const (
 	creationTimeSubpacket        signatureSubpacketType = 2
 	signatureExpirationSubpacket signatureSubpacketType = 3
-	keyExpirySubpacket           signatureSubpacketType = 9
+	keyExpirationSubpacket       signatureSubpacketType = 9
 	prefSymmetricAlgosSubpacket  signatureSubpacketType = 11
 	issuerSubpacket              signatureSubpacketType = 16
 	prefHashAlgosSubpacket       signatureSubpacketType = 21
@@ -174,7 +173,7 @@ const (
 )
 
 // parseSignatureSubpacket parses a single subpacket. len(subpacket) is >= 1.
-func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (rest []byte, err os.Error) {
+func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (rest []byte, err error) {
 	// RFC 4880, section 5.2.3.1
 	var (
 		length     uint32
@@ -207,7 +206,7 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 	rest = subpacket[length:]
 	subpacket = subpacket[:length]
 	if len(subpacket) == 0 {
-		err = error.StructuralError("zero length signature subpacket")
+		err = errors.StructuralError("zero length signature subpacket")
 		return
 	}
 	packetType = signatureSubpacketType(subpacket[0] & 0x7f)
@@ -217,32 +216,33 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 	switch packetType {
 	case creationTimeSubpacket:
 		if !isHashed {
-			err = error.StructuralError("signature creation time in non-hashed area")
+			err = errors.StructuralError("signature creation time in non-hashed area")
 			return
 		}
 		if len(subpacket) != 4 {
-			err = error.StructuralError("signature creation time not four bytes")
+			err = errors.StructuralError("signature creation time not four bytes")
 			return
 		}
-		sig.CreationTime = binary.BigEndian.Uint32(subpacket)
+		t := binary.BigEndian.Uint32(subpacket)
+		sig.CreationTime = time.Unix(int64(t), 0)
 	case signatureExpirationSubpacket:
 		// Signature expiration time, section 5.2.3.10
 		if !isHashed {
 			return
 		}
 		if len(subpacket) != 4 {
-			err = error.StructuralError("expiration subpacket with bad length")
+			err = errors.StructuralError("expiration subpacket with bad length")
 			return
 		}
 		sig.SigLifetimeSecs = new(uint32)
 		*sig.SigLifetimeSecs = binary.BigEndian.Uint32(subpacket)
-	case keyExpirySubpacket:
+	case keyExpirationSubpacket:
 		// Key expiration time, section 5.2.3.6
 		if !isHashed {
 			return
 		}
 		if len(subpacket) != 4 {
-			err = error.StructuralError("key expiration subpacket with bad length")
+			err = errors.StructuralError("key expiration subpacket with bad length")
 			return
 		}
 		sig.KeyLifetimeSecs = new(uint32)
@@ -257,7 +257,7 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 	case issuerSubpacket:
 		// Issuer, section 5.2.3.5
 		if len(subpacket) != 8 {
-			err = error.StructuralError("issuer subpacket with bad length")
+			err = errors.StructuralError("issuer subpacket with bad length")
 			return
 		}
 		sig.IssuerKeyId = new(uint64)
@@ -282,7 +282,7 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 			return
 		}
 		if len(subpacket) != 1 {
-			err = error.StructuralError("primary user id subpacket with bad length")
+			err = errors.StructuralError("primary user id subpacket with bad length")
 			return
 		}
 		sig.IsPrimaryId = new(bool)
@@ -295,7 +295,7 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 			return
 		}
 		if len(subpacket) == 0 {
-			err = error.StructuralError("empty key flags subpacket")
+			err = errors.StructuralError("empty key flags subpacket")
 			return
 		}
 		sig.FlagsValid = true
@@ -314,14 +314,14 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 
 	default:
 		if isCritical {
-			err = error.UnsupportedError("unknown critical signature subpacket type " + strconv.Itoa(int(packetType)))
+			err = errors.UnsupportedError("unknown critical signature subpacket type " + strconv.Itoa(int(packetType)))
 			return
 		}
 	}
 	return
 
 Truncated:
-	err = error.StructuralError("signature subpacket truncated")
+	err = errors.StructuralError("signature subpacket truncated")
 	return
 }
 
@@ -384,7 +384,7 @@ func serializeSubpackets(to []byte, subpackets []outputSubpacket, hashed bool) {
 }
 
 // buildHashSuffix constructs the HashSuffix member of sig in preparation for signing.
-func (sig *Signature) buildHashSuffix() (err os.Error) {
+func (sig *Signature) buildHashSuffix() (err error) {
 	hashedSubpacketsLen := subpacketsLength(sig.outSubpackets, true)
 
 	var ok bool
@@ -396,7 +396,7 @@ func (sig *Signature) buildHashSuffix() (err os.Error) {
 	sig.HashSuffix[3], ok = s2k.HashToHashId(sig.Hash)
 	if !ok {
 		sig.HashSuffix = nil
-		return error.InvalidArgumentError("hash cannot be represented in OpenPGP: " + strconv.Itoa(int(sig.Hash)))
+		return errors.InvalidArgumentError("hash cannot be represented in OpenPGP: " + strconv.Itoa(int(sig.Hash)))
 	}
 	sig.HashSuffix[4] = byte(hashedSubpacketsLen >> 8)
 	sig.HashSuffix[5] = byte(hashedSubpacketsLen)
@@ -411,14 +411,14 @@ func (sig *Signature) buildHashSuffix() (err os.Error) {
 	return
 }
 
-func (sig *Signature) signPrepareHash(h hash.Hash) (digest []byte, err os.Error) {
+func (sig *Signature) signPrepareHash(h hash.Hash) (digest []byte, err error) {
 	err = sig.buildHashSuffix()
 	if err != nil {
 		return
 	}
 
 	h.Write(sig.HashSuffix)
-	digest = h.Sum()
+	digest = h.Sum(nil)
 	copy(sig.HashTag[:], digest)
 	return
 }
@@ -426,7 +426,7 @@ func (sig *Signature) signPrepareHash(h hash.Hash) (digest []byte, err os.Error)
 // Sign signs a message with a private key. The hash, h, must contain
 // the hash of the message to be signed and will be mutated by this function.
 // On success, the signature is stored in sig. Call Serialize to write it out.
-func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey) (err os.Error) {
+func (sig *Signature) Sign(rand io.Reader, h hash.Hash, priv *PrivateKey) (err error) {
 	sig.outSubpackets = sig.buildSubpackets()
 	digest, err := sig.signPrepareHash(h)
 	if err != nil {
@@ -435,10 +435,17 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey) (err os.Error) {
 
 	switch priv.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly:
-		sig.RSASignature.bytes, err = rsa.SignPKCS1v15(rand.Reader, priv.PrivateKey.(*rsa.PrivateKey), sig.Hash, digest)
+		sig.RSASignature.bytes, err = rsa.SignPKCS1v15(rand, priv.PrivateKey.(*rsa.PrivateKey), sig.Hash, digest)
 		sig.RSASignature.bitLength = uint16(8 * len(sig.RSASignature.bytes))
 	case PubKeyAlgoDSA:
-		r, s, err := dsa.Sign(rand.Reader, priv.PrivateKey.(*dsa.PrivateKey), digest)
+		dsaPriv := priv.PrivateKey.(*dsa.PrivateKey)
+
+		// Need to truncate hashBytes to match FIPS 186-3 section 4.6.
+		subgroupSize := (dsaPriv.Q.BitLen() + 7) / 8
+		if len(digest) > subgroupSize {
+			digest = digest[:subgroupSize]
+		}
+		r, s, err := dsa.Sign(rand, dsaPriv, digest)
 		if err == nil {
 			sig.DSASigR.bytes = r.Bytes()
 			sig.DSASigR.bitLength = uint16(8 * len(sig.DSASigR.bytes))
@@ -446,7 +453,7 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey) (err os.Error) {
 			sig.DSASigS.bitLength = uint16(8 * len(sig.DSASigS.bytes))
 		}
 	default:
-		err = error.UnsupportedError("public key algorithm: " + strconv.Itoa(int(sig.PubKeyAlgo)))
+		err = errors.UnsupportedError("public key algorithm: " + strconv.Itoa(int(sig.PubKeyAlgo)))
 	}
 
 	return
@@ -455,31 +462,31 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey) (err os.Error) {
 // SignUserId computes a signature from priv, asserting that pub is a valid
 // key for the identity id.  On success, the signature is stored in sig. Call
 // Serialize to write it out.
-func (sig *Signature) SignUserId(id string, pub *PublicKey, priv *PrivateKey) os.Error {
+func (sig *Signature) SignUserId(rand io.Reader, id string, pub *PublicKey, priv *PrivateKey) error {
 	h, err := userIdSignatureHash(id, pub, sig)
 	if err != nil {
 		return nil
 	}
-	return sig.Sign(h, priv)
+	return sig.Sign(rand, h, priv)
 }
 
 // SignKey computes a signature from priv, asserting that pub is a subkey.  On
 // success, the signature is stored in sig. Call Serialize to write it out.
-func (sig *Signature) SignKey(pub *PublicKey, priv *PrivateKey) os.Error {
+func (sig *Signature) SignKey(rand io.Reader, pub *PublicKey, priv *PrivateKey) error {
 	h, err := keySignatureHash(&priv.PublicKey, pub, sig)
 	if err != nil {
 		return err
 	}
-	return sig.Sign(h, priv)
+	return sig.Sign(rand, h, priv)
 }
 
 // Serialize marshals sig to w. SignRSA or SignDSA must have been called first.
-func (sig *Signature) Serialize(w io.Writer) (err os.Error) {
+func (sig *Signature) Serialize(w io.Writer) (err error) {
 	if len(sig.outSubpackets) == 0 {
 		sig.outSubpackets = sig.rawSubpackets
 	}
 	if sig.RSASignature.bytes == nil && sig.DSASigR.bytes == nil {
-		return error.InvalidArgumentError("Signature: need to call SignRSA or SignDSA before Serialize")
+		return errors.InvalidArgumentError("Signature: need to call SignRSA or SignDSA before Serialize")
 	}
 
 	sigLength := 0
@@ -542,16 +549,62 @@ type outputSubpacket struct {
 
 func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket) {
 	creationTime := make([]byte, 4)
-	creationTime[0] = byte(sig.CreationTime >> 24)
-	creationTime[1] = byte(sig.CreationTime >> 16)
-	creationTime[2] = byte(sig.CreationTime >> 8)
-	creationTime[3] = byte(sig.CreationTime)
+	binary.BigEndian.PutUint32(creationTime, uint32(sig.CreationTime.Unix()))
 	subpackets = append(subpackets, outputSubpacket{true, creationTimeSubpacket, false, creationTime})
 
 	if sig.IssuerKeyId != nil {
 		keyId := make([]byte, 8)
 		binary.BigEndian.PutUint64(keyId, *sig.IssuerKeyId)
 		subpackets = append(subpackets, outputSubpacket{true, issuerSubpacket, false, keyId})
+	}
+
+	if sig.SigLifetimeSecs != nil && *sig.SigLifetimeSecs != 0 {
+		sigLifetime := make([]byte, 4)
+		binary.BigEndian.PutUint32(sigLifetime, *sig.SigLifetimeSecs)
+		subpackets = append(subpackets, outputSubpacket{true, signatureExpirationSubpacket, true, sigLifetime})
+	}
+
+	// Key flags may only appear in self-signatures or certification signatures.
+
+	if sig.FlagsValid {
+		var flags byte
+		if sig.FlagCertify {
+			flags |= 1
+		}
+		if sig.FlagSign {
+			flags |= 2
+		}
+		if sig.FlagEncryptCommunications {
+			flags |= 4
+		}
+		if sig.FlagEncryptStorage {
+			flags |= 8
+		}
+		subpackets = append(subpackets, outputSubpacket{true, keyFlagsSubpacket, false, []byte{flags}})
+	}
+
+	// The following subpackets may only appear in self-signatures
+
+	if sig.KeyLifetimeSecs != nil && *sig.KeyLifetimeSecs != 0 {
+		keyLifetime := make([]byte, 4)
+		binary.BigEndian.PutUint32(keyLifetime, *sig.KeyLifetimeSecs)
+		subpackets = append(subpackets, outputSubpacket{true, keyExpirationSubpacket, true, keyLifetime})
+	}
+
+	if sig.IsPrimaryId != nil && *sig.IsPrimaryId {
+		subpackets = append(subpackets, outputSubpacket{true, primaryUserIdSubpacket, false, []byte{1}})
+	}
+
+	if len(sig.PreferredSymmetric) > 0 {
+		subpackets = append(subpackets, outputSubpacket{true, prefSymmetricAlgosSubpacket, false, sig.PreferredSymmetric})
+	}
+
+	if len(sig.PreferredHash) > 0 {
+		subpackets = append(subpackets, outputSubpacket{true, prefHashAlgosSubpacket, false, sig.PreferredHash})
+	}
+
+	if len(sig.PreferredCompression) > 0 {
+		subpackets = append(subpackets, outputSubpacket{true, prefCompressionSubpacket, false, sig.PreferredCompression})
 	}
 
 	return

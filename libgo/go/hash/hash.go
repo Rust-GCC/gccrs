@@ -13,15 +13,21 @@ type Hash interface {
 	// It never returns an error.
 	io.Writer
 
-	// Sum returns the current hash, without changing the
-	// underlying hash state.
-	Sum() []byte
+	// Sum appends the current hash to b and returns the resulting slice.
+	// It does not change the underlying hash state.
+	Sum(b []byte) []byte
 
 	// Reset resets the hash to one with zero bytes written.
 	Reset()
 
 	// Size returns the number of bytes Sum will return.
 	Size() int
+
+	// BlockSize returns the hash's underlying block size.
+	// The Write method must be able to accept any amount
+	// of data, but it may operate more efficiently if all writes
+	// are a multiple of the block size.
+	BlockSize() int
 }
 
 // Hash32 is the common interface implemented by all 32-bit hash functions.

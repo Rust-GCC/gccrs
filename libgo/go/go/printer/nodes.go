@@ -39,7 +39,10 @@ import (
 //            future (not yet interspersed) comments in this function.
 //
 func (p *printer) linebreak(line, min int, ws whiteSpace, newSection bool) (printedBreak bool) {
-	n := p.nlines(line-p.pos.Line, min)
+	n := nlimit(line - p.pos.Line)
+	if n < min {
+		n = min
+	}
 	if n > 0 {
 		p.print(ws)
 		if newSection {
@@ -269,6 +272,7 @@ func (p *printer) exprList(prev0 token.Pos, list []ast.Expr, depth int, mode exp
 func (p *printer) parameters(fields *ast.FieldList, multiLine *bool) {
 	p.print(fields.Opening, token.LPAREN)
 	if len(fields.List) > 0 {
+		ws := indent
 		var prevLine, line int
 		for i, par := range fields.List {
 			if i > 0 {
@@ -278,18 +282,29 @@ func (p *printer) parameters(fields *ast.FieldList, multiLine *bool) {
 				} else {
 					line = p.fset.Position(par.Type.Pos()).Line
 				}
-				if 0 < prevLine && prevLine < line && p.linebreak(line, 0, ignore, true) {
+				if 0 < prevLine && prevLine < line && p.linebreak(line, 0, ws, true) {
+					ws = ignore
 					*multiLine = true
 				} else {
 					p.print(blank)
 				}
 			}
 			if len(par.Names) > 0 {
-				p.identList(par.Names, false, multiLine)
+				// Very subtle: If we indented before (ws == ignore), identList
+				// won't indent again. If we didn't (ws == indent), identList will
+				// indent if the identList spans multiple lines, and it will outdent
+				// again at the end (and still ws == indent). Thus, a subsequent indent
+				// by a linebreak call after a type, or in the next multi-line identList
+				// will do the right thing.
+				p.identList(par.Names, ws == indent, multiLine)
 				p.print(blank)
 			}
 			p.expr(par.Type, multiLine)
 			prevLine = p.fset.Position(par.Type.Pos()).Line
+		}
+		if ws == ignore {
+			// unindent if we indented
+			p.print(unindent)
 		}
 	}
 	p.print(fields.Closing, token.RPAREN)
@@ -342,16 +357,17 @@ func (p *printer) isOneLineFieldList(list []*ast.Field) bool {
 }
 
 func (p *printer) setLineComment(text string) {
-	p.setComment(&ast.CommentGroup{[]*ast.Comment{&ast.Comment{token.NoPos, text}}})
+	p.setComment(&ast.CommentGroup{[]*ast.Comment{{token.NoPos, text}}})
 }
 
 func (p *printer) fieldList(fields *ast.FieldList, isStruct, isIncomplete bool) {
 	lbrace := fields.Opening
 	list := fields.List
 	rbrace := fields.Closing
+	hasComments := isIncomplete || p.commentBefore(p.fset.Position(rbrace))
 	srcIsOneLine := lbrace.IsValid() && rbrace.IsValid() && p.fset.Position(lbrace).Line == p.fset.Position(rbrace).Line
 
-	if !isIncomplete && !p.commentBefore(p.fset.Position(rbrace)) && srcIsOneLine {
+	if !hasComments && srcIsOneLine {
 		// possibly a one-line struct/interface
 		if len(list) == 0 {
 			// no blank between keyword and {} in this case
@@ -376,9 +392,13 @@ func (p *printer) fieldList(fields *ast.FieldList, isStruct, isIncomplete bool) 
 			return
 		}
 	}
+	// hasComments || !srcIsOneLine
 
-	// at least one entry or incomplete
-	p.print(blank, lbrace, token.LBRACE, indent, formfeed)
+	p.print(blank, lbrace, token.LBRACE, indent)
+	if hasComments || len(list) > 0 {
+		p.print(formfeed)
+	}
+
 	if isStruct {
 
 		sep := vtab
@@ -1266,6 +1286,7 @@ func (p *printer) spec(spec ast.Spec, n int, doIndent bool, multiLine *bool) {
 		}
 		p.expr(s.Path, multiLine)
 		p.setComment(s.Comment)
+		p.print(s.EndPos)
 
 	case *ast.ValueSpec:
 		if n != 1 {
@@ -1364,7 +1385,7 @@ func (p *printer) nodeSize(n ast.Node, maxSize int) (size int) {
 	// in RawFormat
 	cfg := Config{Mode: RawFormat}
 	var buf bytes.Buffer
-	if _, err := cfg.fprint(&buf, p.fset, n, p.nodeSizes); err != nil {
+	if err := cfg.fprint(&buf, p.fset, n, p.nodeSizes); err != nil {
 		return
 	}
 	if buf.Len() <= maxSize {
@@ -1496,9 +1517,14 @@ func (p *printer) file(src *ast.File) {
 			prev := tok
 			tok = declToken(d)
 			// if the declaration token changed (e.g., from CONST to TYPE)
+			// or the next declaration has documentation associated with it,
 			// print an empty line between top-level declarations
+			// (because p.linebreak is called with the position of d, which
+			// is past any documentation, the minimum requirement is satisfied
+			// even w/o the extra getDoc(d) nil-check - leave it in case the
+			// linebreak logic improves - there's already a TODO).
 			min := 1
-			if prev != tok {
+			if prev != tok || getDoc(d) != nil {
 				min = 2
 			}
 			p.linebreak(p.fset.Position(d.Pos()).Line, min, ignore, false)

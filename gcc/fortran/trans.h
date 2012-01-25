@@ -1,5 +1,6 @@
 /* Header for code translation functions
-   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
+   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
+   2011, 2012
    Free Software Foundation, Inc.
    Contributed by Paul Brook
 
@@ -86,6 +87,8 @@ typedef struct gfc_se
      args alias.  */
   unsigned force_tmp:1;
 
+  unsigned want_coarray:1;
+
   /* Scalarization parameters.  */
   struct gfc_se *parent;
   struct gfc_ss *ss;
@@ -106,17 +109,13 @@ typedef enum
 gfc_coarray_type;
 
 
-/* Scalarization State chain.  Created by walking an expression tree before
-   creating the scalarization loops. Then passed as part of a gfc_se structure
-   to translate the expression inside the loop.  Note that these chains are
-   terminated by gfc_se_terminator, not NULL.  A NULL pointer in a gfc_se
-   indicates to gfc_conv_* that this is a scalar expression.
-   Note that some member arrays correspond to scalarizer rank and others
-   are the variable rank.  */
+/* The array-specific scalarization informations.  The array members of
+   this struct are indexed by actual array index, and thus can be sparse.  */
 
-typedef struct gfc_ss_info
+typedef struct gfc_array_info
 {
-  int dimen, codimen;
+  mpz_t *shape;
+
   /* The ref that holds information on this section.  */
   gfc_ref *ref;
   /* The descriptor of this array.  */
@@ -137,12 +136,8 @@ typedef struct gfc_ss_info
   tree end[GFC_MAX_DIMENSIONS];
   tree stride[GFC_MAX_DIMENSIONS];
   tree delta[GFC_MAX_DIMENSIONS];
-
-  /* Translation from loop dimensions to actual dimensions.
-     actual_dim = dim[loop_dim]  */
-  int dim[GFC_MAX_DIMENSIONS];
 }
-gfc_ss_info;
+gfc_array_info;
 
 typedef enum
 {
@@ -151,8 +146,9 @@ typedef enum
   GFC_SS_SCALAR,
 
   /* Like GFC_SS_SCALAR it evaluates the expression outside the
-     loop. Is always evaluated as a reference to the temporary.
-     Used for elemental function arguments.  */
+     loop.  Is always evaluated as a reference to the temporary, unless
+     temporary evaluation can result in a NULL pointer dereferencing (case of
+     optional arguments).  Used for elemental function arguments.  */
   GFC_SS_REFERENCE,
 
   /* An array section.  Scalarization indices will be substituted during
@@ -188,47 +184,85 @@ typedef enum
 }
 gfc_ss_type;
 
-/* SS structures can only belong to a single loopinfo.  They must be added
-   otherwise they will not get freed.  */
-typedef struct gfc_ss
+
+typedef struct gfc_ss_info
 {
+  int refcount;
   gfc_ss_type type;
   gfc_expr *expr;
-  mpz_t *shape;
   tree string_length;
+
   union
   {
     /* If type is GFC_SS_SCALAR or GFC_SS_REFERENCE.  */
     struct
     {
-      tree expr;
+      tree value;
+      /* Tells whether the reference can be null in the GFC_SS_REFERENCE case.
+	 Used to handle elemental procedures' optional arguments.  */
+      bool can_be_null_ref;
     }
     scalar;
 
     /* GFC_SS_TEMP.  */
     struct
     {
-      /* The rank of the temporary.  May be less than the rank of the
-         assigned expression.  */
-      int dimen, codimen;
       tree type;
     }
     temp;
+
     /* All other types.  */
-    gfc_ss_info info;
+    gfc_array_info array;
   }
   data;
+
+  /* This is used by assignments requiring temporaries.  The bits specify which
+     loops the terms appear in.  This will be 1 for the RHS expressions,
+     2 for the LHS expressions, and 3(=1|2) for the temporary.  */
+  unsigned useflags:2;
+
+  /* Suppresses precalculation of scalars in WHERE assignments.  */
+  unsigned where:1;
+}
+gfc_ss_info;
+
+#define gfc_get_ss_info() XCNEW (gfc_ss_info)
+
+
+/* Scalarization State chain.  Created by walking an expression tree before
+   creating the scalarization loops.  Then passed as part of a gfc_se structure
+   to translate the expression inside the loop.  Note that these chains are
+   terminated by gfc_ss_terminator, not NULL.  A NULL pointer in a gfc_se
+   indicates to gfc_conv_* that this is a scalar expression.
+   SS structures can only belong to a single loopinfo.  They must be added
+   otherwise they will not get freed.  */
+
+typedef struct gfc_ss
+{
+  gfc_ss_info *info;
+
+  int dimen;
+  /* Translation from loop dimensions to actual array dimensions.
+     actual_dim = dim[loop_dim]  */
+  int dim[GFC_MAX_DIMENSIONS];
 
   /* All the SS in a loop and linked through loop_chain.  The SS for an
      expression are linked by the next pointer.  */
   struct gfc_ss *loop_chain;
   struct gfc_ss *next;
 
-  /* This is used by assignments requiring temporaries. The bits specify which
-     loops the terms appear in.  This will be 1 for the RHS expressions,
-     2 for the LHS expressions, and 3(=1|2) for the temporary.  The bit
-     'where' suppresses precalculation of scalars in WHERE assignments.  */
-  unsigned useflags:2, where:1, is_alloc_lhs:1;
+  /* Non-null if the ss is part of a nested loop.  */
+  struct gfc_ss *parent;
+
+  /* If the evaluation of an expression requires a nested loop (for example
+     if the sum intrinsic is evaluated inline), this points to the nested
+     loop's gfc_ss.  */
+  struct gfc_ss *nested_ss;
+
+  /* The loop this gfc_ss is in.  */
+  struct gfc_loopinfo *loop;
+
+  unsigned is_alloc_lhs:1;
 }
 gfc_ss;
 #define gfc_get_ss() XCNEW (gfc_ss)
@@ -243,12 +277,18 @@ typedef struct gfc_loopinfo
   stmtblock_t pre;
   stmtblock_t post;
 
-  int dimen, codimen;
+  int dimen;
 
   /* All the SS involved with this loop.  */
   gfc_ss *ss;
   /* The SS describing the temporary used in an assignment.  */
   gfc_ss *temp_ss;
+
+  /* Non-null if this loop is nested in another one.  */
+  struct gfc_loopinfo *parent;
+
+  /* Chain of nested loops.  */
+  struct gfc_loopinfo *nested, *next;
 
   /* The scalarization loop index variables.  */
   tree loopvar[GFC_MAX_DIMENSIONS];
@@ -275,6 +315,7 @@ typedef struct gfc_loopinfo
 }
 gfc_loopinfo;
 
+#define gfc_get_loopinfo() XCNEW (gfc_loopinfo)
 
 /* Information about a symbol that has been shadowed by a temporary.  */
 typedef struct
@@ -297,6 +338,14 @@ typedef struct
 }
 gfc_wrapped_block;
 
+/* Class API functions.  */
+tree gfc_class_data_get (tree);
+tree gfc_class_vptr_get (tree);
+tree gfc_vtable_hash_get (tree);
+tree gfc_vtable_size_get (tree);
+tree gfc_vtable_extends_get (tree);
+tree gfc_vtable_def_init_get (tree);
+tree gfc_vtable_copy_get (tree);
 
 /* Initialize an init/cleanup block.  */
 void gfc_start_wrapped_block (gfc_wrapped_block* block, tree code);
@@ -360,9 +409,6 @@ tree gfc_builtin_decl_for_float_kind (enum built_in_function, int);
 /* Intrinsic procedure handling.  */
 tree gfc_conv_intrinsic_subroutine (gfc_code *);
 void gfc_conv_intrinsic_function (gfc_se *, gfc_expr *);
-
-/* Is the intrinsic expanded inline.  */
-bool gfc_inline_intrinsic_function_p (gfc_expr *);
 
 /* Does an intrinsic map directly to an external library call
    This is true for array-returning intrinsics, unless
@@ -542,14 +588,15 @@ tree gfc_call_malloc (stmtblock_t *, tree, tree);
 tree gfc_build_memcpy_call (tree, tree, tree);
 
 /* Allocate memory for allocatable variables, with optional status variable.  */
-void gfc_allocate_allocatable (stmtblock_t*, tree, tree, tree,
+void gfc_allocate_allocatable (stmtblock_t*, tree, tree, tree, tree,
 			       tree, tree, tree, gfc_expr*);
 
 /* Allocate memory, with optional status variable.  */
 void gfc_allocate_using_malloc (stmtblock_t *, tree, tree, tree);
 
 /* Generate code to deallocate an array.  */
-tree gfc_deallocate_with_status (tree, tree, bool, gfc_expr*);
+tree gfc_deallocate_with_status (tree, tree, tree, tree, tree, bool,
+				 gfc_expr *, bool);
 tree gfc_deallocate_scalar_with_status (tree, tree, bool, gfc_expr*, gfc_typespec);
 
 /* Generate code to call realloc().  */
@@ -631,6 +678,7 @@ extern GTY(()) tree gfor_fndecl_associated;
 extern GTY(()) tree gfor_fndecl_caf_init;
 extern GTY(()) tree gfor_fndecl_caf_finalize;
 extern GTY(()) tree gfor_fndecl_caf_register;
+extern GTY(()) tree gfor_fndecl_caf_deregister;
 extern GTY(()) tree gfor_fndecl_caf_critical;
 extern GTY(()) tree gfor_fndecl_caf_end_critical;
 extern GTY(()) tree gfor_fndecl_caf_sync_all;
@@ -769,6 +817,8 @@ struct GTY((variable_size)) lang_decl {
 #define GFC_DECL_CRAY_POINTEE(node) DECL_LANG_FLAG_4(node)
 #define GFC_DECL_RESULT(node) DECL_LANG_FLAG_5(node)
 #define GFC_DECL_SUBREF_ARRAY_P(node) DECL_LANG_FLAG_6(node)
+#define GFC_DECL_PUSH_TOPLEVEL(node) DECL_LANG_FLAG_7(node)
+#define GFC_DECL_CLASS(node) DECL_LANG_FLAG_8(node)
 
 /* An array descriptor.  */
 #define GFC_DESCRIPTOR_TYPE_P(node) TYPE_LANG_FLAG_1(node)

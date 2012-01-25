@@ -112,8 +112,8 @@ reload_cse_simplify (rtx insn, rtx testreg)
 	  if (REG_P (value)
 	      && ! REG_FUNCTION_VALUE_P (value))
 	    value = 0;
-	  check_for_inc_dec (insn);
-	  delete_insn_and_edges (insn);
+	  if (check_for_inc_dec (insn))
+	    delete_insn_and_edges (insn);
 	  return;
 	}
 
@@ -164,8 +164,8 @@ reload_cse_simplify (rtx insn, rtx testreg)
 
       if (i < 0)
 	{
-	  check_for_inc_dec (insn);
-	  delete_insn_and_edges (insn);
+	  if (check_for_inc_dec (insn))
+	    delete_insn_and_edges (insn);
 	  /* We're done with this insn.  */
 	  return;
 	}
@@ -1312,11 +1312,21 @@ reload_combine (void)
 	 is and then later disable any optimization that would cross it.  */
       if (LABEL_P (insn))
 	last_label_ruid = reload_combine_ruid;
-      else if (BARRIER_P (insn)
-	       || (INSN_P (insn) && volatile_insn_p (PATTERN (insn))))
-	for (r = 0; r < FIRST_PSEUDO_REGISTER; r++)
-	  if (! fixed_regs[r])
+      else if (BARRIER_P (insn))
+	{
+	  /* Crossing a barrier resets all the use information.  */
+	  for (r = 0; r < FIRST_PSEUDO_REGISTER; r++)
+	    if (! fixed_regs[r])
 	      reg_state[r].use_index = RELOAD_COMBINE_MAX_USES;
+	}
+      else if (INSN_P (insn) && volatile_insn_p (PATTERN (insn)))
+	/* Optimizations across insns being marked as volatile must be
+	   prevented.  All the usage information is invalidated
+	   here.  */
+	for (r = 0; r < FIRST_PSEUDO_REGISTER; r++)
+	  if (! fixed_regs[r]
+	      && reg_state[r].use_index != RELOAD_COMBINE_MAX_USES)
+	    reg_state[r].use_index = -1;
 
       if (! NONDEBUG_INSN_P (insn))
 	continue;

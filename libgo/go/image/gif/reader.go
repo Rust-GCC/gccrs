@@ -10,10 +10,11 @@ package gif
 import (
 	"bufio"
 	"compress/lzw"
+	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	"io"
-	"os"
 )
 
 // If the io.Reader does not also have ReadByte, then decode will introduce its own buffering.
@@ -76,7 +77,7 @@ type decoder struct {
 
 	// Computed.
 	pixelSize      uint
-	globalColorMap image.PalettedColorModel
+	globalColorMap color.Palette
 
 	// Used when decoding.
 	delay []int
@@ -96,7 +97,7 @@ type blockReader struct {
 	tmp   [256]byte
 }
 
-func (b *blockReader) Read(p []byte) (int, os.Error) {
+func (b *blockReader) Read(p []byte) (int, error) {
 	if len(p) == 0 {
 		return 0, nil
 	}
@@ -106,7 +107,7 @@ func (b *blockReader) Read(p []byte) (int, os.Error) {
 			return 0, err
 		}
 		if blockLen == 0 {
-			return 0, os.EOF
+			return 0, io.EOF
 		}
 		b.slice = b.tmp[0:blockLen]
 		if _, err = io.ReadFull(b.r, b.slice); err != nil {
@@ -119,7 +120,7 @@ func (b *blockReader) Read(p []byte) (int, os.Error) {
 }
 
 // decode reads a GIF image from r and stores the result in d.
-func (d *decoder) decode(r io.Reader, configOnly bool) os.Error {
+func (d *decoder) decode(r io.Reader, configOnly bool) error {
 	// Add buffering if r does not provide ReadByte.
 	if rr, ok := r.(reader); ok {
 		d.r = rr
@@ -145,7 +146,7 @@ Loop:
 	for err == nil {
 		var c byte
 		c, err = d.r.ReadByte()
-		if err == os.EOF {
+		if err == io.EOF {
 			break
 		}
 		switch c {
@@ -188,7 +189,7 @@ Loop:
 				return err
 			}
 			if c != 0 {
-				return os.NewError("gif: extra data after image")
+				return errors.New("gif: extra data after image")
 			}
 
 			// Undo the interlacing if necessary.
@@ -216,7 +217,7 @@ Loop:
 	return nil
 }
 
-func (d *decoder) readHeaderAndScreenDescriptor() os.Error {
+func (d *decoder) readHeaderAndScreenDescriptor() error {
 	_, err := io.ReadFull(d.r, d.tmp[0:13])
 	if err != nil {
 		return err
@@ -235,7 +236,7 @@ func (d *decoder) readHeaderAndScreenDescriptor() os.Error {
 	return nil
 }
 
-func (d *decoder) readColorMap() (image.PalettedColorModel, os.Error) {
+func (d *decoder) readColorMap() (color.Palette, error) {
 	if d.pixelSize > 8 {
 		return nil, fmt.Errorf("gif: can't handle %d bits per pixel", d.pixelSize)
 	}
@@ -248,16 +249,16 @@ func (d *decoder) readColorMap() (image.PalettedColorModel, os.Error) {
 	if err != nil {
 		return nil, fmt.Errorf("gif: short read on color map: %s", err)
 	}
-	colorMap := make(image.PalettedColorModel, numColors)
+	colorMap := make(color.Palette, numColors)
 	j := 0
 	for i := range colorMap {
-		colorMap[i] = image.RGBAColor{d.tmp[j+0], d.tmp[j+1], d.tmp[j+2], 0xFF}
+		colorMap[i] = color.RGBA{d.tmp[j+0], d.tmp[j+1], d.tmp[j+2], 0xFF}
 		j += 3
 	}
 	return colorMap, nil
 }
 
-func (d *decoder) readExtension() os.Error {
+func (d *decoder) readExtension() error {
 	extension, err := d.r.ReadByte()
 	if err != nil {
 		return err
@@ -306,7 +307,7 @@ func (d *decoder) readExtension() os.Error {
 	panic("unreachable")
 }
 
-func (d *decoder) readGraphicControl() os.Error {
+func (d *decoder) readGraphicControl() error {
 	if _, err := io.ReadFull(d.r, d.tmp[0:6]); err != nil {
 		return fmt.Errorf("gif: can't read graphic control: %s", err)
 	}
@@ -319,13 +320,13 @@ func (d *decoder) readGraphicControl() os.Error {
 	return nil
 }
 
-func (d *decoder) setTransparency(colorMap image.PalettedColorModel) {
+func (d *decoder) setTransparency(colorMap color.Palette) {
 	if int(d.transparentIndex) < len(colorMap) {
-		colorMap[d.transparentIndex] = image.RGBAColor{}
+		colorMap[d.transparentIndex] = color.RGBA{}
 	}
 }
 
-func (d *decoder) newImageFromDescriptor() (*image.Paletted, os.Error) {
+func (d *decoder) newImageFromDescriptor() (*image.Paletted, error) {
 	if _, err := io.ReadFull(d.r, d.tmp[0:9]); err != nil {
 		return nil, fmt.Errorf("gif: can't read image descriptor: %s", err)
 	}
@@ -334,13 +335,10 @@ func (d *decoder) newImageFromDescriptor() (*image.Paletted, os.Error) {
 	width := int(d.tmp[4]) + int(d.tmp[5])<<8
 	height := int(d.tmp[6]) + int(d.tmp[7])<<8
 	d.imageFields = d.tmp[8]
-	m := image.NewPaletted(width, height, nil)
-	// Overwrite the rectangle to take account of left and top.
-	m.Rect = image.Rect(left, top, left+width, top+height)
-	return m, nil
+	return image.NewPaletted(image.Rect(left, top, left+width, top+height), nil), nil
 }
 
-func (d *decoder) readBlock() (int, os.Error) {
+func (d *decoder) readBlock() (int, error) {
 	n, err := d.r.ReadByte()
 	if n == 0 || err != nil {
 		return 0, err
@@ -381,7 +379,7 @@ func uninterlace(m *image.Paletted) {
 
 // Decode reads a GIF image from r and returns the first embedded
 // image as an image.Image.
-func Decode(r io.Reader) (image.Image, os.Error) {
+func Decode(r io.Reader) (image.Image, error) {
 	var d decoder
 	if err := d.decode(r, false); err != nil {
 		return nil, err
@@ -398,7 +396,7 @@ type GIF struct {
 
 // DecodeAll reads a GIF image from r and returns the sequential frames
 // and timing information.
-func DecodeAll(r io.Reader) (*GIF, os.Error) {
+func DecodeAll(r io.Reader) (*GIF, error) {
 	var d decoder
 	if err := d.decode(r, false); err != nil {
 		return nil, err
@@ -413,7 +411,7 @@ func DecodeAll(r io.Reader) (*GIF, os.Error) {
 
 // DecodeConfig returns the global color model and dimensions of a GIF image
 // without decoding the entire image.
-func DecodeConfig(r io.Reader) (image.Config, os.Error) {
+func DecodeConfig(r io.Reader) (image.Config, error) {
 	var d decoder
 	if err := d.decode(r, true); err != nil {
 		return image.Config{}, err

@@ -477,7 +477,8 @@ search_line_sse42 (const uchar *s, const uchar *end)
 typedef const uchar * (*search_line_fast_type) (const uchar *, const uchar *);
 static search_line_fast_type search_line_fast;
 
-static void __attribute__((constructor))
+#define HAVE_init_vectorized_lexer 1
+static inline void
 init_vectorized_lexer (void)
 {
   unsigned dummy, ecx = 0, edx = 0;
@@ -637,6 +638,16 @@ search_line_fast (const uchar *s, const uchar *end ATTRIBUTE_UNUSED)
 #define search_line_fast  search_line_acc_char
 
 #endif
+
+/* Initialize the lexer if needed.  */
+
+void
+_cpp_init_lexer (void)
+{
+#ifdef HAVE_init_vectorized_lexer
+  init_vectorized_lexer ();
+#endif
+}
 
 /* Returns with a logical line that contains no escaped newlines or
    trigraphs.  This is a time-critical inner loop.  */
@@ -1478,6 +1489,18 @@ lex_raw_string (cpp_reader *pfile, cpp_token *token, const uchar *base,
     }
  break_outer_loop:
 
+  if (CPP_OPTION (pfile, user_literals))
+    {
+      /* Grab user defined literal suffix.  */
+      if (ISIDST (*cur))
+	{
+	  type = cpp_userdef_string_add_type (type);
+	  ++cur;
+	}
+      while (ISIDNUM (*cur))
+	++cur;
+    }
+
   pfile->buffer->cur = cur;
   if (first_buff == NULL)
     create_literal (pfile, token, base, cur - base, type);
@@ -1580,6 +1603,19 @@ lex_string (cpp_reader *pfile, cpp_token *token, const uchar *base)
   if (type == CPP_OTHER && CPP_OPTION (pfile, lang) != CLK_ASM)
     cpp_error (pfile, CPP_DL_PEDWARN, "missing terminating %c character",
 	       (int) terminator);
+
+  if (CPP_OPTION (pfile, user_literals))
+    {
+      /* Grab user defined literal suffix.  */
+      if (ISIDST (*cur))
+	{
+	  type = cpp_userdef_char_add_type (type);
+	  type = cpp_userdef_string_add_type (type);
+          ++cur;
+	}
+      while (ISIDNUM (*cur))
+	++cur;
+    }
 
   pfile->buffer->cur = cur;
   create_literal (pfile, token, base, cur - base, type);
@@ -1703,6 +1739,34 @@ next_tokenrun (tokenrun *run)
   return run->next;
 }
 
+/* Return the number of not yet processed token in a given
+   context.  */
+int
+_cpp_remaining_tokens_num_in_context (cpp_context *context)
+{
+  if (context->tokens_kind == TOKENS_KIND_DIRECT)
+    return (LAST (context).token - FIRST (context).token);
+  else if (context->tokens_kind == TOKENS_KIND_INDIRECT
+	   || context->tokens_kind == TOKENS_KIND_EXTENDED)
+    return (LAST (context).ptoken - FIRST (context).ptoken);
+  else
+      abort ();
+}
+
+/* Returns the token present at index INDEX in a given context.  If
+   INDEX is zero, the next token to be processed is returned.  */
+static const cpp_token*
+_cpp_token_from_context_at (cpp_context *context, int index)
+{
+  if (context->tokens_kind == TOKENS_KIND_DIRECT)
+    return &(FIRST (context).token[index]);
+  else if (context->tokens_kind == TOKENS_KIND_INDIRECT
+	   || context->tokens_kind == TOKENS_KIND_EXTENDED)
+    return FIRST (context).ptoken[index];
+ else
+   abort ();
+}
+
 /* Look ahead in the input stream.  */
 const cpp_token *
 cpp_peek_token (cpp_reader *pfile, int index)
@@ -1714,15 +1778,10 @@ cpp_peek_token (cpp_reader *pfile, int index)
   /* First, scan through any pending cpp_context objects.  */
   while (context->prev)
     {
-      ptrdiff_t sz = (context->direct_p
-                      ? LAST (context).token - FIRST (context).token
-                      : LAST (context).ptoken - FIRST (context).ptoken);
+      ptrdiff_t sz = _cpp_remaining_tokens_num_in_context (context);
 
       if (index < (int) sz)
-        return (context->direct_p
-                ? FIRST (context).token + index
-                : *(FIRST (context).ptoken + index));
-
+        return _cpp_token_from_context_at (context, index);
       index -= (int) sz;
       context = context->prev;
     }

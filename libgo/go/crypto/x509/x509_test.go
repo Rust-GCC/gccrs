@@ -5,15 +5,16 @@
 package x509
 
 import (
-	"asn1"
-	"big"
+	"bytes"
 	"crypto/dsa"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/pem"
+	"math/big"
 	"testing"
 	"time"
 )
@@ -33,6 +34,40 @@ func TestParsePKCS1PrivateKey(t *testing.T) {
 		t.Errorf("got:%+v want:%+v", priv, rsaPrivateKey)
 	}
 }
+
+func TestParsePKIXPublicKey(t *testing.T) {
+	block, _ := pem.Decode([]byte(pemPublicKey))
+	pub, err := ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		t.Errorf("Failed to parse RSA public key: %s", err)
+		return
+	}
+	rsaPub, ok := pub.(*rsa.PublicKey)
+	if !ok {
+		t.Errorf("Value returned from ParsePKIXPublicKey was not an RSA public key")
+		return
+	}
+
+	pubBytes2, err := MarshalPKIXPublicKey(rsaPub)
+	if err != nil {
+		t.Errorf("Failed to marshal RSA public key for the second time: %s", err)
+		return
+	}
+	if !bytes.Equal(pubBytes2, block.Bytes) {
+		t.Errorf("Reserialization of public key didn't match. got %x, want %x", pubBytes2, block.Bytes)
+	}
+}
+
+var pemPublicKey = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3VoPN9PKUjKFLMwOge6+
+wnDi8sbETGIx2FKXGgqtAKpzmem53kRGEQg8WeqRmp12wgp74TGpkEXsGae7RS1k
+enJCnma4fii+noGH7R0qKgHvPrI2Bwa9hzsH8tHxpyM3qrXslOmD45EH9SxIDUBJ
+FehNdaPbLP1gFyahKMsdfxFJLUvbUycuZSJ2ZnIgeVxwm4qbSvZInL9Iu4FzuPtg
+fINKcbbovy1qq4KvPIrXzhbY3PWDc6btxCf3SE0JdE1MCPThntB62/bLMSQ7xdDR
+FF53oIpvxe/SCOymfWq/LW849Ytv3Xwod0+wzAP8STXG4HSELS4UedPYeHJJJYcZ
++QIDAQAB
+-----END PUBLIC KEY-----
+`
 
 var pemPrivateKey = `-----BEGIN RSA PRIVATE KEY-----
 MIIBOgIBAAJBALKZD0nEffqM1ACuak0bijtqE2QrI/KLADv7l3kK3ppMyCuLKoF0
@@ -208,14 +243,15 @@ func TestCreateSelfSignedCertificate(t *testing.T) {
 		return
 	}
 
+	commonName := "test.example.com"
 	template := Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
-			CommonName:   "test.example.com",
+			CommonName:   commonName,
 			Organization: []string{"Acme Co"},
 		},
-		NotBefore: time.SecondsToUTC(1000),
-		NotAfter:  time.SecondsToUTC(100000),
+		NotBefore: time.Unix(1000, 0),
+		NotAfter:  time.Unix(100000, 0),
 
 		SubjectKeyId: []byte{1, 2, 3, 4},
 		KeyUsage:     KeyUsageCertSign,
@@ -246,6 +282,14 @@ func TestCreateSelfSignedCertificate(t *testing.T) {
 
 	if len(cert.PermittedDNSDomains) != 2 || cert.PermittedDNSDomains[0] != ".example.com" || cert.PermittedDNSDomains[1] != "example.com" {
 		t.Errorf("Failed to parse name constraints: %#v", cert.PermittedDNSDomains)
+	}
+
+	if cert.Subject.CommonName != commonName {
+		t.Errorf("Subject wasn't correctly copied from the template. Got %s, want %s", cert.Subject.CommonName, commonName)
+	}
+
+	if cert.Issuer.CommonName != commonName {
+		t.Errorf("Issuer wasn't correctly copied from the template. Got %s, want %s", cert.Issuer.CommonName, commonName)
 	}
 
 	err = cert.CheckSignatureFrom(cert)
@@ -352,8 +396,8 @@ func TestCRLCreation(t *testing.T) {
 	block, _ = pem.Decode([]byte(pemCertificate))
 	cert, _ := ParseCertificate(block.Bytes)
 
-	now := time.SecondsToUTC(1000)
-	expiry := time.SecondsToUTC(10000)
+	now := time.Unix(1000, 0)
+	expiry := time.Unix(10000, 0)
 
 	revokedCerts := []pkix.RevokedCertificate{
 		{
@@ -399,7 +443,7 @@ func TestParseDERCRL(t *testing.T) {
 		t.Errorf("bad number of revoked certificates. got: %d want: %d", numCerts, expected)
 	}
 
-	if certList.HasExpired(1302517272) {
+	if certList.HasExpired(time.Unix(1302517272, 0)) {
 		t.Errorf("CRL has expired (but shouldn't have)")
 	}
 
@@ -419,7 +463,7 @@ func TestParsePEMCRL(t *testing.T) {
 		t.Errorf("bad number of revoked certificates. got: %d want: %d", numCerts, expected)
 	}
 
-	if certList.HasExpired(1302517272) {
+	if certList.HasExpired(time.Unix(1302517272, 0)) {
 		t.Errorf("CRL has expired (but shouldn't have)")
 	}
 

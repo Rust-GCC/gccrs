@@ -556,6 +556,7 @@ vn_reference_eq (const void *p1, const void *p2)
 	  tem1.type = TREE_TYPE (tem1.op0);
 	  tem1.opcode = TREE_CODE (tem1.op0);
 	  vro1 = &tem1;
+	  deref1 = false;
 	}
       if (deref2 && vro2->opcode == ADDR_EXPR)
 	{
@@ -564,7 +565,10 @@ vn_reference_eq (const void *p1, const void *p2)
 	  tem2.type = TREE_TYPE (tem2.op0);
 	  tem2.opcode = TREE_CODE (tem2.op0);
 	  vro2 = &tem2;
+	  deref2 = false;
 	}
+      if (deref1 != deref2)
+	return false;
       if (!vn_reference_op_eq (vro1, vro2))
 	return false;
       ++j;
@@ -918,6 +922,8 @@ ao_ref_init_from_vn_reference (ao_ref *ref,
     ref->base_alias_set = base_alias_set;
   else
     ref->base_alias_set = get_alias_set (base);
+  /* We discount volatiles from value-numbering elsewhere.  */
+  ref->volatile_p = false;
 
   return true;
 }
@@ -1335,6 +1341,33 @@ vn_reference_lookup_2 (ao_ref *op ATTRIBUTE_UNUSED, tree vuse, void *vr_)
   return NULL;
 }
 
+/* Lookup an existing or insert a new vn_reference entry into the
+   value table for the VUSE, SET, TYPE, OPERANDS reference which
+   has the constant value CST.  */
+
+static vn_reference_t
+vn_reference_lookup_or_insert_constant_for_pieces (tree vuse,
+						   alias_set_type set,
+						   tree type,
+						   VEC (vn_reference_op_s,
+							heap) *operands,
+						   tree cst)
+{
+  struct vn_reference_s vr1;
+  vn_reference_t result;
+  vr1.vuse = vuse;
+  vr1.operands = operands;
+  vr1.type = type;
+  vr1.set = set;
+  vr1.hashcode = vn_reference_compute_hash (&vr1);
+  if (vn_reference_lookup_1 (&vr1, &result))
+    return result;
+  return vn_reference_insert_pieces (vuse, set, type,
+				     VEC_copy (vn_reference_op_s, heap,
+					       operands), cst,
+				     get_or_alloc_constant_value_id (cst));
+}
+
 /* Callback for walk_non_aliased_vuses.  Tries to perform a lookup
    from the statement defining VUSE and if not successful tries to
    translate *REFP and VR_ through an aggregate copy at the defintion
@@ -1388,8 +1421,12 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *vr_)
   if (maxsize == -1)
     return (void *)-1;
 
+  /* We can't deduce anything useful from clobbers.  */
+  if (gimple_clobber_p (def_stmt))
+    return (void *)-1;
+
   /* def_stmt may-defs *ref.  See if we can derive a value for *ref
-     from that defintion.
+     from that definition.
      1) Memset.  */
   if (is_gimple_reg_type (vr->type)
       && gimple_call_builtin_p (def_stmt, BUILT_IN_MEMSET)
@@ -1410,11 +1447,8 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *vr_)
 	  && offset2 + size2 >= offset + maxsize)
 	{
 	  tree val = build_zero_cst (vr->type);
-	  unsigned int value_id = get_or_alloc_constant_value_id (val);
-	  return vn_reference_insert_pieces (vuse, vr->set, vr->type,
-					     VEC_copy (vn_reference_op_s,
-						       heap, vr->operands),
-					     val, value_id);
+	  return vn_reference_lookup_or_insert_constant_for_pieces
+	           (vuse, vr->set, vr->type, vr->operands, val);
 	}
     }
 
@@ -1434,11 +1468,8 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *vr_)
 	  && offset2 + size2 >= offset + maxsize)
 	{
 	  tree val = build_zero_cst (vr->type);
-	  unsigned int value_id = get_or_alloc_constant_value_id (val);
-	  return vn_reference_insert_pieces (vuse, vr->set, vr->type,
-					     VEC_copy (vn_reference_op_s,
-						       heap, vr->operands),
-					     val, value_id);
+	  return vn_reference_lookup_or_insert_constant_for_pieces
+	           (vuse, vr->set, vr->type, vr->operands, val);
 	}
     }
 
@@ -1478,18 +1509,67 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *vr_)
 						   / BITS_PER_UNIT),
 						ref->size / BITS_PER_UNIT);
 	      if (val)
-		{
-		  unsigned int value_id = get_or_alloc_constant_value_id (val);
-		  return vn_reference_insert_pieces
-		           (vuse, vr->set, vr->type,
-			    VEC_copy (vn_reference_op_s, heap, vr->operands),
-			    val, value_id);
-		}
+		return vn_reference_lookup_or_insert_constant_for_pieces
+		         (vuse, vr->set, vr->type, vr->operands, val);
 	    }
 	}
     }
 
-  /* 4) For aggregate copies translate the reference through them if
+  /* 4) Assignment from an SSA name which definition we may be able
+     to access pieces from.  */
+  else if (ref->size == maxsize
+	   && is_gimple_reg_type (vr->type)
+	   && gimple_assign_single_p (def_stmt)
+	   && TREE_CODE (gimple_assign_rhs1 (def_stmt)) == SSA_NAME)
+    {
+      tree rhs1 = gimple_assign_rhs1 (def_stmt);
+      gimple def_stmt2 = SSA_NAME_DEF_STMT (rhs1);
+      if (is_gimple_assign (def_stmt2)
+	  && (gimple_assign_rhs_code (def_stmt2) == COMPLEX_EXPR
+	      || gimple_assign_rhs_code (def_stmt2) == CONSTRUCTOR)
+	  && types_compatible_p (vr->type, TREE_TYPE (TREE_TYPE (rhs1))))
+	{
+	  tree base2;
+	  HOST_WIDE_INT offset2, size2, maxsize2, off;
+	  base2 = get_ref_base_and_extent (gimple_assign_lhs (def_stmt),
+					   &offset2, &size2, &maxsize2);
+	  off = offset - offset2;
+	  if (maxsize2 != -1
+	      && maxsize2 == size2
+	      && operand_equal_p (base, base2, 0)
+	      && offset2 <= offset
+	      && offset2 + size2 >= offset + maxsize)
+	    {
+	      tree val = NULL_TREE;
+	      HOST_WIDE_INT elsz
+		= TREE_INT_CST_LOW (TYPE_SIZE (TREE_TYPE (TREE_TYPE (rhs1))));
+	      if (gimple_assign_rhs_code (def_stmt2) == COMPLEX_EXPR)
+		{
+		  if (off == 0)
+		    val = gimple_assign_rhs1 (def_stmt2);
+		  else if (off == elsz)
+		    val = gimple_assign_rhs2 (def_stmt2);
+		}
+	      else if (gimple_assign_rhs_code (def_stmt2) == CONSTRUCTOR
+		       && off % elsz == 0)
+		{
+		  tree ctor = gimple_assign_rhs1 (def_stmt2);
+		  unsigned i = off / elsz;
+		  if (i < CONSTRUCTOR_NELTS (ctor))
+		    {
+		      constructor_elt *elt = CONSTRUCTOR_ELT (ctor, i);
+		      if (compare_tree_int (elt->index, i) == 0)
+			val = elt->value;
+		    }
+		}
+	      if (val)
+		return vn_reference_lookup_or_insert_constant_for_pieces
+		         (vuse, vr->set, vr->type, vr->operands, val);
+	    }
+	}
+    }
+
+  /* 5) For aggregate copies translate the reference through them if
      the copy kills ref.  */
   else if (vn_walk_kind == VN_WALKREWRITE
 	   && gimple_assign_single_p (def_stmt)
@@ -1570,6 +1650,7 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *vr_)
       FOR_EACH_VEC_ELT (vn_reference_op_s, rhs, j, vro)
 	VEC_replace (vn_reference_op_s, vr->operands, i + 1 + j, vro);
       VEC_free (vn_reference_op_s, heap, rhs);
+      vr->operands = valueize_refs (vr->operands);
       vr->hashcode = vn_reference_compute_hash (vr);
 
       /* Adjust *ref from the new operands.  */
@@ -1587,7 +1668,7 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *vr_)
       return NULL;
     }
 
-  /* 5) For memcpy copies translate the reference through them if
+  /* 6) For memcpy copies translate the reference through them if
      the copy kills ref.  */
   else if (vn_walk_kind == VN_WALKREWRITE
 	   && is_gimple_reg_type (vr->type)
@@ -3101,8 +3182,7 @@ visit_use (tree use)
       if (gimple_code (stmt) == GIMPLE_PHI)
 	changed = visit_phi (stmt);
       else if (!gimple_has_lhs (stmt)
-	       || gimple_has_volatile_ops (stmt)
-	       || stmt_could_throw_p (stmt))
+	       || gimple_has_volatile_ops (stmt))
 	changed = defs_to_varying (stmt);
       else if (is_gimple_assign (stmt))
 	{

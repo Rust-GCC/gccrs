@@ -1667,10 +1667,6 @@ noce_try_cmove_arith (struct noce_if_info *if_info)
       /* Copy over flags as appropriate.  */
       if (MEM_VOLATILE_P (if_info->a) || MEM_VOLATILE_P (if_info->b))
 	MEM_VOLATILE_P (tmp) = 1;
-      if (MEM_IN_STRUCT_P (if_info->a) && MEM_IN_STRUCT_P (if_info->b))
-	MEM_IN_STRUCT_P (tmp) = 1;
-      if (MEM_SCALAR_P (if_info->a) && MEM_SCALAR_P (if_info->b))
-	MEM_SCALAR_P (tmp) = 1;
       if (MEM_ALIAS_SET (if_info->a) == MEM_ALIAS_SET (if_info->b))
 	set_mem_alias_set (tmp, MEM_ALIAS_SET (if_info->a));
       set_mem_align (tmp,
@@ -2327,13 +2323,13 @@ noce_get_condition (rtx jump, rtx *earliest, bool then_else_reversed)
 static int
 noce_operand_ok (const_rtx op)
 {
+  if (side_effects_p (op))
+    return FALSE;
+
   /* We special-case memories, so handle any of them with
      no address side effects.  */
   if (MEM_P (op))
     return ! side_effects_p (XEXP (op, 0));
-
-  if (side_effects_p (op))
-    return FALSE;
 
   return ! may_trap_p (op);
 }
@@ -4166,6 +4162,66 @@ dead_or_predicable (basic_block test_bb, basic_block merge_bb,
       FOR_BB_INSNS (merge_bb, insn)
 	if (NONDEBUG_INSN_P (insn))
 	  df_simulate_find_defs (insn, merge_set);
+
+#ifdef HAVE_simple_return
+      /* If shrink-wrapping, disable this optimization when test_bb is
+	 the first basic block and merge_bb exits.  The idea is to not
+	 move code setting up a return register as that may clobber a
+	 register used to pass function parameters, which then must be
+	 saved in caller-saved regs.  A caller-saved reg requires the
+	 prologue, killing a shrink-wrap opportunity.  */
+      if ((flag_shrink_wrap && HAVE_simple_return && !epilogue_completed)
+	  && ENTRY_BLOCK_PTR->next_bb == test_bb
+	  && single_succ_p (new_dest)
+	  && single_succ (new_dest) == EXIT_BLOCK_PTR
+	  && bitmap_intersect_p (df_get_live_in (new_dest), merge_set))
+	{
+	  regset return_regs;
+	  unsigned int i;
+
+	  return_regs = BITMAP_ALLOC (&reg_obstack);
+
+	  /* Start off with the intersection of regs used to pass
+	     params and regs used to return values.  */
+	  for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
+	    if (FUNCTION_ARG_REGNO_P (i)
+		&& targetm.calls.function_value_regno_p (i))
+	      bitmap_set_bit (return_regs, INCOMING_REGNO (i));
+
+	  bitmap_and_into (return_regs, df_get_live_out (ENTRY_BLOCK_PTR));
+	  bitmap_and_into (return_regs, df_get_live_in (EXIT_BLOCK_PTR));
+	  if (!bitmap_empty_p (return_regs))
+	    {
+	      FOR_BB_INSNS_REVERSE (new_dest, insn)
+		if (NONDEBUG_INSN_P (insn))
+		  {
+		    df_ref *def_rec;
+		    unsigned int uid = INSN_UID (insn);
+
+		    /* If this insn sets any reg in return_regs..  */
+		    for (def_rec = DF_INSN_UID_DEFS (uid); *def_rec; def_rec++)
+		      {
+			df_ref def = *def_rec;
+			unsigned r = DF_REF_REGNO (def);
+
+			if (bitmap_bit_p (return_regs, r))
+			  break;
+		      }
+		    /* ..then add all reg uses to the set of regs
+		       we're interested in.  */
+		    if (*def_rec)
+		      df_simulate_uses (insn, return_regs);
+		  }
+	      if (bitmap_intersect_p (merge_set, return_regs))
+		{
+		  BITMAP_FREE (return_regs);
+		  BITMAP_FREE (merge_set);
+		  return FALSE;
+		}
+	    }
+	  BITMAP_FREE (return_regs);
+	}
+#endif
     }
 
  no_body:

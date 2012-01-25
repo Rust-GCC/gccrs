@@ -1,5 +1,5 @@
 /* Thread library support for -fsplit-stack.  */
-/* Copyright (C) 2009, 2010 Free Software Foundation, Inc.
+/* Copyright (C) 2009, 2010, 2011 Free Software Foundation, Inc.
    Contributed by Ian Lance Taylor <iant@google.com>.
 
 This file is part of GCC.
@@ -27,6 +27,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #include "tsystem.h"
 #include "coretypes.h"
 #include "tm.h"
+#include "libgcc_tm.h"
 
 /* If inhibit_libc is defined, we can not compile this file.  The
    effect is that people will not be able to use -fsplit-stack.  That
@@ -36,6 +37,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #ifndef inhibit_libc
 
+#include <errno.h>
 #include <pthread.h>
 
 #include "generic-morestack.h"

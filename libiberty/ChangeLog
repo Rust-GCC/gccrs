@@ -1,10 +1,117 @@
-2011-09-28  Doug Evans  <dje@google.com>
+2012-01-22  Douglas B Rupp  <rupp@gnat.com>
 
-	* timeval-utils.c: New file.
-	* Makefile.in (CFILES): Add it.
+	* configure: Regenerate.
+
+2012-01-10  Jason Merrill  <jason@redhat.com>
+
+	* cp-demangle.c (d_print_comp) [DEMANGLE_COMPONENT_OPERATOR]:
+	Omit a trailing space in the operator name.
+
+2012-01-06  Jason Merrill  <jason@redhat.com>
+
+	PR c++/6057
+	PR c++/48051
+	PR c++/50855
+	PR c++/51322
+	* cp-demangle.c (d_dump): Handle DEMANGLE_COMPONENT_NULLARY and
+	DEMANGLE_COMPONENT_INITIALIZER_LIST.
+	(d_make_comp): Likewise.  Allow null right arg for
+	DEMANGLE_COMPONENT_TRINARY_ARG2.
+	(cplus_demangle_operators): Adjust new/delete; add .*, :: and throw.
+	(d_template_args, d_template_arg): Handle 'J' for argument packs.
+	(d_exprlist): Add terminator parm.
+	(d_expression, d_print_comp): Handle initializer lists, nullary
+	expressions, prefix/suffix operators, and new.
+	(d_print_subexpr): Avoid parens around DEMANGLE_COMPONENT_QUAL_NAME
+	and DEMANGLE_COMPONENT_INITIALIZER_LIST.
+	* testsuite/demangle-expected: Add tests.
+
+	* cp-demangle.c (cplus_demangle_type): decltype, pack expansion
+	and vector are substitutable.
+	(cplus_demangle_operators): Sort.
+
+2012-01-04  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
+
+	* configure: Regenerate.
+
+2012-01-02  Jakub Jelinek  <jakub@redhat.com>
+
+	* make-relative-prefix.c (make_relative_prefix_1): Avoid
+	stack overflow if PATH contains just a single entry and
+	HOST_EXECUTABLE_SUFFIX needs to be used.
+
+	PR driver/48306
+	* make-relative-prefix.c: Include sys/stat.h.
+	(make_relative_prefix_1): If access succeeds, check also stat
+	if nstore is a regular file.
+
+2011-12-20  Andreas Schwab  <schwab@linux-m68k.org>
+
+	* configure: Regenerate.
+
+2011-12-20  Tristan Gingold  <gingold@adacore.com>
+
+	* aclocal.m4: Assume strncmp works in cross case.
+	* configure: Regenerate
+
+2011-12-19  Andreas Schwab  <schwab@linux-m68k.org>
+
+	* configure: Regenerate.
+
+2011-11-07  Richard Henderson  <rth@redhat.com>
+
+	Merged from transactional-memory.
+
+	* cp-demangle.c (cplus_demangle_fill_ctor): Accept
+	gnu_v3_object_ctor_group.
+	(cplus_demangle_fill_dtor): Accept gnu_v3_object_dtor_group.
+	(d_ctor_dtor_name): Recognize gnu_v3_object_ctor_group
+	and gnu_v3_object_dtor_group.
+	(d_dump): Handle DEMANGLE_COMPONENT_TRANSACTION_CLONE
+	and DEMANGLE_COMPONENT_NONTRANSACTION_CLONE.
+	(d_make_comp, d_print_comp): Likewise.
+	(d_special_name): Generate them.
+
+2011-11-04  Jason Merrill  <jason@redhat.com>
+
+	PR c++/48370
+	* cp-demangle.c (d_special_name, d_print_comp): Handle a
+	discriminator number on DEMANGLE_COMPONENT_REFTEMP.
+
+2011-11-02  Doug Evans  <dje@google.com>
+
+	* Makefile.in (CFILES): Add timeval-utils.c.
 	(REQUIRED_OFILES): Add timeval-utils.$(objext).
 	(INSTALLED_HEADERS): Add timeval-utils.h.
 	(timeval-utils.$(objext)): Add rule.
+
+2011-10-28  Ian Lance Taylor  <iant@google.com>
+
+	* setproctitle.c (setproctitle): Use "GNU/Linux" in comment.
+
+2011-10-26  Iain Sandoe  <iains@gcc.gnu.org>
+
+	PR target/48108
+	* simple-object-mach-o.c  (GNU_WRAPPER_SECTS, GNU_WRAPPER_INDEX,
+	GNU_WRAPPER_NAMES): New macros.
+	(simple_object_mach_o_segment): Handle wrapper scheme.
+	(simple_object_mach_o_write_section_header): Allow the segment name
+	to be supplied.
+	(simple_object_mach_o_write_segment): Handle wrapper scheme.  Ensure
+	that the top-level segment name in the load command is empty.
+	(simple_object_mach_o_write_to_file): Determine the number of
+	sections during segment output, use that in writing the header.
+
+2011-10-10  Ian Lance Taylor  <iant@google.com>
+
+	PR c++/48665
+	* cp-demangle.c (d_cv_qualifiers): If qualifiers are applied to a
+	function type, change them to apply to the "this" parameter.
+	* testsuite/demangle-expected: Add test case.
+
+2011-09-28  Doug Evans  <dje@google.com>
+
+	* timeval-utils.c: New file.
 
 	* argv.c (countargv): New function.
 

@@ -2,11 +2,11 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build darwin freebsd linux netbsd openbsd
+
 // Read system DNS config from /etc/resolv.conf
 
 package net
-
-import "os"
 
 type dnsConfig struct {
 	servers  []string // servers to use
@@ -17,14 +17,14 @@ type dnsConfig struct {
 	rotate   bool     // round robin among servers
 }
 
-var dnsconfigError os.Error
+var dnsconfigError error
 
 type DNSConfigError struct {
-	Error os.Error
+	Err error
 }
 
-func (e *DNSConfigError) String() string {
-	return "error reading DNS config: " + e.Error.String()
+func (e *DNSConfigError) Error() string {
+	return "error reading DNS config: " + e.Err.Error()
 }
 
 func (e *DNSConfigError) Timeout() bool   { return false }
@@ -34,7 +34,7 @@ func (e *DNSConfigError) Temporary() bool { return false }
 // TODO(rsc): Supposed to call uname() and chop the beginning
 // of the host name to get the default search domain.
 // We assume it's in resolv.conf anyway.
-func dnsReadConfig() (*dnsConfig, os.Error) {
+func dnsReadConfig() (*dnsConfig, error) {
 	file, err := open("/etc/resolv.conf")
 	if err != nil {
 		return nil, &DNSConfigError{err}

@@ -42,14 +42,16 @@ Parse::Enclosing_var_comparison::operator()(const Enclosing_var& v1,
 
 Parse::Parse(Lex* lex, Gogo* gogo)
   : lex_(lex),
-    token_(Token::make_invalid_token(0)),
-    unget_token_(Token::make_invalid_token(0)),
+    token_(Token::make_invalid_token(Linemap::unknown_location())),
+    unget_token_(Token::make_invalid_token(Linemap::unknown_location())),
     unget_token_valid_(false),
+    is_erroneous_function_(false),
     gogo_(gogo),
     break_stack_(NULL),
     continue_stack_(NULL),
     iota_(0),
-    enclosing_vars_()
+    enclosing_vars_(),
+    type_switch_vars_()
 {
 }
 
@@ -92,7 +94,7 @@ Parse::unget_token(const Token& token)
 
 // The location of the current token.
 
-source_location
+Location
 Parse::location()
 {
   return this->peek_token()->location();
@@ -142,7 +144,7 @@ Parse::expression_list(Expression* first, bool may_be_sink)
 	return ret;
 
       // Most expression lists permit a trailing comma.
-      source_location location = token->location();
+      Location location = token->location();
       this->advance_token();
       if (!this->expression_may_start_here())
 	{
@@ -242,7 +244,7 @@ Parse::type()
     return this->interface_type();
   else if (token->is_keyword(KEYWORD_FUNC))
     {
-      source_location location = token->location();
+      Location location = token->location();
       this->advance_token();
       Type* type = this->signature(NULL, location);
       if (type == NULL)
@@ -299,7 +301,7 @@ Parse::type_may_start_here()
 Type*
 Parse::type_name(bool issue_error)
 {
-  source_location location = this->location();
+  Location location = this->location();
 
   std::string name;
   Named_object* package;
@@ -425,7 +427,7 @@ Parse::array_type(bool may_use_ellipsis)
 Type*
 Parse::map_type()
 {
-  source_location location = this->location();
+  Location location = this->location();
   go_assert(this->peek_token()->is_keyword(KEYWORD_MAP));
   if (!this->advance_token()->is_op(OPERATOR_LSQUARE))
     {
@@ -457,10 +459,10 @@ Type*
 Parse::struct_type()
 {
   go_assert(this->peek_token()->is_keyword(KEYWORD_STRUCT));
-  source_location location = this->location();
+  Location location = this->location();
   if (!this->advance_token()->is_op(OPERATOR_LCURLY))
     {
-      source_location token_loc = this->location();
+      Location token_loc = this->location();
       if (this->peek_token()->is_op(OPERATOR_SEMICOLON)
 	  && this->advance_token()->is_op(OPERATOR_LCURLY))
 	error_at(token_loc, "unexpected semicolon or newline before %<{%>");
@@ -514,7 +516,7 @@ void
 Parse::field_decl(Struct_field_list* sfl)
 {
   const Token* token = this->peek_token();
-  source_location location = token->location();
+  Location location = token->location();
   bool is_anonymous;
   bool is_anonymous_pointer;
   if (token->is_op(OPERATOR_MULT))
@@ -526,7 +528,7 @@ Parse::field_decl(Struct_field_list* sfl)
     {
       std::string id = token->identifier();
       bool is_id_exported = token->is_identifier_exported();
-      source_location id_location = token->location();
+      Location id_location = token->location();
       token = this->advance_token();
       is_anonymous = (token->is_op(OPERATOR_SEMICOLON)
 		      || token->is_op(OPERATOR_RCURLY)
@@ -539,6 +541,7 @@ Parse::field_decl(Struct_field_list* sfl)
   else
     {
       error_at(this->location(), "expected field name");
+      this->gogo_->mark_locals_used();
       while (!token->is_op(OPERATOR_SEMICOLON)
 	     && !token->is_op(OPERATOR_RCURLY)
 	     && !token->is_eof())
@@ -554,6 +557,7 @@ Parse::field_decl(Struct_field_list* sfl)
 	  if (!this->peek_token()->is_identifier())
 	    {
 	      error_at(this->location(), "expected field name");
+	      this->gogo_->mark_locals_used();
 	      while (!token->is_op(OPERATOR_SEMICOLON)
 		     && !token->is_op(OPERATOR_RCURLY)
 		     && !token->is_eof())
@@ -718,7 +722,7 @@ Parse::check_signature_names(const Typed_identifier_list* params,
 // This returns NULL on a parse error.
 
 Function_type*
-Parse::signature(Typed_identifier* receiver, source_location location)
+Parse::signature(Typed_identifier* receiver, Location location)
 {
   bool is_varargs = false;
   Typed_identifier_list* params;
@@ -801,7 +805,7 @@ Parse::parameters(Typed_identifier_list** pparams, bool* is_varargs)
 Typed_identifier_list*
 Parse::parameter_list(bool* is_varargs)
 {
-  source_location location = this->location();
+  Location location = this->location();
   Typed_identifier_list* ret = new Typed_identifier_list();
 
   bool saw_error = false;
@@ -822,7 +826,7 @@ Parse::parameter_list(bool* is_varargs)
     {
       std::string name = token->identifier();
       bool is_exported = token->is_identifier_exported();
-      source_location location = token->location();
+      Location location = token->location();
       token = this->advance_token();
       if (!token->is_op(OPERATOR_COMMA))
 	{
@@ -1000,7 +1004,7 @@ Parse::parameter_decl(bool parameters_have_names,
   if (!parameters_have_names)
     {
       Type* type;
-      source_location location = this->location();
+      Location location = this->location();
       if (!this->peek_token()->is_identifier())
 	{
 	  if (!this->peek_token()->is_op(OPERATOR_ELLIPSIS))
@@ -1078,7 +1082,7 @@ Parse::result(Typed_identifier_list** presults)
     return this->parameters(presults, NULL);
   else
     {
-      source_location location = this->location();
+      Location location = this->location();
       Type* type = this->type();
       if (type->is_error_type())
 	{
@@ -1096,19 +1100,19 @@ Parse::result(Typed_identifier_list** presults)
 
 // Returns the location of the closing brace.
 
-source_location
+Location
 Parse::block()
 {
   if (!this->peek_token()->is_op(OPERATOR_LCURLY))
     {
-      source_location loc = this->location();
+      Location loc = this->location();
       if (this->peek_token()->is_op(OPERATOR_SEMICOLON)
 	  && this->advance_token()->is_op(OPERATOR_LCURLY))
 	error_at(loc, "unexpected semicolon or newline before %<{%>");
       else
 	{
 	  error_at(this->location(), "expected %<{%>");
-	  return UNKNOWN_LOCATION;
+	  return Linemap::unknown_location();
 	}
     }
 
@@ -1123,9 +1127,11 @@ Parse::block()
 	  if (!token->is_eof() || !saw_errors())
 	    error_at(this->location(), "expected %<}%>");
 
+	  this->gogo_->mark_locals_used();
+
 	  // Skip ahead to the end of the block, in hopes of avoiding
 	  // lots of meaningless errors.
-	  source_location ret = token->location();
+	  Location ret = token->location();
 	  int nest = 0;
 	  while (!token->is_eof())
 	    {
@@ -1147,7 +1153,7 @@ Parse::block()
 	}
     }
 
-  source_location ret = token->location();
+  Location ret = token->location();
   this->advance_token();
   return ret;
 }
@@ -1159,11 +1165,11 @@ Type*
 Parse::interface_type()
 {
   go_assert(this->peek_token()->is_keyword(KEYWORD_INTERFACE));
-  source_location location = this->location();
+  Location location = this->location();
 
   if (!this->advance_token()->is_op(OPERATOR_LCURLY))
     {
-      source_location token_loc = this->location();
+      Location token_loc = this->location();
       if (this->peek_token()->is_op(OPERATOR_SEMICOLON)
 	  && this->advance_token()->is_op(OPERATOR_LCURLY))
 	error_at(token_loc, "unexpected semicolon or newline before %<{%>");
@@ -1224,7 +1230,7 @@ Parse::method_spec(Typed_identifier_list* methods)
 
   std::string name = token->identifier();
   bool is_exported = token->is_identifier_exported();
-  source_location location = token->location();
+  Location location = token->location();
 
   if (this->advance_token()->is_op(OPERATOR_LPAREN))
     {
@@ -1249,6 +1255,7 @@ Parse::method_spec(Typed_identifier_list* methods)
 		     "name list not allowed in interface type");
 	  else
 	    error_at(location, "expected signature or type name");
+	  this->gogo_->mark_locals_used();
 	  token = this->peek_token();
 	  while (!token->is_eof()
 		 && !token->is_op(OPERATOR_SEMICOLON)
@@ -1472,7 +1479,7 @@ Parse::type_spec(void*)
     }
   std::string name = token->identifier();
   bool is_exported = token->is_identifier_exported();
-  source_location location = token->location();
+  Location location = token->location();
   token = this->advance_token();
 
   // The scope of the type name starts at the point where the
@@ -1498,6 +1505,7 @@ Parse::type_spec(void*)
 
   if (type->is_error_type())
     {
+      this->gogo_->mark_locals_used();
       while (!this->peek_token()->is_op(OPERATOR_SEMICOLON)
 	     && !this->peek_token()->is_eof())
 	this->advance_token();
@@ -1549,7 +1557,7 @@ Parse::var_spec(void*)
   Typed_identifier_list til;
   this->identifier_list(&til);
 
-  source_location location = this->location();
+  Location location = this->location();
 
   Type* type = NULL;
   Expression_list* init = NULL;
@@ -1558,6 +1566,7 @@ Parse::var_spec(void*)
       type = this->type();
       if (type->is_error_type())
 	{
+	  this->gogo_->mark_locals_used();
 	  while (!this->peek_token()->is_op(OPERATOR_EQ)
 		 && !this->peek_token()->is_op(OPERATOR_SEMICOLON)
 		 && !this->peek_token()->is_eof())
@@ -1588,7 +1597,7 @@ Parse::var_spec(void*)
 void
 Parse::init_vars(const Typed_identifier_list* til, Type* type,
 		 Expression_list* init, bool is_coloneq,
-		 source_location location)
+		 Location location)
 {
   // Check for an initialization which can yield multiple values.
   if (init != NULL && init->size() == 1 && til->size() > 1)
@@ -1648,7 +1657,7 @@ Parse::init_vars(const Typed_identifier_list* til, Type* type,
 bool
 Parse::init_vars_from_call(const Typed_identifier_list* vars, Type* type,
 			   Expression* expr, bool is_coloneq,
-			   source_location location)
+			   Location location)
 {
   Call_expression* call = expr->call_expression();
   if (call == NULL)
@@ -1681,7 +1690,7 @@ Parse::init_vars_from_call(const Typed_identifier_list* vars, Type* type,
 bool
 Parse::init_vars_from_map(const Typed_identifier_list* vars, Type* type,
 			  Expression* expr, bool is_coloneq,
-			  source_location location)
+			  Location location)
 {
   Index_expression* index = expr->index_expression();
   if (index == NULL)
@@ -1746,7 +1755,7 @@ Parse::init_vars_from_map(const Typed_identifier_list* vars, Type* type,
 bool
 Parse::init_vars_from_receive(const Typed_identifier_list* vars, Type* type,
 			      Expression* expr, bool is_coloneq,
-			      source_location location)
+			      Location location)
 {
   Receive_expression* receive = expr->receive_expression();
   if (receive == NULL)
@@ -1780,7 +1789,6 @@ Parse::init_vars_from_receive(const Typed_identifier_list* vars, Type* type,
   Statement* s = Statement::make_tuple_receive_assignment(val_var,
 							  received_var,
 							  receive->channel(),
-							  false,
 							  location);
 
   if (!this->gogo_->in_global_scope())
@@ -1812,7 +1820,7 @@ Parse::init_vars_from_receive(const Typed_identifier_list* vars, Type* type,
 bool
 Parse::init_vars_from_type_guard(const Typed_identifier_list* vars,
 				 Type* type, Expression* expr,
-				 bool is_coloneq, source_location location)
+				 bool is_coloneq, Location location)
 {
   Type_guard_expression* type_guard = expr->type_guard_expression();
   if (type_guard == NULL)
@@ -1878,17 +1886,33 @@ Named_object*
 Parse::init_var(const Typed_identifier& tid, Type* type, Expression* init,
 		bool is_coloneq, bool type_from_init, bool* is_new)
 {
-  source_location location = tid.location();
+  Location location = tid.location();
 
   if (Gogo::is_sink_name(tid.name()))
     {
       if (!type_from_init && init != NULL)
 	{
-	  if (!this->gogo_->in_global_scope())
+	  if (this->gogo_->in_global_scope())
+	    return this->create_dummy_global(type, init, location);
+	  else if (type == NULL)
 	    this->gogo_->add_statement(Statement::make_statement(init, true));
 	  else
-	    return this->create_dummy_global(type, init, location);
+	    {
+	      // With both a type and an initializer, create a dummy
+	      // variable so that we will check whether the
+	      // initializer can be assigned to the type.
+	      Variable* var = new Variable(type, init, false, false, false,
+					   location);
+	      var->set_is_used();
+	      static int count;
+	      char buf[30];
+	      snprintf(buf, sizeof buf, "sink$%d", count);
+	      ++count;
+	      return this->gogo_->add_variable(buf, var);
+	    }
 	}
+      if (type != NULL)
+	this->gogo_->add_type_to_verify(type);
       return this->gogo_->add_sink();
     }
 
@@ -1927,7 +1951,7 @@ Parse::init_var(const Typed_identifier& tid, Type* type, Expression* init,
 
 Named_object*
 Parse::create_dummy_global(Type* type, Expression* init,
-			   source_location location)
+			   Location location)
 {
   if (type == NULL && init == NULL)
     type = Type::lookup_bool_type();
@@ -1956,7 +1980,7 @@ Parse::create_dummy_global(Type* type, Expression* init,
 
 void
 Parse::simple_var_decl_or_assignment(const std::string& name,
-				     source_location location,
+				     Location location,
 				     Range_clause* p_range_clause,
 				     Type_switch* p_type_switch)
 {
@@ -1976,7 +2000,7 @@ Parse::simple_var_decl_or_assignment(const std::string& name,
 
 	  std::string id = token->identifier();
 	  bool is_id_exported = token->is_identifier_exported();
-	  source_location id_location = token->location();
+	  Location id_location = token->location();
 
 	  token = this->advance_token();
 	  if (!token->is_op(OPERATOR_COMMA))
@@ -2079,7 +2103,7 @@ void
 Parse::function_decl()
 {
   go_assert(this->peek_token()->is_keyword(KEYWORD_FUNC));
-  source_location location = this->location();
+  Location location = this->location();
   const Token* token = this->advance_token();
 
   Typed_identifier* rec = NULL;
@@ -2102,8 +2126,6 @@ Parse::function_decl()
   this->advance_token();
 
   Function_type* fntype = this->signature(rec, this->location());
-  if (fntype == NULL)
-    return;
 
   Named_object* named_object = NULL;
 
@@ -2138,7 +2160,7 @@ Parse::function_decl()
   // Check for the easy error of a newline before the opening brace.
   if (this->peek_token()->is_op(OPERATOR_SEMICOLON))
     {
-      source_location semi_loc = this->location();
+      Location semi_loc = this->location();
       if (this->advance_token()->is_op(OPERATOR_LCURLY))
 	error_at(this->location(),
 		 "unexpected semicolon or newline before %<{%>");
@@ -2150,13 +2172,28 @@ Parse::function_decl()
   if (!this->peek_token()->is_op(OPERATOR_LCURLY))
     {
       if (named_object == NULL && !Gogo::is_sink_name(name))
-	this->gogo_->declare_function(name, fntype, location);
+	{
+	  if (fntype != NULL)
+	    this->gogo_->declare_function(name, fntype, location);
+	  else
+	    this->gogo_->add_erroneous_name(name);
+	}
     }
   else
     {
+      bool hold_is_erroneous_function = this->is_erroneous_function_;
+      if (fntype == NULL)
+	{
+	  fntype = Type::make_function_type(NULL, NULL, NULL, location);
+	  this->is_erroneous_function_ = true;
+	  if (!Gogo::is_sink_name(name))
+	    this->gogo_->add_erroneous_name(name);
+	  name = this->gogo_->pack_hidden_name("_", false);
+	}
       this->gogo_->start_function(name, fntype, true, location);
-      source_location end_loc = this->block();
+      Location end_loc = this->block();
       this->gogo_->finish_function(end_loc);
+      this->is_erroneous_function_ = hold_is_erroneous_function;
     }
 }
 
@@ -2170,12 +2207,13 @@ Parse::receiver()
 
   std::string name;
   const Token* token = this->advance_token();
-  source_location location = token->location();
+  Location location = token->location();
   if (!token->is_op(OPERATOR_MULT))
     {
       if (!token->is_identifier())
 	{
 	  error_at(this->location(), "method has no receiver");
+	  this->gogo_->mark_locals_used();
 	  while (!token->is_eof() && !token->is_op(OPERATOR_RPAREN))
 	    token = this->advance_token();
 	  if (!token->is_eof())
@@ -2215,6 +2253,7 @@ Parse::receiver()
   if (!token->is_identifier())
     {
       error_at(this->location(), "expected receiver name or type");
+      this->gogo_->mark_locals_used();
       int c = token->is_op(OPERATOR_LPAREN) ? 1 : 0;
       while (!token->is_eof())
 	{
@@ -2246,6 +2285,7 @@ Parse::receiver()
 	error_at(this->location(), "method has multiple receivers");
       else
 	error_at(this->location(), "expected %<)%>");
+      this->gogo_->mark_locals_used();
       while (!token->is_eof() && !token->is_op(OPERATOR_RPAREN))
 	token = this->advance_token();
       if (!token->is_eof())
@@ -2271,7 +2311,7 @@ Parse::operand(bool may_be_sink)
     {
     case Token::TOKEN_IDENTIFIER:
       {
-	source_location location = token->location();
+	Location location = token->location();
 	std::string id = token->identifier();
 	bool is_exported = token->is_identifier_exported();
 	std::string packed = this->gogo_->pack_hidden_name(id, is_exported);
@@ -2353,6 +2393,7 @@ Parse::operand(bool may_be_sink)
 	    }
 	  case Named_object::NAMED_OBJECT_VAR:
 	  case Named_object::NAMED_OBJECT_RESULT_VAR:
+	    this->mark_var_used(named_object);
 	    return Expression::make_var_reference(named_object, location);
 	  case Named_object::NAMED_OBJECT_SINK:
 	    if (may_be_sink)
@@ -2367,7 +2408,15 @@ Parse::operand(bool may_be_sink)
 	    return Expression::make_func_reference(named_object, NULL,
 						   location);
 	  case Named_object::NAMED_OBJECT_UNKNOWN:
-	    return Expression::make_unknown_reference(named_object, location);
+	    {
+	      Unknown_expression* ue =
+		Expression::make_unknown_reference(named_object, location);
+	      if (this->is_erroneous_function_)
+		ue->set_no_error_message();
+	      return ue;
+	    }
+	  case Named_object::NAMED_OBJECT_ERRONEOUS:
+	    return Expression::make_error(location);
 	  default:
 	    go_unreachable();
 	  }
@@ -2376,6 +2425,12 @@ Parse::operand(bool may_be_sink)
 
     case Token::TOKEN_STRING:
       ret = Expression::make_string(token->string_value(), token->location());
+      this->advance_token();
+      return ret;
+
+    case Token::TOKEN_CHARACTER:
+      ret = Expression::make_character(token->character_value(), NULL,
+				       token->location());
       this->advance_token();
       return ret;
 
@@ -2412,7 +2467,7 @@ Parse::operand(bool may_be_sink)
 	case KEYWORD_MAP:
 	case KEYWORD_STRUCT:
 	  {
-	    source_location location = token->location();
+	    Location location = token->location();
 	    return Expression::make_type(this->type(), location);
 	  }
 	default:
@@ -2435,7 +2490,7 @@ Parse::operand(bool may_be_sink)
 	{
 	  // Here we call array_type directly, as this is the only
 	  // case where an ellipsis is permitted for an array type.
-	  source_location location = token->location();
+	  Location location = token->location();
 	  return Expression::make_type(this->array_type(true), location);
 	}
       break;
@@ -2455,9 +2510,11 @@ Parse::operand(bool may_be_sink)
 
 Expression*
 Parse::enclosing_var_reference(Named_object* in_function, Named_object* var,
-			       source_location location)
+			       Location location)
 {
   go_assert(var->is_variable() || var->is_result_variable());
+
+  this->mark_var_used(var);
 
   Named_object* this_function = this->gogo_->current_function();
   Named_object* closure = this_function->func_value()->closure_var();
@@ -2505,7 +2562,7 @@ Parse::enclosing_var_reference(Named_object* in_function, Named_object* var,
 // 1.  In [][][]int{{{1}}} it will be 2.
 
 Expression*
-Parse::composite_lit(Type* type, int depth, source_location location)
+Parse::composite_lit(Type* type, int depth, Location location)
 {
   go_assert(this->peek_token()->is_op(OPERATOR_LCURLY));
   this->advance_token();
@@ -2530,7 +2587,7 @@ Parse::composite_lit(Type* type, int depth, source_location location)
 	{
 	  std::string identifier = token->identifier();
 	  bool is_exported = token->is_identifier_exported();
-	  source_location location = token->location();
+	  Location location = token->location();
 
 	  if (this->advance_token()->is_op(OPERATOR_COLON))
 	    {
@@ -2630,6 +2687,7 @@ Parse::composite_lit(Type* type, int depth, source_location location)
 	{
 	  error_at(this->location(), "expected %<,%> or %<}%>");
 
+	  this->gogo_->mark_locals_used();
 	  int depth = 0;
 	  while (!token->is_eof()
 		 && (depth > 0 || !token->is_op(OPERATOR_RCURLY)))
@@ -2656,7 +2714,7 @@ Parse::composite_lit(Type* type, int depth, source_location location)
 Expression*
 Parse::function_lit()
 {
-  source_location location = this->location();
+  Location location = this->location();
   go_assert(this->peek_token()->is_keyword(KEYWORD_FUNC));
   this->advance_token();
 
@@ -2664,13 +2722,21 @@ Parse::function_lit()
   hold_enclosing_vars.swap(this->enclosing_vars_);
 
   Function_type* type = this->signature(NULL, location);
+  bool fntype_is_error = false;
   if (type == NULL)
-    type = Type::make_function_type(NULL, NULL, NULL, location);
+    {
+      type = Type::make_function_type(NULL, NULL, NULL, location);
+      fntype_is_error = true;
+    }
 
   // For a function literal, the next token must be a '{'.  If we
   // don't see that, then we may have a type expression.
   if (!this->peek_token()->is_op(OPERATOR_LCURLY))
     return Expression::make_type(type, location);
+
+  bool hold_is_erroneous_function = this->is_erroneous_function_;
+  if (fntype_is_error)
+    this->is_erroneous_function_ = true;
 
   Bc_stack* hold_break_stack = this->break_stack_;
   Bc_stack* hold_continue_stack = this->continue_stack_;
@@ -2679,7 +2745,7 @@ Parse::function_lit()
 
   Named_object* no = this->gogo_->start_function("", type, true, location);
 
-  source_location end_loc = this->block();
+  Location end_loc = this->block();
 
   this->gogo_->finish_function(end_loc);
 
@@ -2689,6 +2755,8 @@ Parse::function_lit()
     delete this->continue_stack_;
   this->break_stack_ = hold_break_stack;
   this->continue_stack_ = hold_continue_stack;
+
+  this->is_erroneous_function_ = hold_is_erroneous_function;
 
   hold_enclosing_vars.swap(this->enclosing_vars_);
 
@@ -2706,7 +2774,7 @@ Parse::function_lit()
 
 Expression*
 Parse::create_closure(Named_object* function, Enclosing_vars* enclosing_vars,
-		      source_location location)
+		      Location location)
 {
   if (enclosing_vars->empty())
     return NULL;
@@ -2761,7 +2829,7 @@ Expression*
 Parse::primary_expr(bool may_be_sink, bool may_be_composite_lit,
 		    bool* is_type_switch)
 {
-  source_location start_loc = this->location();
+  Location start_loc = this->location();
   bool is_parenthesized = this->peek_token()->is_op(OPERATOR_LPAREN);
 
   Expression* ret = this->operand(may_be_sink);
@@ -2792,7 +2860,7 @@ Parse::primary_expr(bool may_be_sink, bool may_be_composite_lit,
 	}
       else if (this->peek_token()->is_op(OPERATOR_LPAREN))
 	{
-	  source_location loc = this->location();
+	  Location loc = this->location();
 	  this->advance_token();
 	  Expression* expr = this->expression(PRECEDENCE_NORMAL, false, true,
 					      NULL);
@@ -2859,7 +2927,7 @@ Expression*
 Parse::selector(Expression* left, bool* is_type_switch)
 {
   go_assert(this->peek_token()->is_op(OPERATOR_DOT));
-  source_location location = this->location();
+  Location location = this->location();
 
   const Token* token = this->advance_token();
   if (token->is_identifier())
@@ -2917,7 +2985,7 @@ Parse::selector(Expression* left, bool* is_type_switch)
 Expression*
 Parse::index(Expression* expr)
 {
-  source_location location = this->location();
+  Location location = this->location();
   go_assert(this->peek_token()->is_op(OPERATOR_LSQUARE));
   this->advance_token();
 
@@ -2982,7 +3050,7 @@ Parse::call(Expression* func)
 // Return an expression for a single unqualified identifier.
 
 Expression*
-Parse::id_to_expression(const std::string& name, source_location location)
+Parse::id_to_expression(const std::string& name, Location location)
 {
   Named_object* in_function;
   Named_object* named_object = this->gogo_->lookup(name, &in_function);
@@ -3001,6 +3069,7 @@ Parse::id_to_expression(const std::string& name, source_location location)
       return Expression::make_const_reference(named_object, location);
     case Named_object::NAMED_OBJECT_VAR:
     case Named_object::NAMED_OBJECT_RESULT_VAR:
+      this->mark_var_used(named_object);
       return Expression::make_var_reference(named_object, location);
     case Named_object::NAMED_OBJECT_SINK:
       return Expression::make_sink(location);
@@ -3008,13 +3077,27 @@ Parse::id_to_expression(const std::string& name, source_location location)
     case Named_object::NAMED_OBJECT_FUNC_DECLARATION:
       return Expression::make_func_reference(named_object, NULL, location);
     case Named_object::NAMED_OBJECT_UNKNOWN:
-      return Expression::make_unknown_reference(named_object, location);
+      {
+	Unknown_expression* ue =
+	  Expression::make_unknown_reference(named_object, location);
+	if (this->is_erroneous_function_)
+	  ue->set_no_error_message();
+	return ue;
+      }
     case Named_object::NAMED_OBJECT_PACKAGE:
     case Named_object::NAMED_OBJECT_TYPE:
     case Named_object::NAMED_OBJECT_TYPE_DECLARATION:
-      // These cases can arise for a field name in a composite
-      // literal.
-      return Expression::make_unknown_reference(named_object, location);
+      {
+	// These cases can arise for a field name in a composite
+	// literal.
+	Unknown_expression* ue =
+	  Expression::make_unknown_reference(named_object, location);
+	if (this->is_erroneous_function_)
+	  ue->set_no_error_message();
+	return ue;
+      }
+    case Named_object::NAMED_OBJECT_ERRONEOUS:
+      return Expression::make_error(location);
     default:
       error_at(this->location(), "unexpected type of identifier");
       return Expression::make_error(location);
@@ -3096,7 +3179,7 @@ Parse::expression(Precedence precedence, bool may_be_sink,
 	}
 
       Operator op = token->op();
-      source_location binop_location = token->location();
+      Location binop_location = token->location();
 
       if (precedence >= right_precedence)
 	{
@@ -3156,6 +3239,7 @@ Parse::expression_may_start_here()
 	default:
 	  return false;
 	}
+    case Token::TOKEN_CHARACTER:
     case Token::TOKEN_INTEGER:
     case Token::TOKEN_FLOAT:
     case Token::TOKEN_IMAGINARY:
@@ -3188,7 +3272,7 @@ Parse::unary_expr(bool may_be_sink, bool may_be_composite_lit,
       || token->is_op(OPERATOR_MULT)
       || token->is_op(OPERATOR_AND))
     {
-      source_location location = token->location();
+      Location location = token->location();
       Operator op = token->op();
       this->advance_token();
 
@@ -3288,7 +3372,7 @@ Parse::statement(Label* label)
       {
 	std::string identifier = token->identifier();
 	bool is_exported = token->is_identifier_exported();
-	source_location location = token->location();
+	Location location = token->location();
 	if (this->advance_token()->is_op(OPERATOR_COLON))
 	  {
 	    this->advance_token();
@@ -3307,9 +3391,9 @@ Parse::statement(Label* label)
     case Token::TOKEN_OPERATOR:
       if (token->is_op(OPERATOR_LCURLY))
 	{
-	  source_location location = token->location();
+	  Location location = token->location();
 	  this->gogo_->start_block(location);
-	  source_location end_loc = this->block();
+	  Location end_loc = this->block();
 	  this->gogo_->add_block(this->gogo_->finish_block(end_loc),
 				 location);
 	}
@@ -3318,6 +3402,7 @@ Parse::statement(Label* label)
       break;
 
     case Token::TOKEN_STRING:
+    case Token::TOKEN_CHARACTER:
     case Token::TOKEN_INTEGER:
     case Token::TOKEN_FLOAT:
     case Token::TOKEN_IMAGINARY:
@@ -3377,6 +3462,7 @@ Parse::statement_may_start_here()
 	return this->expression_may_start_here();
 
     case Token::TOKEN_STRING:
+    case Token::TOKEN_CHARACTER:
     case Token::TOKEN_INTEGER:
     case Token::TOKEN_FLOAT:
     case Token::TOKEN_IMAGINARY:
@@ -3391,7 +3477,7 @@ Parse::statement_may_start_here()
 // Label       = identifier .
 
 void
-Parse::labeled_stmt(const std::string& label_name, source_location location)
+Parse::labeled_stmt(const std::string& label_name, Location location)
 {
   Label* label = this->gogo_->add_label_definition(label_name, location);
 
@@ -3447,7 +3533,7 @@ Parse::simple_stat(bool may_be_composite_lit, bool* return_exp,
     {
       std::string identifier = token->identifier();
       bool is_exported = token->is_identifier_exported();
-      source_location location = token->location();
+      Location location = token->location();
 
       token = this->advance_token();
       if (token->is_op(OPERATOR_COLONEQ)
@@ -3513,6 +3599,7 @@ Parse::simple_stat(bool may_be_composite_lit, bool* return_exp,
 	{
 	  if (!exp->is_error_expression())
 	    error_at(token->location(), "non-name on left side of %<:=%>");
+	  this->gogo_->mark_locals_used();
 	  while (!token->is_op(OPERATOR_SEMICOLON)
 		 && !token->is_eof())
 	    token = this->advance_token();
@@ -3576,7 +3663,7 @@ void
 Parse::send_stmt(Expression* channel)
 {
   go_assert(this->peek_token()->is_op(OPERATOR_CHANOP));
-  source_location loc = this->location();
+  Location loc = this->location();
   this->advance_token();
   Expression* val = this->expression(PRECEDENCE_NORMAL, false, true, NULL);
   Statement* s = Statement::make_send_statement(channel, val, loc);
@@ -3655,7 +3742,7 @@ Parse::tuple_assignment(Expression_list* lhs, Range_clause* p_range_clause)
       return;
     }
   Operator op = token->op();
-  source_location location = token->location();
+  Location location = token->location();
 
   token = this->advance_token();
 
@@ -3769,7 +3856,6 @@ Parse::tuple_assignment(Expression_list* lhs, Range_clause* p_range_clause)
       Expression* channel = receive->channel();
       Statement* s = Statement::make_tuple_receive_assignment(val, success,
 							      channel,
-							      false,
 							      location);
       this->gogo_->add_statement(s);
     }
@@ -3803,9 +3889,9 @@ Parse::go_or_defer_stat()
   go_assert(this->peek_token()->is_keyword(KEYWORD_GO)
 	     || this->peek_token()->is_keyword(KEYWORD_DEFER));
   bool is_go = this->peek_token()->is_keyword(KEYWORD_GO);
-  source_location stat_location = this->location();
+  Location stat_location = this->location();
   this->advance_token();
-  source_location expr_location = this->location();
+  Location expr_location = this->location();
   Expression* expr = this->expression(PRECEDENCE_NORMAL, false, true, NULL);
   Call_expression* call_expr = expr->call_expression();
   if (call_expr == NULL)
@@ -3833,12 +3919,29 @@ void
 Parse::return_stat()
 {
   go_assert(this->peek_token()->is_keyword(KEYWORD_RETURN));
-  source_location location = this->location();
+  Location location = this->location();
   this->advance_token();
   Expression_list* vals = NULL;
   if (this->expression_may_start_here())
     vals = this->expression_list(NULL, false);
   this->gogo_->add_statement(Statement::make_return_statement(vals, location));
+
+  if (vals == NULL
+      && this->gogo_->current_function()->func_value()->results_are_named())
+    {
+      Named_object* function = this->gogo_->current_function();
+      Function::Results* results = function->func_value()->result_variables();
+      for (Function::Results::const_iterator p = results->begin();
+	   p != results->end();
+	   ++p)
+	{
+	  Named_object* no = this->gogo_->lookup((*p)->name(), NULL);
+	  go_assert(no != NULL);
+	  if (!no->is_result_variable())
+	    error_at(location, "%qs is shadowed during return",
+		     (*p)->message_name().c_str());
+	}
+    }
 }
 
 // IfStmt = "if" [ SimpleStmt ";" ] Expression Block
@@ -3848,7 +3951,7 @@ void
 Parse::if_stat()
 {
   go_assert(this->peek_token()->is_keyword(KEYWORD_IF));
-  source_location location = this->location();
+  Location location = this->location();
   this->advance_token();
 
   this->gogo_->start_block(location);
@@ -3894,13 +3997,13 @@ Parse::if_stat()
     }
 
   this->gogo_->start_block(this->location());
-  source_location end_loc = this->block();
+  Location end_loc = this->block();
   Block* then_block = this->gogo_->finish_block(end_loc);
 
   // Check for the easy error of a newline before "else".
   if (this->peek_token()->is_op(OPERATOR_SEMICOLON))
     {
-      source_location semi_loc = this->location();
+      Location semi_loc = this->location();
       if (this->advance_token()->is_keyword(KEYWORD_ELSE))
 	error_at(this->location(),
 		 "unexpected semicolon or newline before %<else%>");
@@ -3945,7 +4048,7 @@ void
 Parse::switch_stat(Label* label)
 {
   go_assert(this->peek_token()->is_keyword(KEYWORD_SWITCH));
-  source_location location = this->location();
+  Location location = this->location();
   this->advance_token();
 
   this->gogo_->start_block(location);
@@ -3954,6 +4057,7 @@ Parse::switch_stat(Label* label)
   Expression* switch_val = NULL;
   bool saw_send_stmt;
   Type_switch type_switch;
+  bool have_type_switch_block = false;
   if (this->simple_stat_may_start_here())
     {
       switch_val = this->simple_stat(false, &saw_send_stmt, NULL,
@@ -3987,7 +4091,7 @@ Parse::switch_stat(Label* label)
 	      const Token* token = this->peek_token();
 	      std::string identifier = token->identifier();
 	      bool is_exported = token->is_identifier_exported();
-	      source_location id_loc = token->location();
+	      Location id_loc = token->location();
 
 	      token = this->advance_token();
 	      bool is_coloneq = token->is_op(OPERATOR_COLONEQ);
@@ -3996,7 +4100,14 @@ Parse::switch_stat(Label* label)
 							     id_loc));
 	      if (is_coloneq)
 		{
-		  // This must be a TypeSwitchGuard.
+		  // This must be a TypeSwitchGuard.  It is in a
+		  // different block from any initial SimpleStat.
+		  if (saw_simple_stat)
+		    {
+		      this->gogo_->start_block(id_loc);
+		      have_type_switch_block = true;
+		    }
+
 		  switch_val = this->simple_stat(false, &saw_send_stmt, NULL,
 						 &type_switch);
 		  if (!type_switch.found)
@@ -4026,7 +4137,7 @@ Parse::switch_stat(Label* label)
 
   if (!this->peek_token()->is_op(OPERATOR_LCURLY))
     {
-      source_location token_loc = this->location();
+      Location token_loc = this->location();
       if (this->peek_token()->is_op(OPERATOR_SEMICOLON)
 	  && this->advance_token()->is_op(OPERATOR_LCURLY))
 	error_at(token_loc, "unexpected semicolon or newline before %<{%>");
@@ -4039,13 +4150,23 @@ Parse::switch_stat(Label* label)
 	  if (this->peek_token()->is_op(OPERATOR_SEMICOLON))
 	    this->advance_token();
 	  if (!this->peek_token()->is_op(OPERATOR_LCURLY))
-	    return;
+	    {
+	      if (have_type_switch_block)
+		this->gogo_->add_block(this->gogo_->finish_block(location),
+				       location);
+	      this->gogo_->add_block(this->gogo_->finish_block(location),
+				     location);
+	      return;
+	    }
 	  if (type_switch.found)
 	    type_switch.expr = Expression::make_error(location);
 	}
       else
 	{
 	  error_at(this->location(), "expected %<{%>");
+	  if (have_type_switch_block)
+	    this->gogo_->add_block(this->gogo_->finish_block(this->location()),
+				   location);
 	  this->gogo_->add_block(this->gogo_->finish_block(this->location()),
 				 location);
 	  return;
@@ -4062,6 +4183,10 @@ Parse::switch_stat(Label* label)
   if (statement != NULL)
     this->gogo_->add_statement(statement);
 
+  if (have_type_switch_block)
+    this->gogo_->add_block(this->gogo_->finish_block(this->location()),
+			   location);
+
   this->gogo_->add_block(this->gogo_->finish_block(this->location()),
 			 location);
 }
@@ -4071,7 +4196,7 @@ Parse::switch_stat(Label* label)
 
 Statement*
 Parse::expr_switch_body(Label* label, Expression* switch_val,
-			source_location location)
+			Location location)
 {
   Switch_statement* statement = Statement::make_switch_statement(switch_val,
 								 location);
@@ -4105,7 +4230,7 @@ Parse::expr_switch_body(Label* label, Expression* switch_val,
 void
 Parse::expr_case_clause(Case_clauses* clauses, bool* saw_default)
 {
-  source_location location = this->location();
+  Location location = this->location();
 
   bool is_default = false;
   Expression_list* vals = this->expr_switch_case(&is_default);
@@ -4181,7 +4306,7 @@ Parse::expr_switch_case(bool* is_default)
 
 Statement*
 Parse::type_switch_body(Label* label, const Type_switch& type_switch,
-			source_location location)
+			Location location)
 {
   Named_object* switch_no = NULL;
   if (!type_switch.name.empty())
@@ -4226,7 +4351,7 @@ void
 Parse::type_case_clause(Named_object* switch_no, Type_case_clauses* clauses,
 			bool* saw_default)
 {
-  source_location location = this->location();
+  Location location = this->location();
 
   std::vector<Type*> types;
   bool is_default = false;
@@ -4250,7 +4375,15 @@ Parse::type_case_clause(Named_object* switch_no, Type_case_clauses* clauses,
 	  Variable* v = new Variable(type, init, false, false, false,
 				     location);
 	  v->set_is_type_switch_var();
-	  this->gogo_->add_variable(switch_no->name(), v);
+	  Named_object* no = this->gogo_->add_variable(switch_no->name(), v);
+
+	  // We don't want to issue an error if the compiler
+	  // introduced special variable is not used.  Instead we want
+	  // to issue an error if the variable defined by the switch
+	  // is not used.  That is handled via type_switch_vars_ and
+	  // Parse::mark_var_used.
+	  v->set_is_used();
+	  this->type_switch_vars_[no] = switch_no;
 	}
       this->statement_list();
       statements = this->gogo_->finish_block(this->location());
@@ -4306,6 +4439,7 @@ Parse::type_switch_case(std::vector<Type*>* types, bool* is_default)
 	    types->push_back(t);
 	  else
 	    {
+	      this->gogo_->mark_locals_used();
 	      token = this->peek_token();
 	      while (!token->is_op(OPERATOR_COLON)
 		     && !token->is_op(OPERATOR_COMMA)
@@ -4338,12 +4472,12 @@ void
 Parse::select_stat(Label* label)
 {
   go_assert(this->peek_token()->is_keyword(KEYWORD_SELECT));
-  source_location location = this->location();
+  Location location = this->location();
   const Token* token = this->advance_token();
 
   if (!token->is_op(OPERATOR_LCURLY))
     {
-      source_location token_loc = token->location();
+      Location token_loc = token->location();
       if (token->is_op(OPERATOR_SEMICOLON)
 	  && this->advance_token()->is_op(OPERATOR_LCURLY))
 	error_at(token_loc, "unexpected semicolon or newline before %<{%>");
@@ -4385,7 +4519,7 @@ Parse::select_stat(Label* label)
 void
 Parse::comm_clause(Select_clauses* clauses, bool* saw_default)
 {
-  source_location location = this->location();
+  Location location = this->location();
   bool is_send = false;
   Expression* channel = NULL;
   Expression* val = NULL;
@@ -4501,7 +4635,7 @@ Parse::send_or_recv_stmt(bool* is_send, Expression** channel, Expression** val,
       Gogo* gogo = this->gogo_;
       std::string recv_var = token->identifier();
       bool is_rv_exported = token->is_identifier_exported();
-      source_location recv_var_loc = token->location();
+      Location recv_var_loc = token->location();
       token = this->advance_token();
       if (token->is_op(OPERATOR_COLONEQ))
 	{
@@ -4530,7 +4664,7 @@ Parse::send_or_recv_stmt(bool* is_send, Expression** channel, Expression** val,
 	    {
 	      std::string recv_closed = token->identifier();
 	      bool is_rc_exported = token->is_identifier_exported();
-	      source_location recv_closed_loc = token->location();
+	      Location recv_closed_loc = token->location();
 	      closed_is_id = true;
 
 	      token = this->advance_token();
@@ -4656,7 +4790,7 @@ void
 Parse::for_stat(Label* label)
 {
   go_assert(this->peek_token()->is_keyword(KEYWORD_FOR));
-  source_location location = this->location();
+  Location location = this->location();
   const Token* token = this->advance_token();
 
   // Open a block to hold any variables defined in the init statement
@@ -4744,7 +4878,7 @@ Parse::for_stat(Label* label)
   // For_statement.
 
   this->gogo_->start_block(this->location());
-  source_location end_loc = this->block();
+  Location end_loc = this->block();
   Block* statements = this->gogo_->finish_block(end_loc);
 
   if (sfor != NULL)
@@ -4813,7 +4947,7 @@ Parse::range_clause_decl(const Typed_identifier_list* til,
 			 Range_clause* p_range_clause)
 {
   go_assert(this->peek_token()->is_keyword(KEYWORD_RANGE));
-  source_location location = this->location();
+  Location location = this->location();
 
   p_range_clause->found = true;
 
@@ -4939,7 +5073,7 @@ void
 Parse::break_stat()
 {
   go_assert(this->peek_token()->is_keyword(KEYWORD_BREAK));
-  source_location location = this->location();
+  Location location = this->location();
 
   const Token* token = this->advance_token();
   Statement* enclosing;
@@ -4961,7 +5095,8 @@ Parse::break_stat()
 	{
 	  // If there is a label with this name, mark it as used to
 	  // avoid a useless error about an unused label.
-	  this->gogo_->add_label_reference(token->identifier(), 0, false);
+	  this->gogo_->add_label_reference(token->identifier(),
+                                           Linemap::unknown_location(), false);
 
 	  error_at(token->location(), "invalid break label %qs",
 		   Gogo::message_name(token->identifier()).c_str());
@@ -4995,7 +5130,7 @@ void
 Parse::continue_stat()
 {
   go_assert(this->peek_token()->is_keyword(KEYWORD_CONTINUE));
-  source_location location = this->location();
+  Location location = this->location();
 
   const Token* token = this->advance_token();
   Statement* enclosing;
@@ -5016,7 +5151,8 @@ Parse::continue_stat()
 	{
 	  // If there is a label with this name, mark it as used to
 	  // avoid a useless error about an unused label.
-	  this->gogo_->add_label_reference(token->identifier(), 0, false);
+	  this->gogo_->add_label_reference(token->identifier(),
+                                           Linemap::unknown_location(), false);
 
 	  error_at(token->location(), "invalid continue label %qs",
 		   Gogo::message_name(token->identifier()).c_str());
@@ -5044,7 +5180,7 @@ void
 Parse::goto_stat()
 {
   go_assert(this->peek_token()->is_keyword(KEYWORD_GOTO));
-  source_location location = this->location();
+  Location location = this->location();
   const Token* token = this->advance_token();
   if (!token->is_identifier())
     error_at(this->location(), "expected label for goto");
@@ -5064,7 +5200,7 @@ void
 Parse::package_clause()
 {
   const Token* token = this->peek_token();
-  source_location location = token->location();
+  Location location = token->location();
   std::string name;
   if (!token->is_keyword(KEYWORD_PACKAGE))
     {
@@ -5109,7 +5245,7 @@ void
 Parse::import_spec(void*)
 {
   const Token* token = this->peek_token();
-  source_location location = token->location();
+  Location location = token->location();
 
   std::string local_name;
   bool is_local_name_exported = false;
@@ -5170,6 +5306,7 @@ Parse::program()
       else
 	{
 	  error_at(this->location(), "expected declaration");
+	  this->gogo_->mark_locals_used();
 	  do
 	    this->advance_token();
 	  while (!this->peek_token()->is_eof()
@@ -5228,6 +5365,7 @@ Parse::increment_iota()
 bool
 Parse::skip_past_error(Operator op)
 {
+  this->gogo_->mark_locals_used();
   const Token* token = this->peek_token();
   while (!token->is_op(op))
     {
@@ -5254,4 +5392,23 @@ Parse::verify_not_sink(Expression* expr)
       expr = Expression::make_error(expr->location());
     }
   return expr;
+}
+
+// Mark a variable as used.
+
+void
+Parse::mark_var_used(Named_object* no)
+{
+  if (no->is_variable())
+    {
+      no->var_value()->set_is_used();
+
+      // When a type switch uses := to define a variable, then for
+      // each case with a single type we introduce a new variable with
+      // the appropriate type.  When we do, if the newly introduced
+      // variable is used, then the type switch variable is used.
+      Type_switch_vars::iterator p = this->type_switch_vars_.find(no);
+      if (p != this->type_switch_vars_.end())
+	p->second->var_value()->set_is_used();
+    }
 }

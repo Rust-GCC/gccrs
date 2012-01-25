@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -60,6 +60,7 @@ with Sem_Ch8;  use Sem_Ch8;
 with Sem_Ch10; use Sem_Ch10;
 with Sem_Ch12; use Sem_Ch12;
 with Sem_Ch13; use Sem_Ch13;
+with Sem_Dim;  use Sem_Dim;
 with Sem_Disp; use Sem_Disp;
 with Sem_Dist; use Sem_Dist;
 with Sem_Elim; use Sem_Elim;
@@ -78,6 +79,7 @@ with Snames;   use Snames;
 with Stringt;  use Stringt;
 with Style;
 with Stylesw;  use Stylesw;
+with Targparm; use Targparm;
 with Tbuild;   use Tbuild;
 with Uintp;    use Uintp;
 with Urealp;   use Urealp;
@@ -267,14 +269,20 @@ package body Sem_Ch6 is
    procedure Analyze_Expression_Function (N : Node_Id) is
       Loc      : constant Source_Ptr := Sloc (N);
       LocX     : constant Source_Ptr := Sloc (Expression (N));
-      Def_Id   : constant Entity_Id  := Defining_Entity (Specification (N));
       Expr     : constant Node_Id    := Expression (N);
+      Spec     : constant Node_Id    := Specification (N);
+
+      Def_Id :  Entity_Id;
+      pragma Unreferenced (Def_Id);
+
+      Prev :  Entity_Id;
+      --  If the expression is a completion, Prev is the entity whose
+      --  declaration is completed. Def_Id is needed to analyze the spec.
+
       New_Body : Node_Id;
       New_Decl : Node_Id;
-
-      Prev : constant Entity_Id := Current_Entity_In_Scope (Def_Id);
-      --  If the expression is a completion, Prev is the entity whose
-      --  declaration is completed.
+      New_Spec : Node_Id;
+      Ret      : Node_Id;
 
    begin
       --  This is one of the occasions on which we transform the tree during
@@ -285,16 +293,26 @@ package body Sem_Ch6 is
       --  determine whether this is possible.
 
       Inline_Processing_Required := True;
+      New_Spec := Copy_Separate_Tree (Spec);
+      Prev     := Current_Entity_In_Scope (Defining_Entity (Spec));
+
+      --  If there are previous overloadable entities with the same name,
+      --  check whether any of them is completed by the expression function.
+
+      if Present (Prev) and then Is_Overloadable (Prev) then
+         Def_Id   := Analyze_Subprogram_Specification (Spec);
+         Prev     := Find_Corresponding_Spec (N);
+      end if;
+
+      Ret := Make_Simple_Return_Statement (LocX, Expression (N));
 
       New_Body :=
         Make_Subprogram_Body (Loc,
-          Specification              => Copy_Separate_Tree (Specification (N)),
+          Specification              => New_Spec,
           Declarations               => Empty_List,
           Handled_Statement_Sequence =>
             Make_Handled_Sequence_Of_Statements (LocX,
-              Statements => New_List (
-                Make_Simple_Return_Statement (LocX,
-                  Expression => Expression (N)))));
+              Statements => New_List (Ret)));
 
       if Present (Prev) and then Ekind (Prev) = E_Generic_Function then
 
@@ -306,6 +324,7 @@ package body Sem_Ch6 is
 
          Insert_After (N, New_Body);
          Rewrite (N, Make_Null_Statement (Loc));
+         Set_Has_Completion (Prev, False);
          Analyze (N);
          Analyze (New_Body);
          Set_Is_Inlined (Prev);
@@ -313,6 +332,11 @@ package body Sem_Ch6 is
       elsif Present (Prev)
         and then Comes_From_Source (Prev)
       then
+         Set_Has_Completion (Prev, False);
+
+         --  For navigation purposes, indicate that the function is a body
+
+         Generate_Reference (Prev, Defining_Entity (N), 'b', Force => True);
          Rewrite (N, New_Body);
          Analyze (N);
 
@@ -332,8 +356,7 @@ package body Sem_Ch6 is
 
       else
          New_Decl :=
-           Make_Subprogram_Declaration (Loc,
-             Specification => Specification (N));
+           Make_Subprogram_Declaration (Loc, Specification => Spec);
 
          Rewrite (N, New_Decl);
          Analyze (N);
@@ -341,10 +364,13 @@ package body Sem_Ch6 is
 
          --  To prevent premature freeze action, insert the new body at the end
          --  of the current declarations, or at the end of the package spec.
+         --  However, resolve usage names now, to prevent spurious visibility
+         --  on later entities.
 
          declare
-            Decls : List_Id          := List_Containing (N);
-            Par   : constant Node_Id := Parent (Decls);
+            Decls : List_Id            := List_Containing (N);
+            Par   : constant Node_Id   := Parent (Decls);
+            Id    : constant Entity_Id := Defining_Entity (New_Decl);
 
          begin
             if Nkind (Par) = N_Package_Specification
@@ -356,6 +382,10 @@ package body Sem_Ch6 is
             end if;
 
             Insert_After (Last (Decls), New_Body);
+            Push_Scope (Id);
+            Install_Formals (Id);
+            Preanalyze_Spec_Expression (Expression  (Ret), Etype (Id));
+            End_Scope;
          end;
       end if;
 
@@ -387,9 +417,9 @@ package body Sem_Ch6 is
    begin
       Analyze (P);
 
-      --  A call of the form A.B (X) may be an Ada05 call, which is rewritten
-      --  as B (A, X). If the rewriting is successful, the call has been
-      --  analyzed and we just return.
+      --  A call of the form A.B (X) may be an Ada 2005 call, which is
+      --  rewritten as B (A, X). If the rewriting is successful, the call
+      --  has been analyzed and we just return.
 
       if Nkind (P) = N_Selected_Component
         and then Name (N) /= P
@@ -452,7 +482,18 @@ package body Sem_Ch6 is
          --  incompatibility with Ada 95. Not clear whether this should be
          --  enforced yet or perhaps controllable with special switch. ???
 
-         if Is_Limited_Type (R_Type)
+         --  A limited interface that is not immutably limited is OK.
+
+         if Is_Limited_Interface (R_Type)
+           and then
+             not (Is_Task_Interface (R_Type)
+                   or else Is_Protected_Interface (R_Type)
+                   or else Is_Synchronized_Interface (R_Type))
+         then
+            null;
+
+         elsif Is_Limited_Type (R_Type)
+           and then not Is_Interface (R_Type)
            and then Comes_From_Source (N)
            and then not In_Instance_Body
            and then not OK_For_Limited_Init_In_05 (R_Type, Expr)
@@ -484,7 +525,7 @@ package body Sem_Ch6 is
             elsif Warn_On_Ada_2005_Compatibility or GNAT_Mode then
                if Inside_A_Generic then
                   Error_Msg_N
-                    ("return of limited object not permitted in Ada2005 "
+                    ("return of limited object not permitted in Ada 2005 "
                      & "(RM-2005 6.5(5.5/2))?", Expr);
 
                elsif Is_Immutably_Limited_Type (R_Type) then
@@ -1329,6 +1370,15 @@ package body Sem_Ch6 is
          Analyze (P);
          Analyze_Call_And_Resolve;
 
+      --  In Ada 2012. a qualified expression is a name, but it cannot be a
+      --  procedure name, so the construct can only be a qualified expression.
+
+      elsif Nkind (P) = N_Qualified_Expression
+        and then Ada_Version >= Ada_2012
+      then
+         Rewrite (N, Make_Code_Statement (Loc, Expression => P));
+         Analyze (N);
+
       --  Anything else is an error
 
       else
@@ -1448,9 +1498,19 @@ package body Sem_Ch6 is
          --  extended_return_statement.
 
          if Returns_Object then
-            Error_Msg_N
-              ("extended_return_statement cannot return value; " &
-               "use `""RETURN;""`", N);
+            if Nkind (N) = N_Extended_Return_Statement then
+               Error_Msg_N
+                 ("extended return statement cannot be nested (use `RETURN;`)",
+                  N);
+
+            --  Case of a simple return statement with a value inside extended
+            --  return statement.
+
+            else
+               Error_Msg_N
+                 ("return nested in extended return statement cannot return " &
+                  "value (use `RETURN;`)", N);
+            end if;
          end if;
 
       else
@@ -1470,6 +1530,8 @@ package body Sem_Ch6 is
 
       Kill_Current_Values (Last_Assignment_Only => True);
       Check_Unreachable_Code (N);
+
+      Analyze_Dimension (N);
    end Analyze_Return_Statement;
 
    -------------------------------------
@@ -1620,10 +1682,13 @@ package body Sem_Ch6 is
 
                   --  The type must be completed in the current package. This
                   --  is checked at the end of the package declaraton, when
-                  --  Taft amemdment types are identified.
+                  --  Taft-amendment types are identified. If the return type
+                  --  is class-wide, there is no required check, the type can
+                  --  be a bona fide TAT.
 
                   if Ekind (Scope (Current_Scope)) = E_Package
                     and then In_Private_Part (Scope (Current_Scope))
+                    and then not Is_Class_Wide_Type (Typ)
                   then
                      Append_Elmt (Designator, Private_Dependents (Typ));
                   end if;
@@ -2370,7 +2435,7 @@ package body Sem_Ch6 is
             --  expansion has generated an equivalent type that is used when
             --  elaborating the body.
 
-            --  An exception in the case of Ada2012, AI05-177: The bodies
+            --  An exception in the case of Ada 2012, AI05-177: The bodies
             --  created for expression functions do not freeze.
 
             if No (Spec_Id)
@@ -3073,7 +3138,6 @@ package body Sem_Ch6 is
 
          Set_Defining_Unit_Name (Specification (Null_Body),
            Make_Defining_Identifier (Loc, Chars (Defining_Entity (N))));
-         Set_Corresponding_Body (N, Defining_Entity (Null_Body));
 
          Form := First (Parameter_Specifications (Specification (Null_Body)));
          while Present (Form) loop
@@ -3127,7 +3191,13 @@ package body Sem_Ch6 is
       then
          Set_Has_Completion (Designator);
 
-         if Present (Null_Body) then
+         --  Null procedures are always inlined, but generic formal subprograms
+         --  which appear as such in the internal instance of formal packages,
+         --  need no completion and are not marked Inline.
+
+         if Present (Null_Body)
+           and then Nkind (N) /= N_Formal_Concrete_Subprogram_Declaration
+         then
             Set_Corresponding_Body (N, Defining_Entity (Null_Body));
             Set_Body_To_Inline (N, Null_Body);
             Set_Is_Inlined (Designator);
@@ -3202,9 +3272,16 @@ package body Sem_Ch6 is
                               and then Null_Present (Specification (N)))
             then
                Error_Msg_Name_1 := Chars (Defining_Entity (N));
-               Error_Msg_N
-                 ("(Ada 2005) interface subprogram % must be abstract or null",
-                  N);
+
+               --  Specialize error message based on procedures vs. functions,
+               --  since functions can't be null subprograms.
+
+               if Ekind (Designator) = E_Procedure then
+                  Error_Msg_N
+                    ("interface procedure % must be abstract or null", N);
+               else
+                  Error_Msg_N ("interface function % must be abstract", N);
+               end if;
             end if;
          end;
       end if;
@@ -3394,14 +3471,17 @@ package body Sem_Ch6 is
 
          --  Ada 2005 (AI-251): If the return type is abstract, verify that
          --  the subprogram is abstract also. This does not apply to renaming
-         --  declarations, where abstractness is inherited.
+         --  declarations, where abstractness is inherited, and to subprogram
+         --  bodies generated for stream operations, which become renamings as
+         --  bodies.
 
          --  In case of primitives associated with abstract interface types
          --  the check is applied later (see Analyze_Subprogram_Declaration).
 
-         if not Nkind_In (Parent (N), N_Subprogram_Renaming_Declaration,
-                                      N_Abstract_Subprogram_Declaration,
-                                      N_Formal_Abstract_Subprogram_Declaration)
+         if not Nkind_In (Original_Node (Parent (N)),
+                            N_Subprogram_Renaming_Declaration,
+                            N_Abstract_Subprogram_Declaration,
+                            N_Formal_Abstract_Subprogram_Declaration)
          then
             if Is_Abstract_Type (Etype (Designator))
               and then not Is_Interface (Etype (Designator))
@@ -6123,7 +6203,7 @@ package body Sem_Ch6 is
             Desig_2 : Entity_Id;
 
          begin
-            --  In Ada2005, access constant indicators must match for
+            --  In Ada 2005, access constant indicators must match for
             --  subtype conformance.
 
             if Ada_Version >= Ada_2005
@@ -6440,6 +6520,8 @@ package body Sem_Ch6 is
       if Ada_Version >= Ada_2005 and then Is_Build_In_Place_Function (E) then
          declare
             Result_Subt : constant Entity_Id := Etype (E);
+            Full_Subt   : constant Entity_Id := Available_View (Result_Subt);
+            Formal_Typ  : Entity_Id;
 
             Discard : Entity_Id;
             pragma Warnings (Off, Discard);
@@ -6462,6 +6544,19 @@ package body Sem_Ch6 is
                  Add_Extra_Formal
                    (E, Standard_Natural,
                     E, BIP_Formal_Suffix (BIP_Alloc_Form));
+
+               --  Add BIP_Storage_Pool, in case BIP_Alloc_Form indicates to
+               --  use a user-defined pool. This formal is not added on
+               --  .NET/JVM/ZFP as those targets do not support pools.
+
+               if VM_Target = No_VM
+                 and then RTE_Available (RE_Root_Storage_Pool_Ptr)
+               then
+                  Discard :=
+                    Add_Extra_Formal
+                      (E, RTE (RE_Root_Storage_Pool_Ptr),
+                       E, BIP_Formal_Suffix (BIP_Storage_Pool));
+               end if;
             end if;
 
             --  In the case of functions whose result type needs finalization,
@@ -6478,11 +6573,11 @@ package body Sem_Ch6 is
             --  master of the tasks to be created, and the caller's activation
             --  chain.
 
-            if Has_Task (Available_View (Result_Subt)) then
+            if Has_Task (Full_Subt) then
                Discard :=
                  Add_Extra_Formal
                    (E, RTE (RE_Master_Id),
-                    E, BIP_Formal_Suffix (BIP_Master));
+                    E, BIP_Formal_Suffix (BIP_Task_Master));
                Discard :=
                  Add_Extra_Formal
                    (E, RTE (RE_Activation_Chain_Access),
@@ -6492,31 +6587,27 @@ package body Sem_Ch6 is
             --  All build-in-place functions get an extra formal that will be
             --  passed the address of the return object within the caller.
 
-            declare
-               Formal_Type : constant Entity_Id :=
-                               Create_Itype
-                                 (E_Anonymous_Access_Type, E,
-                                  Scope_Id => Scope (E));
-            begin
-               Set_Directly_Designated_Type (Formal_Type, Result_Subt);
-               Set_Etype (Formal_Type, Formal_Type);
-               Set_Depends_On_Private
-                 (Formal_Type, Has_Private_Component (Formal_Type));
-               Set_Is_Public (Formal_Type, Is_Public (Scope (Formal_Type)));
-               Set_Is_Access_Constant (Formal_Type, False);
+            Formal_Typ :=
+              Create_Itype (E_Anonymous_Access_Type, E, Scope_Id => Scope (E));
 
-               --  Ada 2005 (AI-50217): Propagate the attribute that indicates
-               --  the designated type comes from the limited view (for
-               --  back-end purposes).
+            Set_Directly_Designated_Type (Formal_Typ, Result_Subt);
+            Set_Etype (Formal_Typ, Formal_Typ);
+            Set_Depends_On_Private
+              (Formal_Typ, Has_Private_Component (Formal_Typ));
+            Set_Is_Public (Formal_Typ, Is_Public (Scope (Formal_Typ)));
+            Set_Is_Access_Constant (Formal_Typ, False);
 
-               Set_From_With_Type (Formal_Type, From_With_Type (Result_Subt));
+            --  Ada 2005 (AI-50217): Propagate the attribute that indicates
+            --  the designated type comes from the limited view (for back-end
+            --  purposes).
 
-               Layout_Type (Formal_Type);
+            Set_From_With_Type (Formal_Typ, From_With_Type (Result_Subt));
 
-               Discard :=
-                 Add_Extra_Formal
-                   (E, Formal_Type, E, BIP_Formal_Suffix (BIP_Object_Access));
-            end;
+            Layout_Type (Formal_Typ);
+
+            Discard :=
+              Add_Extra_Formal
+                (E, Formal_Typ, E, BIP_Formal_Suffix (BIP_Object_Access));
          end;
       end if;
    end Create_Extra_Formals;
@@ -8498,19 +8589,19 @@ package body Sem_Ch6 is
            and then In_Private_Part (Current_Scope)
          then
             Priv_Decls :=
-              Private_Declarations (
-                Specification (Unit_Declaration_Node (Current_Scope)));
+              Private_Declarations
+                (Specification (Unit_Declaration_Node (Current_Scope)));
 
             return In_Package_Body (Current_Scope)
               or else
                 (Is_List_Member (Decl)
-                   and then List_Containing (Decl) = Priv_Decls)
+                  and then List_Containing (Decl) = Priv_Decls)
               or else (Nkind (Parent (Decl)) = N_Package_Specification
-                         and then not
-                           Is_Compilation_Unit
-                             (Defining_Entity (Parent (Decl)))
-                         and then List_Containing (Parent (Parent (Decl)))
-                                    = Priv_Decls);
+                        and then not
+                          Is_Compilation_Unit
+                            (Defining_Entity (Parent (Decl)))
+                        and then List_Containing (Parent (Parent (Decl))) =
+                                                                Priv_Decls);
          else
             return False;
          end if;
@@ -8714,7 +8805,7 @@ package body Sem_Ch6 is
                --  inherited in a derivation, or when an inherited operation
                --  of a tagged full type overrides the inherited operation of
                --  a private extension. Ada 83 had a special rule for the
-               --  literal case. In Ada95, the later implicit operation hides
+               --  literal case. In Ada 95, the later implicit operation hides
                --  the former, and the literal is always the former. In the
                --  odd case where both are derived operations declared at the
                --  same point, both operations should be declared, and in that
@@ -8872,7 +8963,7 @@ package body Sem_Ch6 is
                               Set_Is_Immediately_Visible (E, False);
                            else
                               --  Work done in Override_Dispatching_Operation,
-                              --  so nothing else need to be done here.
+                              --  so nothing else needs to be done here.
 
                               null;
                            end if;
@@ -9441,14 +9532,14 @@ package body Sem_Ch6 is
                Default :=  Expression (Param_Spec);
 
                if Is_Scalar_Type (Etype (Default)) then
-                  if Nkind
-                       (Parameter_Type (Param_Spec)) /= N_Access_Definition
+                  if Nkind (Parameter_Type (Param_Spec)) /=
+                                              N_Access_Definition
                   then
                      Formal_Type := Entity (Parameter_Type (Param_Spec));
-
                   else
-                     Formal_Type := Access_Definition
-                       (Related_Nod, Parameter_Type (Param_Spec));
+                     Formal_Type :=
+                       Access_Definition
+                         (Related_Nod, Parameter_Type (Param_Spec));
                   end if;
 
                   Apply_Scalar_Range_Check (Default, Formal_Type);
@@ -9466,12 +9557,34 @@ package body Sem_Ch6 is
             Num_Out_Params := Num_Out_Params + 1;
          end if;
 
+         --  Skip remaining processing if formal type was in error
+
+         if Etype (Formal) = Any_Type or else Error_Posted (Formal) then
+            goto Next_Parameter;
+         end if;
+
          --  Force call by reference if aliased
 
          if Is_Aliased (Formal) then
             Set_Mechanism (Formal, By_Reference);
+
+            --  Warn if user asked this to be passed by copy
+
+            if Convention (Formal_Type) = Convention_Ada_Pass_By_Copy then
+               Error_Msg_N
+                 ("?cannot pass aliased parameter & by copy", Formal);
+            end if;
+
+         --  Force mechanism if type has Convention Ada_Pass_By_Ref/Copy
+
+         elsif Convention (Formal_Type) = Convention_Ada_Pass_By_Copy then
+            Set_Mechanism (Formal, By_Copy);
+
+         elsif Convention (Formal_Type) = Convention_Ada_Pass_By_Reference then
+            Set_Mechanism (Formal, By_Reference);
          end if;
 
+      <<Next_Parameter>>
          Next (Param_Spec);
       end loop;
 
@@ -9523,6 +9636,15 @@ package body Sem_Ch6 is
       --  Determines if any invariants or predicates are present for any OUT
       --  or IN OUT parameters of the subprogram, or (for a function) if the
       --  return value has an invariant.
+
+      function Is_Public_Subprogram_For (T : Entity_Id) return Boolean;
+      --  T is the entity for a private type for which invariants are defined.
+      --  This function returns True if the procedure corresponding to the
+      --  value of Designator is a public procedure from the point of view of
+      --  this type (i.e. its spec is in the visible part of the package that
+      --  contains the declaration of the private type). A True value means
+      --  that an invariant check is required (for an IN OUT parameter, or
+      --  the returned value of a function.
 
       --------------
       -- Grab_PPC --
@@ -9650,6 +9772,45 @@ package body Sem_Ch6 is
 
          return False;
       end Invariants_Or_Predicates_Present;
+
+      ------------------------------
+      -- Is_Public_Subprogram_For --
+      ------------------------------
+
+      --  The type T is a private type, its declaration is therefore in
+      --  the list of public declarations of some package. The test for a
+      --  public subprogram is that its declaration is in this same list
+      --  of declarations for the same package (note that all the public
+      --  declarations are in one list, and all the private declarations
+      --  in another, so this deals with the public/private distinction).
+
+      function Is_Public_Subprogram_For (T : Entity_Id) return Boolean is
+         DD : constant Node_Id := Unit_Declaration_Node (Designator);
+         --  The subprogram declaration for the subprogram in question
+
+         TL : constant List_Id :=
+                Visible_Declarations
+                  (Specification (Unit_Declaration_Node (Scope (T))));
+         --  The list of declarations containing the private declaration of
+         --  the type. We know it is a private type, so we know its scope is
+         --  the package in question, and we know it must be in the visible
+         --  declarations of this package.
+
+      begin
+         --  If the subprogram declaration is not a list member, it must be
+         --  an Init_Proc, in which case we want to consider it to be a
+         --  public subprogram, since we do get initializations to deal with.
+
+         if not Is_List_Member (DD) then
+            return True;
+
+         --  Otherwise we test whether the subprogram is declared in the
+         --  visible declarations of the package containing the type.
+
+         else
+            return TL = List_Containing (DD);
+         end if;
+      end Is_Public_Subprogram_For;
 
    --  Start of processing for Process_PPCs
 
@@ -9947,10 +10108,13 @@ package body Sem_Ch6 is
                      Parameter_Type      => New_Occurrence_Of (Ftyp, Loc),
                      Defining_Identifier => Rent));
 
-               --  Add invariant call if returning type with invariants
+               --  Add invariant call if returning type with invariants and
+               --  this is a public function, i.e. a function declared in the
+               --  visible part of the package defining the private type.
 
                if Has_Invariants (Etype (Rent))
                  and then Present (Invariant_Procedure (Etype (Rent)))
+                 and then Is_Public_Subprogram_For (Etype (Rent))
                then
                   Append_To (Plist,
                     Make_Invariant_Call (New_Occurrence_Of (Rent, Loc)));
@@ -9979,6 +10143,7 @@ package body Sem_Ch6 is
 
                   if Has_Invariants (Ftype)
                     and then Present (Invariant_Procedure (Ftype))
+                    and then Is_Public_Subprogram_For (Ftype)
                   then
                      Append_To (Plist,
                        Make_Invariant_Call
@@ -10251,7 +10416,7 @@ package body Sem_Ch6 is
 
       if Nkind (Parameter_Type (Spec)) = N_Access_Definition then
 
-         --  Ada 2005 (AI-231): In Ada95, access parameters are always non-
+         --  Ada 2005 (AI-231): In Ada 95, access parameters are always non-
          --  null; In Ada 2005, only if then null_exclusion is explicit.
 
          if Ada_Version < Ada_2005

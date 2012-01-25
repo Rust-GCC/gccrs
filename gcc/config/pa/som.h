@@ -227,7 +227,7 @@ do {								\
        tree id;								\
 									\
        if (!function_label_operand (RTL, VOIDmode))			\
-	 hppa_encode_label (RTL);					\
+	 pa_encode_label (RTL);						\
 									\
        name = targetm.strip_name_encoding (XSTR ((RTL), 0));		\
        id = maybe_get_identifier (name);				\
@@ -342,3 +342,5 @@ do {						\
 #define SHLIB_SUFFIX ".sl"
 
 #define TARGET_HAVE_NAMED_SECTIONS false
+
+#define TARGET_ASM_TM_CLONE_TABLE_SECTION pa_som_tm_clone_table_section

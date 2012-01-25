@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2004-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- This specification is derived from the Ada Reference Manual for use with --
 -- GNAT. The copyright notice above, and the license provisions that follow --
@@ -31,11 +31,11 @@
 -- This unit was originally developed by Matthew J Heaney.                  --
 ------------------------------------------------------------------------------
 
+with Ada.Iterator_Interfaces;
+
 private with Ada.Containers.Red_Black_Trees;
 private with Ada.Finalization;
-
-with Ada.Streams; use Ada.Streams;
-with Ada.Iterator_Interfaces;
+private with Ada.Streams;
 
 generic
    type Element_Type is private;
@@ -65,30 +65,8 @@ package Ada.Containers.Ordered_Sets is
 
    No_Element : constant Cursor;
 
-   package Ordered_Set_Iterator_Interfaces is new
+   package Set_Iterator_Interfaces is new
      Ada.Iterator_Interfaces (Cursor, Has_Element);
-
-   type Constant_Reference_Type
-      (Element : not null access constant Element_Type) is
-   private
-   with
-      Implicit_Dereference => Element;
-
-   procedure Write
-     (Stream : not null access Root_Stream_Type'Class;
-      Item   : Constant_Reference_Type);
-
-   for Constant_Reference_Type'Write use Write;
-
-   function Constant_Reference
-     (Container : Set; Position : Cursor)
-   return Constant_Reference_Type;
-
-   procedure Read
-     (Stream : not null access Root_Stream_Type'Class;
-      Item   : out Constant_Reference_Type);
-
-   for Constant_Reference_Type'Read use Read;
 
    function "=" (Left, Right : Set) return Boolean;
 
@@ -112,6 +90,20 @@ package Ada.Containers.Ordered_Sets is
    procedure Query_Element
      (Position : Cursor;
       Process  : not null access procedure (Element : Element_Type));
+
+   type Constant_Reference_Type
+      (Element : not null access constant Element_Type) is
+   private
+   with
+      Implicit_Dereference => Element;
+
+   function Constant_Reference
+     (Container : aliased Set;
+      Position  : Cursor) return Constant_Reference_Type;
+
+   procedure Assign (Target : in out Set; Source : Set);
+
+   function Copy (Source : Set) return Set;
 
    procedure Move (Target : in out Set; Source : in out Set);
 
@@ -223,12 +215,12 @@ package Ada.Containers.Ordered_Sets is
 
    function Iterate
      (Container : Set)
-      return Ordered_Set_Iterator_Interfaces.Reversible_Iterator'class;
+      return Set_Iterator_Interfaces.Reversible_Iterator'class;
 
    function Iterate
      (Container : Set;
       Start     : Cursor)
-      return Ordered_Set_Iterator_Interfaces.Reversible_Iterator'class;
+      return Set_Iterator_Interfaces.Reversible_Iterator'class;
 
    generic
       type Key_Type (<>) is private;
@@ -274,6 +266,10 @@ package Ada.Containers.Ordered_Sets is
 
       function Reference_Preserving_Key
         (Container : aliased in out Set;
+         Position  : Cursor) return Reference_Type;
+
+      function Constant_Reference
+        (Container : aliased Set;
          Key       : Key_Type) return Constant_Reference_Type;
 
       function Reference_Preserving_Key
@@ -283,6 +279,8 @@ package Ada.Containers.Ordered_Sets is
    private
       type Reference_Type
          (Element : not null access Element_Type) is null record;
+
+      use Ada.Streams;
 
       procedure Write
         (Stream : not null access Root_Stream_Type'Class;
@@ -327,6 +325,19 @@ private
    use Red_Black_Trees;
    use Tree_Types;
    use Ada.Finalization;
+   use Ada.Streams;
+
+   procedure Write
+     (Stream    : not null access Root_Stream_Type'Class;
+      Container : Set);
+
+   for Set'Write use Write;
+
+   procedure Read
+     (Stream    : not null access Root_Stream_Type'Class;
+      Container : out Set);
+
+   for Set'Read use Read;
 
    type Set_Access is access all Set;
    for Set_Access'Storage_Size use 0;
@@ -348,22 +359,20 @@ private
 
    for Cursor'Read use Read;
 
-   No_Element : constant Cursor := Cursor'(null, null);
-
-   procedure Write
-     (Stream    : not null access Root_Stream_Type'Class;
-      Container : Set);
-
-   for Set'Write use Write;
-
-   procedure Read
-     (Stream    : not null access Root_Stream_Type'Class;
-      Container : out Set);
-
-   for Set'Read use Read;
-
    type Constant_Reference_Type
       (Element : not null access constant Element_Type) is null record;
+
+   procedure Write
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : Constant_Reference_Type);
+
+   for Constant_Reference_Type'Write use Write;
+
+   procedure Read
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : out Constant_Reference_Type);
+
+   for Constant_Reference_Type'Read use Read;
 
    Empty_Set : constant Set :=
                  (Controlled with Tree => (First  => null,
@@ -372,5 +381,7 @@ private
                                            Length => 0,
                                            Busy   => 0,
                                            Lock   => 0));
+
+   No_Element : constant Cursor := Cursor'(null, null);
 
 end Ada.Containers.Ordered_Sets;

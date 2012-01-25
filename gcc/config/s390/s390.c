@@ -1,6 +1,6 @@
 /* Subroutines used for code generation on IBM S/390 and zSeries
    Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
-   2007, 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
+   2007, 2008, 2009, 2010, 2011, 2012 Free Software Foundation, Inc.
    Contributed by Hartmut Penner (hpenner@de.ibm.com) and
                   Ulrich Weigand (uweigand@de.ibm.com) and
                   Andreas Krebbel (Andreas.Krebbel@de.ibm.com).
@@ -3604,7 +3604,8 @@ s390_emit_tls_call_insn (rtx result_reg, rtx tls_call)
 {
   rtx insn;
 
-  gcc_assert (flag_pic);
+  if (!flag_pic)
+    emit_insn (s390_load_got ());
 
   if (!s390_tls_symbol)
     s390_tls_symbol = gen_rtx_SYMBOL_REF (Pmode, "__tls_get_offset");
@@ -6475,7 +6476,8 @@ s390_mainpool_finish (struct constant_pool *pool)
       rtx pool_end = gen_label_rtx ();
 
       insn = gen_main_base_31_large (base_reg, pool->label, pool_end);
-      insn = emit_insn_after (insn, pool->pool_insn);
+      insn = emit_jump_insn_after (insn, pool->pool_insn);
+      JUMP_LABEL (insn) = pool_end;
       INSN_ADDRESSES_NEW (insn, -1);
       remove_insn (pool->pool_insn);
 
@@ -6606,15 +6608,6 @@ s390_chunkify_start (void)
 		  pending_ltrel = pool_ref;
 		}
 	    }
-	  /* Make sure we do not split between a call and its
-	     corresponding CALL_ARG_LOCATION note.  */
-	  if (CALL_P (insn))
-	    {
-	      rtx next = NEXT_INSN (insn);
-	      if (next && NOTE_P (next)
-		  && NOTE_KIND (next) == NOTE_INSN_CALL_ARG_LOCATION)
-		continue;
-	    }
 	}
 
       if (GET_CODE (insn) == JUMP_INSN || GET_CODE (insn) == CODE_LABEL)
@@ -6625,8 +6618,18 @@ s390_chunkify_start (void)
 	  gcc_assert (!pending_ltrel);
 	}
 
-      if (NOTE_P (insn) && NOTE_KIND (insn) == NOTE_INSN_SWITCH_TEXT_SECTIONS)
-	section_switch_p = true;
+      if (NOTE_P (insn))
+	switch (NOTE_KIND (insn))
+	  {
+	  case NOTE_INSN_SWITCH_TEXT_SECTIONS:
+	    section_switch_p = true;
+	    break;
+	  case NOTE_INSN_VAR_LOCATION:
+	  case NOTE_INSN_CALL_ARG_LOCATION:
+	    continue;
+	  default:
+	    break;
+	  }
 
       if (!curr_pool
 	  || INSN_ADDRESSES_SIZE () <= (size_t) INSN_UID (insn)
@@ -6672,7 +6675,7 @@ s390_chunkify_start (void)
 	           || curr_pool->size > S390_POOL_CHUNK_MAX
 		   || section_switch_p)
 	    {
-              rtx label, jump, barrier;
+	      rtx label, jump, barrier, next, prev;
 
 	      if (!section_switch_p)
 		{
@@ -6682,9 +6685,19 @@ s390_chunkify_start (void)
 		  if (get_attr_length (insn) == 0)
 		    continue;
 		  /* Don't separate LTREL_BASE from the corresponding
-		 LTREL_OFFSET load.  */
+		     LTREL_OFFSET load.  */
 		  if (pending_ltrel)
 		    continue;
+		  next = insn;
+		  do
+		    {
+		      insn = next;
+		      next = NEXT_INSN (insn);
+		    }
+		  while (next
+			 && NOTE_P (next)
+			 && (NOTE_KIND (next) == NOTE_INSN_VAR_LOCATION
+			     || NOTE_KIND (next) == NOTE_INSN_CALL_ARG_LOCATION));
 		}
 	      else
 		{
@@ -6697,7 +6710,14 @@ s390_chunkify_start (void)
 		}
 
 	      label = gen_label_rtx ();
-	      jump = emit_jump_insn_after (gen_jump (label), insn);
+	      prev = insn;
+	      if (prev && NOTE_P (prev))
+		prev = prev_nonnote_insn (prev);
+	      if (prev)
+		jump = emit_jump_insn_after_setloc (gen_jump (label), insn,
+						    INSN_LOCATOR (prev));
+	      else
+		jump = emit_jump_insn_after_noloc (gen_jump (label), insn);
 	      barrier = emit_barrier_after (jump);
 	      insn = emit_label_after (label, barrier);
 	      JUMP_LABEL (jump) = label;
@@ -7859,6 +7879,12 @@ s390_load_got (void)
 {
   rtx insns;
 
+  /* We cannot use pic_offset_table_rtx here since we use this
+     function also for non-pic if __tls_get_offset is called and in
+     that case PIC_OFFSET_TABLE_REGNUM as well as pic_offset_table_rtx
+     aren't usable.  */
+  rtx got_rtx = gen_rtx_REG (Pmode, 12);
+
   if (!got_symbol)
     {
       got_symbol = gen_rtx_SYMBOL_REF (Pmode, "_GLOBAL_OFFSET_TABLE_");
@@ -7869,7 +7895,7 @@ s390_load_got (void)
 
   if (TARGET_CPU_ZARCH)
     {
-      emit_move_insn (pic_offset_table_rtx, got_symbol);
+      emit_move_insn (got_rtx, got_symbol);
     }
   else
     {
@@ -7880,13 +7906,13 @@ s390_load_got (void)
       offset = gen_rtx_CONST (Pmode, offset);
       offset = force_const_mem (Pmode, offset);
 
-      emit_move_insn (pic_offset_table_rtx, offset);
+      emit_move_insn (got_rtx, offset);
 
       offset = gen_rtx_UNSPEC (Pmode, gen_rtvec (1, XEXP (offset, 0)),
 			       UNSPEC_LTREL_BASE);
-      offset = gen_rtx_PLUS (Pmode, pic_offset_table_rtx, offset);
+      offset = gen_rtx_PLUS (Pmode, got_rtx, offset);
 
-      emit_move_insn (pic_offset_table_rtx, offset);
+      emit_move_insn (got_rtx, offset);
     }
 
   insns = get_insns ();
@@ -9827,8 +9853,7 @@ s390_emit_call (rtx addr_location, rtx tls_call, rtx result_reg,
       /* s390_function_ok_for_sibcall should
 	 have denied sibcalls in this case.  */
       gcc_assert (retaddr_reg != NULL_RTX);
-
-      use_reg (&CALL_INSN_FUNCTION_USAGE (insn), pic_offset_table_rtx);
+      use_reg (&CALL_INSN_FUNCTION_USAGE (insn), gen_rtx_REG (Pmode, 12));
     }
   return insn;
 }

@@ -60,9 +60,10 @@ with Sem_Ch6;  use Sem_Ch6;
 with Sem_Ch8;  use Sem_Ch8;
 with Sem_Ch12; use Sem_Ch12;
 with Sem_Ch13; use Sem_Ch13;
-with Sem_Eval; use Sem_Eval;
+with Sem_Dim;  use Sem_Dim;
 with Sem_Disp; use Sem_Disp;
 with Sem_Dist; use Sem_Dist;
+with Sem_Eval; use Sem_Eval;
 with Sem_Mech; use Sem_Mech;
 with Sem_Res;  use Sem_Res;
 with Sem_SCIL; use Sem_SCIL;
@@ -94,15 +95,18 @@ package body Exp_Ch6 is
    --  along directly to the build-in-place function. Finally, if Return_Object
    --  is empty, then pass a null literal as the actual.
 
-   procedure Add_Alloc_Form_Actual_To_Build_In_Place_Call
+   procedure Add_Unconstrained_Actuals_To_Build_In_Place_Call
      (Function_Call  : Node_Id;
       Function_Id    : Entity_Id;
       Alloc_Form     : BIP_Allocation_Form := Unspecified;
-      Alloc_Form_Exp : Node_Id             := Empty);
-   --  Ada 2005 (AI-318-02): Add an actual indicating the form of allocation,
-   --  if any, to be done by a build-in-place function. If Alloc_Form_Exp is
-   --  present, then use it, otherwise pass a literal corresponding to the
-   --  Alloc_Form parameter (which must not be Unspecified in that case).
+      Alloc_Form_Exp : Node_Id             := Empty;
+      Pool_Actual    : Node_Id             := Make_Null (No_Location));
+   --  Ada 2005 (AI-318-02): Add the actuals needed for a build-in-place
+   --  function call that returns a caller-unknown-size result (BIP_Alloc_Form
+   --  and BIP_Storage_Pool). If Alloc_Form_Exp is present, then use it,
+   --  otherwise pass a literal corresponding to the Alloc_Form parameter
+   --  (which must not be Unspecified in that case). Pool_Actual is the
+   --  parameter to pass to BIP_Storage_Pool.
 
    procedure Add_Finalization_Master_Actual_To_Build_In_Place_Call
      (Func_Call  : Node_Id;
@@ -251,19 +255,21 @@ package body Exp_Ch6 is
       Add_Extra_Actual_To_Call (Function_Call, Obj_Acc_Formal, Obj_Address);
    end Add_Access_Actual_To_Build_In_Place_Call;
 
-   --------------------------------------------------
-   -- Add_Alloc_Form_Actual_To_Build_In_Place_Call --
-   --------------------------------------------------
+   ------------------------------------------------------
+   -- Add_Unconstrained_Actuals_To_Build_In_Place_Call --
+   ------------------------------------------------------
 
-   procedure Add_Alloc_Form_Actual_To_Build_In_Place_Call
+   procedure Add_Unconstrained_Actuals_To_Build_In_Place_Call
      (Function_Call  : Node_Id;
       Function_Id    : Entity_Id;
       Alloc_Form     : BIP_Allocation_Form := Unspecified;
-      Alloc_Form_Exp : Node_Id             := Empty)
+      Alloc_Form_Exp : Node_Id             := Empty;
+      Pool_Actual    : Node_Id             := Make_Null (No_Location))
    is
       Loc               : constant Source_Ptr := Sloc (Function_Call);
       Alloc_Form_Actual : Node_Id;
       Alloc_Form_Formal : Node_Id;
+      Pool_Formal       : Node_Id;
 
    begin
       --  The allocation form generally doesn't need to be passed in the case
@@ -305,7 +311,19 @@ package body Exp_Ch6 is
 
       Add_Extra_Actual_To_Call
         (Function_Call, Alloc_Form_Formal, Alloc_Form_Actual);
-   end Add_Alloc_Form_Actual_To_Build_In_Place_Call;
+
+      --  Pass the Storage_Pool parameter. This parameter is omitted on
+      --  .NET/JVM/ZFP as those targets do not support pools.
+
+      if VM_Target = No_VM
+        and then RTE_Available (RE_Root_Storage_Pool_Ptr)
+      then
+         Pool_Formal := Build_In_Place_Formal (Function_Id, BIP_Storage_Pool);
+         Analyze_And_Resolve (Pool_Actual, Etype (Pool_Formal));
+         Add_Extra_Actual_To_Call
+           (Function_Call, Pool_Formal, Pool_Actual);
+      end if;
+   end Add_Unconstrained_Actuals_To_Build_In_Place_Call;
 
    -----------------------------------------------------------
    -- Add_Finalization_Master_Actual_To_Build_In_Place_Call --
@@ -462,15 +480,22 @@ package body Exp_Ch6 is
       Function_Id   : Entity_Id;
       Master_Actual : Node_Id)
    is
-      Loc    : constant Source_Ptr := Sloc (Function_Call);
-      Actual : Node_Id := Master_Actual;
+      Loc           : constant Source_Ptr := Sloc (Function_Call);
+      Result_Subt   : constant Entity_Id :=
+                        Available_View (Etype (Function_Id));
+      Actual        : Node_Id;
+      Chain_Actual  : Node_Id;
+      Chain_Formal  : Node_Id;
+      Master_Formal : Node_Id;
 
    begin
       --  No such extra parameters are needed if there are no tasks
 
-      if not Has_Task (Available_View (Etype (Function_Id))) then
+      if not Has_Task (Result_Subt) then
          return;
       end if;
+
+      Actual := Master_Actual;
 
       --  Use a dummy _master actual in case of No_Task_Hierarchy
 
@@ -484,52 +509,34 @@ package body Exp_Ch6 is
          Actual := New_Reference_To (Actual, Loc);
       end if;
 
-      --  The master
+      --  Locate the implicit master parameter in the called function
 
-      declare
-         Master_Formal : Node_Id;
-      begin
-         --  Locate implicit master parameter in the called function
+      Master_Formal := Build_In_Place_Formal (Function_Id, BIP_Task_Master);
+      Analyze_And_Resolve (Actual, Etype (Master_Formal));
 
-         Master_Formal := Build_In_Place_Formal (Function_Id, BIP_Master);
+      --  Build the parameter association for the new actual and add it to the
+      --  end of the function's actuals.
 
-         Analyze_And_Resolve (Actual, Etype (Master_Formal));
+      Add_Extra_Actual_To_Call (Function_Call, Master_Formal, Actual);
 
-         --  Build the parameter association for the new actual and add it to
-         --  the end of the function's actuals.
+      --  Locate the implicit activation chain parameter in the called function
 
-         Add_Extra_Actual_To_Call (Function_Call, Master_Formal, Actual);
-      end;
+      Chain_Formal :=
+        Build_In_Place_Formal (Function_Id, BIP_Activation_Chain);
 
-      --  The activation chain
+      --  Create the actual which is a pointer to the current activation chain
 
-      declare
-         Activation_Chain_Actual : Node_Id;
-         Activation_Chain_Formal : Node_Id;
+      Chain_Actual :=
+        Make_Attribute_Reference (Loc,
+          Prefix         => Make_Identifier (Loc, Name_uChain),
+          Attribute_Name => Name_Unrestricted_Access);
 
-      begin
-         --  Locate implicit activation chain parameter in the called function
+      Analyze_And_Resolve (Chain_Actual, Etype (Chain_Formal));
 
-         Activation_Chain_Formal :=
-           Build_In_Place_Formal (Function_Id, BIP_Activation_Chain);
+      --  Build the parameter association for the new actual and add it to the
+      --  end of the function's actuals.
 
-         --  Create the actual which is a pointer to the current activation
-         --  chain
-
-         Activation_Chain_Actual :=
-           Make_Attribute_Reference (Loc,
-             Prefix         => Make_Identifier (Loc, Name_uChain),
-             Attribute_Name => Name_Unrestricted_Access);
-
-         Analyze_And_Resolve
-           (Activation_Chain_Actual, Etype (Activation_Chain_Formal));
-
-         --  Build the parameter association for the new actual and add it to
-         --  the end of the function's actuals.
-
-         Add_Extra_Actual_To_Call
-           (Function_Call, Activation_Chain_Formal, Activation_Chain_Actual);
-      end;
+      Add_Extra_Actual_To_Call (Function_Call, Chain_Formal, Chain_Actual);
    end Add_Task_Actuals_To_Build_In_Place_Call;
 
    -----------------------
@@ -541,10 +548,12 @@ package body Exp_Ch6 is
       case Kind is
          when BIP_Alloc_Form          =>
             return "BIPalloc";
+         when BIP_Storage_Pool        =>
+            return "BIPstoragepool";
          when BIP_Finalization_Master =>
             return "BIPfinalizationmaster";
-         when BIP_Master              =>
-            return "BIPmaster";
+         when BIP_Task_Master         =>
+            return "BIPtaskmaster";
          when BIP_Activation_Chain    =>
             return "BIPactivationchain";
          when BIP_Object_Access       =>
@@ -560,6 +569,9 @@ package body Exp_Ch6 is
      (Func : Entity_Id;
       Kind : BIP_Formal_Kind) return Entity_Id
    is
+      Formal_Name  : constant Name_Id :=
+                       New_External_Name
+                         (Chars (Func), BIP_Formal_Suffix (Kind));
       Extra_Formal : Entity_Id := Extra_Formals (Func);
 
    begin
@@ -578,9 +590,8 @@ package body Exp_Ch6 is
 
       loop
          pragma Assert (Present (Extra_Formal));
-         exit when
-           Chars (Extra_Formal) =
-             New_External_Name (Chars (Func), BIP_Formal_Suffix (Kind));
+         exit when Chars (Extra_Formal) = Formal_Name;
+
          Next_Formal_With_Extras (Extra_Formal);
       end loop;
 
@@ -1740,24 +1751,50 @@ package body Exp_Ch6 is
 
       if not Is_Empty_List (Post_Call) then
 
-         --  If call is not a list member, it must be the triggering statement
-         --  of a triggering alternative or an entry call alternative, and we
-         --  can add the post call stuff to the corresponding statement list.
+         --  Cases where the call is not a member of a statement list
 
          if not Is_List_Member (N) then
             declare
-               P : constant Node_Id := Parent (N);
+               P :  Node_Id := Parent (N);
 
             begin
-               pragma Assert (Nkind_In (P, N_Triggering_Alternative,
-                                           N_Entry_Call_Alternative));
+               --  In Ada 2012 the call may be a function call in an expression
+               --  (since OUT and IN OUT parameters are now allowed for such
+               --  calls. The write-back of (in)-out parameters is handled
+               --  by the back-end, but the constraint checks generated when
+               --  subtypes of formal and actual don't match must be inserted
+               --  in the form of assignments, at the nearest point after the
+               --  declaration or statement that contains the call.
 
-               if Is_Non_Empty_List (Statements (P)) then
-                  Insert_List_Before_And_Analyze
-                    (First (Statements (P)), Post_Call);
+               if Ada_Version >= Ada_2012
+                 and then Nkind (N) = N_Function_Call
+               then
+                  while Nkind (P) not in N_Declaration
+                    and then
+                      Nkind (P) not in N_Statement_Other_Than_Procedure_Call
+                  loop
+                     P := Parent (P);
+                  end loop;
+
+                  Insert_Actions_After (P, Post_Call);
+
+               --  If not the special Ada 2012 case of a function call, then
+               --  we must have the triggering statement of a triggering
+               --  alternative or an entry call alternative, and we can add
+               --  the post call stuff to the corresponding statement list.
+
                else
-                  Set_Statements (P, Post_Call);
+                  pragma Assert (Nkind_In (P, N_Triggering_Alternative,
+                                              N_Entry_Call_Alternative));
+
+                  if Is_Non_Empty_List (Statements (P)) then
+                     Insert_List_Before_And_Analyze
+                       (First (Statements (P)), Post_Call);
+                  else
+                     Set_Statements (P, Post_Call);
+                  end if;
                end if;
+
             end;
 
          --  Otherwise, normal case where N is in a statement sequence,
@@ -2067,6 +2104,20 @@ package body Exp_Ch6 is
    --  Start of processing for Expand_Call
 
    begin
+      --  Expand the procedure call if the first actual has a dimension and if
+      --  the procedure is Put (Ada 2012).
+
+      if Ada_Version >= Ada_2012
+        and then Nkind (Call_Node) = N_Procedure_Call_Statement
+        and then Present (Parameter_Associations (Call_Node))
+      then
+         Expand_Put_Call_With_Dimension_Symbol (Call_Node);
+      end if;
+
+      --  Remove the dimensions of every parameters in call
+
+      Remove_Dimension_In_Call (N);
+
       --  Ignore if previous error
 
       if Nkind (Call_Node) in N_Has_Etype
@@ -2642,10 +2693,13 @@ package body Exp_Ch6 is
             end if;
          end if;
 
-         --  For Ada 2012, if a parameter is aliased, the actual must be an
-         --  aliased object.
+         --  For Ada 2012, if a parameter is aliased, the actual must be a
+         --  tagged type or an aliased view of an object.
 
-         if Is_Aliased (Formal) and then not Is_Aliased_View (Actual) then
+         if Is_Aliased (Formal)
+           and then not Is_Aliased_View (Actual)
+           and then not Is_Tagged_Type (Etype (Formal))
+         then
             Error_Msg_NE
               ("actual for aliased formal& must be aliased object",
                Actual, Formal);
@@ -2751,7 +2805,7 @@ package body Exp_Ch6 is
          Next_Formal (Formal);
       end loop;
 
-      --  If we are calling an Ada2012 function which needs to have the
+      --  If we are calling an Ada 2012 function which needs to have the
       --  "accessibility level determined by the point of call" (AI05-0234)
       --  passed in to it, then pass it in.
 
@@ -4573,6 +4627,7 @@ package body Exp_Ch6 is
 
       Par_Func     : constant Entity_Id :=
                        Return_Applies_To (Return_Statement_Entity (N));
+      Result_Subt  : constant Entity_Id := Etype (Par_Func);
       Ret_Obj_Id   : constant Entity_Id :=
                        First_Entity (Return_Statement_Entity (N));
       Ret_Obj_Decl : constant Node_Id := Parent (Ret_Obj_Id);
@@ -4638,11 +4693,12 @@ package body Exp_Ch6 is
          Alloc_Expr : Node_Id) return Node_Id
       is
       begin
+         pragma Assert (Is_Build_In_Place_Function (Func_Id));
+
          --  Processing for build-in-place object allocation. This is disabled
          --  on .NET/JVM because the targets do not support pools.
 
          if VM_Target = No_VM
-           and then Is_Build_In_Place_Function (Func_Id)
            and then Needs_Finalization (Ret_Typ)
          then
             declare
@@ -4811,7 +4867,7 @@ package body Exp_Ch6 is
                --  New master
 
                New_Reference_To
-                 (Build_In_Place_Formal (Par_Func, BIP_Master), Loc)));
+                 (Build_In_Place_Formal (Par_Func, BIP_Task_Master), Loc)));
       end Move_Activation_Chain;
 
    --  Start of processing for Expand_N_Extended_Return_Statement
@@ -4876,7 +4932,7 @@ package body Exp_Ch6 is
       --  built in place (though we plan to do so eventually).
 
       if Present (HSS)
-        or else Is_Composite_Type (Etype (Par_Func))
+        or else Is_Composite_Type (Result_Subt)
         or else No (Exp)
       then
          if No (HSS) then
@@ -4903,7 +4959,7 @@ package body Exp_Ch6 is
          --  the case of result types with task parts.
 
          if Is_Build_In_Place
-           and then Has_Task (Etype (Par_Func))
+           and then Has_Task (Result_Subt)
          then
             --  The return expression is an aggregate for a complex type which
             --  contains tasks. This particular case is left unexpanded since
@@ -4914,7 +4970,12 @@ package body Exp_Ch6 is
                Expand_N_Aggregate (Exp);
             end if;
 
-            Append_To (Stmts, Move_Activation_Chain);
+            --  Do not move the activation chain if the return object does not
+            --  contain tasks.
+
+            if Has_Task (Etype (Ret_Obj_Id)) then
+               Append_To (Stmts, Move_Activation_Chain);
+            end if;
          end if;
 
          --  Update the state of the function right before the object is
@@ -5013,7 +5074,6 @@ package body Exp_Ch6 is
                Return_Obj_Typ   : constant Entity_Id := Etype (Return_Obj_Id);
                Return_Obj_Expr  : constant Node_Id :=
                                     Expression (Ret_Obj_Decl);
-               Result_Subt      : constant Entity_Id := Etype (Par_Func);
                Constr_Result    : constant Boolean :=
                                     Is_Constrained (Result_Subt);
                Obj_Alloc_Formal : Entity_Id;
@@ -5116,12 +5176,16 @@ package body Exp_Ch6 is
                     Build_In_Place_Formal (Par_Func, BIP_Alloc_Form);
 
                   declare
-                     Ref_Type       : Entity_Id;
-                     Ptr_Type_Decl  : Node_Id;
+                     Pool_Id        : constant Entity_Id :=
+                                        Make_Temporary (Loc, 'P');
                      Alloc_Obj_Id   : Entity_Id;
                      Alloc_Obj_Decl : Node_Id;
                      Alloc_If_Stmt  : Node_Id;
                      Heap_Allocator : Node_Id;
+                     Pool_Decl      : Node_Id;
+                     Pool_Allocator : Node_Id;
+                     Ptr_Type_Decl  : Node_Id;
+                     Ref_Type       : Entity_Id;
                      SS_Allocator   : Node_Id;
 
                   begin
@@ -5216,6 +5280,37 @@ package body Exp_Ch6 is
                         Set_No_Initialization (Heap_Allocator);
                      end if;
 
+                     --  The Pool_Allocator is just like the Heap_Allocator,
+                     --  except we set Storage_Pool and Procedure_To_Call so
+                     --  it will use the user-defined storage pool.
+
+                     Pool_Allocator := New_Copy_Tree (Heap_Allocator);
+
+                     --  Do not generate the renaming of the build-in-place
+                     --  pool parameter on .NET/JVM/ZFP because the parameter
+                     --  is not created in the first place.
+
+                     if VM_Target = No_VM
+                       and then RTE_Available (RE_Root_Storage_Pool_Ptr)
+                     then
+                        Pool_Decl :=
+                          Make_Object_Renaming_Declaration (Loc,
+                            Defining_Identifier => Pool_Id,
+                            Subtype_Mark        =>
+                              New_Reference_To
+                                (RTE (RE_Root_Storage_Pool), Loc),
+                            Name                =>
+                              Make_Explicit_Dereference (Loc,
+                                New_Reference_To
+                                  (Build_In_Place_Formal
+                                     (Par_Func, BIP_Storage_Pool), Loc)));
+                        Set_Storage_Pool (Pool_Allocator, Pool_Id);
+                        Set_Procedure_To_Call
+                          (Pool_Allocator, RTE (RE_Allocate_Any));
+                     else
+                        Pool_Decl := Make_Null_Statement (Loc);
+                     end if;
+
                      --  If the No_Allocators restriction is active, then only
                      --  an allocator for secondary stack allocation is needed.
                      --  It's OK for such allocators to have Comes_From_Source
@@ -5225,22 +5320,25 @@ package body Exp_Ch6 is
                      if Restriction_Active (No_Allocators) then
                         SS_Allocator   := Heap_Allocator;
                         Heap_Allocator := Make_Null (Loc);
+                        Pool_Allocator := Make_Null (Loc);
 
-                     --  Otherwise the heap allocator may be needed, so we make
-                     --  another allocator for secondary stack allocation.
+                     --  Otherwise the heap and pool allocators may be needed,
+                     --  so we make another allocator for secondary stack
+                     --  allocation.
 
                      else
                         SS_Allocator := New_Copy_Tree (Heap_Allocator);
 
-                        --  The heap allocator is marked Comes_From_Source
-                        --  since it corresponds to an explicit user-written
-                        --  allocator (that is, it will only be executed on
-                        --  behalf of callers that call the function as
-                        --  initialization for such an allocator). This
-                        --  prevents errors when No_Implicit_Heap_Allocations
+                        --  The heap and pool allocators are marked as
+                        --  Comes_From_Source since they correspond to an
+                        --  explicit user-written allocator (that is, it will
+                        --  only be executed on behalf of callers that call the
+                        --  function as initialization for such an allocator).
+                        --  Prevents errors when No_Implicit_Heap_Allocations
                         --  is in force.
 
                         Set_Comes_From_Source (Heap_Allocator, True);
+                        Set_Comes_From_Source (Pool_Allocator, True);
                      end if;
 
                      --  The allocator is returned on the secondary stack. We
@@ -5269,10 +5367,12 @@ package body Exp_Ch6 is
 
                      --  Create an if statement to test the BIP_Alloc_Form
                      --  formal and initialize the access object to either the
-                     --  BIP_Object_Access formal (BIP_Alloc_Form = 0), the
-                     --  result of allocating the object in the secondary stack
-                     --  (BIP_Alloc_Form = 1), or else an allocator to create
-                     --  the return object in the heap (BIP_Alloc_Form = 2).
+                     --  BIP_Object_Access formal (BIP_Alloc_Form =
+                     --  Caller_Allocation), the result of allocating the
+                     --  object in the secondary stack (BIP_Alloc_Form =
+                     --  Secondary_Stack), or else an allocator to create the
+                     --  return object in the heap or user-defined pool
+                     --  (BIP_Alloc_Form = Global_Heap or User_Storage_Pool).
 
                      --  ??? An unchecked type conversion must be made in the
                      --  case of assigning the access object formal to the
@@ -5320,15 +5420,34 @@ package body Exp_Ch6 is
                                Make_Assignment_Statement (Loc,
                                  Name       =>
                                    New_Reference_To (Alloc_Obj_Id, Loc),
-                                 Expression => SS_Allocator)))),
+                                 Expression => SS_Allocator))),
+
+                           Make_Elsif_Part (Loc,
+                             Condition =>
+                               Make_Op_Eq (Loc,
+                                 Left_Opnd  =>
+                                   New_Reference_To (Obj_Alloc_Formal, Loc),
+                                 Right_Opnd =>
+                                   Make_Integer_Literal (Loc,
+                                     UI_From_Int (BIP_Allocation_Form'Pos
+                                                    (Global_Heap)))),
+
+                             Then_Statements => New_List (
+                               Build_Heap_Allocator
+                                 (Temp_Id    => Alloc_Obj_Id,
+                                  Temp_Typ   => Ref_Type,
+                                  Func_Id    => Par_Func,
+                                  Ret_Typ    => Return_Obj_Typ,
+                                  Alloc_Expr => Heap_Allocator)))),
 
                          Else_Statements => New_List (
+                           Pool_Decl,
                            Build_Heap_Allocator
                              (Temp_Id    => Alloc_Obj_Id,
                               Temp_Typ   => Ref_Type,
                               Func_Id    => Par_Func,
                               Ret_Typ    => Return_Obj_Typ,
-                              Alloc_Expr => Heap_Allocator)));
+                              Alloc_Expr => Pool_Allocator)));
 
                      --  If a separate initialization assignment was created
                      --  earlier, append that following the assignment of the
@@ -5604,10 +5723,14 @@ package body Exp_Ch6 is
       end if;
 
       --  If local-exception-to-goto optimization active, insert dummy push
-      --  statements at start, and dummy pop statements at end.
+      --  statements at start, and dummy pop statements at end, but inhibit
+      --  this if we have No_Exception_Handlers, since they are useless and
+      --  intefere with analysis, e.g. by codepeer.
 
       if (Debug_Flag_Dot_G
            or else Restriction_Active (No_Exception_Propagation))
+        and then not Restriction_Active (No_Exception_Handlers)
+        and then not CodePeer_Mode
         and then Is_Non_Empty_List (L)
       then
          declare
@@ -6591,6 +6714,14 @@ package body Exp_Ch6 is
                Rewrite (Exp,
                  Make_Explicit_Dereference (Loc,
                  Prefix => New_Reference_To (Temp, Loc)));
+
+               --  Ada 2005 (AI-251): If the type of the returned object is
+               --  an interface then add an implicit type conversion to force
+               --  displacement of the "this" pointer.
+
+               if Is_Interface (R_Type) then
+                  Rewrite (Exp, Convert_To (R_Type, Relocate_Node (Exp)));
+               end if;
 
                Analyze_And_Resolve (Exp, R_Type);
             end;
@@ -7592,7 +7723,7 @@ package body Exp_Ch6 is
          --  called as a dispatching operation and must be treated similarly
          --  to functions with unconstrained result subtypes.
 
-         Add_Alloc_Form_Actual_To_Build_In_Place_Call
+         Add_Unconstrained_Actuals_To_Build_In_Place_Call
            (Func_Call, Function_Id, Alloc_Form => Caller_Allocation);
 
          Add_Finalization_Master_Actual_To_Build_In_Place_Call
@@ -7623,11 +7754,30 @@ package body Exp_Ch6 is
       --  operations. ???
 
       else
-         --  Pass an allocation parameter indicating that the function should
-         --  allocate its result on the heap.
+         --  Case of a user-defined storage pool. Pass an allocation parameter
+         --  indicating that the function should allocate its result in the
+         --  pool, and pass the pool. Use 'Unrestricted_Access because the
+         --  pool may not be aliased.
 
-         Add_Alloc_Form_Actual_To_Build_In_Place_Call
-           (Func_Call, Function_Id, Alloc_Form => Global_Heap);
+         if VM_Target = No_VM
+           and then Present (Associated_Storage_Pool (Acc_Type))
+         then
+            Add_Unconstrained_Actuals_To_Build_In_Place_Call
+              (Func_Call, Function_Id, Alloc_Form => User_Storage_Pool,
+               Pool_Actual =>
+                 Make_Attribute_Reference (Loc,
+                   Prefix         =>
+                     New_Reference_To
+                       (Associated_Storage_Pool (Acc_Type), Loc),
+                   Attribute_Name => Name_Unrestricted_Access));
+
+         --  No user-defined pool; pass an allocation parameter indicating that
+         --  the function should allocate its result on the heap.
+
+         else
+            Add_Unconstrained_Actuals_To_Build_In_Place_Call
+              (Func_Call, Function_Id, Alloc_Form => Global_Heap);
+         end if;
 
          Add_Finalization_Master_Actual_To_Build_In_Place_Call
            (Func_Call, Function_Id, Acc_Type);
@@ -7678,6 +7828,15 @@ package body Exp_Ch6 is
       --  to the object created by the allocator).
 
       Rewrite (Allocator, Make_Reference (Loc, Relocate_Node (Function_Call)));
+
+      --  Ada 2005 (AI-251): If the type of the allocator is an interface then
+      --  generate an implicit conversion to force displacement of the "this"
+      --  pointer.
+
+      if Is_Interface (Designated_Type (Acc_Type)) then
+         Rewrite (Allocator, Convert_To (Acc_Type, Relocate_Node (Allocator)));
+      end if;
+
       Analyze_And_Resolve (Allocator, Acc_Type);
    end Make_Build_In_Place_Call_In_Allocator;
 
@@ -7796,7 +7955,7 @@ package body Exp_Ch6 is
          --  called as a dispatching operation and must be treated similarly
          --  to functions with unconstrained result subtypes.
 
-         Add_Alloc_Form_Actual_To_Build_In_Place_Call
+         Add_Unconstrained_Actuals_To_Build_In_Place_Call
            (Func_Call, Function_Id, Alloc_Form => Caller_Allocation);
 
          Add_Finalization_Master_Actual_To_Build_In_Place_Call
@@ -7820,7 +7979,7 @@ package body Exp_Ch6 is
          --  Pass an allocation parameter indicating that the function should
          --  allocate its result on the secondary stack.
 
-         Add_Alloc_Form_Actual_To_Build_In_Place_Call
+         Add_Unconstrained_Actuals_To_Build_In_Place_Call
            (Func_Call, Function_Id, Alloc_Form => Secondary_Stack);
 
          Add_Finalization_Master_Actual_To_Build_In_Place_Call
@@ -7853,6 +8012,7 @@ package body Exp_Ch6 is
       Obj_Id       : Entity_Id;
       Ptr_Typ      : Entity_Id;
       Ptr_Typ_Decl : Node_Id;
+      New_Expr     : Node_Id;
       Result_Subt  : Entity_Id;
       Target       : Node_Id;
 
@@ -7898,7 +8058,7 @@ package body Exp_Ch6 is
       --  controlling result, because dispatching calls to the function needs
       --  to be treated effectively the same as calls to class-wide functions.
 
-      Add_Alloc_Form_Actual_To_Build_In_Place_Call
+      Add_Unconstrained_Actuals_To_Build_In_Place_Call
         (Func_Call, Func_Id, Alloc_Form => Caller_Allocation);
 
       Add_Finalization_Master_Actual_To_Build_In_Place_Call
@@ -7932,16 +8092,20 @@ package body Exp_Ch6 is
       Insert_After_And_Analyze (Assign, Ptr_Typ_Decl);
 
       --  Finally, create an access object initialized to a reference to the
-      --  function call.
+      --  function call. We know this access value is non-null, so mark the
+      --  entity accordingly to suppress junk access checks.
 
-      Obj_Id := Make_Temporary (Loc, 'R');
+      New_Expr := Make_Reference (Loc, Relocate_Node (Func_Call));
+
+      Obj_Id := Make_Temporary (Loc, 'R', New_Expr);
       Set_Etype (Obj_Id, Ptr_Typ);
+      Set_Is_Known_Non_Null (Obj_Id);
 
       Obj_Decl :=
         Make_Object_Declaration (Loc,
           Defining_Identifier => Obj_Id,
           Object_Definition   => New_Reference_To (Ptr_Typ, Loc),
-          Expression => Make_Reference (Loc, Relocate_Node (Func_Call)));
+          Expression          => New_Expr);
       Insert_After_And_Analyze (Ptr_Typ_Decl, Obj_Decl);
 
       Rewrite (Assign, Make_Null_Statement (Loc));
@@ -7978,20 +8142,20 @@ package body Exp_Ch6 is
       Loc             : Source_Ptr;
       Obj_Def_Id      : constant Entity_Id :=
                           Defining_Identifier (Object_Decl);
-
-      Func_Call       : Node_Id := Function_Call;
-      Function_Id     : Entity_Id;
-      Result_Subt     : Entity_Id;
-      Caller_Object   : Node_Id;
-      Call_Deref      : Node_Id;
-      Ref_Type        : Entity_Id;
-      Ptr_Typ_Decl    : Node_Id;
-      Def_Id          : Entity_Id;
-      New_Expr        : Node_Id;
       Enclosing_Func  : constant Entity_Id :=
                           Enclosing_Subprogram (Obj_Def_Id);
+      Call_Deref      : Node_Id;
+      Caller_Object   : Node_Id;
+      Def_Id          : Entity_Id;
       Fmaster_Actual  : Node_Id := Empty;
+      Func_Call       : Node_Id := Function_Call;
+      Function_Id     : Entity_Id;
+      Pool_Actual     : Node_Id;
+      Ptr_Typ_Decl    : Node_Id;
       Pass_Caller_Acc : Boolean := False;
+      New_Expr        : Node_Id;
+      Ref_Type        : Entity_Id;
+      Result_Subt     : Entity_Id;
 
    begin
       --  Step past qualification or unchecked conversion (the latter can occur
@@ -8047,19 +8211,33 @@ package body Exp_Ch6 is
          --  has an unconstrained or tagged result type).
 
          if Needs_BIP_Alloc_Form (Enclosing_Func) then
-            Add_Alloc_Form_Actual_To_Build_In_Place_Call
+            if VM_Target = No_VM and then
+              RTE_Available (RE_Root_Storage_Pool_Ptr)
+            then
+               Pool_Actual :=
+                 New_Reference_To (Build_In_Place_Formal
+                   (Enclosing_Func, BIP_Storage_Pool), Loc);
+
+            --  The build-in-place pool formal is not built on .NET/JVM
+
+            else
+               Pool_Actual := Empty;
+            end if;
+
+            Add_Unconstrained_Actuals_To_Build_In_Place_Call
               (Func_Call,
                Function_Id,
                Alloc_Form_Exp =>
                  New_Reference_To
                    (Build_In_Place_Formal (Enclosing_Func, BIP_Alloc_Form),
-                    Loc));
+                    Loc),
+               Pool_Actual => Pool_Actual);
 
          --  Otherwise, if enclosing function has a constrained result subtype,
          --  then caller allocation will be used.
 
          else
-            Add_Alloc_Form_Actual_To_Build_In_Place_Call
+            Add_Unconstrained_Actuals_To_Build_In_Place_Call
               (Func_Call, Function_Id, Alloc_Form => Caller_Allocation);
          end if;
 
@@ -8102,7 +8280,7 @@ package body Exp_Ch6 is
          --  called as a dispatching operation and must be treated similarly
          --  to functions with unconstrained result subtypes.
 
-         Add_Alloc_Form_Actual_To_Build_In_Place_Call
+         Add_Unconstrained_Actuals_To_Build_In_Place_Call
            (Func_Call, Function_Id, Alloc_Form => Caller_Allocation);
 
       --  In other unconstrained cases, pass an indication to do the allocation
@@ -8111,10 +8289,8 @@ package body Exp_Ch6 is
       --  scope is established to ensure eventual cleanup of the result.
 
       else
-         Add_Alloc_Form_Actual_To_Build_In_Place_Call
-           (Func_Call,
-            Function_Id,
-            Alloc_Form => Secondary_Stack);
+         Add_Unconstrained_Actuals_To_Build_In_Place_Call
+           (Func_Call, Function_Id, Alloc_Form => Secondary_Stack);
          Caller_Object := Empty;
 
          Establish_Transient_Scope (Object_Decl, Sec_Stack => True);
@@ -8138,8 +8314,8 @@ package body Exp_Ch6 is
          Add_Task_Actuals_To_Build_In_Place_Call
            (Func_Call, Function_Id,
             Master_Actual =>
-              New_Reference_To
-                (Build_In_Place_Formal (Enclosing_Func, BIP_Master), Loc));
+              New_Reference_To (Build_In_Place_Formal
+                (Enclosing_Func, BIP_Task_Master), Loc));
 
       else
          Add_Task_Actuals_To_Build_In_Place_Call
@@ -8182,12 +8358,14 @@ package body Exp_Ch6 is
       end if;
 
       --  Finally, create an access object initialized to a reference to the
-      --  function call.
+      --  function call. We know this access value cannot be null, so mark the
+      --  entity accordingly to suppress the access check.
 
       New_Expr := Make_Reference (Loc, Relocate_Node (Func_Call));
 
       Def_Id := Make_Temporary (Loc, 'R', New_Expr);
       Set_Etype (Def_Id, Ref_Type);
+      Set_Is_Known_Non_Null (Def_Id);
 
       Insert_After_And_Analyze (Ptr_Typ_Decl,
         Make_Object_Declaration (Loc,
@@ -8386,8 +8564,8 @@ package body Exp_Ch6 is
          return False;
 
       --  Handle a corner case, a cross-dialect subp renaming. For example,
-      --  an Ada2012 renaming of an Ada05 subprogram. This can occur when a
-      --  non-Ada2012 unit references predefined runtime units.
+      --  an Ada 2012 renaming of an Ada 2005 subprogram. This can occur when
+      --  an Ada 2005 (or earlier) unit references predefined run-time units.
 
       elsif Present (Alias (Func_Id)) then
 

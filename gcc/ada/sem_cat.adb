@@ -900,7 +900,7 @@ package body Sem_Cat is
          --  If the type is private, it must have the Ada 2005 pragma
          --  Has_Preelaborable_Initialization.
          --  The check is omitted within predefined units. This is probably
-         --  obsolete code to fix the Ada95 weakness in this area ???
+         --  obsolete code to fix the Ada 95 weakness in this area ???
 
          if Is_Private_Type (T)
            and then not Has_Pragma_Preelab_Init (T)
@@ -972,7 +972,16 @@ package body Sem_Cat is
          while Present (Item) loop
             if Nkind (Item) = N_With_Clause
               and then not (Implicit_With (Item)
-                              or else Limited_Present (Item))
+                              or else Limited_Present (Item)
+
+                              --  Skip if error already posted on the WITH
+                              --  clause (in which case the Name attribute
+                              --  may be invalid). In particular, this fixes
+                              --  the problem of hanging in the presence of a
+                              --  WITH clause on a child that is an illegal
+                              --  generic instantiation.
+
+                              or else Error_Posted (Item))
             then
                Entity_Of_Withed := Entity (Name (Item));
                Check_Categorization_Dependencies

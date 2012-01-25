@@ -663,6 +663,9 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set,
       opts->x_flag_toplevel_reorder = 0;
     }
 
+  if (opts->x_flag_tm && opts->x_flag_non_call_exceptions)
+    sorry ("transactional memory is not supported with non-call exceptions");
+
   /* -Wmissing-noreturn is alias for -Wsuggest-attribute=noreturn.  */
   if (opts->x_warn_missing_noreturn)
     opts->x_warn_suggest_attribute_noreturn = true;
@@ -1415,6 +1418,10 @@ common_handle_option (struct gcc_options *opts,
     case OPT_Os:
     case OPT_Ofast:
       /* Currently handled in a prescan.  */
+      break;
+
+    case OPT_Werror:
+      dc->warning_as_error_requested = value;
       break;
 
     case OPT_Werror_:

@@ -54,8 +54,6 @@ struct GTY(()) pt_solution
   /* Nonzero if the pt_vars bitmap includes a global variable.  */
   unsigned int vars_contains_global : 1;
 
-  /* Nonzero if the pt_vars bitmap includes a restrict tag variable.  */
-  unsigned int vars_contains_restrict : 1;
 
   /* Set of variables that this pointer may point to.  */
   bitmap vars;
@@ -88,6 +86,9 @@ typedef struct ao_ref_s
 
   /* The alias set of the base object or -1 if not yet computed.  */
   alias_set_type base_alias_set;
+
+  /* Whether the memory is considered a volatile access.  */
+  bool volatile_p;
 } ao_ref;
 
 
@@ -130,10 +131,8 @@ extern bool pt_solution_singleton_p (struct pt_solution *, unsigned *);
 extern bool pt_solution_includes_global (struct pt_solution *);
 extern bool pt_solution_includes (struct pt_solution *, const_tree);
 extern bool pt_solutions_intersect (struct pt_solution *, struct pt_solution *);
-extern bool pt_solutions_same_restrict_base (struct pt_solution *,
-					     struct pt_solution *);
 extern void pt_solution_reset (struct pt_solution *);
-extern void pt_solution_set (struct pt_solution *, bitmap, bool, bool);
+extern void pt_solution_set (struct pt_solution *, bitmap, bool);
 extern void pt_solution_set_var (struct pt_solution *, tree);
 
 extern void dump_pta_stats (FILE *);

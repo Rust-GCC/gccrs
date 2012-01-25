@@ -45,6 +45,8 @@ AC_SUBST(enable_static)
 CC_FOR_BUILD=${CC_FOR_BUILD:-gcc}
 AC_SUBST(CC_FOR_BUILD)
 
+AC_PROG_AWK
+
 WARN_FLAGS='-Wall -Wextra -Wwrite-strings -Wcast-qual'
 AC_SUBST(WARN_FLAGS)
 
@@ -115,10 +117,16 @@ fi
 AC_SUBST(LIBFFI)
 AC_SUBST(LIBFFIINCS)
 
+# Used to tell GNU make to include a file without telling automake to
+# include it.
+go_include="-include"
+AC_SUBST(go_include)
+
 is_darwin=no
 is_freebsd=no
 is_irix=no
 is_linux=no
+is_netbsd=no
 is_rtems=no
 is_solaris=no
 GOOS=unknown
@@ -127,6 +135,7 @@ case ${host} in
   *-*-freebsd*)  is_freebsd=yes; GOOS=freebsd ;;
   *-*-irix6*)    is_irix=yes;    GOOS=irix ;;
   *-*-linux*)    is_linux=yes;   GOOS=linux ;;
+  *-*-netbsd*)	 is_netbsd=yes;  GOOS=netbsd ;;
   *-*-rtems*)    is_rtems=yes;   GOOS=rtems ;;
   *-*-solaris2*) is_solaris=yes; GOOS=solaris ;;
 esac
@@ -134,6 +143,7 @@ AM_CONDITIONAL(LIBGO_IS_DARWIN, test $is_darwin = yes)
 AM_CONDITIONAL(LIBGO_IS_FREEBSD, test $is_freebsd = yes)
 AM_CONDITIONAL(LIBGO_IS_IRIX, test $is_irix = yes)
 AM_CONDITIONAL(LIBGO_IS_LINUX, test $is_linux = yes)
+AM_CONDITIONAL(LIBGO_IS_NETBSD, test $is_netbsd = yes)
 AM_CONDITIONAL(LIBGO_IS_RTEMS, test $is_rtems = yes)
 AM_CONDITIONAL(LIBGO_IS_SOLARIS, test $is_solaris = yes)
 AC_SUBST(GOOS)
@@ -249,29 +259,45 @@ AM_CONDITIONAL(LIBGO_IS_X86_64, test $is_x86_64 = yes)
 AC_SUBST(GOARCH)
 
 dnl Some files are only present when needed for specific architectures.
-GO_SYSCALLS_SYSCALL_OS_ARCH_FILE=
-if test -f ${srcdir}/syscalls/syscall_${GOOS}_${GOARCH}.go; then
-  GO_SYSCALLS_SYSCALL_OS_ARCH_FILE=syscalls/syscall_${GOOS}_${GOARCH}.go
+GO_LIBCALL_OS_FILE=
+GO_LIBCALL_OS_ARCH_FILE=
+GO_SYSCALL_OS_FILE=
+GO_SYSCALL_OS_ARCH_FILE=
+if test -f ${srcdir}/go/syscall/libcall_${GOOS}.go; then
+  GO_LIBCALL_OS_FILE=go/syscall/libcall_${GOOS}.go
 fi
-AC_SUBST(GO_SYSCALLS_SYSCALL_OS_ARCH_FILE)
+if test -f ${srcdir}/go/syscall/libcall_${GOOS}_${GOARCH}.go; then
+  GO_LIBCALL_OS_ARCH_FILE=go/syscall/libcall_${GOOS}_${GOARCH}.go
+fi
+if test -f ${srcdir}/go/syscall/syscall_${GOOS}.go; then
+  GO_SYSCALL_OS_FILE=go/syscall/syscall_${GOOS}.go
+fi
+if test -f ${srcdir}/go/syscall/syscall_${GOOS}_${GOARCH}.go; then
+  GO_SYSCALL_OS_ARCH_FILE=go/syscall/syscall_${GOOS}_${GOARCH}.go
+fi
+AC_SUBST(GO_LIBCALL_OS_FILE)
+AC_SUBST(GO_LIBCALL_OS_ARCH_FILE)
+AC_SUBST(GO_SYSCALL_OS_FILE)
+AC_SUBST(GO_SYSCALL_OS_ARCH_FILE)
 
-dnl Some targets need special flags to build sysinfo.go.
+dnl Special flags used to generate sysinfo.go.
+OSCFLAGS="-D_GNU_SOURCE -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
 case "$target" in
     mips-sgi-irix6.5*)
 	# IRIX 6 needs _XOPEN_SOURCE=500 for the XPG5 version of struct
 	# msghdr in <sys/socket.h>.
-	OSCFLAGS='-D_XOPEN_SOURCE=500'
+	OSCFLAGS="$OSCFLAGS -D_XOPEN_SOURCE=500"
 	;;
     *-*-solaris2.[[89]])
 	# Solaris 8/9 need this so struct msghdr gets the msg_control
 	# etc. fields in <sys/socket.h> (_XPG4_2).
-	OSCFLAGS='-D_XOPEN_SOURCE=500 -D_XOPEN_SOURCE_EXTENDED -D__EXTENSIONS__'
+	OSCFLAGS="$OSCFLAGS -D_XOPEN_SOURCE=500 -D_XOPEN_SOURCE_EXTENDED -D__EXTENSIONS__"
 	;;
     *-*-solaris2.1[[01]])
 	# Solaris 10+ needs this so struct msghdr gets the msg_control
-	# etc. fields in <sys/socket.h> (_XPG4_2).  _XOPEN_SOURCE=500 as
+	# etc. fields in <sys/socket.h> (_XPG4_2).  _XOPEN_SOURCE=600 as
 	# above doesn't work with C99.
-	OSCFLAGS='-D_XOPEN_SOURCE=600 -D__EXTENSIONS__'
+	OSCFLAGS="$OSCFLAGS -std=gnu99 -D_XOPEN_SOURCE=600 -D__EXTENSIONS__"
 	;;
 esac
 AC_SUBST(OSCFLAGS)
@@ -425,7 +451,7 @@ no)
   ;;
 esac
 
-AC_CHECK_HEADERS(sys/mman.h syscall.h sys/epoll.h sys/ptrace.h sys/syscall.h sys/user.h sys/utsname.h sys/select.h sys/socket.h net/if.h)
+AC_CHECK_HEADERS(sys/mman.h syscall.h sys/epoll.h sys/ptrace.h sys/syscall.h sys/user.h sys/utsname.h sys/select.h sys/socket.h net/if.h sys/prctl.h)
 
 AC_CHECK_HEADERS([linux/filter.h linux/netlink.h linux/rtnetlink.h], [], [],
 [#ifdef HAVE_SYS_SOCKET_H
@@ -435,9 +461,17 @@ AC_CHECK_HEADERS([linux/filter.h linux/netlink.h linux/rtnetlink.h], [], [],
 
 AM_CONDITIONAL(HAVE_SYS_MMAN_H, test "$ac_cv_header_sys_mman_h" = yes)
 
-AC_CHECK_FUNCS(srandom random strerror_r strsignal wait4 mincore setenv)
+AC_CHECK_FUNCS(strerror_r strsignal wait4 mincore setenv)
 AM_CONDITIONAL(HAVE_STRERROR_R, test "$ac_cv_func_strerror_r" = yes)
 AM_CONDITIONAL(HAVE_WAIT4, test "$ac_cv_func_wait4" = yes)
+
+CFLAGS_hold="$CFLAGS"
+CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
+LIBS_hold="$LIBS"
+LIBS="$LIBS $PTHREAD_LIBS"
+AC_CHECK_FUNCS(sem_timedwait)
+CFLAGS="$CFLAGS_hold"
+LIBS="$LIBS_hold"
 
 AC_CACHE_CHECK([for __sync_bool_compare_and_swap_4],
 [libgo_cv_func___sync_bool_compare_and_swap_4],
@@ -487,6 +521,28 @@ CFLAGS_hold=$CFLAGS
 CFLAGS="$CFLAGS -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE"
 AC_CHECK_TYPES(off64_t)
 CFLAGS=$CFLAGS_hold
+
+dnl Work out the size of the epoll_events struct on GNU/Linux.
+AC_CACHE_CHECK([epoll_event size],
+[libgo_cv_c_epoll_event_size],
+[AC_COMPUTE_INT(libgo_cv_c_epoll_event_size,
+[sizeof (struct epoll_event)],
+[#include <sys/epoll.h>],
+[libgo_cv_c_epoll_event_size=0])])
+SIZEOF_STRUCT_EPOLL_EVENT=${libgo_cv_c_epoll_event_size}
+AC_SUBST(SIZEOF_STRUCT_EPOLL_EVENT)
+
+dnl Work out the offset of the fd field in the epoll_events struct on
+dnl GNU/Linux.
+AC_CACHE_CHECK([epoll_event data.fd offset],
+[libgo_cv_c_epoll_event_fd_offset],
+[AC_COMPUTE_INT(libgo_cv_c_epoll_event_fd_offset,
+[offsetof (struct epoll_event, data.fd)],
+[#include <stddef.h>
+#include <sys/epoll.h>],
+[libgo_cv_c_epoll_event_fd_offset=0])])
+STRUCT_EPOLL_EVENT_FD_OFFSET=${libgo_cv_c_epoll_event_fd_offset}
+AC_SUBST(STRUCT_EPOLL_EVENT_FD_OFFSET)
 
 AC_CACHE_SAVE
 

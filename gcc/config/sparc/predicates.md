@@ -1,5 +1,5 @@
 ;; Predicate definitions for SPARC.
-;; Copyright (C) 2005, 2007, 2008, 2010 Free Software Foundation, Inc.
+;; Copyright (C) 2005, 2007, 2008, 2010, 2012 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -111,6 +111,11 @@
 (define_predicate "const_double_or_vector_operand"
   (match_code "const_double,const_vector"))
 
+;; Return true if OP is Zero, or if the target is V7.
+(define_predicate "zero_or_v7_operand"
+  (and (match_code "const_int")
+       (ior (match_test "INTVAL (op) == 0")
+	    (match_test "!TARGET_V8 && !TARGET_V9"))))
 
 ;; Predicates for symbolic constants.
 
@@ -234,6 +239,11 @@
 (define_predicate "register_or_zero_operand"
   (ior (match_operand 0 "register_operand")
        (match_operand 0 "const_zero_operand")))
+
+(define_predicate "register_or_v9_zero_operand"
+  (ior (match_operand 0 "register_operand")
+       (and (match_test "TARGET_V9")
+	    (match_operand 0 "const_zero_operand"))))
 
 ;; Return true if OP is either the zero constant, the all-ones
 ;; constant, or a register.
@@ -427,8 +437,12 @@
       && (GET_CODE (op) == CONST_DOUBLE || GET_CODE (op) == CONST_INT))
     return true;
 
-  if ((mclass == MODE_FLOAT && GET_CODE (op) == CONST_DOUBLE)
-      || (mclass == MODE_VECTOR_INT && GET_CODE (op) == CONST_VECTOR))
+  if (mclass == MODE_FLOAT && GET_CODE (op) == CONST_DOUBLE)
+    return true;
+
+  if (mclass == MODE_VECTOR_INT && GET_CODE (op) == CONST_VECTOR
+      && (const_zero_operand (op, mode)
+          || const_all_ones_operand (op, mode)))
     return true;
 
   if (register_operand (op, mode))
@@ -457,6 +471,10 @@
   (and (match_code "mem")
        (match_test "call_address_operand (XEXP (op, 0), mode)")))
 
+
+(define_predicate "mem_noofs_operand"
+  (and (match_code "mem")
+       (match_code "reg" "0")))
 
 ;; Predicates for operators.
 

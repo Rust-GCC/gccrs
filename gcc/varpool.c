@@ -414,6 +414,20 @@ varpool_finalize_decl (tree decl)
     varpool_assemble_pending_decls ();
 }
 
+/* Add the variable DECL to the varpool.
+   Unlike varpool_finalize_decl function is intended to be used
+   by middle end and allows insertion of new variable at arbitrary point
+   of compilation.  */
+void
+varpool_add_new_variable (tree decl)
+{
+  struct varpool_node *node;
+  varpool_finalize_decl (decl);
+  node = varpool_node (decl);
+  if (varpool_externally_visible_p (node, false))
+    node->externally_visible = true;
+}
+
 /* Return variable availability.  See cgraph.h for description of individual
    return values.  */
 enum availability
@@ -470,6 +484,7 @@ varpool_analyze_pending_decls (void)
 	    {
 	      DECL_WEAK (node->decl) = DECL_WEAK (node->alias_of);
 	      TREE_PUBLIC (node->decl) = TREE_PUBLIC (node->alias_of);
+	      DECL_EXTERNAL (node->decl) = DECL_EXTERNAL (node->alias_of);
 	      DECL_VISIBILITY (node->decl) = DECL_VISIBILITY (node->alias_of);
 	      if (TREE_PUBLIC (node->decl))
 		{
@@ -703,9 +718,11 @@ varpool_create_variable_alias (tree alias, tree decl)
   gcc_assert (TREE_CODE (alias) == VAR_DECL);
   alias_node = varpool_node (alias);
   alias_node->alias = 1;
-  alias_node->finalized = 1;
+  if (!DECL_EXTERNAL (alias))
+    alias_node->finalized = 1;
   alias_node->alias_of = decl;
-  if (decide_is_variable_needed (alias_node, alias)
+  if ((!DECL_EXTERNAL (alias)
+       && decide_is_variable_needed (alias_node, alias))
       || alias_node->needed)
     varpool_mark_needed_node (alias_node);
   return alias_node;

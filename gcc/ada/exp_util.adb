@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -23,6 +23,7 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
+with Aspects;  use Aspects;
 with Atree;    use Atree;
 with Casing;   use Casing;
 with Checks;   use Checks;
@@ -159,6 +160,76 @@ package body Exp_Util is
    --  Flag For_Package should be set when the list comes from a package spec
    --  or body. Flag Nested_Constructs should be set when any nested packages
    --  declared in L must be processed.
+
+   -------------------------------------
+   -- Activate_Atomic_Synchronization --
+   -------------------------------------
+
+   procedure Activate_Atomic_Synchronization (N : Node_Id) is
+      Msg_Node : Node_Id;
+
+   begin
+      case Nkind (Parent (N)) is
+
+         --  Check for cases of appearing in the prefix of a construct where
+         --  we don't need atomic synchronization for this kind of usage.
+
+         when
+              --  Nothing to do if we are the prefix of an attribute, since we
+              --  do not want an atomic sync operation for things like 'Size.
+
+              N_Attribute_Reference |
+
+              --  The N_Reference node is like an attribute
+
+              N_Reference           |
+
+              --  Nothing to do for a reference to a component (or components)
+              --  of a composite object. Only reads and updates of the object
+              --  as a whole require atomic synchronization (RM C.6 (15)).
+
+              N_Indexed_Component   |
+              N_Selected_Component  |
+              N_Slice               =>
+
+            --  For all the above cases, nothing to do if we are the prefix
+
+            if Prefix (Parent (N)) = N then
+               return;
+            end if;
+
+         when others => null;
+      end case;
+
+      --  Go ahead and set the flag
+
+      Set_Atomic_Sync_Required (N);
+
+      --  Generate info message if requested
+
+      if Warn_On_Atomic_Synchronization then
+         case Nkind (N) is
+            when N_Identifier =>
+               Msg_Node := N;
+
+            when N_Selected_Component | N_Expanded_Name =>
+               Msg_Node := Selector_Name (N);
+
+            when N_Explicit_Dereference | N_Indexed_Component =>
+               Msg_Node := Empty;
+
+            when others =>
+               pragma Assert (False);
+               return;
+         end case;
+
+         if Present (Msg_Node) then
+            Error_Msg_N ("?info: atomic synchronization set for &", Msg_Node);
+         else
+            Error_Msg_N ("?info: atomic synchronization set", N);
+         end if;
+      end if;
+   end Activate_Atomic_Synchronization;
 
    ----------------------
    -- Adjust_Condition --
@@ -685,7 +756,30 @@ package body Exp_Util is
 
          Append_To (Actuals, New_Reference_To (Addr_Id, Loc));
          Append_To (Actuals, New_Reference_To (Size_Id, Loc));
-         Append_To (Actuals, New_Reference_To (Alig_Id, Loc));
+
+         if Is_Allocate or else not Is_Class_Wide_Type (Desig_Typ) then
+            Append_To (Actuals, New_Reference_To (Alig_Id, Loc));
+
+         --  For deallocation of class wide types we obtain the value of
+         --  alignment from the Type Specific Record of the deallocated object.
+         --  This is needed because the frontend expansion of class-wide types
+         --  into equivalent types confuses the backend.
+
+         else
+            --  Generate:
+            --     Obj.all'Alignment
+
+            --  ... because 'Alignment applied to class-wide types is expanded
+            --  into the code that reads the value of alignment from the TSD
+            --  (see Expand_N_Attribute_Reference)
+
+            Append_To (Actuals,
+              Unchecked_Convert_To (RTE (RE_Storage_Offset),
+                Make_Attribute_Reference (Loc,
+                  Prefix         =>
+                    Make_Explicit_Dereference (Loc, Relocate_Node (Expr)),
+                  Attribute_Name => Name_Alignment)));
+         end if;
 
          --  h) Is_Controlled
 
@@ -784,6 +878,7 @@ package body Exp_Util is
             else
                Append_To (Actuals, New_Reference_To (Standard_True, Loc));
             end if;
+
          else
             Append_To (Actuals, New_Reference_To (Standard_False, Loc));
          end if;
@@ -822,8 +917,7 @@ package body Exp_Util is
                   --  P : Root_Storage_Pool
 
                    Make_Parameter_Specification (Loc,
-                     Defining_Identifier =>
-                       Make_Temporary (Loc, 'P'),
+                     Defining_Identifier => Make_Temporary (Loc, 'P'),
                      Parameter_Type =>
                        New_Reference_To (RTE (RE_Root_Storage_Pool), Loc)),
 
@@ -831,22 +925,22 @@ package body Exp_Util is
 
                    Make_Parameter_Specification (Loc,
                      Defining_Identifier => Addr_Id,
-                     Out_Present => Is_Allocate,
-                     Parameter_Type =>
+                     Out_Present         => Is_Allocate,
+                     Parameter_Type      =>
                        New_Reference_To (RTE (RE_Address), Loc)),
 
                   --  S : Storage_Count
 
                    Make_Parameter_Specification (Loc,
                      Defining_Identifier => Size_Id,
-                     Parameter_Type =>
+                     Parameter_Type      =>
                        New_Reference_To (RTE (RE_Storage_Count), Loc)),
 
                   --  L : Storage_Count
 
                    Make_Parameter_Specification (Loc,
                      Defining_Identifier => Alig_Id,
-                     Parameter_Type =>
+                     Parameter_Type      =>
                        New_Reference_To (RTE (RE_Storage_Count), Loc)))),
 
              Declarations => No_List,
@@ -855,8 +949,7 @@ package body Exp_Util is
                Make_Handled_Sequence_Of_Statements (Loc,
                  Statements => New_List (
                    Make_Procedure_Call_Statement (Loc,
-                     Name =>
-                       New_Reference_To (Proc_To_Call, Loc),
+                     Name => New_Reference_To (Proc_To_Call, Loc),
                      Parameter_Associations => Actuals)))));
 
          --  The newly generated Allocate / Deallocate becomes the default
@@ -1689,6 +1782,100 @@ package body Exp_Util is
           and then not Restriction_Active (No_Local_Allocators);
    end Entry_Names_OK;
 
+   -------------------
+   -- Evaluate_Name --
+   -------------------
+
+   procedure Evaluate_Name (Nam : Node_Id) is
+      K : constant Node_Kind := Nkind (Nam);
+
+   begin
+      --  For an explicit dereference, we simply force the evaluation of the
+      --  name expression. The dereference provides a value that is the address
+      --  for the renamed object, and it is precisely this value that we want
+      --  to preserve.
+
+      if K = N_Explicit_Dereference then
+         Force_Evaluation (Prefix (Nam));
+
+      --  For a selected component, we simply evaluate the prefix
+
+      elsif K = N_Selected_Component then
+         Evaluate_Name (Prefix (Nam));
+
+      --  For an indexed component, or an attribute reference, we evaluate the
+      --  prefix, which is itself a name, recursively, and then force the
+      --  evaluation of all the subscripts (or attribute expressions).
+
+      elsif Nkind_In (K, N_Indexed_Component, N_Attribute_Reference) then
+         Evaluate_Name (Prefix (Nam));
+
+         declare
+            E : Node_Id;
+
+         begin
+            E := First (Expressions (Nam));
+            while Present (E) loop
+               Force_Evaluation (E);
+
+               if Original_Node (E) /= E then
+                  Set_Do_Range_Check (E, Do_Range_Check (Original_Node (E)));
+               end if;
+
+               Next (E);
+            end loop;
+         end;
+
+      --  For a slice, we evaluate the prefix, as for the indexed component
+      --  case and then, if there is a range present, either directly or as the
+      --  constraint of a discrete subtype indication, we evaluate the two
+      --  bounds of this range.
+
+      elsif K = N_Slice then
+         Evaluate_Name (Prefix (Nam));
+
+         declare
+            DR     : constant Node_Id := Discrete_Range (Nam);
+            Constr : Node_Id;
+            Rexpr  : Node_Id;
+
+         begin
+            if Nkind (DR) = N_Range then
+               Force_Evaluation (Low_Bound (DR));
+               Force_Evaluation (High_Bound (DR));
+
+            elsif Nkind (DR) = N_Subtype_Indication then
+               Constr := Constraint (DR);
+
+               if Nkind (Constr) = N_Range_Constraint then
+                  Rexpr := Range_Expression (Constr);
+
+                  Force_Evaluation (Low_Bound (Rexpr));
+                  Force_Evaluation (High_Bound (Rexpr));
+               end if;
+            end if;
+         end;
+
+      --  For a type conversion, the expression of the conversion must be the
+      --  name of an object, and we simply need to evaluate this name.
+
+      elsif K = N_Type_Conversion then
+         Evaluate_Name (Expression (Nam));
+
+      --  For a function call, we evaluate the call
+
+      elsif K = N_Function_Call then
+         Force_Evaluation (Nam);
+
+      --  The remaining cases are direct name, operator symbol and character
+      --  literal. In all these cases, we do nothing, since we want to
+      --  reevaluate each time the renamed object is used.
+
+      else
+         return;
+      end if;
+   end Evaluate_Name;
+
    ---------------------
    -- Evolve_And_Then --
    ---------------------
@@ -1921,11 +2108,11 @@ package body Exp_Util is
       then
          null;
 
-      --  In Ada95 nothing to be done if the type of the expression is limited,
+      --  In Ada 95 nothing to be done if the type of the expression is limited
       --  because in this case the expression cannot be copied, and its use can
       --  only be by reference.
 
-      --  In Ada2005, the context can be an object declaration whose expression
+      --  In Ada 2005 the context can be an object declaration whose expression
       --  is a function that returns in place. If the nominal subtype has
       --  unknown discriminants, the call still provides constraints on the
       --  object, and we have to create an actual subtype from it.
@@ -3780,6 +3967,13 @@ package body Exp_Util is
       function Is_Allocated (Trans_Id : Entity_Id) return Boolean;
       --  Determine whether transient object Trans_Id is allocated on the heap
 
+      function Is_Iterated_Container
+        (Trans_Id   : Entity_Id;
+         First_Stmt : Node_Id) return Boolean;
+      --  Determine whether transient object Trans_Id denotes a container which
+      --  is in the process of being iterated in the statement list starting
+      --  from First_Stmt.
+
       ---------------------------
       -- Initialized_By_Access --
       ---------------------------
@@ -3994,6 +4188,92 @@ package body Exp_Util is
              and then Nkind (Expr) = N_Allocator;
       end Is_Allocated;
 
+      ---------------------------
+      -- Is_Iterated_Container --
+      ---------------------------
+
+      function Is_Iterated_Container
+        (Trans_Id   : Entity_Id;
+         First_Stmt : Node_Id) return Boolean
+      is
+         Aspect : Node_Id;
+         Call   : Node_Id;
+         Iter   : Entity_Id;
+         Param  : Node_Id;
+         Stmt   : Node_Id;
+         Typ    : Entity_Id;
+
+      begin
+         --  It is not possible to iterate over containers in non-Ada 2012 code
+
+         if Ada_Version < Ada_2012 then
+            return False;
+         end if;
+
+         Typ := Etype (Trans_Id);
+
+         --  Handle access type created for secondary stack use
+
+         if Is_Access_Type (Typ) then
+            Typ := Designated_Type (Typ);
+         end if;
+
+         --  Look for aspect Default_Iterator
+
+         if Has_Aspects (Parent (Typ)) then
+            Aspect := Find_Aspect (Typ, Aspect_Default_Iterator);
+
+            if Present (Aspect) then
+               Iter := Entity (Aspect);
+
+               --  Examine the statements following the container object and
+               --  look for a call to the default iterate routine where the
+               --  first parameter is the transient. Such a call appears as:
+
+               --     It : Access_To_CW_Iterator :=
+               --            Iterate (Tran_Id.all, ...)'reference;
+
+               Stmt := First_Stmt;
+               while Present (Stmt) loop
+
+                  --  Detect an object declaration which is initialized by a
+                  --  secondary stack function call.
+
+                  if Nkind (Stmt) = N_Object_Declaration
+                    and then Present (Expression (Stmt))
+                    and then Nkind (Expression (Stmt)) = N_Reference
+                    and then Nkind (Prefix (Expression (Stmt))) =
+                               N_Function_Call
+                  then
+                     Call := Prefix (Expression (Stmt));
+
+                     --  The call must invoke the default iterate routine of
+                     --  the container and the transient object must appear as
+                     --  the first actual parameter. Skip any calls whose names
+                     --  are not entities.
+
+                     if Is_Entity_Name (Name (Call))
+                       and then Entity (Name (Call)) = Iter
+                       and then Present (Parameter_Associations (Call))
+                     then
+                        Param := First (Parameter_Associations (Call));
+
+                        if Nkind (Param) = N_Explicit_Dereference
+                          and then Entity (Prefix (Param)) = Trans_Id
+                        then
+                           return True;
+                        end if;
+                     end if;
+                  end if;
+
+                  Next (Stmt);
+               end loop;
+            end if;
+         end if;
+
+         return False;
+      end Is_Iterated_Container;
+
    --  Start of processing for Is_Finalizable_Transient
 
    begin
@@ -4034,7 +4314,13 @@ package body Exp_Util is
 
           --  Do not consider conversions of tags to class-wide types
 
-          and then not Is_Tag_To_CW_Conversion (Obj_Id);
+          and then not Is_Tag_To_CW_Conversion (Obj_Id)
+
+          --  Do not consider containers in the context of iterator loops. Such
+          --  transient objects must exist for as long as the loop is around,
+          --  otherwise any operation carried out by the iterator will fail.
+
+          and then not Is_Iterated_Container (Obj_Id, Decl);
    end Is_Finalizable_Transient;
 
    ---------------------------------
@@ -4203,9 +4489,14 @@ package body Exp_Util is
          return True;
       end if;
 
-      --  Case of component reference
+      --  Case of indexed component reference: test whether prefix is unaligned
 
-      if Nkind (N) = N_Selected_Component then
+      if Nkind (N) = N_Indexed_Component then
+         return Is_Possibly_Unaligned_Object (Prefix (N));
+
+      --  Case of selected component reference
+
+      elsif Nkind (N) = N_Selected_Component then
          declare
             P : constant Node_Id   := Prefix (N);
             C : constant Entity_Id := Entity (Selector_Name (N));
@@ -5846,11 +6137,11 @@ package body Exp_Util is
       Exp_Type     : constant Entity_Id      := Etype (Exp);
       Svg_Suppress : constant Suppress_Array := Scope_Suppress;
       Def_Id       : Entity_Id;
+      E            : Node_Id;
+      New_Exp      : Node_Id;
+      Ptr_Typ_Decl : Node_Id;
       Ref_Type     : Entity_Id;
       Res          : Node_Id;
-      Ptr_Typ_Decl : Node_Id;
-      New_Exp      : Node_Id;
-      E            : Node_Id;
 
       function Side_Effect_Free (N : Node_Id) return Boolean;
       --  Determines if the tree N represents an expression that is known not
@@ -6085,7 +6376,7 @@ package body Exp_Util is
 
             --  A binary operator is side effect free if and both operands are
             --  side effect free. For this purpose binary operators include
-            --  membership tests and short circuit forms
+            --  membership tests and short circuit forms.
 
             when N_Binary_Op | N_Membership_Test | N_Short_Circuit =>
                return Side_Effect_Free (Left_Opnd  (N))
@@ -6255,13 +6546,14 @@ package body Exp_Util is
 
       if not Expander_Active then
          return;
+      end if;
 
       --  Cannot generate temporaries if the invocation to remove side effects
       --  was issued too early and the type of the expression is not resolved
       --  (this happens because routines Duplicate_Subexpr_XX implicitly invoke
       --  Remove_Side_Effects).
 
-      elsif No (Exp_Type)
+      if No (Exp_Type)
         or else Ekind (Exp_Type) = E_Access_Attribute_Type
       then
          return;
@@ -6453,6 +6745,15 @@ package body Exp_Util is
       --  Otherwise we generate a reference to the value
 
       else
+         --  An expression which is in Alfa mode is considered side effect free
+         --  if the resulting value is captured by a variable or a constant.
+
+         if Alfa_Mode
+           and then Nkind (Parent (Exp)) = N_Object_Declaration
+         then
+            return;
+         end if;
+
          --  Special processing for function calls that return a limited type.
          --  We need to build a declaration that will enable build-in-place
          --  expansion of the call. This is not done if the context is already
@@ -6461,10 +6762,10 @@ package body Exp_Util is
          --  This is relevant only in Ada 2005 mode. In Ada 95 programs we have
          --  to accommodate functions returning limited objects by reference.
 
-         if Nkind (Exp) = N_Function_Call
+         if Ada_Version >= Ada_2005
+           and then Nkind (Exp) = N_Function_Call
            and then Is_Immutably_Limited_Type (Etype (Exp))
            and then Nkind (Parent (Exp)) /= N_Object_Declaration
-           and then Ada_Version >= Ada_2005
          then
             declare
                Obj  : constant Entity_Id := Make_Temporary (Loc, 'F', Exp);
@@ -6484,32 +6785,62 @@ package body Exp_Util is
             end;
          end if;
 
-         Ref_Type := Make_Temporary (Loc, 'A');
-
-         Ptr_Typ_Decl :=
-           Make_Full_Type_Declaration (Loc,
-             Defining_Identifier => Ref_Type,
-             Type_Definition =>
-               Make_Access_To_Object_Definition (Loc,
-                 All_Present => True,
-                 Subtype_Indication =>
-                   New_Reference_To (Exp_Type, Loc)));
-
-         E := Exp;
-         Insert_Action (Exp, Ptr_Typ_Decl);
-
          Def_Id := Make_Temporary (Loc, 'R', Exp);
          Set_Etype (Def_Id, Exp_Type);
 
-         Res :=
-           Make_Explicit_Dereference (Loc,
-             Prefix => New_Reference_To (Def_Id, Loc));
+         --  The regular expansion of functions with side effects involves the
+         --  generation of an access type to capture the return value found on
+         --  the secondary stack. Since Alfa (and why) cannot process access
+         --  types, use a different approach which ignores the secondary stack
+         --  and "copies" the returned object.
 
+         if Alfa_Mode then
+            Res := New_Reference_To (Def_Id, Loc);
+            Ref_Type := Exp_Type;
+
+         --  Regular expansion utilizing an access type and 'reference
+
+         else
+            Res :=
+              Make_Explicit_Dereference (Loc,
+                Prefix => New_Reference_To (Def_Id, Loc));
+
+            --  Generate:
+            --    type Ann is access all <Exp_Type>;
+
+            Ref_Type := Make_Temporary (Loc, 'A');
+
+            Ptr_Typ_Decl :=
+              Make_Full_Type_Declaration (Loc,
+                Defining_Identifier => Ref_Type,
+                Type_Definition     =>
+                  Make_Access_To_Object_Definition (Loc,
+                    All_Present        => True,
+                    Subtype_Indication =>
+                      New_Reference_To (Exp_Type, Loc)));
+
+            Insert_Action (Exp, Ptr_Typ_Decl);
+         end if;
+
+         E := Exp;
          if Nkind (E) = N_Explicit_Dereference then
             New_Exp := Relocate_Node (Prefix (E));
          else
             E := Relocate_Node (E);
-            New_Exp := Make_Reference (Loc, E);
+
+            --  Do not generate a 'reference in Alfa mode since the access type
+            --  is not created in the first place.
+
+            if Alfa_Mode then
+               New_Exp := E;
+
+            --  Otherwise generate reference, marking the value as non-null
+            --  since we know it cannot be null and we don't want a check.
+
+            else
+               New_Exp := Make_Reference (Loc, E);
+               Set_Is_Known_Non_Null (Def_Id);
+            end if;
          end if;
 
          if Is_Delayed_Aggregate (E) then

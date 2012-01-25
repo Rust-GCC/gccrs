@@ -7,9 +7,9 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#include "runtime.h"
 #include "go-alloc.h"
 #include "go-assert.h"
-#include "go-panic.h"
 #include "map.h"
 
 /* Delete the entry matching KEY from MAP.  */
@@ -20,14 +20,14 @@ __go_map_delete (struct __go_map *map, const void *key)
   const struct __go_map_descriptor *descriptor;
   const struct __go_type_descriptor *key_descriptor;
   uintptr_t key_offset;
-  _Bool (*equalfn) (const void*, const void*, size_t);
+  _Bool (*equalfn) (const void*, const void*, uintptr_t);
   size_t key_hash;
   size_t key_size;
   size_t bucket_index;
   void **pentry;
 
   if (map == NULL)
-    __go_panic_msg ("assignment to entry in nil map");
+    runtime_panicstring ("deletion of entry in nil map");
 
   descriptor = map->__descriptor;
 

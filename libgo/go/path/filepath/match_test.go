@@ -5,16 +5,15 @@
 package filepath_test
 
 import (
-	"os"
 	. "path/filepath"
-	"testing"
 	"runtime"
+	"testing"
 )
 
 type MatchTest struct {
 	pattern, s string
 	match      bool
-	err        os.Error
+	err        error
 }
 
 var matchTests = []MatchTest{
@@ -69,11 +68,11 @@ var matchTests = []MatchTest{
 	{"*x", "xxx", true, nil},
 }
 
-func errp(e os.Error) string {
+func errp(e error) string {
 	if e == nil {
 		return "<nil>"
 	}
-	return e.String()
+	return e.Error()
 }
 
 func TestMatch(t *testing.T) {
@@ -123,6 +122,16 @@ func TestGlob(t *testing.T) {
 		}
 		if !contains(matches, tt.result) {
 			t.Errorf("Glob(%#q) = %#v want %v", tt.pattern, matches, tt.result)
+		}
+	}
+	for _, pattern := range []string{"no_match", "../*/no_match"} {
+		matches, err := Glob(pattern)
+		if err != nil {
+			t.Errorf("Glob error for %q: %s", pattern, err)
+			continue
+		}
+		if len(matches) != 0 {
+			t.Errorf("Glob(%#q) = %#v want []", pattern, matches)
 		}
 	}
 }

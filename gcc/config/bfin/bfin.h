@@ -612,7 +612,7 @@ enum reg_class
    || (OUTER) == POST_DEC || (OUTER) == PRE_DEC		     \
    || (OUTER) == MEM || (OUTER) == ADDRESS)
 
-#define MODE_CODE_BASE_REG_CLASS(MODE, OUTER, INDEX)			\
+#define MODE_CODE_BASE_REG_CLASS(MODE, AS, OUTER, INDEX)	\
   ((MODE) == HImode && IREG_POSSIBLE_P (OUTER) ? IPREGS : PREGS)
 
 #define INDEX_REG_CLASS         PREGS
@@ -627,10 +627,10 @@ enum reg_class
    || REGNO_OK_FOR_BASE_STRICT_P (X, MODE, OUTER, INDEX))
 
 #ifdef REG_OK_STRICT
-#define REGNO_MODE_CODE_OK_FOR_BASE_P(X, MODE, OUTER, INDEX) \
+#define REGNO_MODE_CODE_OK_FOR_BASE_P(X, MODE, AS, OUTER, INDEX) \
   REGNO_OK_FOR_BASE_STRICT_P (X, MODE, OUTER, INDEX)
 #else
-#define REGNO_MODE_CODE_OK_FOR_BASE_P(X, MODE, OUTER, INDEX) \
+#define REGNO_MODE_CODE_OK_FOR_BASE_P(X, MODE, AS, OUTER, INDEX) \
   REGNO_OK_FOR_BASE_NONSTRICT_P (X, MODE, OUTER, INDEX)
 #endif
 
@@ -974,29 +974,6 @@ typedef struct {
 
 /* Do not put function addr into constant pool */
 #define NO_FUNCTION_CSE 1
-
-/* A C expression for the cost of moving data from a register in class FROM to
-   one in class TO.  The classes are expressed using the enumeration values
-   such as `GENERAL_REGS'.  A value of 2 is the default; other values are
-   interpreted relative to that.
-
-   It is not required that the cost always equal 2 when FROM is the same as TO;
-   on some machines it is expensive to move between registers if they are not
-   general registers.  */
-
-#define REGISTER_MOVE_COST(MODE, CLASS1, CLASS2) \
-   bfin_register_move_cost ((MODE), (CLASS1), (CLASS2))
-
-/* A C expression for the cost of moving data of mode M between a
-   register and memory.  A value of 2 is the default; this cost is
-   relative to those in `REGISTER_MOVE_COST'.
-
-   If moving between registers and memory is more expensive than
-   between two registers, you should define this macro to express the
-   relative cost.  */
-
-#define MEMORY_MOVE_COST(MODE, CLASS, IN)	\
-  bfin_memory_move_cost ((MODE), (CLASS), (IN))
 
 /* Specify the machine mode that this machine uses
    for the index in the tablejump instruction.  */

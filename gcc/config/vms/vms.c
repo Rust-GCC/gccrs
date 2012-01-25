@@ -45,6 +45,9 @@ along with GCC; see the file COPYING3.  If not see
 /* Prepend x before the name for printf like functions.  */
 #define VMS_CRTL_PRNTF	(1 << 4)
 
+/* Prepend ga_ for global data.  */
+#define VMS_CRTL_GLOBAL (1 << 5)
+
 struct vms_crtl_name
 {
   /* The standard C name.  */
@@ -99,8 +102,11 @@ vms_patch_builtins (void)
   unsigned int i;
 
   /* Fwrite on VMS is non-standard.  */
-  implicit_built_in_decls[(int) BUILT_IN_FWRITE] = NULL_TREE;
-  implicit_built_in_decls[(int) BUILT_IN_FWRITE_UNLOCKED] = NULL_TREE;
+  if (builtin_decl_implicit_p (BUILT_IN_FWRITE))
+    set_builtin_decl_implicit_p (BUILT_IN_FWRITE, false);
+
+  if (builtin_decl_implicit_p (BUILT_IN_FWRITE_UNLOCKED))
+    set_builtin_decl_implicit_p (BUILT_IN_FWRITE_UNLOCKED, false);
 
   /* Define aliases for names.  */
   for (i = 0; i < NBR_CRTL_NAMES; i++)
@@ -118,6 +124,12 @@ vms_patch_builtins (void)
         {
           memcpy (res + rlen, "__bsd44__", 9);
           rlen += 9;
+        }
+
+      if (n->flags & VMS_CRTL_GLOBAL)
+        {
+          memcpy (res + rlen, "ga_", 3);
+          rlen += 3;
         }
 
       if (n->flags & VMS_CRTL_FLOAT)
@@ -166,6 +178,17 @@ vms_patch_builtins (void)
           vms_add_crtl_xlat (alt, nlen + 3, res, rlen + nlen + 2);
         }
     }
+}
+
+/* Always default to .text section.  */
+
+section *
+vms_function_section (tree decl ATTRIBUTE_UNUSED,
+                      enum node_frequency freq ATTRIBUTE_UNUSED,
+                      bool startup ATTRIBUTE_UNUSED,
+                      bool exit ATTRIBUTE_UNUSED)
+{
+  return NULL;
 }
 
 #include "gt-vms.h"

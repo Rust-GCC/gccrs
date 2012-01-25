@@ -4,9 +4,11 @@
 
 package net
 
-import "os"
+import (
+	"time"
+)
 
-func resolveNetAddr(op, net, addr string) (a Addr, err os.Error) {
+func resolveNetAddr(op, net, addr string) (a Addr, err error) {
 	if addr == "" {
 		return nil, &OpError{op, net, nil, errMissingAddress}
 	}
@@ -44,11 +46,15 @@ func resolveNetAddr(op, net, addr string) (a Addr, err os.Error) {
 //	Dial("tcp", "google.com:80")
 //	Dial("tcp", "[de:ad:be:ef::ca:fe]:80")
 //
-func Dial(net, addr string) (c Conn, err os.Error) {
+func Dial(net, addr string) (Conn, error) {
 	addri, err := resolveNetAddr("dial", net, addr)
 	if err != nil {
 		return nil, err
 	}
+	return dialAddr(net, addr, addri)
+}
+
+func dialAddr(net, addr string, addri Addr) (c Conn, err error) {
 	switch ra := addri.(type) {
 	case *TCPAddr:
 		c, err = DialTCP(net, nil, ra)
@@ -59,18 +65,74 @@ func Dial(net, addr string) (c Conn, err os.Error) {
 	case *IPAddr:
 		c, err = DialIP(net, nil, ra)
 	default:
-		err = UnknownNetworkError(net)
+		err = &OpError{"dial", net + " " + addr, nil, UnknownNetworkError(net)}
 	}
 	if err != nil {
-		return nil, &OpError{"dial", net + " " + addr, nil, err}
+		return nil, err
 	}
 	return
 }
 
+// DialTimeout acts like Dial but takes a timeout.
+// The timeout includes name resolution, if required.
+func DialTimeout(net, addr string, timeout time.Duration) (Conn, error) {
+	// TODO(bradfitz): the timeout should be pushed down into the
+	// net package's event loop, so on timeout to dead hosts we
+	// don't have a goroutine sticking around for the default of
+	// ~3 minutes.
+	t := time.NewTimer(timeout)
+	defer t.Stop()
+	type pair struct {
+		Conn
+		error
+	}
+	ch := make(chan pair, 1)
+	resolvedAddr := make(chan Addr, 1)
+	go func() {
+		addri, err := resolveNetAddr("dial", net, addr)
+		if err != nil {
+			ch <- pair{nil, err}
+			return
+		}
+		resolvedAddr <- addri // in case we need it for OpError
+		c, err := dialAddr(net, addr, addri)
+		ch <- pair{c, err}
+	}()
+	select {
+	case <-t.C:
+		// Try to use the real Addr in our OpError, if we resolved it
+		// before the timeout. Otherwise we just use stringAddr.
+		var addri Addr
+		select {
+		case a := <-resolvedAddr:
+			addri = a
+		default:
+			addri = &stringAddr{net, addr}
+		}
+		err := &OpError{
+			Op:   "dial",
+			Net:  net,
+			Addr: addri,
+			Err:  &timeoutError{},
+		}
+		return nil, err
+	case p := <-ch:
+		return p.Conn, p.error
+	}
+	panic("unreachable")
+}
+
+type stringAddr struct {
+	net, addr string
+}
+
+func (a stringAddr) Network() string { return a.net }
+func (a stringAddr) String() string  { return a.addr }
+
 // Listen announces on the local network address laddr.
 // The network string net must be a stream-oriented
 // network: "tcp", "tcp4", "tcp6", or "unix", or "unixpacket".
-func Listen(net, laddr string) (l Listener, err os.Error) {
+func Listen(net, laddr string) (l Listener, err error) {
 	switch net {
 	case "tcp", "tcp4", "tcp6":
 		var la *TCPAddr
@@ -103,7 +165,7 @@ func Listen(net, laddr string) (l Listener, err os.Error) {
 // ListenPacket announces on the local network address laddr.
 // The network string net must be a packet-oriented network:
 // "udp", "udp4", "udp6", or "unixgram".
-func ListenPacket(net, laddr string) (c PacketConn, err os.Error) {
+func ListenPacket(net, laddr string) (c PacketConn, err error) {
 	switch net {
 	case "udp", "udp4", "udp6":
 		var la *UDPAddr

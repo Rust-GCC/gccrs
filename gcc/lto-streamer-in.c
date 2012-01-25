@@ -50,6 +50,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "lto-streamer.h"
 #include "tree-streamer.h"
 #include "tree-pass.h"
+#include "streamer-hooks.h"
 
 /* The table to hold the file names.  */
 static htab_t file_name_hash_table;
@@ -180,15 +181,23 @@ lto_input_location_bitpack (struct data_in *data_in, struct bitpack_d *bp)
 }
 
 
-/* Read a location from input block IB.  */
+/* Read a location from input block IB.
+   If the input_location streamer hook exists, call it.
+   Otherwise, proceed with reading the location from the
+   expanded location bitpack.  */
 
 location_t
 lto_input_location (struct lto_input_block *ib, struct data_in *data_in)
 {
-  struct bitpack_d bp;
+  if (streamer_hooks.input_location)
+    return streamer_hooks.input_location (ib, data_in);
+  else
+    {
+      struct bitpack_d bp;
 
-  bp = streamer_read_bitpack (ib);
-  return lto_input_location_bitpack (data_in, &bp);
+      bp = streamer_read_bitpack (ib);
+      return lto_input_location_bitpack (data_in, &bp);
+    }
 }
 
 
@@ -755,51 +764,16 @@ fixup_call_stmt_edges (struct cgraph_node *orig, gimple *stmts)
       }
 }
 
-/* Read the body of function FN_DECL from DATA_IN using input block IB.  */
+
+/* Input the base body of struct function FN from DATA_IN
+   using input block IB.  */
 
 static void
-input_function (tree fn_decl, struct data_in *data_in,
-		struct lto_input_block *ib)
+input_struct_function_base (struct function *fn, struct data_in *data_in,
+                            struct lto_input_block *ib)
 {
-  struct function *fn;
-  enum LTO_tags tag;
-  gimple *stmts;
-  basic_block bb;
   struct bitpack_d bp;
-  struct cgraph_node *node;
-  tree args, narg, oarg;
   int len;
-
-  fn = DECL_STRUCT_FUNCTION (fn_decl);
-  tag = streamer_read_record_start (ib);
-  clear_line_info (data_in);
-
-  gimple_register_cfg_hooks ();
-  lto_tag_check (tag, LTO_function);
-
-  /* Read all the attributes for FN.  */
-  bp = streamer_read_bitpack (ib);
-  fn->is_thunk = bp_unpack_value (&bp, 1);
-  fn->has_local_explicit_reg_vars = bp_unpack_value (&bp, 1);
-  fn->after_tree_profile = bp_unpack_value (&bp, 1);
-  fn->returns_pcc_struct = bp_unpack_value (&bp, 1);
-  fn->returns_struct = bp_unpack_value (&bp, 1);
-  fn->can_throw_non_call_exceptions = bp_unpack_value (&bp, 1);
-  fn->always_inline_functions_inlined = bp_unpack_value (&bp, 1);
-  fn->after_inlining = bp_unpack_value (&bp, 1);
-  fn->stdarg = bp_unpack_value (&bp, 1);
-  fn->has_nonlocal_label = bp_unpack_value (&bp, 1);
-  fn->calls_alloca = bp_unpack_value (&bp, 1);
-  fn->calls_setjmp = bp_unpack_value (&bp, 1);
-  fn->va_list_fpr_size = bp_unpack_value (&bp, 8);
-  fn->va_list_gpr_size = bp_unpack_value (&bp, 8);
-
-  /* Input the function start and end loci.  */
-  fn->function_start_locus = lto_input_location (ib, data_in);
-  fn->function_end_locus = lto_input_location (ib, data_in);
-
-  /* Input the current IL state of the function.  */
-  fn->curr_properties = streamer_read_uhwi (ib);
 
   /* Read the static chain and non-local goto save area.  */
   fn->static_chain_decl = stream_read_tree (ib, data_in);
@@ -817,6 +791,54 @@ input_function (tree fn_decl, struct data_in *data_in,
 	  VEC_replace (tree, fn->local_decls, i, t);
 	}
     }
+
+  /* Input the function start and end loci.  */
+  fn->function_start_locus = lto_input_location (ib, data_in);
+  fn->function_end_locus = lto_input_location (ib, data_in);
+
+  /* Input the current IL state of the function.  */
+  fn->curr_properties = streamer_read_uhwi (ib);
+
+  /* Read all the attributes for FN.  */
+  bp = streamer_read_bitpack (ib);
+  fn->is_thunk = bp_unpack_value (&bp, 1);
+  fn->has_local_explicit_reg_vars = bp_unpack_value (&bp, 1);
+  fn->after_tree_profile = bp_unpack_value (&bp, 1);
+  fn->returns_pcc_struct = bp_unpack_value (&bp, 1);
+  fn->returns_struct = bp_unpack_value (&bp, 1);
+  fn->can_throw_non_call_exceptions = bp_unpack_value (&bp, 1);
+  fn->always_inline_functions_inlined = bp_unpack_value (&bp, 1);
+  fn->after_inlining = bp_unpack_value (&bp, 1);
+  fn->stdarg = bp_unpack_value (&bp, 1);
+  fn->has_nonlocal_label = bp_unpack_value (&bp, 1);
+  fn->calls_alloca = bp_unpack_value (&bp, 1);
+  fn->calls_setjmp = bp_unpack_value (&bp, 1);
+  fn->va_list_fpr_size = bp_unpack_value (&bp, 8);
+  fn->va_list_gpr_size = bp_unpack_value (&bp, 8);
+}
+
+
+/* Read the body of function FN_DECL from DATA_IN using input block IB.  */
+
+static void
+input_function (tree fn_decl, struct data_in *data_in,
+		struct lto_input_block *ib)
+{
+  struct function *fn;
+  enum LTO_tags tag;
+  gimple *stmts;
+  basic_block bb;
+  struct cgraph_node *node;
+  tree args, narg, oarg;
+
+  fn = DECL_STRUCT_FUNCTION (fn_decl);
+  tag = streamer_read_record_start (ib);
+  clear_line_info (data_in);
+
+  gimple_register_cfg_hooks ();
+  lto_tag_check (tag, LTO_function);
+
+  input_struct_function_base (fn, data_in, ib);
 
   /* Read all function arguments.  We need to re-map them here to the
      arguments of the merged function declaration.  */
@@ -957,9 +979,9 @@ lto_read_body (struct lto_file_decl_data *file_data, tree fn_decl,
 {
   const struct lto_function_header *header;
   struct data_in *data_in;
-  int32_t cfg_offset;
-  int32_t main_offset;
-  int32_t string_offset;
+  int cfg_offset;
+  int main_offset;
+  int string_offset;
   struct lto_input_block ib_cfg;
   struct lto_input_block ib_main;
 
@@ -990,6 +1012,7 @@ lto_read_body (struct lto_file_decl_data *file_data, tree fn_decl,
       struct function *fn = DECL_STRUCT_FUNCTION (fn_decl);
       struct lto_in_decl_state *decl_state;
       struct cgraph_node *node = cgraph_get_node (fn_decl);
+      unsigned from;
 
       gcc_checking_assert (node);
       push_cfun (fn);
@@ -1003,7 +1026,33 @@ lto_read_body (struct lto_file_decl_data *file_data, tree fn_decl,
       input_cfg (&ib_cfg, fn, node->count_materialization_scale);
 
       /* Set up the struct function.  */
+      from = VEC_length (tree, data_in->reader_cache->nodes);
       input_function (fn_decl, data_in, &ib_main);
+      /* And fixup types we streamed locally.  */
+	{
+	  struct streamer_tree_cache_d *cache = data_in->reader_cache;
+	  unsigned len = VEC_length (tree, cache->nodes);
+	  unsigned i;
+	  for (i = len; i-- > from;)
+	    {
+	      tree t = VEC_index (tree, cache->nodes, i);
+	      if (t == NULL_TREE)
+		continue;
+
+	      if (TYPE_P (t))
+		{
+		  gcc_assert (TYPE_CANONICAL (t) == NULL_TREE);
+		  TYPE_CANONICAL (t) = TYPE_MAIN_VARIANT (t);
+		  if (TYPE_MAIN_VARIANT (t) != t)
+		    {
+		      gcc_assert (TYPE_NEXT_VARIANT (t) == NULL_TREE);
+		      TYPE_NEXT_VARIANT (t)
+			= TYPE_NEXT_VARIANT (TYPE_MAIN_VARIANT (t));
+		      TYPE_NEXT_VARIANT (TYPE_MAIN_VARIANT (t)) = t;
+		    }
+		}
+	    }
+	}
 
       /* We should now be in SSA.  */
       cfun->gimple_df->in_ssa_p = true;
@@ -1150,7 +1199,7 @@ lto_input_toplevel_asms (struct lto_file_decl_data *file_data, int order_base)
   const char *data = lto_get_section_data (file_data, LTO_section_asm,
 					   NULL, &len);
   const struct lto_asm_header *header = (const struct lto_asm_header *) data;
-  int32_t string_offset;
+  int string_offset;
   struct data_in *data_in;
   struct lto_input_block ib;
   tree str;

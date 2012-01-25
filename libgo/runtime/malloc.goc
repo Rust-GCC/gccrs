@@ -12,13 +12,11 @@ package runtime
 #include <stdlib.h>
 #include "go-alloc.h"
 #include "runtime.h"
+#include "arch.h"
 #include "malloc.h"
 #include "go-string.h"
 #include "interface.h"
 #include "go-type.h"
-typedef struct __go_empty_interface Eface;
-typedef struct __go_type_descriptor Type;
-typedef struct __go_func_type FuncType;
 
 MHeap runtime_mheap;
 extern MStats mstats;	// defined in extern.go
@@ -32,14 +30,25 @@ extern volatile int32 runtime_MemProfileRate
 void*
 runtime_mallocgc(uintptr size, uint32 flag, int32 dogc, int32 zeroed)
 {
+	M *m;
+	G *g;
 	int32 sizeclass, rate;
 	MCache *c;
 	uintptr npages;
 	MSpan *s;
 	void *v;
 
-	if(!__sync_bool_compare_and_swap(&m->mallocing, 0, 1))
+	m = runtime_m();
+	g = runtime_g();
+	if(g->status == Gsyscall)
+		dogc = 0;
+	if(runtime_gcwaiting && g != m->g0 && m->locks == 0 && g->status != Gsyscall) {
+		runtime_gosched();
+		m = runtime_m();
+	}
+	if(m->mallocing)
 		runtime_throw("malloc/free - deadlock");
+	m->mallocing = 1;
 	if(size == 0)
 		size = 1;
 
@@ -62,7 +71,7 @@ runtime_mallocgc(uintptr size, uint32 flag, int32 dogc, int32 zeroed)
 		npages = size >> PageShift;
 		if((size & PageMask) != 0)
 			npages++;
-		s = runtime_MHeap_Alloc(&runtime_mheap, npages, 0, 1);
+		s = runtime_MHeap_Alloc(&runtime_mheap, npages, 0, !(flag & FlagNoGC));
 		if(s == nil)
 			runtime_throw("out of memory");
 		size = npages<<PageShift;
@@ -76,18 +85,7 @@ runtime_mallocgc(uintptr size, uint32 flag, int32 dogc, int32 zeroed)
 	if(!(flag & FlagNoGC))
 		runtime_markallocated(v, size, (flag&FlagNoPointers) != 0);
 
-	__sync_bool_compare_and_swap(&m->mallocing, 1, 0);
-
-	if(__sync_bool_compare_and_swap(&m->gcing, 1, 0)) {
-		if(!(flag & FlagNoProfiling))
-			__go_run_goroutine_gc(0);
-		else {
-			// We are being called from the profiler.  Tell it
-			// to invoke the garbage collector when it is
-			// done.  No need to use a sync function here.
-			m->gcing_for_prof = 1;
-		}
-	}
+	m->mallocing = 0;
 
 	if(!(flag & FlagNoProfiling) && (rate = runtime_MemProfileRate) > 0) {
 		if(size >= (uint32) rate)
@@ -96,11 +94,12 @@ runtime_mallocgc(uintptr size, uint32 flag, int32 dogc, int32 zeroed)
 			m->mcache->next_sample -= size;
 		else {
 			// pick next profile time
+			// If you change this, also change allocmcache.
 			if(rate > 0x3fffffff)	// make 2*rate not overflow
 				rate = 0x3fffffff;
 			m->mcache->next_sample = runtime_fastrand1() % (2*rate);
 		profile:
-			runtime_setblockspecial(v);
+			runtime_setblockspecial(v, true);
 			runtime_MProf_Malloc(v, size);
 		}
 	}
@@ -120,6 +119,7 @@ __go_alloc(uintptr size)
 void
 __go_free(void *v)
 {
+	M *m;
 	int32 sizeclass;
 	MSpan *s;
 	MCache *c;
@@ -129,11 +129,13 @@ __go_free(void *v)
 	if(v == nil)
 		return;
 	
-	// If you change this also change mgc0.c:/^sweepspan,
+	// If you change this also change mgc0.c:/^sweep,
 	// which has a copy of the guts of free.
 
-	if(!__sync_bool_compare_and_swap(&m->mallocing, 0, 1))
+	m = runtime_m();
+	if(m->mallocing)
 		runtime_throw("malloc/free - deadlock");
+	m->mallocing = 1;
 
 	if(!runtime_mlookup(v, nil, nil, &s)) {
 		// runtime_printf("free %p: not an allocated block\n", v);
@@ -168,11 +170,7 @@ __go_free(void *v)
 	c->local_alloc -= size;
 	if(prof)
 		runtime_MProf_Free(v, size);
-
-	__sync_bool_compare_and_swap(&m->mallocing, 1, 0);
-
-	if(__sync_bool_compare_and_swap(&m->gcing, 1, 0))
-		__go_run_goroutine_gc(1);
+	m->mallocing = 0;
 }
 
 int32
@@ -182,7 +180,7 @@ runtime_mlookup(void *v, byte **base, uintptr *size, MSpan **sp)
 	byte *p;
 	MSpan *s;
 
-	m->mcache->local_nlookup++;
+	runtime_m()->mcache->local_nlookup++;
 	s = runtime_MHeap_LookupMaybe(&runtime_mheap, v);
 	if(sp)
 		*sp = s;
@@ -224,24 +222,21 @@ runtime_mlookup(void *v, byte **base, uintptr *size, MSpan **sp)
 MCache*
 runtime_allocmcache(void)
 {
+	int32 rate;
 	MCache *c;
-
-	if(!__sync_bool_compare_and_swap(&m->mallocing, 0, 1))
-		runtime_throw("allocmcache - deadlock");
 
 	runtime_lock(&runtime_mheap);
 	c = runtime_FixAlloc_Alloc(&runtime_mheap.cachealloc);
-
-	// Clear the free list used by FixAlloc; assume the rest is zeroed.
-	c->list[0].list = nil;
-
 	mstats.mcache_inuse = runtime_mheap.cachealloc.inuse;
 	mstats.mcache_sys = runtime_mheap.cachealloc.sys;
 	runtime_unlock(&runtime_mheap);
 
-	__sync_bool_compare_and_swap(&m->mallocing, 1, 0);
-	if(__sync_bool_compare_and_swap(&m->gcing, 1, 0))
-		__go_run_goroutine_gc(2);
+	// Set first allocation sample size.
+	rate = runtime_MemProfileRate;
+	if(rate > 0x3fffffff)	// make 2*rate not overflow
+		rate = 0x3fffffff;
+	if(rate != 0)
+		c->next_sample = runtime_fastrand1() % (2*rate);
 
 	return c;
 }
@@ -280,6 +275,7 @@ runtime_mallocinit(void)
 	byte *p;
 	uintptr arena_size, bitmap_size;
 	extern byte end[];
+	byte *want;
 
 	runtime_sizeof_C_MStats = sizeof(MStats);
 
@@ -341,9 +337,15 @@ runtime_mallocinit(void)
 		// not as an absolute requirement.  If we ask for the end
 		// of the data segment but the operating system requires
 		// a little more space before we can start allocating, it will
-		// give out a slightly higher pointer.  That's fine.  
-		// Run with what we get back.
-		p = runtime_SysReserve(end, bitmap_size + arena_size);
+		// give out a slightly higher pointer.  Except QEMU, which
+		// is buggy, as usual: it won't adjust the pointer upward.
+		// So adjust it upward a little bit ourselves: 1/4 MB to get
+		// away from the running binary image and then round up
+		// to a MB boundary.
+		want = (byte*)(((uintptr)end + (1<<18) + (1<<20) - 1)&~((1<<20)-1));
+		if(0xffffffff - (uintptr)want <= bitmap_size + arena_size)
+		  want = 0;
+		p = runtime_SysReserve(want, bitmap_size + arena_size);
 		if(p == nil)
 			runtime_throw("runtime: cannot reserve arena virtual address space");
 	}
@@ -357,13 +359,7 @@ runtime_mallocinit(void)
 
 	// Initialize the rest of the allocator.	
 	runtime_MHeap_Init(&runtime_mheap, runtime_SysAlloc);
-	m->mcache = runtime_allocmcache();
-
-	// Initialize malloc profiling.
-	runtime_Mprof_Init();
-
-	// Initialize finalizer.
-	runtime_initfintab();
+	runtime_m()->mcache = runtime_allocmcache();
 
 	// See if it works.
 	runtime_free(runtime_malloc(1));
@@ -418,8 +414,9 @@ runtime_mal(uintptr n)
 	return runtime_mallocgc(n, 0, 1, 1);
 }
 
-func new(n uint32) (ret *uint8) {
-	ret = runtime_mal(n);
+func new(typ *Type) (ret *uint8) {
+	uint32 flag = typ->__code&GO_NO_POINTERS ? FlagNoPointers : 0;
+	ret = runtime_mallocgc(typ->__size, flag, 1, 1);
 }
 
 func Alloc(n uintptr) (p *byte) {
@@ -444,9 +441,8 @@ func SetFinalizer(obj Eface, finalizer Eface) {
 	const FuncType *ft;
 
 	if(obj.__type_descriptor == nil) {
-		// runtime_printf("runtime.SetFinalizer: first argument is nil interface\n");
-	throw:
-		runtime_throw("runtime.SetFinalizer");
+		// runtime·printf("runtime.SetFinalizer: first argument is nil interface\n");
+		goto throw;
 	}
 	if(obj.__type_descriptor->__code != GO_PTR) {
 		// runtime_printf("runtime.SetFinalizer: first argument is %S, not pointer\n", *obj.type->string);
@@ -458,19 +454,21 @@ func SetFinalizer(obj Eface, finalizer Eface) {
 	}
 	ft = nil;
 	if(finalizer.__type_descriptor != nil) {
-		if(finalizer.__type_descriptor->__code != GO_FUNC) {
-		badfunc:
-			// runtime_printf("runtime.SetFinalizer: second argument is %S, not func(%S)\n", *finalizer.type->string, *obj.type->string);
-			goto throw;
-		}
+		if(finalizer.__type_descriptor->__code != GO_FUNC)
+			goto badfunc;
 		ft = (const FuncType*)finalizer.__type_descriptor;
 		if(ft->__dotdotdot || ft->__in.__count != 1 || !__go_type_descriptors_equal(*(Type**)ft->__in.__values, obj.__type_descriptor))
 			goto badfunc;
-
-		if(runtime_getfinalizer(obj.__object, 0)) {
-			// runtime_printf("runtime.SetFinalizer: finalizer already set");
-			goto throw;
-		}
 	}
-	runtime_addfinalizer(obj.__object, finalizer.__type_descriptor != nil ? *(void**)finalizer.__object : nil, ft);
+
+	if(!runtime_addfinalizer(obj.__object, finalizer.__type_descriptor != nil ? *(void**)finalizer.__object : nil, ft)) {
+		runtime_printf("runtime.SetFinalizer: finalizer already set\n");
+		goto throw;
+	}
+	return;
+
+badfunc:
+	// runtime_printf("runtime.SetFinalizer: second argument is %S, not func(%S)\n", *finalizer.type->string, *obj.type->string);
+throw:
+	runtime_throw("runtime.SetFinalizer");
 }

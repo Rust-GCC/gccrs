@@ -242,7 +242,7 @@ static void sh_file_start (void);
 static int flow_dependent_p (rtx, rtx);
 static void flow_dependent_p_1 (rtx, const_rtx, void *);
 static int shiftcosts (rtx);
-static int and_xor_ior_costs (rtx, int code);
+static int and_xor_ior_costs (rtx, int);
 static int addsubcosts (rtx);
 static int multcosts (rtx);
 static bool unspec_caller_rtx_p (rtx);
@@ -302,6 +302,8 @@ static void sh_trampoline_init (rtx, tree, rtx);
 static rtx sh_trampoline_adjust_address (rtx);
 static void sh_conditional_register_usage (void);
 static bool sh_legitimate_constant_p (enum machine_mode, rtx);
+
+static void sh_init_sync_libfuncs (void) ATTRIBUTE_UNUSED;
 
 static const struct attribute_spec sh_attribute_table[] =
 {
@@ -722,8 +724,15 @@ sh_option_override (void)
   else
     sh_divsi3_libfunc = "__sdivsi3";
   if (sh_branch_cost == -1)
-    sh_branch_cost
-      = TARGET_SH5 ? 1 : ! TARGET_SH2 || TARGET_HARD_SH4 ? 2 : 1;
+    {
+      sh_branch_cost = 1;
+
+      /*  The SH1 does not have delay slots, hence we get a pipeline stall
+	  at every branch.  The SH4 is superscalar, so the single delay slot
+	  is not sufficient to keep both pipelines filled.  */
+      if (! TARGET_SH2 || TARGET_HARD_SH4)
+	sh_branch_cost = 2;
+    }
 
   for (regno = 0; regno < FIRST_PSEUDO_REGISTER; regno++)
     if (! VALID_REGISTER_P (regno))
@@ -840,7 +849,7 @@ sh_option_override (void)
     sh_fix_range (sh_fixed_range_str);
 
   /* This target defaults to strict volatile bitfields.  */
-  if (flag_strict_volatile_bitfields < 0)
+  if (flag_strict_volatile_bitfields < 0 && abi_version_at_least(2))
     flag_strict_volatile_bitfields = 1;
 }
 
@@ -2995,6 +3004,20 @@ sh_rtx_costs (rtx x, int code, int outer_code, int opno ATTRIBUTE_UNUSED,
         *total = 8;
       return true;
 
+    case EQ:
+      /* An and with a constant compared against zero is
+	 most likely going to be a TST #imm, R0 instruction.
+	 Notice that this does not catch the zero_extract variants from
+	 the md file.  */
+      if (GET_CODE (XEXP (x, 0)) == AND
+	  && CONST_INT_P (XEXP (x, 1)) && INTVAL (XEXP (x, 1)) == 0)
+	{
+	  *total = 1;
+	  return true;
+	}
+      else
+	return false;
+
     case CONST:
     case LABEL_REF:
     case SYMBOL_REF:
@@ -3250,7 +3273,7 @@ expand_ashiftrt (rtx *operands)
   char func[18];
   int value;
 
-  if (TARGET_SH3)
+  if (TARGET_SH3 || TARGET_SH2A)
     {
       if (!CONST_INT_P (operands[2]))
 	{
@@ -3699,7 +3722,7 @@ shl_sext_kind (rtx left_rtx, rtx size_rtx, int *costp)
 	    }
 	}
     }
-  if (TARGET_SH3)
+  if (TARGET_SH3 || TARGET_SH2A)
     {
       /* Try to use a dynamic shift.  */
       cost = shift_insns[32 - insize] + 1 + SH_DYNAMIC_SHIFT_COST;
@@ -12416,6 +12439,14 @@ sh_secondary_reload (bool in_p, rtx x, reg_class_t rclass_i,
   if (rclass != GENERAL_REGS && REG_P (x)
       && TARGET_REGISTER_P (REGNO (x)))
     return GENERAL_REGS;
+
+ /* If here fall back to loading FPUL register through general registers.
+    This case can happen when movsi_ie insn is picked initially to
+    load/store the FPUL register from/to another register, and then the
+    other register is allocated on the stack.  */
+  if (rclass == FPUL_REGS && true_regnum (x) == -1)
+    return GENERAL_REGS;
+
   return NO_REGS;
 }
 
@@ -12484,5 +12515,11 @@ sh_legitimate_constant_p (enum machine_mode mode, rtx x)
 }
 
 enum sh_divide_strategy_e sh_div_strategy = SH_DIV_STRATEGY_DEFAULT;
+
+static void
+sh_init_sync_libfuncs (void)
+{
+  init_sync_libfuncs (UNITS_PER_WORD);
+}
 
 #include "gt-sh.h"

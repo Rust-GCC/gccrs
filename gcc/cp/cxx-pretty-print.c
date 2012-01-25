@@ -367,6 +367,17 @@ pp_cxx_id_expression (cxx_pretty_printer *pp, tree t)
     pp_cxx_unqualified_id (pp, t);
 }
 
+/* user-defined literal:
+      literal ud-suffix  */
+
+void
+pp_cxx_userdef_literal (cxx_pretty_printer *pp, tree t)
+{
+  pp_cxx_constant (pp, USERDEF_LITERAL_VALUE (t));
+  pp_cxx_id_expression (pp, USERDEF_LITERAL_SUFFIX_ID (t));
+}
+
+
 /* primary-expression:
      literal
      this
@@ -411,6 +422,10 @@ pp_cxx_primary_expression (cxx_pretty_printer *pp, tree t)
     case COMPLEX_CST:
     case STRING_CST:
       pp_cxx_constant (pp, t);
+      break;
+
+    case USERDEF_LITERAL:
+      pp_cxx_userdef_literal (pp, t);
       break;
 
     case BASELINK:
@@ -830,6 +845,7 @@ pp_cxx_cast_expression (cxx_pretty_printer *pp, tree t)
   switch (TREE_CODE (t))
     {
     case CAST_EXPR:
+    case IMPLICIT_CONV_EXPR:
       pp_cxx_type_id (pp, TREE_TYPE (t));
       pp_cxx_call_argument_list (pp, TREE_OPERAND (t, 0));
       break;
@@ -1023,6 +1039,10 @@ pp_cxx_expression (cxx_pretty_printer *pp, tree t)
       pp_cxx_constant (pp, t);
       break;
 
+    case USERDEF_LITERAL:
+      pp_cxx_userdef_literal (pp, t);
+      break;
+
     case RESULT_DECL:
       pp_cxx_unqualified_id (pp, t);
       break;
@@ -1084,6 +1104,7 @@ pp_cxx_expression (cxx_pretty_printer *pp, tree t)
       break;
 
     case CAST_EXPR:
+    case IMPLICIT_CONV_EXPR:
       pp_cxx_cast_expression (pp, t);
       break;
 
@@ -2358,6 +2379,9 @@ pp_cxx_trait_expression (cxx_pretty_printer *pp, tree t)
       break;
     case CPTK_IS_ENUM:
       pp_cxx_ws_string (pp, "__is_enum");
+      break;
+    case CPTK_IS_FINAL:
+      pp_cxx_ws_string (pp, "__is_final");
       break;
     case CPTK_IS_POD:
       pp_cxx_ws_string (pp, "__is_pod");

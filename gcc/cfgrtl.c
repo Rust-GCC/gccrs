@@ -1,7 +1,7 @@
 /* Control flow graph manipulation code for GNU compiler.
    Copyright (C) 1987, 1988, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
-   Free Software Foundation, Inc.
+   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
+   2011, 2012 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -322,9 +322,9 @@ create_basic_block_structure (rtx head, rtx end, rtx bb_note, basic_block after)
 }
 
 /* Create new basic block consisting of instructions in between HEAD and END
-   and place it to the BB chain after block AFTER.  END can be NULL in to
-   create new empty basic block before HEAD.  Both END and HEAD can be NULL to
-   create basic block at the end of INSN chain.  */
+   and place it to the BB chain after block AFTER.  END can be NULL to
+   create a new empty basic block before HEAD.  Both END and HEAD can be
+   NULL to create basic block at the end of INSN chain.  */
 
 static basic_block
 rtl_create_basic_block (void *headp, void *endp, basic_block after)
@@ -500,6 +500,20 @@ update_bb_for_insn (basic_block bb)
 }
 
 
+/* Return the NOTE_INSN_BASIC_BLOCK of BB.  */
+rtx
+bb_note (basic_block bb)
+{
+  rtx note;
+
+  note = BB_HEAD (bb);
+  if (LABEL_P (note))
+    note = NEXT_INSN (note);
+
+  gcc_assert (NOTE_INSN_BASIC_BLOCK_P (note));
+  return note;
+}
+
 /* Return the INSN immediately following the NOTE_INSN_BASIC_BLOCK
    note associated with the BLOCK.  */
 
@@ -1129,6 +1143,7 @@ force_nonfallthru_and_redirect (edge e, basic_block target, rtx jump_label)
   rtx note;
   edge new_edge;
   int abnormal_edge_flags = 0;
+  bool asm_goto_edge = false;
   int loc;
 
   /* In the case the last instruction is conditional jump to the next
@@ -1208,8 +1223,28 @@ force_nonfallthru_and_redirect (edge e, basic_block target, rtx jump_label)
 	}
     }
 
-  if (EDGE_COUNT (e->src->succs) >= 2 || abnormal_edge_flags)
+  /* If e->src ends with asm goto, see if any of the ASM_OPERANDS_LABELs
+     don't point to target label.  */
+  if (JUMP_P (BB_END (e->src))
+      && target != EXIT_BLOCK_PTR
+      && e->dest == target
+      && (e->flags & EDGE_FALLTHRU)
+      && (note = extract_asm_operands (PATTERN (BB_END (e->src)))))
     {
+      int i, n = ASM_OPERANDS_LABEL_LENGTH (note);
+
+      for (i = 0; i < n; ++i)
+	if (XEXP (ASM_OPERANDS_LABEL (note, i), 0) == BB_HEAD (target))
+	  {
+	    asm_goto_edge = true;
+	    break;
+	  }
+    }
+
+  if (EDGE_COUNT (e->src->succs) >= 2 || abnormal_edge_flags || asm_goto_edge)
+    {
+      gcov_type count = e->count;
+      int probability = e->probability;
       /* Create the new structures.  */
 
       /* If the old block ended with a tablejump, skip its table
@@ -1220,7 +1255,7 @@ force_nonfallthru_and_redirect (edge e, basic_block target, rtx jump_label)
       note = NEXT_INSN (note);
 
       jump_block = create_basic_block (note, NULL, e->src);
-      jump_block->count = e->count;
+      jump_block->count = count;
       jump_block->frequency = EDGE_FREQUENCY (e);
       jump_block->loop_depth = target->loop_depth;
 
@@ -1236,12 +1271,26 @@ force_nonfallthru_and_redirect (edge e, basic_block target, rtx jump_label)
 
       /* Wire edge in.  */
       new_edge = make_edge (e->src, jump_block, EDGE_FALLTHRU);
-      new_edge->probability = e->probability;
-      new_edge->count = e->count;
+      new_edge->probability = probability;
+      new_edge->count = count;
 
       /* Redirect old edge.  */
       redirect_edge_pred (e, jump_block);
       e->probability = REG_BR_PROB_BASE;
+
+      /* If asm goto has any label refs to target's label,
+	 add also edge from asm goto bb to target.  */
+      if (asm_goto_edge)
+	{
+	  new_edge->probability /= 2;
+	  new_edge->count /= 2;
+	  jump_block->count /= 2;
+	  jump_block->frequency /= 2;
+	  new_edge = make_edge (new_edge->src, target,
+				e->flags & ~EDGE_FALLTHRU);
+	  new_edge->probability = probability - probability / 2;
+	  new_edge->count = count - count / 2;
+	}
 
       new_bb = jump_block;
     }
@@ -1273,7 +1322,7 @@ force_nonfallthru_and_redirect (edge e, basic_block target, rtx jump_label)
 	  gcc_unreachable ();
 #endif
 	}
-      JUMP_LABEL (BB_END (jump_block)) = jump_label;
+      set_return_jump_label (BB_END (jump_block));
     }
   else
     {
@@ -1411,8 +1460,8 @@ rtl_split_edge (edge edge_in)
     before = NULL_RTX;
 
   /* If this is a fall through edge to the exit block, the blocks might be
-     not adjacent, and the right place is the after the source.  */
-  if (edge_in->flags & EDGE_FALLTHRU && edge_in->dest == EXIT_BLOCK_PTR)
+     not adjacent, and the right place is after the source.  */
+  if ((edge_in->flags & EDGE_FALLTHRU) && edge_in->dest == EXIT_BLOCK_PTR)
     {
       before = NEXT_INSN (BB_END (edge_in->src));
       bb = create_basic_block (before, NULL, edge_in->src);
@@ -1625,9 +1674,10 @@ rtl_dump_bb (basic_block bb, FILE *outf, int indent, int flags ATTRIBUTE_UNUSED)
       putc ('\n', outf);
     }
 
-  for (insn = BB_HEAD (bb), last = NEXT_INSN (BB_END (bb)); insn != last;
-       insn = NEXT_INSN (insn))
-    print_rtl_single (outf, insn);
+  if (bb->index != ENTRY_BLOCK && bb->index != EXIT_BLOCK)
+    for (insn = BB_HEAD (bb), last = NEXT_INSN (BB_END (bb)); insn != last;
+	 insn = NEXT_INSN (insn))
+      print_rtl_single (outf, insn);
 
   if (df)
     {
@@ -1875,7 +1925,8 @@ rtl_verify_flow_info_1 (void)
 			    | EDGE_CAN_FALLTHRU
 			    | EDGE_IRREDUCIBLE_LOOP
 			    | EDGE_LOOP_EXIT
-			    | EDGE_CROSSING)) == 0)
+			    | EDGE_CROSSING
+			    | EDGE_PRESERVE)) == 0)
 	    n_branch++;
 
 	  if (e->flags & EDGE_ABNORMAL_CALL)
@@ -2245,6 +2296,8 @@ purge_dead_edges (basic_block bb)
 	  else if (can_nonlocal_goto (insn))
 	    ;
 	  else if ((e->flags & EDGE_EH) && can_throw_internal (insn))
+	    ;
+	  else if (flag_tm && find_reg_note (insn, REG_TM, NULL))
 	    ;
 	  else
 	    remove = true;
@@ -2733,6 +2786,16 @@ cfg_layout_can_merge_blocks_p (basic_block a, basic_block b)
   if (BB_PARTITION (a) != BB_PARTITION (b))
     return false;
 
+  /* If we would end up moving B's instructions, make sure it doesn't fall
+     through into the exit block, since we cannot recover from a fallthrough
+     edge into the exit block occurring in the middle of a function.  */
+  if (NEXT_INSN (BB_END (a)) != BB_HEAD (b))
+    {
+      edge e = find_fallthru_edge (b->succs);
+      if (e && e->dest == EXIT_BLOCK_PTR)
+	return false;
+    }
+
   /* There must be exactly one edge in between the blocks.  */
   return (single_succ_p (a)
 	  && single_succ (a) == b
@@ -3175,6 +3238,21 @@ rtl_can_remove_branch_p (const_edge e)
   return true;
 }
 
+/* We do not want to declare these functions in a header file, since they
+   should only be used through the cfghooks interface, and we do not want to
+   move them here since it would require also moving quite a lot of related
+   code.  They are in cfglayout.c.  */
+extern bool cfg_layout_can_duplicate_bb_p (const_basic_block);
+extern basic_block cfg_layout_duplicate_bb (basic_block);
+
+static basic_block
+rtl_duplicate_bb (basic_block bb)
+{
+  bb = cfg_layout_duplicate_bb (bb);
+  bb->aux = NULL;
+  return bb;
+}
+
 /* Implementation of CFG manipulation for linearized RTL.  */
 struct cfg_hooks rtl_cfg_hooks = {
   "rtl",
@@ -3191,8 +3269,8 @@ struct cfg_hooks rtl_cfg_hooks = {
   rtl_merge_blocks,
   rtl_predict_edge,
   rtl_predicted_by_p,
-  NULL, /* can_duplicate_block_p */
-  NULL, /* duplicate_block */
+  cfg_layout_can_duplicate_bb_p,
+  rtl_duplicate_bb,
   rtl_split_edge,
   rtl_make_forwarder_block,
   rtl_tidy_fallthru_edge,
@@ -3213,13 +3291,6 @@ struct cfg_hooks rtl_cfg_hooks = {
    basic block connected via fallthru edges does not have to be adjacent.
    This representation will hopefully become the default one in future
    version of the compiler.  */
-
-/* We do not want to declare these functions in a header file, since they
-   should only be used through the cfghooks interface, and we do not want to
-   move them here since it would require also moving quite a lot of related
-   code.  They are in cfglayout.c.  */
-extern bool cfg_layout_can_duplicate_bb_p (const_basic_block);
-extern basic_block cfg_layout_duplicate_bb (basic_block);
 
 struct cfg_hooks cfg_layout_rtl_cfg_hooks = {
   "cfglayout mode",

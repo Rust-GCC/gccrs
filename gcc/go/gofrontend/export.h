@@ -39,8 +39,11 @@ enum Builtin_code
   BUILTIN_STRING = -16,
   BUILTIN_COMPLEX64 = -17,
   BUILTIN_COMPLEX128 = -18,
+  BUILTIN_ERROR = -19,
+  BUILTIN_BYTE = -20,
+  BUILTIN_RUNE = -21,
 
-  SMALLEST_BUILTIN_CODE = -18
+  SMALLEST_BUILTIN_CODE = -21
 };
 
 // This class manages exporting Go declarations.  It handles the main

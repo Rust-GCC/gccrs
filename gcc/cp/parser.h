@@ -329,6 +329,10 @@ typedef struct GTY(()) cp_parser {
      a local class.  */
   bool in_function_body;
 
+  /* Nonzero if we're processing a __transaction_atomic or
+     __transaction_relaxed statement.  */
+  unsigned char in_transaction;
+
   /* TRUE if we can auto-correct a colon to a scope operator.  */
   bool colon_corrects_to_scope_p;
 
@@ -352,9 +356,7 @@ typedef struct GTY(()) cp_parser {
 } cp_parser;
 
 /* In parser.c  */
-#ifdef ENABLE_CHECKING
-extern void cp_lexer_dump_tokens (FILE *, VEC(cp_token,gc) *, unsigned);
 extern void cp_lexer_debug_tokens (VEC(cp_token,gc) *);
-#endif
+extern void cp_debug_parser (FILE *, cp_parser *);
 
 #endif  /* GCC_CP_PARSER_H  */

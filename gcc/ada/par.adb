@@ -884,7 +884,7 @@ function Par (Configuration_Pragmas : Boolean) return List_Id is
       --  argument is False, the scan pointer is left pointing past the aspects
       --  and the caller must check for a proper terminator.
       --
-      --  P_Aspect_Specification is called with the current token pointing to
+      --  P_Aspect_Specifications is called with the current token pointing to
       --  either a WITH keyword starting an aspect specification, or an
       --  instance of the terminator token. In the former case, the aspect
       --  specifications are scanned out including the terminator token if it
@@ -1155,6 +1155,11 @@ function Par (Configuration_Pragmas : Boolean) return List_Id is
       --  is used to deal with an attempt to use a 95 keyword in Ada 83
       --  mode. The caller has typically checked that the current token,
       --  an identifier, matches one of the 95 keywords.
+
+      procedure Check_Future_Keyword;
+      --  Emit a warning if the current token is a valid identifier in the
+      --  language version in use, but is a reserved word in a later language
+      --  version (unless the language version in use is Ada 83).
 
       procedure Check_Simple_Expression (E : Node_Id);
       --  Given an expression E, that has just been scanned, so that Expr_Form

@@ -17,5 +17,15 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
+/* vms-c.c  */
+extern void vms_c_register_pragma (void);
+
 /* vms.c  */
 void vms_patch_builtins (void);
+
+#ifdef TREE_CODE
+extern section *vms_function_section (tree decl ATTRIBUTE_UNUSED,
+                                      enum node_frequency freq ATTRIBUTE_UNUSED,
+                                      bool startup ATTRIBUTE_UNUSED,
+                                      bool exit ATTRIBUTE_UNUSED);
+#endif /* TREE_CODE */

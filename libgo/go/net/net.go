@@ -9,7 +9,10 @@ package net
 // TODO(rsc):
 //	support for raw ethernet sockets
 
-import "os"
+import (
+	"errors"
+	"time"
+)
 
 // Addr represents a network end point address.
 type Addr interface {
@@ -21,16 +24,16 @@ type Addr interface {
 type Conn interface {
 	// Read reads data from the connection.
 	// Read can be made to time out and return a net.Error with Timeout() == true
-	// after a fixed time limit; see SetTimeout and SetReadTimeout.
-	Read(b []byte) (n int, err os.Error)
+	// after a fixed time limit; see SetDeadline and SetReadDeadline.
+	Read(b []byte) (n int, err error)
 
 	// Write writes data to the connection.
 	// Write can be made to time out and return a net.Error with Timeout() == true
-	// after a fixed time limit; see SetTimeout and SetWriteTimeout.
-	Write(b []byte) (n int, err os.Error)
+	// after a fixed time limit; see SetDeadline and SetWriteDeadline.
+	Write(b []byte) (n int, err error)
 
 	// Close closes the connection.
-	Close() os.Error
+	Close() error
 
 	// LocalAddr returns the local network address.
 	LocalAddr() Addr
@@ -38,26 +41,28 @@ type Conn interface {
 	// RemoteAddr returns the remote network address.
 	RemoteAddr() Addr
 
-	// SetTimeout sets the read and write deadlines associated
+	// SetDeadline sets the read and write deadlines associated
 	// with the connection.
-	SetTimeout(nsec int64) os.Error
+	SetDeadline(t time.Time) error
 
-	// SetReadTimeout sets the time (in nanoseconds) that
-	// Read will wait for data before returning an error with Timeout() == true.
-	// Setting nsec == 0 (the default) disables the deadline.
-	SetReadTimeout(nsec int64) os.Error
+	// SetReadDeadline sets the deadline for all Read calls to return.
+	// If the deadline is reached, Read will fail with a timeout
+	// (see type Error) instead of blocking.
+	// A zero value for t means Read will not time out.
+	SetReadDeadline(t time.Time) error
 
-	// SetWriteTimeout sets the time (in nanoseconds) that
-	// Write will wait to send its data before returning an error with Timeout() == true.
-	// Setting nsec == 0 (the default) disables the deadline.
+	// SetWriteDeadline sets the deadline for all Write calls to return.
+	// If the deadline is reached, Write will fail with a timeout
+	// (see type Error) instead of blocking.
+	// A zero value for t means Write will not time out.
 	// Even if write times out, it may return n > 0, indicating that
 	// some of the data was successfully written.
-	SetWriteTimeout(nsec int64) os.Error
+	SetWriteDeadline(t time.Time) error
 }
 
 // An Error represents a network error.
 type Error interface {
-	os.Error
+	error
 	Timeout() bool   // Is the error a timeout?
 	Temporary() bool // Is the error temporary?
 }
@@ -70,61 +75,63 @@ type PacketConn interface {
 	// was on the packet.
 	// ReadFrom can be made to time out and return
 	// an error with Timeout() == true after a fixed time limit;
-	// see SetTimeout and SetReadTimeout.
-	ReadFrom(b []byte) (n int, addr Addr, err os.Error)
+	// see SetDeadline and SetReadDeadline.
+	ReadFrom(b []byte) (n int, addr Addr, err error)
 
 	// WriteTo writes a packet with payload b to addr.
 	// WriteTo can be made to time out and return
 	// an error with Timeout() == true after a fixed time limit;
-	// see SetTimeout and SetWriteTimeout.
+	// see SetDeadline and SetWriteDeadline.
 	// On packet-oriented connections, write timeouts are rare.
-	WriteTo(b []byte, addr Addr) (n int, err os.Error)
+	WriteTo(b []byte, addr Addr) (n int, err error)
 
 	// Close closes the connection.
-	Close() os.Error
+	Close() error
 
 	// LocalAddr returns the local network address.
 	LocalAddr() Addr
 
-	// SetTimeout sets the read and write deadlines associated
+	// SetDeadline sets the read and write deadlines associated
 	// with the connection.
-	SetTimeout(nsec int64) os.Error
+	SetDeadline(t time.Time) error
 
-	// SetReadTimeout sets the time (in nanoseconds) that
-	// Read will wait for data before returning an error with Timeout() == true.
-	// Setting nsec == 0 (the default) disables the deadline.
-	SetReadTimeout(nsec int64) os.Error
+	// SetReadDeadline sets the deadline for all Read calls to return.
+	// If the deadline is reached, Read will fail with a timeout
+	// (see type Error) instead of blocking.
+	// A zero value for t means Read will not time out.
+	SetReadDeadline(t time.Time) error
 
-	// SetWriteTimeout sets the time (in nanoseconds) that
-	// Write will wait to send its data before returning an error with Timeout() == true.
-	// Setting nsec == 0 (the default) disables the deadline.
+	// SetWriteDeadline sets the deadline for all Write calls to return.
+	// If the deadline is reached, Write will fail with a timeout
+	// (see type Error) instead of blocking.
+	// A zero value for t means Write will not time out.
 	// Even if write times out, it may return n > 0, indicating that
 	// some of the data was successfully written.
-	SetWriteTimeout(nsec int64) os.Error
+	SetWriteDeadline(t time.Time) error
 }
 
 // A Listener is a generic network listener for stream-oriented protocols.
 type Listener interface {
 	// Accept waits for and returns the next connection to the listener.
-	Accept() (c Conn, err os.Error)
+	Accept() (c Conn, err error)
 
 	// Close closes the listener.
-	Close() os.Error
+	Close() error
 
 	// Addr returns the listener's network address.
 	Addr() Addr
 }
 
-var errMissingAddress = os.NewError("missing address")
+var errMissingAddress = errors.New("missing address")
 
 type OpError struct {
-	Op    string
-	Net   string
-	Addr  Addr
-	Error os.Error
+	Op   string
+	Net  string
+	Addr Addr
+	Err  error
 }
 
-func (e *OpError) String() string {
+func (e *OpError) Error() string {
 	if e == nil {
 		return "<nil>"
 	}
@@ -135,7 +142,7 @@ func (e *OpError) String() string {
 	if e.Addr != nil {
 		s += " " + e.Addr.String()
 	}
-	s += ": " + e.Error.String()
+	s += ": " + e.Err.Error()
 	return s
 }
 
@@ -144,7 +151,7 @@ type temporary interface {
 }
 
 func (e *OpError) Temporary() bool {
-	t, ok := e.Error.(temporary)
+	t, ok := e.Err.(temporary)
 	return ok && t.Temporary()
 }
 
@@ -153,20 +160,28 @@ type timeout interface {
 }
 
 func (e *OpError) Timeout() bool {
-	t, ok := e.Error.(timeout)
+	t, ok := e.Err.(timeout)
 	return ok && t.Timeout()
 }
 
+type timeoutError struct{}
+
+func (e *timeoutError) Error() string   { return "i/o timeout" }
+func (e *timeoutError) Timeout() bool   { return true }
+func (e *timeoutError) Temporary() bool { return true }
+
+var errTimeout error = &timeoutError{}
+
 type AddrError struct {
-	Error string
-	Addr  string
+	Err  string
+	Addr string
 }
 
-func (e *AddrError) String() string {
+func (e *AddrError) Error() string {
 	if e == nil {
 		return "<nil>"
 	}
-	s := e.Error
+	s := e.Err
 	if e.Addr != "" {
 		s += " " + e.Addr
 	}
@@ -183,6 +198,6 @@ func (e *AddrError) Timeout() bool {
 
 type UnknownNetworkError string
 
-func (e UnknownNetworkError) String() string  { return "unknown network " + string(e) }
+func (e UnknownNetworkError) Error() string   { return "unknown network " + string(e) }
 func (e UnknownNetworkError) Temporary() bool { return false }
 func (e UnknownNetworkError) Timeout() bool   { return false }

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2004-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- This specification is derived from the Ada Reference Manual for use with --
 -- GNAT. The copyright notice above, and the license provisions that follow --
@@ -32,6 +32,7 @@
 ------------------------------------------------------------------------------
 
 with Ada.Iterator_Interfaces;
+
 private with Ada.Containers.Red_Black_Trees;
 private with Ada.Finalization;
 private with Ada.Streams;
@@ -50,7 +51,7 @@ package Ada.Containers.Indefinite_Ordered_Maps is
    function Equivalent_Keys (Left, Right : Key_Type) return Boolean;
 
    type Map is tagged private
-   with constant_Indexing => Constant_Reference,
+   with Constant_Indexing => Constant_Reference,
         Variable_Indexing => Reference,
         Default_Iterator  => Iterate,
         Iterator_Element  => Element_Type;
@@ -95,6 +96,35 @@ package Ada.Containers.Indefinite_Ordered_Maps is
       Position  : Cursor;
       Process   : not null access procedure (Key     : Key_Type;
                                              Element : in out Element_Type));
+
+   type Constant_Reference_Type
+      (Element : not null access constant Element_Type) is private
+   with
+      Implicit_Dereference => Element;
+
+   type Reference_Type (Element : not null access Element_Type) is private
+   with
+      Implicit_Dereference => Element;
+
+   function Constant_Reference
+     (Container : aliased Map;
+      Position  : Cursor) return Constant_Reference_Type;
+
+   function Reference
+     (Container : aliased in out Map;
+      Position  : Cursor) return Reference_Type;
+
+   function Constant_Reference
+     (Container : aliased Map;
+      Key       : Key_Type) return Constant_Reference_Type;
+
+   function Reference
+     (Container : aliased in out Map;
+      Key       : Key_Type) return Reference_Type;
+
+   procedure Assign (Target : in out Map; Source : Map);
+
+   function Copy (Source : Map) return Map;
 
    procedure Move (Target : in out Map; Source : in out Map);
 
@@ -172,23 +202,6 @@ package Ada.Containers.Indefinite_Ordered_Maps is
 
    function ">" (Left : Key_Type; Right : Cursor) return Boolean;
 
-   type Constant_Reference_Type
-      (Element : not null access constant Element_Type) is private
-   with
-      Implicit_Dereference => Element;
-
-   type Reference_Type (Element : not null access Element_Type) is private
-   with
-      Implicit_Dereference => Element;
-
-   function Constant_Reference
-     (Container : Map;
-      Key       : Key_Type) return Constant_Reference_Type;
-
-   function Reference
-     (Container : Map;
-       Key      : Key_Type) return Reference_Type;
-
    procedure Iterate
      (Container : Map;
       Process   : not null access procedure (Position : Cursor));
@@ -197,14 +210,18 @@ package Ada.Containers.Indefinite_Ordered_Maps is
      (Container : Map;
       Process   : not null access procedure (Position : Cursor));
 
+   --  The map container supports iteration in both the forward and reverse
+   --  directions, hence these constructor functions return an object that
+   --  supports the Reversible_Iterator interface.
+
    function Iterate
      (Container : Map)
-      return Map_Iterator_Interfaces.Forward_Iterator'class;
+      return Map_Iterator_Interfaces.Reversible_Iterator'Class;
 
    function Iterate
      (Container : Map;
       Start     : Cursor)
-      return Map_Iterator_Interfaces.Reversible_Iterator'class;
+      return Map_Iterator_Interfaces.Reversible_Iterator'Class;
 
 private
 
@@ -243,6 +260,18 @@ private
    use Ada.Finalization;
    use Ada.Streams;
 
+   procedure Write
+     (Stream    : not null access Root_Stream_Type'Class;
+      Container : Map);
+
+   for Map'Write use Write;
+
+   procedure Read
+     (Stream    : not null access Root_Stream_Type'Class;
+      Container : out Map);
+
+   for Map'Read use Read;
+
    type Map_Access is access all Map;
    for Map_Access'Storage_Size use 0;
 
@@ -262,20 +291,6 @@ private
       Item   : out Cursor);
 
    for Cursor'Read use Read;
-
-   No_Element : constant Cursor := Cursor'(null, null);
-
-   procedure Write
-     (Stream    : not null access Root_Stream_Type'Class;
-      Container : Map);
-
-   for Map'Write use Write;
-
-   procedure Read
-     (Stream    : not null access Root_Stream_Type'Class;
-      Container : out Map);
-
-   for Map'Read use Read;
 
    type Constant_Reference_Type
       (Element : not null access constant Element_Type) is null record;
@@ -314,5 +329,7 @@ private
                                            Length => 0,
                                            Busy   => 0,
                                            Lock   => 0));
+
+   No_Element : constant Cursor := Cursor'(null, null);
 
 end Ada.Containers.Indefinite_Ordered_Maps;

@@ -1,6 +1,6 @@
 ;;- Machine description for Renesas / SuperH SH.
 ;;  Copyright (C) 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002,
-;;  2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+;;  2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;  Free Software Foundation, Inc.
 ;;  Contributed by Steve Chamberlain (sac@cygnus.com).
 ;;  Improved by Jim Wilson (wilson@cygnus.com).
@@ -585,13 +585,162 @@
 ;; SImode signed integer comparisons
 ;; -------------------------------------------------------------------------
 
-(define_insn ""
+;; Various patterns to generate the TST #imm, R0 instruction.
+;; Although this adds some pressure on the R0 register, it can potentially
+;; result in faster code, even if the operand has to be moved to R0 first.
+;; This is because on SH4 TST #imm, R0 and MOV Rm, Rn are both MT group 
+;; instructions and thus will be executed in parallel.  On SH4A TST #imm, R0
+;; is an EX group instruction but still can be executed in parallel with the
+;; MT group MOV Rm, Rn instruction.
+
+;; Usual TST #imm, R0 patterns for SI, HI and QI
+;; This is usually used for bit patterns other than contiguous bits 
+;; and single bits.
+
+(define_insn "tstsi_t"
   [(set (reg:SI T_REG)
-	(eq:SI (and:SI (match_operand:SI 0 "arith_reg_operand" "z,r")
+	(eq:SI (and:SI (match_operand:SI 0 "logical_operand" "%z,r")
 		       (match_operand:SI 1 "logical_operand" "K08,r"))
 	       (const_int 0)))]
   "TARGET_SH1"
   "tst	%1,%0"
+  [(set_attr "type" "mt_group")])
+
+(define_insn "tsthi_t"
+  [(set (reg:SI T_REG)
+	(eq:SI (subreg:SI (and:HI (match_operand:HI 0 "logical_operand" "%z")
+				  (match_operand 1 "const_int_operand")) 0)
+	       (const_int 0)))]
+  "TARGET_SH1
+   && CONST_OK_FOR_K08 (INTVAL (operands[1]))"
+  "tst	%1,%0"
+  [(set_attr "type" "mt_group")])
+
+(define_insn "tstqi_t"
+  [(set (reg:SI T_REG)
+	(eq:SI (subreg:SI (and:QI (match_operand:QI 0 "logical_operand" "%z")
+				  (match_operand 1 "const_int_operand")) 0)
+	       (const_int 0)))]
+  "TARGET_SH1
+   && (CONST_OK_FOR_K08 (INTVAL (operands[1])) 
+       || CONST_OK_FOR_I08 (INTVAL (operands[1])))"
+{
+  operands[1] = GEN_INT (INTVAL (operands[1]) & 255);
+  return "tst	%1,%0";
+}
+  [(set_attr "type" "mt_group")])
+
+;; Test low QI subreg against zero.
+;; This avoids unecessary zero extension before the test.
+
+(define_insn "tstqi_t_zero"
+  [(set (reg:SI T_REG)
+	(eq:SI (match_operand:QI 0 "logical_operand" "z") (const_int 0)))]
+  "TARGET_SH1"
+  "tst	#255,%0"
+  [(set_attr "type" "mt_group")])
+
+;; Extract LSB, negate and store in T bit.
+
+(define_insn "tstsi_t_and_not"
+  [(set (reg:SI T_REG)
+	 (and:SI (not:SI (match_operand:SI 0 "logical_operand" "z"))
+		 (const_int 1)))]
+  "TARGET_SH1"
+  "tst	#1,%0"
+  [(set_attr "type" "mt_group")])
+
+;; Extract contiguous bits and compare them against zero.
+
+(define_insn "tstsi_t_zero_extract_eq"
+  [(set (reg:SI T_REG)
+	(eq:SI (zero_extract:SI (match_operand 0 "logical_operand" "z")
+		(match_operand:SI 1 "const_int_operand")
+		(match_operand:SI 2 "const_int_operand"))
+         (const_int 0)))]
+  "TARGET_SH1
+   && CONST_OK_FOR_K08 (ZERO_EXTRACT_ANDMASK (operands[1], operands[2]))"
+{
+  operands[1] = GEN_INT (ZERO_EXTRACT_ANDMASK (operands[1], operands[2]));
+  return "tst	%1,%0";
+}
+  [(set_attr "type" "mt_group")])
+
+;; This split is required when testing bits in a QI subreg.
+
+(define_split
+  [(set (reg:SI T_REG)
+   (eq:SI (if_then_else:SI (zero_extract:SI
+			    (match_operand 0 "logical_operand" "")
+			    (match_operand 1 "const_int_operand")
+			    (match_operand 2 "const_int_operand"))
+			   (match_operand 3 "const_int_operand")
+			   (const_int 0))
+	  (const_int 0)))]
+  "TARGET_SH1
+   && ZERO_EXTRACT_ANDMASK (operands[1], operands[2]) == INTVAL (operands[3])
+   && CONST_OK_FOR_K08 (INTVAL (operands[3]))"
+  [(set (reg:SI T_REG) (eq:SI (and:SI (match_dup 0) (match_dup 3))
+			      (const_int 0)))]
+  "
+{
+  if (GET_MODE (operands[0]) == QImode)
+    operands[0] = simplify_gen_subreg (SImode, operands[0], QImode, 0);
+}")
+
+;; Extract single bit, negate and store it in the T bit.
+;; Not used for SH4A.
+
+(define_insn "tstsi_t_zero_extract_xor"
+  [(set (reg:SI T_REG)
+	(zero_extract:SI (xor:SI (match_operand:SI 0 "logical_operand" "z")
+			  (match_operand:SI 3 "const_int_operand"))
+			 (match_operand:SI 1 "const_int_operand")
+			 (match_operand:SI 2 "const_int_operand")))]
+  "TARGET_SH1
+   && ZERO_EXTRACT_ANDMASK (operands[1], operands[2]) == INTVAL (operands[3])
+   && CONST_OK_FOR_K08 (INTVAL (operands[3]))"
+  "tst	%3,%0"
+  [(set_attr "type" "mt_group")])
+
+;; Extract single bit, negate and store it in the T bit.
+;; Used for SH4A little endian.
+
+(define_insn "tstsi_t_zero_extract_subreg_xor_little"
+  [(set (reg:SI T_REG)
+	(zero_extract:SI
+	 (subreg:QI (xor:SI (match_operand:SI 0 "logical_operand" "z")
+			    (match_operand:SI 3 "const_int_operand")) 0)
+	 (match_operand:SI 1 "const_int_operand")
+	 (match_operand:SI 2 "const_int_operand")))]
+  "TARGET_SH1 && TARGET_LITTLE_ENDIAN
+   && ZERO_EXTRACT_ANDMASK (operands[1], operands[2])
+      == (INTVAL (operands[3]) & 255)
+   && CONST_OK_FOR_K08 (INTVAL (operands[3]) & 255)"
+{
+  operands[3] = GEN_INT (INTVAL (operands[3]) & 255);
+  return "tst	%3,%0";
+}
+  [(set_attr "type" "mt_group")])
+
+;; Extract single bit, negate and store it in the T bit.
+;; Used for SH4A big endian.
+
+(define_insn "tstsi_t_zero_extract_subreg_xor_big"
+  [(set (reg:SI T_REG)
+	(zero_extract:SI
+	 (subreg:QI (xor:SI (match_operand:SI 0 "logical_operand" "z")
+			    (match_operand:SI 3 "const_int_operand")) 3)
+	 (match_operand:SI 1 "const_int_operand")
+	 (match_operand:SI 2 "const_int_operand")))]
+  "TARGET_SH1 && ! TARGET_LITTLE_ENDIAN
+   && ZERO_EXTRACT_ANDMASK (operands[1], operands[2])
+      == (INTVAL (operands[3]) & 255)
+   && CONST_OK_FOR_K08 (INTVAL (operands[3]) & 255)"
+{
+  operands[3] = GEN_INT (INTVAL (operands[3]) & 255);
+  return "tst	%3,%0";
+}
   [(set_attr "type" "mt_group")])
 
 ;; ??? Perhaps should only accept reg/constant if the register is reg 0.
@@ -1157,7 +1306,7 @@
    && (arith_reg_operand (operands[1], SImode)
        || (immediate_operand (operands[1], SImode)
 	   && satisfies_constraint_I08 (operands[1])))"
-  "bt 0f\;mov %1,%0\\n0:"
+  "bt	0f\;mov	%1,%0\\n0:"
   [(set_attr "type" "mt_group,arith") ;; poor approximation
    (set_attr "length" "4")])
 
@@ -1170,7 +1319,7 @@
    && (arith_reg_operand (operands[1], SImode)
        || (immediate_operand (operands[1], SImode)
 	   && satisfies_constraint_I08 (operands[1])))"
-  "bf 0f\;mov %1,%0\\n0:"
+  "bf	0f\;mov	%1,%0\\n0:"
   [(set_attr "type" "mt_group,arith") ;; poor approximation
    (set_attr "length" "4")])
 
@@ -3015,9 +3164,9 @@ label:
 ;; -------------------------------------------------------------------------
 
 (define_insn "*andsi3_compact"
-  [(set (match_operand:SI 0 "arith_reg_dest" "=r,z")
+  [(set (match_operand:SI 0 "arith_reg_dest" "=z,r")
 	(and:SI (match_operand:SI 1 "arith_reg_operand" "%0,0")
-		(match_operand:SI 2 "logical_operand" "r,K08")))]
+		(match_operand:SI 2 "logical_operand" "K08,r")))]
   "TARGET_SH1"
   "and	%2,%0"
   [(set_attr "type" "arith")])
@@ -3419,15 +3568,6 @@ label:
 ;;
 ;; shift left
 
-(define_insn "ashlsi3_sh2a"
-  [(set (match_operand:SI 0 "arith_reg_dest" "=r")
-	(ashift:SI (match_operand:SI 1 "arith_reg_operand" "0")
-		   (match_operand:SI 2 "arith_reg_operand" "r")))]
-  "TARGET_SH2A"
-  "shad	%2,%0"
-  [(set_attr "type" "arith")
-   (set_attr "length" "4")])
-
 ;; This pattern is used by init_expmed for computing the costs of shift
 ;; insns.
 
@@ -3436,14 +3576,14 @@ label:
 	(ashift:SI (match_operand:SI 1 "arith_reg_operand" "0,0,0,0")
 		   (match_operand:SI 2 "nonmemory_operand" "r,M,P27,?ri")))
    (clobber (match_scratch:SI 3 "=X,X,X,&r"))]
-  "TARGET_SH3
+  "(TARGET_SH3 || TARGET_SH2A)
    || (TARGET_SH1 && satisfies_constraint_P27 (operands[2]))"
   "@
    shld	%2,%0
    add	%0,%0
    shll%O2	%0
    #"
-  "TARGET_SH3
+  "(TARGET_SH3 || TARGET_SH2A)
    && reload_completed
    && CONST_INT_P (operands[2])
    && ! satisfies_constraint_P27 (operands[2])"
@@ -3522,7 +3662,7 @@ label:
   if (CONST_INT_P (operands[2])
       && sh_dynamicalize_shift_p (operands[2]))
     operands[2] = force_reg (SImode, operands[2]);
-  if (TARGET_SH3)
+  if (TARGET_SH3 || TARGET_SH2A)
     {
       emit_insn (gen_ashlsi3_std (operands[0], operands[1], operands[2]));
       DONE;
@@ -3578,15 +3718,6 @@ label:
 ;
 ; arithmetic shift right
 ;
-
-(define_insn "ashrsi3_sh2a"
-  [(set (match_operand:SI 0 "arith_reg_dest" "=r")
-	(ashiftrt:SI (match_operand:SI 1 "arith_reg_operand" "0")
-		   (neg:SI (match_operand:SI 2 "arith_reg_operand" "r"))))]
-  "TARGET_SH2A"
-  "shad	%2,%0"
-  [(set_attr "type" "dyn_shift")
-   (set_attr "length" "4")])
 
 (define_insn "ashrsi3_k"
   [(set (match_operand:SI 0 "arith_reg_dest" "=r")
@@ -3682,7 +3813,7 @@ label:
   [(set (match_operand:SI 0 "arith_reg_dest" "=r")
 	(ashiftrt:SI (match_operand:SI 1 "arith_reg_operand" "0")
 		     (neg:SI (match_operand:SI 2 "arith_reg_operand" "r"))))]
-  "TARGET_SH3"
+  "TARGET_SH3 || TARGET_SH2A"
   "shad	%2,%0"
   [(set_attr "type" "dyn_shift")])
 
@@ -3730,20 +3861,11 @@ label:
 
 ;; logical shift right
 
-(define_insn "lshrsi3_sh2a"
-  [(set (match_operand:SI 0 "arith_reg_dest" "=r")
-	(lshiftrt:SI (match_operand:SI 1 "arith_reg_operand" "0")
-		     (neg:SI (match_operand:SI 2 "arith_reg_operand" "r"))))]
-  "TARGET_SH2A"
-  "shld	%2,%0"
-  [(set_attr "type" "dyn_shift")
-   (set_attr "length" "4")])
-
 (define_insn "lshrsi3_d"
   [(set (match_operand:SI 0 "arith_reg_dest" "=r")
 	(lshiftrt:SI (match_operand:SI 1 "arith_reg_operand" "0")
 		     (neg:SI (match_operand:SI 2 "arith_reg_operand" "r"))))]
-  "TARGET_SH3"
+  "TARGET_SH3 || TARGET_SH2A"
   "shld	%2,%0"
   [(set_attr "type" "dyn_shift")])
 
@@ -3824,7 +3946,8 @@ label:
   if (CONST_INT_P (operands[2])
       && sh_dynamicalize_shift_p (operands[2]))
     operands[2] = force_reg (SImode, operands[2]);
-  if (TARGET_SH3 && arith_reg_operand (operands[2], GET_MODE (operands[2])))
+  if ((TARGET_SH3 || TARGET_SH2A)
+      && arith_reg_operand (operands[2], GET_MODE (operands[2])))
     {
       rtx count = copy_to_mode_reg (SImode, operands[2]);
       emit_insn (gen_negsi2 (count, count));
@@ -13544,3 +13667,5 @@ mov.l\\t1f,r0\\n\\
   "ld%M1.q\t%m1, %0\;ld%M2.q\t%m2, %3\;cmpeq\t%0, %3, %0\;movi\t0, %3"
   [(set_attr "type" "other")
    (set_attr "length" "16")])
+
+(include "sync.md")

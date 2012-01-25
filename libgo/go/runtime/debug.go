@@ -10,7 +10,6 @@ func Breakpoint()
 // LockOSThread wires the calling goroutine to its current operating system thread.
 // Until the calling goroutine exits or calls UnlockOSThread, it will always
 // execute in that thread, and no other goroutine can.
-// LockOSThread cannot be used during init functions.
 func LockOSThread()
 
 // UnlockOSThread unwires the calling goroutine from its fixed operating system thread.
@@ -20,6 +19,7 @@ func UnlockOSThread()
 // GOMAXPROCS sets the maximum number of CPUs that can be executing
 // simultaneously and returns the previous setting.  If n < 1, it does not
 // change the current setting.
+// The number of logical CPUs on the local machine can be queried with NumCPU.
 // This call will go away when the scheduler improves.
 func GOMAXPROCS(n int) int
 

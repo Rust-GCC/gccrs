@@ -68,8 +68,8 @@ type Type interface {
 	Name() string
 
 	// PkgPath returns the type's package path.
-	// The package path is a full package import path like "container/vector".
-	// PkgPath returns an empty string for unnamed types.
+	// The package path is a full package import path like "encoding/base64".
+	// PkgPath returns an empty string for unnamed or predeclared types.
 	PkgPath() string
 
 	// Size returns the number of bytes needed to store
@@ -78,7 +78,7 @@ type Type interface {
 
 	// String returns a string representation of the type.
 	// The string representation may use shortened package names
-	// (e.g., vector instead of "container/vector") and is not
+	// (e.g., base64 instead of "encoding/base64") and is not
 	// guaranteed to be unique among types.  To test for equality,
 	// compare the Types directly.
 	String() string
@@ -188,7 +188,7 @@ type Type interface {
 
 // A Kind represents the specific kind of type that a Type represents.
 // The zero Kind is not a valid kind.
-type Kind uint8
+type Kind uint
 
 const (
 	Invalid Kind = iota
@@ -243,7 +243,7 @@ type commonType struct {
 	align      int8
 	fieldAlign uint8
 	size       uintptr
-	hash	   uint32
+	hash       uint32
 	hashfn     func(unsafe.Pointer, uintptr)
 	equalfn    func(unsafe.Pointer, unsafe.Pointer, uintptr)
 	string     *string
@@ -455,15 +455,16 @@ func (t *uncommonType) Method(i int) (m Method) {
 	if p.name != nil {
 		m.Name = *p.name
 	}
-	flag := uint32(0)
+	fl := flag(Func) << flagKindShift
 	if p.pkgPath != nil {
 		m.PkgPath = *p.pkgPath
-		flag |= flagRO
+		fl |= flagRO
 	}
-	m.Type = toType(p.typ)
+	mt := toCommonType(p.typ)
+	m.Type = mt.toType()
 	x := new(unsafe.Pointer)
 	*x = p.tfn
-	m.Func = valueFromIword(flag, m.Type, iword(uintptr(unsafe.Pointer(x))))
+	m.Func = Value{mt, unsafe.Pointer(x), fl | flagIndir}
 	m.Index = i
 	return
 }
@@ -717,7 +718,7 @@ type StructTag string
 // Get returns the value associated with key in the tag string.
 // If there is no such key in the tag, Get returns the empty string.
 // If the tag does not have the conventional format, the value
-// returned by Get is unspecified, 
+// returned by Get is unspecified.
 func (tag StructTag) Get(key string) string {
 	for tag != "" {
 		// skip leading space
@@ -769,7 +770,7 @@ func (t *structType) Field(i int) (f StructField) {
 	if i < 0 || i >= len(t.fields) {
 		return
 	}
-	p := t.fields[i]
+	p := &t.fields[i]
 	f.Type = toType(p.typ)
 	if p.name != nil {
 		f.Name = *p.name
@@ -868,16 +869,18 @@ L:
 
 	if n == 1 {
 		// Found matching field.
-		if len(ff.Index) <= depth {
+		if depth >= len(ff.Index) {
 			ff.Index = make([]int, depth+1)
 		}
-		ff.Index[depth] = fi
+		if len(ff.Index) > 1 {
+			ff.Index[depth] = fi
+		}
 	} else {
 		// None or more than one matching field found.
 		fd = inf
 	}
 
-	mark[t] = false, false
+	delete(mark, t)
 	return
 }
 
@@ -903,9 +906,6 @@ func toCommonType(p *runtime.Type) *commonType {
 		return nil
 	}
 	x := unsafe.Pointer(p)
-	if uintptr(x)&reflectFlags != 0 {
-		panic("reflect: invalid interface value")
-	}
 	return (*commonType)(x)
 }
 
@@ -967,10 +967,12 @@ func (t *commonType) runtimeType() *runtime.Type {
 // PtrTo returns the pointer type with element t.
 // For example, if t represents type Foo, PtrTo(t) represents *Foo.
 func PtrTo(t Type) Type {
-	// If t records its pointer-to type, use it.
-	ct := t.(*commonType)
+	return t.(*commonType).ptrTo()
+}
+
+func (ct *commonType) ptrTo() *commonType {
 	if p := ct.ptrToThis; p != nil {
-		return toType(p)
+		return toCommonType(p)
 	}
 
 	// Otherwise, synthesize one.
@@ -982,7 +984,7 @@ func PtrTo(t Type) Type {
 	if m := ptrMap.m; m != nil {
 		if p := m[ct]; p != nil {
 			ptrMap.RUnlock()
-			return p.commonType.toType()
+			return &p.commonType
 		}
 	}
 	ptrMap.RUnlock()
@@ -994,13 +996,11 @@ func PtrTo(t Type) Type {
 	if p != nil {
 		// some other goroutine won the race and created it
 		ptrMap.Unlock()
-		return p
+		return &p.commonType
 	}
 
-	rt := (*runtime.Type)(unsafe.Pointer(ct))
-
 	rp := new(runtime.PtrType)
-	
+
 	// initialize p using *byte's ptrType as a prototype.
 	// have to do assignment as ptrType, not runtime.PtrType,
 	// in order to write to unexported fields.
@@ -1024,7 +1024,7 @@ func PtrTo(t Type) Type {
 
 	ptrMap.m[ct] = p
 	ptrMap.Unlock()
-	return p.commonType.toType()
+	return &p.commonType
 }
 
 func (t *commonType) Implements(u Type) bool {

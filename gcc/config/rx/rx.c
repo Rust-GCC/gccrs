@@ -1,5 +1,6 @@
 /* Subroutines used for code generation on Renesas RX processors.
-   Copyright (C) 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
+   Copyright (C) 2008, 2009, 2010, 2011, 2012
+   Free Software Foundation, Inc.
    Contributed by Red Hat.
 
    This file is part of GCC.
@@ -637,7 +638,7 @@ rx_print_operand (FILE * file, rtx op, int letter)
 	case 0xb: fprintf (file, "fintv"); break;
 	case 0xc: fprintf (file, "intb"); break;
 	default:
-	  warning (0, "unreocgnized control register number: %d - using 'psw'",
+	  warning (0, "unrecognized control register number: %d - using 'psw'",
 		   (int) INTVAL (op));
 	  fprintf (file, "psw");
 	  break;
@@ -1818,7 +1819,31 @@ gen_rx_popm_vector (unsigned int low, unsigned int high)
 
   return vector;
 }
-  
+
+/* Returns true if a simple return insn can be used.  */
+
+bool
+rx_can_use_simple_return (void)
+{
+  unsigned int low;
+  unsigned int high;
+  unsigned int frame_size;
+  unsigned int stack_size;
+  unsigned int register_mask;
+
+  if (is_naked_func (NULL_TREE)
+      || is_fast_interrupt_func (NULL_TREE)
+      || is_interrupt_func (NULL_TREE))
+    return false;
+
+  rx_get_stack_layout (& low, & high, & register_mask,
+		       & frame_size, & stack_size);
+
+  return (register_mask == 0
+	  && (frame_size + stack_size) == 0
+	  && low == 0);
+}
+
 void
 rx_expand_epilogue (bool is_sibcall)
 {
@@ -2571,7 +2596,7 @@ rx_option_override (void)
     }
 
   /* This target defaults to strict volatile bitfields.  */
-  if (flag_strict_volatile_bitfields < 0)
+  if (flag_strict_volatile_bitfields < 0 && abi_version_at_least(2))
     flag_strict_volatile_bitfields = 1;
 
   rx_override_options_after_change ();

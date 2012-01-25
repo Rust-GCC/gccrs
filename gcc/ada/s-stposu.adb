@@ -56,12 +56,6 @@ package body System.Storage_Pools.Subpools is
    procedure Detach (N : not null SP_Node_Ptr);
    --  Unhook a subpool node from an arbitrary subpool list
 
-   function Nearest_Multiple_Rounded_Up
-     (Size      : Storage_Count;
-      Alignment : Storage_Count) return Storage_Count;
-   --  Given arbitrary values of storage size and alignment, calculate the
-   --  nearest multiple of the alignment rounded up where size can fit.
-
    --------------
    -- Allocate --
    --------------
@@ -108,6 +102,9 @@ package body System.Storage_Pools.Subpools is
       N_Ptr   : FM_Node_Ptr;
       N_Size  : Storage_Count;
       Subpool : Subpool_Handle := null;
+
+      Allocation_Locked : Boolean;
+      --  This flag stores the state of the associated collection
 
       Header_And_Padding : Storage_Offset;
       --  This offset includes the size of a FM_Node plus any additional
@@ -156,22 +153,22 @@ package body System.Storage_Pools.Subpools is
          --  failed to create one. This is a serious error.
 
          if Context_Master = null then
-            raise Program_Error with "missing master in pool allocation";
-         end if;
+            raise Program_Error
+              with "missing master in pool allocation";
 
          --  If a subpool is present, then this is the result of erroneous
          --  allocator expansion. This is not a serious error, but it should
          --  still be detected.
 
-         if Context_Subpool /= null then
-            raise Program_Error with "subpool not required in pool allocation";
-         end if;
+         elsif Context_Subpool /= null then
+            raise Program_Error
+              with "subpool not required in pool allocation";
 
          --  If the allocation is intended to be on a subpool, but the access
          --  type's pool does not support subpools, then this is the result of
          --  erroneous end-user code.
 
-         if On_Subpool then
+         elsif On_Subpool then
             raise Program_Error
               with "pool of access type does not support subpools";
          end if;
@@ -187,10 +184,18 @@ package body System.Storage_Pools.Subpools is
 
       if Is_Controlled then
 
+         --  Synchronization:
+         --    Read  - allocation, finalization
+         --    Write - finalization
+
+         Lock_Task.all;
+         Allocation_Locked := Finalization_Started (Master.all);
+         Unlock_Task.all;
+
          --  Do not allow the allocation of controlled objects while the
          --  associated master is being finalized.
 
-         if Finalization_Started (Master.all) then
+         if Allocation_Locked then
             raise Program_Error with "allocation after finalization started";
          end if;
 
@@ -207,10 +212,7 @@ package body System.Storage_Pools.Subpools is
          --  Account for possible padding space before the header due to a
          --  larger alignment.
 
-         Header_And_Padding :=
-           Nearest_Multiple_Rounded_Up
-             (Size      => Header_Size,
-              Alignment => Alignment);
+         Header_And_Padding := Header_Size_With_Padding (Alignment);
 
          N_Size := Storage_Size + Header_And_Padding;
 
@@ -240,6 +242,7 @@ package body System.Storage_Pools.Subpools is
       --  Step 4: Attachment
 
       if Is_Controlled then
+         Lock_Task.all;
 
          --  Map the allocated memory into a FM_Node record. This converts the
          --  top of the allocated bits into a list header. If there is padding
@@ -262,7 +265,10 @@ package body System.Storage_Pools.Subpools is
 
          --  Prepend the allocated object to the finalization master
 
-         Attach (N_Ptr, Objects (Master.all));
+         --  Synchronization:
+         --    Write - allocation, deallocation, finalization
+
+         Attach_Unprotected (N_Ptr, Objects (Master.all));
 
          --  Move the address from the hidden list header to the start of the
          --  object. This operation effectively hides the list header.
@@ -275,8 +281,17 @@ package body System.Storage_Pools.Subpools is
          --    2) Named access types
          --    3) Most cases of anonymous access types usage
 
+         --  Synchronization:
+         --    Read  - allocation, finalization
+         --    Write - outside
+
          if Master.Is_Homogeneous then
-            Set_Finalize_Address (Master.all, Fin_Address);
+
+            --  Synchronization:
+            --    Read  - finalization
+            --    Write - allocation, outside
+
+            Set_Finalize_Address_Unprotected (Master.all, Fin_Address);
 
          --  Heterogeneous masters service the following:
 
@@ -284,9 +299,15 @@ package body System.Storage_Pools.Subpools is
          --    2) Certain cases of anonymous access types usage
 
          else
-            Set_Heterogeneous_Finalize_Address (Addr, Fin_Address);
+            --  Synchronization:
+            --    Read  - finalization
+            --    Write - allocation, deallocation
+
+            Set_Heterogeneous_Finalize_Address_Unprotected (Addr, Fin_Address);
             Finalize_Address_Table_In_Use := True;
          end if;
+
+         Unlock_Task.all;
 
       --  Non-controlled allocation
 
@@ -341,21 +362,24 @@ package body System.Storage_Pools.Subpools is
       --  Step 1: Detachment
 
       if Is_Controlled then
+         Lock_Task.all;
 
          --  Destroy the relation pair object - Finalize_Address since it is no
          --  longer needed.
 
          if Finalize_Address_Table_In_Use then
-            Delete_Finalize_Address (Addr);
+
+            --  Synchronization:
+            --    Read  - finalization
+            --    Write - allocation, deallocation
+
+            Delete_Finalize_Address_Unprotected (Addr);
          end if;
 
          --  Account for possible padding space before the header due to a
          --  larger alignment.
 
-         Header_And_Padding :=
-           Nearest_Multiple_Rounded_Up
-             (Size      => Header_Size,
-              Alignment => Alignment);
+         Header_And_Padding := Header_Size_With_Padding (Alignment);
 
          --    N_Addr  N_Ptr           Addr (from input)
          --    |       |               |
@@ -376,7 +400,10 @@ package body System.Storage_Pools.Subpools is
          --  action does not need to know the prior context used during
          --  allocation.
 
-         Detach (N_Ptr);
+         --  Synchronization:
+         --    Write - allocation, deallocation, finalization
+
+         Detach_Unprotected (N_Ptr);
 
          --  Move the address from the object to the beginning of the list
          --  header.
@@ -387,6 +414,8 @@ package body System.Storage_Pools.Subpools is
          --  hidden list header.
 
          N_Size := Storage_Size + Header_And_Padding;
+
+         Unlock_Task.all;
 
       else
          N_Addr := Addr;
@@ -401,6 +430,18 @@ package body System.Storage_Pools.Subpools is
 
       Deallocate (Pool, N_Addr, N_Size, Alignment);
    end Deallocate_Any_Controlled;
+
+   ------------------------------
+   -- Default_Subpool_For_Pool --
+   ------------------------------
+
+   function Default_Subpool_For_Pool
+     (Pool : Root_Storage_Pool_With_Subpools) return not null Subpool_Handle
+   is
+   begin
+      raise Program_Error;
+      return Pool.Subpools.Subpool;
+   end Default_Subpool_For_Pool;
 
    ------------
    -- Detach --
@@ -510,9 +551,7 @@ package body System.Storage_Pools.Subpools is
    begin
       --  Do nothing if the subpool was never used
 
-      if Subpool.Owner = null
-        or else Subpool.Node = null
-      then
+      if Subpool.Owner = null or else Subpool.Node = null then
          return;
       end if;
 
@@ -529,6 +568,28 @@ package body System.Storage_Pools.Subpools is
 
       Free (Subpool.Node);
    end Finalize_Subpool;
+
+   ------------------------------
+   -- Header_Size_With_Padding --
+   ------------------------------
+
+   function Header_Size_With_Padding
+     (Alignment : System.Storage_Elements.Storage_Count)
+      return System.Storage_Elements.Storage_Count
+   is
+      Size : constant Storage_Count := Header_Size;
+
+   begin
+      if Size mod Alignment = 0 then
+         return Size;
+
+      --  Add enough padding to reach the nearest multiple of the alignment
+      --  rounding up.
+
+      else
+         return ((Size + Alignment - 1) / Alignment) * Alignment;
+      end if;
+   end Header_Size_With_Padding;
 
    ----------------
    -- Initialize --
@@ -551,32 +612,14 @@ package body System.Storage_Pools.Subpools is
       Pool.Subpools.Prev := Pool.Subpools'Unchecked_Access;
    end Initialize_Pool;
 
-   ---------------------------------
-   -- Nearest_Multiple_Rounded_Up --
-   ---------------------------------
-
-   function Nearest_Multiple_Rounded_Up
-     (Size      : Storage_Count;
-      Alignment : Storage_Count) return Storage_Count
-   is
-   begin
-      if Size mod Alignment = 0 then
-         return Size;
-
-      --  Add enough padding to reach the nearest multiple of the alignment
-      --  rounding up.
-
-      else
-         return ((Size + Alignment - 1) / Alignment) * Alignment;
-      end if;
-   end Nearest_Multiple_Rounded_Up;
-
    ---------------------
    -- Pool_Of_Subpool --
    ---------------------
 
-   function Pool_Of_Subpool (Subpool : not null Subpool_Handle)
-     return access Root_Storage_Pool_With_Subpools'Class is
+   function Pool_Of_Subpool
+     (Subpool : not null Subpool_Handle)
+      return access Root_Storage_Pool_With_Subpools'Class
+   is
    begin
       return Subpool.Owner;
    end Pool_Of_Subpool;
@@ -731,7 +774,7 @@ package body System.Storage_Pools.Subpools is
 
    procedure Set_Pool_Of_Subpool
      (Subpool : not null Subpool_Handle;
-      Pool    : in out Root_Storage_Pool_With_Subpools'Class)
+      To      : in out Root_Storage_Pool_With_Subpools'Class)
    is
       N_Ptr : SP_Node_Ptr;
 
@@ -746,12 +789,12 @@ package body System.Storage_Pools.Subpools is
       --  Prevent the creation of a new subpool while the owner is being
       --  finalized. This is a serious error.
 
-      if Pool.Finalization_Started then
+      if To.Finalization_Started then
          raise Program_Error
            with "subpool creation after finalization started";
       end if;
 
-      Subpool.Owner := Pool'Unchecked_Access;
+      Subpool.Owner := To'Unchecked_Access;
 
       --  Create a subpool node and decorate it. Since this node is not
       --  allocated on the owner's pool, it must be explicitly destroyed by
@@ -761,7 +804,7 @@ package body System.Storage_Pools.Subpools is
       N_Ptr.Subpool := Subpool;
       Subpool.Node := N_Ptr;
 
-      Attach (N_Ptr, Pool.Subpools'Unchecked_Access);
+      Attach (N_Ptr, To.Subpools'Unchecked_Access);
 
       --  Mark the subpool's master as being a heterogeneous collection of
       --  controlled objects.

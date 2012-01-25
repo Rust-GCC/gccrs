@@ -1,5 +1,6 @@
 ;;  Machine Description for Renesas RX processors
-;;  Copyright (C) 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
+;;  Copyright (C) 2008, 2009, 2010, 2011, 2012
+;;  Free Software Foundation, Inc.
 ;;  Contributed by Red Hat.
 
 ;; This file is part of GCC.
@@ -338,6 +339,12 @@
   }
   [(set_attr "timings" "33")
    (set_attr "length" "2")]
+)
+
+(define_expand "return"
+  [(return)]
+  "rx_can_use_simple_return ()"
+  "rx_expand_epilogue (false); DONE;"
 )
 
 (define_insn "simple_return"
@@ -1199,11 +1206,11 @@
    (set_attr "timings" "11,11,11,11,11,33")]
 )
 
-(define_insn "smin<int_modes:mode>3"
-  [(set (match_operand:int_modes                 0 "register_operand" "=r,r,r,r,r,r")
-	(smin:int_modes (match_operand:int_modes 1 "register_operand" "%0,0,0,0,0,0")
-		 (match_operand:int_modes        2 "rx_source_operand"
-						 "r,Sint08,Sint16,Sint24,i,Q")))]
+(define_insn "sminsi3"
+  [(set (match_operand:SI          0 "register_operand" "=r,r,r,r,r,r")
+	(smin:SI (match_operand:SI 1 "register_operand" "%0,0,0,0,0,0")
+		 (match_operand:SI 2 "rx_source_operand"
+				   "r,Sint08,Sint16,Sint24,i,Q")))]
   ""
   "min\t%Q2, %0"
   [(set_attr "length"  "3,4,5,6,7,6")

@@ -94,6 +94,15 @@ package Sem_Util is
    --  not end with a ? (this is used when the caller wants to parameterize
    --  whether an error or warning is given.
 
+   function Available_Full_View_Of_Component (T : Entity_Id) return Boolean;
+   --  If at the point of declaration an array type has a private or limited
+   --  component, several array operations are not avaiable on the type, and
+   --  the array type is flagged accordingly. If in the immediate scope of
+   --  the array type the component becomes non-private or non-limited, these
+   --  operations become avaiable. This can happen if the scopes of both types
+   --  are open, and the scope of the array is not outside the scope of the
+   --  component.
+
    procedure Bad_Predicated_Subtype_Use
      (Msg : String;
       N   : Node_Id;
@@ -305,7 +314,9 @@ package Sem_Util is
    --  static accesssibility level of the object. In that case, the dynamic
    --  accessibility level of the object may take on values in a range. The low
    --  bound of of that range is returned by Type_Access_Level; this function
-   --  yields the high bound of that range.
+   --  yields the high bound of that range. Also differs from Type_Access_Level
+   --  in the case of a descendant of a generic formal type (returns Int'Last
+   --  instead of 0).
 
    function Defining_Entity (N : Node_Id) return Entity_Id;
    --  Given a declaration N, returns the associated defining entity. If the
@@ -682,6 +693,12 @@ package Sem_Util is
    function Has_Suffix (E : Entity_Id; Suffix : Character) return Boolean;
    --  Returns true if the last character of E is Suffix. Used in Assertions.
 
+   function Add_Suffix (E : Entity_Id; Suffix : Character) return Name_Id;
+   --  Returns the name of E adding Suffix
+
+   function Remove_Suffix (E : Entity_Id; Suffix : Character) return Name_Id;
+   --  Returns the name of E without Suffix
+
    function Has_Tagged_Component (Typ : Entity_Id) return Boolean;
    --  Returns True if Typ is a composite type (array or record) which is
    --  either itself a tagged type, or has a component (recursively) which is
@@ -760,8 +777,12 @@ package Sem_Util is
 
    function Is_Aliased_View (Obj : Node_Id) return Boolean;
    --  Determine if Obj is an aliased view, i.e. the name of an object to which
-   --  'Access or 'Unchecked_Access can apply. Note that the implementation
-   --  takes the No_Implicit_Aiasing restriction into account.
+   --  'Access or 'Unchecked_Access can apply. Note that this routine uses the
+   --  rules of the language, it does not take into account the restriction
+   --  No_Implicit_Aliasing, so it can return True if the restriction is active
+   --  and Obj violates the restriction. The caller is responsible for calling
+   --  Restrict.Check_No_Implicit_Aliasing if True is returned, but there is a
+   --  requirement for obeying the restriction in the call context.
 
    function Is_Ancestor_Package
      (E1 : Entity_Id;
@@ -836,8 +857,8 @@ package Sem_Util is
    --  by the derived type declaration for type Typ.
 
    function Is_Iterator (Typ : Entity_Id) return Boolean;
-   --  AI05-0139-2: Check whether Typ is derived from the predefined interface
-   --  Ada.Iterator_Interfaces.Forward_Iterator.
+   --  AI05-0139-2: Check whether Typ is one of the predefined interfaces in
+   --  Ada.Iterator_Interfaces, or it is derived from one.
 
    function Is_LHS (N : Node_Id) return Boolean;
    --  Returns True iff N is used as Name in an assignment statement
@@ -845,6 +866,9 @@ package Sem_Util is
    function Is_Library_Level_Entity (E : Entity_Id) return Boolean;
    --  A library-level declaration is one that is accessible from Standard,
    --  i.e. a library unit or an entity declared in a library package.
+
+   function Is_Limited_Class_Wide_Type (Typ : Entity_Id) return Boolean;
+   --  Determine whether a given arbitrary type is a limited class-wide type
 
    function Is_Local_Variable_Reference (Expr : Node_Id) return Boolean;
    --  Determines whether Expr is a reference to a variable or IN OUT mode
@@ -1467,13 +1491,6 @@ package Sem_Util is
    function Unique_Name (E : Entity_Id) return String;
    --  Return a unique name for entity E, which could be used to identify E
    --  across compilation units.
-
-   function Unit_Declaration_Node (Unit_Id : Entity_Id) return Node_Id;
-   --  Unit_Id is the simple name of a program unit, this function returns the
-   --  corresponding xxx_Declaration node for the entity. Also applies to the
-   --  body entities for subprograms, tasks and protected units, in which case
-   --  it returns the subprogram, task or protected body node for it. The unit
-   --  may be a child unit with any number of ancestors.
 
    function Unit_Is_Visible (U : Entity_Id) return Boolean;
    --  Determine whether a compilation unit is visible in the current context,

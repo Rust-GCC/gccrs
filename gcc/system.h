@@ -47,9 +47,14 @@ along with GCC; see the file COPYING3.  If not see
 #endif
 
 /* Use the unlocked open routines from libiberty.  */
-#ifdef fopen /* fopen is a #define on VMS.  */
-#undef fopen
-#endif
+
+/* Some of these are #define on some systems, e.g. on AIX to redirect
+   the names to 64bit capable functions for LARGE_FILES support. These
+   redefs are pointless here so we can override them.  */
+
+#undef fopen 
+#undef freopen 
+
 #define fopen(PATH,MODE) fopen_unlocked(PATH,MODE)
 #define fdopen(FILDES,MODE) fdopen_unlocked(FILDES,MODE)
 #define freopen(PATH,MODE,STREAM) freopen_unlocked(PATH,MODE,STREAM)
@@ -442,6 +447,10 @@ extern void *sbrk (int);
 extern char *strstr (const char *, const char *);
 #endif
 
+#if defined (HAVE_DECL_STPCPY) && !HAVE_DECL_STPCPY
+extern char *stpcpy (char *, const char *);
+#endif
+
 #ifdef __cplusplus
 }
 #endif
@@ -797,7 +806,8 @@ extern void fancy_abort (const char *, int, const char *) ATTRIBUTE_NORETURN;
 	LABEL_ALIGN_MAX_SKIP LOOP_ALIGN_MAX_SKIP			\
 	LABEL_ALIGN_AFTER_BARRIER_MAX_SKIP JUMP_ALIGN_MAX_SKIP 		\
 	CAN_DEBUG_WITHOUT_FP UNLIKELY_EXECUTED_TEXT_SECTION_NAME	\
-	HOT_TEXT_SECTION_NAME LEGITIMATE_CONSTANT_P ALWAYS_STRIP_DOTDOT
+	HOT_TEXT_SECTION_NAME LEGITIMATE_CONSTANT_P ALWAYS_STRIP_DOTDOT	\
+	OUTPUT_ADDR_CONST_EXTRA
 
 /* Target macros only used for code built for the target, that have
    moved to libgcc-tm.h or have never been present elsewhere.  */
@@ -867,7 +877,8 @@ extern void fancy_abort (const char *, int, const char *) ATTRIBUTE_NORETURN;
 	FUNCTION_INCOMING_ARG IRA_COVER_CLASSES TARGET_VERSION		   \
 	MACHINE_TYPE TARGET_HAS_TARGETCM ASM_OUTPUT_BSS			   \
 	SETJMP_VIA_SAVE_AREA FORBIDDEN_INC_DEC_CLASSES			   \
-	PREFERRED_OUTPUT_RELOAD_CLASS
+	PREFERRED_OUTPUT_RELOAD_CLASS SYSTEM_INCLUDE_DIR		   \
+	STANDARD_INCLUDE_DIR STANDARD_INCLUDE_COMPONENT
 
 /* Hooks that are no longer used.  */
  #pragma GCC poison LANG_HOOKS_FUNCTION_MARK LANG_HOOKS_FUNCTION_FREE	\
@@ -880,6 +891,9 @@ extern void fancy_abort (const char *, int, const char *) ATTRIBUTE_NORETURN;
 	LANG_HOOKS_MISSING_ARGUMENT LANG_HOOKS_HASH_TYPES \
 	TARGET_HANDLE_OFAST TARGET_OPTION_OPTIMIZATION \
         TARGET_IRA_COVER_CLASSES TARGET_HELP
+
+/* Arrays that were deleted in favor of a functional interface.  */
+ #pragma GCC poison built_in_decls implicit_built_in_decls
 
 /* Hooks into libgcc2.  */
  #pragma GCC poison LIBGCC2_DOUBLE_TYPE_SIZE LIBGCC2_WORDS_BIG_ENDIAN \

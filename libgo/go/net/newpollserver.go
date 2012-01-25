@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build darwin freebsd linux netbsd openbsd
+
 package net
 
 import (
@@ -9,18 +11,17 @@ import (
 	"syscall"
 )
 
-func newPollServer() (s *pollServer, err os.Error) {
+func newPollServer() (s *pollServer, err error) {
 	s = new(pollServer)
 	s.cr = make(chan *netFD, 1)
 	s.cw = make(chan *netFD, 1)
 	if s.pr, s.pw, err = os.Pipe(); err != nil {
 		return nil, err
 	}
-	var e int
-	if e = syscall.SetNonblock(s.pr.Fd(), true); e != 0 {
+	if err = syscall.SetNonblock(s.pr.Fd(), true); err != nil {
 		goto Errno
 	}
-	if e = syscall.SetNonblock(s.pw.Fd(), true); e != 0 {
+	if err = syscall.SetNonblock(s.pw.Fd(), true); err != nil {
 		goto Errno
 	}
 	if s.poll, err = newpollster(); err != nil {
@@ -35,7 +36,7 @@ func newPollServer() (s *pollServer, err os.Error) {
 	return s, nil
 
 Errno:
-	err = &os.PathError{"setnonblock", s.pr.Name(), os.Errno(e)}
+	err = &os.PathError{"setnonblock", s.pr.Name(), err}
 Error:
 	s.pr.Close()
 	s.pw.Close()

@@ -384,6 +384,35 @@ fix = {
 };
 
 /*
+ *  pthread.h on AIX defines PTHREAD_ONCE_INIT without enough braces.
+ */
+fix = {
+    hackname  = aix_once_init_1;
+    mach      = "*-*-aix*";
+    files     = "pthread.h";
+    select    = "#define[ \t]PTHREAD_ONCE_INIT \\\\\n"
+		"\\{ \\\\\n";
+    c_fix     = format;
+    c_fix_arg = "#define PTHREAD_ONCE_INIT \\\n"
+		"{{ \\\n";
+    test_text = "#define PTHREAD_ONCE_INIT \\\\\n"
+		"{ \\\\\n";
+};
+
+fix = {
+    hackname  = aix_once_init_2;
+    mach      = "*-*-aix*";
+    files     = "pthread.h";
+    select    = "[ \t]0 \\\\\n"
+		"\\}\n";
+    c_fix     = format;
+    c_fix_arg = "	0 \\\n"
+		"}}\n";
+    test_text = "	0 \\\\\n"
+		"}\n";
+};
+
+/*
  *  pthread.h on AIX 4.3.3 tries to define a macro without whitspace
  *  which violates a requirement of ISO C.
  */
@@ -999,6 +1028,21 @@ fix = {
     test_text = '#define  vfscanf	__svfscanf';
 };
 
+/*
+ * 'g++ -std=c++11' defines __cplusplus to 201103L, which suggests
+ * that it conforms to ISO/IEC 14882:2011.  It currently does
+ * not support the [[noreturn]] procedure attribute.
+ * When it does, this hack should be removed.
+ * SEE:  gcc.gnu.org/bugzilla/show_bug.cgi?id=51776
+ */
+fix = {
+    hackname  = cdef_cplusplus;
+    files     = sys/cdefs.h;
+    select    = '\[\[noreturn\]\]';
+    c_fix     = format;
+    c_fix_arg = '__attribute__((__noreturn__))';
+    test_text = "#define _Noreturn	[[noreturn]]";
+};
 
 /*
  *  Fix various macros used to define ioctl numbers.
@@ -4585,6 +4629,7 @@ fix = {
     files     = sys/types.h;
     /* avoid changing C++ friendly NULL */
     bypass    = __cplusplus;
+    bypass    = __null;
     select    = "^#[ \t]*define[ \t]+NULL[ \t]+\\(\\(void[ \t]*\\*\\)0\\)";
     c_fix     = format;
     c_fix_arg = "#define NULL 0";

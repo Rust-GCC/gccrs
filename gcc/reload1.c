@@ -1,7 +1,7 @@
 /* Reload pseudo regs into hard regs for insns that require hard regs.
    Copyright (C) 1987, 1988, 1989, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
    1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
-   2011 Free Software Foundation, Inc.
+   2011, 2012 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -768,7 +768,6 @@ reload (rtx first, int global)
      be substituted eventually by altering the REG-rtx's.  */
 
   grow_reg_equivs ();
-  reg_max_ref_width = XCNEWVEC (unsigned int, max_regno);
   reg_old_renumber = XCNEWVEC (short, max_regno);
   memcpy (reg_old_renumber, reg_renumber, max_regno * sizeof (short));
   pseudo_forbidden_regs = XNEWVEC (HARD_REG_SET, max_regno);
@@ -1112,10 +1111,7 @@ reload (rtx first, int global)
 	      if (reg_equiv_memory_loc (i))
 		MEM_COPY_ATTRIBUTES (reg, reg_equiv_memory_loc (i));
 	      else
-		{
-		  MEM_IN_STRUCT_P (reg) = MEM_SCALAR_P (reg) = 0;
-		  MEM_ATTRS (reg) = 0;
-		}
+		MEM_ATTRS (reg) = 0;
 	      MEM_NOTRAP_P (reg) = 1;
 	    }
 	  else if (reg_equiv_mem (i))
@@ -1422,7 +1418,8 @@ maybe_fix_stack_asms (void)
 
 		case 'p':
 		  cls = (int) reg_class_subunion[cls]
-		      [(int) base_reg_class (VOIDmode, ADDRESS, SCRATCH)];
+		      [(int) base_reg_class (VOIDmode, ADDR_SPACE_GENERIC,
+					     ADDRESS, SCRATCH)];
 		  break;
 
 		case 'g':
@@ -1433,7 +1430,8 @@ maybe_fix_stack_asms (void)
 		default:
 		  if (EXTRA_ADDRESS_CONSTRAINT (c, p))
 		    cls = (int) reg_class_subunion[cls]
-		      [(int) base_reg_class (VOIDmode, ADDRESS, SCRATCH)];
+		      [(int) base_reg_class (VOIDmode, ADDR_SPACE_GENERIC,
+					     ADDRESS, SCRATCH)];
 		  else
 		    cls = (int) reg_class_subunion[cls]
 		      [(int) REG_CLASS_FROM_CONSTRAINT (c, p)];
@@ -1686,6 +1684,10 @@ calculate_elim_costs_all_insns (void)
     }
 
   free (reg_equiv_init_cost);
+  free (offsets_known_at);
+  free (offsets_at);
+  offsets_at = NULL;
+  offsets_known_at = NULL;
 }
 
 /* Comparison function for qsort to decide which of two reloads
@@ -3915,6 +3917,10 @@ set_initial_label_offsets (void)
   memset (offsets_known_at, 0, num_labels);
 
   for (x = forced_labels; x; x = XEXP (x, 1))
+    if (XEXP (x, 0))
+      set_label_offsets (XEXP (x, 0), NULL_RTX, 1);
+
+  for (x = nonlocal_goto_handler_labels; x; x = XEXP (x, 1))
     if (XEXP (x, 0))
       set_label_offsets (XEXP (x, 0), NULL_RTX, 1);
 
@@ -8568,7 +8574,7 @@ gen_reload (rtx out, rtx in, int opnum, enum reload_type type)
       if (insn)
 	{
 	  /* Add a REG_EQUIV note so that find_equiv_reg can find it.  */
-	  set_unique_reg_note (insn, REG_EQUIV, in);
+	  set_dst_reg_note (insn, REG_EQUIV, in, out);
 	  return insn;
 	}
 
@@ -8578,7 +8584,7 @@ gen_reload (rtx out, rtx in, int opnum, enum reload_type type)
       gcc_assert (!reg_overlap_mentioned_p (out, op0));
       gen_reload (out, op1, opnum, type);
       insn = emit_insn (gen_add2_insn (out, op0));
-      set_unique_reg_note (insn, REG_EQUIV, in);
+      set_dst_reg_note (insn, REG_EQUIV, in, out);
     }
 
 #ifdef SECONDARY_MEMORY_NEEDED
@@ -8597,10 +8603,10 @@ gen_reload (rtx out, rtx in, int opnum, enum reload_type type)
       rtx loc = get_secondary_mem (in, GET_MODE (out), opnum, type);
 
       if (GET_MODE (loc) != GET_MODE (out))
-	out = gen_rtx_REG (GET_MODE (loc), REGNO (out));
+	out = gen_rtx_REG (GET_MODE (loc), reg_or_subregno (out));
 
       if (GET_MODE (loc) != GET_MODE (in))
-	in = gen_rtx_REG (GET_MODE (loc), REGNO (in));
+	in = gen_rtx_REG (GET_MODE (loc), reg_or_subregno (in));
 
       gen_reload (loc, in, opnum, type);
       gen_reload (out, loc, opnum, type);

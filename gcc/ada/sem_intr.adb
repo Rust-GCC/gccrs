@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -124,7 +124,7 @@ package body Sem_Intr is
       end if;
 
       --  For Import_xxx calls, argument must be static string. A string
-      --  literal is legal even in Ada83 mode, where such literals are
+      --  literal is legal even in Ada 83 mode, where such literals are
       --  not static.
 
       if Cnam = Name_Import_Address
@@ -317,7 +317,11 @@ package body Sem_Intr is
          return;
       end if;
 
-      if not Is_Numeric_Type (Underlying_Type (T1)) then
+      --  The type must be fully defined and numeric.
+
+      if No (Underlying_Type (T1))
+        or else not Is_Numeric_Type (Underlying_Type (T1))
+      then
          Errint ("intrinsic operator can only apply to numeric types", E, N);
       end if;
    end Check_Intrinsic_Operator;
@@ -451,12 +455,14 @@ package body Sem_Intr is
          return;
       end if;
 
-      Size := UI_To_Int (Esize (Typ1));
+      --  type'Size (not 'Object_Size!) must be one of the allowed values
 
-      if Size /= 8
-        and then Size /= 16
-        and then Size /= 32
-        and then Size /= 64
+      Size := UI_To_Int (RM_Size (Typ1));
+
+      if Size /= 8  and then
+         Size /= 16 and then
+         Size /= 32 and then
+         Size /= 64
       then
          Errint
            ("first argument for shift must have size 8, 16, 32 or 64",
@@ -465,8 +471,7 @@ package body Sem_Intr is
 
       elsif Non_Binary_Modulus (Typ1) then
          Errint
-           ("shifts not allowed for non-binary modular types",
-            Ptyp1, N);
+           ("shifts not allowed for non-binary modular types", Ptyp1, N);
 
       elsif Etype (Arg1) /= Etype (E) then
          Errint

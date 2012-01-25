@@ -33,6 +33,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-ssa-alias.h"
 
 
+/* This structure is used to map a gimple statement to a label,
+   or list of labels to represent transaction restart.  */
+
+struct GTY(()) tm_restart_node {
+  gimple stmt;
+  tree label_or_list;
+};
+
 /* Gimple dataflow datastructure. All publicly available fields shall have
    gimple_ accessor defined in tree-flow-inline.h, all publicly modifiable
    fields should have gimple_set accessor.  */
@@ -80,6 +88,10 @@ struct GTY(()) gimple_df {
   unsigned int ipa_pta : 1;
 
   struct ssa_operands ssa_operands;
+
+  /* Map gimple stmt to tree label (or list of labels) for transaction
+     restart and abort.  */
+  htab_t GTY ((param_is (struct tm_restart_node))) tm_restart;
 };
 
 /* Accessors for internal use only.  Generic code should use abstraction
@@ -278,7 +290,6 @@ typedef struct immediate_use_iterator_d
 typedef struct var_ann_d *var_ann_t;
 
 static inline var_ann_t var_ann (const_tree);
-static inline var_ann_t get_var_ann (tree);
 static inline void update_stmt (gimple);
 static inline int get_lineno (const_gimple);
 
@@ -716,6 +727,7 @@ bool stmt_dominates_stmt_p (gimple, gimple);
 void mark_virtual_ops_for_renaming (gimple);
 
 /* In tree-ssa-dce.c */
+void mark_virtual_operand_for_renaming (tree);
 void mark_virtual_phi_result_for_renaming (gimple);
 
 /* In tree-ssa-threadedge.c */
@@ -777,6 +789,7 @@ extern bool maybe_duplicate_eh_stmt_fn (struct function *, gimple,
 extern bool maybe_duplicate_eh_stmt (gimple, gimple);
 extern bool verify_eh_edges (gimple);
 extern bool verify_eh_dispatch_edge (gimple);
+extern void maybe_remove_unreachable_handlers (void);
 
 /* In tree-ssa-pre.c  */
 struct pre_expr_d;

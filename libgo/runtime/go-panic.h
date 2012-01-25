@@ -31,40 +31,7 @@ struct __go_panic_stack
   _Bool __is_foreign;
 };
 
-/* The panic and defer stacks, grouped together into a single thread
-   local variable for convenience for systems without TLS.  */
-
-struct __go_panic_defer_struct
-{
-  /* The list of defers to execute.  */
-  struct __go_defer_stack *__defer;
-
-  /* The list of currently active panics.  There will be more than one
-     if a deferred function calls panic.  */
-  struct __go_panic_stack *__panic;
-
-  /* The current exception being thrown when unwinding after a call to
-     panic .  This is really struct _UnwindException *.  */
-  void *__exception;
-
-  /* Whether the current exception is from some other language.  */
-  _Bool __is_foreign;
-};
-
-#ifdef __rtems__
-#define __thread
-#endif
-
-extern __thread struct __go_panic_defer_struct *__go_panic_defer;
-
-#ifdef __rtems__
-#undef __thread
-#endif
-
 extern void __go_panic (struct __go_empty_interface)
-  __attribute__ ((noreturn));
-
-extern void __go_panic_msg (const char* msg)
   __attribute__ ((noreturn));
 
 extern void __go_print_string (struct __go_string);
@@ -85,7 +52,8 @@ extern void newTypeAssertionError(const struct __go_type_descriptor *pt1,
 				  struct __go_empty_interface *ret)
   __asm__ ("libgo_runtime.runtime.NewTypeAssertionError");
 
-extern void newErrorString(struct __go_string, struct __go_empty_interface *)
+extern void runtime_newErrorString(struct __go_string,
+				   struct __go_empty_interface *)
   __asm__ ("libgo_runtime.runtime.NewErrorString");
 
 extern void printany(struct __go_empty_interface)

@@ -1,5 +1,5 @@
 @c Copyright (C) 1988, 1989, 1992, 1993, 1994, 1996, 1998, 1999, 2000, 2001,
-@c 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
+@c 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012
 @c Free Software Foundation, Inc.
 
 @c This is part of the GCC manual.
@@ -79,7 +79,8 @@ extensions, accepted by GCC in C90 mode and in C++.
 * Return Address::      Getting the return or frame address of a function.
 * Vector Extensions::   Using vector instructions through built-in functions.
 * Offsetof::            Special syntax for implementing @code{offsetof}.
-* Atomic Builtins::     Built-in functions for atomic memory access.
+* __sync Builtins::     Legacy built-in functions for atomic memory access.
+* __atomic Builtins::   Atomic built-in functions with memory model.
 * Object Size Checking:: Built-in functions for limited buffer overflow
                         checking.
 * Other Builtins::      Other built-in functions.
@@ -1214,16 +1215,196 @@ Pragmas to control overflow and rounding behaviors are not implemented.
 Fixed-point types are supported by the DWARF2 debug information format.
 
 @node Named Address Spaces
-@section Named address spaces
-@cindex named address spaces
+@section Named Address Spaces
+@cindex Named Address Spaces
 
 As an extension, the GNU C compiler supports named address spaces as
 defined in the N1275 draft of ISO/IEC DTR 18037.  Support for named
-address spaces in GCC will evolve as the draft technical report changes.
-Calling conventions for any target might also change.  At present, only
-the SPU and M32C targets support other address spaces.  On the SPU target, for
-example, variables may be declared as belonging to another address space
-by qualifying the type with the @code{__ea} address space identifier:
+address spaces in GCC will evolve as the draft technical report
+changes.  Calling conventions for any target might also change.  At
+present, only the AVR, SPU, M32C, and RL78 targets support address
+spaces other than the generic address space.
+
+Address space identifiers may be used exactly like any other C type
+qualifier (e.g., @code{const} or @code{volatile}).  See the N1275
+document for more details.
+
+@anchor{AVR Named Address Spaces}
+@subsection AVR Named Address Spaces
+
+On the AVR target, there are several address spaces that can be used
+in order to put read-only data into the flash memory and access that
+data by means of the special instructions @code{LPM} or @code{ELPM}
+needed to read from flash.
+
+Per default, any data including read-only data is located in RAM
+(the generic address space) so that non-generic address spaces are
+needed to locate read-only data in flash memory
+@emph{and} to generate the right instructions to access this data
+without using (inline) assembler code.
+
+@table @code
+@item __flash
+@cindex @code{__flash} AVR Named Address Spaces
+The @code{__flash} qualifier will locate data in the
+@code{.progmem.data} section. Data will be read using the @code{LPM}
+instruction. Pointers to this address space are 16 bits wide.
+
+@item __flash1
+@item __flash2
+@item __flash3
+@item __flash4
+@item __flash5
+@cindex @code{__flash1} AVR Named Address Spaces
+@cindex @code{__flash2} AVR Named Address Spaces
+@cindex @code{__flash3} AVR Named Address Spaces
+@cindex @code{__flash4} AVR Named Address Spaces
+@cindex @code{__flash5} AVR Named Address Spaces
+These are 16-bit address spaces locating data in section
+@code{.progmem@var{N}.data} where @var{N} refers to
+address space @code{__flash@var{N}}.
+The compiler will set the @code{RAMPZ} segment register approptiately 
+before reading data by means of the @code{ELPM} instruction.
+
+On devices with less 64@tie{}kiB flash segments as indicated by the address
+space, the compiler will cut down the segment number to a number the
+device actually supports. Counting starts at@tie{}@code{0}
+for space @code{__flash}. For example, if you access address space
+@code{__flash3} on an ATmega128 device with two 64@tie{}kiB flash segments,
+the compiler will generate a read from @code{__flash1}, i.e.@: it
+will load @code{RAMPZ} with@tie{}@code{1} before reading.
+
+@item __memx
+@cindex @code{__memx} AVR Named Address Spaces
+This is a 24-bit address space that linearizes flash and RAM:
+If the high bit of the address is set, data is read from
+RAM using the lower two bytes as RAM address.
+If the high bit of the address is clear, data is read from flash
+with @code{RAMPZ} set according to the high byte of the address.
+
+Objects in this address space will be located in @code{.progmem.data}.
+@end table
+
+@b{Example}
+
+@example
+char my_read (const __flash char ** p)
+@{
+    /* p is a pointer to RAM that points to a pointer to flash.
+       The first indirection of p will read that flash pointer
+       from RAM and the second indirection reads a char from this
+       flash address.  */
+
+    return **p;
+@}
+
+/* Locate array[] in flash memory */
+const __flash int array[] = @{ 3, 5, 7, 11, 13, 17, 19 @};
+
+int i = 1;
+
+int main (void)
+@{
+   /* Return 17 by reading from flash memory */
+   return array[array[i]];
+@}
+@end example
+
+For each named address space supported by avr-gcc there is an equally
+named but uppercase built-in macro defined. 
+The purpose is to facilitate testing if respective address space
+support is available or not:
+
+@example
+#ifdef __FLASH
+const __flash int var = 1;
+
+int read_i (void)
+@{
+    return i;
+@}
+#else
+#include <avr/pgmspace.h> /* From avr-libc */
+
+const int var PROGMEM = 1;
+
+int read_i (void)
+@{
+    return (int) pgm_read_word (&i);
+@}
+#endif /* __FLASH */
+@end example
+
+Notice that attribute @ref{AVR Variable Attributes,@code{progmem}}
+locates data in flash but
+accesses to these data will read from generic address space, i.e.@:
+from RAM,
+so that you need special accessors like @code{pgm_read_byte}
+from @w{@uref{http://nongnu.org/avr-libc/user-manual,avr-libc}}.
+
+@b{Limitations and caveats}
+
+@itemize
+@item
+Reading across the 64@tie{}KiB section boundary of
+the @code{__flash} or @code{__flash@var{N}} address spaces
+will show undefined behaviour. The only address space that
+supports reading across the 64@tie{}KiB flash segment boundaries is
+@code{__memx}.
+
+@item
+If you use one if the @code{__flash@var{N}} address spaces
+you will have to arrange your linker skript to locate the
+@code{.progmem@var{N}.data} sections according to your needs.
+
+@item
+Any data or pointers to the non-generic address spaces must
+be qualified as @code{const}, i.e.@: as read-only data.
+This still applies if the data in one of these address
+spaces like software version number or calibration lookup table are intended to
+be changed after load time by, say, a boot loader. In this case
+the right qualification is @code{const} @code{volatile} so that the compiler
+must not optimize away known values or insert them
+as immediates into operands of instructions.
+
+@item
+Code like the following is not yet supported because of missing
+support in avr-binutils,
+see @w{@uref{http://sourceware.org/PR13503,PR13503}}.
+@example
+extern const __memx char foo;
+const __memx void *pfoo = &foo;
+@end example
+The code will throw an assembler warning and the high byte of
+@code{pfoo} will be initialized with@tie{}@code{0}, i.e.@: the
+initialization will be as if @code{foo} was located in the first
+64@tie{}KiB chunk of flash.
+
+@end itemize
+
+@subsection M32C Named Address Spaces
+@cindex @code{__far} M32C Named Address Spaces
+
+On the M32C target, with the R8C and M16C cpu variants, variables
+qualified with @code{__far} are accessed using 32-bit addresses in
+order to access memory beyond the first 64@tie{}Ki bytes.  If
+@code{__far} is used with the M32CM or M32C cpu variants, it has no
+effect.
+
+@subsection RL78 Named Address Spaces
+@cindex @code{__far} RL78 Named Address Spaces
+
+On the RL78 target, variables qualified with @code{__far} are accessed
+with 32-bit pointers (20-bit addresses) rather than the default 16-bit
+addresses.  Non-far variables are assumed to appear in the topmost
+64@tie{}KiB of the address space.
+
+@subsection SPU Named Address Spaces
+@cindex @code{__ea} SPU Named Address Spaces
+
+On the SPU target variables may be declared as
+belonging to another address space by qualifying the type with the
+@code{__ea} address space identifier:
 
 @smallexample
 extern int __ea i;
@@ -1233,15 +1414,6 @@ When the variable @code{i} is accessed, the compiler will generate
 special code to access this variable.  It may use runtime library
 support, or generate special machine instructions to access that address
 space.
-
-The @code{__ea} identifier may be used exactly like any other C type
-qualifier (e.g., @code{const} or @code{volatile}).  See the N1275
-document for more details.
-
-On the M32C target, with the R8C and M16C cpu variants, variables
-qualified with @code{__far} are accessed using 32-bit addresses in
-order to access memory beyond the first 64k bytes.  If @code{__far} is
-used with the M32CM or M32C cpu variants, it has no effect.
 
 @node Zero Length
 @section Arrays of Length Zero
@@ -2192,7 +2364,7 @@ types (@pxref{Variable Attributes}, @pxref{Type Attributes}.)
 
 @item disinterrupt
 @cindex @code{disinterrupt} attribute
-On MeP targets, this attribute causes the compiler to emit
+On Epiphany and MeP targets, this attribute causes the compiler to emit
 instructions to disable interrupts for the duration of the given
 function.
 
@@ -2551,8 +2723,8 @@ This attribute is ignored for R8C target.
 
 @item interrupt
 @cindex interrupt handler functions
-Use this attribute on the ARM, AVR, M32C, M32R/D, m68k, MeP, MIPS,
-RX and Xstormy16 ports to indicate that the specified function is an
+Use this attribute on the ARM, AVR, Epiphany, M32C, M32R/D, m68k, MeP, MIPS,
+RL78, RX and Xstormy16 ports to indicate that the specified function is an
 interrupt handler.  The compiler will generate function entry and exit
 sequences suitable for use in an interrupt handler when this attribute
 is present.
@@ -2609,6 +2781,10 @@ void __attribute__ ((interrupt, use_shadow_register_set,
                      keep_interrupts_masked,
                      use_debug_exception_return)) v7 ();
 @end smallexample
+
+On RL78, use @code{brk_interrupt} instead of @code{interrupt} for
+handlers intended to be used with the @code{BRK} opcode (i.e.  those
+that must end with @code{RETB} instead of @code{RETI}).
 
 @item ifunc ("@var{resolver}")
 @cindex @code{ifunc} attribute
@@ -2723,7 +2899,8 @@ attribute is not allowed on types to annotate indirect calls.
 @item long_call/short_call
 @cindex indirect calls on ARM
 This attribute specifies how a particular function is called on
-ARM@.  Both attributes override the @option{-mlong-calls} (@pxref{ARM Options})
+ARM and Epiphany.  Both attributes override the
+@option{-mlong-calls} (@pxref{ARM Options})
 command-line switch and @code{#pragma long_calls} settings.  The
 @code{long_call} attribute indicates that the function might be far
 away from the call site and require a different (more expensive)
@@ -2759,13 +2936,12 @@ efficient @code{jal} instruction.
 @cindex @code{malloc} attribute
 The @code{malloc} attribute is used to tell the compiler that a function
 may be treated as if any non-@code{NULL} pointer it returns cannot
-alias any other pointer valid when the function returns.
+alias any other pointer valid when the function returns and that the memory
+has undefined content.
 This will often improve optimization.
 Standard functions with this property include @code{malloc} and
-@code{calloc}.  @code{realloc}-like functions have this property as
-long as the old pointer is never referred to (including comparing it
-to the new pointer) after the function returns a non-@code{NULL}
-value.
+@code{calloc}.  @code{realloc}-like functions do not have this
+property as the memory pointed to does not have undefined content.
 
 @item mips16/nomips16
 @cindex @code{mips16} attribute
@@ -3028,6 +3204,33 @@ This can be used for instance to have frequently executed functions
 compiled with more aggressive optimization options that produce faster
 and larger code, while other functions can be called with less
 aggressive options.
+
+@item OS_main/OS_task
+@cindex @code{OS_main} AVR function attribute
+@cindex @code{OS_task} AVR function attribute
+On AVR, functions with the @code{OS_main} or @code{OS_task} attribute
+do not save/restore any call-saved register in their prologue/epilogue.
+
+The @code{OS_main} attribute can be used when there @emph{is
+guarantee} that interrupts are disabled at the time when the function
+is entered.  This will save resources when the stack pointer has to be
+changed to set up a frame for local variables.
+
+The @code{OS_task} attribute can be used when there is @emph{no
+guarantee} that interrupts are disabled at that time when the function
+is entered like for, e@.g@. task functions in a multi-threading operating
+system. In that case, changing the stack pointer register will be
+guarded by save/clear/restore of the global interrupt enable flag.
+
+The differences to the @code{naked} function attribute are:
+@itemize @bullet
+@item @code{naked} functions do not have a return instruction whereas 
+@code{OS_main} and @code{OS_task} functions will have a @code{RET} or
+@code{RETI} return instruction.
+@item @code{naked} functions do not set up a frame for local variables
+or a frame pointer whereas @code{OS_main} and @code{OS_task} do this
+as needed.
+@end itemize
 
 @item pcs
 @cindex @code{pcs} function attribute
@@ -4525,6 +4728,45 @@ The @code{dllexport} attribute is described in @ref{Function Attributes}.
 
 @end table
 
+@anchor{AVR Variable Attributes}
+@subsection AVR Variable Attributes
+
+@table @code
+@item progmem
+@cindex @code{progmem} AVR variable attribute
+The @code{progmem} attribute is used on the AVR to place read-only
+data in the non-volatile program memory (flash). The @code{progmem}
+attribute accomplishes this by putting respective variables into a
+section whose name starts with @code{.progmem}.
+
+This attribute works similar to the @code{section} attribute
+but adds additional checking. Notice that just like the
+@code{section} attribute, @code{progmem} affects the location
+of the data but not how this data is accessed.
+
+In order to read data located with the @code{progmem} attribute
+(inline) assembler must be used.
+@example
+/* Use custom macros from @w{@uref{http://nongnu.org/avr-libc/user-manual,avr-libc}} */
+#include <avr/pgmspace.h> 
+
+/* Locate var in flash memory */
+const int var[2] PROGMEM = @{ 1, 2 @};
+
+int read_var (int i)
+@{
+    /* Access var[] by accessor macro from avr/pgmspace.h */
+    return (int) pgm_read_word (& var[i]);
+@}
+@end example
+
+AVR is a Harvard architecture processor and data and read-only data
+normally resides in the data memory (RAM).
+
+See also the @ref{AVR Named Address Spaces} section for
+an alternate way to locate and access data in flash memory.
+@end table
+
 @subsection Blackfin Variable Attributes
 
 Three attributes are currently defined for the Blackfin.
@@ -4792,16 +5034,6 @@ memory and use special opcodes to access it.  Such variables will be
 placed in either the @code{.bss_below100} section or the
 @code{.data_below100} section.
 
-@end table
-
-@subsection AVR Variable Attributes
-
-@table @code
-@item progmem
-@cindex @code{progmem} variable attribute
-The @code{progmem} attribute is used on the AVR to place data in the Program
-Memory address space. The AVR is a Harvard Architecture processor and data
-normally resides in the Data Memory address space.
 @end table
 
 @node Type Attributes
@@ -5256,8 +5488,8 @@ GCC implements three different semantics of declaring a function
 inline.  One is available with @option{-std=gnu89} or
 @option{-fgnu89-inline} or when @code{gnu_inline} attribute is present
 on all inline declarations, another when
-@option{-std=c99}, @option{-std=c1x},
-@option{-std=gnu99} or @option{-std=gnu1x}
+@option{-std=c99}, @option{-std=c11},
+@option{-std=gnu99} or @option{-std=gnu11}
 (without @option{-fgnu89-inline}), and the third
 is used when compiling C++.
 
@@ -6271,7 +6503,7 @@ a general-purpose header file that should be usable by all programs,
 including ISO C programs.  The keywords @code{asm}, @code{typeof} and
 @code{inline} are not available in programs compiled with
 @option{-ansi} or @option{-std} (although @code{inline} can be used in a
-program compiled with @option{-std=c99} or @option{-std=c1x}).  The
+program compiled with @option{-std=c99} or @option{-std=c11}).  The
 ISO C99 keyword
 @code{restrict} is only available when @option{-std=gnu99} (which will
 eventually be the default) or @option{-std=c99} (or the equivalent
@@ -6586,16 +6818,18 @@ c = a == b;     /* The result would be @{0,-1, 0,-1@}  */
 
 Vector shuffling is available using functions
 @code{__builtin_shuffle (vec, mask)} and
-@code{__builtin_shuffle (vec0, vec1, mask)}. Both functions construct
-a permutation of elements from one or two vectors and return a vector
-of the same type as input vector(s). The mask is a vector of
-integer-typed elements. The size of each element of the mask must be
-the same as the size of each input vector element. The number of
-elements in input vector(s) and mask must be the same.
+@code{__builtin_shuffle (vec0, vec1, mask)}.
+Both functions construct a permutation of elements from one or two
+vectors and return a vector of the same type as the input vector(s).
+The @var{mask} is an integral vector with the same width (@var{W})
+and element count (@var{N}) as the output vector.
 
-The elements of the input vectors are numbered from left to right across
-one or both of the vectors. Each element in the mask specifies a number
-of element from the input vector(s). Consider the following example.
+The elements of the input vectors are numbered in memory ordering of
+@var{vec0} beginning at 0 and @var{vec1} beginning at @var{N}.  The
+elements of @var{mask} are considered modulo @var{N} in the single-operand
+case and modulo @math{2*@var{N}} in the two-operand case.
+
+Consider the following example,
 
 @smallexample
 typedef int v4si __attribute__ ((vector_size (16)));
@@ -6610,6 +6844,9 @@ res = __builtin_shuffle (a, mask1);       /* res is @{1,2,2,4@}  */
 res = __builtin_shuffle (a, b, mask2);    /* res is @{1,5,3,6@}  */
 @end smallexample
 
+Note that @code{__builtin_shuffle} is intentionally semantically
+compatible with the OpenCL @code{shuffle} and @code{shuffle2} functions.
+
 You can declare variables and use them in function calls and returns, as
 well as in assignments and some casts.  You can specify a vector type as
 a return type for a function.  Vector types can also be used as function
@@ -6619,20 +6856,6 @@ to and from other datatypes of the same size).
 
 You cannot operate between vectors of different lengths or different
 signedness without a cast.
-
-A port that supports hardware vector operations, usually provides a set
-of built-in functions that can be used to operate on vectors.  For
-example, a function to add two vectors and multiply the result by a
-third could look like this:
-
-@smallexample
-v4si f (v4si a, v4si b, v4si c)
-@{
-  v4si tmp = __builtin_addv4si (a, b);
-  return __builtin_mulv4si (tmp, c);
-@}
-
-@end smallexample
 
 @node Offsetof
 @section Offsetof
@@ -6661,8 +6884,8 @@ is a suitable definition of the @code{offsetof} macro.  In C++, @var{type}
 may be dependent.  In either case, @var{member} may consist of a single
 identifier, or a sequence of member accesses and array references.
 
-@node Atomic Builtins
-@section Built-in functions for atomic memory access
+@node __sync Builtins
+@section Legacy __sync built-in functions for atomic memory access
 
 The following builtins are intended to be compatible with those described
 in the @cite{Intel Itanium Processor-specific Application Binary Interface},
@@ -6793,6 +7016,254 @@ This means that all previous memory stores are globally visible, and all
 previous memory loads have been satisfied, but following memory reads
 are not prevented from being speculated to before the barrier.
 @end table
+
+@node __atomic Builtins
+@section Built-in functions for memory model aware atomic operations
+
+The following built-in functions approximately match the requirements for
+C++11 memory model. Many are similar to the @samp{__sync} prefixed built-in
+functions, but all also have a memory model parameter.  These are all
+identified by being prefixed with @samp{__atomic}, and most are overloaded
+such that they work with multiple types.
+
+GCC will allow any integral scalar or pointer type that is 1, 2, 4, or 8
+bytes in length. 16-byte integral types are also allowed if
+@samp{__int128} (@pxref{__int128}) is supported by the architecture.
+
+Target architectures are encouraged to provide their own patterns for
+each of these built-in functions.  If no target is provided, the original 
+non-memory model set of @samp{__sync} atomic built-in functions will be
+utilized, along with any required synchronization fences surrounding it in
+order to achieve the proper behaviour.  Execution in this case is subject
+to the same restrictions as those built-in functions.
+
+If there is no pattern or mechanism to provide a lock free instruction
+sequence, a call is made to an external routine with the same parameters
+to be resolved at runtime.
+
+The four non-arithmetic functions (load, store, exchange, and 
+compare_exchange) all have a generic version as well.  This generic
+version will work on any data type.  If the data type size maps to one
+of the integral sizes which may have lock free support, the generic
+version will utilize the lock free built-in function.  Otherwise an
+external call is left to be resolved at runtime.  This external call will
+be the same format with the addition of a @samp{size_t} parameter inserted
+as the first parameter indicating the size of the object being pointed to.
+All objects must be the same size.
+
+There are 6 different memory models which can be specified.  These map
+to the same names in the C++11 standard.  Refer there or to the
+@uref{http://gcc.gnu.org/wiki/Atomic/GCCMM/AtomicSync,GCC wiki on
+atomic synchronization} for more detailed definitions.  These memory
+models integrate both barriers to code motion as well as synchronization
+requirements with other threads. These are listed in approximately
+ascending order of strength.
+
+@table  @code
+@item __ATOMIC_RELAXED
+No barriers or synchronization.
+@item __ATOMIC_CONSUME
+Data dependency only for both barrier and synchronization with another
+thread.
+@item __ATOMIC_ACQUIRE
+Barrier to hoisting of code and synchronizes with release (or stronger)
+semantic stores from another thread.
+@item __ATOMIC_RELEASE
+Barrier to sinking of code and synchronizes with acquire (or stronger)
+semantic loads from another thread.
+@item __ATOMIC_ACQ_REL
+Full barrier in both directions and synchronizes with acquire loads and
+release stores in another thread.
+@item __ATOMIC_SEQ_CST
+Full barrier in both directions and synchronizes with acquire loads and
+release stores in all threads.
+@end table
+
+When implementing patterns for these built-in functions , the memory model
+parameter can be ignored as long as the pattern implements the most
+restrictive @code{__ATOMIC_SEQ_CST} model.  Any of the other memory models
+will execute correctly with this memory model but they may not execute as
+efficiently as they could with a more appropriate implemention of the
+relaxed requirements.
+
+Note that the C++11 standard allows for the memory model parameter to be
+determined at runtime rather than at compile time.  These built-in
+functions will map any runtime value to @code{__ATOMIC_SEQ_CST} rather
+than invoke a runtime library call or inline a switch statement.  This is
+standard compliant, safe, and the simplest approach for now.
+
+@deftypefn {Built-in Function} @var{type} __atomic_load_n (@var{type} *ptr, int memmodel)
+This built-in function implements an atomic load operation.  It returns the
+contents of @code{*@var{ptr}}.
+
+The valid memory model variants are
+@code{__ATOMIC_RELAXED}, @code{__ATOMIC_SEQ_CST}, @code{__ATOMIC_ACQUIRE},
+and @code{__ATOMIC_CONSUME}.
+
+@end deftypefn
+
+@deftypefn {Built-in Function} void __atomic_load (@var{type} *ptr, @var{type} *ret, int memmodel)
+This is the generic version of an atomic load.  It will return the
+contents of @code{*@var{ptr}} in @code{*@var{ret}}.
+
+@end deftypefn
+
+@deftypefn {Built-in Function} void __atomic_store_n (@var{type} *ptr, @var{type} val, int memmodel)
+This built-in function implements an atomic store operation.  It writes 
+@code{@var{val}} into @code{*@var{ptr}}.  
+
+The valid memory model variants are
+@code{__ATOMIC_RELAXED}, @code{__ATOMIC_SEQ_CST}, and @code{__ATOMIC_RELEASE}.
+
+@end deftypefn
+
+@deftypefn {Built-in Function} void __atomic_store (@var{type} *ptr, @var{type} *val, int memmodel)
+This is the generic version of an atomic store.  It will store the value
+of @code{*@var{val}} into @code{*@var{ptr}}.
+
+@end deftypefn
+
+@deftypefn {Built-in Function} @var{type} __atomic_exchange_n (@var{type} *ptr, @var{type} val, int memmodel)
+This built-in function implements an atomic exchange operation.  It writes
+@var{val} into @code{*@var{ptr}}, and returns the previous contents of
+@code{*@var{ptr}}.
+
+The valid memory model variants are
+@code{__ATOMIC_RELAXED}, @code{__ATOMIC_SEQ_CST}, @code{__ATOMIC_ACQUIRE},
+@code{__ATOMIC_RELEASE}, and @code{__ATOMIC_ACQ_REL}.
+
+@end deftypefn
+
+@deftypefn {Built-in Function} void __atomic_exchange (@var{type} *ptr, @var{type} *val, @var{type} *ret, int memmodel)
+This is the generic version of an atomic exchange.  It will store the
+contents of @code{*@var{val}} into @code{*@var{ptr}}. The original value
+of @code{*@var{ptr}} will be copied into @code{*@var{ret}}.
+
+@end deftypefn
+
+@deftypefn {Built-in Function} bool __atomic_compare_exchange_n (@var{type} *ptr, @var{type} *expected, @var{type} desired, bool weak, int success_memmodel, int failure_memmodel)
+This built-in function implements an atomic compare and exchange operation.
+This compares the contents of @code{*@var{ptr}} with the contents of
+@code{*@var{expected}} and if equal, writes @var{desired} into
+@code{*@var{ptr}}.  If they are not equal, the current contents of
+@code{*@var{ptr}} is written into @code{*@var{expected}}.
+
+True is returned if @code{*@var{desired}} is written into
+@code{*@var{ptr}} and the execution is considered to conform to the
+memory model specified by @var{success_memmodel}.  There are no
+restrictions on what memory model can be used here.
+
+False is returned otherwise, and the execution is considered to conform
+to @var{failure_memmodel}. This memory model cannot be
+@code{__ATOMIC_RELEASE} nor @code{__ATOMIC_ACQ_REL}.  It also cannot be a
+stronger model than that specified by @var{success_memmodel}.
+
+@end deftypefn
+
+@deftypefn {Built-in Function} bool __atomic_compare_exchange (@var{type} *ptr, @var{type} *expected, @var{type} *desired, bool weak, int success_memmodel, int failure_memmodel)
+This built-in function implements the generic version of
+@code{__atomic_compare_exchange}.  The function is virtually identical to
+@code{__atomic_compare_exchange_n}, except the desired value is also a
+pointer.
+
+@end deftypefn
+
+@deftypefn {Built-in Function} @var{type} __atomic_add_fetch (@var{type} *ptr, @var{type} val, int memmodel)
+@deftypefnx {Built-in Function} @var{type} __atomic_sub_fetch (@var{type} *ptr, @var{type} val, int memmodel)
+@deftypefnx {Built-in Function} @var{type} __atomic_and_fetch (@var{type} *ptr, @var{type} val, int memmodel)
+@deftypefnx {Built-in Function} @var{type} __atomic_xor_fetch (@var{type} *ptr, @var{type} val, int memmodel)
+@deftypefnx {Built-in Function} @var{type} __atomic_or_fetch (@var{type} *ptr, @var{type} val, int memmodel)
+@deftypefnx {Built-in Function} @var{type} __atomic_nand_fetch (@var{type} *ptr, @var{type} val, int memmodel)
+These built-in functions perform the operation suggested by the name, and
+return the result of the operation. That is,
+
+@smallexample
+@{ *ptr @var{op}= val; return *ptr; @}
+@end smallexample
+
+All memory models are valid.
+
+@end deftypefn
+
+@deftypefn {Built-in Function} @var{type} __atomic_fetch_add (@var{type} *ptr, @var{type} val, int memmodel)
+@deftypefnx {Built-in Function} @var{type} __atomic_fetch_sub (@var{type} *ptr, @var{type} val, int memmodel)
+@deftypefnx {Built-in Function} @var{type} __atomic_fetch_and (@var{type} *ptr, @var{type} val, int memmodel)
+@deftypefnx {Built-in Function} @var{type} __atomic_fetch_xor (@var{type} *ptr, @var{type} val, int memmodel)
+@deftypefnx {Built-in Function} @var{type} __atomic_fetch_or (@var{type} *ptr, @var{type} val, int memmodel)
+@deftypefnx {Built-in Function} @var{type} __atomic_fetch_nand (@var{type} *ptr, @var{type} val, int memmodel)
+These built-in functions perform the operation suggested by the name, and
+return the value that had previously been in @code{*@var{ptr}}.  That is,
+
+@smallexample
+@{ tmp = *ptr; *ptr @var{op}= val; return tmp; @}
+@end smallexample
+
+All memory models are valid.
+
+@end deftypefn
+
+@deftypefn {Built-in Function} bool __atomic_test_and_set (void *ptr, int memmodel)
+
+This built-in function performs an atomic test-and-set operation on
+the byte at @code{*@var{ptr}}.  The byte is set to some implementation
+defined non-zero "set" value and the return value is @code{true} if and only
+if the previous contents were "set".
+
+All memory models are valid.
+
+@end deftypefn
+
+@deftypefn {Built-in Function} void __atomic_clear (bool *ptr, int memmodel)
+
+This built-in function performs an atomic clear operation on
+@code{*@var{ptr}}.  After the operation, @code{*@var{ptr}} will contain 0.
+
+The valid memory model variants are
+@code{__ATOMIC_RELAXED}, @code{__ATOMIC_SEQ_CST}, and
+@code{__ATOMIC_RELEASE}.
+
+@end deftypefn
+
+@deftypefn {Built-in Function} void __atomic_thread_fence (int memmodel)
+
+This built-in function acts as a synchronization fence between threads
+based on the specified memory model.
+
+All memory orders are valid.
+
+@end deftypefn
+
+@deftypefn {Built-in Function} void __atomic_signal_fence (int memmodel)
+
+This built-in function acts as a synchronization fence between a thread
+and signal handlers based in the same thread.
+
+All memory orders are valid.
+
+@end deftypefn
+
+@deftypefn {Built-in Function} bool __atomic_always_lock_free (size_t size)
+
+This built-in function returns true if objects of size bytes will always
+generate lock free atomic instructions for the target architecture.
+Otherwise false is returned.
+
+size must resolve to a compile time constant.
+
+@smallexample
+if (_atomic_always_lock_free (sizeof (long long)))
+@end smallexample
+
+@end deftypefn
+
+@deftypefn {Built-in Function} bool __atomic_is_lock_free (size_t size)
+
+This built-in function returns true if objects of size bytes will always
+generate lock free atomic instructions for the target architecture.  If
+it is not known to be lock free a call is made to a runtime routine named
+@code{__atomic_is_lock_free}.
+
+@end deftypefn
 
 @node Object Size Checking
 @section Object Size Checking Builtins
@@ -7343,7 +7814,7 @@ be emitted.
 @opindex ansi
 @opindex std
 Outside strict ISO C mode (@option{-ansi}, @option{-std=c90},
-@option{-std=c99} or @option{-std=c1x}), the functions
+@option{-std=c99} or @option{-std=c11}), the functions
 @code{_exit}, @code{alloca}, @code{bcmp}, @code{bzero},
 @code{dcgettext}, @code{dgettext}, @code{dremf}, @code{dreml},
 @code{drem}, @code{exp10f}, @code{exp10l}, @code{exp10}, @code{ffsll},
@@ -7563,7 +8034,7 @@ future revisions.
 @deftypefn {Built-in Function} @var{type} __builtin_complex (@var{real}, @var{imag})
 
 The built-in function @code{__builtin_complex} is provided for use in
-implementing the ISO C1X macros @code{CMPLXF}, @code{CMPLX} and
+implementing the ISO C11 macros @code{CMPLXF}, @code{CMPLX} and
 @code{CMPLXL}.  @var{real} and @var{imag} must have the same type, a
 real binary floating-point type, and the result has the corresponding
 complex type with real and imaginary parts @var{real} and @var{imag}.
@@ -7652,7 +8123,7 @@ expressions for @var{exp}, you should use constructions such as
 
 @smallexample
 if (__builtin_expect (ptr != NULL, 1))
-  error ();
+  foo (*ptr);
 @end smallexample
 
 @noindent
@@ -8324,10 +8795,40 @@ implements
 void __builtin_avr_delay_cycles (unsigned long ticks)
 @end smallexample
 
+@noindent
 @code{ticks} is the number of ticks to delay execution. Note that this
 built-in does not take into account the effect of interrupts which
 might increase delay time. @code{ticks} must be a compile time
 integer constant; delays with a variable number of cycles are not supported.
+
+@smallexample
+     unsigned char __builtin_avr_map8 (unsigned long map, unsigned char val)
+@end smallexample
+
+@noindent
+Each bit of the result is copied from a specific bit of @code{val}.
+@code{map} is a compile time constant that represents a map composed
+of 8 nibbles (4-bit groups):
+The @var{n}-th nibble of @code{map} specifies which bit of @code{val}
+is to be moved to the @var{n}-th bit of the result.
+For example, @code{map = 0x76543210} represents identity: The MSB of
+the result is read from the 7-th bit of @code{val}, the LSB is
+read from the 0-th bit to @code{val}, etc.
+Two more examples: @code{0x01234567} reverses the bit order and
+@code{0x32107654} is equivalent to a @code{swap} instruction.
+
+@noindent
+One typical use case for this and the following built-in is adjusting input and
+output values to non-contiguous port layouts.
+
+@smallexample
+     unsigned int __builtin_avr_map16 (unsigned long long map, unsigned int val)
+@end smallexample
+
+@noindent
+Similar to the previous built-in except that it operates on @code{int}
+and thus 16 bits are involved.  Again, @code{map} must be a compile
+time constant.
 
 @node Blackfin Built-in Functions
 @subsection Blackfin Built-in Functions
@@ -9114,6 +9615,7 @@ v2df __builtin_ia32_loadlpd (v2df, double const *)
 int __builtin_ia32_movmskpd (v2df)
 int __builtin_ia32_pmovmskb128 (v16qi)
 void __builtin_ia32_movnti (int *, int)
+void __builtin_ia32_movnti64 (long long int *, long long int)
 void __builtin_ia32_movntpd (double *, v2df)
 void __builtin_ia32_movntdq (v2df *, v2df)
 v4si __builtin_ia32_pshufd (v4si, int)
@@ -10226,6 +10728,7 @@ i32 __builtin_mips_rddsp (imm0_63)
 i32 __builtin_mips_lbux (void *, i32)
 i32 __builtin_mips_lhx (void *, i32)
 i32 __builtin_mips_lwx (void *, i32)
+a64 __builtin_mips_ldx (void *, i32) [MIPS64 only]
 i32 __builtin_mips_bposge32 (void)
 a64 __builtin_mips_madd (a64, i32, i32);
 a64 __builtin_mips_maddu (a64, ui32, ui32);
@@ -13812,7 +14315,7 @@ versions earlier than 4.4.
 @cindex @code{struct}
 @cindex @code{union}
 
-As permitted by ISO C1X and for compatibility with other compilers,
+As permitted by ISO C11 and for compatibility with other compilers,
 GCC allows you to define
 a structure or union that contains, as fields, structures and unions
 without names.  For example:

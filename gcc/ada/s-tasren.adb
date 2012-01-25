@@ -1069,10 +1069,6 @@ package body System.Tasking.Rendezvous is
 
       Initialization.Undefer_Abort (Self_Id);
 
-      --  Call Yield to let other tasks get a chance to run as this is a
-      --  potential dispatching point.
-
-      Yield (Do_Yield => False);
       return Return_Count;
    end Task_Count;
 
@@ -1502,7 +1498,7 @@ package body System.Tasking.Rendezvous is
             --  Null_Body. Defer abort until it gets into the accept body.
 
             Uninterpreted_Data := Self_Id.Common.Call.Uninterpreted_Data;
-            Initialization.Defer_Abort (Self_Id);
+            Initialization.Defer_Abort_Nestable (Self_Id);
             STPO.Unlock (Self_Id);
 
          when Accept_Alternative_Completed =>

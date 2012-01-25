@@ -31,7 +31,9 @@ along with GCC; see the file COPYING3.  If not see
     }						\
   while (0)
 
-#ifdef TARGET_64BIT_DEFAULT
+/* On Linux, the combination sparc64-* --with-cpu=v8 is supported and
+   selects a 32-bit compiler.  */
+#if defined(TARGET_64BIT_DEFAULT) && TARGET_CPU_DEFAULT >= TARGET_CPU_v9
 #undef TARGET_DEFAULT
 #define TARGET_DEFAULT \
   (MASK_V9 + MASK_PTR64 + MASK_64BIT + MASK_STACK_BIAS + \
@@ -131,13 +133,12 @@ along with GCC; see the file COPYING3.  If not see
 #undef  LINK_SPEC
 #define LINK_SPEC "\
 %(link_arch) \
-%{mlittle-endian:-EL} \
 %{!mno-relax:%{!r:-relax}} \
 "
 
 /* -mcpu=native handling only makes sense with compiler running on
    a SPARC chip.  */
-#if defined(__sparc__)
+#if defined(__sparc__) && defined(__linux__)
 extern const char *host_detect_local_cpu (int argc, const char **argv);
 # define EXTRA_SPEC_FUNCTIONS						\
   { "local_cpu_detect", host_detect_local_cpu },
@@ -164,6 +165,8 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 %{m32:%{m64:%emay not use both -m32 and -m64}} \
 %{m32:-mptr32 -mno-stack-bias %{!mlong-double-128:-mlong-double-64} \
   %{!mcpu*:-mcpu=cypress}} \
+%{mv8plus:-mptr32 -mno-stack-bias %{!mlong-double-128:-mlong-double-64} \
+  %{!mcpu*:-mcpu=v9}} \
 %{!m32:%{!mcpu*:-mcpu=ultrasparc}} \
 %{!mno-vis:%{!m32:%{!mcpu=v9:-mvis}}} \
 "
@@ -205,7 +208,6 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
       %{rdynamic:-export-dynamic} \
       -dynamic-linker " GNU_USER_DYNAMIC_LINKER64 "} \
     %{static:-static}} \
-%{mlittle-endian:-EL} \
 %{!mno-relax:%{!r:-relax}} \
 "
 
@@ -217,7 +219,6 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 -s \
 %{fpic|fPIC|fpie|fPIE:-K PIC} \
 %{!.c:%{findirect-dispatch:-K PIC}} \
-%{mlittle-endian:-EL} \
 %(asm_cpu) %(asm_arch) %(asm_relax)"
 
 #undef ASM_OUTPUT_ALIGNED_LOCAL
@@ -234,15 +235,6 @@ do {									\
 
 #undef  LOCAL_LABEL_PREFIX
 #define LOCAL_LABEL_PREFIX  "."
-
-/* This is how to store into the string LABEL
-   the symbol_ref name of an internal numbered label where
-   PREFIX is the class of label and NUM is the number within the class.
-   This is suitable for output with `assemble_name'.  */
-
-#undef  ASM_GENERATE_INTERNAL_LABEL
-#define ASM_GENERATE_INTERNAL_LABEL(LABEL,PREFIX,NUM)	\
-  sprintf (LABEL, "*.L%s%ld", PREFIX, (long)(NUM))
 
 /* DWARF bits.  */
 

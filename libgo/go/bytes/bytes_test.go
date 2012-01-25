@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"testing"
 	"unicode"
-	"utf8"
+	"unicode/utf8"
 )
 
 func eq(a, b []string) bool {
@@ -64,12 +64,16 @@ func TestCompare(t *testing.T) {
 		a := []byte(tt.a)
 		b := []byte(tt.b)
 		cmp := Compare(a, b)
-		eql := Equal(a, b)
 		if cmp != tt.i {
 			t.Errorf(`Compare(%q, %q) = %v`, tt.a, tt.b, cmp)
 		}
+		eql := Equal(a, b)
 		if eql != (tt.i == 0) {
 			t.Errorf(`Equal(%q, %q) = %v`, tt.a, tt.b, eql)
+		}
+		eql = EqualPortable(a, b)
+		if eql != (tt.i == 0) {
+			t.Errorf(`EqualPortable(%q, %q) = %v`, tt.a, tt.b, eql)
 		}
 	}
 }
@@ -264,27 +268,18 @@ func TestIndexRune(t *testing.T) {
 	}
 }
 
-func BenchmarkIndexByte4K(b *testing.B) { bmIndex(b, IndexByte, 4<<10) }
-
-func BenchmarkIndexByte4M(b *testing.B) { bmIndex(b, IndexByte, 4<<20) }
-
-func BenchmarkIndexByte64M(b *testing.B) { bmIndex(b, IndexByte, 64<<20) }
-
-func BenchmarkIndexBytePortable4K(b *testing.B) {
-	bmIndex(b, IndexBytePortable, 4<<10)
-}
-
-func BenchmarkIndexBytePortable4M(b *testing.B) {
-	bmIndex(b, IndexBytePortable, 4<<20)
-}
-
-func BenchmarkIndexBytePortable64M(b *testing.B) {
-	bmIndex(b, IndexBytePortable, 64<<20)
-}
-
 var bmbuf []byte
 
-func bmIndex(b *testing.B, index func([]byte, byte) int, n int) {
+func BenchmarkIndexByte32(b *testing.B)          { bmIndexByte(b, IndexByte, 32) }
+func BenchmarkIndexByte4K(b *testing.B)          { bmIndexByte(b, IndexByte, 4<<10) }
+func BenchmarkIndexByte4M(b *testing.B)          { bmIndexByte(b, IndexByte, 4<<20) }
+func BenchmarkIndexByte64M(b *testing.B)         { bmIndexByte(b, IndexByte, 64<<20) }
+func BenchmarkIndexBytePortable32(b *testing.B)  { bmIndexByte(b, IndexBytePortable, 32) }
+func BenchmarkIndexBytePortable4K(b *testing.B)  { bmIndexByte(b, IndexBytePortable, 4<<10) }
+func BenchmarkIndexBytePortable4M(b *testing.B)  { bmIndexByte(b, IndexBytePortable, 4<<20) }
+func BenchmarkIndexBytePortable64M(b *testing.B) { bmIndexByte(b, IndexBytePortable, 64<<20) }
+
+func bmIndexByte(b *testing.B, index func([]byte, byte) int, n int) {
 	if len(bmbuf) < n {
 		bmbuf = make([]byte, n)
 	}
@@ -294,11 +289,126 @@ func bmIndex(b *testing.B, index func([]byte, byte) int, n int) {
 	for i := 0; i < b.N; i++ {
 		j := index(buf, 'x')
 		if j != n-1 {
-			println("bad index", j)
-			panic("bad index")
+			b.Fatal("bad index", j)
 		}
 	}
-	buf[n-1] = '0'
+	buf[n-1] = '\x00'
+}
+
+func BenchmarkEqual32(b *testing.B)          { bmEqual(b, Equal, 32) }
+func BenchmarkEqual4K(b *testing.B)          { bmEqual(b, Equal, 4<<10) }
+func BenchmarkEqual4M(b *testing.B)          { bmEqual(b, Equal, 4<<20) }
+func BenchmarkEqual64M(b *testing.B)         { bmEqual(b, Equal, 64<<20) }
+func BenchmarkEqualPort32(b *testing.B)      { bmEqual(b, EqualPortable, 32) }
+func BenchmarkEqualPort4K(b *testing.B)      { bmEqual(b, EqualPortable, 4<<10) }
+func BenchmarkEqualPortable4M(b *testing.B)  { bmEqual(b, EqualPortable, 4<<20) }
+func BenchmarkEqualPortable64M(b *testing.B) { bmEqual(b, EqualPortable, 64<<20) }
+
+func bmEqual(b *testing.B, equal func([]byte, []byte) bool, n int) {
+	if len(bmbuf) < 2*n {
+		bmbuf = make([]byte, 2*n)
+	}
+	b.SetBytes(int64(n))
+	buf1 := bmbuf[0:n]
+	buf2 := bmbuf[n : 2*n]
+	buf1[n-1] = 'x'
+	buf2[n-1] = 'x'
+	for i := 0; i < b.N; i++ {
+		eq := equal(buf1, buf2)
+		if !eq {
+			b.Fatal("bad equal")
+		}
+	}
+	buf1[n-1] = '\x00'
+	buf2[n-1] = '\x00'
+}
+
+func BenchmarkIndex32(b *testing.B)  { bmIndex(b, Index, 32) }
+func BenchmarkIndex4K(b *testing.B)  { bmIndex(b, Index, 4<<10) }
+func BenchmarkIndex4M(b *testing.B)  { bmIndex(b, Index, 4<<20) }
+func BenchmarkIndex64M(b *testing.B) { bmIndex(b, Index, 64<<20) }
+
+func bmIndex(b *testing.B, index func([]byte, []byte) int, n int) {
+	if len(bmbuf) < n {
+		bmbuf = make([]byte, n)
+	}
+	b.SetBytes(int64(n))
+	buf := bmbuf[0:n]
+	buf[n-1] = 'x'
+	for i := 0; i < b.N; i++ {
+		j := index(buf, buf[n-7:])
+		if j != n-7 {
+			b.Fatal("bad index", j)
+		}
+	}
+	buf[n-1] = '\x00'
+}
+
+func BenchmarkIndexEasy32(b *testing.B)  { bmIndexEasy(b, Index, 32) }
+func BenchmarkIndexEasy4K(b *testing.B)  { bmIndexEasy(b, Index, 4<<10) }
+func BenchmarkIndexEasy4M(b *testing.B)  { bmIndexEasy(b, Index, 4<<20) }
+func BenchmarkIndexEasy64M(b *testing.B) { bmIndexEasy(b, Index, 64<<20) }
+
+func bmIndexEasy(b *testing.B, index func([]byte, []byte) int, n int) {
+	if len(bmbuf) < n {
+		bmbuf = make([]byte, n)
+	}
+	b.SetBytes(int64(n))
+	buf := bmbuf[0:n]
+	buf[n-1] = 'x'
+	buf[n-7] = 'x'
+	for i := 0; i < b.N; i++ {
+		j := index(buf, buf[n-7:])
+		if j != n-7 {
+			b.Fatal("bad index", j)
+		}
+	}
+	buf[n-1] = '\x00'
+	buf[n-7] = '\x00'
+}
+
+func BenchmarkCount32(b *testing.B)  { bmCount(b, Count, 32) }
+func BenchmarkCount4K(b *testing.B)  { bmCount(b, Count, 4<<10) }
+func BenchmarkCount4M(b *testing.B)  { bmCount(b, Count, 4<<20) }
+func BenchmarkCount64M(b *testing.B) { bmCount(b, Count, 64<<20) }
+
+func bmCount(b *testing.B, count func([]byte, []byte) int, n int) {
+	if len(bmbuf) < n {
+		bmbuf = make([]byte, n)
+	}
+	b.SetBytes(int64(n))
+	buf := bmbuf[0:n]
+	buf[n-1] = 'x'
+	for i := 0; i < b.N; i++ {
+		j := count(buf, buf[n-7:])
+		if j != 1 {
+			b.Fatal("bad count", j)
+		}
+	}
+	buf[n-1] = '\x00'
+}
+
+func BenchmarkCountEasy32(b *testing.B)  { bmCountEasy(b, Count, 32) }
+func BenchmarkCountEasy4K(b *testing.B)  { bmCountEasy(b, Count, 4<<10) }
+func BenchmarkCountEasy4M(b *testing.B)  { bmCountEasy(b, Count, 4<<20) }
+func BenchmarkCountEasy64M(b *testing.B) { bmCountEasy(b, Count, 64<<20) }
+
+func bmCountEasy(b *testing.B, count func([]byte, []byte) int, n int) {
+	if len(bmbuf) < n {
+		bmbuf = make([]byte, n)
+	}
+	b.SetBytes(int64(n))
+	buf := bmbuf[0:n]
+	buf[n-1] = 'x'
+	buf[n-7] = 'x'
+	for i := 0; i < b.N; i++ {
+		j := count(buf, buf[n-7:])
+		if j != 1 {
+			b.Fatal("bad count", j)
+		}
+	}
+	buf[n-1] = '\x00'
+	buf[n-7] = '\x00'
 }
 
 type ExplodeTest struct {
@@ -444,7 +554,7 @@ func TestFields(t *testing.T) {
 }
 
 func TestFieldsFunc(t *testing.T) {
-	pred := func(c int) bool { return c == 'X' }
+	pred := func(c rune) bool { return c == 'X' }
 	var fieldsFuncTests = []FieldsTest{
 		{"", []string{}},
 		{"XX", []string{}},
@@ -514,24 +624,24 @@ func runStringTests(t *testing.T, f func([]byte) []byte, funcName string, testCa
 	}
 }
 
-func tenRunes(rune int) string {
-	r := make([]int, 10)
-	for i := range r {
-		r[i] = rune
+func tenRunes(r rune) string {
+	runes := make([]rune, 10)
+	for i := range runes {
+		runes[i] = r
 	}
-	return string(r)
+	return string(runes)
 }
 
 // User-defined self-inverse mapping function
-func rot13(rune int) int {
-	step := 13
-	if rune >= 'a' && rune <= 'z' {
-		return ((rune - 'a' + step) % 26) + 'a'
+func rot13(r rune) rune {
+	const step = 13
+	if r >= 'a' && r <= 'z' {
+		return ((r - 'a' + step) % 26) + 'a'
 	}
-	if rune >= 'A' && rune <= 'Z' {
-		return ((rune - 'A' + step) % 26) + 'A'
+	if r >= 'A' && r <= 'Z' {
+		return ((r - 'A' + step) % 26) + 'A'
 	}
-	return rune
+	return r
 }
 
 func TestMap(t *testing.T) {
@@ -539,7 +649,7 @@ func TestMap(t *testing.T) {
 	a := tenRunes('a')
 
 	// 1.  Grow.  This triggers two reallocations in Map.
-	maxRune := func(rune int) int { return unicode.MaxRune }
+	maxRune := func(r rune) rune { return unicode.MaxRune }
 	m := Map(maxRune, []byte(a))
 	expect := tenRunes(unicode.MaxRune)
 	if string(m) != expect {
@@ -547,7 +657,7 @@ func TestMap(t *testing.T) {
 	}
 
 	// 2. Shrink
-	minRune := func(rune int) int { return 'a' }
+	minRune := func(r rune) rune { return 'a' }
 	m = Map(minRune, []byte(tenRunes(unicode.MaxRune)))
 	expect = a
 	if string(m) != expect {
@@ -569,9 +679,9 @@ func TestMap(t *testing.T) {
 	}
 
 	// 5. Drop
-	dropNotLatin := func(rune int) int {
-		if unicode.Is(unicode.Latin, rune) {
-			return rune
+	dropNotLatin := func(r rune) rune {
+		if unicode.Is(unicode.Latin, r) {
+			return r
 		}
 		return -1
 	}
@@ -615,7 +725,7 @@ func TestRepeat(t *testing.T) {
 	}
 }
 
-func runesEqual(a, b []int) bool {
+func runesEqual(a, b []rune) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -629,18 +739,18 @@ func runesEqual(a, b []int) bool {
 
 type RunesTest struct {
 	in    string
-	out   []int
+	out   []rune
 	lossy bool
 }
 
 var RunesTests = []RunesTest{
-	{"", []int{}, false},
-	{" ", []int{32}, false},
-	{"ABC", []int{65, 66, 67}, false},
-	{"abc", []int{97, 98, 99}, false},
-	{"\u65e5\u672c\u8a9e", []int{26085, 26412, 35486}, false},
-	{"ab\x80c", []int{97, 98, 0xFFFD, 99}, true},
-	{"ab\xc0c", []int{97, 98, 0xFFFD, 99}, true},
+	{"", []rune{}, false},
+	{" ", []rune{32}, false},
+	{"ABC", []rune{65, 66, 67}, false},
+	{"abc", []rune{97, 98, 99}, false},
+	{"\u65e5\u672c\u8a9e", []rune{26085, 26412, 35486}, false},
+	{"ab\x80c", []rune{97, 98, 0xFFFD, 99}, true},
+	{"ab\xc0c", []rune{97, 98, 0xFFFD, 99}, true},
 }
 
 func TestRunes(t *testing.T) {
@@ -662,48 +772,49 @@ func TestRunes(t *testing.T) {
 }
 
 type TrimTest struct {
-	f               func([]byte, string) []byte
+	f               string
 	in, cutset, out string
 }
 
 var trimTests = []TrimTest{
-	{Trim, "abba", "a", "bb"},
-	{Trim, "abba", "ab", ""},
-	{TrimLeft, "abba", "ab", ""},
-	{TrimRight, "abba", "ab", ""},
-	{TrimLeft, "abba", "a", "bba"},
-	{TrimRight, "abba", "a", "abb"},
-	{Trim, "<tag>", "<>", "tag"},
-	{Trim, "* listitem", " *", "listitem"},
-	{Trim, `"quote"`, `"`, "quote"},
-	{Trim, "\u2C6F\u2C6F\u0250\u0250\u2C6F\u2C6F", "\u2C6F", "\u0250\u0250"},
+	{"Trim", "abba", "a", "bb"},
+	{"Trim", "abba", "ab", ""},
+	{"TrimLeft", "abba", "ab", ""},
+	{"TrimRight", "abba", "ab", ""},
+	{"TrimLeft", "abba", "a", "bba"},
+	{"TrimRight", "abba", "a", "abb"},
+	{"Trim", "<tag>", "<>", "tag"},
+	{"Trim", "* listitem", " *", "listitem"},
+	{"Trim", `"quote"`, `"`, "quote"},
+	{"Trim", "\u2C6F\u2C6F\u0250\u0250\u2C6F\u2C6F", "\u2C6F", "\u0250\u0250"},
 	//empty string tests
-	{Trim, "abba", "", "abba"},
-	{Trim, "", "123", ""},
-	{Trim, "", "", ""},
-	{TrimLeft, "abba", "", "abba"},
-	{TrimLeft, "", "123", ""},
-	{TrimLeft, "", "", ""},
-	{TrimRight, "abba", "", "abba"},
-	{TrimRight, "", "123", ""},
-	{TrimRight, "", "", ""},
-	{TrimRight, "☺\xc0", "☺", "☺\xc0"},
+	{"Trim", "abba", "", "abba"},
+	{"Trim", "", "123", ""},
+	{"Trim", "", "", ""},
+	{"TrimLeft", "abba", "", "abba"},
+	{"TrimLeft", "", "123", ""},
+	{"TrimLeft", "", "", ""},
+	{"TrimRight", "abba", "", "abba"},
+	{"TrimRight", "", "123", ""},
+	{"TrimRight", "", "", ""},
+	{"TrimRight", "☺\xc0", "☺", "☺\xc0"},
 }
 
 func TestTrim(t *testing.T) {
 	for _, tc := range trimTests {
-		actual := string(tc.f([]byte(tc.in), tc.cutset))
-		var name string
-		switch tc.f {
-		case Trim:
-			name = "Trim"
-		case TrimLeft:
-			name = "TrimLeft"
-		case TrimRight:
-			name = "TrimRight"
+		name := tc.f
+		var f func([]byte, string) []byte
+		switch name {
+		case "Trim":
+			f = Trim
+		case "TrimLeft":
+			f = TrimLeft
+		case "TrimRight":
+			f = TrimRight
 		default:
-			t.Error("Undefined trim function")
+			t.Errorf("Undefined trim function %s", name)
 		}
+		actual := string(f([]byte(tc.in), tc.cutset))
 		if actual != tc.out {
 			t.Errorf("%s(%q, %q) = %q; want %q", name, tc.in, tc.cutset, actual, tc.out)
 		}
@@ -711,7 +822,7 @@ func TestTrim(t *testing.T) {
 }
 
 type predicate struct {
-	f    func(r int) bool
+	f    func(r rune) bool
 	name string
 }
 
@@ -719,7 +830,7 @@ var isSpace = predicate{unicode.IsSpace, "IsSpace"}
 var isDigit = predicate{unicode.IsDigit, "IsDigit"}
 var isUpper = predicate{unicode.IsUpper, "IsUpper"}
 var isValidRune = predicate{
-	func(r int) bool {
+	func(r rune) bool {
 		return r != utf8.RuneError
 	},
 	"IsValidRune",
@@ -732,7 +843,7 @@ type TrimFuncTest struct {
 
 func not(p predicate) predicate {
 	return predicate{
-		func(r int) bool {
+		func(r rune) bool {
 			return !p.f(r)
 		},
 		"not " + p.name,
@@ -829,8 +940,14 @@ var ReplaceTests = []ReplaceTest{
 
 func TestReplace(t *testing.T) {
 	for _, tt := range ReplaceTests {
-		if s := string(Replace([]byte(tt.in), []byte(tt.old), []byte(tt.new), tt.n)); s != tt.out {
+		in := append([]byte(tt.in), "<spare>"...)
+		in = in[:len(tt.in)]
+		out := Replace(in, []byte(tt.old), []byte(tt.new), tt.n)
+		if s := string(out); s != tt.out {
 			t.Errorf("Replace(%q, %q, %q, %d) = %q, want %q", tt.in, tt.old, tt.new, tt.n, s, tt.out)
+		}
+		if cap(in) == cap(out) && &in[:1][0] == &out[:1][0] {
+			t.Errorf("Replace(%q, %q, %q, %d) didn't copy", tt.in, tt.old, tt.new, tt.n)
 		}
 	}
 }
@@ -853,6 +970,34 @@ func TestTitle(t *testing.T) {
 	for _, tt := range TitleTests {
 		if s := string(Title([]byte(tt.in))); s != tt.out {
 			t.Errorf("Title(%q) = %q, want %q", tt.in, s, tt.out)
+		}
+	}
+}
+
+var EqualFoldTests = []struct {
+	s, t string
+	out  bool
+}{
+	{"abc", "abc", true},
+	{"ABcd", "ABcd", true},
+	{"123abc", "123ABC", true},
+	{"αβδ", "ΑΒΔ", true},
+	{"abc", "xyz", false},
+	{"abc", "XYZ", false},
+	{"abcdefghijk", "abcdefghijX", false},
+	{"abcdefghijk", "abcdefghij\u212A", true},
+	{"abcdefghijK", "abcdefghij\u212A", true},
+	{"abcdefghijkz", "abcdefghij\u212Ay", false},
+	{"abcdefghijKz", "abcdefghij\u212Ay", false},
+}
+
+func TestEqualFold(t *testing.T) {
+	for _, tt := range EqualFoldTests {
+		if out := EqualFold([]byte(tt.s), []byte(tt.t)); out != tt.out {
+			t.Errorf("EqualFold(%#q, %#q) = %v, want %v", tt.s, tt.t, out, tt.out)
+		}
+		if out := EqualFold([]byte(tt.t), []byte(tt.s)); out != tt.out {
+			t.Errorf("EqualFold(%#q, %#q) = %v, want %v", tt.t, tt.s, out, tt.out)
 		}
 	}
 }

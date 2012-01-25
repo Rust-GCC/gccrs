@@ -1,3 +1,308 @@
+2012-01-24  Mike Stump  <mikestump@comcast.net>
+
+	* c-common.c (c_common_type_for_mode): Match signed/unsigned types
+	exactly.
+
+2012-01-18  Richard Guenther  <rguenther@suse.de>
+
+	* c-opts.c (c_common_post_options): Reset LTO flags if
+	we are about to generate a PCH.
+
+2012-01-17  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/51777
+	* c-pretty-print.c (pp_c_integer_constant): For unsigned constants
+	use pp_unsigned_wide_integer.
+
+2012-01-10  Richard Guenther  <rguenther@suse.de>
+
+	PR middle-end/51806
+	* c-opts.c (c_common_handle_option): Move -Werror handling
+	to language independent code.
+
+2012-01-05  Richard Guenther  <rguenther@suse.de>
+
+	PR middle-end/51764
+	* c.opt (Wmudflap, fmudflap, fmudflapth, fmudflapir): Move here
+	from common.opt.
+
+2011-12-30  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/51316
+	* c-common.c (c_sizeof_or_alignof_type): In C++ allow for alignof
+	of array types with an unknown bound.
+
+2011-12-20  Joseph Myers  <joseph@codesourcery.com>
+
+	* c-common.c (flag_isoc99): Update comment to refer to C11.
+	(flag_isoc1x): Change to flag_isoc11.
+	* c-common.h (flag_isoc99): Update comment to refer to C11.
+	(flag_isoc1x): Change to flag_isoc11.
+	* c-cppbuiltin.c (cpp_atomic_builtins): Change comment to refer to
+	C11.
+	* c-opts.c (set_std_c1x): Change to set_std_c11.
+	(c_common_handle_option): Handle OPT_std_c11 and OPT_std_gnu11.
+	Call set_std_c11.
+	(set_std_c89, set_std_c99, set_std_c11): Use flag_isoc11.
+	(set_std_c1): Use CLK_STDC11 and CLK_GNUC11.
+	* c.opt (std=c1x): Change to std=c11.  Document as non-draft
+	standard.
+	(std=c1x, std=iso9899:2011): Add as aliases of std=c11.
+	(std=gnu1x): Change to std=gnu11.  Refer to non-draft standard.
+	(std=gnu1x): Make alias of std=gnu11.
+
+2011-12-19  Jason Merrill  <jason@redhat.com>
+
+	PR c++/51228
+	* c-common.c (handle_transparent_union_attribute): Check the first
+	field if the type is complete.
+
+2011-12-15  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/51365
+	* c-common.c (RID_IS_FINAL): Add.
+	* c-common.h (RID_IS_FINAL): Add.
+
+2011-11-30  Iain Sandoe  <iains@gcc.gnu.org>
+
+	* c.opt (fgnu-runtime): Provide full description.
+	(fnext-runtime): Likewise.
+	* c-opts.c (OPT_fgnu_runtime, OPT_fnext_runtime) Remove.
+
+2011-11-28  Andrew MacLeod  <amacleod@redhat.com>
+
+	* c-cpp-builtin.c (cpp_atomic_builtins):New.  Emit all atomic
+	predefines in one place.  Add LOCK_FREE predefines.
+	(c_cpp_builtins): Move Legacy HAVE_SYNC predefines to
+	new func.
+
+2011-11-24  Andrew MacLeod  <amacleod@redhat.com>
+
+	PR c/51256
+	* c-common.c (get_atomic_generic_size): Check for various error 
+	conditions
+	(resolve_overloaded_atomic_exchange, 
+	resolve_overloaded_atomic_compare_exchange, 
+	resolve_overloaded_atomic_load, resolve_overloaded_atomic_store): Return
+	error_mark_node for error conditions.
+	
+2011-11-08  Richard Guenther  <rguenther@suse.de>
+
+	PR middle-end/51010
+	c-family/
+
+2011-11-07  Richard Henderson  <rth@redhat.com>
+	    Aldy Hernandez  <aldyh@redhat.com>
+	    Torvald Riegel  <triegel@redhat.com>
+
+	Merged from transactional-memory.
+
+	* c-common.c (handle_tm_wrap_attribute,
+	handle_tm_attribute, ignore_attribute, parse_tm_stmt_attr): New.
+	(struct c_common_reswords): Added __transaction* keywords.
+	(struct c_common_attribute_table): Added transaction* and tm_regparm
+	attributes.
+	* c-common.h: Added RID_TRANSACTION*. Added TM_ATTR* and TM_STMT*
+	masks.
+	(parse_tm_stmt_attr, tm_attr_to_mask, tm_mask_to_attr,
+	find_tm_attribute): Declare.
+
+2011-11-07  Jason Merrill  <jason@redhat.com>
+
+	PR c++/35688
+	* c-common.c, c-common.h: Revert yesterday's changes.
+
+2011-11-06  Jason Merrill  <jason@redhat.com>
+
+	PR c++/35688
+	* c-common.c (decl_has_visibility_attr): Split out from...
+	(c_determine_visibility): ...here.
+	* c-common.h: Declare it.
+
+2011-11-06  Joseph Myers  <joseph@codesourcery.com>
+
+	* c-common.c (c_common_reswords): Add _Alignas and _Alignof.
+	(c_sizeof_or_alignof_type): Diagnose alignof applied to a function
+	type.
+	(check_user_alignment): New.  Split out of
+	handle_aligned_attribute.  Disallow integer constants with
+	noninteger types.  Conditionally allow zero.
+	(handle_aligned_attribute): Use check_user_alignment.
+	* c-common.h (RID_ALIGNAS, check_user_alignment): New.
+
+2011-11-06  Andrew MacLeod  <amacleod@redhat.com>
+	    Richard Henderson  <rth@redhat.com>
+
+	Merged from cxx-mem-model.
+
+	* c-cppbuiltin.c (c_cpp_builtins): Test both atomic and sync patterns.
+	* c-common.c (sync_resolve_params, sync_resolve_return): Only tweak 
+	parameters that are the same type size.
+	(get_atomic_generic_size): New.  Find size of generic
+	atomic function parameters and do typechecking.
+	(add_atomic_size_parameter): New.  Insert size into parameter list.
+	(resolve_overloaded_atomic_exchange): Restructure __atomic_exchange to
+	either __atomic_exchange_n or external library call.
+	(resolve_overloaded_atomic_compare_exchange): Restructure 
+	__atomic_compare_exchange to either _n variant or external library call.
+	(resolve_overloaded_atomic_load): Restructure __atomic_load to either 
+	__atomic_load_n or an external library call.
+	(resolve_overloaded_atomic_store): Restructure __atomic_store to either
+	__atomic_store_n or an external library call.
+	(resolve_overloaded_builtin): Handle new __atomic builtins.
+
+2011-11-04  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR c++/50608
+	* c-common.c (c_fully_fold_internal) <ADDR_EXPR>: Call fold_offsetof_1.
+	(fold_offsetof_1): Make global.  Remove STOP_REF argument and adjust.
+	<INDIRECT_REF>: Return the argument.
+	<ARRAY_REF>: Remove special code for negative offset.
+	Call fold_build_pointer_plus instead of size_binop.
+	(fold_offsetof): Remove STOP_REF argument and adjust.
+	* c-common.h (fold_offsetof_1): Declare.
+	(fold_offsetof): Remove STOP_REF argument.
+
+2011-11-02  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/50810
+	* c-opts.c (c_common_handle_option): Enable -Wnarrowing as part
+	of -Wall; include -Wnarrowing in -Wc++0x-compat; adjust default
+	Wnarrowing for C++0x and C++98.
+	* c.opt ([Wnarrowing]): Update.
+
+2011-11-01  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/44277
+	* c.opt: Add Wzero-as-null-pointer-constant.
+
+2011-10-31  Jason Merrill  <jason@redhat.com>
+
+	* c.opt (-fdeduce-init-list): Off by default.
+
+	PR c++/50920
+	* c-common.h (cxx_dialect): Add cxx11 and cxx03.
+	* c.opt: Add -std=c++11, -std=gnu++11, -std=gnu++03,
+	and -Wc++11-compat.
+	* c-opts.c (set_std_cxx11): Rename from set_std_cxx0x.
+
+2011-10-27  Roberto Agostino Vitillo  <ravitillo@lbl.gov>
+
+	PR c++/30066
+	* c.opt (fvisibility-inlines-hidden): Description change.
+
+2011-10-26  Ed Smith-Rowland  <3dw4rd@verizon.net>
+
+	Implement C++11 user-defined literals.
+	* c-common.c (build_userdef_literal): New.
+	* c-common.def: New tree code.
+	* c-common.h (tree_userdef_literal): New tree struct and accessors.
+	* c-lex.c (interpret_float): Add suffix parm.
+	(c_lex_with_flags): Build literal tokens.
+
+2011-10-23  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/50841
+	Revert:
+	2011-10-23  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/50810
+	* c-opts.c (c_common_handle_option): Enable -Wnarrowing as part
+	of -Wall; include -Wnarrowing in -Wc++0x-compat; adjust default
+	Wnarrowing for C++0x and C++98.
+	* c.opt ([Wnarrowing]): Update.
+
+2011-10-23  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/50810
+	* c-opts.c (c_common_handle_option): Enable -Wnarrowing as part
+	of -Wall; include -Wnarrowing in -Wc++0x-compat; adjust default
+	Wnarrowing for C++0x and C++98.
+	* c.opt ([Wnarrowing]): Update.
+
+2011-10-21  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/45385
+	* c-common.c (conversion_warning): Remove code looking for
+	artificial operands.
+
+2011-10-18  Dodji Seketeli  <dodji@redhat.com>
+
+	PR bootstrap/50760
+	* c-lex.c (fe_file_change): Use LINEMAP_SYSP when
+    	!NO_IMPLICIT_EXTERN_C.
+
+2011-10-17  Michael Spertus  <mike_spertus@symantec.com>
+
+	* c-common.c (c_common_reswords): Add __bases,
+	__direct_bases.
+	* c-common.h: Add RID_BASES and RID_DIRECT_BASES.
+
+2011-10-17  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/50757
+	* c.opt ([Wnonnull]): Add C++ and Objective-C++.
+
+2011-10-15  Tom Tromey  <tromey@redhat.com>
+	    Dodji Seketeli  <dodji@redhat.com>
+
+	* c.opt (fdebug-cpp): New option.
+	* c-opts.c (c_common_handle_option): Handle the option.
+	* c-ppoutput.c (maybe_print_line_1): New static function. Takes an
+	output stream in parameter. Factorized from ...
+	(maybe_print_line): ... this. Dump location debug information when
+	-fdebug-cpp is in effect.
+	(print_line_1): New static function. Takes an output stream in
+	parameter. Factorized from ...
+	(print_line): ... here. Dump location information when -fdebug-cpp
+	is in effect.
+	(scan_translation_unit): Dump location information when
+	-fdebug-cpp is in effect.
+
+2011-10-15  Tom Tromey  <tromey@redhat.com>
+	    Dodji Seketeli  <dodji@redhat.com>
+
+	* c.opt (ftrack-macro-expansion): New option. Handle it with and
+	without argument.
+	* c-opts.c (c_common_handle_option)<case
+	OPT_ftrack_macro_expansion_, case OPT_ftrack_macro_expansion>: New
+	cases. Handle -ftrack-macro-expansion with and without argument.
+
+2011-10-15  Tom Tromey  <tromey@redhat.com>
+	    Dodji Seketeli  <dodji@redhat.com>
+
+	* c-ppoutput.c (scan_translation_unit, maybe_print_line)
+	(print_line, cb_define, do_line_change): Adjust to avoid touching
+	the internals of struct line_map.  Use the public API instead.
+	* c-pch.c (c_common_read_pch): Likewise.
+	* c-lex.c (fe_file_change): Likewise.
+
+2011-10-14  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/17212
+	* c.opt ([Wformat-zero-length]): Add C++ and Objective-C++.
+
+2011-10-11  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/33067
+	* c-pretty-print.c (pp_c_floating_constant): Output
+	max_digits10 (in the ISO C++ WG N1822 sense) decimal digits.
+
+2011-10-11  Michael Meissner  <meissner@linux.vnet.ibm.com>
+
+	* c-common.c (def_builtin_1): Delete old interface with two
+	parallel arrays to hold standard builtin declarations, and replace
+	it with a function based interface that can support creating
+	builtins on the fly in the future.  Change all uses, and poison
+	the old	names.  Make sure 0 is not a legitimate builtin index.
+	* c-omp.c (c_finish_omp_barrier): Ditto.
+	(c_finish_omp_taskwait): Ditto.
+	(c_finish_omp_flush): Ditto.
+
+2011-10-11  Tristan Gingold  <gingold@adacore.com>
+
+	* c.opt: (fallow-parameterless-variadic-functions): New.
+
 2011-09-08  Dodji Seketeli  <dodji@redhat.com>
 
 	PR c++/33255 - Support -Wunused-local-typedefs warning

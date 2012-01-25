@@ -12,10 +12,7 @@ package strconv
 //   2) Multiply/divide decimal by powers of two until in range [0.5, 1)
 //   3) Multiply by 2^precision and round to get mantissa.
 
-import (
-	"math"
-	"os"
-)
+import "math"
 
 var optimize = true // can change for testing
 
@@ -56,8 +53,9 @@ func special(s string) (f float64, ok bool) {
 }
 
 // TODO(rsc): Better truncation handling.
-func stringToDecimal(s string) (neg bool, d *decimal, trunc bool, ok bool) {
+func (b *decimal) set(s string) (ok bool) {
 	i := 0
+	b.neg = false
 
 	// optional sign
 	if i >= len(s) {
@@ -67,12 +65,11 @@ func stringToDecimal(s string) (neg bool, d *decimal, trunc bool, ok bool) {
 	case s[i] == '+':
 		i++
 	case s[i] == '-':
-		neg = true
+		b.neg = true
 		i++
 	}
 
 	// digits
-	b := new(decimal)
 	sawdot := false
 	sawdigits := false
 	for ; i < len(s); i++ {
@@ -137,7 +134,6 @@ func stringToDecimal(s string) (neg bool, d *decimal, trunc bool, ok bool) {
 		return
 	}
 
-	d = b
 	ok = true
 	return
 }
@@ -145,7 +141,7 @@ func stringToDecimal(s string) (neg bool, d *decimal, trunc bool, ok bool) {
 // decimal power of ten to binary power of two.
 var powtab = []int{1, 3, 6, 9, 13, 16, 19, 23, 26}
 
-func decimalToFloatBits(neg bool, d *decimal, trunc bool, flt *floatInfo) (b uint64, overflow bool) {
+func (d *decimal) floatBits(flt *floatInfo) (b uint64, overflow bool) {
 	var exp int
 	var mant uint64
 
@@ -209,7 +205,8 @@ func decimalToFloatBits(neg bool, d *decimal, trunc bool, flt *floatInfo) (b uin
 	}
 
 	// Extract 1+flt.mantbits bits.
-	mant = d.Shift(int(1 + flt.mantbits)).RoundedInteger()
+	d.Shift(int(1 + flt.mantbits))
+	mant = d.RoundedInteger()
 
 	// Rounding might have added a bit; shift down.
 	if mant == 2<<flt.mantbits {
@@ -236,7 +233,7 @@ out:
 	// Assemble bits.
 	bits := mant & (uint64(1)<<flt.mantbits - 1)
 	bits |= uint64((exp-flt.bias)&(1<<flt.expbits-1)) << flt.mantbits
-	if neg {
+	if d.neg {
 		bits |= 1 << flt.mantbits << flt.expbits
 	}
 	return bits, overflow
@@ -244,26 +241,38 @@ out:
 
 // Compute exact floating-point integer from d's digits.
 // Caller is responsible for avoiding overflow.
-func decimalAtof64Int(neg bool, d *decimal) float64 {
+func (d *decimal) atof64int() float64 {
 	f := 0.0
 	for i := 0; i < d.nd; i++ {
 		f = f*10 + float64(d.d[i]-'0')
 	}
-	if neg {
-		f *= -1 // BUG work around 6g f = -f.
+	if d.neg {
+		f = -f
 	}
 	return f
 }
 
-func decimalAtof32Int(neg bool, d *decimal) float32 {
+func (d *decimal) atof32int() float32 {
 	f := float32(0)
 	for i := 0; i < d.nd; i++ {
 		f = f*10 + float32(d.d[i]-'0')
 	}
-	if neg {
-		f *= -1 // BUG work around 6g f = -f.
+	if d.neg {
+		f = -f
 	}
 	return f
+}
+
+// Reads a uint64 decimal mantissa, which might be truncated.
+func (d *decimal) atou64() (mant uint64, digits int) {
+	const uint64digits = 19
+	for i, c := range d.d[:d.nd] {
+		if i == uint64digits {
+			return mant, i
+		}
+		mant = 10*mant + uint64(c-'0')
+	}
+	return mant, d.nd
 }
 
 // Exact powers of 10.
@@ -281,7 +290,7 @@ var float32pow10 = []float32{1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1
 //	value is exact integer * exact power of ten
 //	value is exact integer / exact power of ten
 // These all produce potentially inexact but correctly rounded answers.
-func decimalAtof64(neg bool, d *decimal, trunc bool) (f float64, ok bool) {
+func (d *decimal) atof64() (f float64, ok bool) {
 	// Exact integers are <= 10^15.
 	// Exact powers of ten are <= 10^22.
 	if d.nd > 15 {
@@ -289,11 +298,11 @@ func decimalAtof64(neg bool, d *decimal, trunc bool) (f float64, ok bool) {
 	}
 	switch {
 	case d.dp == d.nd: // int
-		f := decimalAtof64Int(neg, d)
+		f := d.atof64int()
 		return f, true
 
 	case d.dp > d.nd && d.dp <= 15+22: // int * 10^k
-		f := decimalAtof64Int(neg, d)
+		f := d.atof64int()
 		k := d.dp - d.nd
 		// If exponent is big but number of digits is not,
 		// can move a few zeros into the integer part.
@@ -304,7 +313,7 @@ func decimalAtof64(neg bool, d *decimal, trunc bool) (f float64, ok bool) {
 		return f * float64pow10[k], true
 
 	case d.dp < d.nd && d.nd-d.dp <= 22: // int / 10^k
-		f := decimalAtof64Int(neg, d)
+		f := d.atof64int()
 		return f / float64pow10[d.nd-d.dp], true
 	}
 	return
@@ -312,7 +321,7 @@ func decimalAtof64(neg bool, d *decimal, trunc bool) (f float64, ok bool) {
 
 // If possible to convert decimal d to 32-bit float f exactly,
 // entirely in floating-point math, do so, avoiding the machinery above.
-func decimalAtof32(neg bool, d *decimal, trunc bool) (f float32, ok bool) {
+func (d *decimal) atof32() (f float32, ok bool) {
 	// Exact integers are <= 10^7.
 	// Exact powers of ten are <= 10^10.
 	if d.nd > 7 {
@@ -320,11 +329,11 @@ func decimalAtof32(neg bool, d *decimal, trunc bool) (f float32, ok bool) {
 	}
 	switch {
 	case d.dp == d.nd: // int
-		f := decimalAtof32Int(neg, d)
+		f := d.atof32int()
 		return f, true
 
 	case d.dp > d.nd && d.dp <= 7+10: // int * 10^k
-		f := decimalAtof32Int(neg, d)
+		f := d.atof32int()
 		k := d.dp - d.nd
 		// If exponent is big but number of digits is not,
 		// can move a few zeros into the integer part.
@@ -335,81 +344,91 @@ func decimalAtof32(neg bool, d *decimal, trunc bool) (f float32, ok bool) {
 		return f * float32pow10[k], true
 
 	case d.dp < d.nd && d.nd-d.dp <= 10: // int / 10^k
-		f := decimalAtof32Int(neg, d)
+		f := d.atof32int()
 		return f / float32pow10[d.nd-d.dp], true
 	}
 	return
 }
 
-// Atof32 converts the string s to a 32-bit floating-point number.
-//
-// If s is well-formed and near a valid floating point number,
-// Atof32 returns the nearest floating point number rounded
-// using IEEE754 unbiased rounding.
-//
-// The errors that Atof32 returns have concrete type *NumError
-// and include err.Num = s.
-//
-// If s is not syntactically well-formed, Atof32 returns err.Error = os.EINVAL.
-//
-// If s is syntactically well-formed but is more than 1/2 ULP
-// away from the largest floating point number of the given size,
-// Atof32 returns f = ±Inf, err.Error = os.ERANGE.
-func Atof32(s string) (f float32, err os.Error) {
+const fnParseFloat = "ParseFloat"
+
+func atof32(s string) (f float32, err error) {
 	if val, ok := special(s); ok {
 		return float32(val), nil
 	}
 
-	neg, d, trunc, ok := stringToDecimal(s)
-	if !ok {
-		return 0, &NumError{s, os.EINVAL}
+	var d decimal
+	if !d.set(s) {
+		return 0, syntaxError(fnParseFloat, s)
 	}
 	if optimize {
-		if f, ok := decimalAtof32(neg, d, trunc); ok {
+		if f, ok := d.atof32(); ok {
 			return f, nil
 		}
 	}
-	b, ovf := decimalToFloatBits(neg, d, trunc, &float32info)
+	b, ovf := d.floatBits(&float32info)
 	f = math.Float32frombits(uint32(b))
 	if ovf {
-		err = &NumError{s, os.ERANGE}
+		err = rangeError(fnParseFloat, s)
 	}
 	return f, err
 }
 
-// Atof64 converts the string s to a 64-bit floating-point number.
-// Except for the type of its result, its definition is the same as that
-// of Atof32.
-func Atof64(s string) (f float64, err os.Error) {
+func atof64(s string) (f float64, err error) {
 	if val, ok := special(s); ok {
 		return val, nil
 	}
 
-	neg, d, trunc, ok := stringToDecimal(s)
-	if !ok {
-		return 0, &NumError{s, os.EINVAL}
+	var d decimal
+	if !d.set(s) {
+		return 0, syntaxError(fnParseFloat, s)
 	}
 	if optimize {
-		if f, ok := decimalAtof64(neg, d, trunc); ok {
+		if f, ok := d.atof64(); ok {
 			return f, nil
 		}
+
+		// Try another fast path.
+		ext := new(extFloat)
+		if ok := ext.AssignDecimal(&d); ok {
+			b, ovf := ext.floatBits()
+			f = math.Float64frombits(b)
+			if ovf {
+				err = rangeError(fnParseFloat, s)
+			}
+			return f, err
+		}
 	}
-	b, ovf := decimalToFloatBits(neg, d, trunc, &float64info)
+	b, ovf := d.floatBits(&float64info)
 	f = math.Float64frombits(b)
 	if ovf {
-		err = &NumError{s, os.ERANGE}
+		err = rangeError(fnParseFloat, s)
 	}
 	return f, err
 }
 
-// AtofN converts the string s to a 64-bit floating-point number,
-// but it rounds the result assuming that it will be stored in a value
-// of n bits (32 or 64).
-func AtofN(s string, n int) (f float64, err os.Error) {
-	if n == 32 {
-		f1, err1 := Atof32(s)
+// ParseFloat converts the string s to a floating-point number
+// with the precision specified by bitSize: 32 for float32, or 64 for float64.
+// When bitSize=32, the result still has type float64, but it will be
+// convertible to float32 without changing its value.
+//
+// If s is well-formed and near a valid floating point number,
+// ParseFloat returns the nearest floating point number rounded
+// using IEEE754 unbiased rounding.
+//
+// The errors that ParseFloat returns have concrete type *NumError
+// and include err.Num = s.
+//
+// If s is not syntactically well-formed, ParseFloat returns err.Error = ErrSyntax.
+//
+// If s is syntactically well-formed but is more than 1/2 ULP
+// away from the largest floating point number of the given size,
+// ParseFloat returns f = ±Inf, err.Error = ErrRange.
+func ParseFloat(s string, bitSize int) (f float64, err error) {
+	if bitSize == 32 {
+		f1, err1 := atof32(s)
 		return float64(f1), err1
 	}
-	f1, err1 := Atof64(s)
+	f1, err1 := atof64(s)
 	return f1, err1
 }

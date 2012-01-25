@@ -8,28 +8,26 @@ import "testing"
 
 // TestCase is used for most tests.
 type TestCase struct {
-	in  []int
-	out []int
+	in  []rune
+	out []rune
 }
 
-type insertFunc func(rb *reorderBuffer, rune int) bool
+type insertFunc func(rb *reorderBuffer, r rune) bool
 
-func insert(rb *reorderBuffer, rune int) bool {
-	b := []byte(string(rune))
-	return rb.insert(b, rb.f.info(b))
+func insert(rb *reorderBuffer, r rune) bool {
+	src := inputString(string(r))
+	return rb.insert(src, 0, rb.f.info(src, 0))
 }
 
-func insertString(rb *reorderBuffer, rune int) bool {
-	s := string(rune)
-	return rb.insertString(s, rb.f.infoString(s))
-}
-
-func runTests(t *testing.T, name string, rb *reorderBuffer, f insertFunc, tests []TestCase) {
+func runTests(t *testing.T, name string, fm Form, f insertFunc, tests []TestCase) {
+	rb := reorderBuffer{}
+	rb.init(fm, nil)
 	for i, test := range tests {
 		rb.reset()
 		for j, rune := range test.in {
 			b := []byte(string(rune))
-			if !rb.insert(b, rb.f.info(b)) {
+			src := inputBytes(b)
+			if !rb.insert(src, 0, rb.f.info(src, 0)) {
 				t.Errorf("%s:%d: insert failed for rune %d", name, i, j)
 			}
 		}
@@ -41,7 +39,7 @@ func runTests(t *testing.T, name string, rb *reorderBuffer, f insertFunc, tests 
 			continue
 		}
 		for j, want := range test.out {
-			found := int(rb.runeAt(j))
+			found := rune(rb.runeAt(j))
 			if found != want {
 				t.Errorf("%s:%d: runeAt(%d) = %U; want %U", name, i, j, found, want)
 			}
@@ -50,7 +48,8 @@ func runTests(t *testing.T, name string, rb *reorderBuffer, f insertFunc, tests 
 }
 
 func TestFlush(t *testing.T) {
-	rb := &reorderBuffer{f: *formTable[NFC]}
+	rb := reorderBuffer{}
+	rb.init(NFC, nil)
 	out := make([]byte, 0)
 
 	out = rb.flush(out)
@@ -58,8 +57,8 @@ func TestFlush(t *testing.T) {
 		t.Errorf("wrote bytes on flush of empty buffer. (len(out) = %d)", len(out))
 	}
 
-	for _, r := range []int("world!") {
-		insert(rb, r)
+	for _, r := range []rune("world!") {
+		insert(&rb, r)
 	}
 
 	out = []byte("Hello ")
@@ -77,62 +76,52 @@ func TestFlush(t *testing.T) {
 }
 
 var insertTests = []TestCase{
-	{[]int{'a'}, []int{'a'}},
-	{[]int{0x300}, []int{0x300}},
-	{[]int{0x300, 0x316}, []int{0x316, 0x300}}, // CCC(0x300)==230; CCC(0x316)==220
-	{[]int{0x316, 0x300}, []int{0x316, 0x300}},
-	{[]int{0x41, 0x316, 0x300}, []int{0x41, 0x316, 0x300}},
-	{[]int{0x41, 0x300, 0x316}, []int{0x41, 0x316, 0x300}},
-	{[]int{0x300, 0x316, 0x41}, []int{0x316, 0x300, 0x41}},
-	{[]int{0x41, 0x300, 0x40, 0x316}, []int{0x41, 0x300, 0x40, 0x316}},
+	{[]rune{'a'}, []rune{'a'}},
+	{[]rune{0x300}, []rune{0x300}},
+	{[]rune{0x300, 0x316}, []rune{0x316, 0x300}}, // CCC(0x300)==230; CCC(0x316)==220
+	{[]rune{0x316, 0x300}, []rune{0x316, 0x300}},
+	{[]rune{0x41, 0x316, 0x300}, []rune{0x41, 0x316, 0x300}},
+	{[]rune{0x41, 0x300, 0x316}, []rune{0x41, 0x316, 0x300}},
+	{[]rune{0x300, 0x316, 0x41}, []rune{0x316, 0x300, 0x41}},
+	{[]rune{0x41, 0x300, 0x40, 0x316}, []rune{0x41, 0x300, 0x40, 0x316}},
 }
 
 func TestInsert(t *testing.T) {
-	rb := &reorderBuffer{f: *formTable[NFD]}
-	runTests(t, "TestInsert", rb, insert, insertTests)
-}
-
-func TestInsertString(t *testing.T) {
-	rb := &reorderBuffer{f: *formTable[NFD]}
-	runTests(t, "TestInsertString", rb, insertString, insertTests)
+	runTests(t, "TestInsert", NFD, insert, insertTests)
 }
 
 var decompositionNFDTest = []TestCase{
-	{[]int{0xC0}, []int{0x41, 0x300}},
-	{[]int{0xAC00}, []int{0x1100, 0x1161}},
-	{[]int{0x01C4}, []int{0x01C4}},
-	{[]int{0x320E}, []int{0x320E}},
-	{[]int("음ẻ과"), []int{0x110B, 0x1173, 0x11B7, 0x65, 0x309, 0x1100, 0x116A}},
+	{[]rune{0xC0}, []rune{0x41, 0x300}},
+	{[]rune{0xAC00}, []rune{0x1100, 0x1161}},
+	{[]rune{0x01C4}, []rune{0x01C4}},
+	{[]rune{0x320E}, []rune{0x320E}},
+	{[]rune("음ẻ과"), []rune{0x110B, 0x1173, 0x11B7, 0x65, 0x309, 0x1100, 0x116A}},
 }
 
 var decompositionNFKDTest = []TestCase{
-	{[]int{0xC0}, []int{0x41, 0x300}},
-	{[]int{0xAC00}, []int{0x1100, 0x1161}},
-	{[]int{0x01C4}, []int{0x44, 0x5A, 0x030C}},
-	{[]int{0x320E}, []int{0x28, 0x1100, 0x1161, 0x29}},
+	{[]rune{0xC0}, []rune{0x41, 0x300}},
+	{[]rune{0xAC00}, []rune{0x1100, 0x1161}},
+	{[]rune{0x01C4}, []rune{0x44, 0x5A, 0x030C}},
+	{[]rune{0x320E}, []rune{0x28, 0x1100, 0x1161, 0x29}},
 }
 
 func TestDecomposition(t *testing.T) {
-	rb := &reorderBuffer{}
-	rb.f = *formTable[NFD]
-	runTests(t, "TestDecompositionNFD", rb, insert, decompositionNFDTest)
-	rb.f = *formTable[NFKD]
-	runTests(t, "TestDecompositionNFKD", rb, insert, decompositionNFKDTest)
+	runTests(t, "TestDecompositionNFD", NFD, insert, decompositionNFDTest)
+	runTests(t, "TestDecompositionNFKD", NFKD, insert, decompositionNFKDTest)
 }
 
 var compositionTest = []TestCase{
-	{[]int{0x41, 0x300}, []int{0xC0}},
-	{[]int{0x41, 0x316}, []int{0x41, 0x316}},
-	{[]int{0x41, 0x300, 0x35D}, []int{0xC0, 0x35D}},
-	{[]int{0x41, 0x316, 0x300}, []int{0xC0, 0x316}},
+	{[]rune{0x41, 0x300}, []rune{0xC0}},
+	{[]rune{0x41, 0x316}, []rune{0x41, 0x316}},
+	{[]rune{0x41, 0x300, 0x35D}, []rune{0xC0, 0x35D}},
+	{[]rune{0x41, 0x316, 0x300}, []rune{0xC0, 0x316}},
 	// blocking starter
-	{[]int{0x41, 0x316, 0x40, 0x300}, []int{0x41, 0x316, 0x40, 0x300}},
-	{[]int{0x1100, 0x1161}, []int{0xAC00}},
+	{[]rune{0x41, 0x316, 0x40, 0x300}, []rune{0x41, 0x316, 0x40, 0x300}},
+	{[]rune{0x1100, 0x1161}, []rune{0xAC00}},
 	// parenthesized Hangul, alternate between ASCII and Hangul.
-	{[]int{0x28, 0x1100, 0x1161, 0x29}, []int{0x28, 0xAC00, 0x29}},
+	{[]rune{0x28, 0x1100, 0x1161, 0x29}, []rune{0x28, 0xAC00, 0x29}},
 }
 
 func TestComposition(t *testing.T) {
-	rb := &reorderBuffer{f: *formTable[NFC]}
-	runTests(t, "TestComposition", rb, insert, compositionTest)
+	runTests(t, "TestComposition", NFC, insert, compositionTest)
 }

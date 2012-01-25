@@ -1,5 +1,5 @@
 /* Header for array handling functions
-   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2012
    Free Software Foundation, Inc.
    Contributed by Paul Brook
 
@@ -20,20 +20,20 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 /* Generate code to free an array.  */
-tree gfc_array_deallocate (tree, tree, gfc_expr*);
+tree gfc_array_deallocate (tree, tree, tree, tree, tree, gfc_expr*);
 
-/* Generate code to initialize an allocate an array.  Statements are added to
+/* Generate code to initialize and allocate an array.  Statements are added to
    se, which should contain an expression for the array descriptor.  */
-bool gfc_array_allocate (gfc_se *, gfc_expr *, tree, tree, tree);
+bool gfc_array_allocate (gfc_se *, gfc_expr *, tree, tree, tree, tree,
+			 gfc_expr *);
 
 /* Allow the bounds of a loop to be set from a callee's array spec.  */
 void gfc_set_loop_bounds_from_array_spec (gfc_interface_mapping *,
 					  gfc_se *, gfc_array_spec *);
 
 /* Generate code to create a temporary array.  */
-tree gfc_trans_create_temp_array (stmtblock_t *, stmtblock_t *, gfc_loopinfo *,
-				  gfc_ss_info *, tree, tree, bool, bool, bool,
-				  locus *);
+tree gfc_trans_create_temp_array (stmtblock_t *, stmtblock_t *, gfc_ss *,
+				  tree, tree, bool, bool, bool, locus *);
 
 /* Generate function entry code for allocation of compiler allocated array
    variables.  */
@@ -43,7 +43,7 @@ void gfc_trans_dummy_array_bias (gfc_symbol *, tree, gfc_wrapped_block *);
 /* Generate entry and exit code for g77 calling convention arrays.  */
 void gfc_trans_g77_array (gfc_symbol *, gfc_wrapped_block *);
 /* Generate code to deallocate an array, if it is allocated.  */
-tree gfc_trans_dealloc_allocated (tree);
+tree gfc_trans_dealloc_allocated (tree, bool);
 
 tree gfc_duplicate_allocatable (tree dest, tree src, tree type, int rank);
 
@@ -70,9 +70,11 @@ void gfc_trans_static_array_pointer (gfc_symbol *);
 gfc_ss *gfc_walk_expr (gfc_expr *);
 /* Workhorse for gfc_walk_expr.  */
 gfc_ss *gfc_walk_subexpr (gfc_ss *, gfc_expr *);
+/* Workhorse for gfc_walk_variable_expr.  */
+gfc_ss *gfc_walk_array_ref (gfc_ss *, gfc_expr *, gfc_ref * ref);
 /* Walk the arguments of an elemental function.  */
 gfc_ss *gfc_walk_elemental_function_args (gfc_ss *, gfc_actual_arglist *,
-					  gfc_ss_type);
+					  gfc_expr *, gfc_ss_type);
 /* Walk an intrinsic function.  */
 gfc_ss *gfc_walk_intrinsic_function (gfc_ss *, gfc_expr *,
 				     gfc_intrinsic_sym *);
@@ -87,6 +89,8 @@ void gfc_add_ss_to_loop (gfc_loopinfo *, gfc_ss *);
 void gfc_mark_ss_chain_used (gfc_ss *, unsigned);
 /* Free a gfc_ss chain.  */
 void gfc_free_ss_chain (gfc_ss *);
+/* Free a single gfc_ss element.  */
+void gfc_free_ss (gfc_ss *);
 /* Allocate a new array type ss.  */
 gfc_ss *gfc_get_array_ss (gfc_ss *, gfc_expr *, int, gfc_ss_type);
 /* Allocate a new temporary type ss.  */
@@ -110,6 +114,8 @@ void gfc_trans_scalarizing_loops (gfc_loopinfo *, stmtblock_t *);
 void gfc_trans_scalarized_loop_boundary (gfc_loopinfo *, stmtblock_t *);
 /* Initialize the scalarization loop parameters.  */
 void gfc_conv_loop_setup (gfc_loopinfo *, locus *);
+/* Set each array's delta.  */
+void gfc_set_delta (gfc_loopinfo *);
 /* Resolve array assignment dependencies.  */
 void gfc_conv_resolve_dependencies (gfc_loopinfo *, gfc_ss *, gfc_ss *);
 /* Build a null array descriptor constructor.  */

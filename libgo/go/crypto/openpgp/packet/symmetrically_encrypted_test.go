@@ -6,12 +6,12 @@ package packet
 
 import (
 	"bytes"
-	"crypto/openpgp/error"
+	"crypto/openpgp/errors"
+	"crypto/rand"
 	"crypto/sha1"
 	"encoding/hex"
 	"io"
 	"io/ioutil"
-	"os"
 	"testing"
 )
 
@@ -21,7 +21,7 @@ type testReader struct {
 	stride int
 }
 
-func (t *testReader) Read(buf []byte) (n int, err os.Error) {
+func (t *testReader) Read(buf []byte) (n int, err error) {
 	n = t.stride
 	if n > len(t.data) {
 		n = len(t.data)
@@ -32,7 +32,7 @@ func (t *testReader) Read(buf []byte) (n int, err os.Error) {
 	copy(buf, t.data)
 	t.data = t.data[n:]
 	if len(t.data) == 0 {
-		err = os.EOF
+		err = io.EOF
 	}
 	return
 }
@@ -71,7 +71,7 @@ func testMDCReader(t *testing.T) {
 	err = mdcReader.Close()
 	if err == nil {
 		t.Error("corruption: no error")
-	} else if _, ok := err.(*error.SignatureError); !ok {
+	} else if _, ok := err.(*errors.SignatureError); !ok {
 		t.Errorf("corruption: expected SignatureError, got: %s", err)
 	}
 }
@@ -83,7 +83,7 @@ func TestSerialize(t *testing.T) {
 	c := CipherAES128
 	key := make([]byte, c.KeySize())
 
-	w, err := SerializeSymmetricallyEncrypted(buf, c, key)
+	w, err := SerializeSymmetricallyEncrypted(buf, rand.Reader, c, key)
 	if err != nil {
 		t.Errorf("error from SerializeSymmetricallyEncrypted: %s", err)
 		return

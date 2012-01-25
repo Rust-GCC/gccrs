@@ -1,3 +1,16 @@
+2012-01-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libmudflap/40778
+	* testsuite/libmudflap.c/fail68-frag.c: New test.
+
+2012-01-01  Jakub Jelinek  <jakub@redhat.com>
+
+	* mf-runtime.c (__mf_usage): Update copyright notice dates.
+
+2011-11-21  Andreas Tobler  <andreast@fgznet.ch>
+
+	* configure: Regenerate.
+
 2011-07-31  Tom de Vries  <tom@codesourcery.com>
 
 	PR middle-end/43513

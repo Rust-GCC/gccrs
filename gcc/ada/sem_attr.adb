@@ -52,6 +52,7 @@ with Sem_Cat;  use Sem_Cat;
 with Sem_Ch6;  use Sem_Ch6;
 with Sem_Ch8;  use Sem_Ch8;
 with Sem_Ch10; use Sem_Ch10;
+with Sem_Dim;  use Sem_Dim;
 with Sem_Dist; use Sem_Dist;
 with Sem_Elim; use Sem_Elim;
 with Sem_Eval; use Sem_Eval;
@@ -264,6 +265,10 @@ package body Sem_Attr is
       --  If the prefix type is an enumeration type, set all its literals
       --  as referenced, since the image function could possibly end up
       --  referencing any of the literals indirectly. Same for Enum_Val.
+      --  Set the flag only if the reference is in the main code unit. Same
+      --  restriction when resolving 'Value; otherwise an improperly set
+      --  reference when analyzing an inlined body will lose a proper warning
+      --  on a useless with_clause.
 
       procedure Check_Fixed_Point_Type;
       --  Verify that prefix of attribute N is a fixed type
@@ -837,13 +842,8 @@ package body Sem_Attr is
            and then not In_Instance
            and then not In_Inlined_Body
          then
-            if Restriction_Check_Required (No_Implicit_Aliasing) then
-               Error_Attr_P
-                 ("prefix of % attribute must be explicitly aliased");
-            else
-               Error_Attr_P
-                 ("prefix of % attribute must be aliased");
-            end if;
+            Error_Attr_P ("prefix of % attribute must be aliased");
+            Check_No_Implicit_Aliasing (P);
          end if;
       end Analyze_Access_Attribute;
 
@@ -1225,8 +1225,17 @@ package body Sem_Attr is
 
       procedure Check_Enum_Image is
          Lit : Entity_Id;
+
       begin
-         if Is_Enumeration_Type (P_Base_Type) then
+         --  When an enumeration type appears in an attribute reference, all
+         --  literals of the type are marked as referenced. This must only be
+         --  done if the attribute reference appears in the current source.
+         --  Otherwise the information on references may differ between a
+         --  normal compilation and one that performs inlining.
+
+         if Is_Enumeration_Type (P_Base_Type)
+           and then In_Extended_Main_Code_Unit (N)
+         then
             Lit := First_Literal (P_Base_Type);
             while Present (Lit) loop
                Set_Referenced (Lit);
@@ -2125,7 +2134,7 @@ package body Sem_Attr is
 
       case Attr_Id is
 
-         --  Attributes related to Ada2012 iterators. Attribute specifications
+         --  Attributes related to Ada 2012 iterators. Attribute specifications
          --  exist for these, but they cannot be queried.
 
          when Attribute_Constant_Indexing    |
@@ -2232,6 +2241,8 @@ package body Sem_Attr is
                   if Restriction_Check_Required (No_Implicit_Aliasing) then
                      if not Is_Aliased_View (P) then
                         Check_Restriction (No_Implicit_Aliasing, P);
+                     else
+                        Check_No_Implicit_Aliasing (P);
                      end if;
                   end if;
 
@@ -5031,7 +5042,15 @@ package body Sem_Attr is
 
          --  Case of enumeration type
 
-         if Is_Enumeration_Type (P_Type) then
+         --  When an enumeration type appears in an attribute reference, all
+         --  literals of the type are marked as referenced. This must only be
+         --  done if the attribute reference appears in the current source.
+         --  Otherwise the information on references may differ between a
+         --  normal compilation and one that performs inlining.
+
+         if Is_Enumeration_Type (P_Type)
+           and then In_Extended_Main_Code_Unit (N)
+         then
             Check_Restriction (No_Enumeration_Maps, N);
 
             --  Mark all enumeration literals as referenced, since the use of
@@ -5600,40 +5619,6 @@ package body Sem_Attr is
    --  Start of processing for Eval_Attribute
 
    begin
-      --  No folding in spec expression that comes from source where the prefix
-      --  is an unfrozen entity. This avoids premature folding in cases like:
-
-      --    procedure DefExprAnal is
-      --       type R is new Integer;
-      --       procedure P (Arg : Integer := R'Size);
-      --       for R'Size use 64;
-      --       procedure P (Arg : Integer := R'Size) is
-      --       begin
-      --          Put_Line (Arg'Img);
-      --       end P;
-      --    begin
-      --       P;
-      --    end;
-
-      --  which should print 64 rather than 32. The exclusion of non-source
-      --  constructs from this test comes from some internal usage in packed
-      --  arrays, which otherwise fails, could use more analysis perhaps???
-
-      --  We do however go ahead with generic actual types, otherwise we get
-      --  some regressions, probably these types should be frozen anyway???
-
-      if In_Spec_Expression
-        and then Comes_From_Source (N)
-        and then not (Is_Entity_Name (P)
-                       and then
-                        (Is_Frozen (Entity (P))
-                          or else (Is_Type (Entity (P))
-                                    and then
-                                      Is_Generic_Actual_Type (Entity (P)))))
-      then
-         return;
-      end if;
-
       --  Acquire first two expressions (at the moment, no attributes take more
       --  than two expressions in any case).
 
@@ -6120,7 +6105,7 @@ package body Sem_Attr is
 
       case Id is
 
-         --  Attributes related to Ada2012 iterators (placeholder ???)
+         --  Attributes related to Ada 2012 iterators (placeholder ???)
 
          when Attribute_Constant_Indexing    => null;
          when Attribute_Default_Iterator     => null;
@@ -7803,14 +7788,30 @@ package body Sem_Attr is
                         T := T / 10;
                      end loop;
 
+                  --  User declared enum type with discard names
+
+                  elsif Discard_Names (R) then
+
+                     --  If range is null, result is zero, that has already
+                     --  been dealt with, so what we need is the power of ten
+                     --  that accomodates the Pos of the largest value, which
+                     --  is the high bound of the range + one for the space.
+
+                     W := 1;
+                     T := Hi;
+                     while T /= 0 loop
+                        T := T / 10;
+                        W := W + 1;
+                     end loop;
+
                   --  Only remaining possibility is user declared enum type
+                  --  with normal case of Discard_Names not active.
 
                   else
                      pragma Assert (Is_Enumeration_Type (P_Type));
 
                      W := 0;
                      L := First_Literal (P_Type);
-
                      while Present (L) loop
 
                         --  Only pay attention to in range characters
@@ -8598,8 +8599,9 @@ package body Sem_Attr is
                  and then
                    (Ada_Version < Ada_2005
                      or else
-                       not Has_Constrained_Partial_View
-                             (Designated_Type (Base_Type (Typ))))
+                       not Effectively_Has_Constrained_Partial_View
+                             (Typ => Designated_Type (Base_Type (Typ)),
+                              Scop => Current_Scope))
                then
                   null;
 
@@ -8613,7 +8615,6 @@ package body Sem_Attr is
                   then
                      declare
                         D : constant Node_Id := Declaration_Node (Entity (P));
-
                      begin
                         Error_Msg_N ("aliased object has explicit bounds?",
                           D);
@@ -8624,13 +8625,14 @@ package body Sem_Attr is
                   end if;
                end if;
 
-               --  Check the static accessibility rule of 3.10.2(28).
-               --  Note that this check is not performed for the
-               --  case of an anonymous access type, since the access
-               --  attribute is always legal in such a context.
+               --  Check the static accessibility rule of 3.10.2(28). Note that
+               --  this check is not performed for the case of an anonymous
+               --  access type, since the access attribute is always legal
+               --  in such a context.
 
                if Attr_Id /= Attribute_Unchecked_Access
-                 and then Object_Access_Level (P) > Type_Access_Level (Btyp)
+                 and then
+                   Object_Access_Level (P) > Deepest_Type_Access_Level (Btyp)
                  and then Ekind (Btyp) = E_General_Access_Type
                then
                   Accessibility_Message;
@@ -8652,7 +8654,7 @@ package body Sem_Attr is
                --  anonymous_access_to_protected, there are no accessibility
                --  checks either. Omit check entirely for Unrestricted_Access.
 
-               elsif Object_Access_Level (P) > Type_Access_Level (Btyp)
+               elsif Object_Access_Level (P) > Deepest_Type_Access_Level (Btyp)
                  and then Comes_From_Source (N)
                  and then Ekind (Btyp) = E_Access_Protected_Subprogram_Type
                  and then Attr_Id /= Attribute_Unrestricted_Access
@@ -9164,6 +9166,7 @@ package body Sem_Attr is
 
       --  Finally perform static evaluation on the attribute reference
 
+      Analyze_Dimension (N);
       Eval_Attribute (N);
    end Resolve_Attribute;
 

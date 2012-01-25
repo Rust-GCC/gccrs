@@ -332,12 +332,6 @@ enum optab_index
   OTI_vec_set,
   /* Extract specified field of vector operand.  */
   OTI_vec_extract,
-  /* Extract even/odd fields of vector operands.  */
-  OTI_vec_extract_even,
-  OTI_vec_extract_odd,
-  /* Interleave fields of vector operands.  */
-  OTI_vec_interleave_high,
-  OTI_vec_interleave_low,
   /* Initialize vector operand.  */
   OTI_vec_init,
   /* Whole vector shift. The shift amount is in bits.  */
@@ -351,6 +345,12 @@ enum optab_index
   OTI_vec_widen_umult_lo,
   OTI_vec_widen_smult_hi,
   OTI_vec_widen_smult_lo,
+  /* Widening shift left.
+     The high/low part of the resulting vector is returned.  */
+  OTI_vec_widen_ushiftl_hi,
+  OTI_vec_widen_ushiftl_lo,
+  OTI_vec_widen_sshiftl_hi,
+  OTI_vec_widen_sshiftl_lo,
   /* Extract and widen the high/low part of a vector of signed or
      floating point elements.  */
   OTI_vec_unpacks_hi,
@@ -379,6 +379,30 @@ enum optab_index
 
   /* Perform a raise to the power of integer.  */
   OTI_powi,
+
+  /* Atomic compare and swap.  */
+  OTI_sync_compare_and_swap,
+
+  /* Atomic exchange with acquire semantics.  */
+  OTI_sync_lock_test_and_set,
+
+  /* This second set is atomic operations in which we return the value
+     that existed in memory before the operation.  */
+  OTI_sync_old_add,
+  OTI_sync_old_sub,
+  OTI_sync_old_ior,
+  OTI_sync_old_and,
+  OTI_sync_old_xor,
+  OTI_sync_old_nand,
+
+  /* This third set is atomic operations in which we return the value
+     that resulted after performing the operation.  */
+  OTI_sync_new_add,
+  OTI_sync_new_sub,
+  OTI_sync_new_ior,
+  OTI_sync_new_and,
+  OTI_sync_new_xor,
+  OTI_sync_new_nand,
 
   OTI_MAX
 };
@@ -532,10 +556,6 @@ enum optab_index
 
 #define vec_set_optab (&optab_table[OTI_vec_set])
 #define vec_extract_optab (&optab_table[OTI_vec_extract])
-#define vec_extract_even_optab (&optab_table[OTI_vec_extract_even])
-#define vec_extract_odd_optab (&optab_table[OTI_vec_extract_odd])
-#define vec_interleave_high_optab (&optab_table[OTI_vec_interleave_high])
-#define vec_interleave_low_optab (&optab_table[OTI_vec_interleave_low])
 #define vec_init_optab (&optab_table[OTI_vec_init])
 #define vec_shl_optab (&optab_table[OTI_vec_shl])
 #define vec_shr_optab (&optab_table[OTI_vec_shr])
@@ -544,6 +564,10 @@ enum optab_index
 #define vec_widen_umult_lo_optab (&optab_table[OTI_vec_widen_umult_lo])
 #define vec_widen_smult_hi_optab (&optab_table[OTI_vec_widen_smult_hi])
 #define vec_widen_smult_lo_optab (&optab_table[OTI_vec_widen_smult_lo])
+#define vec_widen_ushiftl_hi_optab (&optab_table[OTI_vec_widen_ushiftl_hi])
+#define vec_widen_ushiftl_lo_optab (&optab_table[OTI_vec_widen_ushiftl_lo])
+#define vec_widen_sshiftl_hi_optab (&optab_table[OTI_vec_widen_sshiftl_hi])
+#define vec_widen_sshiftl_lo_optab (&optab_table[OTI_vec_widen_sshiftl_lo])
 #define vec_unpacks_hi_optab (&optab_table[OTI_vec_unpacks_hi])
 #define vec_unpacks_lo_optab (&optab_table[OTI_vec_unpacks_lo])
 #define vec_unpacku_hi_optab (&optab_table[OTI_vec_unpacku_hi])
@@ -559,6 +583,23 @@ enum optab_index
 #define vec_pack_ufix_trunc_optab (&optab_table[OTI_vec_pack_ufix_trunc])
 
 #define powi_optab (&optab_table[OTI_powi])
+
+#define sync_compare_and_swap_optab \
+  (&optab_table[(int) OTI_sync_compare_and_swap])
+#define sync_lock_test_and_set_optab \
+  (&optab_table[(int) OTI_sync_lock_test_and_set])
+#define sync_old_add_optab (&optab_table[(int) OTI_sync_old_add])
+#define sync_old_sub_optab (&optab_table[(int) OTI_sync_old_sub])
+#define sync_old_ior_optab (&optab_table[(int) OTI_sync_old_ior])
+#define sync_old_and_optab (&optab_table[(int) OTI_sync_old_and])
+#define sync_old_xor_optab (&optab_table[(int) OTI_sync_old_xor])
+#define sync_old_nand_optab (&optab_table[(int) OTI_sync_old_nand])
+#define sync_new_add_optab (&optab_table[(int) OTI_sync_new_add])
+#define sync_new_sub_optab (&optab_table[(int) OTI_sync_new_sub])
+#define sync_new_ior_optab (&optab_table[(int) OTI_sync_new_ior])
+#define sync_new_and_optab (&optab_table[(int) OTI_sync_new_and])
+#define sync_new_xor_optab (&optab_table[(int) OTI_sync_new_xor])
+#define sync_new_nand_optab (&optab_table[(int) OTI_sync_new_nand])
 
 /* Conversion optabs have their own table and indexes.  */
 enum convert_optab_index
@@ -617,7 +658,6 @@ enum convert_optab_index
 #define vec_store_lanes_optab (&convert_optab_table[COI_vec_store_lanes])
 #define vcond_optab (&convert_optab_table[(int) COI_vcond])
 #define vcondu_optab (&convert_optab_table[(int) COI_vcondu])
-#define vshuffle_optab (&direct_optab_table[(int) DOI_vshuffle])
 
 /* Contains the optab used for each rtx code.  */
 extern optab code_to_optab[NUM_RTX_CODE + 1];
@@ -639,9 +679,6 @@ enum direct_optab_index
   DOI_reload_in,
   DOI_reload_out,
 
-  /* Vector shuffling.  */
-  DOI_vshuffle,
-
   /* Block move operation.  */
   DOI_movmem,
 
@@ -653,8 +690,10 @@ enum direct_optab_index
   DOI_cmpstrn,
   DOI_cmpmem,
 
-  /* Synchronization primitives.  This first set is atomic operation for
-     which we don't care about the resulting value.  */
+  /* Atomic clear with release semantics.  */
+  DOI_sync_lock_release,
+
+  /* Atomic operation with no resulting value.  */
   DOI_sync_add,
   DOI_sync_sub,
   DOI_sync_ior,
@@ -662,32 +701,37 @@ enum direct_optab_index
   DOI_sync_xor,
   DOI_sync_nand,
 
-  /* This second set is atomic operations in which we return the value
-     that existed in memory before the operation.  */
-  DOI_sync_old_add,
-  DOI_sync_old_sub,
-  DOI_sync_old_ior,
-  DOI_sync_old_and,
-  DOI_sync_old_xor,
-  DOI_sync_old_nand,
+  /* Atomic operations with memory model parameters. */
+  DOI_atomic_exchange,
+  DOI_atomic_compare_and_swap,
+  DOI_atomic_load,
+  DOI_atomic_store,
+  DOI_atomic_add_fetch,
+  DOI_atomic_sub_fetch,
+  DOI_atomic_and_fetch,
+  DOI_atomic_nand_fetch,
+  DOI_atomic_xor_fetch,
+  DOI_atomic_or_fetch,
+  DOI_atomic_fetch_add,
+  DOI_atomic_fetch_sub,
+  DOI_atomic_fetch_and,
+  DOI_atomic_fetch_nand,
+  DOI_atomic_fetch_xor,
+  DOI_atomic_fetch_or,
+  DOI_atomic_add,
+  DOI_atomic_sub,
+  DOI_atomic_and,
+  DOI_atomic_nand,
+  DOI_atomic_xor,
+  DOI_atomic_or,
+  DOI_atomic_always_lock_free,
+  DOI_atomic_is_lock_free,
+  DOI_atomic_thread_fence,
+  DOI_atomic_signal_fence,
 
-  /* This third set is atomic operations in which we return the value
-     that resulted after performing the operation.  */
-  DOI_sync_new_add,
-  DOI_sync_new_sub,
-  DOI_sync_new_ior,
-  DOI_sync_new_and,
-  DOI_sync_new_xor,
-  DOI_sync_new_nand,
-
-  /* Atomic compare and swap.  */
-  DOI_sync_compare_and_swap,
-
-  /* Atomic exchange with acquire semantics.  */
-  DOI_sync_lock_test_and_set,
-
-  /* Atomic clear with release semantics.  */
-  DOI_sync_lock_release,
+  /* Vector permutation.  */
+  DOI_vec_perm,
+  DOI_vec_perm_const,
 
   DOI_MAX
 };
@@ -710,30 +754,70 @@ typedef struct direct_optab_d *direct_optab;
 #define cmpstr_optab (&direct_optab_table[(int) DOI_cmpstr])
 #define cmpstrn_optab (&direct_optab_table[(int) DOI_cmpstrn])
 #define cmpmem_optab (&direct_optab_table[(int) DOI_cmpmem])
+#define sync_lock_release_optab \
+  (&direct_optab_table[(int) DOI_sync_lock_release])
 #define sync_add_optab (&direct_optab_table[(int) DOI_sync_add])
 #define sync_sub_optab (&direct_optab_table[(int) DOI_sync_sub])
 #define sync_ior_optab (&direct_optab_table[(int) DOI_sync_ior])
 #define sync_and_optab (&direct_optab_table[(int) DOI_sync_and])
 #define sync_xor_optab (&direct_optab_table[(int) DOI_sync_xor])
 #define sync_nand_optab (&direct_optab_table[(int) DOI_sync_nand])
-#define sync_old_add_optab (&direct_optab_table[(int) DOI_sync_old_add])
-#define sync_old_sub_optab (&direct_optab_table[(int) DOI_sync_old_sub])
-#define sync_old_ior_optab (&direct_optab_table[(int) DOI_sync_old_ior])
-#define sync_old_and_optab (&direct_optab_table[(int) DOI_sync_old_and])
-#define sync_old_xor_optab (&direct_optab_table[(int) DOI_sync_old_xor])
-#define sync_old_nand_optab (&direct_optab_table[(int) DOI_sync_old_nand])
-#define sync_new_add_optab (&direct_optab_table[(int) DOI_sync_new_add])
-#define sync_new_sub_optab (&direct_optab_table[(int) DOI_sync_new_sub])
-#define sync_new_ior_optab (&direct_optab_table[(int) DOI_sync_new_ior])
-#define sync_new_and_optab (&direct_optab_table[(int) DOI_sync_new_and])
-#define sync_new_xor_optab (&direct_optab_table[(int) DOI_sync_new_xor])
-#define sync_new_nand_optab (&direct_optab_table[(int) DOI_sync_new_nand])
-#define sync_compare_and_swap_optab \
-  (&direct_optab_table[(int) DOI_sync_compare_and_swap])
-#define sync_lock_test_and_set_optab \
-  (&direct_optab_table[(int) DOI_sync_lock_test_and_set])
-#define sync_lock_release_optab \
-  (&direct_optab_table[(int) DOI_sync_lock_release])
+
+#define atomic_exchange_optab \
+  (&direct_optab_table[(int) DOI_atomic_exchange])
+#define atomic_compare_and_swap_optab \
+  (&direct_optab_table[(int) DOI_atomic_compare_and_swap])
+#define atomic_load_optab \
+  (&direct_optab_table[(int) DOI_atomic_load])
+#define atomic_store_optab \
+  (&direct_optab_table[(int) DOI_atomic_store])
+#define atomic_add_fetch_optab \
+  (&direct_optab_table[(int) DOI_atomic_add_fetch])
+#define atomic_sub_fetch_optab \
+  (&direct_optab_table[(int) DOI_atomic_sub_fetch])
+#define atomic_and_fetch_optab \
+  (&direct_optab_table[(int) DOI_atomic_and_fetch])
+#define atomic_nand_fetch_optab \
+  (&direct_optab_table[(int) DOI_atomic_nand_fetch])
+#define atomic_xor_fetch_optab \
+  (&direct_optab_table[(int) DOI_atomic_xor_fetch])
+#define atomic_or_fetch_optab \
+  (&direct_optab_table[(int) DOI_atomic_or_fetch])
+#define atomic_fetch_add_optab \
+  (&direct_optab_table[(int) DOI_atomic_fetch_add])
+#define atomic_fetch_sub_optab \
+  (&direct_optab_table[(int) DOI_atomic_fetch_sub])
+#define atomic_fetch_and_optab \
+  (&direct_optab_table[(int) DOI_atomic_fetch_and])
+#define atomic_fetch_nand_optab \
+  (&direct_optab_table[(int) DOI_atomic_fetch_nand])
+#define atomic_fetch_xor_optab \
+  (&direct_optab_table[(int) DOI_atomic_fetch_xor])
+#define atomic_fetch_or_optab \
+  (&direct_optab_table[(int) DOI_atomic_fetch_or])
+#define atomic_add_optab \
+  (&direct_optab_table[(int) DOI_atomic_add])
+#define atomic_sub_optab \
+  (&direct_optab_table[(int) DOI_atomic_sub])
+#define atomic_and_optab \
+  (&direct_optab_table[(int) DOI_atomic_and])
+#define atomic_nand_optab \
+  (&direct_optab_table[(int) DOI_atomic_nand])
+#define atomic_xor_optab \
+  (&direct_optab_table[(int) DOI_atomic_xor])
+#define atomic_or_optab \
+  (&direct_optab_table[(int) DOI_atomic_or])
+#define atomic_always_lock_free_optab \
+  (&direct_optab_table[(int) DOI_atomic_always_lock_free])
+#define atomic_is_lock_free_optab \
+  (&direct_optab_table[(int) DOI_atomic_is_lock_free])
+#define atomic_thread_fence_optab \
+  (&direct_optab_table[(int) DOI_atomic_thread_fence])
+#define atomic_signal_fence_optab \
+  (&direct_optab_table[(int) DOI_atomic_signal_fence])
+
+#define vec_perm_optab (&direct_optab_table[DOI_vec_perm])
+#define vec_perm_const_optab (&direct_optab_table[(int) DOI_vec_perm_const])
 
 /* Target-dependent globals.  */
 struct target_optabs {
@@ -774,6 +858,10 @@ extern rtx expand_ternary_op (enum machine_mode mode, optab ternary_optab,
 /* Expand a binary operation given optab and rtx operands.  */
 extern rtx expand_binop (enum machine_mode, optab, rtx, rtx, rtx, int,
 			 enum optab_methods);
+
+extern rtx simplify_expand_binop (enum machine_mode mode, optab binoptab,
+				  rtx op0, rtx op1, rtx target, int unsignedp,
+				  enum optab_methods methods);
 
 extern bool force_expand_binop (enum machine_mode, optab, rtx, rtx, rtx, int,
 				enum optab_methods);
@@ -862,6 +950,9 @@ extern void set_optab_libfunc (optab, enum machine_mode, const char *);
 extern void set_conv_libfunc (convert_optab, enum machine_mode,
 			      enum machine_mode, const char *);
 
+/* Call this to install all of the __sync libcalls up to size MAX.  */
+extern void init_sync_libfuncs (int max);
+
 /* Generate code for a FIXED_CONVERT_EXPR.  */
 extern void expand_fixed_convert (rtx, rtx, int, int);
 
@@ -870,6 +961,26 @@ extern void expand_float (rtx, rtx, int);
 
 /* Return the insn_code for a FLOAT_EXPR.  */
 enum insn_code can_float_p (enum machine_mode, enum machine_mode, int);
+
+/* Return true if there is an inline compare and swap pattern.  */
+extern bool can_compare_and_swap_p (enum machine_mode, bool);
+
+/* Return true if there is an inline atomic exchange pattern.  */
+extern bool can_atomic_exchange_p (enum machine_mode, bool);
+
+/* Generate code for a compare and swap.  */
+extern bool expand_atomic_compare_and_swap (rtx *, rtx *, rtx, rtx, rtx, bool,
+					    enum memmodel, enum memmodel);
+
+/* Generate memory barriers.  */
+extern void expand_mem_thread_fence (enum memmodel);
+extern void expand_mem_signal_fence (enum memmodel);
+
+/* Check whether an operation represented by the code CODE is a
+   convert operation that is supported by the target platform in
+   vector form */
+bool supportable_convert_operation (enum tree_code, tree, tree, tree *, 
+                                    enum tree_code *);
 
 /* Generate code for a FIX_EXPR.  */
 extern void expand_fix (rtx, rtx, int);
@@ -888,11 +999,11 @@ extern rtx expand_vec_cond_expr (tree, tree, tree, tree, rtx);
 /* Generate code for VEC_LSHIFT_EXPR and VEC_RSHIFT_EXPR.  */
 extern rtx expand_vec_shift_expr (sepops, rtx);
 
-/* Return tree if target supports vector operations for VEC_SHUFFLE_EXPR.  */
-bool expand_vec_shuffle_expr_p (enum machine_mode, tree, tree, tree);
+/* Return tree if target supports vector operations for VEC_PERM_EXPR.  */
+extern bool can_vec_perm_p (enum machine_mode, bool, const unsigned char *);
 
-/* Generate code for VEC_SHUFFLE_EXPR.  */
-extern rtx expand_vec_shuffle_expr (tree, tree, tree, tree, rtx);
+/* Generate code for VEC_PERM_EXPR.  */
+extern rtx expand_vec_perm (enum machine_mode, rtx, rtx, rtx, rtx);
 
 /* Return the insn used to implement mode MODE of OP, or CODE_FOR_nothing
    if the target does not have such an insn.  */

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2009-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 2009-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -135,14 +135,14 @@ package SCOs is
    --      any statement with a label (the label itself is not part of the
    --       entry point that is recorded).
 
-   --    Each entry point must appear as the first entry on a CS line.
-   --    The idea is that if any simple statement on a CS line is known to have
+   --    Each entry point must appear as the first statement entry on a CS
+   --    line. Thus, if any simple statement on a CS line is known to have
    --    been executed, then all statements that appear before it on the same
    --    CS line are certain to also have been executed.
 
    --    The form of a statement line in the ALI file is:
 
-   --      CS *sloc-range [*sloc-range...]
+   --      CS [dominance] *sloc-range [*sloc-range...]
 
    --    where each sloc-range corresponds to a single statement, and * is
    --    one of:
@@ -157,6 +157,7 @@ package SCOs is
    --      F        FOR loop (from FOR through end of iteration scheme)
    --      I        IF statement (from IF through end of condition)
    --      P[name:] PRAGMA with the indicated name
+   --      p[name:] disabled PRAGMA with the indicated name
    --      R        extended RETURN statement
    --      W        WHILE loop statement (from WHILE through end of condition)
 
@@ -164,6 +165,23 @@ package SCOs is
    --      condition is a decision in SCO terminology).
 
    --    and is omitted for all other cases
+
+   --    The optional dominance marker is of the form gives additional
+   --    information as to how the sequence of statements denoted by the CS
+   --    line can be entered:
+
+   --      >F<sloc>
+   --        sequence is entered only if the decision at <sloc> is False
+   --      >T<sloc>
+   --        sequence is entered only if the decision at <sloc> is True
+
+   --      >S<sloc>
+   --        sequence is entered only if the statement at <sloc> has been
+   --        executed
+
+   --      >E<sloc-range>
+   --        sequence is the sequence of statements for a exception_handler
+   --        with the given sloc range
 
    --    Note: up to 6 entries can appear on a single CS line. If more than 6
    --    entries appear in one logical statement sequence, continuation lines
@@ -381,7 +399,7 @@ package SCOs is
    --  The SCO_Table_Entry values appear as follows:
 
    --    Statements
-   --      C1   = 'S' for entry point, 's' otherwise
+   --      C1   = 'S'
    --      C2   = statement type code to appear on CS line (or ' ' if none)
    --      From = starting source location
    --      To   = ending source location
@@ -399,6 +417,15 @@ package SCOs is
    --    Later on during semantic analysis, if the pragma is enabled,
    --    Set_SCO_Pragma_Enabled changes C2 to 'P' to cause the entry to be
    --    emitted in Put_SCOs.
+
+   --    Dominance marker
+   --      C1   = '>'
+   --      C2   = 'F'/'T'/'S'/'E'
+   --      From = Decision/statement sloc ('F'/'T'/'S'),
+   --             handler first sloc ('E')
+   --      To   = No_Source_Location ('F'/'T'/'S'), handler last sloc ('E')
+
+   --    Note: A dominance marker is always followed by a statement entry
 
    --    Decision (EXIT/entry guard/IF/WHILE)
    --      C1   = 'E'/'G'/'I'/'W' (for EXIT/entry Guard/IF/WHILE)

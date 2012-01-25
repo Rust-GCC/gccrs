@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-mcpu=niagara3 -mvis" } */
+/* { dg-options "-mvis3" } */
 typedef long long int64_t;
 
 int64_t test_umulxhi (int64_t x, int64_t y)

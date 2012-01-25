@@ -191,8 +191,13 @@ begin_move_insn (rtx insn, rtx last)
 	  gcc_assert (NOTE_INSN_BASIC_BLOCK_P (BB_END (bb)));
 	}
       else
-	/* Create an empty unreachable block after the INSN.  */
-	bb = create_basic_block (NEXT_INSN (insn), NULL_RTX, last_bb);
+	{
+	  /* Create an empty unreachable block after the INSN.  */
+	  rtx next = NEXT_INSN (insn);
+	  if (next && BARRIER_P (next))
+	    next = NEXT_INSN (next);
+	  bb = create_basic_block (next, NULL_RTX, last_bb);
+	}
 
       /* split_edge () creates BB before E->DEST.  Keep in mind, that
 	 this operation extends scheduling region till the end of BB.
@@ -431,32 +436,23 @@ add_deps_for_risky_insns (rtx head, rtx tail)
 		 rank.  */
 	      if (! sched_insns_conditions_mutex_p (insn, prev))
 		{
-		  dep_def _dep, *dep = &_dep;
-
-		  init_dep (dep, prev, insn, REG_DEP_ANTI);
-
-		  if (!(current_sched_info->flags & USE_DEPS_LIST))
+		  if ((current_sched_info->flags & DO_SPECULATION)
+		      && (spec_info->mask & BEGIN_CONTROL))
 		    {
-		      enum DEPS_ADJUST_RESULT res;
+		      dep_def _dep, *dep = &_dep;
 
-		      res = sd_add_or_update_dep (dep, false);
+		      init_dep (dep, prev, insn, REG_DEP_ANTI);
 
-		      /* We can't change an existing dependency with
-			 DEP_ANTI.  */
-		      gcc_assert (res != DEP_CHANGED);
+		      if (current_sched_info->flags & USE_DEPS_LIST)
+			{
+			  DEP_STATUS (dep) = set_dep_weak (DEP_ANTI, BEGIN_CONTROL,
+							   MAX_DEP_WEAK);
+
+			}
+		      sd_add_or_update_dep (dep, false);
 		    }
 		  else
-		    {
-		      if ((current_sched_info->flags & DO_SPECULATION)
-			  && (spec_info->mask & BEGIN_CONTROL))
-			DEP_STATUS (dep) = set_dep_weak (DEP_ANTI, BEGIN_CONTROL,
-							 MAX_DEP_WEAK);
-
-		      sd_add_or_update_dep (dep, false);
-
-		      /* Dep_status could have been changed.
-			 No assertion here.  */
-		    }
+		    add_dependence (insn, prev, REG_DEP_CONTROL);
 		}
 
 	      break;

@@ -6,7 +6,9 @@ package net
 
 import (
 	"flag"
+	"io"
 	"regexp"
+	"runtime"
 	"testing"
 )
 
@@ -61,6 +63,8 @@ var dialErrorTests = []DialErrorTest{
 	},
 }
 
+var duplicateErrorPattern = `dial (.*) dial (.*)`
+
 func TestDialError(t *testing.T) {
 	if !*runErrorTest {
 		t.Logf("test disabled; use --run_error_test to enable")
@@ -75,10 +79,14 @@ func TestDialError(t *testing.T) {
 			t.Errorf("#%d: nil error, want match for %#q", i, tt.Pattern)
 			continue
 		}
-		s := e.String()
+		s := e.Error()
 		match, _ := regexp.MatchString(tt.Pattern, s)
 		if !match {
 			t.Errorf("#%d: %q, want match for %#q", i, s, tt.Pattern)
+		}
+		match, _ = regexp.MatchString(duplicateErrorPattern, s)
+		if match {
+			t.Errorf("#%d: %q, duplicate error return from Dial", i, s)
 		}
 	}
 }
@@ -111,11 +119,57 @@ func TestReverseAddress(t *testing.T) {
 		if len(tt.ErrPrefix) == 0 && e != nil {
 			t.Errorf("#%d: expected <nil>, got %q (error)", i, e)
 		}
-		if e != nil && e.(*DNSError).Error != tt.ErrPrefix {
-			t.Errorf("#%d: expected %q, got %q (mismatched error)", i, tt.ErrPrefix, e.(*DNSError).Error)
+		if e != nil && e.(*DNSError).Err != tt.ErrPrefix {
+			t.Errorf("#%d: expected %q, got %q (mismatched error)", i, tt.ErrPrefix, e.(*DNSError).Err)
 		}
 		if a != tt.Reverse {
 			t.Errorf("#%d: expected %q, got %q (reverse address)", i, tt.Reverse, a)
 		}
+	}
+}
+
+func TestShutdown(t *testing.T) {
+	if runtime.GOOS == "plan9" {
+		return
+	}
+	l, err := Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		if l, err = Listen("tcp6", "[::1]:0"); err != nil {
+			t.Fatalf("ListenTCP on :0: %v", err)
+		}
+	}
+
+	go func() {
+		c, err := l.Accept()
+		if err != nil {
+			t.Fatalf("Accept: %v", err)
+		}
+		var buf [10]byte
+		n, err := c.Read(buf[:])
+		if n != 0 || err != io.EOF {
+			t.Fatalf("server Read = %d, %v; want 0, io.EOF", n, err)
+		}
+		c.Write([]byte("response"))
+		c.Close()
+	}()
+
+	c, err := Dial("tcp", l.Addr().String())
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	defer c.Close()
+
+	err = c.(*TCPConn).CloseWrite()
+	if err != nil {
+		t.Fatalf("CloseWrite: %v", err)
+	}
+	var buf [10]byte
+	n, err := c.Read(buf[:])
+	if err != nil {
+		t.Fatalf("client Read: %d, %v", n, err)
+	}
+	got := string(buf[:n])
+	if got != "response" {
+		t.Errorf("read = %q, want \"response\"", got)
 	}
 }

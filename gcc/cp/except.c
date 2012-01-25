@@ -140,7 +140,7 @@ build_eh_type_type (tree type)
 tree
 build_exc_ptr (void)
 {
-  return build_call_n (built_in_decls [BUILT_IN_EH_POINTER],
+  return build_call_n (builtin_decl_explicit (BUILT_IN_EH_POINTER),
 		       1, integer_zero_node);
 }
 
@@ -173,6 +173,9 @@ do_get_exception_ptr (void)
     {
       /* Declare void* __cxa_get_exception_ptr (void *) throw().  */
       fn = declare_nothrow_library_fn (fn, ptr_type_node, ptr_type_node);
+
+      if (flag_tm)
+	apply_tm_attr (fn, get_identifier ("transaction_pure"));
     }
 
   return cp_build_function_call_nary (fn, tf_warning_or_error,
@@ -192,6 +195,17 @@ do_begin_catch (void)
     {
       /* Declare void* __cxa_begin_catch (void *) throw().  */
       fn = declare_nothrow_library_fn (fn, ptr_type_node, ptr_type_node);
+
+      /* Create its transactional-memory equivalent.  */
+      if (flag_tm)
+	{
+	  tree fn2 = get_identifier ("_ITM_cxa_begin_catch");
+	  if (!get_global_value_if_present (fn2, &fn2))
+	    fn2 = declare_nothrow_library_fn (fn2, ptr_type_node,
+					      ptr_type_node);
+	  apply_tm_attr (fn2, get_identifier ("transaction_pure"));
+	  record_tm_replacement (fn, fn2);
+	}
     }
 
   return cp_build_function_call_nary (fn, tf_warning_or_error,
@@ -231,6 +245,19 @@ do_end_catch (tree type)
       fn = push_void_library_fn (fn, void_list_node);
       /* This can throw if the destructor for the exception throws.  */
       TREE_NOTHROW (fn) = 0;
+
+      /* Create its transactional-memory equivalent.  */
+      if (flag_tm)
+	{
+	  tree fn2 = get_identifier ("_ITM_cxa_end_catch");
+	  if (!get_global_value_if_present (fn2, &fn2))
+	    {
+	      fn2 = push_void_library_fn (fn2, void_list_node);
+	      TREE_NOTHROW (fn2) = 0;
+	    }
+	  apply_tm_attr (fn2, get_identifier ("transaction_pure"));
+	  record_tm_replacement (fn, fn2);
+	}
     }
 
   cleanup = cp_build_function_call_vec (fn, NULL, tf_warning_or_error);
@@ -333,7 +360,7 @@ choose_personality_routine (enum languages lang)
 
     case lang_java:
       state = chose_java;
-      terminate_node = built_in_decls [BUILT_IN_ABORT];
+      terminate_node = builtin_decl_explicit (BUILT_IN_ABORT);
       pragma_java_exceptions = true;
       break;
 
@@ -346,6 +373,28 @@ choose_personality_routine (enum languages lang)
   error ("mixing C++ and Java catches in a single translation unit");
   state = gave_error;
 }
+
+/* Wrap EXPR in a MUST_NOT_THROW_EXPR expressing that EXPR must
+   not throw any exceptions if COND is true.  A condition of
+   NULL_TREE is treated as 'true'.  */
+
+tree
+build_must_not_throw_expr (tree body, tree cond)
+{
+  tree type = body ? TREE_TYPE (body) : void_type_node;
+
+  if (cond && !value_dependent_expression_p (cond))
+    {
+      cond = cxx_constant_value (cond);
+      if (integer_zerop (cond))
+	return body;
+      else if (integer_onep (cond))
+	cond = NULL_TREE;
+    }
+
+  return build2 (MUST_NOT_THROW_EXPR, type, body, cond);
+}
+
 
 /* Initialize the catch parameter DECL.  */
 
@@ -391,7 +440,7 @@ initialize_handler_parm (tree decl, tree exp)
       /* Force cleanups now to avoid nesting problems with the
 	 MUST_NOT_THROW_EXPR.  */
       init = fold_build_cleanup_point_expr (TREE_TYPE (init), init);
-      init = build1 (MUST_NOT_THROW_EXPR, TREE_TYPE (init), init);
+      init = build_must_not_throw_expr (init, NULL_TREE);
     }
 
   decl = pushdecl (decl);
@@ -533,7 +582,8 @@ begin_eh_spec_block (void)
      MUST_NOT_THROW_EXPR.  */
   if (TYPE_NOEXCEPT_P (TREE_TYPE (current_function_decl)))
     {
-      r = build_stmt (spec_location, MUST_NOT_THROW_EXPR, NULL_TREE);
+      r = build_stmt (spec_location, MUST_NOT_THROW_EXPR,
+		      NULL_TREE, NULL_TREE);
       TREE_SIDE_EFFECTS (r) = 1;
     }
   else
@@ -581,6 +631,16 @@ do_allocate_exception (tree type)
     {
       /* Declare void *__cxa_allocate_exception(size_t) throw().  */
       fn = declare_nothrow_library_fn (fn, ptr_type_node, size_type_node);
+
+      if (flag_tm)
+	{
+	  tree fn2 = get_identifier ("_ITM_cxa_allocate_exception");
+	  if (!get_global_value_if_present (fn2, &fn2))
+	    fn2 = declare_nothrow_library_fn (fn2, ptr_type_node,
+					      size_type_node);
+	  apply_tm_attr (fn2, get_identifier ("transaction_pure"));
+	  record_tm_replacement (fn, fn2);
+	}
     }
 
   return cp_build_function_call_nary (fn, tf_warning_or_error,
@@ -627,7 +687,8 @@ wrap_cleanups_r (tree *tp, int *walk_subtrees ATTRIBUTE_UNUSED,
   cleanup = TARGET_EXPR_CLEANUP (exp);
   if (cleanup)
     {
-      cleanup = build1 (MUST_NOT_THROW_EXPR, void_type_node, cleanup);
+      cleanup = build2 (MUST_NOT_THROW_EXPR, void_type_node, cleanup,
+			NULL_TREE);
       TARGET_EXPR_CLEANUP (exp) = cleanup;
     }
 
@@ -712,6 +773,15 @@ build_throw (tree exp)
 					  ptr_type_node, ptr_type_node,
 					  cleanup_type, NULL_TREE);
 	  fn = push_throw_library_fn (fn, tmp);
+
+	  if (flag_tm)
+	    {
+	      tree fn2 = get_identifier ("_ITM_cxa_throw");
+	      if (!get_global_value_if_present (fn2, &fn2))
+		fn2 = push_throw_library_fn (fn2, tmp);
+	      apply_tm_attr (fn2, get_identifier ("transaction_pure"));
+	      record_tm_replacement (fn, fn2);
+	    }
 	}
 
       /* [except.throw]
@@ -830,6 +900,9 @@ build_throw (tree exp)
 	  fn = push_throw_library_fn
 	    (fn, build_function_type_list (void_type_node, NULL_TREE));
 	}
+
+      if (flag_tm)
+	apply_tm_attr (fn, get_identifier ("transaction_pure"));
 
       /* ??? Indicate that this function call allows exceptions of the type
 	 of the enclosing catch block (if known).  */

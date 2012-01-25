@@ -30,8 +30,9 @@
 		%X	base 16, with upper-case letters for A-F
 		%U	Unicode format: U+1234; same as "U+%04X"
 	Floating-point and complex constituents:
-		%b	decimalless scientific notation with exponent a power
-			of two, in the manner of strconv.Ftoa32, e.g. -123456p-78
+		%b	decimalless scientific notation with exponent a power of two, 
+			in the manner of strconv.FormatFloat with the 'b' format, 
+			e.g. -123456p-78
 		%e	scientific notation, e.g. -1234.456e+78
 		%E	scientific notation, e.g. -1234.456E+78
 		%f	decimal point but no exponent, e.g. 123.456
@@ -89,14 +90,22 @@
 	If an operand implements interface Formatter, that interface
 	can be used for fine control of formatting.
 
-	If an operand implements method String() string that method
+	If the format (which is implicitly %v for Println etc.) is valid
+	for a string (%s %q %v %x %X), the following two rules also apply:
+
+	1. If an operand implements the error interface, the Error method
 	will be used to convert the object to a string, which will then
-	be formatted as required by the verb (if any). To avoid
-	recursion in cases such as
-		type X int
-		func (x X) String() string { return Sprintf("%d", x) }
-	cast the value before recurring:
-		func (x X) String() string { return Sprintf("%d", int(x)) }
+	be formatted as required by the verb (if any).
+
+	2. If an operand implements method String() string, that method
+	will be used to convert the object to a string, which will then
+	be formatted as required by the verb (if any).
+
+	To avoid recursion in cases such as
+		type X string
+		func (x X) String() string { return Sprintf("<%s>", x) }
+	convert the value before recurring:
+		func (x X) String() string { return Sprintf("<%s>", string(x)) }
 
 	Format errors:
 
@@ -122,7 +131,7 @@
 
 	An analogous set of functions scans formatted text to yield
 	values.  Scan, Scanf and Scanln read from os.Stdin; Fscan,
-	Fscanf and Fscanln read from a specified os.Reader; Sscan,
+	Fscanf and Fscanln read from a specified io.Reader; Sscan,
 	Sscanf and Sscanln read from an argument string.  Scanln,
 	Fscanln and Sscanln stop scanning at a newline and require that
 	the items be followed by one; Sscanf, Fscanf and Sscanf require

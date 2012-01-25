@@ -1306,8 +1306,20 @@ replace_ref_with (gimple stmt, tree new_tree, bool set, bool in_lhs)
       val = gimple_assign_lhs (stmt);
       if (TREE_CODE (val) != SSA_NAME)
 	{
-	  gcc_assert (gimple_assign_copy_p (stmt));
 	  val = gimple_assign_rhs1 (stmt);
+	  gcc_assert (gimple_assign_single_p (stmt));
+	  if (TREE_CLOBBER_P (val))
+	    {
+	      val = gimple_default_def (cfun, SSA_NAME_VAR (new_tree));
+	      if (val == NULL_TREE)
+		{
+		  val = make_ssa_name (SSA_NAME_VAR (new_tree),
+				       gimple_build_nop ());
+		  set_default_def (SSA_NAME_VAR (new_tree), val);
+		}
+	    }
+	  else
+	    gcc_assert (gimple_assign_copy_p (stmt));
 	}
     }
   else
@@ -2464,8 +2476,17 @@ tree_predictive_commoning_loop (struct loop *loop)
   datarefs = VEC_alloc (data_reference_p, heap, 10);
   dependences = VEC_alloc (ddr_p, heap, 10);
   loop_nest = VEC_alloc (loop_p, heap, 3);
-  compute_data_dependences_for_loop (loop, true, &loop_nest, &datarefs,
-				     &dependences);
+  if (! compute_data_dependences_for_loop (loop, true, &loop_nest, &datarefs,
+					   &dependences))
+    {
+      if (dump_file && (dump_flags & TDF_DETAILS))
+	fprintf (dump_file, "Cannot analyze data dependencies\n");
+      VEC_free (loop_p, heap, loop_nest);
+      free_data_refs (datarefs);
+      free_dependence_relations (dependences);
+      return false;
+    }
+
   if (dump_file && (dump_flags & TDF_DETAILS))
     dump_data_dependence_relations (dump_file, dependences);
 

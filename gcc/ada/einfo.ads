@@ -1420,6 +1420,11 @@ package Einfo is
 --       type has no discriminants and the full view has discriminants with
 --       defaults. In Ada 2005 heap-allocated objects of such types are not
 --       constrained, and can change their discriminants with full assignment.
+--       Sem_Aux.Effectively_Has_Constrained_Partial_View should be always
+--       used by callers, rather than reading this attribute directly because,
+--       according to RM 3.10.2 (27/2), untagged generic formal private types
+--       and subtypes are also considered to have a constrained partial view
+--       [when in a generic body].
 
 --    Has_Contiguous_Rep (Flag181)
 --       Present in enumeration types. True if the type as a representation
@@ -2475,11 +2480,11 @@ package Einfo is
 --    Is_Local_Anonymous_Access (Flag194)
 --       Present in access types. Set for an anonymous access type to indicate
 --       that the type is created for a record component with an access
---       definition, an array component, or (pre-Ada2012) a stand-alone object.
+--       definition, an array component, or (pre-Ada 2012) a standalone object.
 --       Such anonymous types have an accessibility level equal to that of the
 --       declaration in which they appear, unlike the anonymous access types
 --       that are created for access parameters, access discriminants, and
---       (as of Ada2012) stand-alone objects.
+--       (as of Ada 2012) stand-alone objects.
 
 --    Is_Machine_Code_Subprogram (Flag137)
 --       Present in subprogram entities. Set to indicate that the subprogram

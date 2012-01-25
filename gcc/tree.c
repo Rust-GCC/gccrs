@@ -1525,6 +1525,7 @@ build_real_from_int_cst (tree type, const_tree i)
 
 /* Return a newly constructed STRING_CST node whose value is
    the LEN characters at STR.
+   Note that for a C string literal, LEN should include the trailing NUL.
    The TREE_TYPE is not initialized.  */
 
 tree
@@ -4476,7 +4477,8 @@ free_lang_data_in_type (tree type)
       member = TYPE_FIELDS (type);
       while (member)
 	{
-	  if (TREE_CODE (member) == FIELD_DECL)
+	  if (TREE_CODE (member) == FIELD_DECL
+	      || TREE_CODE (member) == TYPE_DECL)
 	    {
 	      if (prev)
 		TREE_CHAIN (prev) = member;
@@ -4520,9 +4522,6 @@ free_lang_data_in_type (tree type)
 	  && TREE_CODE (TYPE_CONTEXT (type)) != FUNCTION_DECL
 	  && TREE_CODE (TYPE_CONTEXT (type)) != NAMESPACE_DECL))
     TYPE_CONTEXT (type) = NULL_TREE;
-
-  if (debug_info_level < DINFO_LEVEL_TERSE)
-    TYPE_STUB_DECL (type) = NULL_TREE;
 }
 
 
@@ -4599,11 +4598,6 @@ free_lang_data_in_decl (tree decl)
   if (TREE_CODE (decl) == FIELD_DECL)
     free_lang_data_in_one_sizepos (&DECL_FIELD_OFFSET (decl));
 
- /* DECL_FCONTEXT is only used for debug info generation.  */
- if (TREE_CODE (decl) == FIELD_DECL
-     && debug_info_level < DINFO_LEVEL_TERSE)
-   DECL_FCONTEXT (decl) = NULL_TREE;
-
  if (TREE_CODE (decl) == FUNCTION_DECL)
     {
       if (gimple_has_body_p (decl))
@@ -4650,16 +4644,16 @@ free_lang_data_in_decl (tree decl)
 	  || (decl_function_context (decl) && !TREE_STATIC (decl)))
 	DECL_INITIAL (decl) = NULL_TREE;
     }
-  else if (TREE_CODE (decl) == TYPE_DECL)
+  else if (TREE_CODE (decl) == TYPE_DECL
+	   || TREE_CODE (decl) == FIELD_DECL)
     DECL_INITIAL (decl) = NULL_TREE;
   else if (TREE_CODE (decl) == TRANSLATION_UNIT_DECL
            && DECL_INITIAL (decl)
            && TREE_CODE (DECL_INITIAL (decl)) == BLOCK)
     {
-      /* Strip builtins from the translation-unit BLOCK.  We still have
-	 targets without builtin_decl support and also builtins are
-	 shared nodes and thus we can't use TREE_CHAIN in multiple
-	 lists.  */
+      /* Strip builtins from the translation-unit BLOCK.  We still have targets
+	 without builtin_decl_explicit support and also builtins are shared
+	 nodes and thus we can't use TREE_CHAIN in multiple lists.  */
       tree *nextp = &BLOCK_VARS (DECL_INITIAL (decl));
       while (*nextp)
         {
@@ -4800,6 +4794,7 @@ find_decls_types_r (tree *tp, int *ws, void *data)
 	{
 	  fld_worklist_push (DECL_ARGUMENT_FLD (t), fld);
 	  fld_worklist_push (DECL_VINDEX (t), fld);
+	  fld_worklist_push (DECL_ORIGINAL_TYPE (t), fld);
 	}
       else if (TREE_CODE (t) == FIELD_DECL)
 	{
@@ -4878,13 +4873,14 @@ find_decls_types_r (tree *tp, int *ws, void *data)
 	  tem = TYPE_FIELDS (t);
 	  while (tem)
 	    {
-	      if (TREE_CODE (tem) == FIELD_DECL)
+	      if (TREE_CODE (tem) == FIELD_DECL
+		  || TREE_CODE (tem) == TYPE_DECL)
 		fld_worklist_push (tem, fld);
 	      tem = TREE_CHAIN (tem);
 	    }
 	}
 
-      fld_worklist_push (TREE_CHAIN (t), fld);
+      fld_worklist_push (TYPE_STUB_DECL (t), fld);
       *ws = 0;
     }
   else if (TREE_CODE (t) == BLOCK)
@@ -5040,6 +5036,9 @@ find_decls_types_in_node (struct cgraph_node *n, struct free_lang_data_d *fld)
       for (si = gsi_start_bb (bb); !gsi_end_p (si); gsi_next (&si))
 	{
 	  gimple stmt = gsi_stmt (si);
+
+	  if (is_gimple_call (stmt))
+	    find_decls_types (gimple_call_fntype (stmt), fld);
 
 	  for (i = 0; i < gimple_num_ops (stmt); i++)
 	    {
@@ -6513,6 +6512,17 @@ tree_low_cst (const_tree t, int pos)
   return TREE_INT_CST_LOW (t);
 }
 
+/* Return the HOST_WIDE_INT least significant bits of T, a sizetype
+   kind INTEGER_CST.  This makes sure to properly sign-extend the
+   constant.  */
+
+HOST_WIDE_INT
+size_low_cst (const_tree t)
+{
+  double_int d = tree_to_double_int (t);
+  return double_int_sext (d, TYPE_PRECISION (TREE_TYPE (t))).low;
+}
+
 /* Return the most significant (sign) bit of T.  */
 
 int
@@ -6942,9 +6952,9 @@ iterative_hash_expr (const_tree t, hashval_t val)
 	 or front end builtins, since the function code is overloaded in those
 	 cases.  */
       if (DECL_BUILT_IN_CLASS (t) == BUILT_IN_NORMAL
-	  && built_in_decls[DECL_FUNCTION_CODE (t)])
+	  && builtin_decl_explicit_p (DECL_FUNCTION_CODE (t)))
 	{
-	  t = built_in_decls[DECL_FUNCTION_CODE (t)];
+	  t = builtin_decl_explicit (DECL_FUNCTION_CODE (t));
 	  code = TREE_CODE (t);
 	}
       /* FALL THROUGH */
@@ -6994,7 +7004,6 @@ iterative_hash_expr (const_tree t, hashval_t val)
 	      val = iterative_hash_expr (TREE_OPERAND (t, i), val);
 	}
       return val;
-      break;
     }
 }
 
@@ -7561,10 +7570,12 @@ build_function_type (tree value_type, tree arg_types)
   return t;
 }
 
-/* Build variant of function type ORIG_TYPE skipping ARGS_TO_SKIP.  */
+/* Build variant of function type ORIG_TYPE skipping ARGS_TO_SKIP and the
+   return value if SKIP_RETURN is true.  */
 
-tree
-build_function_type_skip_args (tree orig_type, bitmap args_to_skip)
+static tree
+build_function_type_skip_args (tree orig_type, bitmap args_to_skip,
+			       bool skip_return)
 {
   tree new_type = NULL;
   tree args, new_args = NULL, t;
@@ -7573,7 +7584,7 @@ build_function_type_skip_args (tree orig_type, bitmap args_to_skip)
 
   for (args = TYPE_ARG_TYPES (orig_type); args && args != void_list_node;
        args = TREE_CHAIN (args), i++)
-    if (!bitmap_bit_p (args_to_skip, i))
+    if (!args_to_skip || !bitmap_bit_p (args_to_skip, i))
       new_args = tree_cons (NULL_TREE, TREE_VALUE (args), new_args);
 
   new_reversed = nreverse (new_args);
@@ -7591,6 +7602,7 @@ build_function_type_skip_args (tree orig_type, bitmap args_to_skip)
      When we are asked to remove it, we need to build new FUNCTION_TYPE
      instead.  */
   if (TREE_CODE (orig_type) != METHOD_TYPE
+      || !args_to_skip
       || !bitmap_bit_p (args_to_skip, 0))
     {
       new_type = build_distinct_type_copy (orig_type);
@@ -7604,11 +7616,15 @@ build_function_type_skip_args (tree orig_type, bitmap args_to_skip)
       TYPE_CONTEXT (new_type) = TYPE_CONTEXT (orig_type);
     }
 
+  if (skip_return)
+    TREE_TYPE (new_type) = void_type_node;
+
   /* This is a new type, not a copy of an old type.  Need to reassociate
      variants.  We can handle everything except the main variant lazily.  */
   t = TYPE_MAIN_VARIANT (orig_type);
-  if (orig_type != t)
+  if (t != orig_type)
     {
+      t = build_function_type_skip_args (t, args_to_skip, skip_return);
       TYPE_MAIN_VARIANT (new_type) = t;
       TYPE_NEXT_VARIANT (new_type) = TYPE_NEXT_VARIANT (t);
       TYPE_NEXT_VARIANT (t) = new_type;
@@ -7618,33 +7634,40 @@ build_function_type_skip_args (tree orig_type, bitmap args_to_skip)
       TYPE_MAIN_VARIANT (new_type) = new_type;
       TYPE_NEXT_VARIANT (new_type) = NULL;
     }
+
   return new_type;
 }
 
-/* Build variant of function type ORIG_TYPE skipping ARGS_TO_SKIP.
+/* Build variant of function decl ORIG_DECL skipping ARGS_TO_SKIP and the
+   return value if SKIP_RETURN is true.
 
    Arguments from DECL_ARGUMENTS list can't be removed now, since they are
    linked by TREE_CHAIN directly.  The caller is responsible for eliminating
    them when they are being duplicated (i.e. copy_arguments_for_versioning).  */
 
 tree
-build_function_decl_skip_args (tree orig_decl, bitmap args_to_skip)
+build_function_decl_skip_args (tree orig_decl, bitmap args_to_skip,
+			       bool skip_return)
 {
   tree new_decl = copy_node (orig_decl);
   tree new_type;
 
   new_type = TREE_TYPE (orig_decl);
-  if (prototype_p (new_type))
-    new_type = build_function_type_skip_args (new_type, args_to_skip);
+  if (prototype_p (new_type)
+      || (skip_return && !VOID_TYPE_P (TREE_TYPE (new_type))))
+    new_type
+      = build_function_type_skip_args (new_type, args_to_skip, skip_return);
   TREE_TYPE (new_decl) = new_type;
 
   /* For declarations setting DECL_VINDEX (i.e. methods)
      we expect first argument to be THIS pointer.   */
-  if (bitmap_bit_p (args_to_skip, 0))
+  if (args_to_skip && bitmap_bit_p (args_to_skip, 0))
     DECL_VINDEX (new_decl) = NULL_TREE;
 
   /* When signature changes, we need to clear builtin info.  */
-  if (DECL_BUILT_IN (new_decl) && !bitmap_empty_p (args_to_skip))
+  if (DECL_BUILT_IN (new_decl)
+      && args_to_skip
+      && !bitmap_empty_p (args_to_skip))
     {
       DECL_BUILT_IN_CLASS (new_decl) = NOT_BUILT_IN;
       DECL_FUNCTION_CODE (new_decl) = (enum built_in_function) 0;
@@ -9428,9 +9451,10 @@ local_define_builtin (const char *name, tree type, enum built_in_function code,
   if (ecf_flags & ECF_LEAF)
     DECL_ATTRIBUTES (decl) = tree_cons (get_identifier ("leaf"),
 					NULL, DECL_ATTRIBUTES (decl));
+  if ((ecf_flags & ECF_TM_PURE) && flag_tm)
+    apply_tm_attr (decl, get_identifier ("transaction_pure"));
 
-  built_in_decls[code] = decl;
-  implicit_built_in_decls[code] = decl;
+  set_builtin_decl (code, decl, true);
 }
 
 /* Call this function after instantiating all builtins that the language
@@ -9441,23 +9465,24 @@ void
 build_common_builtin_nodes (void)
 {
   tree tmp, ftype;
+  int ecf_flags;
 
-  if (built_in_decls[BUILT_IN_MEMCPY] == NULL
-      || built_in_decls[BUILT_IN_MEMMOVE] == NULL)
+  if (!builtin_decl_explicit_p (BUILT_IN_MEMCPY)
+      || !builtin_decl_explicit_p (BUILT_IN_MEMMOVE))
     {
       ftype = build_function_type_list (ptr_type_node,
 					ptr_type_node, const_ptr_type_node,
 					size_type_node, NULL_TREE);
 
-      if (built_in_decls[BUILT_IN_MEMCPY] == NULL)
+      if (!builtin_decl_explicit_p (BUILT_IN_MEMCPY))
 	local_define_builtin ("__builtin_memcpy", ftype, BUILT_IN_MEMCPY,
 			      "memcpy", ECF_NOTHROW | ECF_LEAF);
-      if (built_in_decls[BUILT_IN_MEMMOVE] == NULL)
+      if (!builtin_decl_explicit_p (BUILT_IN_MEMMOVE))
 	local_define_builtin ("__builtin_memmove", ftype, BUILT_IN_MEMMOVE,
 			      "memmove", ECF_NOTHROW | ECF_LEAF);
     }
 
-  if (built_in_decls[BUILT_IN_MEMCMP] == NULL)
+  if (!builtin_decl_explicit_p (BUILT_IN_MEMCMP))
     {
       ftype = build_function_type_list (integer_type_node, const_ptr_type_node,
 					const_ptr_type_node, size_type_node,
@@ -9466,7 +9491,7 @@ build_common_builtin_nodes (void)
 			    "memcmp", ECF_PURE | ECF_NOTHROW | ECF_LEAF);
     }
 
-  if (built_in_decls[BUILT_IN_MEMSET] == NULL)
+  if (!builtin_decl_explicit_p (BUILT_IN_MEMSET))
     {
       ftype = build_function_type_list (ptr_type_node,
 					ptr_type_node, integer_type_node,
@@ -9475,7 +9500,7 @@ build_common_builtin_nodes (void)
 			    "memset", ECF_NOTHROW | ECF_LEAF);
     }
 
-  if (built_in_decls[BUILT_IN_ALLOCA] == NULL)
+  if (!builtin_decl_explicit_p (BUILT_IN_ALLOCA))
     {
       ftype = build_function_type_list (ptr_type_node,
 					size_type_node, NULL_TREE);
@@ -9483,9 +9508,18 @@ build_common_builtin_nodes (void)
 			    "alloca", ECF_MALLOC | ECF_NOTHROW | ECF_LEAF);
     }
 
+  ftype = build_function_type_list (ptr_type_node, size_type_node,
+				    size_type_node, NULL_TREE);
+  local_define_builtin ("__builtin_alloca_with_align", ftype,
+			BUILT_IN_ALLOCA_WITH_ALIGN, "alloca",
+			ECF_MALLOC | ECF_NOTHROW | ECF_LEAF);
+
   /* If we're checking the stack, `alloca' can throw.  */
   if (flag_stack_check)
-    TREE_NOTHROW (built_in_decls[BUILT_IN_ALLOCA]) = 0;
+    {
+      TREE_NOTHROW (builtin_decl_explicit (BUILT_IN_ALLOCA)) = 0;
+      TREE_NOTHROW (builtin_decl_explicit (BUILT_IN_ALLOCA_WITH_ALIGN)) = 0;
+    }
 
   ftype = build_function_type_list (void_type_node,
 				    ptr_type_node, ptr_type_node,
@@ -9551,7 +9585,7 @@ build_common_builtin_nodes (void)
 			 ? "_Unwind_SjLj_Resume" : "_Unwind_Resume"),
 			ECF_NORETURN);
 
-  if (built_in_decls[BUILT_IN_RETURN_ADDRESS] == NULL_TREE)
+  if (builtin_decl_explicit (BUILT_IN_RETURN_ADDRESS) == NULL_TREE)
     {
       ftype = build_function_type_list (ptr_type_node, integer_type_node,
 					NULL_TREE);
@@ -9561,16 +9595,16 @@ build_common_builtin_nodes (void)
 			    ECF_NOTHROW);
     }
 
-  if (built_in_decls[BUILT_IN_PROFILE_FUNC_ENTER] == NULL_TREE
-      || built_in_decls[BUILT_IN_PROFILE_FUNC_EXIT] == NULL_TREE)
+  if (!builtin_decl_explicit_p (BUILT_IN_PROFILE_FUNC_ENTER)
+      || !builtin_decl_explicit_p (BUILT_IN_PROFILE_FUNC_EXIT))
     {
       ftype = build_function_type_list (void_type_node, ptr_type_node,
 					ptr_type_node, NULL_TREE);
-      if (built_in_decls[BUILT_IN_PROFILE_FUNC_ENTER] == NULL_TREE)
+      if (!builtin_decl_explicit_p (BUILT_IN_PROFILE_FUNC_ENTER))
 	local_define_builtin ("__cyg_profile_func_enter", ftype,
 			      BUILT_IN_PROFILE_FUNC_ENTER,
 			      "__cyg_profile_func_enter", 0);
-      if (built_in_decls[BUILT_IN_PROFILE_FUNC_EXIT] == NULL_TREE)
+      if (!builtin_decl_explicit_p (BUILT_IN_PROFILE_FUNC_EXIT))
 	local_define_builtin ("__cyg_profile_func_exit", ftype,
 			      BUILT_IN_PROFILE_FUNC_EXIT,
 			      "__cyg_profile_func_exit", 0);
@@ -9584,8 +9618,12 @@ build_common_builtin_nodes (void)
      its value in the landing pad.  */
   ftype = build_function_type_list (ptr_type_node,
 				    integer_type_node, NULL_TREE);
+  ecf_flags = ECF_PURE | ECF_NOTHROW | ECF_LEAF;
+  /* Only use TM_PURE if we we have TM language support.  */
+  if (builtin_decl_explicit_p (BUILT_IN_TM_LOAD_1))
+    ecf_flags |= ECF_TM_PURE;
   local_define_builtin ("__builtin_eh_pointer", ftype, BUILT_IN_EH_POINTER,
-			"__builtin_eh_pointer", ECF_PURE | ECF_NOTHROW | ECF_LEAF);
+			"__builtin_eh_pointer", ecf_flags);
 
   tmp = lang_hooks.types.type_for_mode (targetm.eh_return_filter_mode (), 0);
   ftype = build_function_type_list (tmp, integer_type_node, NULL_TREE);
@@ -11132,6 +11170,37 @@ tree_strip_sign_nop_conversions (tree exp)
   while (tree_sign_nop_conversion (exp))
     exp = TREE_OPERAND (exp, 0);
   return exp;
+}
+
+/* Strip out all handled components that produce invariant
+   offsets.  */
+
+const_tree
+strip_invariant_refs (const_tree op)
+{
+  while (handled_component_p (op))
+    {
+      switch (TREE_CODE (op))
+	{
+	case ARRAY_REF:
+	case ARRAY_RANGE_REF:
+	  if (!is_gimple_constant (TREE_OPERAND (op, 1))
+	      || TREE_OPERAND (op, 2) != NULL_TREE
+	      || TREE_OPERAND (op, 3) != NULL_TREE)
+	    return NULL;
+	  break;
+
+	case COMPONENT_REF:
+	  if (TREE_OPERAND (op, 2) != NULL_TREE)
+	    return NULL;
+	  break;
+
+	default:;
+	}
+      op = TREE_OPERAND (op, 0);
+    }
+
+  return op;
 }
 
 static GTY(()) tree gcc_eh_personality_decl;

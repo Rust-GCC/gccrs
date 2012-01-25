@@ -1014,7 +1014,7 @@ comptypes_check_different_types (tree type1, tree type2,
    compatible integer type, then this sets *ENUM_AND_INT_P to true;
    *ENUM_AND_INT_P is never set to false.  If DIFFERENT_TYPES_P is not
    NULL, and the types are compatible but different enough not to be
-   permitted in C1X typedef redeclarations, then this sets
+   permitted in C11 typedef redeclarations, then this sets
    *DIFFERENT_TYPES_P to true; *DIFFERENT_TYPES_P is never set to
    false, but may or may not be set if the types are incompatible.
    This differs from comptypes, in that we don't free the seen
@@ -2716,7 +2716,14 @@ build_function_call_vec (location_t loc, tree function, VEC(tree,gc) *params,
 	return tem;
 
       name = DECL_NAME (function);
+
+      if (flag_tm)
+	tm_malloc_replacement (function);
       fundecl = function;
+      /* Atomic functions have type checking/casting already done.  They are 
+	 often rewritten and don't match the original parameter list.  */
+      if (name && !strncmp (IDENTIFIER_POINTER (name), "__atomic_", 9))
+        origtypes = NULL;
     }
   if (TREE_CODE (TREE_TYPE (function)) == FUNCTION_TYPE)
     function = function_to_pointer_conversion (loc, function);
@@ -2766,7 +2773,8 @@ build_function_call_vec (location_t loc, tree function, VEC(tree,gc) *params,
       && !comptypes (fntype, TREE_TYPE (tem)))
     {
       tree return_type = TREE_TYPE (fntype);
-      tree trap = build_function_call (loc, built_in_decls[BUILT_IN_TRAP],
+      tree trap = build_function_call (loc,
+				       builtin_decl_explicit (BUILT_IN_TRAP),
 				       NULL_TREE);
       int i;
 
@@ -2846,7 +2854,7 @@ build_function_call_vec (location_t loc, tree function, VEC(tree,gc) *params,
   return require_complete_type (result);
 }
 
-/* Build a VEC_SHUFFLE_EXPR if V0, V1 and MASK are not error_mark_nodes
+/* Build a VEC_PERM_EXPR if V0, V1 and MASK are not error_mark_nodes
    and have vector types, V0 has the same type as V1, and the number of
    elements of V0, V1, MASK is the same.
 
@@ -2857,9 +2865,9 @@ build_function_call_vec (location_t loc, tree function, VEC(tree,gc) *params,
    an implementation accident and this semantics is not guaranteed to
    the user.  */
 tree
-c_build_vec_shuffle_expr (location_t loc, tree v0, tree v1, tree mask)
+c_build_vec_perm_expr (location_t loc, tree v0, tree v1, tree mask)
 {
-  tree vec_shuffle;
+  tree ret;
   bool wrap = true;
   bool maybe_const = false;
   bool two_arguments = false;
@@ -2915,7 +2923,7 @@ c_build_vec_shuffle_expr (location_t loc, tree v0, tree v1, tree mask)
       return error_mark_node;
     }
 
-  /* Avoid C_MAYBE_CONST_EXPRs inside VEC_SHUFFLE_EXPR.  */
+  /* Avoid C_MAYBE_CONST_EXPRs inside VEC_PERM_EXPR.  */
   v0 = c_fully_fold (v0, false, &maybe_const);
   wrap &= maybe_const;
 
@@ -2930,12 +2938,12 @@ c_build_vec_shuffle_expr (location_t loc, tree v0, tree v1, tree mask)
   mask = c_fully_fold (mask, false, &maybe_const);
   wrap &= maybe_const;
 
-  vec_shuffle = build3 (VEC_SHUFFLE_EXPR, TREE_TYPE (v0), v0, v1, mask);
+  ret = build3_loc (loc, VEC_PERM_EXPR, TREE_TYPE (v0), v0, v1, mask);
 
   if (!wrap)
-    vec_shuffle = c_wrap_maybe_const (vec_shuffle, true);
+    ret = c_wrap_maybe_const (ret, true);
 
-  return vec_shuffle;
+  return ret;
 }
 
 /* Convert the argument expressions in the vector VALUES
@@ -3889,10 +3897,7 @@ build_unary_op (location_t location,
       if (val && TREE_CODE (val) == INDIRECT_REF
           && TREE_CONSTANT (TREE_OPERAND (val, 0)))
 	{
-	  tree op0 = fold_offsetof (arg, val), op1;
-
-	  op1 = fold_convert_loc (location, argtype, TREE_OPERAND (val, 0));
-	  ret = fold_build_pointer_plus_loc (location, op1, op0);
+	  ret = fold_convert_loc (location, argtype, fold_offsetof_1 (arg));
 	  goto return_build_unary_op;
 	}
 
@@ -10918,6 +10923,19 @@ c_finish_omp_clauses (tree clauses)
 
   bitmap_obstack_release (NULL);
   return clauses;
+}
+
+/* Create a transaction node.  */
+
+tree
+c_finish_transaction (location_t loc, tree block, int flags)
+{
+  tree stmt = build_stmt (loc, TRANSACTION_EXPR, block);
+  if (flags & TM_STMT_ATTR_OUTER)
+    TRANSACTION_EXPR_OUTER (stmt) = 1;
+  if (flags & TM_STMT_ATTR_RELAXED)
+    TRANSACTION_EXPR_RELAXED (stmt) = 1;
+  return add_stmt (stmt);
 }
 
 /* Make a variant type in the proper way for C/C++, propagating qualifiers

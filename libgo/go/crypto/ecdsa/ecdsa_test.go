@@ -5,15 +5,15 @@
 package ecdsa
 
 import (
-	"big"
 	"crypto/elliptic"
-	"crypto/sha1"
 	"crypto/rand"
+	"crypto/sha1"
 	"encoding/hex"
+	"math/big"
 	"testing"
 )
 
-func testKeyGeneration(t *testing.T, c *elliptic.Curve, tag string) {
+func testKeyGeneration(t *testing.T, c elliptic.Curve, tag string) {
 	priv, err := GenerateKey(c, rand.Reader)
 	if err != nil {
 		t.Errorf("%s: error: %s", tag, err)
@@ -34,7 +34,7 @@ func TestKeyGeneration(t *testing.T) {
 	testKeyGeneration(t, elliptic.P521(), "p521")
 }
 
-func testSignAndVerify(t *testing.T, c *elliptic.Curve, tag string) {
+func testSignAndVerify(t *testing.T, c elliptic.Curve, tag string) {
 	priv, _ := GenerateKey(c, rand.Reader)
 
 	hashed := []byte("testing")
@@ -214,7 +214,7 @@ func TestVectors(t *testing.T) {
 		msg, _ := hex.DecodeString(test.msg)
 		sha.Reset()
 		sha.Write(msg)
-		hashed := sha.Sum()
+		hashed := sha.Sum(nil)
 		r := fromHex(test.r)
 		s := fromHex(test.s)
 		if Verify(&pub, hashed, r, s) != test.ok {

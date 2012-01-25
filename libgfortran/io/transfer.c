@@ -1063,6 +1063,25 @@ require_type (st_parameter_dt *dtp, bt expected, bt actual, const fnode *f)
 }
 
 
+static int
+require_numeric_type (st_parameter_dt *dtp, bt actual, const fnode *f)
+{
+#define BUFLEN 100
+  char buffer[BUFLEN];
+
+  if (actual == BT_INTEGER || actual == BT_REAL || actual == BT_COMPLEX)
+    return 0;
+
+  /* Adjust item_count before emitting error message.  */
+  snprintf (buffer, BUFLEN, 
+	    "Expected numeric type for item %d in formatted transfer, got %s",
+	    dtp->u.p.item_count - 1, type_name (actual));
+
+  format_error (dtp, f, buffer);
+  return 1;
+}
+
+
 /* This function is in the main loop for a formatted data transfer
    statement.  It would be natural to implement this as a coroutine
    with the user program, but C makes that awkward.  We loop,
@@ -1147,6 +1166,9 @@ formatted_transfer_scalar_read (st_parameter_dt *dtp, bt type, void *p, int kind
 	  if (n == 0)
 	    goto need_read_data;
 	  if (!(compile_options.allow_std & GFC_STD_GNU)
+	      && require_numeric_type (dtp, type, f))
+	    return;
+	  if (!(compile_options.allow_std & GFC_STD_F2008)
               && require_type (dtp, BT_INTEGER, type, f))
 	    return;
 	  read_radix (dtp, f, p, kind, 2);
@@ -1156,6 +1178,9 @@ formatted_transfer_scalar_read (st_parameter_dt *dtp, bt type, void *p, int kind
 	  if (n == 0)
 	    goto need_read_data; 
 	  if (!(compile_options.allow_std & GFC_STD_GNU)
+	      && require_numeric_type (dtp, type, f))
+	    return;
+	  if (!(compile_options.allow_std & GFC_STD_F2008)
               && require_type (dtp, BT_INTEGER, type, f))
 	    return;
 	  read_radix (dtp, f, p, kind, 8);
@@ -1165,6 +1190,9 @@ formatted_transfer_scalar_read (st_parameter_dt *dtp, bt type, void *p, int kind
 	  if (n == 0)
 	    goto need_read_data;
 	  if (!(compile_options.allow_std & GFC_STD_GNU)
+	      && require_numeric_type (dtp, type, f))
+	    return;
+	  if (!(compile_options.allow_std & GFC_STD_F2008)
               && require_type (dtp, BT_INTEGER, type, f))
 	    return;
 	  read_radix (dtp, f, p, kind, 16);
@@ -1548,6 +1576,9 @@ formatted_transfer_scalar_write (st_parameter_dt *dtp, bt type, void *p, int kin
 	  if (n == 0)
 	    goto need_data;
 	  if (!(compile_options.allow_std & GFC_STD_GNU)
+	      && require_numeric_type (dtp, type, f))
+	    return;
+	  if (!(compile_options.allow_std & GFC_STD_F2008)
               && require_type (dtp, BT_INTEGER, type, f))
 	    return;
 	  write_b (dtp, f, p, kind);
@@ -1557,6 +1588,9 @@ formatted_transfer_scalar_write (st_parameter_dt *dtp, bt type, void *p, int kin
 	  if (n == 0)
 	    goto need_data; 
 	  if (!(compile_options.allow_std & GFC_STD_GNU)
+	      && require_numeric_type (dtp, type, f))
+	    return;
+	  if (!(compile_options.allow_std & GFC_STD_F2008)
               && require_type (dtp, BT_INTEGER, type, f))
 	    return;
 	  write_o (dtp, f, p, kind);
@@ -1566,6 +1600,9 @@ formatted_transfer_scalar_write (st_parameter_dt *dtp, bt type, void *p, int kin
 	  if (n == 0)
 	    goto need_data;
 	  if (!(compile_options.allow_std & GFC_STD_GNU)
+	      && require_numeric_type (dtp, type, f))
+	    return;
+	  if (!(compile_options.allow_std & GFC_STD_F2008)
               && require_type (dtp, BT_INTEGER, type, f))
 	    return;
 	  write_z (dtp, f, p, kind);
@@ -2627,7 +2664,7 @@ data_transfer_init (st_parameter_dt *dtp, int read_flag)
 	 a partial record needs to exist.  */
 
       if (dtp->u.p.mode == READING && (dtp->rec - 1)
-	  * dtp->u.p.current_unit->recl >= file_length (dtp->u.p.current_unit->s))
+	  * dtp->u.p.current_unit->recl >= ssize (dtp->u.p.current_unit->s))
 	{
 	  generate_error (&dtp->common, LIBERROR_BAD_OPTION,
 			  "Non-existing record number");
@@ -2823,18 +2860,12 @@ skip_record (st_parameter_dt *dtp, ssize_t bytes)
   if (dtp->u.p.current_unit->bytes_left_subrecord == 0)
     return;
 
-  if (is_seekable (dtp->u.p.current_unit->s))
+  /* Direct access files do not generate END conditions,
+     only I/O errors.  */
+  if (sseek (dtp->u.p.current_unit->s, 
+	     dtp->u.p.current_unit->bytes_left_subrecord, SEEK_CUR) < 0)
     {
-      /* Direct access files do not generate END conditions,
-	 only I/O errors.  */
-      if (sseek (dtp->u.p.current_unit->s, 
-		 dtp->u.p.current_unit->bytes_left_subrecord, SEEK_CUR) < 0)
-	generate_error (&dtp->common, LIBERROR_OS, NULL);
-
-      dtp->u.p.current_unit->bytes_left_subrecord = 0;
-    }
-  else
-    {			/* Seek by reading data.  */
+      /* Seeking failed, fall back to seeking by reading data.  */
       while (dtp->u.p.current_unit->bytes_left_subrecord > 0)
 	{
 	  rlength = 
@@ -2850,8 +2881,9 @@ skip_record (st_parameter_dt *dtp, ssize_t bytes)
 
 	  dtp->u.p.current_unit->bytes_left_subrecord -= readb;
 	}
+      return;
     }
-
+  dtp->u.p.current_unit->bytes_left_subrecord = 0;
 }
 
 
@@ -2882,7 +2914,7 @@ next_record_r_unf (st_parameter_dt *dtp, int complete_record)
 }
 
 
-static inline gfc_offset
+static gfc_offset
 min_off (gfc_offset a, gfc_offset b)
 {
   return (a < b ? a : b);
@@ -2949,7 +2981,7 @@ next_record_r (st_parameter_dt *dtp, int done)
 	    {
 	      bytes_left = (int) dtp->u.p.current_unit->bytes_left;
 	      bytes_left = min_off (bytes_left, 
-		      file_length (dtp->u.p.current_unit->s)
+		      ssize (dtp->u.p.current_unit->s)
 		      - stell (dtp->u.p.current_unit->s));
 	      if (sseek (dtp->u.p.current_unit->s, 
 			 bytes_left, SEEK_CUR) < 0)
@@ -3141,13 +3173,6 @@ sset (stream * s, int c, ssize_t nbyte)
   return nbyte - bytes_left;
 }
 
-static inline void
-memset4 (gfc_char4_t *p, gfc_char4_t c, int k)
-{
-  int j;
-  for (j = 0; j < k; j++)
-    *p++ = c;
-}
 
 /* Position to the next record in write mode.  */
 
@@ -3314,7 +3339,7 @@ next_record_w (st_parameter_dt *dtp, int done)
 	    {
 	      dtp->u.p.current_unit->strm_pos += len;
 	      if (dtp->u.p.current_unit->strm_pos
-		  < file_length (dtp->u.p.current_unit->s))
+		  < ssize (dtp->u.p.current_unit->s))
 		unit_truncate (dtp->u.p.current_unit,
                                dtp->u.p.current_unit->strm_pos - 1,
                                &dtp->common);
@@ -3348,9 +3373,10 @@ next_record (st_parameter_dt *dtp, int done)
 
   if (!is_stream_io (dtp))
     {
-      /* Keep position up to date for INQUIRE */
+      /* Since we have changed the position, set it to unspecified so
+	 that INQUIRE(POSITION=) knows it needs to look into it.  */
       if (done)
-	update_position (dtp->u.p.current_unit);
+	dtp->u.p.current_unit->flags.position = POSITION_UNSPECIFIED;
 
       dtp->u.p.current_unit->current_record = 0;
       if (dtp->u.p.current_unit->flags.access == ACCESS_DIRECT)

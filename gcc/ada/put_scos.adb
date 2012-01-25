@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2009-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 2009-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -133,18 +133,12 @@ begin
             begin
                case T.C1 is
 
-                  --  Statements
+                  --  Statements (and dominance markers)
 
-                  when 'S' =>
+                  when 'S' | '>' =>
                      Ctr := 0;
                      Continuation := False;
                      loop
-                        if SCO_Pragma_Disabled
-                             (SCO_Table.Table (Start).Pragma_Sloc)
-                        then
-                           goto Next_Statement;
-                        end if;
-
                         if Ctr = 0 then
                            Write_SCO_Initiate (U);
                            if not Continuation then
@@ -161,17 +155,23 @@ begin
                            Sent : SCO_Table_Entry
                                     renames SCO_Table.Table (Start);
                         begin
+                           if Sent.C1 = '>' then
+                              Write_Info_Char (Sent.C1);
+                           end if;
+
                            if Sent.C2 /= ' ' then
                               Write_Info_Char (Sent.C2);
-                              if Sent.C2 = 'P'
-                                   and then Sent.Pragma_Name /= Unknown_Pragma
+
+                              if Sent.C1 = 'S'
+                                and then (Sent.C2 = 'P' or else Sent.C2 = 'p')
+                                and then Sent.Pragma_Name /= Unknown_Pragma
                               then
+                                 --  Strip leading "PRAGMA_"
+
                                  declare
                                     Pnam : constant String :=
                                              Sent.Pragma_Name'Img;
                                  begin
-                                    --  Strip leading "PRAGMA_"
-
                                     Output_String
                                       (Pnam (Pnam'First + 7 .. Pnam'Last));
                                     Write_Info_Char (':');
@@ -179,7 +179,15 @@ begin
                               end if;
                            end if;
 
-                           Output_Range (Sent);
+                           --  For dependence markers (except E), output sloc.
+                           --  For >E and all statement entries, output sloc
+                           --  range.
+
+                           if Sent.C1 = '>' and then Sent.C2 /= 'E' then
+                              Output_Source_Location (Sent.From);
+                           else
+                              Output_Range (Sent);
+                           end if;
                         end;
 
                         --  Increment entry counter (up to 6 entries per line,
@@ -191,21 +199,13 @@ begin
                            Ctr := 0;
                         end if;
 
-                     <<Next_Statement>>
                         exit when SCO_Table.Table (Start).Last;
                         Start := Start + 1;
-                        pragma Assert (SCO_Table.Table (Start).C1 = 's');
                      end loop;
 
                      if Ctr > 0 then
                         Write_Info_Terminate;
                      end if;
-
-                  --  Statement continuations should not occur since they
-                  --  are supposed to have been handled in the loop above.
-
-                  when 's' =>
-                     raise Program_Error;
 
                   --  Decision
 

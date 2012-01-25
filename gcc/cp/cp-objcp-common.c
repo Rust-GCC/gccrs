@@ -100,6 +100,8 @@ cp_tree_size (enum tree_code code)
 
     case TEMPLATE_INFO:         return sizeof (struct tree_template_info);
 
+    case USERDEF_LITERAL:	return sizeof (struct tree_userdef_literal);
+
     default:
       gcc_unreachable ();
     }
@@ -267,6 +269,7 @@ cp_common_init_ts (void)
   MARK_TS_TYPED (CONST_CAST_EXPR);
   MARK_TS_TYPED (STATIC_CAST_EXPR);
   MARK_TS_TYPED (DYNAMIC_CAST_EXPR);
+  MARK_TS_TYPED (IMPLICIT_CONV_EXPR);
   MARK_TS_TYPED (TEMPLATE_ID_EXPR);
   MARK_TS_TYPED (ARROW_EXPR);
   MARK_TS_TYPED (SIZEOF_EXPR);

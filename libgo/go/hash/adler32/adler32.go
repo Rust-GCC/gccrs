@@ -11,10 +11,7 @@
 //	significant-byte first (network) order.
 package adler32
 
-import (
-	"hash"
-	"os"
-)
+import "hash"
 
 const (
 	mod = 65521
@@ -40,6 +37,8 @@ func New() hash.Hash32 {
 }
 
 func (d *digest) Size() int { return Size }
+
+func (d *digest) BlockSize() int { return 1 }
 
 // Add p to the running checksum a, b.
 func update(a, b uint32, p []byte) (aa, bb uint32) {
@@ -67,21 +66,20 @@ func finish(a, b uint32) uint32 {
 	return b<<16 | a
 }
 
-func (d *digest) Write(p []byte) (nn int, err os.Error) {
+func (d *digest) Write(p []byte) (nn int, err error) {
 	d.a, d.b = update(d.a, d.b, p)
 	return len(p), nil
 }
 
 func (d *digest) Sum32() uint32 { return finish(d.a, d.b) }
 
-func (d *digest) Sum() []byte {
-	p := make([]byte, 4)
+func (d *digest) Sum(in []byte) []byte {
 	s := d.Sum32()
-	p[0] = byte(s >> 24)
-	p[1] = byte(s >> 16)
-	p[2] = byte(s >> 8)
-	p[3] = byte(s)
-	return p
+	in = append(in, byte(s>>24))
+	in = append(in, byte(s>>16))
+	in = append(in, byte(s>>8))
+	in = append(in, byte(s))
+	return in
 }
 
 // Checksum returns the Adler-32 checksum of data.

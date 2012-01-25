@@ -1,8 +1,13 @@
+// Copyright 2010 The Go Authors.  All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 package net
 
 import (
+	"errors"
 	"io"
-	"os"
+	"time"
 )
 
 // Pipe creates a synchronous, in-memory, full duplex
@@ -32,7 +37,7 @@ func (pipeAddr) String() string {
 	return "pipe"
 }
 
-func (p *pipe) Close() os.Error {
+func (p *pipe) Close() error {
 	err := p.PipeReader.Close()
 	err1 := p.PipeWriter.Close()
 	if err == nil {
@@ -49,14 +54,14 @@ func (p *pipe) RemoteAddr() Addr {
 	return pipeAddr(0)
 }
 
-func (p *pipe) SetTimeout(nsec int64) os.Error {
-	return os.NewError("net.Pipe does not support timeouts")
+func (p *pipe) SetDeadline(t time.Time) error {
+	return errors.New("net.Pipe does not support deadlines")
 }
 
-func (p *pipe) SetReadTimeout(nsec int64) os.Error {
-	return os.NewError("net.Pipe does not support timeouts")
+func (p *pipe) SetReadDeadline(t time.Time) error {
+	return errors.New("net.Pipe does not support deadlines")
 }
 
-func (p *pipe) SetWriteTimeout(nsec int64) os.Error {
-	return os.NewError("net.Pipe does not support timeouts")
+func (p *pipe) SetWriteDeadline(t time.Time) error {
+	return errors.New("net.Pipe does not support deadlines")
 }

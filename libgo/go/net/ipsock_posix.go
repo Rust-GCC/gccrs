@@ -2,12 +2,11 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build darwin freebsd linux netbsd openbsd windows
+
 package net
 
-import (
-	"os"
-	"syscall"
-)
+import "syscall"
 
 // Should we try to use the IPv4 socket interface if we're
 // only dealing with IPv4 sockets?  As long as the host system
@@ -34,8 +33,8 @@ func probeIPv6Stack() (supportsIPv6, supportsIPv4map bool) {
 	}
 
 	for i := range probes {
-		s, errno := syscall.Socket(syscall.AF_INET6, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
-		if errno != 0 {
+		s, err := syscall.Socket(syscall.AF_INET6, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
+		if err != nil {
 			continue
 		}
 		defer closesocket(s)
@@ -43,8 +42,8 @@ func probeIPv6Stack() (supportsIPv6, supportsIPv4map bool) {
 		if err != nil {
 			continue
 		}
-		errno = syscall.Bind(s, sa)
-		if errno != 0 {
+		err = syscall.Bind(s, sa)
+		if err != nil {
 			continue
 		}
 		probes[i].ok = true
@@ -92,23 +91,18 @@ func favoriteAddrFamily(net string, raddr, laddr sockaddr, mode string) int {
 	return syscall.AF_INET6
 }
 
-// TODO(rsc): if syscall.OS == "linux", we're supposed to read
-// /proc/sys/net/core/somaxconn,
-// to take advantage of kernels that have raised the limit.
-func listenBacklog() int { return syscall.SOMAXCONN }
-
 // Internet sockets (TCP, UDP)
 
 // A sockaddr represents a TCP or UDP network address that can
 // be converted into a syscall.Sockaddr.
 type sockaddr interface {
 	Addr
-	sockaddr(family int) (syscall.Sockaddr, os.Error)
+	sockaddr(family int) (syscall.Sockaddr, error)
 	family() int
 }
 
-func internetSocket(net string, laddr, raddr sockaddr, socktype, proto int, mode string, toAddr func(syscall.Sockaddr) Addr) (fd *netFD, err os.Error) {
-	var oserr os.Error
+func internetSocket(net string, laddr, raddr sockaddr, sotype, proto int, mode string, toAddr func(syscall.Sockaddr) Addr) (fd *netFD, err error) {
+	var oserr error
 	var la, ra syscall.Sockaddr
 	family := favoriteAddrFamily(net, raddr, laddr, mode)
 	if laddr != nil {
@@ -121,7 +115,7 @@ func internetSocket(net string, laddr, raddr sockaddr, socktype, proto int, mode
 			goto Error
 		}
 	}
-	fd, oserr = socket(net, family, socktype, proto, la, ra, toAddr)
+	fd, oserr = socket(net, family, sotype, proto, la, ra, toAddr)
 	if oserr != nil {
 		goto Error
 	}
@@ -135,7 +129,7 @@ Error:
 	return nil, &OpError{mode, net, addr, oserr}
 }
 
-func ipToSockaddr(family int, ip IP, port int) (syscall.Sockaddr, os.Error) {
+func ipToSockaddr(family int, ip IP, port int) (syscall.Sockaddr, error) {
 	switch family {
 	case syscall.AF_INET:
 		if len(ip) == 0 {

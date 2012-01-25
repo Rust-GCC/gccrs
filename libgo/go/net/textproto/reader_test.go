@@ -7,7 +7,6 @@ package textproto
 import (
 	"bufio"
 	"io"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -49,7 +48,7 @@ func TestReadLine(t *testing.T) {
 		t.Fatalf("Line 2: %s, %v", s, err)
 	}
 	s, err = r.ReadLine()
-	if s != "" || err != os.EOF {
+	if s != "" || err != io.EOF {
 		t.Fatalf("EOF: %s, %v", s, err)
 	}
 }
@@ -69,7 +68,7 @@ func TestReadContinuedLine(t *testing.T) {
 		t.Fatalf("Line 3: %s, %v", s, err)
 	}
 	s, err = r.ReadContinuedLine()
-	if s != "" || err != os.EOF {
+	if s != "" || err != io.EOF {
 		t.Fatalf("EOF: %s, %v", s, err)
 	}
 }
@@ -92,7 +91,7 @@ func TestReadCodeLine(t *testing.T) {
 		t.Fatalf("Line 3: wrong error %v\n", err)
 	}
 	code, msg, err = r.ReadCodeLine(1)
-	if code != 0 || msg != "" || err != os.EOF {
+	if code != 0 || msg != "" || err != io.EOF {
 		t.Fatalf("EOF: %d, %s, %v", code, msg, err)
 	}
 }
@@ -136,5 +135,84 @@ func TestReadMIMEHeader(t *testing.T) {
 	}
 	if !reflect.DeepEqual(m, want) || err != nil {
 		t.Fatalf("ReadMIMEHeader: %v, %v; want %v", m, err, want)
+	}
+}
+
+func TestReadMIMEHeaderSingle(t *testing.T) {
+	r := reader("Foo: bar\n\n")
+	m, err := r.ReadMIMEHeader()
+	want := MIMEHeader{"Foo": {"bar"}}
+	if !reflect.DeepEqual(m, want) || err != nil {
+		t.Fatalf("ReadMIMEHeader: %v, %v; want %v", m, err, want)
+	}
+}
+
+func TestLargeReadMIMEHeader(t *testing.T) {
+	data := make([]byte, 16*1024)
+	for i := 0; i < len(data); i++ {
+		data[i] = 'x'
+	}
+	sdata := string(data)
+	r := reader("Cookie: " + sdata + "\r\n\n")
+	m, err := r.ReadMIMEHeader()
+	if err != nil {
+		t.Fatalf("ReadMIMEHeader: %v", err)
+	}
+	cookie := m.Get("Cookie")
+	if cookie != sdata {
+		t.Fatalf("ReadMIMEHeader: %v bytes, want %v bytes", len(cookie), len(sdata))
+	}
+}
+
+type readResponseTest struct {
+	in       string
+	inCode   int
+	wantCode int
+	wantMsg  string
+}
+
+var readResponseTests = []readResponseTest{
+	{"230-Anonymous access granted, restrictions apply\n" +
+		"Read the file README.txt,\n" +
+		"230  please",
+		23,
+		230,
+		"Anonymous access granted, restrictions apply\nRead the file README.txt,\n please",
+	},
+
+	{"230 Anonymous access granted, restrictions apply\n",
+		23,
+		230,
+		"Anonymous access granted, restrictions apply",
+	},
+
+	{"400-A\n400-B\n400 C",
+		4,
+		400,
+		"A\nB\nC",
+	},
+
+	{"400-A\r\n400-B\r\n400 C\r\n",
+		4,
+		400,
+		"A\nB\nC",
+	},
+}
+
+// See http://www.ietf.org/rfc/rfc959.txt page 36.
+func TestRFC959Lines(t *testing.T) {
+	for i, tt := range readResponseTests {
+		r := reader(tt.in + "\nFOLLOWING DATA")
+		code, msg, err := r.ReadResponse(tt.inCode)
+		if err != nil {
+			t.Errorf("#%d: ReadResponse: %v", i, err)
+			continue
+		}
+		if code != tt.wantCode {
+			t.Errorf("#%d: code=%d, want %d", i, code, tt.wantCode)
+		}
+		if msg != tt.wantMsg {
+			t.Errorf("#%d: msg=%q, want %q", i, msg, tt.wantMsg)
+		}
 	}
 }

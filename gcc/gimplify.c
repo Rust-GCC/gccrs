@@ -1,7 +1,7 @@
 /* Tree lowering pass.  This pass converts the GENERIC functions-as-trees
    tree representation into the GIMPLE form.
-   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
-   Free Software Foundation, Inc.
+   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011,
+   2012 Free Software Foundation, Inc.
    Major work done by Sebastian Pop <s.pop@laposte.net>,
    Diego Novillo <dnovillo@redhat.com> and Jason Merrill <jason@redhat.com>.
 
@@ -162,7 +162,7 @@ gimple_tree_eq (const void *p1, const void *p2)
    before the def/use vectors have been constructed.  */
 
 void
-gimplify_seq_add_stmt (gimple_seq *seq_p, gimple gs)
+gimple_seq_add_stmt_without_update (gimple_seq *seq_p, gimple gs)
 {
   gimple_stmt_iterator si;
 
@@ -175,6 +175,15 @@ gimplify_seq_add_stmt (gimple_seq *seq_p, gimple gs)
   si = gsi_last (*seq_p);
 
   gsi_insert_after_without_update (&si, gs, GSI_NEW_STMT);
+}
+
+/* Shorter alias name for the above function for use in gimplify.c
+   only.  */
+
+static inline void
+gimplify_seq_add_stmt (gimple_seq *seq_p, gimple gs)
+{
+  gimple_seq_add_stmt_without_update (seq_p, gs);
 }
 
 /* Append sequence SRC to the end of sequence *DST_P.  If *DST_P is
@@ -413,6 +422,8 @@ create_tmp_var_name (const char *prefix)
       char *preftmp = ASTRDUP (prefix);
 
       remove_suffix (preftmp, strlen (preftmp));
+      clean_symbol_name (preftmp);
+
       prefix = preftmp;
     }
 
@@ -856,9 +867,10 @@ annotate_all_with_location (gimple_seq stmt_p, location_t location)
   way to go.  */
 
 /* Similar to copy_tree_r but do not copy SAVE_EXPR or TARGET_EXPR nodes.
-   These nodes model computations that should only be done once.  If we
-   were to unshare something like SAVE_EXPR(i++), the gimplification
-   process would create wrong code.  */
+   These nodes model computations that must be done once.  If we were to
+   unshare something like SAVE_EXPR(i++), the gimplification process would
+   create wrong code.  However, if DATA is non-null, it must hold a pointer
+   set that is used to unshare the subtrees of these nodes.  */
 
 static tree
 mostly_copy_tree_r (tree *tp, int *walk_subtrees, void *data)
@@ -898,9 +910,9 @@ mostly_copy_tree_r (tree *tp, int *walk_subtrees, void *data)
   return NULL_TREE;
 }
 
-/* Callback for walk_tree to unshare most of the shared trees rooted at
-   *TP.  If *TP has been visited already (i.e., TREE_VISITED (*TP) == 1),
-   then *TP is deep copied by calling mostly_copy_tree_r.  */
+/* Callback for walk_tree to unshare most of the shared trees rooted at *TP.
+   If *TP has been visited already, then *TP is deeply copied by calling
+   mostly_copy_tree_r.  DATA is passed to mostly_copy_tree_r unmodified.  */
 
 static tree
 copy_if_shared_r (tree *tp, int *walk_subtrees, void *data)
@@ -937,34 +949,37 @@ copy_if_shared_r (tree *tp, int *walk_subtrees, void *data)
   return NULL_TREE;
 }
 
-/* Unshare most of the shared trees rooted at *TP. */
+/* Unshare most of the shared trees rooted at *TP.  DATA is passed to the
+   copy_if_shared_r callback unmodified.  */
 
 static inline void
-copy_if_shared (tree *tp)
+copy_if_shared (tree *tp, void *data)
 {
+  walk_tree (tp, copy_if_shared_r, data, NULL);
+}
+
+/* Unshare all the trees in the body of FNDECL, as well as in the bodies of
+   any nested functions.  */
+
+static void
+unshare_body (tree fndecl)
+{
+  struct cgraph_node *cgn = cgraph_get_node (fndecl);
   /* If the language requires deep unsharing, we need a pointer set to make
      sure we don't repeatedly unshare subtrees of unshareable nodes.  */
   struct pointer_set_t *visited
     = lang_hooks.deep_unsharing ? pointer_set_create () : NULL;
-  walk_tree (tp, copy_if_shared_r, visited, NULL);
+
+  copy_if_shared (&DECL_SAVED_TREE (fndecl), visited);
+  copy_if_shared (&DECL_SIZE (DECL_RESULT (fndecl)), visited);
+  copy_if_shared (&DECL_SIZE_UNIT (DECL_RESULT (fndecl)), visited);
+
   if (visited)
     pointer_set_destroy (visited);
-}
 
-/* Unshare all the trees in BODY_P, a pointer into the body of FNDECL, and the
-   bodies of any nested functions if we are unsharing the entire body of
-   FNDECL.  */
-
-static void
-unshare_body (tree *body_p, tree fndecl)
-{
-  struct cgraph_node *cgn = cgraph_get_node (fndecl);
-
-  copy_if_shared (body_p);
-
-  if (cgn && body_p == &DECL_SAVED_TREE (fndecl))
+  if (cgn)
     for (cgn = cgn->nested; cgn; cgn = cgn->next_nested)
-      unshare_body (&DECL_SAVED_TREE (cgn->decl), cgn->decl);
+      unshare_body (cgn->decl);
 }
 
 /* Callback for walk_tree to unmark the visited trees rooted at *TP.
@@ -997,15 +1012,17 @@ unmark_visited (tree *tp)
 /* Likewise, but mark all trees as not visited.  */
 
 static void
-unvisit_body (tree *body_p, tree fndecl)
+unvisit_body (tree fndecl)
 {
   struct cgraph_node *cgn = cgraph_get_node (fndecl);
 
-  unmark_visited (body_p);
+  unmark_visited (&DECL_SAVED_TREE (fndecl));
+  unmark_visited (&DECL_SIZE (DECL_RESULT (fndecl)));
+  unmark_visited (&DECL_SIZE_UNIT (DECL_RESULT (fndecl)));
 
-  if (cgn && body_p == &DECL_SAVED_TREE (fndecl))
+  if (cgn)
     for (cgn = cgn->nested; cgn; cgn = cgn->next_nested)
-      unvisit_body (&DECL_SAVED_TREE (cgn->decl), cgn->decl);
+      unvisit_body (cgn->decl);
 }
 
 /* Unconditionally make an unshared copy of EXPR.  This is used when using
@@ -1072,7 +1089,22 @@ voidify_wrapper_expr (tree wrapper, tree temp)
 		}
 	      break;
 
+	    case TRANSACTION_EXPR:
+	      TREE_SIDE_EFFECTS (*p) = 1;
+	      TREE_TYPE (*p) = void_type_node;
+	      p = &TRANSACTION_EXPR_BODY (*p);
+	      break;
+
 	    default:
+	      /* Assume that any tree upon which voidify_wrapper_expr is
+		 directly called is a wrapper, and that its body is op0.  */
+	      if (p == &wrapper)
+		{
+		  TREE_SIDE_EFFECTS (*p) = 1;
+		  TREE_TYPE (*p) = void_type_node;
+		  p = &TREE_OPERAND (*p, 0);
+		  break;
+		}
 	      goto out;
 	    }
 	}
@@ -1109,12 +1141,12 @@ build_stack_save_restore (gimple *save, gimple *restore)
 {
   tree tmp_var;
 
-  *save = gimple_build_call (implicit_built_in_decls[BUILT_IN_STACK_SAVE], 0);
+  *save = gimple_build_call (builtin_decl_implicit (BUILT_IN_STACK_SAVE), 0);
   tmp_var = create_tmp_var (ptr_type_node, "saved_stack");
   gimple_call_set_lhs (*save, tmp_var);
 
   *restore
-    = gimple_build_call (implicit_built_in_decls[BUILT_IN_STACK_RESTORE],
+    = gimple_build_call (builtin_decl_implicit (BUILT_IN_STACK_RESTORE),
 			 1, tmp_var);
 }
 
@@ -1127,7 +1159,8 @@ gimplify_bind_expr (tree *expr_p, gimple_seq *pre_p)
   bool old_save_stack = gimplify_ctxp->save_stack;
   tree t;
   gimple gimple_bind;
-  gimple_seq body;
+  gimple_seq body, cleanup;
+  gimple stack_save;
 
   tree temp = voidify_wrapper_expr (bind_expr, NULL);
 
@@ -1173,22 +1206,50 @@ gimplify_bind_expr (tree *expr_p, gimple_seq *pre_p)
   gimplify_stmt (&BIND_EXPR_BODY (bind_expr), &body);
   gimple_bind_set_body (gimple_bind, body);
 
+  cleanup = NULL;
+  stack_save = NULL;
   if (gimplify_ctxp->save_stack)
     {
-      gimple stack_save, stack_restore, gs;
-      gimple_seq cleanup, new_body;
+      gimple stack_restore;
 
       /* Save stack on entry and restore it on exit.  Add a try_finally
 	 block to achieve this.  Note that mudflap depends on the
 	 format of the emitted code: see mx_register_decls().  */
       build_stack_save_restore (&stack_save, &stack_restore);
 
-      cleanup = new_body = NULL;
       gimplify_seq_add_stmt (&cleanup, stack_restore);
+    }
+
+  /* Add clobbers for all variables that go out of scope.  */
+  for (t = BIND_EXPR_VARS (bind_expr); t ; t = DECL_CHAIN (t))
+    {
+      if (TREE_CODE (t) == VAR_DECL
+	  && !is_global_var (t)
+	  && DECL_CONTEXT (t) == current_function_decl
+	  && !DECL_HARD_REGISTER (t)
+	  && !TREE_THIS_VOLATILE (t)
+	  && !DECL_HAS_VALUE_EXPR_P (t)
+	  /* Only care for variables that have to be in memory.  Others
+	     will be rewritten into SSA names, hence moved to the top-level.  */
+	  && needs_to_live_in_memory (t))
+	{
+	  tree clobber = build_constructor (TREE_TYPE (t), NULL);
+	  TREE_THIS_VOLATILE (clobber) = 1;
+	  gimplify_seq_add_stmt (&cleanup, gimple_build_assign (t, clobber));
+	}
+    }
+
+  if (cleanup)
+    {
+      gimple gs;
+      gimple_seq new_body;
+
+      new_body = NULL;
       gs = gimple_build_try (gimple_bind_body (gimple_bind), cleanup,
 	  		     GIMPLE_TRY_FINALLY);
 
-      gimplify_seq_add_stmt (&new_body, stack_save);
+      if (stack_save)
+	gimplify_seq_add_stmt (&new_body, stack_save);
       gimplify_seq_add_stmt (&new_body, gs);
       gimple_bind_set_body (gimple_bind, new_body);
     }
@@ -1329,8 +1390,9 @@ gimplify_vla_decl (tree decl, gimple_seq *seq_p)
   SET_DECL_VALUE_EXPR (decl, t);
   DECL_HAS_VALUE_EXPR_P (decl) = 1;
 
-  t = built_in_decls[BUILT_IN_ALLOCA];
-  t = build_call_expr (t, 1, DECL_SIZE_UNIT (decl));
+  t = builtin_decl_explicit (BUILT_IN_ALLOCA_WITH_ALIGN);
+  t = build_call_expr (t, 2, DECL_SIZE_UNIT (decl),
+		       size_int (DECL_ALIGN (decl)));
   /* The call has been built for a variable-sized object.  */
   CALL_ALLOCA_FOR_VAR_P (t) = 1;
   t = fold_convert (ptr_type, t);
@@ -2411,7 +2473,6 @@ gimplify_call_expr (tree *expr_p, gimple_seq *pre_p, bool want_value)
 	  CALL_EXPR_RETURN_SLOT_OPT (*expr_p)
 	    = CALL_EXPR_RETURN_SLOT_OPT (call);
 	  CALL_FROM_THUNK_P (*expr_p) = CALL_FROM_THUNK_P (call);
-	  CALL_CANNOT_INLINE_P (*expr_p) = CALL_CANNOT_INLINE_P (call);
 	  SET_EXPR_LOCATION (*expr_p, EXPR_LOCATION (call));
 	  TREE_BLOCK (*expr_p) = TREE_BLOCK (call);
 
@@ -3210,7 +3271,7 @@ gimplify_modify_expr_to_memcpy (tree *expr_p, tree size, bool want_value,
   to_ptr = build_fold_addr_expr_loc (loc, to);
   gimplify_arg (&to_ptr, seq_p, loc);
 
-  t = implicit_built_in_decls[BUILT_IN_MEMCPY];
+  t = builtin_decl_implicit (BUILT_IN_MEMCPY);
 
   gs = gimple_build_call (t, 3, to_ptr, from_ptr, size);
 
@@ -3257,7 +3318,7 @@ gimplify_modify_expr_to_memset (tree *expr_p, tree size, bool want_value,
 
   to_ptr = build_fold_addr_expr_loc (loc, to);
   gimplify_arg (&to_ptr, seq_p, loc);
-  t = implicit_built_in_decls[BUILT_IN_MEMSET];
+  t = builtin_decl_implicit (BUILT_IN_MEMSET);
 
   gs = gimple_build_call (t, 3, to_ptr, integer_zero_node, size);
 
@@ -4356,7 +4417,14 @@ gimplify_modify_expr_rhs (tree *expr_p, tree *from_p, tree *to_p,
 		/* It's OK to use the target directly if it's being
 		   initialized. */
 		use_target = true;
-	      else if (!is_gimple_non_addressable (*to_p))
+	      else if (variably_modified_type_p (TREE_TYPE (*to_p), NULL_TREE))
+		/* Always use the target and thus RSO for variable-sized types.
+		   GIMPLE cannot deal with a variable-sized assignment
+		   embedded in a call statement.  */
+		use_target = true;
+	      else if (TREE_CODE (*to_p) != SSA_NAME
+		      && (!is_gimple_variable (*to_p)
+			  || needs_to_live_in_memory (*to_p)))
 		/* Don't use the original target if it's already addressable;
 		   if its address escapes, and the called function uses the
 		   NRV optimization, a conforming program could see *to_p
@@ -4515,6 +4583,16 @@ gimplify_modify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
 
   gcc_assert (TREE_CODE (*expr_p) == MODIFY_EXPR
 	      || TREE_CODE (*expr_p) == INIT_EXPR);
+
+  /* Trying to simplify a clobber using normal logic doesn't work,
+     so handle it here.  */
+  if (TREE_CLOBBER_P (*from_p))
+    {
+      gcc_assert (!want_value && TREE_CODE (*to_p) == VAR_DECL);
+      gimplify_seq_add_stmt (pre_p, gimple_build_assign (*to_p, *from_p));
+      *expr_p = NULL;
+      return GS_ALL_DONE;
+    }
 
   /* Insert pointer conversions required by the middle-end that are not
      required by the frontend.  This fixes middle-end type checking for
@@ -4680,7 +4758,7 @@ gimplify_variable_sized_compare (tree *expr_p)
   arg = SUBSTITUTE_PLACEHOLDER_IN_EXPR (arg, op0);
   src = build_fold_addr_expr_loc (loc, op1);
   dest = build_fold_addr_expr_loc (loc, op0);
-  t = implicit_built_in_decls[BUILT_IN_MEMCMP];
+  t = builtin_decl_implicit (BUILT_IN_MEMCMP);
   t = build_call_expr_loc (loc, t, 3, dest, src, arg);
 
   expr
@@ -5161,13 +5239,16 @@ gimplify_cleanup_point_expr (tree *expr_p, gimple_seq *pre_p)
      any cleanups collected outside the CLEANUP_POINT_EXPR.  */
   int old_conds = gimplify_ctxp->conditions;
   gimple_seq old_cleanups = gimplify_ctxp->conditional_cleanups;
+  bool old_in_cleanup_point_expr = gimplify_ctxp->in_cleanup_point_expr;
   gimplify_ctxp->conditions = 0;
   gimplify_ctxp->conditional_cleanups = NULL;
+  gimplify_ctxp->in_cleanup_point_expr = true;
 
   gimplify_stmt (&TREE_OPERAND (*expr_p, 0), &body_sequence);
 
   gimplify_ctxp->conditions = old_conds;
   gimplify_ctxp->conditional_cleanups = old_cleanups;
+  gimplify_ctxp->in_cleanup_point_expr = old_in_cleanup_point_expr;
 
   for (iter = gsi_start (body_sequence); !gsi_end_p (iter); )
     {
@@ -5297,6 +5378,8 @@ gimplify_target_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 
   if (init)
     {
+      tree cleanup = NULL_TREE;
+
       /* TARGET_EXPR temps aren't part of the enclosing block, so add it
 	 to the temps list.  Handle also variable length TARGET_EXPRs.  */
       if (TREE_CODE (DECL_SIZE (temp)) != INTEGER_CST)
@@ -5331,8 +5414,31 @@ gimplify_target_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 
       /* If needed, push the cleanup for the temp.  */
       if (TARGET_EXPR_CLEANUP (targ))
-	gimple_push_cleanup (temp, TARGET_EXPR_CLEANUP (targ),
-			     CLEANUP_EH_ONLY (targ), pre_p);
+	{
+	  if (CLEANUP_EH_ONLY (targ))
+	    gimple_push_cleanup (temp, TARGET_EXPR_CLEANUP (targ),
+				 CLEANUP_EH_ONLY (targ), pre_p);
+	  else
+	    cleanup = TARGET_EXPR_CLEANUP (targ);
+	}
+
+      /* Add a clobber for the temporary going out of scope, like
+	 gimplify_bind_expr.  */
+      if (gimplify_ctxp->in_cleanup_point_expr
+	  && needs_to_live_in_memory (temp))
+	{
+	  tree clobber = build_constructor (TREE_TYPE (temp), NULL);
+	  TREE_THIS_VOLATILE (clobber) = true;
+	  clobber = build2 (MODIFY_EXPR, TREE_TYPE (temp), temp, clobber);
+	  if (cleanup)
+	    cleanup = build2 (COMPOUND_EXPR, void_type_node, cleanup,
+			      clobber);
+	  else
+	    cleanup = clobber;
+	}
+
+      if (cleanup)
+	gimple_push_cleanup (temp, cleanup, false, pre_p);
 
       /* Only expand this once.  */
       TREE_OPERAND (targ, 3) = init;
@@ -6526,6 +6632,53 @@ gimplify_omp_atomic (tree *expr_p, gimple_seq *pre_p)
    return GS_ALL_DONE;
 }
 
+/* Gimplify a TRANSACTION_EXPR.  This involves gimplification of the
+   body, and adding some EH bits.  */
+
+static enum gimplify_status
+gimplify_transaction (tree *expr_p, gimple_seq *pre_p)
+{
+  tree expr = *expr_p, temp, tbody = TRANSACTION_EXPR_BODY (expr);
+  gimple g;
+  gimple_seq body = NULL;
+  struct gimplify_ctx gctx;
+  int subcode = 0;
+
+  /* Wrap the transaction body in a BIND_EXPR so we have a context
+     where to put decls for OpenMP.  */
+  if (TREE_CODE (tbody) != BIND_EXPR)
+    {
+      tree bind = build3 (BIND_EXPR, void_type_node, NULL, tbody, NULL);
+      TREE_SIDE_EFFECTS (bind) = 1;
+      SET_EXPR_LOCATION (bind, EXPR_LOCATION (tbody));
+      TRANSACTION_EXPR_BODY (expr) = bind;
+    }
+
+  push_gimplify_context (&gctx);
+  temp = voidify_wrapper_expr (*expr_p, NULL);
+
+  g = gimplify_and_return_first (TRANSACTION_EXPR_BODY (expr), &body);
+  pop_gimplify_context (g);
+
+  g = gimple_build_transaction (body, NULL);
+  if (TRANSACTION_EXPR_OUTER (expr))
+    subcode = GTMA_IS_OUTER;
+  else if (TRANSACTION_EXPR_RELAXED (expr))
+    subcode = GTMA_IS_RELAXED;
+  gimple_transaction_set_subcode (g, subcode);
+
+  gimplify_seq_add_stmt (pre_p, g);
+
+  if (temp)
+    {
+      *expr_p = temp;
+      return GS_OK;
+    }
+
+  *expr_p = NULL_TREE;
+  return GS_ALL_DONE;
+}
+
 /* Convert the GENERIC expression tree *EXPR_P to GIMPLE.  If the
    expression produces a value to be used as an operand inside a GIMPLE
    statement, the value will be stored back in *EXPR_P.  This value will
@@ -7250,13 +7403,19 @@ gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
 	  ret = gimplify_omp_atomic (expr_p, pre_p);
 	  break;
 
+	case TRANSACTION_EXPR:
+	  ret = gimplify_transaction (expr_p, pre_p);
+	  break;
+
 	case TRUTH_AND_EXPR:
 	case TRUTH_OR_EXPR:
 	case TRUTH_XOR_EXPR:
 	  {
 	    tree orig_type = TREE_TYPE (*expr_p);
+	    tree new_type, xop0, xop1;
 	    *expr_p = gimple_boolify (*expr_p);
-	    if (!useless_type_conversion_p (orig_type, TREE_TYPE (*expr_p)))
+	    new_type = TREE_TYPE (*expr_p);
+	    if (!useless_type_conversion_p (orig_type, new_type))
 	      {
 		*expr_p = fold_convert_loc (input_location, orig_type, *expr_p);
 		ret = GS_OK;
@@ -7280,13 +7439,24 @@ gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
 	      default:
 		break;
 	      }
-
+	    /* Now make sure that operands have compatible type to
+	       expression's new_type.  */
+	    xop0 = TREE_OPERAND (*expr_p, 0);
+	    xop1 = TREE_OPERAND (*expr_p, 1);
+	    if (!useless_type_conversion_p (new_type, TREE_TYPE (xop0)))
+	      TREE_OPERAND (*expr_p, 0) = fold_convert_loc (input_location,
+							    new_type,
+	      						    xop0);
+	    if (!useless_type_conversion_p (new_type, TREE_TYPE (xop1)))
+	      TREE_OPERAND (*expr_p, 1) = fold_convert_loc (input_location,
+							    new_type,
+	      						    xop1);
 	    /* Continue classified as tcc_binary.  */
 	    goto expr_2;
 	  }
 
 	case FMA_EXPR:
-	case VEC_SHUFFLE_EXPR:
+	case VEC_PERM_EXPR:
 	  /* Classified as tcc_expression.  */
 	  goto expr_3;
 
@@ -7779,13 +7949,12 @@ gimplify_one_sizepos (tree *expr_p, gimple_seq *stmt_p)
     }
 }
 
-/* Gimplify the body of statements pointed to by BODY_P and return a
-   GIMPLE_BIND containing the sequence of GIMPLE statements
-   corresponding to BODY_P.  FNDECL is the function decl containing
-   *BODY_P.  */
+/* Gimplify the body of statements of FNDECL and return a GIMPLE_BIND node
+   containing the sequence of corresponding GIMPLE statements.  If DO_PARMS
+   is true, also gimplify the parameters.  */
 
 gimple
-gimplify_body (tree *body_p, tree fndecl, bool do_parms)
+gimplify_body (tree fndecl, bool do_parms)
 {
   location_t saved_location = input_location;
   gimple_seq parm_stmts, seq;
@@ -7806,8 +7975,8 @@ gimplify_body (tree *body_p, tree fndecl, bool do_parms)
      It would seem we don't have to do this for nested functions because
      they are supposed to be output and then the outer function gimplified
      first, but the g++ front end doesn't always do it that way.  */
-  unshare_body (body_p, fndecl);
-  unvisit_body (body_p, fndecl);
+  unshare_body (fndecl);
+  unvisit_body (fndecl);
 
   cgn = cgraph_get_node (fndecl);
   if (cgn && cgn->origin)
@@ -7818,11 +7987,11 @@ gimplify_body (tree *body_p, tree fndecl, bool do_parms)
 
   /* Resolve callee-copies.  This has to be done before processing
      the body so that DECL_VALUE_EXPR gets processed correctly.  */
-  parm_stmts = (do_parms) ? gimplify_parameters () : NULL;
+  parm_stmts = do_parms ? gimplify_parameters () : NULL;
 
   /* Gimplify the function's body.  */
   seq = NULL;
-  gimplify_stmt (body_p, &seq);
+  gimplify_stmt (&DECL_SAVED_TREE (fndecl), &seq);
   outer_bind = gimple_seq_first_stmt (seq);
   if (!outer_bind)
     {
@@ -7838,7 +8007,7 @@ gimplify_body (tree *body_p, tree fndecl, bool do_parms)
   else
     outer_bind = gimple_build_bind (NULL_TREE, seq, NULL);
 
-  *body_p = NULL_TREE;
+  DECL_SAVED_TREE (fndecl) = NULL_TREE;
 
   /* If we had callee-copies statements, insert them at the beginning
      of the function and clear DECL_VALUE_EXPR_P on the parameters.  */
@@ -7956,7 +8125,7 @@ gimplify_function_tree (tree fndecl)
       && !needs_to_live_in_memory (ret))
     DECL_GIMPLE_REG_P (ret) = 1;
 
-  bind = gimplify_body (&DECL_SAVED_TREE (fndecl), fndecl, true);
+  bind = gimplify_body (fndecl, true);
 
   /* The tree body of the function is no longer needed, replace it
      with the new GIMPLE body.  */
@@ -7979,24 +8148,24 @@ gimplify_function_tree (tree fndecl)
       tree tmp_var;
       gimple call;
 
-      x = implicit_built_in_decls[BUILT_IN_RETURN_ADDRESS];
+      x = builtin_decl_implicit (BUILT_IN_RETURN_ADDRESS);
       call = gimple_build_call (x, 1, integer_zero_node);
       tmp_var = create_tmp_var (ptr_type_node, "return_addr");
       gimple_call_set_lhs (call, tmp_var);
       gimplify_seq_add_stmt (&cleanup, call);
-      x = implicit_built_in_decls[BUILT_IN_PROFILE_FUNC_EXIT];
+      x = builtin_decl_implicit (BUILT_IN_PROFILE_FUNC_EXIT);
       call = gimple_build_call (x, 2,
 				build_fold_addr_expr (current_function_decl),
 				tmp_var);
       gimplify_seq_add_stmt (&cleanup, call);
       tf = gimple_build_try (seq, cleanup, GIMPLE_TRY_FINALLY);
 
-      x = implicit_built_in_decls[BUILT_IN_RETURN_ADDRESS];
+      x = builtin_decl_implicit (BUILT_IN_RETURN_ADDRESS);
       call = gimple_build_call (x, 1, integer_zero_node);
       tmp_var = create_tmp_var (ptr_type_node, "return_addr");
       gimple_call_set_lhs (call, tmp_var);
       gimplify_seq_add_stmt (&body, call);
-      x = implicit_built_in_decls[BUILT_IN_PROFILE_FUNC_ENTER];
+      x = builtin_decl_implicit (BUILT_IN_PROFILE_FUNC_ENTER);
       call = gimple_build_call (x, 2,
 				build_fold_addr_expr (current_function_decl),
 				tmp_var);

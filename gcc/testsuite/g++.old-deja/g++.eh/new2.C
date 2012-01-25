@@ -1,5 +1,7 @@
 // { dg-do run  }
 // Test that a throw in B's constructor destroys the A and frees the memory.
+// Avoid use of none-overridable new/delete operators in shared
+// { dg-options "-static" { target *-*-mingw* } }
 
 #include <cstddef>
 #include <cstdlib>
@@ -33,7 +35,10 @@ A::~A() { created = 0; }
 B::B(A) { throw 1; }
 void foo (B*) { }
 
-void* operator new (size_t size) throw (std::bad_alloc)
+void* operator new (size_t size)
+#if __cplusplus <= 199711L
+  throw (std::bad_alloc)
+#endif
 {
   ++newed;
   return (void *) std::malloc (size);

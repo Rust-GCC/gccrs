@@ -9,11 +9,11 @@ import (
 	"crypto/rsa"
 	"crypto/subtle"
 	"crypto/x509"
+	"errors"
 	"io"
-	"os"
 )
 
-func (c *Conn) serverHandshake() os.Error {
+func (c *Conn) serverHandshake() error {
 	config := c.config
 	msg, err := c.readHandshake()
 	if err != nil {
@@ -30,7 +30,7 @@ func (c *Conn) serverHandshake() os.Error {
 	c.vers = vers
 	c.haveVers = true
 
-	finishedHash := newFinishedHash()
+	finishedHash := newFinishedHash(vers)
 	finishedHash.Write(clientHello.marshal())
 
 	hello := new(serverHelloMsg)
@@ -56,18 +56,25 @@ Curves:
 	ellipticOk := supportedCurve && supportedPointFormat
 
 	var suite *cipherSuite
-	var suiteId uint16
 FindCipherSuite:
 	for _, id := range clientHello.cipherSuites {
 		for _, supported := range config.cipherSuites() {
 			if id == supported {
-				suite = cipherSuites[id]
+				suite = nil
+				for _, s := range cipherSuites {
+					if s.id == id {
+						suite = s
+						break
+					}
+				}
+				if suite == nil {
+					continue
+				}
 				// Don't select a ciphersuite which we can't
 				// support for this client.
 				if suite.elliptic && !ellipticOk {
 					continue
 				}
-				suiteId = id
 				break FindCipherSuite
 			}
 		}
@@ -87,8 +94,8 @@ FindCipherSuite:
 	}
 
 	hello.vers = vers
-	hello.cipherSuite = suiteId
-	t := uint32(config.time())
+	hello.cipherSuite = suite.id
+	t := uint32(config.time().Unix())
 	hello.random = make([]byte, 32)
 	hello.random[0] = byte(t >> 24)
 	hello.random[1] = byte(t >> 16)
@@ -115,7 +122,12 @@ FindCipherSuite:
 	}
 
 	certMsg := new(certificateMsg)
-	certMsg.certificates = config.Certificates[0].Certificate
+	if len(clientHello.serverName) > 0 {
+		c.serverName = clientHello.serverName
+		certMsg.certificates = config.getCertificateForName(clientHello.serverName).Certificate
+	} else {
+		certMsg.certificates = config.Certificates[0].Certificate
+	}
 	finishedHash.Write(certMsg.marshal())
 	c.writeRecord(recordTypeHandshake, certMsg.marshal())
 
@@ -128,7 +140,6 @@ FindCipherSuite:
 	}
 
 	keyAgreement := suite.ka()
-
 	skx, err := keyAgreement.generateServerKeyExchange(config, clientHello, hello)
 	if err != nil {
 		c.sendAlert(alertHandshakeFailure)
@@ -139,14 +150,19 @@ FindCipherSuite:
 		c.writeRecord(recordTypeHandshake, skx.marshal())
 	}
 
-	if config.AuthenticateClient {
+	if config.ClientAuth >= RequestClientCert {
 		// Request a client certificate
 		certReq := new(certificateRequestMsg)
 		certReq.certificateTypes = []byte{certTypeRSASign}
+
 		// An empty list of certificateAuthorities signals to
 		// the client that it may send any certificate in response
-		// to our request.
-
+		// to our request. When we know the CAs we trust, then
+		// we can send them down, so that the client can choose
+		// an appropriate certificate to give to us.
+		if config.ClientCAs != nil {
+			certReq.certificateAuthorities = config.ClientCAs.Subjects()
+		}
 		finishedHash.Write(certReq.marshal())
 		c.writeRecord(recordTypeHandshake, certReq.marshal())
 	}
@@ -155,52 +171,87 @@ FindCipherSuite:
 	finishedHash.Write(helloDone.marshal())
 	c.writeRecord(recordTypeHandshake, helloDone.marshal())
 
-	var pub *rsa.PublicKey
-	if config.AuthenticateClient {
-		// Get client certificate
-		msg, err = c.readHandshake()
-		if err != nil {
-			return err
-		}
-		certMsg, ok = msg.(*certificateMsg)
-		if !ok {
-			return c.sendAlert(alertUnexpectedMessage)
-		}
-		finishedHash.Write(certMsg.marshal())
+	var pub *rsa.PublicKey // public key for client auth, if any
 
-		certs := make([]*x509.Certificate, len(certMsg.certificates))
-		for i, asn1Data := range certMsg.certificates {
-			cert, err := x509.ParseCertificate(asn1Data)
-			if err != nil {
-				c.sendAlert(alertBadCertificate)
-				return os.NewError("could not parse client's certificate: " + err.String())
-			}
-			certs[i] = cert
-		}
-
-		// TODO(agl): do better validation of certs: max path length, name restrictions etc.
-		for i := 1; i < len(certs); i++ {
-			if err := certs[i-1].CheckSignatureFrom(certs[i]); err != nil {
-				c.sendAlert(alertBadCertificate)
-				return os.NewError("could not validate certificate signature: " + err.String())
-			}
-		}
-
-		if len(certs) > 0 {
-			key, ok := certs[0].PublicKey.(*rsa.PublicKey)
-			if !ok {
-				return c.sendAlert(alertUnsupportedCertificate)
-			}
-			pub = key
-			c.peerCertificates = certs
-		}
-	}
-
-	// Get client key exchange
 	msg, err = c.readHandshake()
 	if err != nil {
 		return err
 	}
+
+	// If we requested a client certificate, then the client must send a
+	// certificate message, even if it's empty.
+	if config.ClientAuth >= RequestClientCert {
+		if certMsg, ok = msg.(*certificateMsg); !ok {
+			return c.sendAlert(alertHandshakeFailure)
+		}
+		finishedHash.Write(certMsg.marshal())
+
+		if len(certMsg.certificates) == 0 {
+			// The client didn't actually send a certificate
+			switch config.ClientAuth {
+			case RequireAnyClientCert, RequireAndVerifyClientCert:
+				c.sendAlert(alertBadCertificate)
+				return errors.New("tls: client didn't provide a certificate")
+			}
+		}
+
+		certs := make([]*x509.Certificate, len(certMsg.certificates))
+		for i, asn1Data := range certMsg.certificates {
+			if certs[i], err = x509.ParseCertificate(asn1Data); err != nil {
+				c.sendAlert(alertBadCertificate)
+				return errors.New("tls: failed to parse client certificate: " + err.Error())
+			}
+		}
+
+		if c.config.ClientAuth >= VerifyClientCertIfGiven && len(certs) > 0 {
+			opts := x509.VerifyOptions{
+				Roots:         c.config.ClientCAs,
+				CurrentTime:   c.config.time(),
+				Intermediates: x509.NewCertPool(),
+			}
+
+			for i, cert := range certs {
+				if i == 0 {
+					continue
+				}
+				opts.Intermediates.AddCert(cert)
+			}
+
+			chains, err := certs[0].Verify(opts)
+			if err != nil {
+				c.sendAlert(alertBadCertificate)
+				return errors.New("tls: failed to verify client's certificate: " + err.Error())
+			}
+
+			ok := false
+			for _, ku := range certs[0].ExtKeyUsage {
+				if ku == x509.ExtKeyUsageClientAuth {
+					ok = true
+					break
+				}
+			}
+			if !ok {
+				c.sendAlert(alertHandshakeFailure)
+				return errors.New("tls: client's certificate's extended key usage doesn't permit it to be used for client authentication")
+			}
+
+			c.verifiedChains = chains
+		}
+
+		if len(certs) > 0 {
+			if pub, ok = certs[0].PublicKey.(*rsa.PublicKey); !ok {
+				return c.sendAlert(alertUnsupportedCertificate)
+			}
+			c.peerCertificates = certs
+		}
+
+		msg, err = c.readHandshake()
+		if err != nil {
+			return err
+		}
+	}
+
+	// Get client key exchange
 	ckx, ok := msg.(*clientKeyExchangeMsg)
 	if !ok {
 		return c.sendAlert(alertUnexpectedMessage)
@@ -223,30 +274,30 @@ FindCipherSuite:
 			return c.sendAlert(alertUnexpectedMessage)
 		}
 
-		digest := make([]byte, 36)
-		copy(digest[0:16], finishedHash.serverMD5.Sum())
-		copy(digest[16:36], finishedHash.serverSHA1.Sum())
+		digest := make([]byte, 0, 36)
+		digest = finishedHash.serverMD5.Sum(digest)
+		digest = finishedHash.serverSHA1.Sum(digest)
 		err = rsa.VerifyPKCS1v15(pub, crypto.MD5SHA1, digest, certVerify.signature)
 		if err != nil {
 			c.sendAlert(alertBadCertificate)
-			return os.NewError("could not validate signature of connection nonces: " + err.String())
+			return errors.New("could not validate signature of connection nonces: " + err.Error())
 		}
 
 		finishedHash.Write(certVerify.marshal())
 	}
 
-	preMasterSecret, err := keyAgreement.processClientKeyExchange(config, ckx)
+	preMasterSecret, err := keyAgreement.processClientKeyExchange(config, ckx, c.vers)
 	if err != nil {
 		c.sendAlert(alertHandshakeFailure)
 		return err
 	}
 
 	masterSecret, clientMAC, serverMAC, clientKey, serverKey, clientIV, serverIV :=
-		keysFromPreMasterSecret10(preMasterSecret, clientHello.random, hello.random, suite.macLen, suite.keyLen, suite.ivLen)
+		keysFromPreMasterSecret(c.vers, preMasterSecret, clientHello.random, hello.random, suite.macLen, suite.keyLen, suite.ivLen)
 
 	clientCipher := suite.cipher(clientKey, clientIV, true /* for reading */ )
-	clientHash := suite.mac(clientMAC)
-	c.in.prepareCipherSpec(clientCipher, clientHash)
+	clientHash := suite.mac(c.vers, clientMAC)
+	c.in.prepareCipherSpec(c.vers, clientCipher, clientHash)
 	c.readRecord(recordTypeChangeCipherSpec)
 	if err := c.error(); err != nil {
 		return err
@@ -283,8 +334,8 @@ FindCipherSuite:
 	finishedHash.Write(clientFinished.marshal())
 
 	serverCipher := suite.cipher(serverKey, serverIV, false /* not for reading */ )
-	serverHash := suite.mac(serverMAC)
-	c.out.prepareCipherSpec(serverCipher, serverHash)
+	serverHash := suite.mac(c.vers, serverMAC)
+	c.out.prepareCipherSpec(c.vers, serverCipher, serverHash)
 	c.writeRecord(recordTypeChangeCipherSpec, []byte{1})
 
 	finished := new(finishedMsg)
@@ -292,7 +343,7 @@ FindCipherSuite:
 	c.writeRecord(recordTypeHandshake, finished.marshal())
 
 	c.handshakeComplete = true
-	c.cipherSuite = suiteId
+	c.cipherSuite = suite.id
 
 	return nil
 }

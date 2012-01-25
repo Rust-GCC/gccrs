@@ -2,17 +2,39 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build plan9
+
 package time
 
-import (
-	"os"
-	"syscall"
-)
+import "syscall"
 
-func sysSleep(t int64) os.Error {
-	err := syscall.Sleep(t)
+// for testing: whatever interrupts a sleep
+func interrupt() {
+	// cannot predict pid, don't want to kill group
+}
+
+// readFile reads and returns the content of the named file.
+// It is a trivial implementation of ioutil.ReadFile, reimplemented
+// here to avoid depending on io/ioutil or os.
+func readFile(name string) ([]byte, error) {
+	f, err := syscall.Open(name, syscall.O_RDONLY)
 	if err != nil {
-		return os.NewSyscallError("sleep", err)
+		return nil, err
 	}
-	return nil
+	defer syscall.Close(f)
+	var (
+		buf [4096]byte
+		ret []byte
+		n   int
+	)
+	for {
+		n, err = syscall.Read(f, buf[:])
+		if n > 0 {
+			ret = append(ret, buf[:n]...)
+		}
+		if n == 0 || err != nil {
+			break
+		}
+	}
+	return ret, err
 }

@@ -4,6 +4,10 @@
 
 package pkgtest
 
-func Foo() {}
+import "bytes"
+
+func Foo() *bytes.Buffer {
+	return nil
+}
 
 func Sqrt(x float64) float64

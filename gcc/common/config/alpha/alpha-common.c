@@ -33,8 +33,21 @@ along with GCC; see the file COPYING3.  If not see
 static const struct default_options alpha_option_optimization_table[] =
   {
     { OPT_LEVELS_1_PLUS, OPT_fomit_frame_pointer, NULL, 1 },
+    /* Enable redundant extension instructions removal at -O2 and higher.  */
+    { OPT_LEVELS_2_PLUS, OPT_free, NULL, 1 },
     { OPT_LEVELS_NONE, 0, NULL, 0 }
   };
+
+/* Implement TARGET_OPTION_INIT_STRUCT.  */
+
+static void
+alpha_option_init_struct (struct gcc_options *opts ATTRIBUTE_UNUSED)
+{
+#if TARGET_ABI_OPEN_VMS
+  /* Enable section anchors by default.  */
+  opts->x_flag_section_anchors = 1;
+#endif
+}
 
 /* Implement TARGET_HANDLE_OPTION.  */
 
@@ -74,6 +87,9 @@ alpha_handle_option (struct gcc_options *opts,
   (TARGET_DEFAULT | TARGET_CPU_DEFAULT | TARGET_DEFAULT_EXPLICIT_RELOCS)
 #undef TARGET_HANDLE_OPTION
 #define TARGET_HANDLE_OPTION alpha_handle_option
+
+#undef TARGET_OPTION_INIT_STRUCT
+#define TARGET_OPTION_INIT_STRUCT alpha_option_init_struct
 
 #undef TARGET_OPTION_OPTIMIZATION_TABLE
 #define TARGET_OPTION_OPTIMIZATION_TABLE alpha_option_optimization_table

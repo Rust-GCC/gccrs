@@ -1,0 +1,2 @@
+# MinGW-specific parts of LIB_SPEC
+SHLIB_LC = -lmingwthrd -lmingw32 -lmingwex -lmoldname -lmsvcrt -ladvapi32 -lshell32 -luser32 -lkernel32

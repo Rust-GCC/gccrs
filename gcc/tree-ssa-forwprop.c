@@ -465,16 +465,15 @@ forward_propagate_into_comparison (gimple_stmt_iterator *gsi)
   gimple stmt = gsi_stmt (*gsi);
   tree tmp;
   bool cfg_changed = false;
+  tree type = TREE_TYPE (gimple_assign_lhs (stmt));
   tree rhs1 = gimple_assign_rhs1 (stmt);
   tree rhs2 = gimple_assign_rhs2 (stmt);
 
   /* Combine the comparison with defining statements.  */
   tmp = forward_propagate_into_comparison_1 (stmt,
 					     gimple_assign_rhs_code (stmt),
-					     TREE_TYPE
-					       (gimple_assign_lhs (stmt)),
-					     rhs1, rhs2);
-  if (tmp)
+					     type, rhs1, rhs2);
+  if (tmp && useless_type_conversion_p (type, TREE_TYPE (tmp)))
     {
       gimple_assign_set_rhs_from_tree (gsi, tmp);
       fold_stmt (gsi);
@@ -598,7 +597,8 @@ forward_propagate_into_cond (gimple_stmt_iterator *gsi_p)
 	}
     }
 
-  if (tmp)
+  if (tmp
+      && is_gimple_condexpr (tmp))
     {
       if (dump_file && tmp)
 	{
@@ -804,11 +804,6 @@ forward_propagate_addr_expr_1 (tree name, tree def_rhs,
       && ((rhs_code == SSA_NAME && rhs == name)
 	  || CONVERT_EXPR_CODE_P (rhs_code)))
     {
-      /* Don't propagate restrict pointer's RHS.  */
-      if (TYPE_RESTRICT (TREE_TYPE (lhs))
-	  && !TYPE_RESTRICT (TREE_TYPE (name))
-	  && !is_gimple_min_invariant (def_rhs))
-	return false;
       /* Only recurse if we don't deal with a single use or we cannot
 	 do the propagation to the current statement.  In particular
 	 we can end up with a conversion needed for a non-invariant
@@ -915,7 +910,7 @@ forward_propagate_addr_expr_1 (tree name, tree def_rhs,
 		     TREE_TYPE (gimple_assign_rhs1 (use_stmt))))
 	{
 	  tree *def_rhs_basep = &TREE_OPERAND (def_rhs, 0);
-	  tree new_offset, new_base, saved;
+	  tree new_offset, new_base, saved, new_lhs;
 	  while (handled_component_p (*def_rhs_basep))
 	    def_rhs_basep = &TREE_OPERAND (*def_rhs_basep, 0);
 	  saved = *def_rhs_basep;
@@ -934,9 +929,12 @@ forward_propagate_addr_expr_1 (tree name, tree def_rhs,
 	  *def_rhs_basep = build2 (MEM_REF, TREE_TYPE (*def_rhs_basep),
 				   new_base, new_offset);
 	  TREE_THIS_VOLATILE (*def_rhs_basep) = TREE_THIS_VOLATILE (lhs);
+	  TREE_SIDE_EFFECTS (*def_rhs_basep) = TREE_SIDE_EFFECTS (lhs);
 	  TREE_THIS_NOTRAP (*def_rhs_basep) = TREE_THIS_NOTRAP (lhs);
-	  gimple_assign_set_lhs (use_stmt,
-				 unshare_expr (TREE_OPERAND (def_rhs, 0)));
+	  new_lhs = unshare_expr (TREE_OPERAND (def_rhs, 0));
+	  gimple_assign_set_lhs (use_stmt, new_lhs);
+	  TREE_THIS_VOLATILE (new_lhs) = TREE_THIS_VOLATILE (lhs);
+	  TREE_SIDE_EFFECTS (new_lhs) = TREE_SIDE_EFFECTS (lhs);
 	  *def_rhs_basep = saved;
 	  tidy_after_forward_propagate_addr (use_stmt);
 	  /* Continue propagating into the RHS if this was not the
@@ -996,7 +994,7 @@ forward_propagate_addr_expr_1 (tree name, tree def_rhs,
 		     TREE_TYPE (TREE_OPERAND (def_rhs, 0))))
 	{
 	  tree *def_rhs_basep = &TREE_OPERAND (def_rhs, 0);
-	  tree new_offset, new_base, saved;
+	  tree new_offset, new_base, saved, new_rhs;
 	  while (handled_component_p (*def_rhs_basep))
 	    def_rhs_basep = &TREE_OPERAND (*def_rhs_basep, 0);
 	  saved = *def_rhs_basep;
@@ -1015,9 +1013,12 @@ forward_propagate_addr_expr_1 (tree name, tree def_rhs,
 	  *def_rhs_basep = build2 (MEM_REF, TREE_TYPE (*def_rhs_basep),
 				   new_base, new_offset);
 	  TREE_THIS_VOLATILE (*def_rhs_basep) = TREE_THIS_VOLATILE (rhs);
+	  TREE_SIDE_EFFECTS (*def_rhs_basep) = TREE_SIDE_EFFECTS (rhs);
 	  TREE_THIS_NOTRAP (*def_rhs_basep) = TREE_THIS_NOTRAP (rhs);
-	  gimple_assign_set_rhs1 (use_stmt,
-				  unshare_expr (TREE_OPERAND (def_rhs, 0)));
+	  new_rhs = unshare_expr (TREE_OPERAND (def_rhs, 0));
+	  gimple_assign_set_rhs1 (use_stmt, new_rhs);
+	  TREE_THIS_VOLATILE (new_rhs) = TREE_THIS_VOLATILE (rhs);
+	  TREE_SIDE_EFFECTS (new_rhs) = TREE_SIDE_EFFECTS (rhs);
 	  *def_rhs_basep = saved;
 	  fold_stmt_inplace (use_stmt_gsi);
 	  tidy_after_forward_propagate_addr (use_stmt);
@@ -1601,7 +1602,8 @@ simplify_builtin_call (gimple_stmt_iterator *gsi_p, tree callee2)
 	      if (!is_gimple_val (ptr1))
 		ptr1 = force_gimple_operand_gsi (gsi_p, ptr1, true, NULL_TREE,
 						 true, GSI_SAME_STMT);
-	      gimple_call_set_fndecl (stmt2, built_in_decls [BUILT_IN_MEMCPY]);
+	      gimple_call_set_fndecl (stmt2,
+				      builtin_decl_explicit (BUILT_IN_MEMCPY));
 	      gimple_call_set_arg (stmt2, 0, ptr1);
 	      gimple_call_set_arg (stmt2, 1, new_str_cst);
 	      gimple_call_set_arg (stmt2, 2,

@@ -1015,6 +1015,7 @@ adjust_field_rtx_def (type_p t, options_p ARG_UNUSED (opt))
 	  {
 	  case NOTE_INSN_MAX:
 	  case NOTE_INSN_DELETED_LABEL:
+	  case NOTE_INSN_DELETED_DEBUG_LABEL:
 	    note_flds = create_field (note_flds, &string_type, "rt_str");
 	    break;
 
@@ -1816,6 +1817,11 @@ struct file_rule_st files_rules[] = {
   { DIR_PREFIX_REGEX "objc/objc-act\\.h$",
     REG_EXTENDED, NULL_REGEX,
     "gt-objc-objc-act.h", "objc/objc-act.c", NULL_FRULACT },
+
+  /* objc/objc-map.h gives gt-objc-objc-map.h for objc/objc-map.c !  */
+  { DIR_PREFIX_REGEX "objc/objc-map\\.h$",
+    REG_EXTENDED, NULL_REGEX,
+    "gt-objc-objc-map.h", "objc/objc-map.c", NULL_FRULACT },
 
   /* General cases.  For header *.h and source *.c files, we need
    * special actions to handle the language.  */
@@ -3645,14 +3651,13 @@ write_field_root (outf_p f, pair_p v, type_p type, const char *name,
 		  int has_length, struct fileloc *line, const char *if_marked,
 		  bool emit_pch, type_p field_type, const char *field_name)
 {
+  struct pair newv;
   /* If the field reference is relative to V, rather than to some
      subcomponent of V, we can mark any subarrays with a single stride.
      We're effectively treating the field as a global variable in its
      own right.  */
   if (v && type == v->type)
     {
-      struct pair newv;
-
       newv = *v;
       newv.type = field_type;
       newv.name = ACONCAT ((v->name, ".", field_name, NULL));

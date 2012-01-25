@@ -467,7 +467,7 @@ find_end_label (rtx kind)
 	      /* The return we make may have delay slots too.  */
 	      rtx insn = gen_return ();
 	      insn = emit_jump_insn (insn);
-	      JUMP_LABEL (insn) = ret_rtx;
+	      set_return_jump_label (insn);
 	      emit_barrier ();
 	      if (num_delay_slots (insn) > 0)
 		obstack_ptr_grow (&unfilled_slots_obstack, insn);
@@ -2716,7 +2716,8 @@ fill_slots_from_thread (rtx insn, rtx condition, rtx thread,
 	  if (!must_annul
 	      && (condition == const_true_rtx
 	          || (! insn_sets_resource_p (trial, &opposite_needed, true)
-		      && ! may_trap_or_fault_p (pat))))
+		      && ! may_trap_or_fault_p (pat)
+		      && ! RTX_FRAME_RELATED_P (trial))))
 	    {
 	      old_trial = trial;
 	      trial = try_split (pat, trial, 0);
@@ -3349,6 +3350,21 @@ delete_jump (rtx insn)
     delete_computation (insn);
 }
 
+static rtx
+label_before_next_insn (rtx x, rtx scan_limit)
+{
+  rtx insn = next_active_insn (x);
+  while (insn)
+    {
+      insn = PREV_INSN (insn);
+      if (insn == scan_limit || insn == NULL_RTX)
+	return NULL_RTX;
+      if (LABEL_P (insn))
+	break;
+    }
+  return insn;
+}
+
 
 /* Once we have tried two ways to fill a delay slot, make a pass over the
    code to try to improve the results and to do such things as more jump
@@ -3585,9 +3601,11 @@ relax_delay_slots (rtx first)
 	    }
 	}
 
+      /* See if we have a simple (conditional) jump that is useless.  */
       if (! INSN_ANNULLED_BRANCH_P (delay_insn)
-	  && prev_active_insn (target_label) == insn
 	  && ! condjump_in_parallel_p (delay_insn)
+	  && prev_active_insn (target_label) == insn
+	  && ! BARRIER_P (prev_nonnote_insn (target_label))
 #ifdef HAVE_cc0
 	  /* If the last insn in the delay slot sets CC0 for some insn,
 	     various code assumes that it is in a delay slot.  We could
@@ -3634,7 +3652,7 @@ relax_delay_slots (rtx first)
 	 identical to the one in its delay slot.  In this case, we can just
 	 delete the branch and the insn in its delay slot.  */
       if (next && NONJUMP_INSN_P (next)
-	  && prev_label (next_active_insn (next)) == target_label
+	  && label_before_next_insn (next, insn) == target_label
 	  && simplejump_p (insn)
 	  && XVECLEN (pat, 0) == 2
 	  && rtx_equal_p (PATTERN (next), PATTERN (XVECEXP (pat, 0, 1))))

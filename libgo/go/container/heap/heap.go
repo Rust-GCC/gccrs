@@ -3,7 +3,13 @@
 // license that can be found in the LICENSE file.
 
 // Package heap provides heap operations for any type that implements
-// heap.Interface.
+// heap.Interface. A heap is a tree with the property that each node is the
+// highest-valued node in its subtree.
+//
+// A heap is a common way to impement a priority queue. To build a priority
+// queue, implement the Heap interface with the (negative) priority as the
+// ordering for the Less method, so Push adds items while Pop removes the
+// highest-priority item from the queue.
 //
 package heap
 
@@ -11,14 +17,17 @@ import "sort"
 
 // Any type that implements heap.Interface may be used as a
 // min-heap with the following invariants (established after
-// Init has been called):
+// Init has been called or if the data is empty or sorted):
 //
 //	!h.Less(j, i) for 0 <= i < h.Len() and j = 2*i+1 or 2*i+2 and j < h.Len()
 //
+// Note that Push and Pop in this interface are for package heap's
+// implementation to call.  To add and remove things from the heap,
+// use heap.Push and heap.Pop.
 type Interface interface {
 	sort.Interface
-	Push(x interface{})
-	Pop() interface{}
+	Push(x interface{}) // add x as element Len()
+	Pop() interface{}   // remove and return element Len() - 1.
 }
 
 // A heap must be initialized before any of the heap operations

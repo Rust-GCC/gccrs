@@ -3,13 +3,9 @@
 // license that can be found in the LICENSE file.
 
 package runtime
+#include "runtime.h"
 #include "map.h"
-#define nil NULL
 
-typedef unsigned char byte;
-typedef _Bool bool;
-
-typedef struct __go_map_type MapType;
 typedef struct __go_map Hmap;
 typedef struct __go_hash_iter hiter;
 
@@ -43,6 +39,12 @@ func mapassign2(h *Hmap, key *byte, val *byte, p bool) {
 		valsize = h->__descriptor->__map_descriptor->__val_type->__size;
 		__builtin_memcpy(mapval, val, valsize);
 	}
+}
+
+/* Delete a key from a map.  */
+
+func mapdelete(h *Hmap, key *byte) {
+	__go_map_delete(h, key);
 }
 
 /* Initialize a range over a map.  */

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -445,7 +445,7 @@ package Errout is
 
    Error_Msg_Qual_Level : Int renames Err_Vars.Error_Msg_Qual_Level;
    --  Number of levels of qualification required for type name (see the
-   --  description of the } insertion character. Note that this value does
+   --  description of the } insertion character). Note that this value does
    --  note get reset by any Error_Msg call, so the caller is responsible
    --  for resetting it.
 
@@ -771,7 +771,8 @@ package Errout is
    procedure Set_Specific_Warning_Off
      (Loc    : Source_Ptr;
       Msg    : String;
-      Config : Boolean)
+      Config : Boolean;
+      Used   : Boolean := False)
      renames Erroutc.Set_Specific_Warning_Off;
    --  This is called in response to the two argument form of pragma Warnings
    --  where the first argument is OFF, and the second argument is the prefix

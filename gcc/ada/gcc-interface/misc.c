@@ -124,17 +124,6 @@ gnat_handle_option (size_t scode, const char *arg ATTRIBUTE_UNUSED, int value,
       warn_maybe_uninitialized = value;
       break;
 
-    case OPT_Wmissing_prototypes:
-    case OPT_Wstrict_prototypes:
-    case OPT_Wwrite_strings:
-    case OPT_Wlong_long:
-    case OPT_Wvariadic_macros:
-    case OPT_Wold_style_definition:
-    case OPT_Wmissing_format_attribute:
-    case OPT_Woverlength_strings:
-      /* These are used in the GCC Makefile.  */
-      break;
-
     case OPT_gant:
       warning (0, "%<-gnat%> misspelled as %<-gant%>");
 
@@ -394,8 +383,12 @@ gnat_print_decl (FILE *file, tree node, int indent)
       break;
 
     case VAR_DECL:
-      print_node (file, "renamed object", DECL_RENAMED_OBJECT (node),
-		  indent + 4);
+      if (DECL_LOOP_PARM_P (node))
+	print_node (file, "induction var", DECL_INDUCTION_VAR (node),
+		    indent + 4);
+      else
+	print_node (file, "renamed object", DECL_RENAMED_OBJECT (node),
+		    indent + 4);
       break;
 
     default:
@@ -563,9 +556,8 @@ gnat_type_max_size (const_tree gnu_type)
   /* If we don't have a constant, see what we can get from TYPE_ADA_SIZE,
      which should stay untouched.  */
   if (!host_integerp (max_unitsize, 1)
-      && (TREE_CODE (gnu_type) == RECORD_TYPE
-	  || TREE_CODE (gnu_type) == UNION_TYPE
-	  || TREE_CODE (gnu_type) == QUAL_UNION_TYPE)
+      && RECORD_OR_UNION_TYPE_P (gnu_type)
+      && !TYPE_FAT_POINTER_P (gnu_type)
       && TYPE_ADA_SIZE (gnu_type))
     {
       tree max_adasize = max_size (TYPE_ADA_SIZE (gnu_type), true);

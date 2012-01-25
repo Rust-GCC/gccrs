@@ -1,5 +1,5 @@
 /* OpenMP directive translation -- generate GCC trees from gfc_code.
-   Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010, 2011
+   Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
    Contributed by Jakub Jelinek <jakub@redhat.com>
 
@@ -249,7 +249,8 @@ gfc_omp_clause_copy_ctor (tree clause, tree dest, tree src)
   gfc_conv_descriptor_data_set (&cond_block, dest, ptr);
 
   call = build_call_expr_loc (input_location,
-			  built_in_decls[BUILT_IN_MEMCPY], 3, ptr,
+			  builtin_decl_explicit (BUILT_IN_MEMCPY),
+			  3, ptr,
 			  fold_convert (pvoid_type_node,
 					gfc_conv_descriptor_data_get (src)),
 			  size);
@@ -300,7 +301,7 @@ gfc_omp_clause_assign_op (tree clause ATTRIBUTE_UNUSED, tree dest, tree src)
 			  size, esize);
   size = gfc_evaluate_now (fold_convert (size_type_node, size), &block);
   call = build_call_expr_loc (input_location,
-			  built_in_decls[BUILT_IN_MEMCPY], 3,
+			  builtin_decl_explicit (BUILT_IN_MEMCPY), 3,
 			  fold_convert (pvoid_type_node,
 					gfc_conv_descriptor_data_get (dest)),
 			  fold_convert (pvoid_type_node,
@@ -325,7 +326,7 @@ gfc_omp_clause_dtor (tree clause ATTRIBUTE_UNUSED, tree decl)
 
   /* Allocatable arrays in FIRSTPRIVATE/LASTPRIVATE etc. clauses need
      to be deallocated if they were allocated.  */
-  return gfc_trans_dealloc_allocated (decl);
+  return gfc_trans_dealloc_allocated (decl, false);
 }
 
 
@@ -707,7 +708,7 @@ gfc_trans_omp_array_reduction (tree c, gfc_symbol *sym, locus where)
       gfc_start_block (&block);
       gfc_add_expr_to_block (&block, gfc_trans_assignment (e3, e4, false,
 			     true));
-      gfc_add_expr_to_block (&block, gfc_trans_dealloc_allocated (decl));
+      gfc_add_expr_to_block (&block, gfc_trans_dealloc_allocated (decl, false));
       stmt = gfc_finish_block (&block);
     }
   else
@@ -1273,7 +1274,7 @@ gfc_trans_omp_atomic (gfc_code *code)
 static tree
 gfc_trans_omp_barrier (void)
 {
-  tree decl = built_in_decls [BUILT_IN_GOMP_BARRIER];
+  tree decl = builtin_decl_explicit (BUILT_IN_GOMP_BARRIER);
   return build_call_expr_loc (input_location, decl, 0);
 }
 
@@ -1547,7 +1548,7 @@ gfc_trans_omp_do (gfc_code *code, stmtblock_t *pblock,
 static tree
 gfc_trans_omp_flush (void)
 {
-  tree decl = built_in_decls [BUILT_IN_SYNC_SYNCHRONIZE];
+  tree decl = builtin_decl_explicit (BUILT_IN_SYNC_SYNCHRONIZE);
   return build_call_expr_loc (input_location, decl, 0);
 }
 
@@ -1738,14 +1739,14 @@ gfc_trans_omp_task (gfc_code *code)
 static tree
 gfc_trans_omp_taskwait (void)
 {
-  tree decl = built_in_decls [BUILT_IN_GOMP_TASKWAIT];
+  tree decl = builtin_decl_explicit (BUILT_IN_GOMP_TASKWAIT);
   return build_call_expr_loc (input_location, decl, 0);
 }
 
 static tree
 gfc_trans_omp_taskyield (void)
 {
-  tree decl = built_in_decls [BUILT_IN_GOMP_TASKYIELD];
+  tree decl = builtin_decl_explicit (BUILT_IN_GOMP_TASKYIELD);
   return build_call_expr_loc (input_location, decl, 0);
 }
 

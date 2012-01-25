@@ -1,7 +1,7 @@
 /* Convert function calls to rtl insns, for GNU C compiler.
    Copyright (C) 1989, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
    1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
-   2011 Free Software Foundation, Inc.
+   2011, 2012 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -274,6 +274,7 @@ emit_call_1 (rtx funexp, tree fntree ATTRIBUTE_UNUSED, tree fndecl ATTRIBUTE_UNU
   if (fndecl && TREE_CODE (fndecl) == FUNCTION_DECL)
     {
       tree t = fndecl;
+
       /* Although a built-in FUNCTION_DECL and its non-__builtin
 	 counterpart compare equal and get a shared mem_attrs, they
 	 produce different dump output in compare-debug compilations,
@@ -281,10 +282,14 @@ emit_call_1 (rtx funexp, tree fntree ATTRIBUTE_UNUSED, tree fndecl ATTRIBUTE_UNU
 	 adds a different (but equivalent) entry, while the other
 	 doesn't run the garbage collector at the same spot and then
 	 shares the mem_attr with the equivalent entry. */
-      if (DECL_BUILT_IN_CLASS (t) == BUILT_IN_NORMAL
-	  && built_in_decls[DECL_FUNCTION_CODE (t)])
-	t = built_in_decls[DECL_FUNCTION_CODE (t)];
-      set_mem_expr (funmem, t);
+      if (DECL_BUILT_IN_CLASS (t) == BUILT_IN_NORMAL)
+	{
+	  tree t2 = builtin_decl_explicit (DECL_FUNCTION_CODE (t));
+	  if (t2)
+	    t = t2;
+	}
+
+	set_mem_expr (funmem, t);
     }
   else if (fntree)
     set_mem_expr (funmem, build_simple_mem_ref (CALL_EXPR_FN (fntree)));
@@ -440,6 +445,11 @@ emit_call_1 (rtx funexp, tree fntree ATTRIBUTE_UNUSED, tree fndecl ATTRIBUTE_UNU
       if (SUPPORTS_STACK_ALIGNMENT)
         crtl->need_drap = true;
     }
+  /* For noreturn calls when not accumulating outgoing args force
+     REG_ARGS_SIZE note to prevent crossjumping of calls with different
+     args sizes.  */
+  else if (!ACCUMULATE_OUTGOING_ARGS && (ecf_flags & ECF_NORETURN) != 0)
+    add_reg_note (call_insn, REG_ARGS_SIZE, GEN_INT (stack_pointer_delta));
 
   if (!ACCUMULATE_OUTGOING_ARGS)
     {
@@ -606,6 +616,69 @@ alloca_call_p (const_tree exp)
   return false;
 }
 
+/* Return TRUE if FNDECL is either a TM builtin or a TM cloned
+   function.  Return FALSE otherwise.  */
+
+static bool
+is_tm_builtin (const_tree fndecl)
+{
+  if (fndecl == NULL)
+    return false;
+
+  if (decl_is_tm_clone (fndecl))
+    return true;
+
+  if (DECL_BUILT_IN_CLASS (fndecl) == BUILT_IN_NORMAL)
+    {
+      switch (DECL_FUNCTION_CODE (fndecl))
+	{
+	case BUILT_IN_TM_COMMIT:
+	case BUILT_IN_TM_COMMIT_EH:
+	case BUILT_IN_TM_ABORT:
+	case BUILT_IN_TM_IRREVOCABLE:
+	case BUILT_IN_TM_GETTMCLONE_IRR:
+	case BUILT_IN_TM_MEMCPY:
+	case BUILT_IN_TM_MEMMOVE:
+	case BUILT_IN_TM_MEMSET:
+	CASE_BUILT_IN_TM_STORE (1):
+	CASE_BUILT_IN_TM_STORE (2):
+	CASE_BUILT_IN_TM_STORE (4):
+	CASE_BUILT_IN_TM_STORE (8):
+	CASE_BUILT_IN_TM_STORE (FLOAT):
+	CASE_BUILT_IN_TM_STORE (DOUBLE):
+	CASE_BUILT_IN_TM_STORE (LDOUBLE):
+	CASE_BUILT_IN_TM_STORE (M64):
+	CASE_BUILT_IN_TM_STORE (M128):
+	CASE_BUILT_IN_TM_STORE (M256):
+	CASE_BUILT_IN_TM_LOAD (1):
+	CASE_BUILT_IN_TM_LOAD (2):
+	CASE_BUILT_IN_TM_LOAD (4):
+	CASE_BUILT_IN_TM_LOAD (8):
+	CASE_BUILT_IN_TM_LOAD (FLOAT):
+	CASE_BUILT_IN_TM_LOAD (DOUBLE):
+	CASE_BUILT_IN_TM_LOAD (LDOUBLE):
+	CASE_BUILT_IN_TM_LOAD (M64):
+	CASE_BUILT_IN_TM_LOAD (M128):
+	CASE_BUILT_IN_TM_LOAD (M256):
+	case BUILT_IN_TM_LOG:
+	case BUILT_IN_TM_LOG_1:
+	case BUILT_IN_TM_LOG_2:
+	case BUILT_IN_TM_LOG_4:
+	case BUILT_IN_TM_LOG_8:
+	case BUILT_IN_TM_LOG_FLOAT:
+	case BUILT_IN_TM_LOG_DOUBLE:
+	case BUILT_IN_TM_LOG_LDOUBLE:
+	case BUILT_IN_TM_LOG_M64:
+	case BUILT_IN_TM_LOG_M128:
+	case BUILT_IN_TM_LOG_M256:
+	  return true;
+	default:
+	  break;
+	}
+    }
+  return false;
+}
+
 /* Detect flags (function attributes) from the function decl or type node.  */
 
 int
@@ -639,10 +712,28 @@ flags_from_decl_or_type (const_tree exp)
       if (TREE_NOTHROW (exp))
 	flags |= ECF_NOTHROW;
 
+      if (flag_tm)
+	{
+	  if (is_tm_builtin (exp))
+	    flags |= ECF_TM_BUILTIN;
+	  else if ((flags & ECF_CONST) != 0
+		   || lookup_attribute ("transaction_pure",
+					TYPE_ATTRIBUTES (TREE_TYPE (exp))))
+	    flags |= ECF_TM_PURE;
+	}
+
       flags = special_function_p (exp, flags);
     }
-  else if (TYPE_P (exp) && TYPE_READONLY (exp))
-    flags |= ECF_CONST;
+  else if (TYPE_P (exp))
+    {
+      if (TYPE_READONLY (exp))
+	flags |= ECF_CONST;
+
+      if (flag_tm
+	  && ((flags & ECF_CONST) != 0
+	      || lookup_attribute ("transaction_pure", TYPE_ATTRIBUTES (exp))))
+	flags |= ECF_TM_PURE;
+    }
 
   if (TREE_THIS_VOLATILE (exp))
     {
@@ -1071,7 +1162,7 @@ initialize_argument_information (int num_actuals ATTRIBUTE_UNUSED,
 			     type, argpos < n_named_args))
 	{
 	  bool callee_copies;
-	  tree base;
+	  tree base = NULL_TREE;
 
 	  callee_copies
 	    = reference_callee_copied (args_so_far_pnt, TYPE_MODE (type),
@@ -1572,6 +1663,131 @@ rtx_for_function_call (tree fndecl, tree addr)
   return funexp;
 }
 
+/* Internal state for internal_arg_pointer_based_exp and its helpers.  */
+static struct
+{
+  /* Last insn that has been scanned by internal_arg_pointer_based_exp_scan,
+     or NULL_RTX if none has been scanned yet.  */
+  rtx scan_start;
+  /* Vector indexed by REGNO - FIRST_PSEUDO_REGISTER, recording if a pseudo is
+     based on crtl->args.internal_arg_pointer.  The element is NULL_RTX if the
+     pseudo isn't based on it, a CONST_INT offset if the pseudo is based on it
+     with fixed offset, or PC if this is with variable or unknown offset.  */
+  VEC(rtx, heap) *cache;
+} internal_arg_pointer_exp_state;
+
+static rtx internal_arg_pointer_based_exp (rtx, bool);
+
+/* Helper function for internal_arg_pointer_based_exp.  Scan insns in
+   the tail call sequence, starting with first insn that hasn't been
+   scanned yet, and note for each pseudo on the LHS whether it is based
+   on crtl->args.internal_arg_pointer or not, and what offset from that
+   that pointer it has.  */
+
+static void
+internal_arg_pointer_based_exp_scan (void)
+{
+  rtx insn, scan_start = internal_arg_pointer_exp_state.scan_start;
+
+  if (scan_start == NULL_RTX)
+    insn = get_insns ();
+  else
+    insn = NEXT_INSN (scan_start);
+
+  while (insn)
+    {
+      rtx set = single_set (insn);
+      if (set && REG_P (SET_DEST (set)) && !HARD_REGISTER_P (SET_DEST (set)))
+	{
+	  rtx val = NULL_RTX;
+	  unsigned int idx = REGNO (SET_DEST (set)) - FIRST_PSEUDO_REGISTER;
+	  /* Punt on pseudos set multiple times.  */
+	  if (idx < VEC_length (rtx, internal_arg_pointer_exp_state.cache)
+	      && (VEC_index (rtx, internal_arg_pointer_exp_state.cache, idx)
+		  != NULL_RTX))
+	    val = pc_rtx;
+	  else
+	    val = internal_arg_pointer_based_exp (SET_SRC (set), false);
+	  if (val != NULL_RTX)
+	    {
+	      if (idx
+		  >= VEC_length (rtx, internal_arg_pointer_exp_state.cache))
+		VEC_safe_grow_cleared (rtx, heap,
+				       internal_arg_pointer_exp_state.cache,
+				       idx + 1);
+	      VEC_replace (rtx, internal_arg_pointer_exp_state.cache,
+			   idx, val);
+	    }
+	}
+      if (NEXT_INSN (insn) == NULL_RTX)
+	scan_start = insn;
+      insn = NEXT_INSN (insn);
+    }
+
+  internal_arg_pointer_exp_state.scan_start = scan_start;
+}
+
+/* Helper function for internal_arg_pointer_based_exp, called through
+   for_each_rtx.  Return 1 if *LOC is a register based on
+   crtl->args.internal_arg_pointer.  Return -1 if *LOC is not based on it
+   and the subexpressions need not be examined.  Otherwise return 0.  */
+
+static int
+internal_arg_pointer_based_exp_1 (rtx *loc, void *data ATTRIBUTE_UNUSED)
+{
+  if (REG_P (*loc) && internal_arg_pointer_based_exp (*loc, false) != NULL_RTX)
+    return 1;
+  if (MEM_P (*loc))
+    return -1;
+  return 0;
+}
+
+/* Compute whether RTL is based on crtl->args.internal_arg_pointer.  Return
+   NULL_RTX if RTL isn't based on it, a CONST_INT offset if RTL is based on
+   it with fixed offset, or PC if this is with variable or unknown offset.
+   TOPLEVEL is true if the function is invoked at the topmost level.  */
+
+static rtx
+internal_arg_pointer_based_exp (rtx rtl, bool toplevel)
+{
+  if (CONSTANT_P (rtl))
+    return NULL_RTX;
+
+  if (rtl == crtl->args.internal_arg_pointer)
+    return const0_rtx;
+
+  if (REG_P (rtl) && HARD_REGISTER_P (rtl))
+    return NULL_RTX;
+
+  if (GET_CODE (rtl) == PLUS && CONST_INT_P (XEXP (rtl, 1)))
+    {
+      rtx val = internal_arg_pointer_based_exp (XEXP (rtl, 0), toplevel);
+      if (val == NULL_RTX || val == pc_rtx)
+	return val;
+      return plus_constant (val, INTVAL (XEXP (rtl, 1)));
+    }
+
+  /* When called at the topmost level, scan pseudo assignments in between the
+     last scanned instruction in the tail call sequence and the latest insn
+     in that sequence.  */
+  if (toplevel)
+    internal_arg_pointer_based_exp_scan ();
+
+  if (REG_P (rtl))
+    {
+      unsigned int idx = REGNO (rtl) - FIRST_PSEUDO_REGISTER;
+      if (idx < VEC_length (rtx, internal_arg_pointer_exp_state.cache))
+	return VEC_index (rtx, internal_arg_pointer_exp_state.cache, idx);
+
+      return NULL_RTX;
+    }
+
+  if (for_each_rtx (&rtl, internal_arg_pointer_based_exp_1, NULL))
+    return pc_rtx;
+
+  return NULL_RTX;
+}
+
 /* Return true if and only if SIZE storage units (usually bytes)
    starting from address ADDR overlap with already clobbered argument
    area.  This function is used to determine if we should give up a
@@ -1581,24 +1797,17 @@ static bool
 mem_overlaps_already_clobbered_arg_p (rtx addr, unsigned HOST_WIDE_INT size)
 {
   HOST_WIDE_INT i;
+  rtx val;
 
-  if (addr == crtl->args.internal_arg_pointer)
-    i = 0;
-  else if (GET_CODE (addr) == PLUS
-	   && XEXP (addr, 0) == crtl->args.internal_arg_pointer
-	   && CONST_INT_P (XEXP (addr, 1)))
-    i = INTVAL (XEXP (addr, 1));
-  /* Return true for arg pointer based indexed addressing.  */
-  else if (GET_CODE (addr) == PLUS
-	   && (XEXP (addr, 0) == crtl->args.internal_arg_pointer
-	       || XEXP (addr, 1) == crtl->args.internal_arg_pointer))
-    return true;
-  /* If the address comes in a register, we have no idea of its origin so
-     give up and conservatively return true.  */
-  else if (REG_P(addr))
+  if (sbitmap_empty_p (stored_args_map))
+    return false;
+  val = internal_arg_pointer_based_exp (addr, true);
+  if (val == NULL_RTX)
+    return false;
+  else if (val == pc_rtx)
     return true;
   else
-    return false;
+    i = INTVAL (val);
 
 #ifdef ARGS_GROW_DOWNWARD
   i = -i - size;
@@ -3206,6 +3415,8 @@ expand_call (tree exp, rtx target, int ignore)
 	    }
 
 	  sbitmap_free (stored_args_map);
+	  internal_arg_pointer_exp_state.scan_start = NULL_RTX;
+	  VEC_free (rtx, heap, internal_arg_pointer_exp_state.cache);
 	}
       else
 	{

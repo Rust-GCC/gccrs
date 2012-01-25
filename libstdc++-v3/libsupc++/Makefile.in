@@ -95,13 +95,14 @@ am__objects_1 = array_type_info.lo atexit_arm.lo bad_alloc.lo \
 	del_opnt.lo del_opv.lo del_opvnt.lo dyncast.lo eh_alloc.lo \
 	eh_arm.lo eh_aux_runtime.lo eh_call.lo eh_catch.lo \
 	eh_exception.lo eh_globals.lo eh_personality.lo eh_ptr.lo \
-	eh_term_handler.lo eh_terminate.lo eh_throw.lo eh_type.lo \
-	eh_unex_handler.lo enum_type_info.lo function_type_info.lo \
-	fundamental_type_info.lo guard.lo guard_error.lo hash_bytes.lo \
-	nested_exception.lo new_handler.lo new_op.lo new_opnt.lo \
-	new_opv.lo new_opvnt.lo pbase_type_info.lo pmem_type_info.lo \
-	pointer_type_info.lo pure.lo si_class_type_info.lo tinfo.lo \
-	tinfo2.lo vec.lo vmi_class_type_info.lo vterminate.lo
+	eh_term_handler.lo eh_terminate.lo eh_tm.lo eh_throw.lo \
+	eh_type.lo eh_unex_handler.lo enum_type_info.lo \
+	function_type_info.lo fundamental_type_info.lo guard.lo \
+	guard_error.lo hash_bytes.lo nested_exception.lo \
+	new_handler.lo new_op.lo new_opnt.lo new_opv.lo new_opvnt.lo \
+	pbase_type_info.lo pmem_type_info.lo pointer_type_info.lo \
+	pure.lo si_class_type_info.lo tinfo.lo tinfo2.lo vec.lo \
+	vmi_class_type_info.lo vterminate.lo
 @GLIBCXX_HOSTED_TRUE@am__objects_2 = cp-demangle.lo
 am_libsupc___la_OBJECTS = $(am__objects_1) $(am__objects_2)
 libsupc___la_OBJECTS = $(am_libsupc___la_OBJECTS)
@@ -166,7 +167,6 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 C_INCLUDE_DIR = @C_INCLUDE_DIR@
 DBLATEX = @DBLATEX@
-DBTOEPUB = @DBTOEPUB@
 DEBUG_FLAGS = @DEBUG_FLAGS@
 DEFS = @DEFS@
 DOT = @DOT@
@@ -194,7 +194,6 @@ LDFLAGS = @LDFLAGS@
 LIBICONV = @LIBICONV@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
-LIBSUPCXX_PICFLAGS = @LIBSUPCXX_PICFLAGS@
 LIBTOOL = @LIBTOOL@
 LIPO = @LIPO@
 LN_S = @LN_S@
@@ -221,8 +220,8 @@ PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PDFLATEX = @PDFLATEX@
+PIC_CXXFLAGS = @PIC_CXXFLAGS@
 RANLIB = @RANLIB@
-RUBY = @RUBY@
 SECTION_FLAGS = @SECTION_FLAGS@
 SECTION_LDFLAGS = @SECTION_LDFLAGS@
 SED = @SED@
@@ -272,7 +271,6 @@ glibcxx_builddir = @glibcxx_builddir@
 glibcxx_localedir = @glibcxx_localedir@
 glibcxx_prefixdir = @glibcxx_prefixdir@
 glibcxx_srcdir = @glibcxx_srcdir@
-glibcxx_thread_h = @glibcxx_thread_h@
 glibcxx_toolexecdir = @glibcxx_toolexecdir@
 glibcxx_toolexeclibdir = @glibcxx_toolexeclibdir@
 gxx_include_dir = @gxx_include_dir@
@@ -312,6 +310,7 @@ target_vendor = @target_vendor@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+toplevel_builddir = @toplevel_builddir@
 toplevel_srcdir = @toplevel_srcdir@
 
 # May be used by various substitution variables.
@@ -329,7 +328,7 @@ CONFIG_CXXFLAGS = \
 	$(SECTION_FLAGS) $(EXTRA_CXX_FLAGS) -frandom-seed=$@
 
 WARN_CXXFLAGS = \
-	$(WARN_FLAGS) $(WERROR) -fdiagnostics-show-location=once
+	$(WARN_FLAGS) $(WERROR) -fdiagnostics-show-location=once -Wabi
 
 
 # -I/-D flags to pass when compiling.
@@ -345,8 +344,8 @@ std_HEADERS = \
 	cxxabi.h exception initializer_list new typeinfo 
 
 bits_HEADERS = \
-	cxxabi_forced.h hash_bytes.h \
-	exception_defines.h exception_ptr.h nested_exception.h 
+	atomic_lockfree_defines.h cxxabi_forced.h \
+	exception_defines.h exception_ptr.h hash_bytes.h nested_exception.h 
 
 headers = $(std_HEADERS) $(bits_HEADERS)
 @GLIBCXX_HOSTED_TRUE@c_sources = \
@@ -375,6 +374,7 @@ sources = \
 	eh_ptr.cc \
 	eh_term_handler.cc \
 	eh_terminate.cc \
+	eh_tm.cc \
 	eh_throw.cc \
 	eh_type.cc \
 	eh_unex_handler.cc \
@@ -410,8 +410,8 @@ libsupc__convenience_la_SOURCES = $(sources) $(c_sources)
 # OPTIMIZE_CXXFLAGS on the compile line so that -O2 can be overridden
 # as the occasion call for it.
 AM_CXXFLAGS = \
-	-fno-implicit-templates \
-	$(LIBSUPCXX_PICFLAGS) \
+	$(PIC_CXXFLAGS) \
+	$(XTEMPLATE_FLAGS) \
 	$(WARN_CXXFLAGS) \
 	$(OPTIMIZE_CXXFLAGS) \
 	$(CONFIG_CXXFLAGS)
@@ -431,7 +431,7 @@ C_COMPILE = \
 
 # LTCOMPILE is copied from LTCXXCOMPILE below.
 LTCOMPILE = $(LIBTOOL) --tag CC --tag disable-shared $(LIBTOOLFLAGS) --mode=compile \
-	    $(CC) $(DEFS) $(C_INCLUDES) $(LIBSUPCXX_PICFLAGS) \
+	    $(CC) $(DEFS) $(C_INCLUDES) $(PIC_CXXFLAGS) \
             $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 
 
@@ -767,6 +767,22 @@ cp-demangle.lo: cp-demangle.c
 	$(LTCOMPILE) -DIN_GLIBCPP_V3 -Wno-error -c $<
 cp-demangle.o: cp-demangle.c
 	$(C_COMPILE) -DIN_GLIBCPP_V3 -Wno-error -c $<
+
+# Use special rules for the C++0x sources so that the proper flags are passed.
+eh_ptr.lo: eh_ptr.cc
+	$(LTCXXCOMPILE) -std=gnu++0x -c $<
+eh_ptr.o: eh_ptr.cc
+	$(CXXCOMPILE) -std=gnu++0x -c $<
+
+eh_throw.lo: eh_throw.cc
+	$(LTCXXCOMPILE) -std=gnu++0x -c $<
+eh_throw.o: eh_throw.cc
+	$(CXXCOMPILE) -std=gnu++0x -c $<
+
+guard.lo: guard.cc
+	$(LTCXXCOMPILE) -std=gnu++0x -c $<
+guard.o: guard.cc
+	$(CXXCOMPILE) -std=gnu++0x -c $<
 
 nested_exception.lo: nested_exception.cc
 	$(LTCXXCOMPILE) -std=gnu++0x -c $<

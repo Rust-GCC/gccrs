@@ -1,7 +1,7 @@
 ## Makefile for the GNU C++ Support library.
 ##
 ## Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008,
-## 2009, 2010, 2011
+## 2009, 2010, 2011, 2012
 ## Free Software Foundation, Inc.
 ##
 ## Process this file with automake to produce Makefile.in.
@@ -35,8 +35,8 @@ std_HEADERS = \
 	cxxabi.h exception initializer_list new typeinfo 
 
 bits_HEADERS = \
-	cxxabi_forced.h hash_bytes.h \
-	exception_defines.h exception_ptr.h nested_exception.h 
+	atomic_lockfree_defines.h cxxabi_forced.h \
+	exception_defines.h exception_ptr.h hash_bytes.h nested_exception.h 
 
 headers = $(std_HEADERS) $(bits_HEADERS)
 
@@ -68,6 +68,7 @@ sources = \
 	eh_ptr.cc \
 	eh_term_handler.cc \
 	eh_terminate.cc \
+	eh_tm.cc \
 	eh_throw.cc \
 	eh_type.cc \
 	eh_unex_handler.cc \
@@ -103,8 +104,8 @@ libsupc__convenience_la_SOURCES = $(sources) $(c_sources)
 # OPTIMIZE_CXXFLAGS on the compile line so that -O2 can be overridden
 # as the occasion call for it.
 AM_CXXFLAGS = \
-	-fno-implicit-templates \
-	$(LIBSUPCXX_PICFLAGS) \
+	$(PIC_CXXFLAGS) \
+	$(XTEMPLATE_FLAGS) \
 	$(WARN_CXXFLAGS) \
 	$(OPTIMIZE_CXXFLAGS) \
 	$(CONFIG_CXXFLAGS)
@@ -123,7 +124,7 @@ C_COMPILE = \
 
 # LTCOMPILE is copied from LTCXXCOMPILE below.
 LTCOMPILE = $(LIBTOOL) --tag CC --tag disable-shared $(LIBTOOLFLAGS) --mode=compile \
-	    $(CC) $(DEFS) $(C_INCLUDES) $(LIBSUPCXX_PICFLAGS) \
+	    $(CC) $(DEFS) $(C_INCLUDES) $(PIC_CXXFLAGS) \
             $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 
 cp-demangle.c:
@@ -134,6 +135,22 @@ cp-demangle.lo: cp-demangle.c
 cp-demangle.o: cp-demangle.c
 	$(C_COMPILE) -DIN_GLIBCPP_V3 -Wno-error -c $<
 
+
+# Use special rules for the C++0x sources so that the proper flags are passed.
+eh_ptr.lo: eh_ptr.cc
+	$(LTCXXCOMPILE) -std=gnu++0x -c $<
+eh_ptr.o: eh_ptr.cc
+	$(CXXCOMPILE) -std=gnu++0x -c $<
+
+eh_throw.lo: eh_throw.cc
+	$(LTCXXCOMPILE) -std=gnu++0x -c $<
+eh_throw.o: eh_throw.cc
+	$(CXXCOMPILE) -std=gnu++0x -c $<
+
+guard.lo: guard.cc
+	$(LTCXXCOMPILE) -std=gnu++0x -c $<
+guard.o: guard.cc
+	$(CXXCOMPILE) -std=gnu++0x -c $<
 
 nested_exception.lo: nested_exception.cc
 	$(LTCXXCOMPILE) -std=gnu++0x -c $<

@@ -1,3 +1,7 @@
+// Copyright 2010 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 package ocsp
 
 import (
@@ -15,13 +19,19 @@ func TestOCSPDecode(t *testing.T) {
 		t.Error(err)
 	}
 
-	expected := Response{Status: 0, SerialNumber: []byte{0x1, 0xd0, 0xfa}, RevocationReason: 0, ThisUpdate: &time.Time{Year: 2010, Month: 7, Day: 7, Hour: 15, Minute: 1, Second: 5, Weekday: 0, ZoneOffset: 0, Zone: "UTC"}, NextUpdate: &time.Time{Year: 2010, Month: 7, Day: 7, Hour: 18, Minute: 35, Second: 17, Weekday: 0, ZoneOffset: 0, Zone: "UTC"}}
+	expected := Response{
+		Status:           0,
+		SerialNumber:     []byte{0x1, 0xd0, 0xfa},
+		RevocationReason: 0,
+		ThisUpdate:       time.Date(2010, 7, 7, 15, 1, 5, 0, time.UTC),
+		NextUpdate:       time.Date(2010, 7, 7, 18, 35, 17, 0, time.UTC),
+	}
 
-	if !reflect.DeepEqual(resp.ThisUpdate, resp.ThisUpdate) {
+	if !reflect.DeepEqual(resp.ThisUpdate, expected.ThisUpdate) {
 		t.Errorf("resp.ThisUpdate: got %d, want %d", resp.ThisUpdate, expected.ThisUpdate)
 	}
 
-	if !reflect.DeepEqual(resp.NextUpdate, resp.NextUpdate) {
+	if !reflect.DeepEqual(resp.NextUpdate, expected.NextUpdate) {
 		t.Errorf("resp.NextUpdate: got %d, want %d", resp.NextUpdate, expected.NextUpdate)
 	}
 

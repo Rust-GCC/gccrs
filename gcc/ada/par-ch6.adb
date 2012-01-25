@@ -108,7 +108,8 @@ package body Ch6 is
    --    end [DESIGNATOR];
 
    --  SUBPROGRAM_RENAMING_DECLARATION ::=
-   --    SUBPROGRAM_SPECIFICATION renames callable_entity_NAME;
+   --    SUBPROGRAM_SPECIFICATION renames callable_entity_NAME
+   --      [ASPECT_SPECIFICATIONS];
 
    --  SUBPROGRAM_BODY_STUB ::=
    --    SUBPROGRAM_SPECIFICATION is separate;
@@ -184,7 +185,7 @@ package body Ch6 is
       Scope.Table (Scope.Last).Ecol := Start_Column;
       Scope.Table (Scope.Last).Lreq := False;
 
-      --  Ada2005: scan leading NOT OVERRIDING indicator
+      --  Ada 2005: Scan leading NOT OVERRIDING indicator
 
       if Token = Tok_Not then
          Scan;  -- past NOT
@@ -506,6 +507,7 @@ package body Ch6 is
             Scan; -- past RENAMES
             Set_Name (Rename_Node, P_Name);
             Set_Specification (Rename_Node, Specification_Node);
+            P_Aspect_Specifications (Rename_Node);
             TF_Semicolon;
             Pop_Scope_Stack;
             return Rename_Node;
@@ -1341,7 +1343,7 @@ package body Ch6 is
 
                if Token = Tok_Aliased then
                   if Ada_Version < Ada_2012 then
-                     Error_Msg_SC ("ALIASED parameter is an Ada2012 feature");
+                     Error_Msg_SC ("ALIASED parameter is an Ada 2012 feature");
                   else
                      Set_Aliased_Present (Specification_Node);
                   end if;
@@ -1676,6 +1678,14 @@ package body Ch6 is
       elsif Token = Tok_Aliased then
          Scan; -- past ALIASED
          Set_Aliased_Present (Decl_Node);
+
+         if Ada_Version < Ada_2012 then
+            Error_Msg_SC -- CODEFIX
+              ("ALIASED not allowed in extended return in Ada 2012?");
+         else
+            Error_Msg_SC -- CODEFIX
+              ("ALIASED not allowed in extended return");
+         end if;
 
          if Token = Tok_Constant then
             Scan; -- past CONSTANT

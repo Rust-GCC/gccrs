@@ -1,5 +1,5 @@
 /* Header file to the Fortran front-end and runtime library
-   Copyright (C) 2007, 2008, 2009, 2010, 2011
+   Copyright (C) 2007, 2008, 2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -23,7 +23,7 @@ along with GCC; see the file COPYING3.  If not see
    Note that no features were obsoleted nor deleted in F2003.
    Please remember to keep those definitions in sync with
    gfortran.texi.  */
-#define GFC_STD_F2008_TR	(1<<9)	/* POST-F2008 technical reports.  */
+#define GFC_STD_F2008_TS	(1<<9)	/* POST-F2008 technical reports.  */
 #define GFC_STD_F2008_OBS	(1<<8)	/* Obsolescent in F2008.  */
 #define GFC_STD_F2008		(1<<7)	/* New in F2008.  */
 #define GFC_STD_LEGACY		(1<<6)	/* Backward compatibility.  */
@@ -105,7 +105,7 @@ typedef enum
   GFC_STAT_UNLOCKED = 0,
   GFC_STAT_LOCKED,
   GFC_STAT_LOCKED_OTHER_IMAGE,
-  GFC_STAT_STOPPED_IMAGE /* See LIBERROR_INQUIRE_INTERNAL_UNIT above. */
+  GFC_STAT_STOPPED_IMAGE = 6000 /* See LIBERROR_INQUIRE_INTERNAL_UNIT above. */
 }
 libgfortran_stat_codes;
 

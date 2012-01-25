@@ -5,7 +5,8 @@
 package net
 
 import (
-	"os"
+	"fmt"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -17,35 +18,56 @@ func testTimeout(t *testing.T, network, addr string, readFrom bool) {
 		return
 	}
 	defer fd.Close()
-	t0 := time.Nanoseconds()
-	fd.SetReadTimeout(1e8) // 100ms
-	var b [100]byte
-	var n int
-	var err1 os.Error
-	if readFrom {
-		n, _, err1 = fd.(PacketConn).ReadFrom(b[0:])
-	} else {
-		n, err1 = fd.Read(b[0:])
-	}
-	t1 := time.Nanoseconds()
 	what := "Read"
 	if readFrom {
 		what = "ReadFrom"
 	}
-	if n != 0 || err1 == nil || !err1.(Error).Timeout() {
-		t.Errorf("fd.%s on %s %s did not return 0, timeout: %v, %v", what, network, addr, n, err1)
-	}
-	if t1-t0 < 0.5e8 || t1-t0 > 1.5e8 {
-		t.Errorf("fd.%s on %s %s took %f seconds, expected 0.1", what, network, addr, float64(t1-t0)/1e9)
+
+	errc := make(chan error, 1)
+	go func() {
+		t0 := time.Now()
+		fd.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+		var b [100]byte
+		var n int
+		var err1 error
+		if readFrom {
+			n, _, err1 = fd.(PacketConn).ReadFrom(b[0:])
+		} else {
+			n, err1 = fd.Read(b[0:])
+		}
+		t1 := time.Now()
+		if n != 0 || err1 == nil || !err1.(Error).Timeout() {
+			errc <- fmt.Errorf("fd.%s on %s %s did not return 0, timeout: %v, %v", what, network, addr, n, err1)
+			return
+		}
+		if dt := t1.Sub(t0); dt < 50*time.Millisecond || dt > 250*time.Millisecond {
+			errc <- fmt.Errorf("fd.%s on %s %s took %s, expected 0.1s", what, network, addr, dt)
+			return
+		}
+		errc <- nil
+	}()
+	select {
+	case err := <-errc:
+		if err != nil {
+			t.Error(err)
+		}
+	case <-time.After(1 * time.Second):
+		t.Errorf("%s on %s %s took over 1 second, expected 0.1s", what, network, addr)
 	}
 }
 
 func TestTimeoutUDP(t *testing.T) {
+	if runtime.GOOS == "plan9" {
+		return
+	}
 	testTimeout(t, "udp", "127.0.0.1:53", false)
 	testTimeout(t, "udp", "127.0.0.1:53", true)
 }
 
 func TestTimeoutTCP(t *testing.T) {
+	if runtime.GOOS == "plan9" {
+		return
+	}
 	// set up a listener that won't talk back
 	listening := make(chan string)
 	done := make(chan int)

@@ -15,6 +15,7 @@
 // so that it is faster to move those lists between MCaches and MCentrals.
 
 #include "runtime.h"
+#include "arch.h"
 #include "malloc.h"
 
 static bool MCentral_Grow(MCentral *c);
@@ -25,7 +26,6 @@ static void MCentral_Free(MCentral *c, void *v);
 void
 runtime_MCentral_Init(MCentral *c, int32 sizeclass)
 {
-	runtime_initlock(c);
 	c->sizeclass = sizeclass;
 	runtime_MSpanList_Init(&c->nonempty);
 	runtime_MSpanList_Init(&c->empty);

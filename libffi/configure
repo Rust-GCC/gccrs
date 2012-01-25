@@ -9001,7 +9001,7 @@ if test -z "$aix_libpath"; then aix_libpath="/usr/lib:/lib"; fi
       ;;
 
     # Unfortunately, older versions of FreeBSD 2 do not have this feature.
-    freebsd2*)
+    freebsd2.*)
       archive_cmds='$LD -Bshareable -o $lib $libobjs $deplibs $linker_flags'
       hardcode_direct=yes
       hardcode_minus_L=yes
@@ -9914,7 +9914,7 @@ freebsd* | dragonfly*)
     objformat=`/usr/bin/objformat`
   else
     case $host_os in
-    freebsd[123]*) objformat=aout ;;
+    freebsd[23].*) objformat=aout ;;
     *) objformat=elf ;;
     esac
   fi
@@ -9932,7 +9932,7 @@ freebsd* | dragonfly*)
   esac
   shlibpath_var=LD_LIBRARY_PATH
   case $host_os in
-  freebsd2*)
+  freebsd2.*)
     shlibpath_overrides_runpath=yes
     ;;
   freebsd3.[01]* | freebsdelf3.[01]*)
@@ -11368,7 +11368,7 @@ case "$host" in
 	TARGET=X86_64; TARGETDIR=x86
 	;;
   i?86-*-*)
-	TARGET=X86; TARGETDIR=x86
+	TARGET=X86_64; TARGETDIR=x86
 	;;
 
   ia64*-*-*)
@@ -12282,11 +12282,11 @@ $as_echo "#define AC_APPLE_UNIVERSAL_BUILD 1" >>confdefs.h
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking assembler .cfi pseudo-op support" >&5
 $as_echo_n "checking assembler .cfi pseudo-op support... " >&6; }
-if test "${libffi_cv_as_cfi_pseudo_op+set}" = set; then :
+if test "${gcc_cv_as_cfi_pseudo_op+set}" = set; then :
   $as_echo_n "(cached) " >&6
 else
 
-    libffi_cv_as_cfi_pseudo_op=unknown
+    gcc_cv_as_cfi_pseudo_op=unknown
     cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 asm (".cfi_startproc\n\t.cfi_endproc");
@@ -12299,20 +12299,21 @@ main ()
 }
 _ACEOF
 if ac_fn_c_try_compile "$LINENO"; then :
-  libffi_cv_as_cfi_pseudo_op=yes
+  gcc_cv_as_cfi_pseudo_op=yes
 else
-  libffi_cv_as_cfi_pseudo_op=no
+  gcc_cv_as_cfi_pseudo_op=no
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 
 fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $libffi_cv_as_cfi_pseudo_op" >&5
-$as_echo "$libffi_cv_as_cfi_pseudo_op" >&6; }
-if test "x$libffi_cv_as_cfi_pseudo_op" = xyes; then
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $gcc_cv_as_cfi_pseudo_op" >&5
+$as_echo "$gcc_cv_as_cfi_pseudo_op" >&6; }
+ if test "x$gcc_cv_as_cfi_pseudo_op" = xyes; then
 
 $as_echo "#define HAVE_AS_CFI_PSEUDO_OP 1" >>confdefs.h
 
-fi
+ fi
+
 
 if test x$TARGET = xSPARC; then
     { $as_echo "$as_me:${as_lineno-$LINENO}: checking assembler and linker support unaligned pc related relocs" >&5

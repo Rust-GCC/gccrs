@@ -55,6 +55,7 @@ bfin port		Bernd Schmidt		bernds@codesourcery.com
 bfin port		Jie Zhang		jzhang918@gmail.com
 c6x port		Bernd Schmidt		bernds@codesourcery.com
 cris port		Hans-Peter Nilsson	hp@axis.com
+epiphany port		Joern Rennecke		joern.rennecke@embecosm.com
 fr30 port		Nick Clifton		nickc@redhat.com
 frv port		Nick Clifton		nickc@redhat.com
 frv port		Alexandre Oliva		aoliva@redhat.com
@@ -84,8 +85,9 @@ mn10300 port		Jeff Law		law@redhat.com
 mn10300 port		Alexandre Oliva		aoliva@redhat.com
 moxie port		Anthony Green		green@moxielogic.com
 pdp11 port		Paul Koning		ni1d@arrl.net
-picochip port		Hariharan Sandanagobalane	hariharan@picochip.com
+picochip port		Hariharan Sandanagobalane	hariharan.gcc@gmail.com
 picochip port		Daniel Towner		dant@picochip.com
+rl78 port		DJ Delorie		dj@redhat.com
 rs6000 port		Geoff Keating		geoffk@geoffk.org
 rs6000 port		David Edelsohn		dje.gcc@gmail.com
 rs6000 vector extns	Aldy Hernandez		aldyh@redhat.com
@@ -138,6 +140,7 @@ C front end/ISO C99	Richard Henderson	rth@redhat.com
 Ada front end		Geert Bosch		bosch@gnat.com
 Ada front end		Robert Dewar		dewar@gnat.com
 Ada front end		Arnaud Charlet		charlet@act-europe.fr
+Ada front end		Eric Botcazou		ebotcazou@libertysurf.fr
 Fortran			Paul Brook		paul@codesourcery.com
 c++			Jason Merrill		jason@redhat.com
 c++			Mark Mitchell		mark@codesourcery.com
@@ -281,14 +284,15 @@ Graphite 		Tobias Grosser		grosser@fim.uni-passau.de
 Graphite		Sebastian Pop		sebastian.pop@amd.com
 libcpp			Tom Tromey		tromey@redhat.com
 loop optimizer		Zdenek Dvorak		ook@ucw.cz
+LTO			Diego Novillo		dnovillo@google.com
+LTO			Richard Guenther	rguenther@suse.de
+LTO plugin		Cary Coutant		ccoutant@google.com
 Plugin			Diego Novillo		dnovillo@google.com
 Plugin			Le-Chun Wu		lcwu@google.com
 register allocation	Peter Bergner		bergner@vnet.ibm.com
 register allocation	Kenneth Zadeck		zadeck@naturalbridge.com
 register allocation	Seongbae Park		seongbae.park@gmail.com
-LTO			Diego Novillo		dnovillo@google.com
-LTO			Richard Guenther	rguenther@suse.de
-LTO plugin		Cary Coutant		ccoutant@google.com
+selective scheduling	Andrey Belevantsev	abel@ispras.ru
 
 Note that while reviewers can approve changes to parts of the compiler
 that they maintain, they still need approval for their own patches
@@ -332,6 +336,7 @@ Stephane Carrez					stcarrez@nerim.fr
 Gabriel Charette				gchare@google.com
 Chandra Chavva					cchavva@redhat.com
 Fabien Chêne					fabien@gcc.gnu.org
+Harshit Chopra        harshit@google.com
 William Cohen					wcohen@redhat.com
 Josh Conner					jconner@apple.com
 R. Kelley Cook					kcook@gcc.gnu.org
@@ -342,11 +347,13 @@ Ian Dall					ian@beware.dropbear.id.au
 David Daney					david.daney@caviumnetworks.com
 Bud Davis					jmdavis@link.com
 Chris Demetriou					cgd@google.com
+Sameera Deshpande				sameera.deshpande@arm.com
 François Dumont					fdumont@gcc.gnu.org
 Benoit Dupont de Dinechin			benoit.dupont-de-dinechin@st.com
 Michael Eager					eager@eagercon.com
 Phil Edwards					pme@gcc.gnu.org
 Mohan Embar					gnustuff@thisiscool.com
+Oleg Endo					olegendo@gcc.gnu.org
 Revital Eres					eres@il.ibm.com
 Marc Espie					espie@cvs.openbsd.org
 Rafael Ávila de Espíndola			espindola@google.com
@@ -367,6 +374,7 @@ Matthew Gingell					gingell@gnat.com
 Tristan Gingold					gingold@adacore.com
 Anthony Green					green@redhat.com
 Doug Gregor					doug.gregor@gmail.com
+Matthew Gretton-Dann				matthew.gretton-dann@arm.com
 Jon Grimm					jgrimm2@us.ibm.com
 Laurent Guerby					laurent@guerby.net
 Xuepeng Guo					terry.guo@arm.com
@@ -385,6 +393,7 @@ Falk Hueffner					falk@debian.org
 Andrew John Hughes				gnu_andrew@member.fsf.org
 Andy Hutchinson					hutchinsonandy@aim.com
 Bernardo Innocenti				bernie@develer.com
+Balaji V. Iyer                                  bviyer@gmail.com
 Daniel Jacobowitz				drow@false.org
 Andreas Jaeger					aj@suse.de
 Harsha Jagasia					harsha.jagasia@amd.com
@@ -392,6 +401,7 @@ Fariborz Jahanian				fjahanian@apple.com
 Martin Jambor					mjambor@suse.cz
 Andrew Jenner					andrew@codesourcery.com
 Janis Johnson					janisjo@codesourcery.com
+Teresa Johnson					tejohnson@google.com
 Kean Johnston					jkj@sco.com
 Phillip Jordan					phillip.m.jordan@gmail.com
 Tim Josling					tej@melbpc.org.au
@@ -415,8 +425,9 @@ Chris Lattner					sabre@nondot.org
 Terry Laurenzo					tlaurenzo@gmail.com
 Georg-Johann Lay				avr@gjlay.de
 Marc Lehmann					pcg@goof.com
-James Lemke					jwlemke@juniper.net
+James Lemke					jwlemke@codesourcery.com
 Kriang Lerdsuwanakij				lerdsuwa@users.sourceforge.net
+Jiangning Liu					jiangning.liu@arm.com
 Sa Liu						saliu@de.ibm.com
 Ralph Loader					rcl@ihug.co.nz
 Gabor Loki					loki@inf.u-szeged.hu
@@ -465,8 +476,6 @@ Ramana Radhakrishnan				ramana.radhakrishnan@arm.com
 Easwaran Raman					eraman@google.com
 Rolf Rasmussen					rolfwr@gcc.gnu.org
 Volker Reichelt					v.reichelt@netcologne.de
-Joern Rennecke					amylaar@spamcop.net
-Joern Rennecke					joern.rennecke@embecosm.com
 Bernhard Reutner-Fischer			rep.dot.nop@gmail.com
 Tom Rix						trix@redhat.com
 Craig Rodrigues					rodrigc@gcc.gnu.org
@@ -521,6 +530,7 @@ Canqun Yang					canqun@nudt.edu.cn
 Jeffrey Yasskin					jyasskin@google.com
 Joey Ye						joey.ye@arm.com
 David Yuste					david.yuste@gmail.com
+Kirill Yukhin					kirill.yukhin@gmail.com
 Kenneth Zadeck					zadeck@naturalbridge.com
 Yufeng Zhang					yufeng.zhang@arm.com
 Shujing Zhao					pearly.zhao@oracle.com

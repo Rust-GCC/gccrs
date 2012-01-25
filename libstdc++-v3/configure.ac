@@ -2,7 +2,7 @@
 
 AC_PREREQ(2.64)
 AC_INIT(package-unused, version-unused,, libstdc++)
-AC_CONFIG_SRCDIR(src/ios.cc)
+AC_CONFIG_SRCDIR(src/shared/hashtable-aux.cc)
 AC_CONFIG_HEADER(config.h)
 
 # This works around the fact that libtool configuration may change LD
@@ -174,6 +174,9 @@ AC_CHECK_HEADERS(sys/sysinfo.h)
 GLIBCXX_CHECK_GET_NPROCS
 AC_CHECK_HEADERS(unistd.h)
 GLIBCXX_CHECK_SC_NPROCESSORS_ONLN
+GLIBCXX_CHECK_SC_NPROC_ONLN
+GLIBCXX_CHECK_PTHREADS_NUM_PROCESSORS_NP
+GLIBCXX_CHECK_SYSCTL_HW_NCPU
 
 # Check for available headers.
 AC_CHECK_HEADERS([endian.h execinfo.h float.h fp.h ieeefp.h inttypes.h \
@@ -308,7 +311,7 @@ GCC_HEADER_STDINT(include/gstdint.h)
 GLIBCXX_ENABLE_SYMVERS([yes])
 AC_SUBST(libtool_VERSION)
 
-GLIBCXX_ENABLE_VISIBILITY([yes])
+GLIBCXX_ENABLE_LIBSTDCXX_VISIBILITY([yes])
 
 ac_ldbl_compat=no
 case "$target" in
@@ -370,18 +373,12 @@ AM_CONDITIONAL(BUILD_MAN,
 	       test $ac_cv_prog_DOXYGEN = "yes" &&
 	       test $ac_cv_prog_DOT = "yes")
 
-# Check for pdf/epub dependencies.
+# Check for pdf dependencies.
 AC_CHECK_PROG([DBLATEX], dblatex, yes, no)
 AC_CHECK_PROG([PDFLATEX], pdflatex, yes, no)
 AM_CONDITIONAL(BUILD_PDF,
 	       test $ac_cv_prog_DBLATEX = "yes" &&
 	       test $ac_cv_prog_PDFLATEX = "yes")
-
-AC_CHECK_PROG([RUBY], ruby, yes, no)
-AC_CHECK_PROG([DBTOEPUB], dbtoepub, yes, no)
-AM_CONDITIONAL(BUILD_EPUB,
-	       test $ac_cv_prog_RUBY = "yes" &&
-	       test $ac_cv_prog_DBTOEPUB = "yes")
 
 
 # Propagate the target-specific source directories through the build chain.
@@ -422,11 +419,11 @@ GLIBCXX_EXPORT_INCLUDES
 GLIBCXX_EXPORT_FLAGS
 
 if test "$enable_shared" = yes; then
-  LIBSUPCXX_PICFLAGS="-prefer-pic"
+  PIC_CXXFLAGS="-prefer-pic"
 else
-  LIBSUPCXX_PICFLAGS=
+  PIC_CXXFLAGS=
 fi
-AC_SUBST(LIBSUPCXX_PICFLAGS)
+AC_SUBST(PIC_CXXFLAGS)
 
 dnl In autoconf 2.5x, AC_OUTPUT is replaced by four AC_CONFIG_* macros,
 dnl which can all be called multiple times as needed, plus one (different)

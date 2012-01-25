@@ -451,6 +451,15 @@ const char *host_detect_local_cpu (int argc, const char **argv)
   has_sse = edx & bit_SSE;
   has_sse2 = edx & bit_SSE2;
 
+  if (max_level >= 7)
+    {
+      __cpuid_count (7, 0, eax, ebx, ecx, edx);
+
+      has_bmi = ebx & bit_BMI;
+      has_avx2 = ebx & bit_AVX2;
+      has_bmi2 = ebx & bit_BMI2;
+    }
+
   /* Check cpuid level of extended features.  */
   __cpuid (0x80000000, ext_level, ebx, ecx, edx);
 
@@ -470,12 +479,6 @@ const char *host_detect_local_cpu (int argc, const char **argv)
       has_longmode = edx & bit_LM;
       has_3dnowp = edx & bit_3DNOWP;
       has_3dnow = edx & bit_3DNOW;
-
-      __cpuid (0x7, eax, ebx, ecx, edx);
-
-      has_bmi = ebx & bit_BMI;
-      has_avx2 = ebx & bit_AVX2;
-      has_bmi2 = ebx & bit_BMI2;
     }
 
   if (!arch)
@@ -512,7 +515,7 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 	processor = PROCESSOR_AMDFAM10;
       else if (has_sse2 || has_longmode)
 	processor = PROCESSOR_K8;
-      else if (has_3dnowp)
+      else if (has_3dnowp && family == 6)
 	processor = PROCESSOR_ATHLON;
       else if (has_mmx)
 	processor = PROCESSOR_K6;

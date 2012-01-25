@@ -1,6 +1,6 @@
 /* Backend support for Fortran 95 basic types and derived types.
    Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
-   2010, 2011
+   2010, 2011, 2012
    Free Software Foundation, Inc.
    Contributed by Paul Brook <paul@nowt.org>
    and Steven Bosscher <s.bosscher@student.tudelft.nl>
@@ -298,8 +298,8 @@ get_int_kind_from_minimal_width (int size)
 /* Generate the CInteropKind_t objects for the C interoperable
    kinds.  */
 
-static
-void init_c_interop_kinds (void)
+void
+gfc_init_c_interop_kinds (void)
 {
   int i;
 
@@ -316,11 +316,11 @@ void init_c_interop_kinds (void)
   strncpy (c_interop_kinds_table[a].name, b, strlen(b) + 1); \
   c_interop_kinds_table[a].f90_type = BT_INTEGER; \
   c_interop_kinds_table[a].value = c;
-#define NAMED_REALCST(a,b,c) \
+#define NAMED_REALCST(a,b,c,d) \
   strncpy (c_interop_kinds_table[a].name, b, strlen(b) + 1); \
   c_interop_kinds_table[a].f90_type = BT_REAL; \
   c_interop_kinds_table[a].value = c;
-#define NAMED_CMPXCST(a,b,c) \
+#define NAMED_CMPXCST(a,b,c,d) \
   strncpy (c_interop_kinds_table[a].name, b, strlen(b) + 1); \
   c_interop_kinds_table[a].f90_type = BT_COMPLEX; \
   c_interop_kinds_table[a].value = c;
@@ -362,7 +362,7 @@ gfc_init_kinds (void)
   unsigned int mode;
   int i_index, r_index, kind;
   bool saw_i4 = false, saw_i8 = false;
-  bool saw_r4 = false, saw_r8 = false, saw_r16 = false;
+  bool saw_r4 = false, saw_r8 = false, saw_r10 = false, saw_r16 = false;
 
   for (i_index = 0, mode = MIN_MODE_INT; mode <= MAX_MODE_INT; mode++)
     {
@@ -456,6 +456,8 @@ gfc_init_kinds (void)
 	saw_r4 = true;
       if (kind == 8)
 	saw_r8 = true;
+      if (kind == 10)
+	saw_r10 = true;
       if (kind == 16)
 	saw_r16 = true;
 
@@ -482,23 +484,31 @@ gfc_init_kinds (void)
       r_index += 1;
     }
 
-  /* Choose the default integer kind.  We choose 4 unless the user
-     directs us otherwise.  */
+  /* Choose the default integer kind.  We choose 4 unless the user directs us
+     otherwise.  Even if the user specified that the default integer kind is 8,
+     the numeric storage size is not 64 bits.  In this case, a warning will be
+     issued when NUMERIC_STORAGE_SIZE is used.  Set NUMERIC_STORAGE_SIZE to 32.  */
+
+  gfc_numeric_storage_size = 4 * 8;
+
   if (gfc_option.flag_default_integer)
     {
       if (!saw_i8)
-	fatal_error ("integer kind=8 not available for -fdefault-integer-8 option");
+	fatal_error ("INTEGER(KIND=8) is not available for -fdefault-integer-8 option");
+
       gfc_default_integer_kind = 8;
 
-      /* Even if the user specified that the default integer kind be 8,
-         the numeric storage size isn't 64.  In this case, a warning will
-	 be issued when NUMERIC_STORAGE_SIZE is used.  */
-      gfc_numeric_storage_size = 4 * 8;
+    }
+  else if (gfc_option.flag_integer4_kind == 8)
+    {
+      if (!saw_i8)
+	fatal_error ("INTEGER(KIND=8) is not available for -finteger-4-integer-8 option");
+
+      gfc_default_integer_kind = 8;
     }
   else if (saw_i4)
     {
       gfc_default_integer_kind = 4;
-      gfc_numeric_storage_size = 4 * 8;
     }
   else
     {
@@ -510,9 +520,31 @@ gfc_init_kinds (void)
   if (gfc_option.flag_default_real)
     {
       if (!saw_r8)
-	fatal_error ("real kind=8 not available for -fdefault-real-8 option");
+	fatal_error ("REAL(KIND=8) is not available for -fdefault-real-8 option");
+
       gfc_default_real_kind = 8;
     }
+  else if (gfc_option.flag_real4_kind == 8)
+  {
+    if (!saw_r8)
+      fatal_error ("REAL(KIND=8) is not available for -freal-4-real-8 option");
+
+    gfc_default_real_kind = 8;
+  }
+  else if (gfc_option.flag_real4_kind == 10)
+  {
+    if (!saw_r10)
+      fatal_error ("REAL(KIND=10) is not available for -freal-4-real-10 option");
+
+    gfc_default_real_kind = 10;
+  }
+  else if (gfc_option.flag_real4_kind == 16)
+  {
+    if (!saw_r16)
+      fatal_error ("REAL(KIND=16) is not available for -freal-4-real-16 option");
+
+    gfc_default_real_kind = 16;
+  }
   else if (saw_r4)
     gfc_default_real_kind = 4;
   else
@@ -529,6 +561,27 @@ gfc_init_kinds (void)
     gfc_default_double_kind = 8;
   else if (gfc_option.flag_default_real && saw_r16)
     gfc_default_double_kind = 16;
+  else if (gfc_option.flag_real8_kind == 4)
+    {
+      if (!saw_r4)
+	fatal_error ("REAL(KIND=4) is not available for -freal-8-real-4 option");
+
+	gfc_default_double_kind = 4;
+    }
+  else if (gfc_option.flag_real8_kind == 10 )
+    {
+      if (!saw_r10)
+	fatal_error ("REAL(KIND=10) is not available for -freal-8-real-10 option");
+
+	gfc_default_double_kind = 10;
+    }
+  else if (gfc_option.flag_real8_kind == 16 )
+    {
+      if (!saw_r16)
+	fatal_error ("REAL(KIND=10) is not available for -freal-8-real-16 option");
+
+	gfc_default_double_kind = 16;
+    }
   else if (saw_r4 && saw_r8)
     gfc_default_double_kind = 8;
   else
@@ -576,18 +629,16 @@ gfc_init_kinds (void)
   gfc_default_character_kind = gfc_character_kinds[0].kind;
   gfc_character_storage_size = gfc_default_character_kind * 8;
 
-  /* Choose the integer kind the same size as "void*" for our index kind.  */
-  gfc_index_integer_kind = POINTER_SIZE / 8;
+  gfc_index_integer_kind = get_int_kind_from_name (PTRDIFF_TYPE);
+
   /* Pick a kind the same size as the C "int" type.  */
   gfc_c_int_kind = INT_TYPE_SIZE / 8;
 
   /* Choose atomic kinds to match C's int.  */
   gfc_atomic_int_kind = gfc_c_int_kind;
   gfc_atomic_logical_kind = gfc_c_int_kind;
-
-  /* initialize the C interoperable kinds  */
-  init_c_interop_kinds();
 }
+
 
 /* Make sure that a valid kind is present.  Returns an index into the
    associated kinds array, -1 if the kind is not present.  */
@@ -1256,7 +1307,7 @@ gfc_build_array_type (tree type, gfc_array_spec * as,
 
   for (n = as->rank; n < as->rank + as->corank; n++)
     {
-      if (as->lower[n] == NULL)
+      if (as->type != AS_DEFERRED && as->lower[n] == NULL)
         lbound[n] = gfc_index_one_node;
       else
         lbound[n] = gfc_conv_array_bound (as->lower[n]);
@@ -1378,7 +1429,7 @@ gfc_get_dtype (tree type)
   if (size && INTEGER_CST_P (size))
     {
       if (tree_int_cst_lt (gfc_max_array_element_size, size))
-	internal_error ("Array element size too big");
+	gfc_fatal_error ("Array element size too big at %C");
 
       i += TREE_INT_CST_LOW (size) << GFC_DTYPE_SIZE_SHIFT;
     }
@@ -2190,6 +2241,9 @@ gfc_copy_dt_decls_ifequal (gfc_symbol *from, gfc_symbol *to,
   gfc_component *to_cm;
   gfc_component *from_cm;
 
+  if (from == to)
+    return 1;
+
   if (from->backend_decl == NULL
 	|| !gfc_compare_derived_types (from, to))
     return 0;
@@ -2258,6 +2312,10 @@ gfc_get_derived_type (gfc_symbol * derived)
   gfc_component *c;
   gfc_dt_list *dt;
   gfc_namespace *ns;
+
+  if (derived && derived->attr.flavor == FL_PROCEDURE
+      && derived->attr.generic)
+    derived = gfc_find_dt_in_generic (derived);
 
   gcc_assert (derived && derived->attr.flavor == FL_DERIVED);
 

@@ -69,6 +69,9 @@ func deepValueEqual(v1, v2 Value, visited map[uintptr]*visit, depth int) (b bool
 		}
 		return true
 	case Slice:
+		if v1.IsNil() != v2.IsNil() {
+			return false
+		}
 		if v1.Len() != v2.Len() {
 			return false
 		}
@@ -93,6 +96,9 @@ func deepValueEqual(v1, v2 Value, visited map[uintptr]*visit, depth int) (b bool
 		}
 		return true
 	case Map:
+		if v1.IsNil() != v2.IsNil() {
+			return false
+		}
 		if v1.Len() != v2.Len() {
 			return false
 		}
@@ -104,7 +110,7 @@ func deepValueEqual(v1, v2 Value, visited map[uintptr]*visit, depth int) (b bool
 		return true
 	default:
 		// Normal equality suffices
-		return v1.Interface() == v2.Interface()
+		return valueInterface(v1, false) == valueInterface(v2, false)
 	}
 
 	panic("Not reached")

@@ -5,10 +5,12 @@
 package x509
 
 import (
+	"crypto/x509/pkix"
 	"encoding/pem"
-	"os"
+	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 type verifyTest struct {
@@ -17,8 +19,9 @@ type verifyTest struct {
 	roots         []string
 	currentTime   int64
 	dnsName       string
+	nilRoots      bool
 
-	errorCallback  func(*testing.T, int, os.Error) bool
+	errorCallback  func(*testing.T, int, error) bool
 	expectedChains [][]string
 }
 
@@ -31,7 +34,7 @@ var verifyTests = []verifyTest{
 		dnsName:       "www.google.com",
 
 		expectedChains: [][]string{
-			[]string{"Google", "Thawte", "VeriSign"},
+			{"Google", "Thawte", "VeriSign"},
 		},
 	},
 	{
@@ -42,6 +45,14 @@ var verifyTests = []verifyTest{
 		dnsName:       "www.example.com",
 
 		errorCallback: expectHostnameError,
+	},
+	{
+		leaf:          googleLeaf,
+		intermediates: []string{thawteIntermediate},
+		nilRoots:      true, // verifies that we don't crash
+		currentTime:   1302726541,
+		dnsName:       "www.google.com",
+		errorCallback: expectAuthorityUnknown,
 	},
 	{
 		leaf:          googleLeaf,
@@ -68,7 +79,7 @@ var verifyTests = []verifyTest{
 		dnsName:       "www.google.com",
 
 		expectedChains: [][]string{
-			[]string{"Google", "Thawte", "VeriSign"},
+			{"Google", "Thawte", "VeriSign"},
 		},
 	},
 	{
@@ -78,7 +89,7 @@ var verifyTests = []verifyTest{
 		currentTime:   1302726541,
 
 		expectedChains: [][]string{
-			[]string{"dnssec-exp", "StartCom Class 1", "StartCom Certification Authority"},
+			{"dnssec-exp", "StartCom Class 1", "StartCom Certification Authority"},
 		},
 	},
 	{
@@ -88,13 +99,13 @@ var verifyTests = []verifyTest{
 		currentTime:   1302726541,
 
 		expectedChains: [][]string{
-			[]string{"dnssec-exp", "StartCom Class 1", "StartCom Certification Authority"},
-			[]string{"dnssec-exp", "StartCom Class 1", "StartCom Certification Authority", "StartCom Certification Authority"},
+			{"dnssec-exp", "StartCom Class 1", "StartCom Certification Authority"},
+			{"dnssec-exp", "StartCom Class 1", "StartCom Certification Authority", "StartCom Certification Authority"},
 		},
 	},
 }
 
-func expectHostnameError(t *testing.T, i int, err os.Error) (ok bool) {
+func expectHostnameError(t *testing.T, i int, err error) (ok bool) {
 	if _, ok := err.(HostnameError); !ok {
 		t.Errorf("#%d: error was not a HostnameError: %s", i, err)
 		return false
@@ -102,7 +113,7 @@ func expectHostnameError(t *testing.T, i int, err os.Error) (ok bool) {
 	return true
 }
 
-func expectExpired(t *testing.T, i int, err os.Error) (ok bool) {
+func expectExpired(t *testing.T, i int, err error) (ok bool) {
 	if inval, ok := err.(CertificateInvalidError); !ok || inval.Reason != Expired {
 		t.Errorf("#%d: error was not Expired: %s", i, err)
 		return false
@@ -110,7 +121,7 @@ func expectExpired(t *testing.T, i int, err os.Error) (ok bool) {
 	return true
 }
 
-func expectAuthorityUnknown(t *testing.T, i int, err os.Error) (ok bool) {
+func expectAuthorityUnknown(t *testing.T, i int, err error) (ok bool) {
 	if _, ok := err.(UnknownAuthorityError); !ok {
 		t.Errorf("#%d: error was not UnknownAuthorityError: %s", i, err)
 		return false
@@ -118,10 +129,10 @@ func expectAuthorityUnknown(t *testing.T, i int, err os.Error) (ok bool) {
 	return true
 }
 
-func certificateFromPEM(pemBytes string) (*Certificate, os.Error) {
+func certificateFromPEM(pemBytes string) (*Certificate, error) {
 	block, _ := pem.Decode([]byte(pemBytes))
 	if block == nil {
-		return nil, os.NewError("failed to decode PEM")
+		return nil, errors.New("failed to decode PEM")
 	}
 	return ParseCertificate(block.Bytes)
 }
@@ -132,7 +143,10 @@ func TestVerify(t *testing.T) {
 			Roots:         NewCertPool(),
 			Intermediates: NewCertPool(),
 			DNSName:       test.dnsName,
-			CurrentTime:   test.currentTime,
+			CurrentTime:   time.Unix(test.currentTime, 0),
+		}
+		if test.nilRoots {
+			opts.Roots = nil
 		}
 
 		for j, root := range test.roots {
@@ -209,6 +223,10 @@ func chainToDebugString(chain []*Certificate) string {
 		chainStr += nameToKey(&cert.Subject)
 	}
 	return chainStr
+}
+
+func nameToKey(name *pkix.Name) string {
+	return strings.Join(name.Country, ",") + "/" + strings.Join(name.Organization, ",") + "/" + strings.Join(name.OrganizationalUnit, ",") + "/" + name.CommonName
 }
 
 const verisignRoot = `-----BEGIN CERTIFICATE-----

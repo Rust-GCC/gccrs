@@ -131,8 +131,8 @@ along with GCC; see the file COPYING3.  If not see
    define it here at all.  */
 #undef DEF_BUILTIN_STUB
 #define DEF_BUILTIN_STUB(ENUM, NAME) \
-  DEF_BUILTIN (ENUM, NAME, BUILT_IN_NORMAL, 0, 0, false, false, \
-	       false, 0, false, false)
+  DEF_BUILTIN (ENUM, NAME, BUILT_IN_NORMAL, BT_LAST, BT_LAST, false, false, \
+	       false, ATTR_LAST, false, false)
 
 /* Builtin used by the implementation of GNU OpenMP.  None of these are
    actually implemented in the compiler; they're all in libgomp.  */
@@ -141,6 +141,13 @@ along with GCC; see the file COPYING3.  If not see
   DEF_BUILTIN (ENUM, "__builtin_" NAME, BUILT_IN_NORMAL, TYPE, TYPE,    \
                false, true, true, ATTRS, false, \
 	       (flag_openmp || flag_tree_parallelize_loops))
+
+/* Builtin used by the implementation of GNU TM.  These
+   functions are mapped to the actual implementation of the STM library. */
+#undef DEF_TM_BUILTIN
+#define DEF_TM_BUILTIN(ENUM, NAME, TYPE, ATTRS) \
+  DEF_BUILTIN (ENUM, "__builtin_" NAME, BUILT_IN_NORMAL, TYPE, TYPE,    \
+	       true, true, true, ATTRS, false, flag_tm)
 
 /* Define an attribute list for math functions that are normally
    "impure" because some of them may write into global memory for
@@ -172,6 +179,9 @@ along with GCC; see the file COPYING3.  If not see
    maintenance purposes.  */
 #undef ATTR_MATHFN_FPROUNDING_STORE
 #define ATTR_MATHFN_FPROUNDING_STORE ATTR_NOTHROW_LEAF_LIST
+
+/* Make sure 0 is not a legitimate builtin.  */
+DEF_BUILTIN_STUB(BUILT_IN_NONE, (const char *)0)
 
 /* Category: math builtins.  */
 DEF_LIB_BUILTIN        (BUILT_IN_ACOS, "acos", BT_FN_DOUBLE_DOUBLE, ATTR_MATHFN_FPROUNDING_ERRNO)
@@ -621,6 +631,7 @@ DEF_GCC_BUILTIN        (BUILT_IN_APPLY_ARGS, "apply_args", BT_FN_PTR_VAR, ATTR_L
 DEF_GCC_BUILTIN        (BUILT_IN_BSWAP32, "bswap32", BT_FN_UINT32_UINT32, ATTR_CONST_NOTHROW_LEAF_LIST)
 DEF_GCC_BUILTIN        (BUILT_IN_BSWAP64, "bswap64", BT_FN_UINT64_UINT64, ATTR_CONST_NOTHROW_LEAF_LIST)
 DEF_EXT_LIB_BUILTIN    (BUILT_IN_CLEAR_CACHE, "__clear_cache", BT_FN_VOID_PTR_PTR, ATTR_NOTHROW_LEAF_LIST)
+/* [trans-mem]: Adjust BUILT_IN_TM_CALLOC if BUILT_IN_CALLOC is changed.  */
 DEF_LIB_BUILTIN        (BUILT_IN_CALLOC, "calloc", BT_FN_PTR_SIZE_SIZE, ATTR_MALLOC_NOTHROW_LEAF_LIST)
 DEF_GCC_BUILTIN        (BUILT_IN_CLASSIFY_TYPE, "classify_type", BT_FN_INT_VAR, ATTR_LEAF_LIST)
 DEF_GCC_BUILTIN        (BUILT_IN_CLZ, "clz", BT_FN_INT_UINT, ATTR_CONST_NOTHROW_LEAF_LIST)
@@ -659,6 +670,7 @@ DEF_EXT_LIB_BUILTIN    (BUILT_IN_FFSL, "ffsl", BT_FN_INT_LONG, ATTR_CONST_NOTHRO
 DEF_EXT_LIB_BUILTIN    (BUILT_IN_FFSLL, "ffsll", BT_FN_INT_LONGLONG, ATTR_CONST_NOTHROW_LEAF_LIST)
 DEF_EXT_LIB_BUILTIN        (BUILT_IN_FORK, "fork", BT_FN_PID, ATTR_NOTHROW_LIST)
 DEF_GCC_BUILTIN        (BUILT_IN_FRAME_ADDRESS, "frame_address", BT_FN_PTR_UINT, ATTR_NULL)
+/* [trans-mem]: Adjust BUILT_IN_TM_FREE if BUILT_IN_FREE is changed.  */
 DEF_LIB_BUILTIN        (BUILT_IN_FREE, "free", BT_FN_VOID_PTR, ATTR_NOTHROW_LIST)
 DEF_GCC_BUILTIN        (BUILT_IN_FROB_RETURN_ADDR, "frob_return_addr", BT_FN_PTR_PTR, ATTR_NULL)
 DEF_EXT_LIB_BUILTIN    (BUILT_IN_GETTEXT, "gettext", BT_FN_STRING_CONST_STRING, ATTR_FORMAT_ARG_1)
@@ -695,6 +707,7 @@ DEF_GCC_BUILTIN        (BUILT_IN_ISUNORDERED, "isunordered", BT_FN_INT_VAR, ATTR
 DEF_LIB_BUILTIN        (BUILT_IN_LABS, "labs", BT_FN_LONG_LONG, ATTR_CONST_NOTHROW_LEAF_LIST)
 DEF_C99_BUILTIN        (BUILT_IN_LLABS, "llabs", BT_FN_LONGLONG_LONGLONG, ATTR_CONST_NOTHROW_LEAF_LIST)
 DEF_GCC_BUILTIN        (BUILT_IN_LONGJMP, "longjmp", BT_FN_VOID_PTR_INT, ATTR_NORETURN_NOTHROW_LEAF_LIST)
+/* [trans-mem]: Adjust BUILT_IN_TM_MALLOC if BUILT_IN_MALLOC is changed.  */
 DEF_LIB_BUILTIN        (BUILT_IN_MALLOC, "malloc", BT_FN_PTR_SIZE, ATTR_MALLOC_NOTHROW_LEAF_LIST)
 DEF_GCC_BUILTIN        (BUILT_IN_NEXT_ARG, "next_arg", BT_FN_PTR_VAR, ATTR_LEAF_LIST)
 DEF_GCC_BUILTIN        (BUILT_IN_PARITY, "parity", BT_FN_INT_UINT, ATTR_CONST_NOTHROW_LEAF_LIST)
@@ -738,6 +751,7 @@ DEF_BUILTIN_STUB (BUILT_IN_SETJMP_RECEIVER, "__builtin_setjmp_receiver")
 /* Implementing variable sized local variables.  */
 DEF_BUILTIN_STUB (BUILT_IN_STACK_SAVE, "__builtin_stack_save")
 DEF_BUILTIN_STUB (BUILT_IN_STACK_RESTORE, "__builtin_stack_restore")
+DEF_BUILTIN_STUB (BUILT_IN_ALLOCA_WITH_ALIGN, "__builtin_alloca_with_align")
 
 /* Object size checking builtins.  */
 DEF_GCC_BUILTIN	       (BUILT_IN_OBJECT_SIZE, "object_size", BT_FN_SIZE_CONST_PTR_INT, ATTR_PURE_NOTHROW_LEAF_LIST)
@@ -746,6 +760,7 @@ DEF_EXT_LIB_BUILTIN    (BUILT_IN_MEMMOVE_CHK, "__memmove_chk", BT_FN_PTR_PTR_CON
 DEF_EXT_LIB_BUILTIN    (BUILT_IN_MEMPCPY_CHK, "__mempcpy_chk", BT_FN_PTR_PTR_CONST_PTR_SIZE_SIZE, ATTR_NOTHROW_NONNULL_LEAF)
 DEF_EXT_LIB_BUILTIN    (BUILT_IN_MEMSET_CHK, "__memset_chk", BT_FN_PTR_PTR_INT_SIZE_SIZE, ATTR_NOTHROW_NONNULL_LEAF)
 DEF_EXT_LIB_BUILTIN    (BUILT_IN_STPCPY_CHK, "__stpcpy_chk", BT_FN_STRING_STRING_CONST_STRING_SIZE, ATTR_NOTHROW_NONNULL_LEAF)
+DEF_EXT_LIB_BUILTIN    (BUILT_IN_STPNCPY_CHK, "__stpncpy_chk", BT_FN_STRING_STRING_CONST_STRING_SIZE_SIZE, ATTR_NOTHROW_NONNULL_LEAF)
 DEF_EXT_LIB_BUILTIN    (BUILT_IN_STRCAT_CHK, "__strcat_chk", BT_FN_STRING_STRING_CONST_STRING_SIZE, ATTR_NOTHROW_NONNULL_LEAF)
 DEF_EXT_LIB_BUILTIN    (BUILT_IN_STRCPY_CHK, "__strcpy_chk", BT_FN_STRING_STRING_CONST_STRING_SIZE, ATTR_NOTHROW_NONNULL_LEAF)
 DEF_EXT_LIB_BUILTIN    (BUILT_IN_STRNCAT_CHK, "__strncat_chk", BT_FN_STRING_STRING_CONST_STRING_SIZE_SIZE, ATTR_NOTHROW_NONNULL_LEAF)
@@ -789,3 +804,6 @@ DEF_BUILTIN_STUB (BUILT_IN_EH_COPY_VALUES, "__builtin_eh_copy_values")
 
 /* OpenMP builtins.  */
 #include "omp-builtins.def"
+
+/* GTM builtins. */
+#include "gtm-builtins.def"

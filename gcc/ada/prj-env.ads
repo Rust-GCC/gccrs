@@ -210,6 +210,17 @@ package Prj.Env is
    --  Override the value of the project path. This also removes the implicit
    --  default search directories.
 
+   generic
+      with function Check_Filename (Name : String) return Boolean;
+   function Find_Name_In_Path
+     (Self : Project_Search_Path;
+      Path : String) return String_Access;
+   --  Find a name in the project search path of Self. Check_Filename is
+   --  the predicate to valid the search.  If Path is an absolute filename,
+   --  simply calls the predicate with Path. Otherwise, calls the predicate
+   --  for each component of the path. Stops as soon as the predicate
+   --  returns True and returns the name, or returns null in case of failure.
+
    procedure Find_Project
      (Self               : in out Project_Search_Path;
       Project_File_Name  : String;
@@ -224,6 +235,14 @@ package Prj.Env is
    --  (.gpr) for the file name is optional.
    --
    --  Returns No_Name if no such project was found
+
+   function Get_Runtime_Path
+     (Self : Project_Search_Path;
+      Name : String) return String_Access;
+   --  Compute the full path for the project-based runtime name.  It first
+   --  checks that name is not a simple name (must has a path separator in it),
+   --  and returns null in case of failure.  This check might be removed in the
+   --  future.  The name is simply searched on the project path.
 
 private
    package Projects_Paths is new GNAT.Dynamic_HTables.Simple_HTable

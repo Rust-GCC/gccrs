@@ -13,6 +13,7 @@
 // and heapmap(i) == span for all s->start <= i < s->start+s->npages.
 
 #include "runtime.h"
+#include "arch.h"
 #include "malloc.h"
 
 static MSpan *MHeap_AllocLocked(MHeap*, uintptr, int32);
@@ -39,7 +40,6 @@ runtime_MHeap_Init(MHeap *h, void *(*alloc)(uintptr))
 {
 	uint32 i;
 
-	runtime_initlock(h);
 	runtime_FixAlloc_Init(&h->spanalloc, sizeof(MSpan), alloc, RecordSpan, h);
 	runtime_FixAlloc_Init(&h->cachealloc, sizeof(MCache), alloc, nil, nil);
 	// h->mapcache needs no init
@@ -58,7 +58,7 @@ runtime_MHeap_Alloc(MHeap *h, uintptr npage, int32 sizeclass, int32 acct)
 	MSpan *s;
 
 	runtime_lock(h);
-	runtime_purgecachedstats(m);
+	runtime_purgecachedstats(runtime_m());
 	s = MHeap_AllocLocked(h, npage, sizeclass);
 	if(s != nil) {
 		mstats.heap_inuse += npage<<PageShift;
@@ -102,6 +102,7 @@ HaveSpan:
 		runtime_throw("MHeap_AllocLocked - bad npages");
 	runtime_MSpanList_Remove(s);
 	s->state = MSpanInUse;
+	mstats.heap_idle -= s->npages<<PageShift;
 
 	if(s->npages > npage) {
 		// Trim extra and put it back in the heap.
@@ -256,7 +257,7 @@ void
 runtime_MHeap_Free(MHeap *h, MSpan *s, int32 acct)
 {
 	runtime_lock(h);
-	runtime_purgecachedstats(m);
+	runtime_purgecachedstats(runtime_m());
 	mstats.heap_inuse -= s->npages<<PageShift;
 	if(acct) {
 		mstats.heap_alloc -= s->npages<<PageShift;
@@ -277,6 +278,7 @@ MHeap_FreeLocked(MHeap *h, MSpan *s)
 		// runtime_printf("MHeap_FreeLocked - span %p ptr %p state %d ref %d\n", s, s->start<<PageShift, s->state, s->ref);
 		runtime_throw("MHeap_FreeLocked - invalid free");
 	}
+	mstats.heap_idle += s->npages<<PageShift;
 	s->state = MSpanFree;
 	runtime_MSpanList_Remove(s);
 	sp = (uintptr*)(s->start<<PageShift);

@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-mcpu=niagara3 -mvis" } */
+/* { dg-options "-mvis3" } */
 
 float test_fhadds (float x, float y)
 {

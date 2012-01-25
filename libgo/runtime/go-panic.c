@@ -8,6 +8,7 @@
 #include <stdlib.h>
 
 #include "runtime.h"
+#include "arch.h"
 #include "malloc.h"
 #include "go-alloc.h"
 #include "go-defer.h"
@@ -23,13 +24,13 @@ __printpanics (struct __go_panic_stack *p)
   if (p->__next != NULL)
     {
       __printpanics (p->__next);
-      printf ("\t");
+      fprintf (stderr, "\t");
     }
-  printf ("panic: ");
+  fprintf (stderr, "panic: ");
   printany (p->__arg);
   if (p->__was_recovered)
-    printf (" [recovered]");
-  putchar ('\n');
+    fprintf (stderr, " [recovered]");
+  fputc ('\n', stderr);
 }
 
 /* This implements __go_panic which is used for the panic
@@ -38,16 +39,15 @@ __printpanics (struct __go_panic_stack *p)
 void
 __go_panic (struct __go_empty_interface arg)
 {
+  G *g;
   struct __go_panic_stack *n;
 
-  if (__go_panic_defer == NULL)
-    __go_panic_defer = ((struct __go_panic_defer_struct *)
-			__go_alloc (sizeof (struct __go_panic_defer_struct)));
+  g = runtime_g ();
 
   n = (struct __go_panic_stack *) __go_alloc (sizeof (struct __go_panic_stack));
   n->__arg = arg;
-  n->__next = __go_panic_defer->__panic;
-  __go_panic_defer->__panic = n;
+  n->__next = g->panic;
+  g->panic = n;
 
   /* Run all the defer functions.  */
 
@@ -56,7 +56,7 @@ __go_panic (struct __go_empty_interface arg)
       struct __go_defer_stack *d;
       void (*pfn) (void *);
 
-      d = __go_panic_defer->__defer;
+      d = g->defer;
       if (d == NULL)
 	break;
 
@@ -72,7 +72,7 @@ __go_panic (struct __go_empty_interface arg)
 	      /* Some defer function called recover.  That means that
 		 we should stop running this panic.  */
 
-	      __go_panic_defer->__panic = n->__next;
+	      g->panic = n->__next;
 	      __go_free (n);
 
 	      /* Now unwind the stack by throwing an exception.  The
@@ -95,33 +95,13 @@ __go_panic (struct __go_empty_interface arg)
 	  *d->__frame = 0;
 	}
 
-      __go_panic_defer->__defer = d->__next;
+      g->defer = d->__next;
       __go_free (d);
     }
 
   /* The panic was not recovered.  */
 
-  __printpanics (__go_panic_defer->__panic);
-
-  /* FIXME: We should dump a call stack here.  */
-  abort ();
-}
-
-/* This is used by the runtime library.  */
-
-void
-__go_panic_msg (const char* msg)
-{
-  size_t len;
-  unsigned char *sdata;
-  struct __go_string s;
-  struct __go_empty_interface arg;
-
-  len = __builtin_strlen (msg);
-  sdata = runtime_mallocgc (len, FlagNoPointers, 0, 0);
-  __builtin_memcpy (sdata, msg, len);
-  s.__data = sdata;
-  s.__length = len;
-  newErrorString(s, &arg);
-  __go_panic (arg);
+  runtime_startpanic ();
+  __printpanics (g->panic);
+  runtime_dopanic (0);
 }

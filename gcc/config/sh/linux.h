@@ -41,7 +41,7 @@ along with GCC; see the file COPYING3.  If not see
 #undef TARGET_DEFAULT
 #define TARGET_DEFAULT \
   (TARGET_CPU_DEFAULT | MASK_USERMODE | TARGET_ENDIAN_DEFAULT \
-   | TARGET_OPT_DEFAULT)
+   | TARGET_OPT_DEFAULT | MASK_SOFT_ATOMIC)
 
 #define TARGET_ASM_FILE_END file_end_indicate_exec_stack
 
@@ -131,3 +131,7 @@ along with GCC; see the file COPYING3.  If not see
 #define SH_DIV_STRATEGY_DEFAULT SH_DIV_CALL2
 #undef SH_DIV_STR_FOR_SIZE
 #define SH_DIV_STR_FOR_SIZE "call2"
+
+/* Install the __sync libcalls.  */
+#undef TARGET_INIT_LIBFUNCS
+#define TARGET_INIT_LIBFUNCS  sh_init_sync_libfuncs

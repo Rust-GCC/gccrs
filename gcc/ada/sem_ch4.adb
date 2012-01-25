@@ -50,6 +50,7 @@ with Sem_Ch3;  use Sem_Ch3;
 with Sem_Ch5;  use Sem_Ch5;
 with Sem_Ch6;  use Sem_Ch6;
 with Sem_Ch8;  use Sem_Ch8;
+with Sem_Dim;  use Sem_Dim;
 with Sem_Disp; use Sem_Disp;
 with Sem_Dist; use Sem_Dist;
 with Sem_Eval; use Sem_Eval;
@@ -576,10 +577,12 @@ package body Sem_Ch4 is
                --  and the allocated object is unconstrained.
 
                elsif Ada_Version >= Ada_2005
-                 and then Has_Constrained_Partial_View (Base_Typ)
+                 and then Effectively_Has_Constrained_Partial_View
+                            (Typ  => Base_Typ,
+                             Scop => Current_Scope)
                then
                   Error_Msg_N
-                    ("constraint no allowed when type " &
+                    ("constraint not allowed when type " &
                       "has a constrained partial view", Constraint (E));
                end if;
 
@@ -3114,63 +3117,61 @@ package body Sem_Ch4 is
 
          if Present (Next_Actual (Act2)) then
             return;
-
-         elsif     Op_Name = Name_Op_Add
-           or else Op_Name = Name_Op_Subtract
-           or else Op_Name = Name_Op_Multiply
-           or else Op_Name = Name_Op_Divide
-           or else Op_Name = Name_Op_Mod
-           or else Op_Name = Name_Op_Rem
-           or else Op_Name = Name_Op_Expon
-         then
-            Find_Arithmetic_Types (Act1, Act2, Op_Id, N);
-
-         elsif     Op_Name =  Name_Op_And
-           or else Op_Name = Name_Op_Or
-           or else Op_Name = Name_Op_Xor
-         then
-            Find_Boolean_Types (Act1, Act2, Op_Id, N);
-
-         elsif     Op_Name = Name_Op_Lt
-           or else Op_Name = Name_Op_Le
-           or else Op_Name = Name_Op_Gt
-           or else Op_Name = Name_Op_Ge
-         then
-            Find_Comparison_Types (Act1, Act2, Op_Id,  N);
-
-         elsif     Op_Name = Name_Op_Eq
-           or else Op_Name = Name_Op_Ne
-         then
-            Find_Equality_Types (Act1, Act2, Op_Id,  N);
-
-         elsif     Op_Name = Name_Op_Concat then
-            Find_Concatenation_Types (Act1, Act2, Op_Id, N);
-
-         --  Is this else null correct, or should it be an abort???
-
-         else
-            null;
          end if;
+
+         --  Otherwise action depends on operator
+
+         case Op_Name is
+            when Name_Op_Add      |
+                 Name_Op_Subtract |
+                 Name_Op_Multiply |
+                 Name_Op_Divide   |
+                 Name_Op_Mod      |
+                 Name_Op_Rem      |
+                 Name_Op_Expon    =>
+               Find_Arithmetic_Types (Act1, Act2, Op_Id, N);
+
+            when Name_Op_And      |
+                 Name_Op_Or       |
+                 Name_Op_Xor      =>
+               Find_Boolean_Types (Act1, Act2, Op_Id, N);
+
+            when Name_Op_Lt       |
+                 Name_Op_Le       |
+                 Name_Op_Gt       |
+                 Name_Op_Ge       =>
+               Find_Comparison_Types (Act1, Act2, Op_Id,  N);
+
+            when Name_Op_Eq       |
+                 Name_Op_Ne       =>
+               Find_Equality_Types (Act1, Act2, Op_Id,  N);
+
+            when Name_Op_Concat   =>
+               Find_Concatenation_Types (Act1, Act2, Op_Id, N);
+
+            --  Is this when others, or should it be an abort???
+
+            when others           =>
+               null;
+         end case;
 
       --  Unary operator case
 
       else
-         if Op_Name = Name_Op_Subtract or else
-            Op_Name = Name_Op_Add      or else
-            Op_Name = Name_Op_Abs
-         then
-            Find_Unary_Types (Act1, Op_Id, N);
+         case Op_Name is
+            when Name_Op_Subtract |
+                 Name_Op_Add      |
+                 Name_Op_Abs      =>
+               Find_Unary_Types (Act1, Op_Id, N);
 
-         elsif
-            Op_Name = Name_Op_Not
-         then
-            Find_Negation_Types (Act1, Op_Id, N);
+            when Name_Op_Not      =>
+               Find_Negation_Types (Act1, Op_Id, N);
 
-         --  Is this else null correct, or should it be an abort???
+            --  Is this when others correct, or should it be an abort???
 
-         else
-            null;
-         end if;
+            when others           =>
+               null;
+         end case;
       end if;
    end Analyze_Operator_Call;
 
@@ -3434,8 +3435,8 @@ package body Sem_Ch4 is
       --  of the high bound.
 
       procedure Check_Universal_Expression (N : Node_Id);
-      --  In Ada83, reject bounds of a universal range that are not
-      --  literals or entity names.
+      --  In Ada 83, reject bounds of a universal range that are not literals
+      --  or entity names.
 
       -----------------------
       -- Check_Common_Type --
@@ -3857,8 +3858,10 @@ package body Sem_Ch4 is
       elsif Is_Record_Type (Prefix_Type) then
 
          --  Find component with given name
+         --  In an instance, if the node is known as a prefixed call, do
+         --  not examine components whose visibility may be accidental.
 
-         while Present (Comp) loop
+         while Present (Comp) and then not Is_Prefixed_Call (N) loop
             if Chars (Comp) = Chars (Sel)
               and then Is_Visible_Component (Comp)
             then
@@ -5548,9 +5551,15 @@ package body Sem_Ch4 is
          end if;
 
          if T1 /= Standard_Void_Type
-           and then not Is_Limited_Type (T1)
-           and then not Is_Limited_Composite (T1)
            and then Has_Compatible_Type (R, T1)
+           and then
+             ((not Is_Limited_Type (T1)
+                and then not Is_Limited_Composite (T1))
+
+               or else
+                 (Is_Array_Type (T1)
+                   and then not Is_Limited_Type (Component_Type (T1))
+                   and then Available_Full_View_Of_Component (T1)))
          then
             if Found
               and then Base_Type (T1) /= Base_Type (T_F)
@@ -6034,8 +6043,17 @@ package body Sem_Ch4 is
                 First_Subtype (Base_Type (Etype (R))) /= Standard_Integer
               and then Base_Type (Etype (R)) /= Universal_Integer
             then
-               Error_Msg_NE
-                 ("exponent must be of type Natural, found}", R, Etype (R));
+               if Ada_Version >= Ada_2012
+                 and then Has_Dimension_System (Etype (L))
+               then
+                  Error_Msg_NE
+                    ("exponent for dimensioned type must be a rational" &
+                     ", found}", R, Etype (R));
+               else
+                  Error_Msg_NE
+                    ("exponent must be of type Natural, found}", R, Etype (R));
+               end if;
+
                return;
             end if;
 
@@ -6213,6 +6231,11 @@ package body Sem_Ch4 is
 
    begin
       if Is_Overloaded (N) then
+         if Debug_Flag_V then
+            Write_Str ("Remove_Abstract_Operations: ");
+            Write_Overloads (N);
+         end if;
+
          Get_First_Interp (N, I, It);
 
          while Present (It.Nam) loop
@@ -6227,7 +6250,7 @@ package body Sem_Ch4 is
                   Remove_Interp (I);
                   exit;
 
-               --  In Ada 2005, this operation does not participate in Overload
+               --  In Ada 2005, this operation does not participate in overload
                --  resolution. If the operation is defined in a predefined
                --  unit, it is one of the operations declared abstract in some
                --  variants of System, and it must be removed as well.
@@ -6406,6 +6429,11 @@ package body Sem_Ch4 is
                end loop;
             end if;
          end if;
+
+         if Debug_Flag_V then
+            Write_Str ("Remove_Abstract_Operations done: ");
+            Write_Overloads (N);
+         end if;
       end if;
    end Remove_Abstract_Operations;
 
@@ -6423,38 +6451,20 @@ package body Sem_Ch4 is
       Func      : Entity_Id;
       Func_Name : Node_Id;
       Indexing  : Node_Id;
-      Is_Var    : Boolean;
-      Ritem     : Node_Id;
 
    begin
 
-      --  Check whether type has a specified indexing aspect.
+      --  Check whether type has a specified indexing aspect
 
       Func_Name := Empty;
-      Is_Var := False;
 
-      Ritem := First_Rep_Item (Etype (Prefix));
-      while Present (Ritem) loop
-         if Nkind (Ritem) = N_Aspect_Specification then
+      if Is_Variable (Prefix) then
+         Func_Name := Find_Aspect (Etype (Prefix), Aspect_Variable_Indexing);
+      end if;
 
-            --  Prefer Variable_Indexing, but will settle for Constant.
-
-            if Get_Aspect_Id (Chars (Identifier (Ritem))) =
-                                                 Aspect_Constant_Indexing
-            then
-               Func_Name := Expression (Ritem);
-
-            elsif Get_Aspect_Id (Chars (Identifier (Ritem))) =
-                                                 Aspect_Variable_Indexing
-            then
-               Func_Name :=  Expression (Ritem);
-               Is_Var := True;
-               exit;
-            end if;
-         end if;
-
-         Next_Rep_Item (Ritem);
-      end loop;
+      if No (Func_Name) then
+         Func_Name := Find_Aspect (Etype (Prefix), Aspect_Constant_Indexing);
+      end if;
 
       --  If aspect does not exist the expression is illegal. Error is
       --  diagnosed in caller.
@@ -6474,12 +6484,6 @@ package body Sem_Ch4 is
          end if;
       end if;
 
-      if Is_Var
-        and then not Is_Variable (Prefix)
-      then
-         Error_Msg_N ("Variable indexing cannot be applied to a constant", N);
-      end if;
-
       if not Is_Overloaded (Func_Name) then
          Func := Entity (Func_Name);
          Indexing := Make_Function_Call (Loc,
@@ -6489,18 +6493,22 @@ package body Sem_Ch4 is
          Rewrite (N, Indexing);
          Analyze (N);
 
-         --  The return type of the indexing function is a reference type, so
-         --  add the dereference as a possible interpretation.
+         --  If the return type of the indexing function is a reference type,
+         --  add the dereference as a possible interpretation. Note that the
+         --  indexing aspect may be a function that returns the element type
+         --  with no intervening implicit dereference.
 
-         Disc := First_Discriminant (Etype (Func));
-         while Present (Disc) loop
-            if Has_Implicit_Dereference (Disc) then
-               Add_One_Interp (N, Disc, Designated_Type (Etype (Disc)));
-               exit;
-            end if;
+         if Has_Discriminants (Etype (Func)) then
+            Disc := First_Discriminant (Etype (Func));
+            while Present (Disc) loop
+               if Has_Implicit_Dereference (Disc) then
+                  Add_One_Interp (N, Disc, Designated_Type (Etype (Disc)));
+                  exit;
+               end if;
 
-            Next_Discriminant (Disc);
-         end loop;
+               Next_Discriminant (Disc);
+            end loop;
+         end if;
 
       else
          Indexing := Make_Function_Call (Loc,
@@ -6522,24 +6530,35 @@ package body Sem_Ch4 is
                Analyze_One_Call (N, It.Nam, False, Success);
                if Success then
                   Set_Etype (Name (N), It.Typ);
+                  Set_Entity (Name (N), It.Nam);
 
-                  --  Add implicit dereference interpretation.
+                  --  Add implicit dereference interpretation
 
-                  Disc := First_Discriminant (Etype (It.Nam));
+                  if Has_Discriminants (Etype (It.Nam)) then
+                     Disc := First_Discriminant (Etype (It.Nam));
+                     while Present (Disc) loop
+                        if Has_Implicit_Dereference (Disc) then
+                           Add_One_Interp
+                             (N, Disc, Designated_Type (Etype (Disc)));
+                           exit;
+                        end if;
 
-                  while Present (Disc) loop
-                     if Has_Implicit_Dereference (Disc) then
-                        Add_One_Interp
-                          (N, Disc, Designated_Type (Etype (Disc)));
-                        exit;
-                     end if;
+                        Next_Discriminant (Disc);
+                     end loop;
+                  end if;
 
-                     Next_Discriminant (Disc);
-                  end loop;
+                  exit;
                end if;
                Get_Next_Interp (I, It);
             end loop;
          end;
+      end if;
+
+      if Etype (N) = Any_Type then
+         Error_Msg_NE ("container cannot be indexed with&", N, Etype (Expr));
+         Rewrite (N, New_Occurrence_Of (Any_Id, Loc));
+      else
+         Analyze (N);
       end if;
 
       return True;
@@ -6859,7 +6878,8 @@ package body Sem_Ch4 is
          First_Actual := First (Parameter_Associations (Call_Node));
 
          --  For cross-reference purposes, treat the new node as being in
-         --  the source if the original one is.
+         --  the source if the original one is. Set entity and type, even
+         --  though they may be overwritten during resolution if overloaded.
 
          Set_Comes_From_Source (Subprog, Comes_From_Source (N));
          Set_Comes_From_Source (Call_Node, Comes_From_Source (N));
@@ -6868,6 +6888,7 @@ package body Sem_Ch4 is
            and then not Inside_A_Generic
          then
             Set_Entity (Selector_Name (N), Entity (Subprog));
+            Set_Etype  (Selector_Name (N), Etype (Entity (Subprog)));
          end if;
 
          --  If need be, rewrite first actual as an explicit dereference
@@ -7155,11 +7176,13 @@ package body Sem_Ch4 is
 
             --  Find a non-hidden operation whose first parameter is of the
             --  class-wide type, a subtype thereof, or an anonymous access
-            --  to same.
+            --  to same. If in an instance, the operation can be considered
+            --  even if hidden (it may be hidden because the instantiation is
+            --  expanded after the containing package has been analyzed).
 
             while Present (Hom) loop
                if Ekind_In (Hom, E_Procedure, E_Function)
-                 and then not Is_Hidden (Hom)
+                 and then (not Is_Hidden (Hom) or else In_Instance)
                  and then Scope (Hom) = Scope (Anc_Type)
                  and then Present (First_Formal (Hom))
                  and then

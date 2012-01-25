@@ -7,9 +7,8 @@ package os_test
 import (
 	. "os"
 	"path/filepath"
-	"testing"
 	"runtime"
-	"syscall"
+	"testing"
 )
 
 func TestMkdirAll(t *testing.T) {
@@ -63,7 +62,7 @@ func TestMkdirAll(t *testing.T) {
 		t.Fatalf("MkdirAll %q returned wrong error path: %q not %q", ffpath, filepath.Clean(perr.Path), filepath.Clean(fpath))
 	}
 
-	if syscall.OS == "windows" {
+	if runtime.GOOS == "windows" {
 		path := `_test\_TestMkdirAll_\dir\.\dir2\`
 		err := MkdirAll(path, 0777)
 		if err != nil {
@@ -117,7 +116,7 @@ func TestRemoveAll(t *testing.T) {
 
 	// Determine if we should run the following test.
 	testit := true
-	if syscall.OS == "windows" {
+	if runtime.GOOS == "windows" {
 		// Chmod is not supported under windows.
 		testit = false
 	} else {
@@ -199,7 +198,7 @@ func TestMkdirAllAtSlash(t *testing.T) {
 	if err != nil {
 		pathErr, ok := err.(*PathError)
 		// common for users not to be able to write to /
-		if ok && pathErr.Error == EACCES {
+		if ok && pathErr.Err == EACCES {
 			return
 		}
 		t.Fatalf(`MkdirAll "/_go_os_test/dir": %v`, err)
