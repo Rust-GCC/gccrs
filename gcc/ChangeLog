@@ -1,3 +1,74 @@
+2012-01-27  Richard Henderson  <rth@redhat.com>
+
+	* config/m68k/m68k.c (TARGET_ATOMIC_TEST_AND_SET_TRUEVAL): New.
+	* config/m68k/sync.md (atomic_test_and_set): Rename from
+	sync_test_and_setqi and adjust the operands.
+	(atomic_test_and_set_1): Rename from sync_test_and_setqi_1
+	and unconditionally enable.
+
+2012-01-27  Richard Henderson  <rth@redhat.com>
+
+	* config/sparc/sparc.c (TARGET_ATOMIC_TEST_AND_SET_TRUEVAL): New.
+	* config/sparc/sync.md (atomic_test_and_set): Only handle QImode.
+	(ldstub): Rename from ldstubqi.
+	(ldstub<I24MODE>): Remove.
+
+2012-01-27  Richard Henderson  <rth@redhat.com>
+
+	* target.def (TARGET_ATOMIC_TEST_AND_SET_TRUEVAL): New.
+	* c-cppbuiltin.c (cpp_atomic_builtins): Define
+	__GCC_ATOMIC_TEST_AND_SET_TRUEVAL.
+	* doc/tm.texi.in (TARGET_ATOMIC_TEST_AND_SET_TRUEVAL): Add doc hook.
+	* doc/tm.texi: Rebuild.
+
+2012-01-27  Richard Henderson  <rth@redhat.com>
+
+	* optabs.c (gen_atomic_test_and_set): Remove default.
+	(maybe_emit_atomic_test_and_set): Use maybe_expand_insn.
+
+2012-01-26  Jakub Jelinek  <jakub@redhat.com>
+
+	PR rtl-optimization/51978
+	* ree.c (make_defs_and_copies_lists): Change set_pat type
+	to const_rtx.
+	(combine_reaching_defs): Likewise.
+	(struct re_info): Remove.
+	(add_removable_extension): Remove x and data arguments,
+	add insn, insn_list and def_map.  Use the arguments directly
+	instead of using struct re_info.
+	(find_removable_extensions): Don't call add_removable_extension
+	through note_stores, instead just call it with single_set
+	result if non-NULL.
+	(find_and_remove_re): Pass curr_cand->expr instead of
+	PATTERN (curr_cand->insn) as set_pat argument to
+	combine_reaching_defs.
+
+2012-01-26  Michael Matz  <matz@suse.de>
+
+	PR tree-optimization/46590
+	* cfgexpand.c: Revert last change (r183305).
+	* gimplify.c (gimplify_bind_expr): Add clobbers for all non-gimple
+	regs.
+	* tree-eh.c (cleanup_empty_eh): Try to optimize clobbers before
+	checking for emptiness.
+
+2012-01-26  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/51895
+	* expr.c (expand_expr_real_1): Handle BLKmode MEM_REF of
+	non-addressable non-BLKmode base correctly.
+
+2012-01-26  Michael Matz  <matz@suse.de>
+
+	PR tree-optimization/48794
+	* tree-eh.c (remove_unreachable_handlers_no_lp): Don't remove
+	regions referenced from RESX/EH_DISPATCH.
+
+2012-01-26  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
+
+	* config/s390/s390.h: Make BRANCH_COST an option.
+	* config/s390/s390.opt: New option -mbranch-cost.
+
 2012-01-26  Richard Henderson  <rth@redhat.com>
 
 	Revert 2012-01-24 change:
