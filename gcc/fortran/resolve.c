@@ -374,21 +374,26 @@ resolve_formal_arglist (gfc_symbol *proc)
       if (gfc_elemental (proc))
 	{
 	  /* F08:C1289.  */
-	  if (sym->attr.codimension)
+	  if (sym->attr.codimension
+	      || (sym->ts.type == BT_CLASS && CLASS_DATA (sym)
+		  && CLASS_DATA (sym)->attr.codimension))
 	    {
 	      gfc_error ("Coarray dummy argument '%s' at %L to elemental "
 			 "procedure", sym->name, &sym->declared_at);
 	      continue;
 	    }
 
-	  if (sym->as != NULL)
+	  if (sym->as || (sym->ts.type == BT_CLASS && CLASS_DATA (sym)
+			  && CLASS_DATA (sym)->as))
 	    {
 	      gfc_error ("Argument '%s' of elemental procedure at %L must "
 			 "be scalar", sym->name, &sym->declared_at);
 	      continue;
 	    }
 
-	  if (sym->attr.allocatable)
+	  if (sym->attr.allocatable
+	      || (sym->ts.type == BT_CLASS && CLASS_DATA (sym)
+		  && CLASS_DATA (sym)->attr.allocatable))
 	    {
 	      gfc_error ("Argument '%s' of elemental procedure at %L cannot "
 			 "have the ALLOCATABLE attribute", sym->name,
@@ -396,7 +401,9 @@ resolve_formal_arglist (gfc_symbol *proc)
 	      continue;
 	    }
 
-	  if (sym->attr.pointer)
+	  if (sym->attr.pointer
+	      || (sym->ts.type == BT_CLASS && CLASS_DATA (sym)
+		  && CLASS_DATA (sym)->attr.class_pointer))
 	    {
 	      gfc_error ("Argument '%s' of elemental procedure at %L cannot "
 			 "have the POINTER attribute", sym->name,
@@ -1575,6 +1582,16 @@ resolve_procedure_expression (gfc_expr* expr)
 }
 
 
+gfc_array_spec *
+symbol_as (gfc_symbol *sym)
+{
+  if (sym->ts.type == BT_CLASS && sym->attr.class_ok)
+    return CLASS_DATA (sym)->as;
+  else
+    return sym->as;
+}
+
+
 /* Resolve an actual argument list.  Most of the time, this is just
    resolving the expressions in the list.
    The exception is that we sometimes have to decide whether arguments
@@ -1740,13 +1757,17 @@ resolve_actual_arglist (gfc_actual_arglist *arg, procedure_type ptype,
     got_variable:
       e->expr_type = EXPR_VARIABLE;
       e->ts = sym->ts;
-      if (sym->as != NULL)
+      if ((sym->as != NULL && sym->ts.type != BT_CLASS)
+	  || (sym->ts.type == BT_CLASS && sym->attr.class_ok
+	      && CLASS_DATA (sym)->as))
 	{
-	  e->rank = sym->as->rank;
+	  e->rank = sym->ts.type == BT_CLASS
+		    ? CLASS_DATA (sym)->as->rank : sym->as->rank;
 	  e->ref = gfc_get_ref ();
 	  e->ref->type = REF_ARRAY;
 	  e->ref->u.ar.type = AR_FULL;
-	  e->ref->u.ar.as = sym->as;
+	  e->ref->u.ar.as = sym->ts.type == BT_CLASS
+			    ? CLASS_DATA (sym)->as : sym->as;
 	}
 
       /* Expressions are assigned a default ts.type of BT_PROCEDURE in
@@ -7930,13 +7951,8 @@ resolve_assoc_var (gfc_symbol* sym, bool resolve_target)
       sym->attr.asynchronous = tsym->attr.asynchronous;
       sym->attr.volatile_ = tsym->attr.volatile_;
 
-      if (tsym->ts.type == BT_CLASS)
-	sym->attr.target = tsym->attr.target || CLASS_DATA (tsym)->attr.pointer;
-      else
-	sym->attr.target = tsym->attr.target || tsym->attr.pointer;
-
-      if (sym->ts.type == BT_DERIVED && tsym->ts.type == BT_CLASS)
-	target->rank = sym->as ? sym->as->rank : 0;
+      sym->attr.target = tsym->attr.target
+			 || gfc_expr_attr (target).pointer;
     }
 
   /* Get type if this was not already set.  Note that it can be
@@ -7951,10 +7967,7 @@ resolve_assoc_var (gfc_symbol* sym, bool resolve_target)
 			  && !gfc_has_vector_subscript (target));
 
   /* Finally resolve if this is an array or not.  */
-  if (sym->attr.dimension
-	&& (target->ts.type == BT_CLASS
-	      ? !CLASS_DATA (target)->attr.dimension
-	      : target->rank == 0))
+  if (sym->attr.dimension && target->rank == 0)
     {
       gfc_error ("Associate-name '%s' at %L is used as array",
 		 sym->name, &sym->declared_at);

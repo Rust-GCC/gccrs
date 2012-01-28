@@ -1,3 +1,107 @@
+2012-01-27  Ian Lance Taylor  <iant@google.com>
+
+	PR go/47656
+	* builtins.def (BUILT_IN_INIT_HEAP_TRAMPOLINE): Define.
+	* builtins.c (expand_builtin_init_trampoline): Add onstack
+	parameter.  Change caller.
+	(expand_builtin): Handle BUILT_IN_INIT_HEAP_TRAMPOLINE.
+	* tree.c (build_common_builtin_nodes): Declare
+	__builtin_init_heap_trampoline.
+
+2012-01-27  Georg-Johann Lay  <avr@gjlay.de>
+
+	* config/avr/avr-protos.h (lpm_reg_rtx, lpm_addr_reg_rtx,
+	tmp_reg_rtx, zero_reg_rtx, all_regs_rtx, rampz_rtx): Make global.
+	* config/avr/avr.c: Ditto.
+	(avr_regnames): Remove because unused.
+	* config/avr/avr.md (*cpse.ne): New peephole.
+	(*cpse.eq): New peephole from former cpse peepholes.
+
+2012-01-27  Michael Eager  <eager@eagercon.com>
+
+	* config/microblaze.c (microblaze_emit_compare): Correct
+	test after pcmp instruction.
+
+2012-01-27  Richard Guenther  <rguenther@suse.de>
+
+	PR tree-optimization/52020
+	* tree-sra.c (sra_modify_assign): Do not transform clobbers.
+
+2012-01-27  Richard Guenther  <rguenther@suse.de>
+
+	* ipa-pure-const.c (check_stmt): Clobbers do not make a
+	function non-const/pure.
+
+2012-01-27  Richard Guenther  <rguenther@suse.de>
+
+	PR tree-optimization/50444
+	* tree-sra.c (build_ref_for_offset): Properly adjust the
+	MEM_REF type for unaligned accesses.
+
+2012-01-27  Richard Guenther  <rguenther@suse.de>
+
+	PR tree-optimization/50444
+	* expr.c (mem_ref_refers_to_non_mem_p): New function.
+	(expand_assignment): Use it.  Properly handle misaligned
+	bases when expanding stores to component references.
+	(expand_expr_real_1): Use mem_ref_refers_to_non_mem_p and
+	refactor that case.
+
+2012-01-27  Andrey Belevantsev  <abel@ispras.ru>
+
+	PR middle-end/51389
+	* Makefile.in (tree-data-ref.o): Depend on $(PARAMS_H).
+	* tree-data-ref.h (find_data_references_in_loop): Remove declaration.
+	* tree-data-ref.c (find_data_references_in_loop): Make static.
+	(compute_all_dependences): Change return type to bool.  Bail out
+	for too many datarefs in a loop.  Move the hunk resetting the data
+	dependences vector from ...
+	(compute_data_dependences_for_loop): ... here.  Account for
+	compute_all_dependences returning false.
+	(compute_data_dependences_for_bb): Likewise.
+	* params.def (PARAM_LOOP_MAX_DATAREFS_FOR_DATADEPS): New param.
+	* doc/invoke.texi (loop-max-datarefs-for-datadeps): Document it.
+
+2012-01-27  Richard Guenther  <rguenther@suse.de>
+
+	PR middle-end/51959
+	* expr.c (store_field): Use the alias-set of the scratch memory
+	for storing to it.
+
+2012-01-27  Tom de Vries  <tom@codesourcery.com>
+
+	PR tree-optimization/51990
+	* tree-ssa-sccvn.c (copy_reference_ops_from_ref): Handle WITH_SIZE_EXPR.
+	* tree-ssa-pre.c (create_component_ref_by_pieces_1): Same.
+
+2012-01-27  Jakub Jelinek  <jakub@redhat.com>
+
+	PR debug/52001
+	* var-tracking.c (reverse_op): Don't add any reverse operation
+	if V already has any constant locations.
+
+2012-01-27  Sandra Loosemore  <sandra@codesourcery.com>
+
+	* doc/invoke.texi: Correct usage of "command line" (noun)
+	vs "command-line" (adjective) throughout.
+
+2012-01-27  Sandra Loosemore  <sandra@codesourcery.com>
+
+	* doc/invoke.texi (Language Independent Options): Move
+	-Wcoverage-mismatch blurb from here....
+	(Warning Options): ...to here.
+
+2012-01-27  Peter Bergner  <bergner@vnet.ibm.com>
+
+	* config/rs6000/rs6000.c (rs6000_option_override_internal):
+	Set rs6000_always_hint to false for 476.
+
+2012-01-27  Matthias Klose  <doko@ubuntu.com>
+
+	* gcc.c (add_sysrooted_prefix): Remove trailing dir separator from
+	  system root.
+	* incpath.c (add_standard_paths): Likewise.
+
 2012-01-27  Richard Henderson  <rth@redhat.com>
 
 	* config/m68k/m68k.c (TARGET_ATOMIC_TEST_AND_SET_TRUEVAL): New.

@@ -1,3 +1,36 @@
+2012-01-27  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/51795
+	* include/bits/random.h (linear_congruential_generator): Add
+	static_assert preventing instantiation for values of 'a' and 'm'
+	currently handled incorrectly but _Mod::__calc.
+	* include/bits/random.tcc (seed_seq::generate): Avoid unsafe
+	uses of _Mod::__calc.
+
+2012-01-27  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libstdc++/51798
+	* config/cpu/generic/atomicity_builtins/atomicity.h
+	(__exchange_and_add, __atomic_add): Use __atomic_fetch_add
+	with __ATOMIC_ACQ_REL semantics instead of __sync_fetch_and_add.
+	* include/ext/atomicity.h (__exchange_and_add, __atomic_add):
+	Likewise.
+
+2011-01-27  Rafael Avila de Espindola  <rafael.espindola@gmail.com>
+
+	* libsupc++/typeinfo: Correctly match #pragma GCC visibility
+	pop with #pragma GCC visibility push.
+
+2012-01-27  Benjamin Kosnik  <bkoz@redhat.com>
+	    Matthias Klose  <doko@ubuntu.com>
+
+	* configure.ac (GLIBCXX_ENABLE_DEBUG_FLAGS): Use -gdwarf-4 -g3 -O0.
+	* configure.in: Regenerated.
+	* src/Makefile.am (all-once, install-data-once): New rules.
+	(all-local, install-data-local): Use them.
+	(build-debug, install-debug): Tweak.
+	* src/Makefile.in: Regenerate.
+
 2012-01-27  Richard Henderson  <rth@redhat.com>
 
 	* include/bits/atomic_base.h (__atomic_flag_base): Define _M_i
