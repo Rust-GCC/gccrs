@@ -1,3 +1,148 @@
+2012-01-31  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* function.h (regno_reg_rtx): Adjust comment.
+	* reginfo.c (init_reg_modes_target): Only use the previous mode
+	if it fits within one register.  Remove MIPS comment.
+
+2012-01-31  Jakub Jelinek  <jakub@redhat.com>
+
+	PR bootstrap/52058
+	* combine.c (do_SUBST_LINK, SUBST_LINK): Guard with #ifndef HAVE_cc0.
+
+2012-01-31  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
+
+	* config/s390/s390.md ("*ashr<mode>3_and"): Add missing z196 flag
+	to srak instruction.
+
+2012-01-31  Matthew Gretton-Dann  <matthew.gretton-dann@arm.com>
+
+	config/arm/thumb2.md (thumb2_mov_notscc): Use MVN for true
+	condition.
+
+2012-01-31  Jakub Jelinek  <jakub@redhat.com>
+
+	PR bootstrap/52041
+	PR bootstrap/52039
+	PR target/51974
+	* ipa-prop.c (detect_type_change_1): Call ao_ref_init.
+
+2012-01-31  Richard Guenther  <rguenther@suse.de>
+
+	PR tree-optimization/51528
+	* tree-sra.c (sra_modify_assign): Avoid copy-in/out for aggregate
+	assigns.
+
+2012-01-31  Jakub Jelinek  <jakub@redhat.com>
+
+	PR bootstrap/52041
+	PR bootstrap/52039
+	PR target/51974
+	* ree.c (add_removable_extension): Change def_map argument
+	to unsigned *, store in def_map 1 + offset into *insn_list vector
+	instead of pointers into the vector.
+	(find_removable_extensions): Adjust caller.
+
+2012-01-30  Georg-Johann Lay  <avr@gjlay.de>
+
+	* config/avr/avr.md: Resolve all AS1 and AS2 macros.
+	Transform all "* quoted-c-code" to { c-code }.
+	Remove redundant test for "optimize" in combine patterns.
+	Move (include "avr-dimode.md") to end of file.
+
+2012-01-30  Bin Cheng  <bin.cheng@arm.com>
+
+	PR target/51835
+	* config/arm/arm.c (arm_libcall_uses_aapcs_base): Use correct ABI
+	for __aeabi_d2iz/__aeabi_d2uiz with hard-float.
+
+2012-01-30  Richard Guenther  <rguenther@suse.de>
+
+	PR tree-optimization/52028
+	* tree-loop-distribution.c (ldist_gen): Properly update
+	virtual SSA form.
+
+2012-01-30  Jakub Jelinek  <jakub@redhat.com>
+
+	PR debug/52027
+	* dwarf2out.c (dwarf2out_switch_text_section): Don't call
+	set_cur_line_info_table if not emitting debug info.
+
+	PR tree-optimization/52046
+	* tree-vect-patterns.c (check_bool_pattern): Give up if
+	a comparison could throw.
+
+	PR debug/52048
+	* tree-ssa-tail-merge.c (local_def): Ignore debug uses.
+
+2012-01-30  Richard Guenther  <rguenther@suse.de>
+
+	PR tree-optimization/52045
+	* tree-optimize.c (execute_cleanup_cfg_post_optimizing): Update
+	SSA form if cfgcleanup did anything.
+
+2012-01-30  Richard Guenther  <rguenther@suse.de>
+
+	PR tree-optimization/52045
+	* ipa-inline-transform.c (inline_transform): Call execute_fixup_cfg
+	before computing final todo.
+
+2012-01-30  Richard Guenther  <rguenther@suse.de>
+
+	PR tree-optimization/51528
+	* tree-sra.c (sra_modify_assign): Re-factor in preparation
+	for PR51528 fix.
+
+2012-01-30  Paolo Bonzini  <bonzini@gnu.org>
+
+	* df-problems.c (df_kill_notes): Check that the use refers
+	to the note under examination.
+
+2012-01-30  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR target/51920
+	* config/sparc/sparc.c (vector_init_fpmerge): Remove INNER_MODE
+	parameter and use short-lived pseudos.
+	(vector_init_faligndata): Remove INNER_MODE parameter and use loop.
+	(sparc_expand_vector_init): Const-ify local variables and adjust
+	calls to above functions.
+
+2012-01-30  Georg-Johann Lay  <avr@gjlay.de>
+
+	* config/avr/avr.c (out_movqi_mr_r): Fix length computation.
+
+2012-01-29  Sandra Loosemore  <sandra@codesourcery.com>
+
+	* doc/invoke.texi: Make usage of "compile time" and
+	"run time"/"runtime" consistent throughout the file.
+
+2012-01-29  Uros Bizjak  <ubizjak@gmail.com>
+
+	* config/alpha/alpha.c (alpha_option_overrride): Default to
+	full IEEE compliance mode for Go language.
+
+2011-01-29  Tijl Coosemans  <tijl@coosemans.org>
+
+	* config/freebsd-spec.h [TARGET_LIBC_PROVIDES_SSP]
+	(LINK_SSP_SPEC): Define.
+
+2012-01-28  John David Anglin  <dave.anglin@nrc-cnrc.gc.ca>
+
+	PR target/51871
+	* config/pa/pa.c (pa_return_addr_rtx): Add support for PA2.0 export
+	stubs.
+
+2012-01-28  Sandra Loosemore  <sandra@codesourcery.com>
+
+	* doc/invoke.texi: Correct hyphenation of "floating point",
+	"double precision", and related terminology throughout the file.
+
+2012-01-28  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/52006
+	* config/arm/arm.md (pic_add_dot_plus_eight peephole2): Use
+	arm_general_register_operand predicate for operand 2 instead of
+	register_operand.
+
 2012-01-27  Ian Lance Taylor  <iant@google.com>
 
 	PR go/47656
@@ -71,7 +216,8 @@
 2012-01-27  Tom de Vries  <tom@codesourcery.com>
 
 	PR tree-optimization/51990
-	* tree-ssa-sccvn.c (copy_reference_ops_from_ref): Handle WITH_SIZE_EXPR.
+	* tree-ssa-sccvn.c (copy_reference_ops_from_ref): Handle
+	WITH_SIZE_EXPR.
 	* tree-ssa-pre.c (create_component_ref_by_pieces_1): Same.
 
 2012-01-27  Jakub Jelinek  <jakub@redhat.com>
@@ -133,8 +279,7 @@
 2012-01-26  Jakub Jelinek  <jakub@redhat.com>
 
 	PR rtl-optimization/51978
-	* ree.c (make_defs_and_copies_lists): Change set_pat type
-	to const_rtx.
+	* ree.c (make_defs_and_copies_lists): Change set_pat type to const_rtx.
 	(combine_reaching_defs): Likewise.
 	(struct re_info): Remove.
 	(add_removable_extension): Remove x and data arguments,
@@ -144,8 +289,7 @@
 	through note_stores, instead just call it with single_set
 	result if non-NULL.
 	(find_and_remove_re): Pass curr_cand->expr instead of
-	PATTERN (curr_cand->insn) as set_pat argument to
-	combine_reaching_defs.
+	PATTERN (curr_cand->insn) as set_pat argument to combine_reaching_defs.
 
 2012-01-26  Michael Matz  <matz@suse.de>
 
@@ -241,7 +385,7 @@
 2012-01-25  Andrey Belevantsev  <abel@ispras.ru>
 
 	PR rtl-optimization/48374
-	* sel-sched-ir.h (get_all_loop_exits): Check for zero successors. 
+	* sel-sched-ir.h (get_all_loop_exits): Check for zero successors.
 
 2012-01-25  Andrey Belevantsev  <abel@ispras.ru>
 
@@ -356,8 +500,7 @@
 	(BT_FN_DOUBLE_VPTR): Remove.
 	(BT_FN_DOUBLE_CONST_DOUBLE_PTR): New.
 
-	* gtm-builtins.def (_ITM_abortTransaction): Set return type to
-	void.
+	* gtm-builtins.def (_ITM_abortTransaction): Set return type to void.
 	(_ITM_changeTransactionMode): Same.
 	(_ITM_memmoveRtWt): Change return type to void.
 	(_ITM_memcpyRtWt): Same.
@@ -434,7 +577,7 @@
 	* trans-mem.c (ipa_tm_create_version): Set externally_visible.
 	(ipa_tm_create_version_alias): Same.
 
-2012-01-18  Uros Bizjak  <ubizjak@gmail.com>
+2012-01-23  Uros Bizjak  <ubizjak@gmail.com>
 
 	PR libitm/51830
 	* builtin-types.def (BT_FN_UINT_UINT_VAR): New.

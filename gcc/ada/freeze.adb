@@ -4165,22 +4165,21 @@ package body Freeze is
 
          if Is_First_Subtype (E) and then Has_Default_Aspect (E) then
             declare
-               Nam    : Name_Id;
-               Aspect : Node_Id;
-               Exp    : Node_Id;
-               Typ    : Entity_Id;
+               Nam : Name_Id;
+               Exp : Node_Id;
+               Typ : Entity_Id;
 
             begin
                if Is_Scalar_Type (E) then
                   Nam := Name_Default_Value;
                   Typ := E;
+                  Exp := Default_Aspect_Value (Typ);
                else
                   Nam := Name_Default_Component_Value;
                   Typ := Component_Type (E);
+                  Exp := Default_Aspect_Component_Value (E);
                end if;
 
-               Aspect := Get_Rep_Item_For_Entity (E, Nam);
-               Exp := Expression (Aspect);
                Analyze_And_Resolve (Exp, Typ);
 
                if Etype (Exp) /= Any_Type then

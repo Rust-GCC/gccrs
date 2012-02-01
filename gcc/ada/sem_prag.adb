@@ -710,7 +710,7 @@ package body Sem_Prag is
 
       procedure Fix_Error (Msg : in out String);
       --  This is called prior to issuing an error message. Msg is a string
-      --  which typically contains the substring pragma. If the current pragma
+      --  that typically contains the substring "pragma". If the current pragma
       --  comes from an aspect, each such "pragma" substring is replaced with
       --  the characters "aspect", and if Error_Msg_Name_1 is Name_Precondition
       --  (resp Name_Postcondition) it is changed to Name_Pre (resp Name_Post).
@@ -7084,7 +7084,7 @@ package body Sem_Prag is
                Check_Interrupt_Or_Attach_Handler;
 
                --  The expression that designates the attribute may depend on a
-               --  discriminant, and is therefore a per- object expression, to
+               --  discriminant, and is therefore a per-object expression, to
                --  be expanded in the init proc. If expansion is enabled, then
                --  perform semantic checks on a copy only.
 
@@ -12890,6 +12890,40 @@ package body Sem_Prag is
             end if;
          end Relative_Deadline;
 
+         ------------------------
+         -- Remote_Access_Type --
+         ------------------------
+
+         --  pragma Remote_Access_Type ([Entity =>] formal_type_LOCAL_NAME);
+
+         when Pragma_Remote_Access_Type => Remote_Access_Type : declare
+            E : Entity_Id;
+
+         begin
+            GNAT_Pragma;
+            Check_Arg_Count (1);
+            Check_Optional_Identifier (Arg1, Name_Entity);
+            Check_Arg_Is_Local_Name (Arg1);
+
+            E := Entity (Get_Pragma_Arg (Arg1));
+
+            if Nkind (Parent (E)) = N_Formal_Type_Declaration
+              and then Ekind (E) = E_General_Access_Type
+              and then Is_Class_Wide_Type (Directly_Designated_Type (E))
+              and then Scope (Root_Type (Directly_Designated_Type (E)))
+                         = Scope (E)
+              and then Is_Valid_Remote_Object_Type
+                         (Root_Type (Directly_Designated_Type (E)))
+            then
+               Set_Is_Remote_Types (E);
+
+            else
+               Error_Pragma_Arg
+                 ("pragma% applies only to formal access to classwide types",
+                  Arg1);
+            end if;
+         end Remote_Access_Type;
+
          ---------------------------
          -- Remote_Call_Interface --
          ---------------------------
@@ -15071,6 +15105,7 @@ package body Sem_Prag is
       Pragma_Queuing_Policy                 => -1,
       Pragma_Ravenscar                      => -1,
       Pragma_Relative_Deadline              => -1,
+      Pragma_Remote_Access_Type             => -1,
       Pragma_Remote_Call_Interface          => -1,
       Pragma_Remote_Types                   => -1,
       Pragma_Restricted_Run_Time            => -1,
@@ -15251,7 +15286,6 @@ package body Sem_Prag is
       Aspects : constant List_Id := New_List;
       Loc     : constant Source_Ptr := Sloc (Decl);
       Or_Decl : constant Node_Id := Original_Node (Decl);
-      Aspect  : Node_Id;
 
       Original_Aspects : List_Id;
       --  To capture global references, a copy of the created aspects must be
@@ -15274,16 +15308,18 @@ package body Sem_Prag is
 
                --  Make an aspect from any PPC pragma
 
-               Aspect :=
+               Append_To (Aspects,
                  Make_Aspect_Specification (Loc,
                    Identifier =>
                      Make_Identifier (Loc, Chars (Pragma_Identifier (Prag))),
-                   Expression => Expression (Prag_Arg_Ass));
+                   Expression =>
+                     Copy_Separate_Tree (Expression (Prag_Arg_Ass))));
 
-               Append (Aspect, Aspects);
+               --  Generate the analysis information in the pragma expression
+               --  and then set the pragma node analyzed to avoid any further
+               --  analysis.
 
-               --  Set the pragma node analyzed to avoid any further analysis
-
+               Analyze (Expression (Prag_Arg_Ass));
                Set_Analyzed (Prag, True);
 
             when others => null;

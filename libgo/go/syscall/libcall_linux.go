@@ -139,14 +139,6 @@ func PtracePokeData(pid int, addr uintptr, data []byte) (count int, err error) {
 	return ptracePoke(PTRACE_POKEDATA, PTRACE_PEEKDATA, pid, addr, data)
 }
 
-func PtraceGetRegs(pid int, regsout *PtraceRegs) (err error) {
-	return ptrace(PTRACE_GETREGS, pid, 0, uintptr(unsafe.Pointer(regsout)))
-}
-
-func PtraceSetRegs(pid int, regs *PtraceRegs) (err error) {
-	return ptrace(PTRACE_SETREGS, pid, 0, uintptr(unsafe.Pointer(regs)))
-}
-
 func PtraceSetOptions(pid int, options int) (err error) {
 	return ptrace(PTRACE_SETOPTIONS, pid, 0, uintptr(options))
 }
@@ -203,9 +195,10 @@ func PtraceDetach(pid int) (err error) { return ptrace(PTRACE_DETACH, pid, 0, 0)
 // //sys	Fstatfs(fd int, buf *Statfs_t) (err error)
 // //fstatfs(fd int, buf *Statfs_t) int
 
-// FIXME: Only available as a syscall.
-// //sysnb	Gettid() (tid int)
-// //gettid() Pid_t
+func Gettid() (tid int) {
+	r1, _, _ := Syscall(SYS_GETTID, 0, 0, 0)
+	return int(r1)
+}
 
 // FIXME: mksysinfo linux_dirent
 //    Or just abandon this function.

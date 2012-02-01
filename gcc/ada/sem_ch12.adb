@@ -1442,14 +1442,43 @@ package body Sem_Ch12 is
                   end if;
 
                   --  A remote access-to-class-wide type is not a legal actual
-                  --  for a generic formal of an access type (E.2.2(17)).
+                  --  for a generic formal of an access type (E.2.2(17/2)).
+                  --  In GNAT an exception to this rule is introduced when
+                  --  the formal is marked as remote using implementation
+                  --  defined aspect/pragma Remote_Access_Type. In that case
+                  --  the actual must be remote as well.
 
                   if Nkind (Analyzed_Formal) = N_Formal_Type_Declaration
                     and then
                       Nkind (Formal_Type_Definition (Analyzed_Formal)) =
                                             N_Access_To_Object_Definition
                   then
-                     Validate_Remote_Access_To_Class_Wide_Type (Match);
+                     declare
+                        Formal_Ent : constant Entity_Id :=
+                                        Defining_Identifier (Analyzed_Formal);
+                     begin
+                        if Is_Remote_Access_To_Class_Wide_Type (Entity (Match))
+                             = Is_Remote_Types (Formal_Ent)
+                        then
+                           --  Remoteness of formal and actual match
+
+                           null;
+
+                        elsif Is_Remote_Types (Formal_Ent) then
+
+                           --  Remote formal, non-remote actual
+
+                           Error_Msg_NE
+                             ("actual for& must be remote", Match, Formal_Ent);
+
+                        else
+                           --  Non-remote formal, remote actual
+
+                           Error_Msg_NE
+                             ("actual for& may not be remote",
+                              Match, Formal_Ent);
+                        end if;
+                     end;
                   end if;
 
                when N_Formal_Subprogram_Declaration =>
@@ -3083,15 +3112,6 @@ package body Sem_Ch12 is
          end;
       end if;
 
-      --  For ASIS purposes, convert any postcondition, precondition pragmas
-      --  into aspects, if N is not a compilation unit by itself, in order to
-      --  enable the analysis of expressions inside the corresponding PPC
-      --  pragmas.
-
-      if ASIS_Mode and then Is_List_Member (N) then
-         Make_Aspect_For_PPC_In_Gen_Sub_Decl (N);
-      end if;
-
       Spec := Specification (N);
       Id := Defining_Entity (Spec);
       Generate_Definition (Id);
@@ -3186,6 +3206,15 @@ package body Sem_Ch12 is
       Validate_Categorization_Dependency (N, Id);
 
       Save_Global_References (Original_Node (N));
+
+      --  For ASIS purposes, convert any postcondition, precondition pragmas
+      --  into aspects, if N is not a compilation unit by itself, in order to
+      --  enable the analysis of expressions inside the corresponding PPC
+      --  pragmas.
+
+      if ASIS_Mode and then Is_List_Member (N) then
+         Make_Aspect_For_PPC_In_Gen_Sub_Decl (N);
+      end if;
 
       --  To capture global references, analyze the expressions of aspects,
       --  and propagate information to original tree. Note that in this case
@@ -7113,13 +7142,12 @@ package body Sem_Ch12 is
       end if;
 
       --  At this point either both nodes came from source or we approximated
-      --  their source locations through neighbouring source statements.
+      --  their source locations through neighbouring source statements. There
+      --  is no need to look at the top level locations of P1 and P2 because
+      --  both nodes are in the same list and whether the enclosing context is
+      --  instantiated is irrelevant.
 
-      if Top_Level_Location (Sloc (P1)) < Top_Level_Location (Sloc (P2)) then
-         return True;
-      else
-         return False;
-      end if;
+      return Sloc (P1) < Sloc (P2);
    end Earlier;
 
    ----------------------
@@ -9382,7 +9410,7 @@ package body Sem_Ch12 is
 
          Set_Corresponding_Generic_Association (Decl_Node, Act_Assoc);
 
-         --  The analysis of the actual may produce insert_action nodes, so
+         --  The analysis of the actual may produce Insert_Action nodes, so
          --  the declaration must have a context in which to attach them.
 
          Append (Decl_Node, List);
