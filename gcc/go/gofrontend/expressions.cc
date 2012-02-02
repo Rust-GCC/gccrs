@@ -7657,7 +7657,10 @@ Builtin_call_expression::do_lower(Gogo* gogo, Named_object* function,
 	    this->set_is_error();
 	    return this;
 	  }
-	this->lower_varargs(gogo, function, inserter, slice_type, 2);
+	Type* element_type = slice_type->array_type()->element_type();
+	this->lower_varargs(gogo, function, inserter,
+			    Type::make_array_type(element_type, NULL),
+			    2);
       }
       break;
 
@@ -8624,16 +8627,20 @@ Builtin_call_expression::do_check_types(Gogo*)
 	      break;
 	  }
 
+	// The language says that the second argument must be
+	// assignable to a slice of the element type of the first
+	// argument.  We already know the first argument is a slice
+	// type.
+	Array_type* at = args->front()->type()->array_type();
+	Type* arg2_type = Type::make_array_type(at->element_type(), NULL);
 	std::string reason;
-	if (!Type::are_assignable(args->front()->type(), args->back()->type(),
-				  &reason))
+	if (!Type::are_assignable(arg2_type, args->back()->type(), &reason))
 	  {
 	    if (reason.empty())
-	      this->report_error(_("arguments 1 and 2 have different types"));
+	      this->report_error(_("argument 2 has invalid type"));
 	    else
 	      {
-		error_at(this->location(),
-			 "arguments 1 and 2 have different types (%s)",
+		error_at(this->location(), "argument 2 has invalid type (%s)",
 			 reason.c_str());
 		this->set_is_error();
 	      }
@@ -11704,10 +11711,21 @@ Selector_expression::lower_method_expression(Gogo* gogo)
   const Typed_identifier_list* method_parameters = method_type->parameters();
   if (method_parameters != NULL)
     {
+      int i = 0;
       for (Typed_identifier_list::const_iterator p = method_parameters->begin();
 	   p != method_parameters->end();
-	   ++p)
-	parameters->push_back(*p);
+	   ++p, ++i)
+	{
+	  if (!p->name().empty() && p->name() != Import::import_marker)
+	    parameters->push_back(*p);
+	  else
+	    {
+	      char buf[20];
+	      snprintf(buf, sizeof buf, "$param%d", i);
+	      parameters->push_back(Typed_identifier(buf, p->type(),
+						     p->location()));
+	    }
+	}
     }
 
   const Typed_identifier_list* method_results = method_type->results();
@@ -11767,14 +11785,14 @@ Selector_expression::lower_method_expression(Gogo* gogo)
     }
 
   Expression_list* args;
-  if (method_parameters == NULL)
+  if (parameters->size() <= 1)
     args = NULL;
   else
     {
       args = new Expression_list();
-      for (Typed_identifier_list::const_iterator p = method_parameters->begin();
-	   p != method_parameters->end();
-	   ++p)
+      Typed_identifier_list::const_iterator p = parameters->begin();
+      ++p;
+      for (; p != parameters->end(); ++p)
 	{
 	  vno = gogo->lookup(p->name(), NULL);
 	  go_assert(vno != NULL);

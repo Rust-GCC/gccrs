@@ -4311,9 +4311,16 @@ Parse::type_switch_body(Label* label, const Type_switch& type_switch,
   Named_object* switch_no = NULL;
   if (!type_switch.name.empty())
     {
-      Variable* switch_var = new Variable(NULL, type_switch.expr, false, false,
-					  false, type_switch.location);
-      switch_no = this->gogo_->add_variable(type_switch.name, switch_var);
+      if (Gogo::is_sink_name(type_switch.name))
+	error_at(type_switch.location,
+		 "no new variables on left side of %<:=%>");
+      else
+	{
+	  Variable* switch_var = new Variable(NULL, type_switch.expr, false,
+					      false, false,
+					      type_switch.location);
+	  switch_no = this->gogo_->add_variable(type_switch.name, switch_var);
+	}
     }
 
   Type_switch_statement* statement =
@@ -4640,9 +4647,14 @@ Parse::send_or_recv_stmt(bool* is_send, Expression** channel, Expression** val,
       if (token->is_op(OPERATOR_COLONEQ))
 	{
 	  // case rv := <-c:
-	  if (!this->advance_token()->is_op(OPERATOR_CHANOP))
+	  this->advance_token();
+	  Expression* e = this->expression(PRECEDENCE_NORMAL, false, false,
+					   NULL);
+	  Receive_expression* re = e->receive_expression();
+	  if (re == NULL)
 	    {
-	      error_at(this->location(), "expected %<<-%>");
+	      if (!e->is_error_expression())
+		error_at(this->location(), "expected receive expression");
 	      return false;
 	    }
 	  if (recv_var == "_")
@@ -4653,8 +4665,7 @@ Parse::send_or_recv_stmt(bool* is_send, Expression** channel, Expression** val,
 	    }
 	  *is_send = false;
 	  *varname = gogo->pack_hidden_name(recv_var, is_rv_exported);
-	  this->advance_token();
-	  *channel = this->expression(PRECEDENCE_NORMAL, false, true, NULL);
+	  *channel = re->channel();
 	  return true;
 	}
       else if (token->is_op(OPERATOR_COMMA))
@@ -4671,9 +4682,15 @@ Parse::send_or_recv_stmt(bool* is_send, Expression** channel, Expression** val,
 	      if (token->is_op(OPERATOR_COLONEQ))
 		{
 		  // case rv, rc := <-c:
-		  if (!this->advance_token()->is_op(OPERATOR_CHANOP))
+		  this->advance_token();
+		  Expression* e = this->expression(PRECEDENCE_NORMAL, false,
+						   false, NULL);
+		  Receive_expression* re = e->receive_expression();
+		  if (re == NULL)
 		    {
-		      error_at(this->location(), "expected %<<-%>");
+		      if (!e->is_error_expression())
+			error_at(this->location(),
+				 "expected receive expression");
 		      return false;
 		    }
 		  if (recv_var == "_" && recv_closed == "_")
@@ -4689,9 +4706,7 @@ Parse::send_or_recv_stmt(bool* is_send, Expression** channel, Expression** val,
 		  if (recv_closed != "_")
 		    *closedname = gogo->pack_hidden_name(recv_closed,
 							 is_rc_exported);
-		  this->advance_token();
-		  *channel = this->expression(PRECEDENCE_NORMAL, false, true,
-					      NULL);
+		  *channel = re->channel();
 		  return true;
 		}
 

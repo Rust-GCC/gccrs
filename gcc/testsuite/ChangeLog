@@ -1,3 +1,34 @@
+2012-02-01  Thomas König  <tkoenig@gcc.gnu.org>
+
+	PR fortran/51958
+	* gfortran.dg/function_optimize_10.f90:  New test.
+
+2012-02-01  Uros Bizjak  <ubizjak@gmail.com>
+
+	* go.test/go-test.exp (go-gc-tests): xfail test/nilptr.go runtime
+	test on alpha*-*-*.
+
+2012-02-01  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/52024
+	* gfortran.dg/typebound_operator_14.f90: New.
+
+2012-02-01  Tobias Burnus
+
+	PR fortran/52059
+	* gfortran.dg/elemental_function_1.f90: New.
+
+2012-02-01  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR rtl-optimization/51374
+	* gcc.target/avr/torture/pr51374-1.c:
+	Also fail if SBIS is seen.
+
+2012-02-01  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR rtl-optimization/51374
+	* gcc.target/avr/torture/pr51374-1.c: New.
+
 2012-01-31  Tobias Burnus  <burnus@net-b.de>
 
 	PR fortran/52024

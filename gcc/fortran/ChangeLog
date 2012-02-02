@@ -1,3 +1,22 @@
+2012-02-01  Thomas König  <tkoenig@gcc.gnu.org>
+
+	PR fortran/51958
+	* frontend-passes.c (convert_elseif):  New function.
+	(optimize_namespace):  Call it.
+
+2012-02-01  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/52024
+	* module.c (MOD_VERSION): Bump.
+	(mio_typebound_proc): Read/write is_operator from/to the
+	.mod file.
+
+2012-02-01  Tobias Burnus
+
+	PR fortran/52059
+	* trans-expr.c (gfc_conv_procedure_call): Add array ref
+	only to variables.
+
 2012-01-31  Tobias Burnus  <burnus@net-b.de>
 
 	PR fortran/52024

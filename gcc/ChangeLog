@@ -1,3 +1,29 @@
+2012-02-01  Georg-Johann Lay  <avr@gjlay.de>
+
+	* config/avr/avr.c: Resolve all AS1 and AS2 macros.
+	* config/avr/avr.h (AS1, AS2, AS2C, AS3): Remove.
+	(OUT_AS1, OUT_AS2): Remove.
+
+2012-02-01  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR rtl-optimization/51374
+	* combine.c (can_combine_p): Don't allow volatile_refs_p insns
+	to cross other volatile_refs_p insns.
+
+2012-02-01  Richard Guenther  <rguenther@suse.de>
+
+	* doc/invoke.texi (fno-inline): Clarify documentation.
+	(finline-small-functions): Likewise.
+	(finline-functions): Likewise.
+	* common.opt (finline): Adjust comment and documentation.
+	(finline-small-functions): Clarify documentation.
+	(finline-functions): Likewise.
+	(finline-functions-called-once): Likewise.
+
+2012-02-01  Tristan Gingold  <gingold@adacore.com>
+
+	* c-typeck.c (composite_type): Keep mode for pointers.
+
 2012-01-31  Richard Sandiford  <rdsandiford@googlemail.com>
 
 	* function.h (regno_reg_rtx): Adjust comment.
