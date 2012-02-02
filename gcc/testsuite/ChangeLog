@@ -1,3 +1,18 @@
+2012-02-02 Jan Hubicka  <jh@suse.cz>
+	   Tom de Vries  <tom@codesourcery.com>
+
+	PR middle-end/51998
+	* testsuite/gcc.dg/alias-12.c: New testcase.
+	* testsuite/gcc.dg/alias-13.c: New testcase.
+
+2012-02-02  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/52086
+	* gcc.dg/pr52086.c: New test.
+
+	PR tree-optimization/52073
+	* gcc.c-torture/compile/pr52073.c: New test.
+
 2012-02-01  Thomas König  <tkoenig@gcc.gnu.org>
 
 	PR fortran/51958

@@ -1,3 +1,40 @@
+2012-02-02 Jan Hubicka  <jh@suse.cz>
+	   Tom de Vries  <tom@codesourcery.com>
+
+	PR middle-end/51998
+	* cgraphunit.c (cgraph_analyze_function): Break cyclic aliases.
+	* varpool.c (varpool_analyze_pending_decls): Likewise.
+
+2012-02-02  Sumanth G <sumanth.gundapaneni@kpitcummins.com>
+	    Jayant R Sonar <jayant.sonar@kpitcummins.com>
+
+	* config.gcc: Add cr16-* support.
+
+	* doc/extend.texi: Document cr16 extensions.
+	* doc/install.texi: Document cr16 install.
+	* doc/invoke.texi: Document cr16 options.
+	* doc/md.texi: Document cr16 constraints.
+
+	* common/config/cr16/cr16-common.c: New file.
+	* config/cr16/cr16.c: New file.
+	* config/cr16/cr16.h: New file.
+	* config/cr16/cr16.md: New file.
+	* config/cr16/cr16.opt: New file.
+	* config/cr16/cr16-protos.h: New file.
+	* config/cr16/predicates.md: New file.
+	* config/cr16/constraints.md: New file.
+	* config/cr16/t-cr16: New file.
+
+2012-02-02  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/52086
+	* config/i386/i386.md (*addqi_2 peephole with SImode addition): Check
+	that operands[2] is either immediate, or q_regs_operand.
+
+	PR tree-optimization/52073
+	* tree-vect-stmts.c (vect_mark_relevant): When checking uses of
+	a pattern stmt for pattern uses, ignore uses outside of the loop.
+
 2012-02-01  Georg-Johann Lay  <avr@gjlay.de>
 
 	* config/avr/avr.c: Resolve all AS1 and AS2 macros.
