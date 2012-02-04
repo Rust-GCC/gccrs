@@ -1,3 +1,16 @@
+2012-02-03  Jakub Jelinek  <jakub@redhat.com>
+	    Zdenek Dvorak  <ook@ucw.cz>
+
+	PR rtl-optimization/52092
+	* loop-unswitch.c (unswitch_single_loop): Call copy_rtx_if_shared
+	on get_iv_value result.
+
+2012-02-02  Andrew Pinski  <apinski@cavium.com>
+
+	PR middle-end/47982
+	PR middle-end/43967
+	* doc/libgcc.texi (__udivmoddi4/__udivmodti4): Fix documentation typo.
+
 2012-02-02  Jakub Jelinek  <jakub@redhat.com>
 
 	PR middle-end/48071
