@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // BUG(rsc): Mapping between XML elements and data structures is inherently flawed:
@@ -23,58 +24,6 @@ import (
 // the value pointed to by v, which must be an arbitrary struct,
 // slice, or string. Well-formed data that does not fit into v is
 // discarded.
-//
-// For example, given these definitions:
-//
-//	type Email struct {
-//		Where string `xml:",attr"`
-//		Addr  string
-//	}
-//
-//	type Result struct {
-//		XMLName xml.Name `xml:"result"`
-//		Name	string
-//		Phone	string
-//		Email	[]Email
-//		Groups  []string `xml:"group>value"`
-//	}
-//
-//	result := Result{Name: "name", Phone: "phone", Email: nil}
-//
-// unmarshalling the XML input
-//
-//	<result>
-//		<email where="home">
-//			<addr>gre@example.com</addr>
-//		</email>
-//		<email where='work'>
-//			<addr>gre@work.com</addr>
-//		</email>
-//		<name>Grace R. Emlin</name>
-// 		<group>
-// 			<value>Friends</value>
-// 			<value>Squash</value>
-// 		</group>
-//		<address>123 Main Street</address>
-//	</result>
-//
-// via Unmarshal(data, &result) is equivalent to assigning
-//
-//	r = Result{
-//		xml.Name{Local: "result"},
-//		"Grace R. Emlin", // name
-//		"phone",	  // no phone given
-//		[]Email{
-//			Email{"home", "gre@example.com"},
-//			Email{"work", "gre@work.com"},
-//		},
-//		[]string{"Friends", "Squash"},
-//	}
-//
-// Note that the field r.Phone has not been modified and
-// that the XML <address> element was discarded. Also, the field
-// Groups was assigned considering the element path provided in the
-// field tag.
 //
 // Because Unmarshal uses the reflect package, it can only assign
 // to exported (upper case) fields.  Unmarshal uses a case-sensitive
@@ -131,6 +80,9 @@ import (
 //   * If the XML element contains a sub-element that hasn't matched any
 //      of the above rules and the struct has a field with tag ",any",
 //      unmarshal maps the sub-element to that struct field.
+//
+//   * A non-pointer anonymous struct field is handled as if the
+//      fields of its value were part of the outer struct.
 //
 //   * A struct field with tag "-" is never unmarshalled into.
 //
@@ -265,12 +217,17 @@ func (p *Decoder) unmarshal(val reflect.Value, start *StartElement) error {
 		saveData = v
 
 	case reflect.Struct:
-		sv = v
-		typ := sv.Type()
+		typ := v.Type()
 		if typ == nameType {
 			v.Set(reflect.ValueOf(start.Name))
 			break
 		}
+		if typ == timeType {
+			saveData = v
+			break
+		}
+
+		sv = v
 		tinfo, err = getTypeInfo(typ)
 		if err != nil {
 			return err
@@ -472,6 +429,14 @@ func copyValue(dst reflect.Value, src []byte) (err error) {
 			src = []byte{}
 		}
 		t.SetBytes(src)
+	case reflect.Struct:
+		if t.Type() == timeType {
+			tv, err := time.Parse(time.RFC3339, string(src))
+			if err != nil {
+				return err
+			}
+			t.Set(reflect.ValueOf(tv))
+		}
 	}
 	return nil
 }
@@ -541,19 +506,21 @@ Loop:
 	panic("unreachable")
 }
 
-// Have already read a start element.
-// Read tokens until we find the end element.
-// Token is taking care of making sure the
-// end element matches the start element we saw.
-func (p *Decoder) Skip() error {
+// Skip reads tokens until it has consumed the end element
+// matching the most recent start element already consumed.
+// It recurs if it encounters a start element, so it can be used to
+// skip nested structures.
+// It returns nil if it finds an end element matching the start
+// element; otherwise it returns an error describing the problem.
+func (d *Decoder) Skip() error {
 	for {
-		tok, err := p.Token()
+		tok, err := d.Token()
 		if err != nil {
 			return err
 		}
 		switch tok.(type) {
 		case StartElement:
-			if err := p.Skip(); err != nil {
+			if err := d.Skip(); err != nil {
 				return err
 			}
 		case EndElement:

@@ -387,12 +387,12 @@ func (WriteFailCodec) WriteRequest(*Request, interface{}) error {
 }
 
 func (WriteFailCodec) ReadResponseHeader(*Response) error {
-	time.Sleep(120 * time.Second)
+	select {}
 	panic("unreachable")
 }
 
 func (WriteFailCodec) ReadResponseBody(interface{}) error {
-	time.Sleep(120 * time.Second)
+	select {}
 	panic("unreachable")
 }
 
@@ -442,8 +442,9 @@ func countMallocs(dial func() (*Client, error), t *testing.T) uint64 {
 	}
 	args := &Args{7, 8}
 	reply := new(Reply)
-	runtime.UpdateMemStats()
-	mallocs := 0 - runtime.MemStats.Mallocs
+	memstats := new(runtime.MemStats)
+	runtime.ReadMemStats(memstats)
+	mallocs := 0 - memstats.Mallocs
 	const count = 100
 	for i := 0; i < count; i++ {
 		err := client.Call("Arith.Add", args, reply)
@@ -454,8 +455,8 @@ func countMallocs(dial func() (*Client, error), t *testing.T) uint64 {
 			t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
 		}
 	}
-	runtime.UpdateMemStats()
-	mallocs += runtime.MemStats.Mallocs
+	runtime.ReadMemStats(memstats)
+	mallocs += memstats.Mallocs
 	return mallocs / count
 }
 

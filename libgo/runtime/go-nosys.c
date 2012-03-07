@@ -48,6 +48,18 @@ faccessat (int fd __attribute__ ((unused)),
 }
 #endif
 
+#ifndef HAVE_FALLOCATE
+int
+fallocate (int fd __attribute__ ((unused)),
+	   int mode __attribute__ ((unused)),
+	   off_t offset __attribute__ ((unused)),
+	   off_t len __attribute__ ((unused)))
+{
+  errno = ENOSYS;
+  return -1;
+}
+#endif
+
 #ifndef HAVE_FCHMODAT
 int
 fchmodat (int dirfd __attribute__ ((unused)),
@@ -98,6 +110,15 @@ inotify_add_watch (int fd __attribute__ ((unused)),
 #ifndef HAVE_INOTIFY_INIT
 int
 inotify_init (void)
+{
+  errno = ENOSYS;
+  return -1;
+}
+#endif
+
+#ifndef HAVE_INOTIFY_INIT1
+int
+inotify_init1 (int flags __attribute__ ((unused)))
 {
   errno = ENOSYS;
   return -1;
@@ -169,6 +190,18 @@ splice (int fd __attribute__ ((unused)),
 	loff_t *off_out __attribute__ ((unused)),
 	size_t len __attribute__ ((unused)),
 	unsigned int flags __attribute__ ((unused)))
+{
+  errno = ENOSYS;
+  return -1;
+}
+#endif
+
+#ifndef HAVE_SYNC_FILE_RANGE
+int
+sync_file_range (int fd __attribute__ ((unused)),
+		 off64_t offset __attribute__ ((unused)),
+		 off64_t nbytes __attribute__ ((unused)),
+		 unsigned int flags __attribute__ ((unused)))
 {
   errno = ENOSYS;
   return -1;

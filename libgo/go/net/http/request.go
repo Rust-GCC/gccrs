@@ -186,7 +186,7 @@ func (r *Request) Cookies() []*Cookie {
 	return readCookies(r.Header, "")
 }
 
-var ErrNoCookie = errors.New("http: named cookied not present")
+var ErrNoCookie = errors.New("http: named cookie not present")
 
 // Cookie returns the named cookie provided in the request or
 // ErrNoCookie if not found.
@@ -272,7 +272,7 @@ func valueOrDefault(value, def string) string {
 const defaultUserAgent = "Go http package"
 
 // Write writes an HTTP/1.1 request -- header and body -- in wire format.
-// This method consults the following fields of req:
+// This method consults the following fields of the request:
 //	Host
 //	URL
 //	Method (defaults to "GET")
@@ -284,18 +284,18 @@ const defaultUserAgent = "Go http package"
 // If Body is present, Content-Length is <= 0 and TransferEncoding
 // hasn't been set to "identity", Write adds "Transfer-Encoding:
 // chunked" to the header. Body is closed after it is sent.
-func (req *Request) Write(w io.Writer) error {
-	return req.write(w, false, nil)
+func (r *Request) Write(w io.Writer) error {
+	return r.write(w, false, nil)
 }
 
 // WriteProxy is like Write but writes the request in the form
 // expected by an HTTP proxy.  In particular, WriteProxy writes the
 // initial Request-URI line of the request with an absolute URI, per
-// section 5.1.2 of RFC 2616, including the scheme and host. In
-// either case, WriteProxy also writes a Host header, using either
-// req.Host or req.URL.Host.
-func (req *Request) WriteProxy(w io.Writer) error {
-	return req.write(w, true, nil)
+// section 5.1.2 of RFC 2616, including the scheme and host.
+// In either case, WriteProxy also writes a Host header, using
+// either r.Host or r.URL.Host.
+func (r *Request) WriteProxy(w io.Writer) error {
+	return r.write(w, true, nil)
 }
 
 // extraHeaders may be nil
@@ -486,7 +486,7 @@ func ReadRequest(b *bufio.Reader) (req *Request, err error) {
 		rawurl = "http://" + rawurl
 	}
 
-	if req.URL, err = url.ParseRequest(rawurl); err != nil {
+	if req.URL, err = url.ParseRequestURI(rawurl); err != nil {
 		return nil, err
 	}
 

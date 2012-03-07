@@ -79,7 +79,7 @@ static tree cur_stmt_expr;
 /* A map from local variable declarations in the body of the template
    presently being instantiated to the corresponding instantiated
    local variables.  */
-static htab_t local_specializations;
+static struct pointer_map_t *local_specializations;
 
 typedef struct GTY(()) spec_entry
 {
@@ -189,7 +189,6 @@ static tree for_each_template_parm_r (tree *, int *, void *);
 static tree copy_default_args_to_explicit_spec_1 (tree, tree);
 static void copy_default_args_to_explicit_spec (tree);
 static int invalid_nontype_parm_type_p (tree, tsubst_flags_t);
-static int eq_local_specializations (const void *, const void *);
 static bool dependent_template_arg_p (tree);
 static bool any_template_arguments_need_structural_equality_p (tree);
 static bool dependent_type_p_r (tree);
@@ -1078,14 +1077,13 @@ retrieve_specialization (tree tmpl, tree args, hashval_t hash)
 static tree
 retrieve_local_specialization (tree tmpl)
 {
-  tree spec;
+  void **slot;
 
   if (local_specializations == NULL)
     return NULL_TREE;
 
-  spec = (tree) htab_find_with_hash (local_specializations, tmpl,
-				     htab_hash_pointer (tmpl));
-  return spec ? TREE_PURPOSE (spec) : NULL_TREE;
+  slot = pointer_map_contains (local_specializations, tmpl);
+  return slot ? (tree) *slot : NULL_TREE;
 }
 
 /* Returns nonzero iff DECL is a specialization of TMPL.  */
@@ -1677,24 +1675,6 @@ reregister_specialization (tree spec, tree tinfo, tree new_spec)
   return 0;
 }
 
-/* Compare an entry in the local specializations hash table P1 (which
-   is really a pointer to a TREE_LIST) with P2 (which is really a
-   DECL).  */
-
-static int
-eq_local_specializations (const void *p1, const void *p2)
-{
-  return TREE_VALUE ((const_tree) p1) == (const_tree) p2;
-}
-
-/* Hash P1, an entry in the local specializations table.  */
-
-static hashval_t
-hash_local_specialization (const void* p1)
-{
-  return htab_hash_pointer (TREE_VALUE ((const_tree) p1));
-}
-
 /* Like register_specialization, but for local declarations.  We are
    registering SPEC, an instantiation of TMPL.  */
 
@@ -1703,9 +1683,8 @@ register_local_specialization (tree spec, tree tmpl)
 {
   void **slot;
 
-  slot = htab_find_slot_with_hash (local_specializations, tmpl,
-				   htab_hash_pointer (tmpl), INSERT);
-  *slot = build_tree_list (spec, tmpl);
+  slot = pointer_map_insert (local_specializations, tmpl);
+  *slot = spec;
 }
 
 /* TYPE is a class type.  Returns true if TYPE is an explicitly
@@ -9307,7 +9286,7 @@ tsubst_pack_expansion (tree t, tree args, tsubst_flags_t complain,
   int missing_level = 0;
   int i, len = -1;
   tree result;
-  htab_t saved_local_specializations = NULL;
+  struct pointer_map_t *saved_local_specializations = NULL;
   bool need_local_specializations = false;
   int levels;
 
@@ -9492,14 +9471,11 @@ tsubst_pack_expansion (tree t, tree args, tsubst_flags_t complain,
   if (need_local_specializations)
     {
       /* We're in a late-specified return type, so create our own local
-	 specializations table; the current table is either NULL or (in the
+	 specializations map; the current map is either NULL or (in the
 	 case of recursive unification) might have bindings that we don't
 	 want to use or alter.  */
       saved_local_specializations = local_specializations;
-      local_specializations = htab_create (37,
-					   hash_local_specialization,
-					   eq_local_specializations,
-					   NULL);
+      local_specializations = pointer_map_create ();
     }
 
   /* For each argument in each argument pack, substitute into the
@@ -9586,7 +9562,7 @@ tsubst_pack_expansion (tree t, tree args, tsubst_flags_t complain,
 
   if (need_local_specializations)
     {
-      htab_delete (local_specializations);
+      pointer_map_destroy (local_specializations);
       local_specializations = saved_local_specializations;
     }
   
@@ -11178,7 +11154,9 @@ tsubst (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	     complain | tf_ignore_bad_quals);
 	  return r;
 	}
-      /* Else we must be instantiating the typedef, so fall through.  */
+      else
+	/* We don't have an instantiation yet, so drop the typedef.  */
+	t = DECL_ORIGINAL_TYPE (decl);
     }
 
   if (type
@@ -12610,8 +12588,17 @@ tsubst_copy_asm_operands (tree t, tree args, tsubst_flags_t complain,
   if (purpose)
     purpose = RECUR (purpose);
   value = TREE_VALUE (t);
-  if (value && TREE_CODE (value) != LABEL_DECL)
-    value = RECUR (value);
+  if (value)
+    {
+      if (TREE_CODE (value) != LABEL_DECL)
+	value = RECUR (value);
+      else
+	{
+	  value = lookup_label (DECL_NAME (value));
+	  gcc_assert (TREE_CODE (value) == LABEL_DECL);
+	  TREE_USED (value) = 1;
+	}
+    }
   chain = TREE_CHAIN (t);
   if (chain && chain != void_type_node)
     chain = RECUR (chain);
@@ -13680,7 +13667,7 @@ tsubst_copy_and_build (tree t,
       /* Remember that there was a reference to this entity.  */
       if (DECL_P (op1))
 	mark_used (op1);
-      return build_x_arrow (op1);
+      return build_x_arrow (op1, complain);
 
     case NEW_EXPR:
       {
@@ -18693,7 +18680,7 @@ instantiate_decl (tree d, int defer_ok,
     synthesize_method (d);
   else if (TREE_CODE (d) == FUNCTION_DECL)
     {
-      htab_t saved_local_specializations;
+      struct pointer_map_t *saved_local_specializations;
       tree subst_decl;
       tree tmpl_parm;
       tree spec_parm;
@@ -18703,10 +18690,7 @@ instantiate_decl (tree d, int defer_ok,
       saved_local_specializations = local_specializations;
 
       /* Set up the list of local specializations.  */
-      local_specializations = htab_create (37,
-					   hash_local_specialization,
-					   eq_local_specializations,
-					   NULL);
+      local_specializations = pointer_map_create ();
 
       /* Set up context.  */
       start_preparsed_function (d, NULL_TREE, SF_PRE_PARSED);
@@ -18748,7 +18732,7 @@ instantiate_decl (tree d, int defer_ok,
       input_location = DECL_STRUCT_FUNCTION (code_pattern)->function_end_locus;
 
       /* We don't need the local specializations any more.  */
-      htab_delete (local_specializations);
+      pointer_map_destroy (local_specializations);
       local_specializations = saved_local_specializations;
 
       /* Finish the function.  */

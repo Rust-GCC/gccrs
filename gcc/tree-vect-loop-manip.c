@@ -513,7 +513,7 @@ slpeel_update_phi_nodes_for_guard1 (edge guard_edge, struct loop *loop,
        !gsi_end_p (gsi_orig) && !gsi_end_p (gsi_update);
        gsi_next (&gsi_orig), gsi_next (&gsi_update))
     {
-      source_location loop_locus, guard_locus;;
+      source_location loop_locus, guard_locus;
       orig_phi = gsi_stmt (gsi_orig);
       update_phi = gsi_stmt (gsi_update);
 
@@ -1171,6 +1171,7 @@ slpeel_tree_peel_loop_to_edge (struct loop *loop,
   basic_block bb_before_first_loop;
   basic_block bb_between_loops;
   basic_block new_exit_bb;
+  gimple_stmt_iterator gsi;
   edge exit_e = single_exit (loop);
   LOC loop_loc;
   tree cost_pre_condition = NULL_TREE;
@@ -1184,6 +1185,40 @@ slpeel_tree_peel_loop_to_edge (struct loop *loop,
    the function tree_duplicate_bb is called.  */
   gimple_register_cfg_hooks ();
 
+  /* If the loop has a virtual PHI, but exit bb doesn't, create a virtual PHI
+     in the exit bb and rename all the uses after the loop.  This simplifies
+     the *guard[12] routines, which assume loop closed SSA form for all PHIs
+     (but normally loop closed SSA form doesn't require virtual PHIs to be
+     in the same form).  Doing this early simplifies the checking what
+     uses should be renamed.  */
+  for (gsi = gsi_start_phis (loop->header); !gsi_end_p (gsi); gsi_next (&gsi))
+    if (!is_gimple_reg (gimple_phi_result (gsi_stmt (gsi))))
+      {
+	gimple phi = gsi_stmt (gsi);
+	for (gsi = gsi_start_phis (exit_e->dest);
+	     !gsi_end_p (gsi); gsi_next (&gsi))
+	  if (!is_gimple_reg (gimple_phi_result (gsi_stmt (gsi))))
+	    break;
+	if (gsi_end_p (gsi))
+	  {
+	    gimple new_phi = create_phi_node (SSA_NAME_VAR (PHI_RESULT (phi)),
+					      exit_e->dest);
+	    tree vop = PHI_ARG_DEF_FROM_EDGE (phi, EDGE_SUCC (loop->latch, 0));
+	    imm_use_iterator imm_iter;
+	    gimple stmt;
+	    tree new_vop = make_ssa_name (SSA_NAME_VAR (PHI_RESULT (phi)),
+					  new_phi);
+	    use_operand_p use_p;
+
+	    add_phi_arg (new_phi, vop, exit_e, UNKNOWN_LOCATION);
+	    gimple_phi_set_result (new_phi, new_vop);
+	    FOR_EACH_IMM_USE_STMT (stmt, imm_iter, vop)
+	      if (stmt != new_phi && gimple_bb (stmt) != loop->header)
+		FOR_EACH_IMM_USE_ON_STMT (use_p, imm_iter)
+		  SET_USE (use_p, new_vop);
+	  }
+	break;
+      }
 
   /* 1. Generate a copy of LOOP and put it on E (E is the entry/exit of LOOP).
         Resulting CFG would be:
@@ -2023,9 +2058,7 @@ vect_gen_niters_for_prolog_loop (loop_vec_info loop_vinfo, tree loop_niters)
 	  ? size_int (-TYPE_VECTOR_SUBPARTS (vectype) + 1) : NULL_TREE;
       tree start_addr = vect_create_addr_base_for_vector_ref (dr_stmt,
 						&new_stmts, offset, loop);
-      tree ptr_type = TREE_TYPE (start_addr);
-      tree size = TYPE_SIZE (ptr_type);
-      tree type = lang_hooks.types.type_for_size (tree_low_cst (size, 1), 1);
+      tree type = unsigned_type_for (TREE_TYPE (start_addr));
       tree vectype_size_minus_1 = build_int_cst (type, vectype_align - 1);
       tree elem_size_log =
         build_int_cst (type, exact_log2 (vectype_align/nelements));
@@ -2243,7 +2276,6 @@ vect_create_cond_for_align_checks (loop_vec_info loop_vinfo,
   int mask = LOOP_VINFO_PTR_MASK (loop_vinfo);
   tree mask_cst;
   unsigned int i;
-  tree psize;
   tree int_ptrsize_type;
   char tmp_name[20];
   tree or_tmp_name = NULL_TREE;
@@ -2256,11 +2288,7 @@ vect_create_cond_for_align_checks (loop_vec_info loop_vinfo,
      all zeros followed by all ones.  */
   gcc_assert ((mask != 0) && ((mask & (mask+1)) == 0));
 
-  /* CHECKME: what is the best integer or unsigned type to use to hold a
-     cast from a pointer value?  */
-  psize = TYPE_SIZE (ptr_type_node);
-  int_ptrsize_type
-    = lang_hooks.types.type_for_size (tree_low_cst (psize, 1), 0);
+  int_ptrsize_type = signed_type_for (ptr_type_node);
 
   /* Create expression (mask & (dr_1 || ... || dr_n)) where dr_i is the address
      of the first vector of the i'th data reference. */

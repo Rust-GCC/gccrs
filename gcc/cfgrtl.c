@@ -2818,6 +2818,7 @@ static void
 cfg_layout_merge_blocks (basic_block a, basic_block b)
 {
   bool forwarder_p = (b->flags & BB_FORWARDER_BLOCK) != 0;
+  rtx insn;
 
   gcc_checking_assert (cfg_layout_can_merge_blocks_p (a, b));
 
@@ -2871,6 +2872,11 @@ cfg_layout_merge_blocks (basic_block a, basic_block b)
       rtx first = BB_END (a), last;
 
       last = emit_insn_after_noloc (b->il.rtl->header, BB_END (a), a);
+      /* The above might add a BARRIER as BB_END, but as barriers
+	 aren't valid parts of a bb, remove_insn doesn't update
+	 BB_END if it is a barrier.  So adjust BB_END here.  */
+      while (BB_END (a) != first && BARRIER_P (BB_END (a)))
+	BB_END (a) = PREV_INSN (BB_END (a));
       delete_insn_chain (NEXT_INSN (first), last, false);
       b->il.rtl->header = NULL;
     }
@@ -2878,39 +2884,27 @@ cfg_layout_merge_blocks (basic_block a, basic_block b)
   /* In the case basic blocks are not adjacent, move them around.  */
   if (NEXT_INSN (BB_END (a)) != BB_HEAD (b))
     {
-      rtx first = unlink_insn_chain (BB_HEAD (b), BB_END (b));
+      insn = unlink_insn_chain (BB_HEAD (b), BB_END (b));
 
-      emit_insn_after_noloc (first, BB_END (a), a);
-      /* Skip possible DELETED_LABEL insn.  */
-      if (!NOTE_INSN_BASIC_BLOCK_P (first))
-	first = NEXT_INSN (first);
-      gcc_assert (NOTE_INSN_BASIC_BLOCK_P (first));
-      BB_HEAD (b) = NULL;
-
-      /* emit_insn_after_noloc doesn't call df_insn_change_bb.
-         We need to explicitly call. */
-      update_bb_for_insn_chain (NEXT_INSN (first),
-				BB_END (b),
-				a);
-
-      delete_insn (first);
+      emit_insn_after_noloc (insn, BB_END (a), a);
     }
   /* Otherwise just re-associate the instructions.  */
   else
     {
-      rtx insn;
-
-      update_bb_for_insn_chain (BB_HEAD (b), BB_END (b), a);
-
       insn = BB_HEAD (b);
-      /* Skip possible DELETED_LABEL insn.  */
-      if (!NOTE_INSN_BASIC_BLOCK_P (insn))
-	insn = NEXT_INSN (insn);
-      gcc_assert (NOTE_INSN_BASIC_BLOCK_P (insn));
-      BB_HEAD (b) = NULL;
       BB_END (a) = BB_END (b);
-      delete_insn (insn);
     }
+
+  /* emit_insn_after_noloc doesn't call df_insn_change_bb.
+     We need to explicitly call. */
+  update_bb_for_insn_chain (insn, BB_END (b), a);
+
+  /* Skip possible DELETED_LABEL insn.  */
+  if (!NOTE_INSN_BASIC_BLOCK_P (insn))
+    insn = NEXT_INSN (insn);
+  gcc_assert (NOTE_INSN_BASIC_BLOCK_P (insn));
+  BB_HEAD (b) = NULL;
+  delete_insn (insn);
 
   df_bb_delete (b->index);
 

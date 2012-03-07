@@ -60,18 +60,18 @@ func (c *UDPConn) ok() bool { return c != nil && c.fd != nil }
 
 // Implementation of the Conn interface - see Conn for documentation.
 
-// Read implements the net.Conn Read method.
-func (c *UDPConn) Read(b []byte) (n int, err error) {
+// Read implements the Conn Read method.
+func (c *UDPConn) Read(b []byte) (int, error) {
 	if !c.ok() {
-		return 0, os.EINVAL
+		return 0, syscall.EINVAL
 	}
 	return c.fd.Read(b)
 }
 
-// Write implements the net.Conn Write method.
-func (c *UDPConn) Write(b []byte) (n int, err error) {
+// Write implements the Conn Write method.
+func (c *UDPConn) Write(b []byte) (int, error) {
 	if !c.ok() {
-		return 0, os.EINVAL
+		return 0, syscall.EINVAL
 	}
 	return c.fd.Write(b)
 }
@@ -79,7 +79,7 @@ func (c *UDPConn) Write(b []byte) (n int, err error) {
 // Close closes the UDP connection.
 func (c *UDPConn) Close() error {
 	if !c.ok() {
-		return os.EINVAL
+		return syscall.EINVAL
 	}
 	err := c.fd.Close()
 	c.fd = nil
@@ -102,26 +102,26 @@ func (c *UDPConn) RemoteAddr() Addr {
 	return c.fd.raddr
 }
 
-// SetDeadline implements the net.Conn SetDeadline method.
+// SetDeadline implements the Conn SetDeadline method.
 func (c *UDPConn) SetDeadline(t time.Time) error {
 	if !c.ok() {
-		return os.EINVAL
+		return syscall.EINVAL
 	}
 	return setDeadline(c.fd, t)
 }
 
-// SetReadDeadline implements the net.Conn SetReadDeadline method.
+// SetReadDeadline implements the Conn SetReadDeadline method.
 func (c *UDPConn) SetReadDeadline(t time.Time) error {
 	if !c.ok() {
-		return os.EINVAL
+		return syscall.EINVAL
 	}
 	return setReadDeadline(c.fd, t)
 }
 
-// SetWriteDeadline implements the net.Conn SetWriteDeadline method.
+// SetWriteDeadline implements the Conn SetWriteDeadline method.
 func (c *UDPConn) SetWriteDeadline(t time.Time) error {
 	if !c.ok() {
-		return os.EINVAL
+		return syscall.EINVAL
 	}
 	return setWriteDeadline(c.fd, t)
 }
@@ -130,7 +130,7 @@ func (c *UDPConn) SetWriteDeadline(t time.Time) error {
 // receive buffer associated with the connection.
 func (c *UDPConn) SetReadBuffer(bytes int) error {
 	if !c.ok() {
-		return os.EINVAL
+		return syscall.EINVAL
 	}
 	return setReadBuffer(c.fd, bytes)
 }
@@ -139,7 +139,7 @@ func (c *UDPConn) SetReadBuffer(bytes int) error {
 // transmit buffer associated with the connection.
 func (c *UDPConn) SetWriteBuffer(bytes int) error {
 	if !c.ok() {
-		return os.EINVAL
+		return syscall.EINVAL
 	}
 	return setWriteBuffer(c.fd, bytes)
 }
@@ -154,7 +154,7 @@ func (c *UDPConn) SetWriteBuffer(bytes int) error {
 // after a fixed time limit; see SetDeadline and SetReadDeadline.
 func (c *UDPConn) ReadFromUDP(b []byte) (n int, addr *UDPAddr, err error) {
 	if !c.ok() {
-		return 0, nil, os.EINVAL
+		return 0, nil, syscall.EINVAL
 	}
 	n, sa, err := c.fd.ReadFrom(b)
 	switch sa := sa.(type) {
@@ -166,10 +166,10 @@ func (c *UDPConn) ReadFromUDP(b []byte) (n int, addr *UDPAddr, err error) {
 	return
 }
 
-// ReadFrom implements the net.PacketConn ReadFrom method.
-func (c *UDPConn) ReadFrom(b []byte) (n int, addr Addr, err error) {
+// ReadFrom implements the PacketConn ReadFrom method.
+func (c *UDPConn) ReadFrom(b []byte) (int, Addr, error) {
 	if !c.ok() {
-		return 0, nil, os.EINVAL
+		return 0, nil, syscall.EINVAL
 	}
 	n, uaddr, err := c.ReadFromUDP(b)
 	return n, uaddr.toAddr(), err
@@ -183,7 +183,7 @@ func (c *UDPConn) ReadFrom(b []byte) (n int, addr Addr, err error) {
 // On packet-oriented connections, write timeouts are rare.
 func (c *UDPConn) WriteToUDP(b []byte, addr *UDPAddr) (int, error) {
 	if !c.ok() {
-		return 0, os.EINVAL
+		return 0, syscall.EINVAL
 	}
 	if c.fd.isConnected {
 		return 0, &OpError{"write", c.fd.net, addr, ErrWriteToConnected}
@@ -195,22 +195,27 @@ func (c *UDPConn) WriteToUDP(b []byte, addr *UDPAddr) (int, error) {
 	return c.fd.WriteTo(b, sa)
 }
 
-// WriteTo implements the net.PacketConn WriteTo method.
+// WriteTo implements the PacketConn WriteTo method.
 func (c *UDPConn) WriteTo(b []byte, addr Addr) (int, error) {
 	if !c.ok() {
-		return 0, os.EINVAL
+		return 0, syscall.EINVAL
 	}
 	a, ok := addr.(*UDPAddr)
 	if !ok {
-		return 0, &OpError{"write", c.fd.net, addr, os.EINVAL}
+		return 0, &OpError{"write", c.fd.net, addr, syscall.EINVAL}
 	}
 	return c.WriteToUDP(b, a)
 }
 
+// File returns a copy of the underlying os.File, set to blocking mode.
+// It is the caller's responsibility to close f when finished.
+// Closing c does not affect f, and closing f does not affect c.
+func (c *UDPConn) File() (f *os.File, err error) { return c.fd.dup() }
+
 // DialUDP connects to the remote address raddr on the network net,
 // which must be "udp", "udp4", or "udp6".  If laddr is not nil, it is used
 // as the local address for the connection.
-func DialUDP(net string, laddr, raddr *UDPAddr) (c *UDPConn, err error) {
+func DialUDP(net string, laddr, raddr *UDPAddr) (*UDPConn, error) {
 	switch net {
 	case "udp", "udp4", "udp6":
 	default:
@@ -219,9 +224,9 @@ func DialUDP(net string, laddr, raddr *UDPAddr) (c *UDPConn, err error) {
 	if raddr == nil {
 		return nil, &OpError{"dial", net, nil, errMissingAddress}
 	}
-	fd, e := internetSocket(net, laddr.toAddr(), raddr.toAddr(), syscall.SOCK_DGRAM, 0, "dial", sockaddrToUDP)
-	if e != nil {
-		return nil, e
+	fd, err := internetSocket(net, laddr.toAddr(), raddr.toAddr(), syscall.SOCK_DGRAM, 0, "dial", sockaddrToUDP)
+	if err != nil {
+		return nil, err
 	}
 	return newUDPConn(fd), nil
 }
@@ -246,36 +251,75 @@ func ListenUDP(net string, laddr *UDPAddr) (*UDPConn, error) {
 	return newUDPConn(fd), nil
 }
 
-// File returns a copy of the underlying os.File, set to blocking mode.
-// It is the caller's responsibility to close f when finished.
-// Closing c does not affect f, and closing f does not affect c.
-func (c *UDPConn) File() (f *os.File, err error) { return c.fd.dup() }
-
-// JoinGroup joins the IP multicast group named by addr on ifi,
-// which specifies the interface to join.  JoinGroup uses the
-// default multicast interface if ifi is nil.
-func (c *UDPConn) JoinGroup(ifi *Interface, addr IP) error {
-	if !c.ok() {
-		return os.EINVAL
+// ListenMulticastUDP listens for incoming multicast UDP packets
+// addressed to the group address gaddr on ifi, which specifies
+// the interface to join.  ListenMulticastUDP uses default
+// multicast interface if ifi is nil.
+func ListenMulticastUDP(net string, ifi *Interface, gaddr *UDPAddr) (*UDPConn, error) {
+	switch net {
+	case "udp", "udp4", "udp6":
+	default:
+		return nil, UnknownNetworkError(net)
 	}
-	setDefaultMulticastSockopts(c.fd)
-	ip := addr.To4()
-	if ip != nil {
-		return joinIPv4GroupUDP(c, ifi, ip)
+	if gaddr == nil || gaddr.IP == nil {
+		return nil, &OpError{"listenmulticast", net, nil, errMissingAddress}
 	}
-	return joinIPv6GroupUDP(c, ifi, addr)
+	fd, err := internetSocket(net, gaddr.toAddr(), nil, syscall.SOCK_DGRAM, 0, "listen", sockaddrToUDP)
+	if err != nil {
+		return nil, err
+	}
+	c := newUDPConn(fd)
+	ip4 := gaddr.IP.To4()
+	if ip4 != nil {
+		err := listenIPv4MulticastUDP(c, ifi, ip4)
+		if err != nil {
+			c.Close()
+			return nil, err
+		}
+	} else {
+		err := listenIPv6MulticastUDP(c, ifi, gaddr.IP)
+		if err != nil {
+			c.Close()
+			return nil, err
+		}
+	}
+	return c, nil
 }
 
-// LeaveGroup exits the IP multicast group named by addr on ifi.
-func (c *UDPConn) LeaveGroup(ifi *Interface, addr IP) error {
-	if !c.ok() {
-		return os.EINVAL
+func listenIPv4MulticastUDP(c *UDPConn, ifi *Interface, ip IP) error {
+	if ifi != nil {
+		err := setIPv4MulticastInterface(c.fd, ifi)
+		if err != nil {
+			return err
+		}
 	}
-	ip := addr.To4()
-	if ip != nil {
-		return leaveIPv4GroupUDP(c, ifi, ip)
+	err := setIPv4MulticastLoopback(c.fd, false)
+	if err != nil {
+		return err
 	}
-	return leaveIPv6GroupUDP(c, ifi, addr)
+	err = joinIPv4GroupUDP(c, ifi, ip)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func listenIPv6MulticastUDP(c *UDPConn, ifi *Interface, ip IP) error {
+	if ifi != nil {
+		err := setIPv6MulticastInterface(c.fd, ifi)
+		if err != nil {
+			return err
+		}
+	}
+	err := setIPv6MulticastLoopback(c.fd, false)
+	if err != nil {
+		return err
+	}
+	err = joinIPv6GroupUDP(c, ifi, ip)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func joinIPv4GroupUDP(c *UDPConn, ifi *Interface, ip IP) error {

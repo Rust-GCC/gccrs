@@ -6,6 +6,7 @@
 
 #include <stddef.h>
 
+#include "config.h"
 #include "go-type.h"
 
 /* The 64-bit type.  */
@@ -31,8 +32,15 @@ __go_type_hash_identity (const void *key, uintptr_t key_size)
 	unsigned char a[8];
       } u;
       u.v = 0;
-      __builtin_memcpy (&u.a, key, key_size);
-      return (uintptr_t) u.v;
+#ifdef WORDS_BIGENDIAN
+      __builtin_memcpy (&u.a[8 - key_size], key, key_size);
+#else
+      __builtin_memcpy (&u.a[0], key, key_size);
+#endif
+      if (sizeof (uintptr_t) >= 8)
+	return (uintptr_t) u.v;
+      else
+	return (uintptr_t) ((u.v >> 32) ^ (u.v & 0xffffffff));
     }
 
   ret = 5381;

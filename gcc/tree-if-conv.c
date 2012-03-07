@@ -1262,7 +1262,7 @@ find_phi_replacement_condition (struct loop *loop,
    arguments.
 
    For example,
-     S1: A = PHI <x1(1), x2(5)
+     S1: A = PHI <x1(1), x2(5)>
    is converted into,
      S2: A = cond ? x1 : x2;
 
@@ -1712,6 +1712,9 @@ combine_blocks (struct loop *loop)
 
   free (ifc_bbs);
   ifc_bbs = NULL;
+
+  /* Post-dominators are corrupt now.  */
+  free_dominance_info (CDI_POST_DOMINATORS);
 }
 
 /* If-convert LOOP when it is legal.  For the moment this pass has no

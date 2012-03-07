@@ -117,6 +117,12 @@ FIXED_VALUE_TYPE fconst1[MAX_FCONST1];
 
 rtx const_int_rtx[MAX_SAVED_CONST_INT * 2 + 1];
 
+/* Standard pieces of rtx, to be substituted directly into things.  */
+rtx pc_rtx;
+rtx ret_rtx;
+rtx simple_return_rtx;
+rtx cc0_rtx;
+
 /* A hash table storing CONST_INTs whose absolute value is greater
    than MAX_SAVED_CONST_INT.  */
 
@@ -1548,6 +1554,7 @@ set_mem_attributes_minus_bitpos (rtx ref, tree t, int objectp,
   HOST_WIDE_INT apply_bitpos = 0;
   tree type;
   struct mem_attrs attrs, *defattrs, *refattrs;
+  addr_space_t as;
 
   /* It can happen that type_for_mode was given a mode for which there
      is no language-level type.  In which case it returns NULL, which
@@ -1681,17 +1688,29 @@ set_mem_attributes_minus_bitpos (rtx ref, tree t, int objectp,
       MEM_NOTRAP_P (ref) = !tree_could_trap_p (t);
 
       base = get_base_address (t);
-      if (base && DECL_P (base)
-	  && TREE_READONLY (base)
-	  && (TREE_STATIC (base) || DECL_EXTERNAL (base))
-	  && !TREE_THIS_VOLATILE (base))
-	MEM_READONLY_P (ref) = 1;
+      if (base)
+	{
+	  if (DECL_P (base)
+	      && TREE_READONLY (base)
+	      && (TREE_STATIC (base) || DECL_EXTERNAL (base))
+	      && !TREE_THIS_VOLATILE (base))
+	    MEM_READONLY_P (ref) = 1;
 
-      /* Mark static const strings readonly as well.  */
-      if (base && TREE_CODE (base) == STRING_CST
-	  && TREE_READONLY (base)
-	  && TREE_STATIC (base))
-	MEM_READONLY_P (ref) = 1;
+	  /* Mark static const strings readonly as well.  */
+	  if (TREE_CODE (base) == STRING_CST
+	      && TREE_READONLY (base)
+	      && TREE_STATIC (base))
+	    MEM_READONLY_P (ref) = 1;
+
+	  if (TREE_CODE (base) == MEM_REF
+	      || TREE_CODE (base) == TARGET_MEM_REF)
+	    as = TYPE_ADDR_SPACE (TREE_TYPE (TREE_TYPE (TREE_OPERAND (base,
+								      0))));
+	  else
+	    as = TYPE_ADDR_SPACE (TREE_TYPE (base));
+	}
+      else
+	as = TYPE_ADDR_SPACE (type);
 
       /* If this expression uses it's parent's alias set, mark it such
 	 that we won't change it.  */
@@ -1830,6 +1849,8 @@ set_mem_attributes_minus_bitpos (rtx ref, tree t, int objectp,
 	  attrs.align = MAX (attrs.align, obj_align);
 	}
     }
+  else
+    as = TYPE_ADDR_SPACE (type);
 
   /* If we modified OFFSET based on T, then subtract the outstanding
      bit position offset.  Similarly, increase the size of the accessed
@@ -1843,7 +1864,7 @@ set_mem_attributes_minus_bitpos (rtx ref, tree t, int objectp,
     }
 
   /* Now set the attributes we computed above.  */
-  attrs.addrspace = TYPE_ADDR_SPACE (type);
+  attrs.addrspace = as;
   set_mem_attrs (ref, &attrs);
 }
 
@@ -5521,10 +5542,6 @@ init_emit_regs (void)
   init_reg_modes_target ();
 
   /* Assign register numbers to the globally defined register rtx.  */
-  pc_rtx = gen_rtx_fmt_ (PC, VOIDmode);
-  ret_rtx = gen_rtx_fmt_ (RETURN, VOIDmode);
-  simple_return_rtx = gen_rtx_fmt_ (SIMPLE_RETURN, VOIDmode);
-  cc0_rtx = gen_rtx_fmt_ (CC0, VOIDmode);
   stack_pointer_rtx = gen_raw_REG (Pmode, STACK_POINTER_REGNUM);
   frame_pointer_rtx = gen_raw_REG (Pmode, FRAME_POINTER_REGNUM);
   hard_frame_pointer_rtx = gen_raw_REG (Pmode, HARD_FRAME_POINTER_REGNUM);
@@ -5840,6 +5857,11 @@ init_emit_once (void)
   const_tiny_rtx[0][(int) BImode] = const0_rtx;
   if (STORE_FLAG_VALUE == 1)
     const_tiny_rtx[1][(int) BImode] = const1_rtx;
+
+  pc_rtx = gen_rtx_fmt_ (PC, VOIDmode);
+  ret_rtx = gen_rtx_fmt_ (RETURN, VOIDmode);
+  simple_return_rtx = gen_rtx_fmt_ (SIMPLE_RETURN, VOIDmode);
+  cc0_rtx = gen_rtx_fmt_ (CC0, VOIDmode);
 }
 
 /* Produce exact duplicate of insn INSN after AFTER.

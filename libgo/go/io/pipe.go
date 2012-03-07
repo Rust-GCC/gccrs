@@ -7,10 +7,13 @@
 
 package io
 
-import "sync"
+import (
+	"errors"
+	"sync"
+)
 
 // ErrClosedPipe is the error used for read or write operations on a closed pipe.
-var ErrClosedPipe = &Error{"io: read/write on closed pipe"}
+var ErrClosedPipe = errors.New("io: read/write on closed pipe")
 
 type pipeResult struct {
 	n   int
@@ -172,6 +175,10 @@ func (w *PipeWriter) CloseWithError(err error) error {
 // with code expecting an io.Writer.
 // Reads on one end are matched with writes on the other,
 // copying data directly between the two; there is no internal buffering.
+// It is safe to call Read and Write in parallel with each other or with
+// Close. Close will complete once pending I/O is done. Parallel calls to
+// Read, and parallel calls to Write, are also safe:
+// the individual calls will be gated sequentially.
 func Pipe() (*PipeReader, *PipeWriter) {
 	p := new(pipe)
 	p.rwait.L = &p.l

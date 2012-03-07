@@ -3522,12 +3522,16 @@ gfc_conv_procedure_call (gfc_se * se, gfc_symbol * sym,
 	}
       else if (se->ss && se->ss->info->useflags)
 	{
+	  gfc_ss *ss;
+
+	  ss = se->ss;
+
 	  /* An elemental function inside a scalarized loop.  */
 	  gfc_init_se (&parmse, se);
 	  parm_kind = ELEMENTAL;
 
-	  if (se->ss->dimen > 0 && e->expr_type == EXPR_VARIABLE
-	      && se->ss->info->data.array.ref == NULL)
+	  if (ss->dimen > 0 && e->expr_type == EXPR_VARIABLE
+	      && ss->info->data.array.ref == NULL)
 	    {
 	      gfc_conv_tmp_array_ref (&parmse);
 	      if (e->ts.type == BT_CHARACTER)
@@ -3537,6 +3541,33 @@ gfc_conv_procedure_call (gfc_se * se, gfc_symbol * sym,
 	    }
 	  else
 	    gfc_conv_expr_reference (&parmse, e);
+
+	  if (fsym && fsym->ts.type == BT_DERIVED
+	      && gfc_is_class_container_ref (e))
+	    parmse.expr = gfc_class_data_get (parmse.expr);
+
+	  /* If we are passing an absent array as optional dummy to an
+	     elemental procedure, make sure that we pass NULL when the data
+	     pointer is NULL.  We need this extra conditional because of
+	     scalarization which passes arrays elements to the procedure,
+	     ignoring the fact that the array can be absent/unallocated/...  */
+	  if (ss->info->can_be_null_ref && ss->info->type != GFC_SS_REFERENCE)
+	    {
+	      tree descriptor_data;
+
+	      descriptor_data = ss->info->data.array.data;
+	      tmp = fold_build2_loc (input_location, EQ_EXPR, boolean_type_node,
+				     descriptor_data,
+				     fold_convert (TREE_TYPE (descriptor_data),
+						   null_pointer_node));
+	      parmse.expr
+		= fold_build3_loc (input_location, COND_EXPR,
+				   TREE_TYPE (parmse.expr),
+				   gfc_unlikely (tmp),
+				   fold_convert (TREE_TYPE (parmse.expr), 
+						 null_pointer_node),
+				   parmse.expr);
+	    }
 
 	  /* The scalarizer does not repackage the reference to a class
 	     array - instead it returns a pointer to the data element.  */
@@ -3618,6 +3649,13 @@ gfc_conv_procedure_call (gfc_se * se, gfc_symbol * sym,
 			&& e->ts.type == BT_CLASS
 			&& CLASS_DATA (e)->attr.dimension)
 		    gfc_conv_class_to_class (&parmse, e, fsym->ts, false);
+
+		  if (fsym && (fsym->ts.type == BT_DERIVED
+			       || fsym->ts.type == BT_ASSUMED)
+		      && e->ts.type == BT_CLASS
+		      && !CLASS_DATA (e)->attr.dimension
+		      && !CLASS_DATA (e)->attr.codimension)
+		    parmse.expr = gfc_class_data_get (parmse.expr);
 
 		  /* If an ALLOCATABLE dummy argument has INTENT(OUT) and is 
 		     allocated on entry, it must be deallocated.  */
@@ -5451,7 +5489,7 @@ gfc_conv_expr (gfc_se * se, gfc_expr * expr)
       se->expr = ss_info->data.scalar.value;
       /* If the reference can be NULL, the value field contains the reference,
 	 not the value the reference points to (see gfc_add_loop_ss_code).  */
-      if (ss_info->data.scalar.can_be_null_ref)
+      if (ss_info->can_be_null_ref)
 	se->expr = build_fold_indirect_ref_loc (input_location, se->expr);
 
       se->string_length = ss_info->string_length;
@@ -6293,6 +6331,8 @@ fcncall_realloc_result (gfc_se *se, int rank)
   /* Use the allocation done by the library.  Substitute the lhs
      descriptor with a copy, whose data field is nulled.*/
   desc = build_fold_indirect_ref_loc (input_location, se->expr);
+  if (POINTER_TYPE_P (TREE_TYPE (desc)))
+    desc = build_fold_indirect_ref_loc (input_location, desc);
 
   /* Unallocated, the descriptor does not have a dtype.  */
   tmp = gfc_conv_descriptor_dtype (desc);
@@ -6364,16 +6404,15 @@ fcncall_realloc_result (gfc_se *se, int rank)
       gfc_conv_descriptor_ubound_set (&se->post, desc,
 				      gfc_rank_cst[n], tmp);
 
-      /* Accumulate the offset.  */
-      tmp = gfc_conv_descriptor_stride_get (desc, gfc_rank_cst[n]);
+      /* Set stride and accumulate the offset.  */
+      tmp = gfc_conv_descriptor_stride_get (res_desc, gfc_rank_cst[n]);
+      gfc_conv_descriptor_stride_set (&se->post, desc,
+				      gfc_rank_cst[n], tmp);
       tmp = fold_build2_loc (input_location, MULT_EXPR,
-				gfc_array_index_type,
-				lbound, tmp);
+			     gfc_array_index_type, lbound, tmp);
       offset = fold_build2_loc (input_location, MINUS_EXPR,
-				gfc_array_index_type,
-				offset, tmp);
+				gfc_array_index_type, offset, tmp);
       offset = gfc_evaluate_now (offset, &se->post);
-
     }
 
   gfc_conv_descriptor_offset_set (&se->post, desc, offset);

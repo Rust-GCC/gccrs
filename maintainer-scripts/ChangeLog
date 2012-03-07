@@ -1,3 +1,15 @@
+2013-03-05  Richard Guenther  <rguenther@suse.de>
+
+	* crontab: Remove 4.3 branch from the list of snapshots to make.
+
+2012-03-02  Richard Guenther  <rguenther@suse.de>
+
+	* crontab: Fix day-of-week.
+
+2012-03-02  Richard Guenther  <rguenther@suse.de>
+
+	* crontab: Update for 4.7 branching.
+
 2011-11-21  Gerald Pfeifer  <gerald@pfeifer.com>
 
 	* update_web_docs_svn: Make $DOCSDIR group writable after

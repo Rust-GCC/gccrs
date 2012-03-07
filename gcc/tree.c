@@ -1714,12 +1714,25 @@ integer_zerop (const_tree expr)
 {
   STRIP_NOPS (expr);
 
-  return ((TREE_CODE (expr) == INTEGER_CST
-	   && TREE_INT_CST_LOW (expr) == 0
-	   && TREE_INT_CST_HIGH (expr) == 0)
-	  || (TREE_CODE (expr) == COMPLEX_CST
-	      && integer_zerop (TREE_REALPART (expr))
-	      && integer_zerop (TREE_IMAGPART (expr))));
+  switch (TREE_CODE (expr))
+    {
+    case INTEGER_CST:
+      return (TREE_INT_CST_LOW (expr) == 0
+	      && TREE_INT_CST_HIGH (expr) == 0);
+    case COMPLEX_CST:
+      return (integer_zerop (TREE_REALPART (expr))
+	      && integer_zerop (TREE_IMAGPART (expr)));
+    case VECTOR_CST:
+      {
+	tree elt;
+	for (elt = TREE_VECTOR_CST_ELTS (expr); elt; elt = TREE_CHAIN (elt))
+	  if (!integer_zerop (TREE_VALUE (elt)))
+	    return false;
+	return true;
+      }
+    default:
+      return false;
+    }
 }
 
 /* Return 1 if EXPR is the integer constant one or the corresponding
@@ -1730,12 +1743,25 @@ integer_onep (const_tree expr)
 {
   STRIP_NOPS (expr);
 
-  return ((TREE_CODE (expr) == INTEGER_CST
-	   && TREE_INT_CST_LOW (expr) == 1
-	   && TREE_INT_CST_HIGH (expr) == 0)
-	  || (TREE_CODE (expr) == COMPLEX_CST
-	      && integer_onep (TREE_REALPART (expr))
-	      && integer_zerop (TREE_IMAGPART (expr))));
+  switch (TREE_CODE (expr))
+    {
+    case INTEGER_CST:
+      return (TREE_INT_CST_LOW (expr) == 1
+	      && TREE_INT_CST_HIGH (expr) == 0);
+    case COMPLEX_CST:
+      return (integer_onep (TREE_REALPART (expr))
+	      && integer_zerop (TREE_IMAGPART (expr)));
+    case VECTOR_CST:
+      {
+	tree elt;
+	for (elt = TREE_VECTOR_CST_ELTS (expr); elt; elt = TREE_CHAIN (elt))
+	  if (!integer_onep (TREE_VALUE (elt)))
+	    return false;
+	return true;
+      }
+    default:
+      return false;
+    }
 }
 
 /* Return 1 if EXPR is an integer containing all 1's in as much precision as
@@ -1753,6 +1779,15 @@ integer_all_onesp (const_tree expr)
       && integer_all_onesp (TREE_REALPART (expr))
       && integer_zerop (TREE_IMAGPART (expr)))
     return 1;
+
+  else if (TREE_CODE (expr) == VECTOR_CST)
+    {
+      tree elt;
+      for (elt = TREE_VECTOR_CST_ELTS (expr); elt; elt = TREE_CHAIN (elt))
+	if (!integer_all_onesp (TREE_VALUE (elt)))
+	  return 0;
+      return 1;
+    }
 
   else if (TREE_CODE (expr) != INTEGER_CST)
     return 0;
@@ -4596,7 +4631,10 @@ free_lang_data_in_decl (tree decl)
   free_lang_data_in_one_sizepos (&DECL_SIZE (decl));
   free_lang_data_in_one_sizepos (&DECL_SIZE_UNIT (decl));
   if (TREE_CODE (decl) == FIELD_DECL)
-    free_lang_data_in_one_sizepos (&DECL_FIELD_OFFSET (decl));
+    {
+      free_lang_data_in_one_sizepos (&DECL_FIELD_OFFSET (decl));
+      DECL_QUALIFIER (decl) = NULL_TREE;
+    }
 
  if (TREE_CODE (decl) == FUNCTION_DECL)
     {
@@ -4800,7 +4838,6 @@ find_decls_types_r (tree *tp, int *ws, void *data)
 	{
 	  fld_worklist_push (DECL_FIELD_OFFSET (t), fld);
 	  fld_worklist_push (DECL_BIT_FIELD_TYPE (t), fld);
-	  fld_worklist_push (DECL_QUALIFIER (t), fld);
 	  fld_worklist_push (DECL_FIELD_BIT_OFFSET (t), fld);
 	  fld_worklist_push (DECL_FCONTEXT (t), fld);
 	}
@@ -11174,6 +11211,52 @@ tree_strip_sign_nop_conversions (tree exp)
   while (tree_sign_nop_conversion (exp))
     exp = TREE_OPERAND (exp, 0);
   return exp;
+}
+
+/* Avoid any floating point extensions from EXP.  */
+tree
+strip_float_extensions (tree exp)
+{
+  tree sub, expt, subt;
+
+  /*  For floating point constant look up the narrowest type that can hold
+      it properly and handle it like (type)(narrowest_type)constant.
+      This way we can optimize for instance a=a*2.0 where "a" is float
+      but 2.0 is double constant.  */
+  if (TREE_CODE (exp) == REAL_CST && !DECIMAL_FLOAT_TYPE_P (TREE_TYPE (exp)))
+    {
+      REAL_VALUE_TYPE orig;
+      tree type = NULL;
+
+      orig = TREE_REAL_CST (exp);
+      if (TYPE_PRECISION (TREE_TYPE (exp)) > TYPE_PRECISION (float_type_node)
+	  && exact_real_truncate (TYPE_MODE (float_type_node), &orig))
+	type = float_type_node;
+      else if (TYPE_PRECISION (TREE_TYPE (exp))
+	       > TYPE_PRECISION (double_type_node)
+	       && exact_real_truncate (TYPE_MODE (double_type_node), &orig))
+	type = double_type_node;
+      if (type)
+	return build_real (type, real_value_truncate (TYPE_MODE (type), orig));
+    }
+
+  if (!CONVERT_EXPR_P (exp))
+    return exp;
+
+  sub = TREE_OPERAND (exp, 0);
+  subt = TREE_TYPE (sub);
+  expt = TREE_TYPE (exp);
+
+  if (!FLOAT_TYPE_P (subt))
+    return exp;
+
+  if (DECIMAL_FLOAT_TYPE_P (expt) != DECIMAL_FLOAT_TYPE_P (subt))
+    return exp;
+
+  if (TYPE_PRECISION (subt) > TYPE_PRECISION (expt))
+    return exp;
+
+  return strip_float_extensions (sub);
 }
 
 /* Strip out all handled components that produce invariant

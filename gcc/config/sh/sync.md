@@ -1,5 +1,5 @@
 ;; GCC machine description for SH synchronization instructions.
-;; Copyright (C) 2011
+;; Copyright (C) 2011, 2012
 ;; Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
@@ -109,7 +109,7 @@
   [(plus "add") (minus "sub") (ior "or") (xor "xor") (and "and")])
 
 (define_expand "atomic_compare_and_swap<mode>"
-  [(match_operand:QI 0 "register_operand" "")		;; bool success output
+  [(match_operand:SI 0 "register_operand" "")		;; bool success output
    (match_operand:I124 1 "register_operand" "")		;; oldval output
    (match_operand:I124 2 "memory_operand" "")		;; memory
    (match_operand:I124 3 "register_operand" "")		;; expected input
@@ -131,7 +131,7 @@
   else if (<MODE>mode == HImode)
     emit_insn (gen_zero_extendhisi2 (gen_lowpart (SImode, operands[1]),
 				     operands[1]));
-  emit_insn (gen_movqi (operands[0], gen_rtx_REG (QImode, T_REG)));
+  emit_insn (gen_movsi (operands[0], gen_rtx_REG (SImode, T_REG)));
   DONE;
 })
 
@@ -144,8 +144,8 @@
 	  UNSPECV_CMPXCHG_1))
    (set (mem:I124 (match_dup 1))
 	(unspec_volatile:I124 [(const_int 0)] UNSPECV_CMPXCHG_2))
-   (set (reg:QI T_REG)
-	(unspec_volatile:QI [(const_int 0)] UNSPECV_CMPXCHG_3))
+   (set (reg:SI T_REG)
+	(unspec_volatile:SI [(const_int 0)] UNSPECV_CMPXCHG_3))
    (clobber (match_scratch:SI 4 "=&u"))
    (clobber (reg:SI R0_REG))
    (clobber (reg:SI R1_REG))]
@@ -163,6 +163,45 @@
 	 "1:	mov	r1,r15";
 }
   [(set_attr "length" "20")])
+
+(define_expand "atomic_exchange<mode>"
+  [(match_operand:I124 0 "register_operand" "")		;; oldval output
+   (match_operand:I124 1 "memory_operand" "")		;; memory
+   (match_operand:I124 2 "register_operand" "")		;; newval input
+   (match_operand:SI 3 "const_int_operand" "")]		;; memory model
+  "TARGET_SOFT_ATOMIC && !TARGET_SHMEDIA"
+{
+  rtx addr = force_reg (Pmode, XEXP (operands[1], 0));
+  emit_insn (gen_atomic_exchange<mode>_soft
+	     (operands[0], addr, operands[2]));
+  if (<MODE>mode == QImode)
+    emit_insn (gen_zero_extendqisi2 (gen_lowpart (SImode, operands[0]),
+				     operands[0]));
+  else if (<MODE>mode == HImode)
+    emit_insn (gen_zero_extendhisi2 (gen_lowpart (SImode, operands[0]),
+				     operands[0]));
+  DONE;
+})
+
+(define_insn "atomic_exchange<mode>_soft"
+  [(set (match_operand:I124 0 "register_operand" "=&u")
+	(mem:I124 (match_operand:SI 1 "register_operand" "u")))
+   (set (mem:I124 (match_dup 1))
+	(unspec:I124
+	  [(match_operand:I124 2 "register_operand" "u")] UNSPEC_ATOMIC))
+   (clobber (reg:SI R0_REG))
+   (clobber (reg:SI R1_REG))]
+  "TARGET_SOFT_ATOMIC && !TARGET_SHMEDIA"
+{
+  return "mova	1f,r0"				"\n"
+	 "	.align 2"			"\n"
+	 "	mov	r15,r1"			"\n"
+	 "	mov	#(0f-1f),r15"		"\n"
+	 "0:	mov.<i124suffix>	@%1,%0"	"\n"
+	 "	mov.<i124suffix>	%2,@%1"	"\n"
+	 "1:	mov	r1,r15";
+}
+  [(set_attr "length" "14")])
 
 (define_expand "atomic_fetch_<fetchop_name><mode>"
   [(set (match_operand:I124 0 "register_operand" "")
@@ -365,3 +404,62 @@
 	 "1:	mov	r1,r15";
 }
   [(set_attr "length" "18")])
+
+(define_expand "atomic_test_and_set"
+  [(match_operand:SI 0 "register_operand" "")		;; bool result output
+   (match_operand:QI 1 "memory_operand" "")		;; memory
+   (match_operand:SI 2 "const_int_operand" "")]		;; model
+  "(TARGET_SOFT_ATOMIC || TARGET_ENABLE_TAS) && !TARGET_SHMEDIA"
+{
+  rtx addr = force_reg (Pmode, XEXP (operands[1], 0));
+
+  if (TARGET_ENABLE_TAS)
+    emit_insn (gen_tasb (addr));
+  else
+    {
+      rtx val;
+
+      val = gen_int_mode (targetm.atomic_test_and_set_trueval, QImode);
+      val = force_reg (QImode, val);
+      emit_insn (gen_atomic_test_and_set_soft (addr, val));
+    }
+
+  /* The result of the test op is the inverse of what we are
+     supposed to return.  Thus invert the T bit.  The inversion will be
+     potentially optimized away and integrated into surrounding code.  */
+  emit_insn (gen_movnegt (operands[0]));
+  DONE;
+})
+
+(define_insn "tasb"
+  [(set (reg:SI T_REG)
+	(eq:SI (mem:QI (match_operand:SI 0 "register_operand" "r"))
+	       (const_int 0)))
+   (set (mem:QI (match_dup 0))
+	(unspec:QI [(const_int 128)] UNSPEC_ATOMIC))]
+  "TARGET_ENABLE_TAS && !TARGET_SHMEDIA"
+  "tas.b	@%0"
+  [(set_attr "insn_class" "co_group")])
+
+(define_insn "atomic_test_and_set_soft"
+  [(set (reg:SI T_REG)
+	(eq:SI (mem:QI (match_operand:SI 0 "register_operand" "u"))
+	       (const_int 0)))
+   (set (mem:QI (match_dup 0))
+	(unspec:QI [(match_operand:QI 1 "register_operand" "u")] UNSPEC_ATOMIC))
+   (clobber (match_scratch:QI 2 "=&u"))
+   (clobber (reg:SI R0_REG))
+   (clobber (reg:SI R1_REG))]
+  "TARGET_SOFT_ATOMIC && !TARGET_ENABLE_TAS && !TARGET_SHMEDIA"
+{
+  return "mova	1f,r0"			"\n"
+	 "	.align 2"		"\n"
+	 "	mov	r15,r1"		"\n"
+	 "	mov	#(0f-1f),r15"	"\n"
+	 "0:	mov.b	@%0,%2"		"\n"
+	 "	mov.b	%1,@%0"		"\n"
+	 "1:	mov	r1,r15"		"\n"
+	 "	tst	%2,%2";
+}
+  [(set_attr "length" "16")])
+

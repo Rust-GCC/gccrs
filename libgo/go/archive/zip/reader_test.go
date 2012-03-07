@@ -69,8 +69,23 @@ var tests = []ZipTest{
 			},
 		},
 	},
-	{Name: "readme.zip"},
-	{Name: "readme.notzip", Error: ErrFormat},
+	{
+		Name: "symlink.zip",
+		File: []ZipTestFile{
+			{
+				Name:    "symlink",
+				Content: []byte("../target"),
+				Mode:    0777 | os.ModeSymlink,
+			},
+		},
+	},
+	{
+		Name: "readme.zip",
+	},
+	{
+		Name:  "readme.notzip",
+		Error: ErrFormat,
+	},
 	{
 		Name: "dd.zip",
 		File: []ZipTestFile{
@@ -150,7 +165,7 @@ func readTestZip(t *testing.T, zt ZipTest) {
 		t.Errorf("%s: comment=%q, want %q", zt.Name, z.Comment, zt.Comment)
 	}
 	if len(z.File) != len(zt.File) {
-		t.Errorf("%s: file count=%d, want %d", zt.Name, len(z.File), len(zt.File))
+		t.Fatalf("%s: file count=%d, want %d", zt.Name, len(z.File), len(zt.File))
 	}
 
 	// test read of each file
@@ -263,7 +278,7 @@ func TestInvalidFiles(t *testing.T) {
 	b := make([]byte, size)
 
 	// zeroes
-	_, err := NewReader(sliceReaderAt(b), size)
+	_, err := NewReader(bytes.NewReader(b), size)
 	if err != ErrFormat {
 		t.Errorf("zeroes: error=%v, want %v", err, ErrFormat)
 	}
@@ -274,15 +289,8 @@ func TestInvalidFiles(t *testing.T) {
 	for i := 0; i < size-4; i += 4 {
 		copy(b[i:i+4], sig)
 	}
-	_, err = NewReader(sliceReaderAt(b), size)
+	_, err = NewReader(bytes.NewReader(b), size)
 	if err != ErrFormat {
 		t.Errorf("sigs: error=%v, want %v", err, ErrFormat)
 	}
-}
-
-type sliceReaderAt []byte
-
-func (r sliceReaderAt) ReadAt(b []byte, off int64) (int, error) {
-	copy(b, r[int(off):int(off)+len(b)])
-	return len(b), nil
 }

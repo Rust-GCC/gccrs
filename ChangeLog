@@ -1,3 +1,33 @@
+2012-03-05  Tristan Gingold  <gingold@adacore.com>
+
+	* configure.ac: Enable gdb and readline for ia64*-*-*vms*.
+	* configure: Regenerate.
+
+2012-02-17  Walter Lee  <walt@tilera.com>
+
+	* MAINTAINERS: (Write After Approval): Delete myself.
+
+2012-02-14  Walter Lee  <walt@tilera.com>
+
+	* MAINTAINERS (tilegx port): Add myself.
+	(tilepro port): Add myself.
+	(Write After Approval): Add myself.
+
+2012-02-12  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* MAINTAINERS (Various Maintainers): Add Diego Novillo,
+	Gerald Pfeifer and Joseph Myers as docstring relicensing
+	maintainers.
+
+2012-02-09  Bin Cheng  <bin.cheng@arm.com>
+
+	* MAINTAINERS (write-after-approval): Add myself.
+
+2012-02-08  Ira Rosen <irar@il.ibm.com>
+
+	* MAINTAINERS (Various Maintainers): Remove myself as auto-vectorizer
+	maintainer.
+
 2012-02-04  Venkataramanan Kumar  <venkataramanan.kumar@amd.com>
 
 	* MAINTAINERS (Write After Approval): Move myself to maintain alphabetical order.

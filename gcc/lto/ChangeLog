@@ -1,3 +1,14 @@
+2012-03-06  Richard Guenther  <rguenther@suse.de>
+
+	PR lto/52097
+	* lto.c (uniquify_nodes): Merge TYPE_FIELDS of variant types.
+
+2012-02-28  Richard Guenther  <rguenther@suse.de>
+
+	PR lto/52400
+	* lto.c (lto_register_function_decl_in_symtab): Do not register
+	a reverse renamed decl mapping.
+
 2012-01-06  Jakub Jelinek  <jakub@redhat.com>
 
 	PR lto/51774

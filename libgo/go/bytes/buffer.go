@@ -57,10 +57,13 @@ func (b *Buffer) String() string {
 func (b *Buffer) Len() int { return len(b.buf) - b.off }
 
 // Truncate discards all but the first n unread bytes from the buffer.
-// It is an error to call b.Truncate(n) with n > b.Len().
+// It panics if n is negative or greater than the length of the buffer.
 func (b *Buffer) Truncate(n int) {
 	b.lastRead = opInvalid
-	if n == 0 {
+	switch {
+	case n < 0 || n > b.Len():
+		panic("bytes.Buffer: truncation out of range")
+	case n == 0:
 		// Reuse buffer space.
 		b.off = 0
 	}
@@ -179,14 +182,21 @@ func makeSlice(n int) []byte {
 func (b *Buffer) WriteTo(w io.Writer) (n int64, err error) {
 	b.lastRead = opInvalid
 	if b.off < len(b.buf) {
+		nBytes := b.Len()
 		m, e := w.Write(b.buf[b.off:])
+		if m > nBytes {
+			panic("bytes.Buffer.WriteTo: invalid Write count")
+		}
 		b.off += m
 		n = int64(m)
 		if e != nil {
 			return n, e
 		}
-		// otherwise all bytes were written, by definition of
+		// all bytes should have been written, by definition of
 		// Write method in io.Writer
+		if m != nBytes {
+			return n, io.ErrShortWrite
+		}
 	}
 	// Buffer is now empty; reset.
 	b.Truncate(0)
@@ -366,14 +376,15 @@ func (b *Buffer) ReadString(delim byte) (line string, err error) {
 // buf should have the desired capacity but a length of zero.
 //
 // In most cases, new(Buffer) (or just declaring a Buffer variable) is
-// preferable to NewBuffer.  In particular, passing a non-empty buf to
-// NewBuffer and then writing to the Buffer will overwrite buf, not append to
-// it.
+// sufficient to initialize a Buffer.
 func NewBuffer(buf []byte) *Buffer { return &Buffer{buf: buf} }
 
 // NewBufferString creates and initializes a new Buffer using string s as its
-// initial contents.  It is intended to prepare a buffer to read an existing
-// string.  See the warnings about NewBuffer; similar issues apply here.
+// initial contents. It is intended to prepare a buffer to read an existing
+// string.
+//
+// In most cases, new(Buffer) (or just declaring a Buffer variable) is
+// sufficient to initialize a Buffer.
 func NewBufferString(s string) *Buffer {
 	return &Buffer{buf: []byte(s)}
 }

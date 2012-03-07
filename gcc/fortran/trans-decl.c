@@ -2256,7 +2256,7 @@ trans_function_start (gfc_symbol * sym)
   init_function_start (fndecl);
 
   /* function.c requires a push at the start of the function.  */
-  pushlevel (0);
+  pushlevel ();
 }
 
 /* Create thunks for alternate entry points.  */
@@ -2398,7 +2398,7 @@ build_entry_thunks (gfc_namespace * ns, bool global)
       /* Finish off this function and send it for code generation.  */
       DECL_SAVED_TREE (thunk_fndecl) = gfc_finish_block (&body);
       tmp = getdecls ();
-      poplevel (1, 0, 1);
+      poplevel (1, 1);
       BLOCK_SUPERCONTEXT (DECL_INITIAL (thunk_fndecl)) = thunk_fndecl;
       DECL_SAVED_TREE (thunk_fndecl)
 	= build3_v (BIND_EXPR, tmp, DECL_SAVED_TREE (thunk_fndecl),
@@ -4400,7 +4400,7 @@ generate_coarray_init (gfc_namespace * ns __attribute((unused)))
   make_decl_rtl (fndecl);
   init_function_start (fndecl);
 
-  pushlevel (0);
+  pushlevel ();
   gfc_init_block (&caf_init_block);
 
   gfc_traverse_ns (ns, generate_coarray_sym_init);
@@ -4408,7 +4408,7 @@ generate_coarray_init (gfc_namespace * ns __attribute((unused)))
   DECL_SAVED_TREE (fndecl) = gfc_finish_block (&caf_init_block);
   decl = getdecls ();
 
-  poplevel (1, 0, 1);
+  poplevel (1, 1);
   BLOCK_SUPERCONTEXT (DECL_INITIAL (fndecl)) = fndecl;
 
   DECL_SAVED_TREE (fndecl)
@@ -4683,6 +4683,22 @@ generate_local_decl (gfc_symbol * sym)
 	  && sym->ts.type == BT_CHARACTER && sym->ts.is_c_interop
 	  && sym->ns->proc_name != NULL && sym->ns->proc_name->attr.is_bind_c)
 	gfc_conv_scalar_char_value (sym, NULL, NULL);
+
+      /* Unused procedure passed as dummy argument.  */
+      if (sym->attr.flavor == FL_PROCEDURE)
+	{
+	  if (!sym->attr.referenced)
+	    {
+	      if (gfc_option.warn_unused_dummy_argument)
+		gfc_warning ("Unused dummy argument '%s' at %L", sym->name,
+			     &sym->declared_at);	     
+	    }
+
+	  /* Silence bogus "unused parameter" warnings from the
+	     middle end.  */
+	  if (sym->backend_decl != NULL_TREE)
+		TREE_NO_WARNING (sym->backend_decl) = 1;
+	}
     }
 
   /* Make sure we convert the types of the derived types from iso_c_binding
@@ -4955,7 +4971,7 @@ create_main_function (tree fndecl)
   rest_of_decl_compilation (ftn_main, 1, 0);
   make_decl_rtl (ftn_main);
   init_function_start (ftn_main);
-  pushlevel (0);
+  pushlevel ();
 
   gfc_init_block (&body);
 
@@ -5123,7 +5139,7 @@ create_main_function (tree fndecl)
   decl = getdecls ();
 
   /* Finish off this function and send it for code generation.  */
-  poplevel (1, 0, 1);
+  poplevel (1, 1);
   BLOCK_SUPERCONTEXT (DECL_INITIAL (ftn_main)) = ftn_main;
 
   DECL_SAVED_TREE (ftn_main)
@@ -5412,7 +5428,7 @@ gfc_generate_function_code (gfc_namespace * ns)
   decl = getdecls ();
 
   /* Finish off this function and send it for code generation.  */
-  poplevel (1, 0, 1);
+  poplevel (1, 1);
   BLOCK_SUPERCONTEXT (DECL_INITIAL (fndecl)) = fndecl;
 
   DECL_SAVED_TREE (fndecl)
@@ -5506,7 +5522,7 @@ gfc_generate_constructors (void)
 
   init_function_start (fndecl);
 
-  pushlevel (0);
+  pushlevel ();
 
   for (; gfc_static_ctors; gfc_static_ctors = TREE_CHAIN (gfc_static_ctors))
     {
@@ -5516,7 +5532,7 @@ gfc_generate_constructors (void)
     }
 
   decl = getdecls ();
-  poplevel (1, 0, 1);
+  poplevel (1, 1);
 
   BLOCK_SUPERCONTEXT (DECL_INITIAL (fndecl)) = fndecl;
   DECL_SAVED_TREE (fndecl)

@@ -3163,6 +3163,24 @@ package body Sem_Ch3 is
          Set_Etype (Id, T);
          Resolve (E, T);
 
+         --  No further action needed if E is a call to an inlined function
+         --  which returns an unconstrained type and it has been expanded into
+         --  a procedure call. In that case N has been replaced by an object
+         --  declaration without initializing expression and it has been
+         --  analyzed (see Expand_Inlined_Call).
+
+         if Debug_Flag_Dot_K
+           and then Expander_Active
+           and then Nkind (E) = N_Function_Call
+           and then Nkind (Name (E)) in N_Has_Entity
+           and then Is_Inlined (Entity (Name (E)))
+           and then not Is_Constrained (Etype (E))
+           and then Analyzed (N)
+           and then No (Expression (N))
+         then
+            return;
+         end if;
+
          --  If E is null and has been replaced by an N_Raise_Constraint_Error
          --  node (which was marked already-analyzed), we need to set the type
          --  to something other than Any_Access in order to keep gigi happy.
@@ -14968,7 +14986,15 @@ package body Sem_Ch3 is
             then
                Set_Ekind (Id, Ekind (Prev));         --  will be reset later
                Set_Class_Wide_Type (Id, Class_Wide_Type (Prev));
-               Set_Etype (Class_Wide_Type (Id), Id);
+
+               --  If the incomplete type is completed by a private declaration
+               --  the class-wide type remains associated with the incomplete
+               --  type, to prevent order-of-elaboration issues in gigi, else
+               --  we associate the class-wide type with the known full view.
+
+               if Nkind (N) /= N_Private_Type_Declaration then
+                  Set_Etype (Class_Wide_Type (Id), Id);
+               end if;
             end if;
 
          --  Case of full declaration of private type

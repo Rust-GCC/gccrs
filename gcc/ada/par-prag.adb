@@ -310,7 +310,7 @@ begin
 
       when Pragma_Ada_83 =>
          Ada_Version := Ada_83;
-         Ada_Version_Explicit := Ada_Version;
+         Ada_Version_Explicit := Ada_83;
 
       ------------
       -- Ada_95 --
@@ -322,7 +322,7 @@ begin
 
       when Pragma_Ada_95 =>
          Ada_Version := Ada_95;
-         Ada_Version_Explicit := Ada_Version;
+         Ada_Version_Explicit := Ada_95;
 
       ---------------------
       -- Ada_05/Ada_2005 --
@@ -1230,6 +1230,7 @@ begin
            Pragma_Shared_Passive                 |
            Pragma_Short_Circuit_And_Or           |
            Pragma_Short_Descriptors              |
+           Pragma_Simple_Storage_Pool_Type       |
            Pragma_Storage_Size                   |
            Pragma_Storage_Unit                   |
            Pragma_Static_Elaboration_Desired     |

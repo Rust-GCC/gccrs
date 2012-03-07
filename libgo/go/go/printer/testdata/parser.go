@@ -6,7 +6,7 @@
 // provided in a variety of forms (see the various Parse* functions); the
 // output is an abstract syntax tree (AST) representing the Go source. The
 // parser is invoked through one of the Parse* functions.
-//
+
 package parser
 
 import (
@@ -52,7 +52,7 @@ type parser struct {
 	// Non-syntactic parser control
 	exprLev int // < 0: in control clause, >= 0: in expression
 
-	// Ordinary identifer scopes
+	// Ordinary identifier scopes
 	pkgScope   *ast.Scope        // pkgScope.Outer == nil
 	topScope   *ast.Scope        // top-most scope; may be pkgScope
 	unresolved []*ast.Ident      // unresolved identifiers

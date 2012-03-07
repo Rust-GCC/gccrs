@@ -3968,6 +3968,20 @@ package body Sem_Res is
                   Error_Msg_N
                     ("invalid implicit conversion for access parameter", A);
                end if;
+
+               --  If the actual is an access selected component of a variable,
+               --  the call may modify its designated object. It is reasonable
+               --  to treat this as a potential modification of the enclosing
+               --  record, to prevent spurious warnings that it should be
+               --  declared as a constant, because intuitively programmers
+               --  regard the designated subcomponent as part of the record.
+
+               if Nkind (A) = N_Selected_Component
+                 and then Is_Entity_Name (Prefix (A))
+                 and then not Is_Constant_Object (Entity (Prefix (A)))
+               then
+                  Note_Possible_Modification (A, Sure => False);
+               end if;
             end if;
 
             --  Check bad case of atomic/volatile argument (RM C.6(12))
@@ -4226,6 +4240,32 @@ package body Sem_Res is
            and then Base_Type (Etype (Expression (E))) /= Base_Type (Etype (E))
          then
             Wrong_Type (Expression (E), Etype (E));
+         end if;
+
+         --  Calls to build-in-place functions are not currently supported in
+         --  allocators for access types associated with a simple storage pool.
+         --  Supporting such allocators may require passing additional implicit
+         --  parameters to build-in-place functions (or a significant revision
+         --  of the current b-i-p implementation to unify the handling for
+         --  multiple kinds of storage pools). ???
+
+         if Is_Immutably_Limited_Type (Desig_T)
+           and then Nkind (Expression (E)) = N_Function_Call
+         then
+            declare
+               Pool : constant Entity_Id :=
+                        Associated_Storage_Pool (Root_Type (Typ));
+            begin
+               if Present (Pool)
+                 and then
+                   Present (Get_Rep_Pragma
+                              (Etype (Pool), Name_Simple_Storage_Pool_Type))
+               then
+                  Error_Msg_N
+                    ("limited function calls not yet supported in simple " &
+                     "storage pool allocators", Expression (E));
+               end if;
+            end;
          end if;
 
          --  A special accessibility check is needed for allocators that
@@ -5571,6 +5611,15 @@ package body Sem_Res is
         and then Has_Pragma_Inline_Always (Nam)
         and then Nkind (Unit_Declaration_Node (Nam)) = N_Subprogram_Declaration
         and then Present (Body_To_Inline (Unit_Declaration_Node (Nam)))
+        and then not Debug_Flag_Dot_K
+      then
+         null;
+
+      elsif Is_Inlined (Nam)
+        and then Has_Pragma_Inline (Nam)
+        and then Nkind (Unit_Declaration_Node (Nam)) = N_Subprogram_Declaration
+        and then Present (Body_To_Inline (Unit_Declaration_Node (Nam)))
+        and then Debug_Flag_Dot_K
       then
          null;
 
@@ -8237,13 +8286,6 @@ package body Sem_Res is
    procedure Resolve_Quantified_Expression (N : Node_Id; Typ : Entity_Id) is
    begin
       if not Alfa_Mode then
-
-         --  If expansion is enabled, analysis is delayed until the expresssion
-         --  is rewritten as a loop.
-
-         if Operating_Mode /= Check_Semantics then
-            return;
-         end if;
 
          --  The loop structure is already resolved during its analysis, only
          --  the resolution of the condition needs to be done. Expansion is

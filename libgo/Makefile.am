@@ -25,6 +25,7 @@ STAMP = echo timestamp >
 
 toolexecdir = $(glibgo_toolexecdir)
 toolexeclibdir = $(glibgo_toolexeclibdir)
+toolexeclibgodir = $(nover_glibgo_toolexeclibdir)/go/$(gcc_version)/$(target_alias)
 
 LIBFFI = @LIBFFI@
 LIBFFIINCS = @LIBFFIINCS@
@@ -96,8 +97,6 @@ FLAGS_TO_PASS = $(AM_MAKEFLAGS)
 
 toolexeclib_LTLIBRARIES = libgo.la
 toolexeclib_LIBRARIES = libgobegin.a
-
-toolexeclibgodir = $(toolexeclibdir)/go/$(gcc_version)/$(target_alias)
 
 toolexeclibgo_DATA = \
 	bufio.gox \
@@ -257,13 +256,11 @@ toolexeclibgohtml_DATA = \
 toolexeclibgoimagedir = $(toolexeclibgodir)/image
 
 toolexeclibgoimage_DATA = \
-	image/bmp.gox \
 	image/color.gox \
 	image/draw.gox \
 	image/gif.gox \
 	image/jpeg.gox \
-	image/png.gox \
-	image/tiff.gox
+	image/png.gox
 
 toolexeclibgoindexdir = $(toolexeclibgodir)/index
 
@@ -327,8 +324,8 @@ toolexeclibgoosdir = $(toolexeclibgodir)/os
 
 toolexeclibgoos_DATA = \
 	os/exec.gox \
-	os/user.gox \
-	os/signal.gox
+	os/signal.gox \
+	os/user.gox
 
 toolexeclibgopathdir = $(toolexeclibgodir)/path
 
@@ -355,8 +352,7 @@ toolexeclibgotestingdir = $(toolexeclibgodir)/testing
 
 toolexeclibgotesting_DATA = \
 	testing/iotest.gox \
-	testing/quick.gox \
-	testing/script.gox
+	testing/quick.gox
 
 toolexeclibgotextdir = $(toolexeclibgodir)/text
 
@@ -401,6 +397,7 @@ runtime_files = \
 	runtime/go-byte-array-to-string.c \
 	runtime/go-breakpoint.c \
 	runtime/go-caller.c \
+	runtime/go-callers.c \
 	runtime/go-can-convert-interface.c \
 	runtime/go-cgo.c \
 	runtime/go-check-interface.c \
@@ -422,6 +419,7 @@ runtime_files = \
 	runtime/go-map-index.c \
 	runtime/go-map-len.c \
 	runtime/go-map-range.c \
+	runtime/go-matherr.c \
 	runtime/go-nanotime.c \
 	runtime/go-now.c \
 	runtime/go-new-map.c \
@@ -430,7 +428,6 @@ runtime_files = \
 	runtime/go-panic.c \
 	runtime/go-print.c \
 	runtime/go-recover.c \
-	runtime/go-reflect.c \
 	runtime/go-reflect-call.c \
 	runtime/go-reflect-map.c \
 	runtime/go-rune.c \
@@ -452,7 +449,6 @@ runtime_files = \
 	runtime/go-type-string.c \
 	runtime/go-typedesc-equal.c \
 	runtime/go-typestring.c \
-	runtime/go-unreflect.c \
 	runtime/go-unsafe-new.c \
 	runtime/go-unsafe-newarray.c \
 	runtime/go-unsafe-pointer.c \
@@ -470,6 +466,7 @@ runtime_files = \
 	runtime/msize.c \
 	runtime/proc.c \
 	runtime/runtime.c \
+	runtime/signal_unix.c \
 	runtime/thread.c \
 	runtime/yield.c \
 	$(rtems_task_variable_add_file) \
@@ -507,11 +504,11 @@ runtime1.c: $(srcdir)/runtime/runtime1.goc goc2c
 	mv -f $@.tmp $@
 
 sema.c: $(srcdir)/runtime/sema.goc goc2c
-	./goc2c --gcc --go-prefix libgo_runtime $< > $@.tmp
+	./goc2c --gcc --go-prefix libgo_sync $< > $@.tmp
 	mv -f $@.tmp $@
 
 sigqueue.c: $(srcdir)/runtime/sigqueue.goc goc2c
-	./goc2c --gcc --go-prefix libgo_runtime $< > $@.tmp
+	./goc2c --gcc --go-prefix libgo_os $< > $@.tmp
 	mv -f $@.tmp $@
 
 time.c: $(srcdir)/runtime/time.goc goc2c
@@ -528,7 +525,8 @@ go_bufio_files = \
 go_bytes_files = \
 	go/bytes/buffer.go \
 	go/bytes/bytes.go \
-	go/bytes/bytes_decl.go
+	go/bytes/bytes_decl.go \
+	go/bytes/reader.go
 go_bytes_c_files = \
 	go/bytes/indexbyte.c
 
@@ -660,10 +658,17 @@ go_net_sock_file = go/net/sock_linux.go
 go_net_sockopt_file = go/net/sockopt_linux.go
 go_net_sockoptip_file = go/net/sockoptip_linux.go
 else
+if LIBGO_IS_FREEBSD
 go_net_cgo_file = go/net/cgo_bsd.go
 go_net_sock_file = go/net/sock_bsd.go
 go_net_sockopt_file = go/net/sockopt_bsd.go
-go_net_sockoptip_file = go/net/sockoptip_bsd.go
+go_net_sockoptip_file = go/net/sockoptip_bsd.go go/net/sockoptip_freebsd.go
+else
+go_net_cgo_file = go/net/cgo_bsd.go
+go_net_sock_file = go/net/sock_bsd.go
+go_net_sockopt_file = go/net/sockopt_bsd.go
+go_net_sockoptip_file = go/net/sockoptip_bsd.go go/net/sockoptip_netbsd.go
+endif
 endif
 endif
 endif
@@ -706,6 +711,7 @@ go_net_files = \
 	go/net/ipsock.go \
 	go/net/ipsock_posix.go \
 	go/net/lookup_unix.go \
+	go/net/mac.go \
 	go/net/net.go \
 	go/net/parse.go \
 	go/net/pipe.go \
@@ -786,9 +792,7 @@ go_os_files = \
 	$(go_os_stat_file) \
 	go/os/str.go \
 	$(go_os_sys_file) \
-	go/os/time.go \
-	go/os/types.go \
-	signal_unix.go
+	go/os/types.go
 
 go_path_files = \
 	go/path/match.go \
@@ -813,7 +817,6 @@ go_runtime_files = \
 	go/runtime/error.go \
 	go/runtime/extern.go \
 	go/runtime/mem.go \
-	go/runtime/sig.go \
 	go/runtime/softfloat64.go \
 	go/runtime/type.go \
 	version.go
@@ -852,6 +855,7 @@ go_sync_files = \
 	go/sync/cond.go \
 	go/sync/mutex.go \
 	go/sync/once.go \
+	go/sync/runtime.go \
 	go/sync/rwmutex.go \
 	go/sync/waitgroup.go
 
@@ -883,6 +887,7 @@ go_time_files = \
 	go/time/tick.go \
 	go/time/time.go \
 	go/time/zoneinfo.go \
+	go/time/zoneinfo_read.go \
 	go/time/zoneinfo_unix.go
 
 go_unicode_files = \
@@ -948,7 +953,6 @@ go_crypto_cipher_files = \
 	go/crypto/cipher/cipher.go \
 	go/crypto/cipher/ctr.go \
 	go/crypto/cipher/io.go \
-	go/crypto/cipher/ocfb.go \
 	go/crypto/cipher/ofb.go
 go_crypto_des_files = \
 	go/crypto/des/block.go \
@@ -1020,12 +1024,14 @@ go_debug_dwarf_files = \
 	go/debug/dwarf/buf.go \
 	go/debug/dwarf/const.go \
 	go/debug/dwarf/entry.go \
+	go/debug/dwarf/line.go \
 	go/debug/dwarf/open.go \
 	go/debug/dwarf/type.go \
 	go/debug/dwarf/unit.go
 go_debug_elf_files = \
 	go/debug/elf/elf.go \
-	go/debug/elf/file.go
+	go/debug/elf/file.go \
+	go/debug/elf/runtime.go
 go_debug_gosym_files = \
 	go/debug/gosym/pclntab.go \
 	go/debug/gosym/symtab.go
@@ -1097,6 +1103,7 @@ go_exp_norm_files = \
 	go/exp/norm/composition.go \
 	go/exp/norm/forminfo.go \
 	go/exp/norm/input.go \
+	go/exp/norm/iter.go \
 	go/exp/norm/normalize.go \
 	go/exp/norm/readwriter.go \
 	go/exp/norm/tables.go \
@@ -1129,8 +1136,7 @@ go_go_ast_files = \
 	go/go/ast/walk.go
 go_go_build_files = \
 	go/go/build/build.go \
-	go/go/build/dir.go \
-	go/go/build/path.go \
+	go/go/build/doc.go \
 	syslist.go
 go_go_doc_files = \
 	go/go/doc/comment.go \
@@ -1138,7 +1144,8 @@ go_go_doc_files = \
 	go/go/doc/example.go \
 	go/go/doc/exports.go \
 	go/go/doc/filter.go \
-	go/go/doc/reader.go
+	go/go/doc/reader.go \
+	go/go/doc/synopsis.go
 go_go_parser_files = \
 	go/go/parser/interface.go \
 	go/go/parser/parser.go
@@ -1165,7 +1172,6 @@ go_hash_fnv_files = \
 
 go_html_template_files = \
 	go/html/template/attr.go \
-	go/html/template/clone.go \
 	go/html/template/content.go \
 	go/html/template/context.go \
 	go/html/template/css.go \
@@ -1177,9 +1183,6 @@ go_html_template_files = \
 	go/html/template/template.go \
 	go/html/template/transition.go \
 	go/html/template/url.go
-
-go_image_bmp_files = \
-	go/image/bmp/reader.go
 
 go_image_color_files = \
 	go/image/color/color.go \
@@ -1201,12 +1204,6 @@ go_image_jpeg_files = \
 go_image_png_files = \
 	go/image/png/reader.go \
 	go/image/png/writer.go
-
-go_image_tiff_files = \
-	go/image/tiff/buffer.go \
-	go/image/tiff/compress.go \
-	go/image/tiff/consts.go \
-	go/image/tiff/reader.go
 
 go_index_suffixarray_files = \
 	go/index/suffixarray/qsufsort.go \
@@ -1312,12 +1309,13 @@ go_os_exec_files = \
 	go/os/exec/exec.go \
 	go/os/exec/lp_unix.go
 
+go_os_signal_files = \
+	go/os/signal/signal.go \
+	go/os/signal/signal_unix.go
+
 go_os_user_files = \
 	go/os/user/user.go \
 	go/os/user/lookup_unix.go
-
-go_os_signal_files = \
-	go/os/signal/signal.go
 
 go_path_filepath_files = \
 	go/path/filepath/match.go \
@@ -1365,8 +1363,6 @@ go_testing_iotest_files = \
 	go/testing/iotest/writer.go
 go_testing_quick_files = \
 	go/testing/quick/quick.go
-go_testing_script_files = \
-	go/testing/script/script.go
 
 go_text_scanner_files = \
 	go/text/scanner/scanner.go
@@ -1502,6 +1498,13 @@ else
 syscall_netlink_file =
 endif
 
+# GNU/Linux specific socket filters.
+if LIBGO_IS_LINUX
+syscall_lsf_file = go/syscall/lsf_linux.go
+else
+syscall_lsf_file =
+endif
+
 go_base_syscall_files = \
 	go/syscall/env_unix.go \
 	go/syscall/syscall_errno.go \
@@ -1522,6 +1525,7 @@ go_base_syscall_files = \
 	$(syscall_socket_file) \
 	$(syscall_uname_file) \
 	$(syscall_netlink_file) \
+	$(syscall_lsf_file) \
 	$(GO_LIBCALL_OS_FILE) \
 	$(GO_LIBCALL_OS_ARCH_FILE) \
 	$(GO_SYSCALL_OS_FILE) \
@@ -1534,6 +1538,7 @@ go_syscall_files = \
 	syscall_arch.go
 go_syscall_c_files = \
 	go/syscall/errno.c \
+	go/syscall/signame.c \
 	$(syscall_wait_c_file)
 
 libcalls.go: s-libcalls; @true
@@ -1692,13 +1697,11 @@ libgo_go_objs = \
 	net/http/httptest.lo \
 	net/http/httputil.lo \
 	net/http/pprof.lo \
-	image/bmp.lo \
 	image/color.lo \
 	image/draw.lo \
 	image/gif.lo \
 	image/jpeg.lo \
 	image/png.lo \
-	image/tiff.lo \
 	index/suffixarray.lo \
 	io/ioutil.lo \
 	log/syslog.lo \
@@ -1718,8 +1721,8 @@ libgo_go_objs = \
 	old/regexp.lo \
 	old/template.lo \
 	$(os_lib_inotify_lo) \
-	os/user.lo \
 	os/signal.lo \
+	os/user.lo \
 	path/filepath.lo \
 	regexp/syntax.lo \
 	net/rpc/jsonrpc.lo \
@@ -1729,6 +1732,7 @@ libgo_go_objs = \
 	sync/atomic_c.lo \
 	syscall/syscall.lo \
 	syscall/errno.lo \
+	syscall/signame.lo \
 	syscall/wait.lo \
 	text/scanner.lo \
 	text/tabwriter.lo \
@@ -1737,7 +1741,6 @@ libgo_go_objs = \
 	testing/testing.lo \
 	testing/iotest.lo \
 	testing/quick.lo \
-	testing/script.lo \
 	unicode/utf16.lo \
 	unicode/utf8.lo
 
@@ -1959,7 +1962,9 @@ log/check: $(CHECK_DEPS)
 math/math.lo.dep: $(go_math_files)
 	$(BUILDDEPS)
 math/math.lo: $(go_math_files)
-	$(BUILDPACKAGE)
+	$(MKDIR_P) $(@D)
+	files=`echo $^ | sed -e 's/[^ ]*\.gox//g'`; \
+	$(LTGOCOMPILE) $(MATH_FLAG) -I . -c -fgo-prefix="libgo_$(@D)" -o $@ $$files
 math/check: $(CHECK_DEPS)
 	@$(CHECK)
 .PHONY: math/check
@@ -1990,10 +1995,6 @@ os/os.lo: $(go_os_files)
 os/check: $(CHECK_DEPS)
 	@$(CHECK)
 .PHONY: os/check
-
-signal_unix.go: $(srcdir)/go/os/mkunixsignals.sh sysinfo.go
-	$(SHELL) $(srcdir)/go/os/mkunixsignals.sh sysinfo.go > $@.tmp
-	mv -f $@.tmp $@
 
 @go_include@ path/path.lo.dep
 path/path.lo.dep: $(go_path_files)
@@ -2773,16 +2774,6 @@ hash/fnv/check: $(CHECK_DEPS)
 	@$(CHECK)
 .PHONY: hash/fnv/check
 
-@go_include@ image/bmp.lo.dep
-image/bmp.lo.dep: $(go_image_bmp_files)
-	$(BUILDDEPS)
-image/bmp.lo: $(go_image_bmp_files)
-	$(BUILDPACKAGE)
-image/bmp/check: $(CHECK_DEPS)
-	@$(MKDIR_P) image/bmp
-	@$(CHECK)
-.PHONY: image/bmp/check
-
 @go_include@ image/color.lo.dep
 image/color.lo.dep: $(go_image_color_files)
 	$(BUILDDEPS)
@@ -2832,16 +2823,6 @@ image/png/check: $(CHECK_DEPS)
 	@$(MKDIR_P) image/png
 	@$(CHECK)
 .PHONY: image/png/check
-
-@go_include@ image/tiff.lo.dep
-image/tiff.lo.dep: $(go_image_tiff_files)
-	$(BUILDDEPS)
-image/tiff.lo: $(go_image_tiff_files)
-	$(BUILDPACKAGE)
-image/tiff/check: $(CHECK_DEPS)
-	@$(MKDIR_P) image/tiff
-	@$(CHECK)
-.PHONY: image/tiff/check
 
 @go_include@ index/suffixarray.lo.dep
 index/suffixarray.lo.dep: $(go_index_suffixarray_files)
@@ -3075,16 +3056,6 @@ os/exec/check: $(CHECK_DEPS)
 	@$(CHECK)
 .PHONY: os/exec/check
 
-@go_include@ os/user.lo.dep
-os/user.lo.dep: $(go_os_user_files)
-	$(BUILDDEPS)
-os/user.lo: $(go_os_user_files)
-	$(BUILDPACKAGE)
-os/user/check: $(CHECK_DEPS)
-	@$(MKDIR_P) os/user
-	@$(CHECK)
-.PHONY: os/user/check
-
 @go_include@ os/signal.lo.dep
 os/signal.lo.dep: $(go_os_signal_files)
 	$(BUILDDEPS)
@@ -3094,6 +3065,16 @@ os/signal/check: $(CHECK_DEPS)
 	@$(MKDIR_P) os/signal
 	@$(CHECK)
 .PHONY: os/signal/check
+
+@go_include@ os/user.lo.dep
+os/user.lo.dep: $(go_os_user_files)
+	$(BUILDDEPS)
+os/user.lo: $(go_os_user_files)
+	$(BUILDPACKAGE)
+os/user/check: $(CHECK_DEPS)
+	@$(MKDIR_P) os/user
+	@$(CHECK)
+.PHONY: os/user/check
 
 @go_include@ path/filepath.lo.dep
 path/filepath.lo.dep: $(go_path_filepath_files)
@@ -3196,16 +3177,6 @@ testing/quick/check: $(CHECK_DEPS)
 	@$(CHECK)
 .PHONY: testing/quick/check
 
-@go_include@ testing/script.lo.dep
-testing/script.lo.dep: $(go_testing_script_files)
-	$(BUILDDEPS)
-testing/script.lo: $(go_testing_script_files)
-	$(BUILDPACKAGE)
-testing/script/check: $(CHECK_DEPS)
-	@$(MKDIR_P) testing/script
-	@$(CHECK)
-.PHONY: testing/script/check
-
 @go_include@ unicode/utf16.lo.dep
 unicode/utf16.lo.dep: $(go_unicode_utf16_files)
 	$(BUILDDEPS)
@@ -3232,6 +3203,8 @@ syscall/syscall.lo.dep: $(go_syscall_files)
 syscall/syscall.lo: $(go_syscall_files)
 	$(BUILDPACKAGE)
 syscall/errno.lo: go/syscall/errno.c
+	$(LTCOMPILE) -c -o $@ $<
+syscall/signame.lo: go/syscall/signame.c
 	$(LTCOMPILE) -c -o $@ $<
 syscall/wait.lo: go/syscall/wait.c
 	$(LTCOMPILE) -c -o $@ $<
@@ -3443,8 +3416,6 @@ hash/crc64.gox: hash/crc64.lo
 hash/fnv.gox: hash/fnv.lo
 	$(BUILDGOX)
 
-image/bmp.gox: image/bmp.lo
-	$(BUILDGOX)
 image/color.gox: image/color.lo
 	$(BUILDGOX)
 image/draw.gox: image/draw.lo
@@ -3454,8 +3425,6 @@ image/gif.gox: image/gif.lo
 image/jpeg.gox: image/jpeg.lo
 	$(BUILDGOX)
 image/png.gox: image/png.lo
-	$(BUILDGOX)
-image/tiff.gox: image/tiff.lo
 	$(BUILDGOX)
 
 index/suffixarray.gox: index/suffixarray.lo
@@ -3513,9 +3482,9 @@ old/template.gox: old/template.lo
 
 os/exec.gox: os/exec.lo
 	$(BUILDGOX)
-os/user.gox: os/user.lo
-	$(BUILDGOX)
 os/signal.gox: os/signal.lo
+	$(BUILDGOX)
+os/user.gox: os/user.lo
 	$(BUILDGOX)
 
 path/filepath.gox: path/filepath.lo
@@ -3544,8 +3513,6 @@ text/template/parse.gox: text/template/parse.lo
 testing/iotest.gox: testing/iotest.lo
 	$(BUILDGOX)
 testing/quick.gox: testing/quick.lo
-	$(BUILDGOX)
-testing/script.gox: testing/script.lo
 	$(BUILDGOX)
 
 unicode/utf16.gox: unicode/utf16.lo
@@ -3653,7 +3620,6 @@ TEST_PACKAGES = \
 	image/draw/check \
 	image/jpeg/check \
 	image/png/check \
-	image/tiff/check \
 	index/suffixarray/check \
 	io/ioutil/check \
 	log/syslog/check \
@@ -3664,6 +3630,7 @@ TEST_PACKAGES = \
 	net/http/check \
 	net/http/cgi/check \
 	net/http/fcgi/check \
+	net/http/httptest/check \
 	net/http/httputil/check \
 	net/mail/check \
 	net/rpc/check \
@@ -3675,8 +3642,8 @@ TEST_PACKAGES = \
 	old/regexp/check \
 	old/template/check \
 	os/exec/check \
-	os/user/check \
 	os/signal/check \
+	os/user/check \
 	path/filepath/check \
 	regexp/syntax/check \
 	sync/atomic/check \
@@ -3685,7 +3652,6 @@ TEST_PACKAGES = \
 	text/template/check \
 	text/template/parse/check \
 	testing/quick/check \
-	testing/script/check \
 	unicode/utf16/check \
 	unicode/utf8/check
 

@@ -104,6 +104,8 @@ sparc port		Eric Botcazou		ebotcazou@libertysurf.fr
 spu port		Trevor Smigiel		trevor_smigiel@playstation.sony.com
 spu port		David Edelsohn		dje.gcc@gmail.com
 spu port		Ulrich Weigand		uweigand@de.ibm.com
+tilegx port		Walter Lee		walt@tilera.com
+tilepro port		Walter Lee		walt@tilera.com
 v850 port		Nick Clifton		nickc@redhat.com
 vax port		Matt Thomas		matt@3am-software.com
 x86-64 port		Jan Hubicka		jh@suse.cz
@@ -211,6 +213,9 @@ build machinery (*.in)	Alexandre Oliva		aoliva@redhat.com
 build machinery (*.in)	Ralf Wildenhues		Ralf.Wildenhues@gmx.de
 docs co-maintainer	Gerald Pfeifer		gerald@pfeifer.com
 docs co-maintainer	Joseph Myers		joseph@codesourcery.com
+docstring relicensing	Diego Novillo		dnovillo@google.com
+docstring relicensing	Gerald Pfeifer		gerald@pfeifer.com
+docstring relicensing	Joseph Myers		joseph@codesourcery.com
 predict.def		Jan Hubicka		jh@suse.cz
 contrib/regression	Geoff Keating		geoffk@geoffk.org
 gcov			Jan Hubicka		jh@suse.cz
@@ -240,7 +245,6 @@ RTL optimizers		Eric Botcazou		ebotcazou@libertysurf.fr
 RTL optimizers		Richard Sandiford	rdsandiford@googlemail.com
 auto-vectorizer		Richard Guenther	rguenther@suse.de
 auto-vectorizer		Zdenek Dvorak		ook@ucw.cz
-auto-vectorizer		Ira Rosen		irar@il.ibm.com
 loop infrastructure	Zdenek Dvorak		ook@ucw.cz
 OpenMP			Jakub Jelinek		jakub@redhat.com
 testsuite		Rainer Orth		ro@CeBiTec.Uni-Bielefeld.DE
@@ -249,14 +253,6 @@ register allocation	Vladimir Makarov	vmakarov@redhat.com
 
 Note that individuals who maintain parts of the compiler need approval to
 check in changes outside of the parts of the compiler they maintain.
-
-			Non-Algorithmic Maintainers
-
-loop optimizer		Daniel Berlin		dberlin@dberlin.org
-
-Note that individuals who maintain parts of the compiler as non-algorithmic
-maintainers need approval to check in algorithmic changes or changes
-outside of the parts of the compiler they maintain.
 
 			Reviewers
 
@@ -284,6 +280,7 @@ Graphite 		Tobias Grosser		grosser@fim.uni-passau.de
 Graphite		Sebastian Pop		sebastian.pop@amd.com
 libcpp			Tom Tromey		tromey@redhat.com
 loop optimizer		Zdenek Dvorak		ook@ucw.cz
+loop optimizer		Daniel Berlin		dberlin@dberlin.org
 LTO			Diego Novillo		dnovillo@google.com
 LTO			Richard Guenther	rguenther@suse.de
 LTO plugin		Cary Coutant		ccoutant@google.com
@@ -336,6 +333,7 @@ Stephane Carrez					stcarrez@nerim.fr
 Gabriel Charette				gchare@google.com
 Chandra Chavva					cchavva@redhat.com
 Fabien Chêne					fabien@gcc.gnu.org
+Bin Cheng					bin.cheng@arm.com
 Harshit Chopra        harshit@google.com
 William Cohen					wcohen@redhat.com
 Josh Conner					jconner@apple.com
