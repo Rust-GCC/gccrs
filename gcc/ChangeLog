@@ -1,3 +1,80 @@
+2012-03-08  Jie Zhang  <jzhang918@gmail.com>
+
+	PR target/49862
+	* config/bfin/bfin.c (hwloop_optimize): Fix unused variable
+	warnings.
+	(hwloop_pattern_reg): Fix set but not used warning.
+	(bfin_reorg_loops): Remove unused parameter.
+	(bfin_reorg): Update use of bfin_reorg_loops.
+
+2012-03-08  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* config/i386/i386.c (setup_incoming_varargs_64): Use word_mode
+	with integer parameters in registers.
+	(gen_push): Push register in word_mode instead of Pmode.
+	(ix86_emit_save_regs): Likewise.
+	(ix86_emit_save_regs_using_mov): Save integer registers in
+	word_mode.
+	(gen_pop): Pop register in word_mode instead of Pmode.
+	(ix86_emit_restore_regs_using_pop): Likewise.
+	(ix86_expand_prologue): Replace Pmode with word_mode for push
+	immediate.  Use ix86_gen_pro_epilogue_adjust_stack.  Save and
+	restore RAX and R10 in word_mode.
+	(ix86_emit_restore_regs_using_mov): Restore integer registers
+	in word_mode.
+	(ix86_expand_split_stack_prologue): Save R10_REG and restore in
+	word_mode.
+	(ix86_split_to_parts): Use word_mode with PUT_MODE for push.
+	(ix86_split_long_move): Likewise.
+
+	* config/i386/i386.md (W): New.
+	(*push<mode>2_prologue): Replace :P with :W.
+	(*pop<mode>1): Likewise.
+	(*pop<mode>1_epilogue): Likewise.
+	(push/pop peephole2): Use word_mode scratch registers.
+
+2012-03-08  Uros Bizjak  <ubizjak@gmail.com>
+
+	* config/i386/predicates.md (indirect_branch_operand): Simplify.
+
+2012-03-08  Georg-Johann Lay  <avr@gjlay.de>
+
+	* config/avr/avr.md (*addhi3, addhi3_clobber): Add "w" alternative
+	for constants in [-63,63].
+
+2012-03-08  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR target/52530
+	Revert:
+	2012-03-04  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* config/i386/i386.c (ix86_print_operand_address): Only handle
+	zero-extended DImode addresses.
+
+2012-03-08  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac (gcc_cv_as_ix86_tlsldmplt): Add label.
+	* configure: Regenerate.
+
+2012-03-08  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR target/52496
+	* config/avr/avr.c (avr_mem_clobber): New static function.
+	(avr_expand_delay_cycles): Add memory clobber operand to
+	delay_cycles_1, delay_cycles_2, delay_cycles_3, delay_cycles_4.
+	* config/avr/avr.md (unspec): Add UNSPEC_MEMORY_BARRIER.
+	(enable_interrupt, disable_interrupt): New expander.
+	(nopv, sleep, wdr): New expanders.
+	(delay_cycles_1): Add memory clobber.
+	(delay_cycles_2): Add memory clobber.
+	(delay_cycles_3): Add memory clobber.
+	(delay_cycles_4): Add memory clobber.
+	(cli_sei): New insn from former "enable_interrupt",
+	"disable_interrupt" with memory clobber.
+	(*wdt): New insn from former "wdt" with memory clobber.
+	(*nopv): Similar, but for "nopv".
+	(*sleep): Similar, but for "sleep".
+
 2012-03-07  Oleg Endo  <olegendo@gcc.gnu.org>
 	    Kaz Kojima  <kkojima@gcc.gnu.org>
 
