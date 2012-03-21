@@ -1,7 +1,8 @@
-2012-03-05  Torvald Riegel  <triegel@redhat.com>
+2012-03-13  Torvald Riegel  <triegel@redhat.com>
 
-	* dispatch.h (CREATE_DISPATCH_METHODS_MEM): Don't execute
-	memtransfer/memset if size isn't larger than zero.
+	PR libitm/52526
+	* config/linux/rwlock.cc (GTM::gtm_rwlock::read_lock): Fix lost
+	wake-up.
 
 2012-03-02  Torvald Riegel  <triegel@redhat.com>
 

@@ -1,66 +1,8 @@
-2012-03-08  Paolo Carlini  <paolo.carlini@oracle.com>
-
-	* typeck.c (build_array_ref, cp_build_addr_expr_1, convert_ptrmem,
-	build_ptrmemfunc): Consistently forward the tsubst_flags_t
-	parameter.
-	* call.c (resolve_args): Likewise.
-
 2012-03-07  Jason Merrill  <jason@redhat.com>
 
 	PR c++/52521
 	* mangle.c (write_literal_operator_name): The length comes after the
 	operator prefix.
-
-2012-03-05  Jakub Jelinek  <jakub@redhat.com>
-
-	* pt.c (local_specializations): Change from htab_t into
-	struct pointer_map_t *.
-	(retrieve_local_specializations, register_local_specialization,
-	tsubst_pack_expansion, instantiate_decl): Adjust users.
-	(eq_local_specializations, hash_local_specialization): Remove.
-
-2012-03-05  Jason Merrill  <jason@redhat.com>
-
-	PR c++/51930
-	* decl2.c (determine_visibility): Correct calculation of class
-	args depth.
-	* decl.c (check_tag_decl): Adjust warning.
-
-	* method.c (synthesized_method_walk): Cleanups don't affect the EH
-	spec either.
-
-2012-03-03  Jason Merrill  <jason@redhat.com>
-
-	* init.c (perform_member_init): Cope with uninstantiated NSDMI.
-
-	Core 1270
-	* call.c (build_aggr_conv): Call reshape_init.
-	(convert_like_real): Likewise.
-	* typeck2.c (process_init_constructor): Clear TREE_CONSTANT if
-	not all constant.
-
-	* mangle.c (write_nested_name): Use decl_mangling_context.
-	(write_prefix, write_template_prefix): Likewise.
-
-	PR c++/36797
-	* mangle.c (write_expression): Improve diagnostic for TRAIT_EXPR.
-
-	* class.c (add_method): Always build an OVERLOAD for using-decls.
-	* search.c (lookup_member): Handle getting an OVERLOAD for a
-	single function.
-
-2012-03-02  Paolo Carlini  <paolo.carlini@oracle.com>
-
-	PR c++/51989
-	* typeck2.c (build_x_arrow): Take a tsubst_flags_t argument and
-	propagate it.
-	* cp-tree.h (build_x_arrow): Adjust prototype.
-	* pt.c (tsubst_copy_and_build): Adjust call.
-	* parser.c (cp_parser_postfix_dot_deref_expression): Likewise.
-
-2012-03-02  Paolo Carlini  <paolo.carlini@oracle.com>
-
-	* name-lookup.c (binding_to_template_parms_of_scope_p): Clean up.
 
 2012-02-29  Jason Merrill  <jason@redhat.com>
 

@@ -1,8 +1,6 @@
-2012-03-02   Diego Novillo  <dnovillo@google.com>
+2012-03-13  Joseph Myers  <joseph@codesourcery.com>
 
-	* testsuite-management/validate_failures.py (class TestResult): Fix
-	match pattern for the summary line.  If there is a parsing failure,
-	show the line we failed to parse.
+	* gennews (files): Add files for GCC 4.7.
 
 2012-02-27  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
