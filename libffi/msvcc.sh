@@ -42,11 +42,10 @@
 # format and translated into something sensible for cl or ml.
 #
 
-args="-nologo -W3"
+args="-nologo"
 md=-MD
 cl="cl"
 ml="ml"
-safeseh="-safeseh"
 output=
 
 while [ $# -gt 0 ]
@@ -64,28 +63,15 @@ do
     -m64)
       cl="cl"   # "$MSVC/x86_amd64/cl"
       ml="ml64" # "$MSVC/x86_amd64/ml64"
-      safeseh=
-      shift 1
-    ;;
-    -O0)
-      args="$args -Od"
       shift 1
     ;;
     -O*)
-      # If we're optimizing, make sure we explicitly turn on some optimizations
-      # that are implicitly disabled by debug symbols (-Zi).
-      args="$args $1 -OPT:REF -OPT:ICF -INCREMENTAL:NO"
+      args="$args $1"
       shift 1
     ;;
     -g)
-      # Enable debug symbol generation.
-      args="$args -Zi -DEBUG"
-      shift 1
-    ;;
-    -DFFI_DEBUG)
-      # Link against debug CRT and enable runtime error checks.
-      args="$args -RTC1"
-      defines="$defines $1"
+      # Can't specify -RTC1 or -Zi in opt. -Gy is ok. Use -OPT:REF?
+      args="$args -D_DEBUG -RTC1 -Zi"
       md=-MDd
       shift 1
     ;;
@@ -122,8 +108,8 @@ do
       shift 1
     ;;
     -Wall)
-      # -Wall on MSVC is overzealous, and we already build with -W3. Nothing
-      # to do here.
+      # -Wall on MSVC is overzealous. Use -W3 instead.
+      args="$args -W3"
       shift 1
     ;;
     -Werror)
@@ -178,7 +164,7 @@ if [ -n "$assembly" ]; then
     echo "$cl -nologo -EP $includes $defines $src > $ppsrc"
     "$cl" -nologo -EP $includes $defines $src > $ppsrc || exit $?
     output="$(echo $output | sed 's%/F[dpa][^ ]*%%g')"
-    args="-nologo $safeseh $single $output $ppsrc"
+    args="-nologo -safeseh $single $output $ppsrc"
 
     echo "$ml $args"
     eval "\"$ml\" $args"

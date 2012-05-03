@@ -49,7 +49,7 @@
 namespace __gnu_pbds
 {
   /**
-   *  @defgroup heap-based Heap-Based
+   *  @defgroup heap-based
    *  @ingroup containers-pbds
    *  @{
    */

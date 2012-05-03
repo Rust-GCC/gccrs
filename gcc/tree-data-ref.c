@@ -1753,6 +1753,76 @@ max_stmt_executions_tree (struct loop *loop)
   return double_int_to_tree (unsigned_type_node, nit);
 }
 
+/* Determine whether the CHREC is always positive/negative.  If the expression
+   cannot be statically analyzed, return false, otherwise set the answer into
+   VALUE.  */
+
+static bool
+chrec_is_positive (tree chrec, bool *value)
+{
+  bool value0, value1, value2;
+  tree end_value, nb_iter;
+
+  switch (TREE_CODE (chrec))
+    {
+    case POLYNOMIAL_CHREC:
+      if (!chrec_is_positive (CHREC_LEFT (chrec), &value0)
+	  || !chrec_is_positive (CHREC_RIGHT (chrec), &value1))
+	return false;
+
+      /* FIXME -- overflows.  */
+      if (value0 == value1)
+	{
+	  *value = value0;
+	  return true;
+	}
+
+      /* Otherwise the chrec is under the form: "{-197, +, 2}_1",
+	 and the proof consists in showing that the sign never
+	 changes during the execution of the loop, from 0 to
+	 loop->nb_iterations.  */
+      if (!evolution_function_is_affine_p (chrec))
+	return false;
+
+      nb_iter = number_of_latch_executions (get_chrec_loop (chrec));
+      if (chrec_contains_undetermined (nb_iter))
+	return false;
+
+#if 0
+      /* TODO -- If the test is after the exit, we may decrease the number of
+	 iterations by one.  */
+      if (after_exit)
+	nb_iter = chrec_fold_minus (type, nb_iter, build_int_cst (type, 1));
+#endif
+
+      end_value = chrec_apply (CHREC_VARIABLE (chrec), chrec, nb_iter);
+
+      if (!chrec_is_positive (end_value, &value2))
+	return false;
+
+      *value = value0;
+      return value0 == value1;
+
+    case INTEGER_CST:
+      switch (tree_int_cst_sgn (chrec))
+	{
+	case -1:
+	  *value = false;
+	  break;
+	case 1:
+	  *value = true;
+	  break;
+	default:
+	  return false;
+	}
+      return true;
+
+    default:
+      return false;
+    }
+}
+
+
 /* Analyze a SIV (Single Index Variable) subscript where CHREC_A is a
    constant, and CHREC_B is an affine function.  *OVERLAPS_A and
    *OVERLAPS_B are initialized to the functions that describe the
@@ -1775,6 +1845,15 @@ analyze_siv_subscript_cst_affine (tree chrec_a,
   chrec_a = chrec_convert (type, chrec_a, NULL);
   chrec_b = chrec_convert (type, chrec_b, NULL);
   difference = chrec_fold_minus (type, initial_condition (chrec_b), chrec_a);
+
+  /* Special case overlap in the first iteration.  */
+  if (integer_zerop (difference))
+    {
+      *overlaps_a = conflict_fn (1, affine_fn_cst (integer_zero_node));
+      *overlaps_b = conflict_fn (1, affine_fn_cst (integer_zero_node));
+      *last_conflicts = integer_one_node;
+      return;
+    }
 
   if (!chrec_is_positive (initial_condition (difference), &value0))
     {
@@ -3460,6 +3539,7 @@ subscript_dependence_tester_1 (struct data_dependence_relation *ddr,
   unsigned int i;
   tree last_conflicts;
   struct subscript *subscript;
+  tree res = NULL_TREE;
 
   for (i = 0; VEC_iterate (subscript_p, DDR_SUBSCRIPTS (ddr), i, subscript);
        i++)
@@ -3471,40 +3551,43 @@ subscript_dependence_tester_1 (struct data_dependence_relation *ddr,
 				      &overlaps_a, &overlaps_b,
 				      &last_conflicts, loop_nest);
 
+      if (SUB_CONFLICTS_IN_A (subscript))
+	free_conflict_function (SUB_CONFLICTS_IN_A (subscript));
+      if (SUB_CONFLICTS_IN_B (subscript))
+	free_conflict_function (SUB_CONFLICTS_IN_B (subscript));
+
+      SUB_CONFLICTS_IN_A (subscript) = overlaps_a;
+      SUB_CONFLICTS_IN_B (subscript) = overlaps_b;
+      SUB_LAST_CONFLICT (subscript) = last_conflicts;
+
+      /* If there is any undetermined conflict function we have to
+         give a conservative answer in case we cannot prove that
+	 no dependence exists when analyzing another subscript.  */
       if (CF_NOT_KNOWN_P (overlaps_a)
  	  || CF_NOT_KNOWN_P (overlaps_b))
  	{
- 	  finalize_ddr_dependent (ddr, chrec_dont_know);
-	  dependence_stats.num_dependence_undetermined++;
-	  free_conflict_function (overlaps_a);
-	  free_conflict_function (overlaps_b);
-	  return false;
+	  res = chrec_dont_know;
+	  continue;
  	}
 
+      /* When there is a subscript with no dependence we can stop.  */
       else if (CF_NO_DEPENDENCE_P (overlaps_a)
  	       || CF_NO_DEPENDENCE_P (overlaps_b))
  	{
- 	  finalize_ddr_dependent (ddr, chrec_known);
-	  dependence_stats.num_dependence_independent++;
-	  free_conflict_function (overlaps_a);
-	  free_conflict_function (overlaps_b);
-	  return false;
- 	}
-
-      else
- 	{
-	  if (SUB_CONFLICTS_IN_A (subscript))
-	    free_conflict_function (SUB_CONFLICTS_IN_A (subscript));
-	  if (SUB_CONFLICTS_IN_B (subscript))
-	    free_conflict_function (SUB_CONFLICTS_IN_B (subscript));
-
- 	  SUB_CONFLICTS_IN_A (subscript) = overlaps_a;
- 	  SUB_CONFLICTS_IN_B (subscript) = overlaps_b;
-	  SUB_LAST_CONFLICT (subscript) = last_conflicts;
+	  res = chrec_known;
+	  break;
  	}
     }
 
-  return true;
+  if (res == NULL_TREE)
+    return true;
+
+  if (res == chrec_known)
+    dependence_stats.num_dependence_independent++;
+  else
+    dependence_stats.num_dependence_undetermined++;
+  finalize_ddr_dependent (ddr, res);
+  return false;
 }
 
 /* Computes the conflicting iterations in LOOP_NEST, and initialize DDR.  */
@@ -5125,20 +5208,19 @@ build_rdg (struct loop *loop,
 	   VEC (data_reference_p, heap) **datarefs)
 {
   struct graph *rdg = NULL;
-  VEC (gimple, heap) *stmts = VEC_alloc (gimple, heap, 10);
 
-  compute_data_dependences_for_loop (loop, false, loop_nest, datarefs,
-				     dependence_relations);
-
-  if (known_dependences_p (*dependence_relations))
+  if (compute_data_dependences_for_loop (loop, false, loop_nest, datarefs,
+					 dependence_relations)
+      && known_dependences_p (*dependence_relations))
     {
+      VEC (gimple, heap) *stmts = VEC_alloc (gimple, heap, 10);
       stmts_from_loop (loop, &stmts);
       rdg = build_empty_rdg (VEC_length (gimple, stmts));
       create_rdg_vertices (rdg, stmts);
       create_rdg_edges (rdg, *dependence_relations);
+      VEC_free (gimple, heap, stmts);
     }
 
-  VEC_free (gimple, heap, stmts);
   return rdg;
 }
 

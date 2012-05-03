@@ -1,4 +1,43 @@
-2012-03-07  Walter Lee  <walt@tilera.com>
+2012-04-30  Andreas Tobler  <andreast@fgznet.ch>
+
+	Backport from mainline
+	2012-03-21  Andreas Tobler  <andreast@fgznet.ch>
+
+	* config.host: Add bits to support powerpc64-*-freebsd*.
+	* config/rs6000/freebsd-unwind.h: New file.
+	* config/rs6000/t-freebsd64: New file.
+
+2012-04-28  Aurelien Jarno  <aurelien@aurel32.net>
+
+	* config.host (mips64*-*-linux*, mipsisa64*-*-linux*): Remove. 
+	(mips*-*-linux*): Include mips/t-tpbit when long double is 
+	16 bytes long. 
+
+2012-04-20  Thomas Schwinge  <thomas@codesourcery.com>
+
+	struct siginfo vs. siginfo_t
+
+	Backport from trunk:
+
+	2012-04-20  Thomas Schwinge  <thomas@codesourcery.com>
+
+	* config/alpha/linux-unwind.h (alpha_fallback_frame_state): Use
+	siginfo_t instead of struct siginfo.
+	* config/bfin/linux-unwind.h (bfin_fallback_frame_state): Likewise.
+	* config/i386/linux-unwind.h (x86_fallback_frame_state): Likewise.
+	* config/ia64/linux-unwind.h (ia64_fallback_frame_state)
+	(ia64_handle_unwabi): Likewise.
+	* config/mips/linux-unwind.h (mips_fallback_frame_state): Likewise.
+	* config/pa/linux-unwind.h (pa32_fallback_frame_state): Likewise.
+	* config/sh/linux-unwind.h (shmedia_fallback_frame_state)
+	(sh_fallback_frame_state): Likewise.
+	* config/tilepro/linux-unwind.h (tile_fallback_frame_state): Likewise.
+	* config/xtensa/linux-unwind.h (xtensa_fallback_frame_state): Likewise.
+
+2012-04-06  Walter Lee  <walt@tilera.com>
+
+	Backport from mainline
+	2012-03-07  Walter Lee  <walt@tilera.com>
 
 	* config/tilepro/atomic.c: Rename "atomic_" prefix to
 	"arch_atomic_".
@@ -10,18 +49,41 @@
 	(arch_atomic_xor): Move from config/tilepro/atomic.c.
 	(arch_atomic_nand): Ditto.
 
-2012-03-07  Georg-Johann Lay  <avr@gjlay.de>
+2012-04-02  H.J. Lu  <hongjiu.lu@intel.com>
+
+	Backported from mainline
+	2012-04-02  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* config/i386/linux-unwind.h (RT_SIGRETURN_SYSCALL): Update x32
+	system call number.
+
+2012-03-31  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* config/ia64/unwind-ia64.c (uw_install_context): Manually save LC
+	if it hasn't been previously saved.
+
+2012-03-28  Georg-Johann Lay  <avr@gjlay.de>
+
+	Backport from 2012-03-28 mainline r185907.
+
+	PR target/52737
+	* config/avr/lib1funcs.S: Use __AVR_HAVE_SPH__ for SP_H checks
+	instead of __AVR_HAVE_8BIT_SP__.
+
+2012-03-22  Georg-Johann Lay  <avr@gjlay.de>
+
+	Backport from 2012-03-07 mainline r185033.
 
 	PR target/52507
 	* config/avr/lib1funcs.S (__movmemx_hi): Fix loop label in RAM-part.
 
-2012-03-07  Georg-Johann Lay  <avr@gjlay.de>
+	Backport from 2012-03-07 mainline r185031.
 
 	PR target/52505
 	* config/avr/lib1funcs.S (__xload_1): Don't read unintentionally
 	from RAM.
 
-2012-03-07  Georg-Johann Lay  <avr@gjlay.de>
+	Backport from 2012-03-07 mainline r185030.
 
 	PR target/52461
 	PR target/52508
@@ -35,10 +97,9 @@
 	(__xload_1, __xload_2, __xload_3, __xload_4): Ditto.
 	(__movmemx_hi): Ditto.
 
-2012-03-05  Richard Henderson  <rth@redhat.com>
+2012-03-22  Release Manager
 
-	* longlong.h [ARM] (umul_ppmm): Use umull for arm3m and later.
-	[ARM] (count_trailing_zeros): Use the builtin.
+	* GCC 4.7.0 released.
 
 2012-03-01  Kai Tietz  <ktietz@redhat.com>
 

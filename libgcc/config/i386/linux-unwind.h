@@ -1,5 +1,5 @@
 /* DWARF2 EH unwinding support for AMD x86-64 and x86.
-   Copyright (C) 2004, 2005, 2006, 2009, 2010, 2011
+   Copyright (C) 2004, 2005, 2006, 2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -48,7 +48,7 @@ x86_64_fallback_frame_state (struct _Unwind_Context *context,
 #ifdef __LP64__
 #define RT_SIGRETURN_SYSCALL	0x050f0000000fc0c7ULL
 #else
-#define RT_SIGRETURN_SYSCALL	0x050f40002006c0c7ULL
+#define RT_SIGRETURN_SYSCALL	0x050f40000201c0c7ULL
 #endif
   if (*(unsigned char *)(pc+0) == 0x48
       && *(unsigned long long *)(pc+1) == RT_SIGRETURN_SYSCALL)
@@ -139,9 +139,9 @@ x86_fallback_frame_state (struct _Unwind_Context *context,
     {
       struct rt_sigframe {
 	int sig;
-	struct siginfo *pinfo;
+	siginfo_t *pinfo;
 	void *puc;
-	struct siginfo info;
+	siginfo_t info;
 	struct ucontext uc;
       } *rt_ = context->cfa;
       /* The void * cast is necessary to avoid an aliasing warning.

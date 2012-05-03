@@ -57,7 +57,7 @@ namespace __gnu_pbds
    */
 
   /**
-   *  @defgroup hash-based Hash-Based
+   *  @defgroup hash-based
    *  @ingroup containers-pbds
    *  @{
    */
@@ -521,7 +521,7 @@ namespace __gnu_pbds
 
 
   /**
-   *  @defgroup branch-based Branch-Based
+   *  @defgroup branch-based
    *  @ingroup containers-pbds
    *  @{
    */
@@ -617,7 +617,7 @@ namespace __gnu_pbds
    *  @tparam Cmp_Fn	 	Comparison functor.
    *  @tparam Tag 	 	Instantiating data structure type,
    *                            see container_tag.
-   *  @tparam Node_Update 	Updates tree internal-nodes,
+   *  @tparam Node_Update 	Updates nodes,
    *                            restores invariants when invalidated.
    *                     XXX See design::tree-based-containers::node invariants.
    *  @tparam _Alloc 	 	Allocator type.
@@ -708,7 +708,7 @@ namespace __gnu_pbds
    *  @tparam _ATraits	  	Element access traits.
    *  @tparam Tag 	  	Instantiating data structure type,
    *                            see container_tag.
-   *  @tparam Node_Update 	Updates trie internal-nodes,
+   *  @tparam Node_Update 	Updates trie nodes,
    *                            restores invariants when invalidated.
    *                     XXX See design::tree-based-containers::node invariants.
    *  @tparam _Alloc 	  	Allocator type.
@@ -786,7 +786,7 @@ namespace __gnu_pbds
 
 
   /**
-   *  @defgroup list-based List-Based
+   *  @defgroup list-based
    *  @ingroup containers-pbds
    *  @{
    */

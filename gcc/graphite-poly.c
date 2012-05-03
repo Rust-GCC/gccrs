@@ -771,6 +771,9 @@ apply_poly_transforms (scop_p scop)
 	transform_done |= scop_do_interchange (scop);
     }
 
+  if (flag_loop_flatten)
+    transform_done |= flatten_all_loops (scop);
+
   /* This feature is only enabled in the Graphite branch.  */
   if (0)
     {

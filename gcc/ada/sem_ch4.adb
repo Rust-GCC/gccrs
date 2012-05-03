@@ -3398,11 +3398,21 @@ package body Sem_Ch4 is
       Iterator : Node_Id;
 
    begin
-      Set_Etype  (Ent, Standard_Void_Type);
+      Set_Etype  (Ent,  Standard_Void_Type);
       Set_Scope  (Ent, Current_Scope);
       Set_Parent (Ent, N);
 
       Check_SPARK_Restriction ("quantified expression is not allowed", N);
+
+      --  If expansion is enabled (and not in Alfa mode), the condition is
+      --  analyzed after rewritten as a loop. So we only need to set the type.
+
+      if Operating_Mode /= Check_Semantics
+        and then not Alfa_Mode
+      then
+         Set_Etype (N, Standard_Boolean);
+         return;
+      end if;
 
       if Present (Loop_Parameter_Specification (N)) then
          Iterator :=
@@ -3428,7 +3438,6 @@ package body Sem_Ch4 is
          Set_Iterator_Specification
            (N, Iterator_Specification (Iterator));
          Set_Loop_Parameter_Specification (N, Empty);
-         Set_Parent (Iterator_Specification (Iterator), Iterator);
       end if;
 
       Analyze (Condition (N));

@@ -1392,10 +1392,7 @@ process_init_constructor (tree type, tree init, tsubst_flags_t complain)
   TREE_TYPE (init) = type;
   if (TREE_CODE (type) == ARRAY_TYPE && TYPE_DOMAIN (type) == NULL_TREE)
     cp_complete_array_type (&TREE_TYPE (init), init, /*do_default=*/0);
-  if (flags & PICFLAG_NOT_ALL_CONSTANT)
-    /* Make sure TREE_CONSTANT isn't set from build_constructor.  */
-    TREE_CONSTANT (init) = false;
-  else
+  if (!(flags & PICFLAG_NOT_ALL_CONSTANT))
     {
       TREE_CONSTANT (init) = 1;
       if (!(flags & PICFLAG_NOT_ALL_SIMPLE))
@@ -1465,7 +1462,7 @@ build_scoped_ref (tree datum, tree basetype, tree* binfo_p)
    delegation is detected.  */
 
 tree
-build_x_arrow (tree expr, tsubst_flags_t complain)
+build_x_arrow (tree expr)
 {
   tree orig_expr = expr;
   tree type = TREE_TYPE (expr);
@@ -1489,7 +1486,7 @@ build_x_arrow (tree expr, tsubst_flags_t complain)
 
       while ((expr = build_new_op (COMPONENT_REF, LOOKUP_NORMAL, expr,
 				   NULL_TREE, NULL_TREE,
-				   &fn, complain)))
+				   &fn, tf_warning_or_error)))
 	{
 	  if (expr == error_mark_node)
 	    return error_mark_node;
@@ -1500,8 +1497,7 @@ build_x_arrow (tree expr, tsubst_flags_t complain)
 
 	  if (vec_member (TREE_TYPE (expr), types_memoized))
 	    {
-	      if (complain & tf_error)
-		error ("circular pointer delegation detected");
+	      error ("circular pointer delegation detected");
 	      return error_mark_node;
 	    }
 
@@ -1514,8 +1510,7 @@ build_x_arrow (tree expr, tsubst_flags_t complain)
 
       if (last_rval == NULL_TREE)
 	{
-	  if (complain & tf_error)
-	    error ("base operand of %<->%> has non-pointer type %qT", type);
+	  error ("base operand of %<->%> has non-pointer type %qT", type);
 	  return error_mark_node;
 	}
 
@@ -1535,16 +1530,13 @@ build_x_arrow (tree expr, tsubst_flags_t complain)
 	  return expr;
 	}
 
-      return cp_build_indirect_ref (last_rval, RO_NULL, complain);
+      return cp_build_indirect_ref (last_rval, RO_NULL, tf_warning_or_error);
     }
 
-  if (complain & tf_error)
-    {
-      if (types_memoized)
-	error ("result of %<operator->()%> yields non-pointer result");
-      else
-	error ("base operand of %<->%> is not a pointer");
-    }
+  if (types_memoized)
+    error ("result of %<operator->()%> yields non-pointer result");
+  else
+    error ("base operand of %<->%> is not a pointer");
   return error_mark_node;
 }
 

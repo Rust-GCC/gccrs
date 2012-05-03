@@ -1797,13 +1797,12 @@ vect_update_ivs_after_vectorizer (loop_vec_info loop_vinfo, tree niters,
        !gsi_end_p (gsi) && !gsi_end_p (gsi1);
        gsi_next (&gsi), gsi_next (&gsi1))
     {
-      tree access_fn = NULL;
-      tree evolution_part;
       tree init_expr;
       tree step_expr, off;
       tree type;
       tree var, ni, ni_name;
       gimple_stmt_iterator last_gsi;
+      stmt_vec_info stmt_info;
 
       phi = gsi_stmt (gsi);
       phi1 = gsi_stmt (gsi1);
@@ -1822,45 +1821,34 @@ vect_update_ivs_after_vectorizer (loop_vec_info loop_vinfo, tree niters,
 	}
 
       /* Skip reduction phis.  */
-      if (STMT_VINFO_DEF_TYPE (vinfo_for_stmt (phi)) == vect_reduction_def)
+      stmt_info = vinfo_for_stmt (phi);
+      if (STMT_VINFO_DEF_TYPE (stmt_info) == vect_reduction_def)
         {
           if (vect_print_dump_info (REPORT_DETAILS))
             fprintf (vect_dump, "reduc phi. skip.");
           continue;
         }
 
-      access_fn = analyze_scalar_evolution (loop, PHI_RESULT (phi));
-      gcc_assert (access_fn);
-      /* We can end up with an access_fn like
-           (short int) {(short unsigned int) i_49, +, 1}_1
-	 for further analysis we need to strip the outer cast but we
-	 need to preserve the original type.  */
-      type = TREE_TYPE (access_fn);
-      STRIP_NOPS (access_fn);
-      evolution_part =
-	 unshare_expr (evolution_part_in_loop_num (access_fn, loop->num));
-      gcc_assert (evolution_part != NULL_TREE);
+      type = TREE_TYPE (gimple_phi_result (phi));
+      step_expr = STMT_VINFO_LOOP_PHI_EVOLUTION_PART (stmt_info);
+      step_expr = unshare_expr (step_expr);
 
       /* FORNOW: We do not support IVs whose evolution function is a polynomial
          of degree >= 2 or exponential.  */
-      gcc_assert (!tree_is_chrec (evolution_part));
+      gcc_assert (!tree_is_chrec (step_expr));
 
-      step_expr = evolution_part;
-      init_expr = unshare_expr (initial_condition_in_loop_num (access_fn,
-							       loop->num));
-      init_expr = fold_convert (type, init_expr);
+      init_expr = PHI_ARG_DEF_FROM_EDGE (phi, loop_preheader_edge (loop));
 
       off = fold_build2 (MULT_EXPR, TREE_TYPE (step_expr),
 			 fold_convert (TREE_TYPE (step_expr), niters),
 			 step_expr);
-      if (POINTER_TYPE_P (TREE_TYPE (init_expr)))
+      if (POINTER_TYPE_P (type))
 	ni = fold_build_pointer_plus (init_expr, off);
       else
-	ni = fold_build2 (PLUS_EXPR, TREE_TYPE (init_expr),
-			  init_expr,
-			  fold_convert (TREE_TYPE (init_expr), off));
+	ni = fold_build2 (PLUS_EXPR, type,
+			  init_expr, fold_convert (type, off));
 
-      var = create_tmp_var (TREE_TYPE (init_expr), "tmp");
+      var = create_tmp_var (type, "tmp");
       add_referenced_var (var);
 
       last_gsi = gsi_last_bb (exit_bb);
@@ -2058,7 +2046,9 @@ vect_gen_niters_for_prolog_loop (loop_vec_info loop_vinfo, tree loop_niters)
 	  ? size_int (-TYPE_VECTOR_SUBPARTS (vectype) + 1) : NULL_TREE;
       tree start_addr = vect_create_addr_base_for_vector_ref (dr_stmt,
 						&new_stmts, offset, loop);
-      tree type = unsigned_type_for (TREE_TYPE (start_addr));
+      tree ptr_type = TREE_TYPE (start_addr);
+      tree size = TYPE_SIZE (ptr_type);
+      tree type = lang_hooks.types.type_for_size (tree_low_cst (size, 1), 1);
       tree vectype_size_minus_1 = build_int_cst (type, vectype_align - 1);
       tree elem_size_log =
         build_int_cst (type, exact_log2 (vectype_align/nelements));
@@ -2276,6 +2266,7 @@ vect_create_cond_for_align_checks (loop_vec_info loop_vinfo,
   int mask = LOOP_VINFO_PTR_MASK (loop_vinfo);
   tree mask_cst;
   unsigned int i;
+  tree psize;
   tree int_ptrsize_type;
   char tmp_name[20];
   tree or_tmp_name = NULL_TREE;
@@ -2288,7 +2279,11 @@ vect_create_cond_for_align_checks (loop_vec_info loop_vinfo,
      all zeros followed by all ones.  */
   gcc_assert ((mask != 0) && ((mask & (mask+1)) == 0));
 
-  int_ptrsize_type = signed_type_for (ptr_type_node);
+  /* CHECKME: what is the best integer or unsigned type to use to hold a
+     cast from a pointer value?  */
+  psize = TYPE_SIZE (ptr_type_node);
+  int_ptrsize_type
+    = lang_hooks.types.type_for_size (tree_low_cst (psize, 1), 0);
 
   /* Create expression (mask & (dr_1 || ... || dr_n)) where dr_i is the address
      of the first vector of the i'th data reference. */

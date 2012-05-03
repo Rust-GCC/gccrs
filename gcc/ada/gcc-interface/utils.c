@@ -704,6 +704,19 @@ finish_record_type (tree record_type, tree field_list, int rep_level,
 	 case where there is a rep clause but all fields have errors and
 	 no longer have a position.  */
       TYPE_SIZE (record_type) = 0;
+
+      /* Ensure we use the traditional GCC layout for bitfields when we need
+	 to pack the record type or have a representation clause.  The other
+	 possible layout (Microsoft C compiler), if available, would prevent
+	 efficient packing in almost all cases.  */
+#ifdef TARGET_MS_BITFIELD_LAYOUT
+      if (TARGET_MS_BITFIELD_LAYOUT && TYPE_PACKED (record_type))
+	decl_attributes (&record_type,
+			 tree_cons (get_identifier ("gcc_struct"),
+				    NULL_TREE, NULL_TREE),
+			 ATTR_FLAG_TYPE_IN_PLACE);
+#endif
+
       layout_type (record_type);
     }
 
@@ -1056,8 +1069,15 @@ rest_of_record_type_compilation (tree record_type)
       TYPE_FIELDS (new_record_type)
 	= nreverse (TYPE_FIELDS (new_record_type));
 
+      /* We used to explicitly invoke rest_of_type_decl_compilation on the
+	 parallel type for the sake of STABS.  We don't do it any more, so
+	 as to ensure that the parallel type be processed after the type
+	 by the debug back-end and, thus, prevent it from interfering with
+	 the processing of a recursive type.  */
       add_parallel_type (TYPE_STUB_DECL (record_type), new_record_type);
     }
+
+  rest_of_type_decl_compilation (TYPE_STUB_DECL (record_type));
 }
 
 /* Append PARALLEL_TYPE on the chain of parallel types for decl.  */
@@ -1347,10 +1367,21 @@ create_type_decl (tree type_name, tree type, struct attrib *attr_list,
   if (!named)
     TYPE_STUB_DECL (type) = type_decl;
 
-  /* Do not generate debug info for UNCONSTRAINED_ARRAY_TYPE that the
-     back-end doesn't support, and for others if we don't need to.  */
+  /* Pass the type declaration to the debug back-end unless this is an
+     UNCONSTRAINED_ARRAY_TYPE that the back-end does not support, or a
+     type for which debugging information was not requested, or else an
+     ENUMERAL_TYPE or RECORD_TYPE (except for fat pointers) which are
+     handled separately.  And do not pass dummy types either.  */
   if (code == UNCONSTRAINED_ARRAY_TYPE || !debug_info_p)
     DECL_IGNORED_P (type_decl) = 1;
+  else if (code != ENUMERAL_TYPE
+	   && (code != RECORD_TYPE || TYPE_FAT_POINTER_P (type))
+	   && !((code == POINTER_TYPE || code == REFERENCE_TYPE)
+		&& TYPE_IS_DUMMY_P (TREE_TYPE (type)))
+	   && !(code == RECORD_TYPE
+		&& TYPE_IS_DUMMY_P
+		   (TREE_TYPE (TREE_TYPE (TYPE_FIELDS (type))))))
+    rest_of_type_decl_compilation (type_decl);
 
   return type_decl;
 }
@@ -3513,6 +3544,12 @@ update_pointer_to (tree old_type, tree new_type)
 	      TREE_TYPE (TREE_OPERAND (TYPE_NULL_BOUNDS (t), 0)) = new_type;
 	  }
 
+      /* If we have adjusted named types, finalize them.  This is necessary
+	 since we had forced a DWARF typedef for them in gnat_pushdecl.  */
+      for (ptr = TYPE_POINTER_TO (old_type); ptr; ptr = TYPE_NEXT_PTR_TO (ptr))
+	if (TYPE_NAME (ptr) && TREE_CODE (TYPE_NAME (ptr)) == TYPE_DECL)
+	  rest_of_type_decl_compilation (TYPE_NAME (ptr));
+
       /* Chain REF and its variants at the end.  */
       new_ref = TYPE_REFERENCE_TO (new_type);
       if (new_ref)
@@ -3870,8 +3907,6 @@ convert (tree type, tree expr)
 	{
 	  expr = copy_node (expr);
 	  TREE_TYPE (expr) = type;
-	  CONSTRUCTOR_ELTS (expr)
-	    = VEC_copy (constructor_elt, gc, CONSTRUCTOR_ELTS (expr));
 	  return expr;
 	}
 

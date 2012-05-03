@@ -1,3 +1,276 @@
+2012-05-02  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/53193
+	* testsuite/23_containers/unordered_set/instantiation_neg.cc: Adjust
+	dg-error line number.
+
+2012-05-01  François Dumont  <fdumont@gcc.gnu.org>
+
+	PR libstdc++/53115
+	* include/bits/hashtable.h
+	(_Hashtable<>::_M_rehash_aux(size_type, false_type)): Fix buckets
+	after insertion of several equivalent elements.
+	* testsuite/23_containers/unordered_multiset/insert/53115.cc: New.
+	* testsuite/23_containers/unordered_multimap/insert/53115.cc: New.
+
+2012-04-30  Andreas Tobler  <andreast@fgznet.ch>
+
+	Backport from mainline
+	2012-03-21  Andreas Tobler  <andreast@fgznet.ch>
+
+	* testsuite/23_containers/vector/bool/modifiers/insert/31370.cc:
+	Skip this test on powerpc64-*-freebsd*.
+
+2012-04-25  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/std/scoped_allocator (scoped_allocator::__outermost): Do
+	not pass non-POD to varargs function.
+	* testsuite/20_util/scoped_allocator/1.cc: Fix test.
+
+2012-04-23  Chris Jefferson  <chris@bubblescope.net>
+
+	PR testsuite/53046
+	* testsuite/25_algorithms/stable_partition/mem_check.cc: Fix size
+	of array A.
+	* testsuite/25_algorithms/stable_sort/mem_check.cc: Likewise.
+
+2012-04-22  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/53067
+	* include/bits/hashtable_policy.h: Change inheritances to public.
+	* testsuite/23_containers/unordered_map/requirements/53067.cc: New.
+	* testsuite/23_containers/unordered_set/requirements/53067.cc: Likewise.
+
+2012-04-22  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/53027
+	* include/bits/ptr_traits.h (pointer_traits::rebind): Make public.
+	* testsuite/20_util/pointer_traits/requirements/typedefs.cc: Check
+	rebind works.
+
+2012-04-21  Alan Modra  <amodra@gmail.com>
+
+	PR libstdc++/52839
+	* acinclude.m4 (_GLIBCXX_ATOMIC_BUILTINS): Do not depend on
+	glibcxx_cv_atomic_long_long.
+	* configure: Regenerate.
+
+2012-04-16  Bernhard Reutner-Fischer  <aldot@gcc.gnu.org>
+
+	PR bootstrap/52840
+	* src/Makefile.am (build-debug): Do not adjust vpath dir, remove
+	Makefile.tmp
+	* src/Makefile.in: Adjust as per above.
+
+2012-04-16  Benjamin Kosnik  <bkoz@redhat.com>
+
+	PR libstdc++/52689
+	* libsupc++/Makefile.am (LTCXXCOMPILE, CXXLINK): Tweak.
+	* libsupc++/Makefile.in: Regenerated.
+	* src/Makefile.am (LTCXXCOMPILE, CXXLINK): Tweak.
+	(libstdc___la_SOURCES): Add in compatiblity files, with content
+	that varies with -DPIC.
+	* src/Makefile.in: Regenerated.
+	* src/c++11/Makefile.am (LTCXXCOMPILE, CXXLINK): Tweak.
+	* src/c++11/Makefile.in: Regenerated.
+	* src/c++11/compatibility-atomic-c++0x.cc: Guard with PIC.
+	* src/c++11/compatibility-c++0x.cc: Same.
+	* src/c++11/future.cc: Consolidate compatibility bits into..
+	* src/c++11/mutex.cc: Consolidate compatibility bits into..
+	* src/c++11/compatibility-thread-cxx0x.cc: ...here. New.
+	* src/c++98/Makefile.am (LTCXXCOMPILE, CXXLINK): Tweak.
+	* src/c++98/Makefile.in: Regenerated.
+	* src/c++98/compatibility-list-2.cc: Guard with PIC.
+	* src/c++98/compatibility.cc: Tweak comments.
+
+2012-04-16  Benjamin Kosnik  <bkoz@redhat.com>
+
+	    * include/ext/pb_ds/detail/pat_trie_/
+	    constructors_destructor_fn_imps.hpp: Increment after recursion.
+	    * include/ext/pb_ds/detail/pat_trie_/pat_trie_base.hpp: Convert
+	    node_type markup from brief.
+
+2012-04-14  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/52699
+	* include/bits/random.tcc (independent_bits_engine<>::operator()())
+	Avoid various overflows; use common_type on result_type and
+	_RandomNumberEngine::result_type; avoid floating point computations;
+	other smaller tweaks.
+
+	* include/bits/random.tcc (uniform_int_distribution<>::operator())
+	Use common_type; assume _UniformRandomNumberGenerator::result_type
+	unsigned; tidy.
+
+	* include/bits/stl_algobase.h (__lg(unsigned), __lg(unsigned long),
+	__lg(unsigned long long)): Add.
+
+2012-04-13  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/debug/safe_iterator.h (_BeforeBeginHelper<>::
+	_S_Is_Beginnest): Add.
+	* include/debug/forward_list (_BeforeBeginHelper<>::
+	_S_Is_Beginnest): Likewise.
+	(_Safe_iterator<>::_M_is_beginnest): Add.
+	* include/debug/safe_iterator.tcc (_Safe_iterator<>::_M_valid_range):
+	Use the latter.
+	* testsuite/23_containers/forward_list/debug/splice_after.cc:
+	Add test.
+
+2012-04-12  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/forward_list.h (splice_after(const_iterator,
+	forward_list&), splice_after(const_iterator, forward_list&,
+	consst_iterator), splice_after(const_iterator, forward_list&,
+	const_iterator, const_iterator), merge(forward_list&),
+	merge(forward_list&, _Comp)): Add per C++11 as published (and
+	LWG 1310).
+	* include/debug/forward_list: Adjust.
+
+	* include/bits/forward_list.h (splice_after(const_iterator,
+	forward_list&&, const_iterator)): Only declare.
+	(_M_transfer_after): Remove.
+	(_M_splice_after(const_iterator, forward_list&&)): Change signature.
+	(splice_after(const_iterator, forward_list&&, const_iterator,
+	const_iterator)): Use the latter.
+	* include/bits/forward_list.tcc (splice_after(const_iterator,
+	forward_list&&, const_iterator)): Define here.
+	(_M_splice_after): Define, use throughout.
+
+	* include/bits/forward_list.h (insert_after(const_iterator,
+	std::initializer_list<_Tp>)): Forward to insert_after(const_iterator,
+	_InputIterator, _InputIterator).
+	* include/bits/forward_list.tcc: Remove definition.
+
+	* testsuite/23_containers/forward_list/modifiers/6.cc: New.
+	* testsuite/23_containers/forward_list/operations/1.cc: Adjust.
+
+	* testsuite/23_containers/forward_list/requirements/dr438/
+	assign_neg.cc: Adjust dg-error line number.
+	* testsuite/23_containers/forward_list/requirements/dr438/
+	insert_neg.cc: Likewise.
+	* testsuite/23_containers/forward_list/requirements/dr438/
+	constructor_1_neg.cc: Likewise.
+	* testsuite/23_containers/forward_list/requirements/dr438/
+	constructor_2_neg.cc: Likewise.
+
+2012-04-12   Jeffrey Yasskin  <jyasskin@google.com>
+
+	PR libstdc++/52822
+	* include/bits/stl_algo.h (__find_if_not): Expose in C++98 mode.
+	(__find_if_not_n): Like __find_if_not, but works on and updates a
+	counted range instead of a bounded range.
+	(stable_partition): Guarantee !__pred(*__first) in call to
+	__stable_partition_adaptive() or __inplace_stable_partition().
+	(__stable_partition_adaptive): Use new precondition to avoid
+	moving/copying objects onto themselves.  Guarantee new
+	precondition to recursive calls.
+	(__inplace_stable_partition): Use new precondition to simplify
+	base case, remove __last parameter.  Guarantee new precondition to
+	recursive calls.
+	* testsuite/25_algorithms/stable_partition/moveable.cc (test02):
+	Test a sequence that starts with a value matching the predicate.
+	* testsuite/25_algorithms/stable_partition/pr52822.cc: Test
+	vectors, which have a destructive self-move-assignment.
+
+2012-04-12  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/52942
+	* include/bits/stl_function.h (_Identity, _Select1st, _Select2nd):
+	In C++11 mode do not derive from std::unary_function.
+	* include/ext/functional (identity, select1st, select2nd): Adjust.
+	* testsuite/23_containers/unordered_map/requirements/52942.cc: New.
+	* testsuite/23_containers/unordered_set/requirements/52942.cc: Likewise.
+
+2012-04-11  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/52924
+	* include/bits/shared_ptr_base.h (_Sp_counted_deleter): Add
+	user-defined destructor.
+	(_Sp_counted_inplace): Likewise.
+	* testsuite/20_util/shared_ptr/cons/52924.cc: New.
+	* testsuite/20_util/shared_ptr/cons/43820_neg.cc: Adjust dg-error
+	line numbers.
+
+2012-04-11  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* testsuite/performance/30_threads/future/polling.cc: Adjust.
+
+2012-04-11  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/52591
+	* include/bits/stl_vector.h (vector::operator=(vector&&)): Dispatch
+	to _M_move_assign depending on whether allocator is moved.
+	(vector::_M_move_assign): Add overloaded functions.
+	* testsuite/23_containers/vector/52591.cc: New.
+	* testsuite/23_containers/vector/requirements/dr438/assign_neg.cc:
+	Adjust dg-error line number.
+	* testsuite/23_containers/vector/requirements/dr438/
+	constructor_1_neg.cc:
+	Likewise.
+	* testsuite/23_containers/vector/requirements/dr438/
+	constructor_2_neg.cc:
+	Likewise.
+	* testsuite/23_containers/vector/requirements/dr438/insert_neg.cc:
+	Likewise.
+
+2012-04-09  François Dumont  <fdumont@gcc.gnu.org>
+
+	PR libstdc++/52476
+	* include/bits/hashtable.h (_Hashtable<>::_M_rehash_aux): Add.
+	(_Hashtable<>::_M_rehash): Use the latter.
+	* testsuite/23_containers/unordered_multimap/insert/52476.cc: New.
+	* testsuite/23_containers/unordered_multiset/insert/52476.cc: New.
+
+2012-04-09  Terry Guo  <terry.guo@arm.com>
+
+	Backport from mainline
+	2012-03-28  Terry Guo  <terry.guo@arm.com>
+
+	* testsuite/Makefile.am (TEST_GCC_EXEC_PREFIX): New.
+	* testsuite/Makefile.in: Regenerated.
+
+2012-03-30  Jeffrey Yasskin  <jyasskin@gcc.gnu.org>
+	    Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/52799
+	* include/bits/deque.tcc (emplace): Fix thinko, replace push_front
+	-> emplace_front, and likewise for *_back.
+	* testsuite/23_containers/deque/modifiers/emplace/52799.cc: New.
+	* testsuite/23_containers/list/modifiers/emplace/52799.cc: Likewise.
+	* testsuite/23_containers/vector/modifiers/emplace/52799.cc: Likewise.
+
+2012-03-23  David S. Miller  <davem@davemloft.net>
+
+	* config/abi/post/sparc-linux-gnu/baseline_symbols.txt: Update.
+
+2012-03-23  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/forward_list.h: Fix comments.
+
+2012-03-23  Paweł Sikora  <pawel.sikora@agmk.net>
+
+	PR libstdc++/52540
+	* include/Makefile.am (c++config.h): Fix sed rule to not break
+	the _GLIBCXX_EXTERN_TEMPLATE redefinition.
+	* include/Makefile.in: Regenerate.
+
+2012-03-22  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/52433
+	* include/debug/safe_iterator.h (_Safe_iterator): Add move
+	constructor and move assignment operator.
+	* testsuite/23_containers/vector/debug/52433.cc: New.
+
+2012-03-22  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/array (array<>::at(size_type) const): Fix version
+	for undefined __EXCEPTIONS.
+
+2012-03-22  Release Manager
+
+	* GCC 4.7.0 released.
+
 2012-03-10  John David Anglin  <dave.anglin@nrc-cnrc.gc.ca>
 
 	PR libstdc++/52456
@@ -26,7 +299,7 @@
 	* config/abi/post/solaris2.10/sparcv9/baseline_symbols.txt: Likewise.
 
 2012-03-01  Benjamin Kosnik  <bkoz@redhat.com>
-	    Ramana Radhakrishnan <ramana@gcc.gnu.org>
+            Ramana Radhakrishnan <ramana@gcc.gnu.org>
 
 	PR libstdc++/51785
 	* acinclude.m4 (GLIBCXX_CHECK_STDIO_PROTO): New.

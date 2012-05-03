@@ -1,6 +1,6 @@
 // <forward_list> -*- C++ -*-
 
-// Copyright (C) 2010, 2011, 2012 Free Software Foundation, Inc.
+// Copyright (C) 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -91,9 +91,8 @@ namespace __debug
       : _Base(__n, __value, __al)
       { }
 
-      template<typename _InputIterator,
-	       typename = std::_RequireInputIter<_InputIterator>>
-	forward_list(_InputIterator __first, _InputIterator __last,
+      template<typename _InputIterator>
+        forward_list(_InputIterator __first, _InputIterator __last,
                      const _Alloc& __al = _Alloc())
         : _Base(__gnu_debug::__base(__gnu_debug::__check_valid_range(__first,
 								     __last)),
@@ -144,9 +143,8 @@ namespace __debug
         return *this;
       }
 
-      template<typename _InputIterator,
-	       typename = std::_RequireInputIter<_InputIterator>>
-	void
+      template<typename _InputIterator>
+        void
         assign(_InputIterator __first, _InputIterator __last)
         {
 	  __glibcxx_check_valid_range(__first, __last);
@@ -275,8 +273,7 @@ namespace __debug
 		       	this);
       }
 
-      template<typename _InputIterator,
-	       typename = std::_RequireInputIter<_InputIterator>>
+      template<typename _InputIterator>
         iterator
         insert_after(const_iterator __pos,
                      _InputIterator __first, _InputIterator __last)
@@ -417,6 +414,10 @@ namespace __debug
       }
 
       void
+      splice_after(const_iterator __pos, forward_list& __list)
+      { splice_after(__pos, std::move(__list)); }
+
+      void
       splice_after(const_iterator __pos, forward_list&& __list,
 		   const_iterator __i)
       {
@@ -437,6 +438,11 @@ namespace __debug
 	_Base::splice_after(__pos.base(), std::move(__list._M_base()),
 			    __i.base());
       }
+
+      void
+      splice_after(const_iterator __pos, forward_list& __list,
+		   const_iterator __i)
+      { splice_after(__pos, std::move(__list), __i); }
 
       void
       splice_after(const_iterator __pos, forward_list&& __list,
@@ -482,6 +488,11 @@ namespace __debug
 	_Base::splice_after(__pos.base(), std::move(__list._M_base()),
 			    __before.base(), __last.base());
       }
+
+      void
+      splice_after(const_iterator __pos, forward_list& __list,
+		   const_iterator __before, const_iterator __last)
+      { splice_after(__pos, std::move(__list), __before, __last); }
 
       void
       remove(const _Tp& __val)
@@ -564,6 +575,10 @@ namespace __debug
 	}
       }
 
+      void
+      merge(forward_list& __list)
+      { merge(std::move(__list)); }
+
       template<typename _Comp>
         void
         merge(forward_list&& __list, _Comp __comp)
@@ -582,6 +597,11 @@ namespace __debug
 	    _Base::merge(std::move(__list._M_base()), __comp);
 	  }
 	}
+
+      template<typename _Comp>
+        void
+        merge(forward_list& __list, _Comp __comp)
+        { merge(std::move(__list), __comp); }
 
       using _Base::sort;
       using _Base::reverse;
@@ -736,8 +756,12 @@ namespace __gnu_debug
       typedef typename _It::iterator_type _BaseIt;
 
       static bool
-      _M_Is(_BaseIt __it, const _Sequence* __seq)
+      _S_Is(_BaseIt __it, const _Sequence* __seq)
       { return __it == __seq->_M_base().cbefore_begin(); }
+
+      static bool
+      _S_Is_Beginnest(_BaseIt __it, const _Sequence* __seq)
+      { return _S_Is(__it, __seq); }
     };
 }
 

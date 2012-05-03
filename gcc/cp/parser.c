@@ -1,6 +1,6 @@
 /* C++ Parser.
    Copyright (C) 2000, 2001, 2002, 2003, 2004,
-   2005, 2007, 2008, 2009, 2010, 2011  Free Software Foundation, Inc.
+   2005, 2007, 2008, 2009, 2010, 2011, 2012  Free Software Foundation, Inc.
    Written by Mark Mitchell <mark@codesourcery.com>.
 
    This file is part of GCC.
@@ -3581,7 +3581,13 @@ lookup_literal_operator (tree name, VEC(tree,gc) *args)
 				       TREE_TYPE (tparm))))
 		found = false;
 	    }
-	  if (found)
+	  if (found
+	      && ix == VEC_length (tree, args)
+	      /* May be this should be sufficient_parms_p instead,
+		 depending on how exactly should user-defined literals
+		 work in presence of default arguments on the literal
+		 operator parameters.  */
+	      && argtypes == void_list_node)
 	    return fn;
 	}
     }
@@ -5910,8 +5916,7 @@ cp_parser_postfix_dot_deref_expression (cp_parser *parser,
 
   /* If this is a `->' operator, dereference the pointer.  */
   if (token_type == CPP_DEREF)
-    postfix_expression = build_x_arrow (postfix_expression,
-					tf_warning_or_error);
+    postfix_expression = build_x_arrow (postfix_expression);
   /* Check to see whether or not the expression is type-dependent.  */
   dependent_p = type_dependent_expression_p (postfix_expression);
   /* The identifier following the `->' or `.' is not qualified.  */
@@ -17836,6 +17841,8 @@ cp_parser_class_name (cp_parser *parser,
 	decl = TYPE_NAME (decl);
     }
 
+  decl = strip_using_decl (decl);
+
   /* Check to see that it is really the name of a class.  */
   if (TREE_CODE (decl) == TEMPLATE_ID_EXPR
       && TREE_CODE (TREE_OPERAND (decl, 0)) == IDENTIFIER_NODE
@@ -19098,7 +19105,7 @@ cp_parser_member_declaration (cp_parser* parser)
 		     possible that this fact is an oversight in the
 		     standard, since a pure function may be defined
 		     outside of the class-specifier.  */
-		  if (initializer)
+		  if (initializer && initializer_token_start)
 		    error_at (initializer_token_start->location,
 			      "pure-specifier on function-definition");
 		  decl = cp_parser_save_member_function_body (parser,

@@ -744,15 +744,13 @@ mips-sgi-irix6.5*)
 	;;
 mips*-*-netbsd*)			# NetBSD/mips, either endian.
 	;;
-mips64*-*-linux* | mipsisa64*-*-linux*)
-	extra_parts="$extra_parts crtfastmath.o"
-	tmake_file="${tmake_file} t-crtfm mips/t-mips16 mips/t-tpbit"
-	md_unwind_header=mips/linux-unwind.h
-	;;
 mips*-*-linux*)				# Linux MIPS, either endian.
 	extra_parts="$extra_parts crtfastmath.o"
 	tmake_file="${tmake_file} t-crtfm mips/t-mips16"
 	md_unwind_header=mips/linux-unwind.h
+	if test "${ac_cv_sizeof_long_double}" = 16; then
+		tmake_file="${tmake_file} mips/t-tpbit"
+	fi
 	;;
 mips*-*-openbsd*)
 	;;
@@ -848,9 +846,15 @@ powerpc64-*-darwin*)
 	tmake_file="$tmake_file rs6000/t-darwin64 rs6000/t-ibm-ldouble"
 	extra_parts="$extra_parts crt2.o"
 	;;
-powerpc-*-freebsd*)
-	tmake_file="${tmake_file} rs6000/t-ppccomm rs6000/t-savresfgpr rs6000/t-crtstuff rs6000/t-freebsd t-softfp-sfdf t-softfp-excl t-softfp t-slibgcc-libgcc"
+powerpc*-*-freebsd*)
+	tmake_file="${tmake_file} rs6000/t-ppccomm rs6000/t-savresfgpr rs6000/t-crtstuff rs6000/t-freebsd t-softfp-sfdf t-softfp-excl t-softfp"
 	extra_parts="$extra_parts crtbeginT.o ecrti.o ecrtn.o ncrti.o ncrtn.o"
+	case ${host} in
+	powerpc64*)
+	  tmake_file="${tmake_file} rs6000/t-freebsd64"
+	  md_unwind_header=rs6000/freebsd-unwind.h
+	  ;;
+	esac
 	;;
 powerpc-*-netbsd*)
 	tmake_file="$tmake_file rs6000/t-netbsd rs6000/t-crtstuff"

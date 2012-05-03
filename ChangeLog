@@ -1,7 +1,14 @@
-2012-03-05  Tristan Gingold  <gingold@adacore.com>
+2012-03-28  Georg-Johann Lay  <avr@gjlay.de>
 
-	* configure.ac: Enable gdb and readline for ia64*-*-*vms*.
-	* configure: Regenerate.
+	Backport from 2012-03-28 mainline r185907.
+
+	PR target/52737
+	* contrib/gcc_update (files_and_dependencies):
+	Remove gcc/config/avr/t-multilib from touch data.
+
+2012-03-22  Release Manager
+
+	* GCC 4.7.0 released.
 
 2012-02-17  Walter Lee  <walt@tilera.com>
 

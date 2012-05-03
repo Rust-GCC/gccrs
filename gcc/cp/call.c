@@ -886,10 +886,6 @@ build_aggr_conv (tree type, tree ctor, int flags)
   tree field = next_initializable_field (TYPE_FIELDS (type));
   tree empty_ctor = NULL_TREE;
 
-  ctor = reshape_init (type, ctor, tf_none);
-  if (ctor == error_mark_node)
-    return NULL;
-
   for (; field; field = next_initializable_field (DECL_CHAIN (field)))
     {
       tree ftype = TREE_TYPE (field);
@@ -3740,7 +3736,7 @@ resolve_args (VEC(tree,gc) *args, tsubst_flags_t complain)
 	    error ("invalid use of void expression");
 	  return NULL;
 	}
-      else if (invalid_nonstatic_memfn_p (arg, complain))
+      else if (invalid_nonstatic_memfn_p (arg, tf_warning_or_error))
 	return NULL;
     }
   return args;
@@ -5799,7 +5795,6 @@ convert_like_real (conversion *convs, tree expr, tree fn, int argnum,
 	  expr = build2 (COMPLEX_EXPR, totype, real, imag);
 	  return fold_if_not_in_template (expr);
 	}
-      expr = reshape_init (totype, expr, complain);
       return get_target_expr (digest_init (totype, expr, complain));
 
     default:
@@ -6468,6 +6463,12 @@ build_over_call (struct z_candidate *cand, int flags, tsubst_flags_t complain)
 	  else
 	    return error_mark_node;
 	}
+
+      /* See if the function member or the whole class type is declared
+	 final and the call can be devirtualized.  */
+      if (DECL_FINAL_P (fn)
+	  || CLASSTYPE_FINAL (TYPE_METHOD_BASETYPE (TREE_TYPE (fn))))
+	flags |= LOOKUP_NONVIRTUAL;
 
       /* [class.mfct.nonstatic]: If a nonstatic member function of a class
 	 X is called for an object that is not of type X, or of a type
@@ -7329,8 +7330,7 @@ build_new_method_call_1 (tree instance, tree fns, VEC(tree,gc) **args,
 	      /* Optimize away vtable lookup if we know that this function
 		 can't be overridden.  */
 	      if (DECL_VINDEX (fn) && ! (flags & LOOKUP_NONVIRTUAL)
-		  && (resolves_to_fixed_type_p (instance, 0)
-		      || DECL_FINAL_P (fn) || CLASSTYPE_FINAL (basetype)))
+		  && resolves_to_fixed_type_p (instance, 0))
 		flags |= LOOKUP_NONVIRTUAL;
               if (explicit_targs)
                 flags |= LOOKUP_EXPLICIT_TMPL_ARGS;
@@ -7620,7 +7620,7 @@ compare_ics (conversion *ics1, conversion *ics2)
      Specifically, we need to do the reference binding comparison at the
      end of this function.  */
 
-  if (ics1->user_conv_p || ics1->kind == ck_list)
+  if (ics1->user_conv_p || ics1->kind == ck_list || ics1->kind == ck_aggr)
     {
       conversion *t1;
       conversion *t2;

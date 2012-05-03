@@ -1,6 +1,5 @@
 /* -----------------------------------------------------------------*-C-*-
-   ffitarget.h - Copyright (c) 2012  Anthony Green
-                 Copyright (c) 1996-2003  Red Hat, Inc.
+   ffitarget.h - Copyright (c) 1996-2003  Red Hat, Inc.
    Target configuration macros for MIPS.
 
    Permission is hereby granted, free of charge, to any person obtaining
@@ -28,10 +27,6 @@
 #ifndef LIBFFI_TARGET_H
 #define LIBFFI_TARGET_H
 
-#ifndef LIBFFI_H
-#error "Please do not include ffitarget.h directly into your source.  Use ffi.h instead."
-#endif
-
 #ifdef linux
 # include <asm/sgidefs.h>
 #elif defined(__rtems__)
@@ -41,7 +36,7 @@
 #define _MIPS_SIM_ABI32		1
 #define _MIPS_SIM_NABI32	2
 #define _MIPS_SIM_ABI64		3
-#elif !defined(__OpenBSD__)
+#else
 # include <sgidefs.h>
 #endif
 
@@ -56,7 +51,7 @@
 #  endif
 
 #if !defined(_MIPS_SIM)
-# error -- something is very wrong --
+-- something is very wrong --
 #else
 #  if (_MIPS_SIM==_ABIN32 && defined(_ABIN32)) || (_MIPS_SIM==_ABI64 && defined(_ABI64))
 #    define FFI_MIPS_N32
@@ -64,7 +59,7 @@
 #    if (_MIPS_SIM==_ABIO32 && defined(_ABIO32))
 #      define FFI_MIPS_O32
 #    else
-#     error -- this is an unsupported platform --
+-- this is an unsupported platform --
 #    endif
 #  endif
 #endif
@@ -199,29 +194,30 @@ typedef enum ffi_abi {
   FFI_O32_SOFT_FLOAT,
   FFI_N32_SOFT_FLOAT,
   FFI_N64_SOFT_FLOAT,
-  FFI_LAST_ABI,
 
 #ifdef FFI_MIPS_O32
 #ifdef __mips_soft_float
-  FFI_DEFAULT_ABI = FFI_O32_SOFT_FLOAT
+  FFI_DEFAULT_ABI = FFI_O32_SOFT_FLOAT,
 #else
-  FFI_DEFAULT_ABI = FFI_O32
+  FFI_DEFAULT_ABI = FFI_O32,
 #endif
 #else
 # if _MIPS_SIM==_ABI64
 #  ifdef __mips_soft_float
-  FFI_DEFAULT_ABI = FFI_N64_SOFT_FLOAT
+  FFI_DEFAULT_ABI = FFI_N64_SOFT_FLOAT,
 #  else
-  FFI_DEFAULT_ABI = FFI_N64
+  FFI_DEFAULT_ABI = FFI_N64,
 #  endif
 # else
 #  ifdef __mips_soft_float
-  FFI_DEFAULT_ABI = FFI_N32_SOFT_FLOAT
+  FFI_DEFAULT_ABI = FFI_N32_SOFT_FLOAT,
 #  else
-  FFI_DEFAULT_ABI = FFI_N32
+  FFI_DEFAULT_ABI = FFI_N32,
 #  endif
 # endif
 #endif
+
+  FFI_LAST_ABI = FFI_DEFAULT_ABI + 1
 } ffi_abi;
 
 #define FFI_EXTRA_CIF_FIELDS unsigned rstruct_flag

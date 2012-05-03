@@ -1,7 +1,6 @@
 /* -----------------------------------------------------------------*-C-*-
-   ffitarget.h - Copyright (c) 2012  Anthony Green
-                 Copyright (c) 2010  CodeSourcery
-                 Copyright (c) 1996-2003  Red Hat, Inc.
+   ffitarget.h - Copyright (c) 1996-2003  Red Hat, Inc.
+                 Copyright (c) 2010 CodeSourcery
 
    Target configuration macros for ARM.
 
@@ -30,10 +29,6 @@
 #ifndef LIBFFI_TARGET_H
 #define LIBFFI_TARGET_H
 
-#ifndef LIBFFI_H
-#error "Please do not include ffitarget.h directly into your source.  Use ffi.h instead."
-#endif
-
 #ifndef LIBFFI_ASM
 typedef unsigned long          ffi_arg;
 typedef signed long            ffi_sarg;
@@ -60,8 +55,6 @@ typedef enum ffi_abi {
 #define FFI_TYPE_STRUCT_VFP_FLOAT  (FFI_TYPE_LAST + 1)
 #define FFI_TYPE_STRUCT_VFP_DOUBLE (FFI_TYPE_LAST + 2)
 
-#define FFI_TARGET_SPECIFIC_VARIADIC
-
 /* ---- Definitions for closures ----------------------------------------- */
 
 #define FFI_CLOSURES 1
@@ -69,3 +62,4 @@ typedef enum ffi_abi {
 #define FFI_NATIVE_RAW_API 0
 
 #endif
+

@@ -1,6 +1,5 @@
 /* -----------------------------------------------------------------------
-   ffi.c - Copyright (c) 2011 Anthony Green
-           Copyright (c) 1996, 2003-2004, 2007-2008 Red Hat, Inc.
+   ffi.c - Copyright (c) 1996, 2003, 2004, 2007, 2008 Red Hat, Inc.
    
    SPARC Foreign Function Interface 
 
@@ -407,50 +406,8 @@ void ffi_call(ffi_cif *cif, void (*fn)(void), void *rvalue, void **avalue)
       /* We don't yet support calling 32bit code from 64bit */
       FFI_ASSERT(0);
 #else
-      if (rvalue && (cif->rtype->type == FFI_TYPE_STRUCT
-#if FFI_TYPE_LONGDOUBLE != FFI_TYPE_DOUBLE
-	  || cif->flags == FFI_TYPE_LONGDOUBLE
-#endif
-	  ))
-	{
-	  /* For v8, we need an "unimp" with size of returning struct */
-	  /* behind "call", so we alloc some executable space for it. */
-	  /* l7 is used, we need to make sure v8.S doesn't use %l7.   */
-	  unsigned int *call_struct = NULL;
-	  ffi_closure_alloc(32, &call_struct);
-	  if (call_struct)
-	    {
-	      unsigned long f = (unsigned long)fn;
-	      call_struct[0] = 0xae10001f;		 /* mov   %i7, %l7	 */
-	      call_struct[1] = 0xbe10000f;		 /* mov   %o7, %i7	 */
-	      call_struct[2] = 0x03000000 | f >> 10;     /* sethi %hi(fn), %g1	 */
-	      call_struct[3] = 0x9fc06000 | (f & 0x3ff); /* jmp %g1+%lo(fn), %o7 */
-	      call_struct[4] = 0x01000000;		 /* nop			 */
-	      if (cif->rtype->size < 0x7f)
-		call_struct[5] = cif->rtype->size;	 /* unimp		 */
-	      else
-		call_struct[5] = 0x01000000;	     	 /* nop			 */
-	      call_struct[6] = 0x81c7e008;		 /* ret			 */
-	      call_struct[7] = 0xbe100017;		 /* mov   %l7, %i7	 */
-	      asm volatile ("iflush %0; iflush %0+8; iflush %0+16; iflush %0+24" : :
-			    "r" (call_struct) : "memory");
-	      /* SPARC v8 requires 5 instructions for flush to be visible */
-	      asm volatile ("nop; nop; nop; nop; nop");
-	      ffi_call_v8(ffi_prep_args_v8, &ecif, cif->bytes,
-			  cif->flags, rvalue, call_struct);
-	      ffi_closure_free(call_struct);
-	    }
-	  else
-	    {
-	      ffi_call_v8(ffi_prep_args_v8, &ecif, cif->bytes,
-			  cif->flags, rvalue, fn);
-	    }
-	}
-      else
-	{
-	  ffi_call_v8(ffi_prep_args_v8, &ecif, cif->bytes,
-		      cif->flags, rvalue, fn);
-	}
+      ffi_call_v8(ffi_prep_args_v8, &ecif, cif->bytes, 
+		  cif->flags, rvalue, fn);
 #endif
       break;
     case FFI_V9:
@@ -468,6 +425,7 @@ void ffi_call(ffi_cif *cif, void (*fn)(void), void *rvalue, void **avalue)
       FFI_ASSERT(0);
       break;
     }
+
 }
 
 
@@ -489,8 +447,7 @@ ffi_prep_closure_loc (ffi_closure* closure,
 #ifdef SPARC64
   /* Trampoline address is equal to the closure address.  We take advantage
      of that to reduce the trampoline size by 8 bytes. */
-  if (cif->abi != FFI_V9)
-    return FFI_BAD_ABI;
+  FFI_ASSERT (cif->abi == FFI_V9);
   fn = (unsigned long) ffi_closure_v9;
   tramp[0] = 0x83414000;	/* rd	%pc, %g1	*/
   tramp[1] = 0xca586010;	/* ldx	[%g1+16], %g5	*/
@@ -499,8 +456,7 @@ ffi_prep_closure_loc (ffi_closure* closure,
   *((unsigned long *) &tramp[4]) = fn;
 #else
   unsigned long ctx = (unsigned long) codeloc;
-  if (cif->abi != FFI_V8)
-    return FFI_BAD_ABI;
+  FFI_ASSERT (cif->abi == FFI_V8);
   fn = (unsigned long) ffi_closure_v8;
   tramp[0] = 0x03000000 | fn >> 10;	/* sethi %hi(fn), %g1	*/
   tramp[1] = 0x05000000 | ctx >> 10;	/* sethi %hi(ctx), %g2	*/
@@ -512,13 +468,13 @@ ffi_prep_closure_loc (ffi_closure* closure,
   closure->fun = fun;
   closure->user_data = user_data;
 
-  /* Flush the Icache.  closure is 8 bytes aligned.  */
+  /* Flush the Icache.  FIXME: alignment isn't certain, assume 8 bytes */
 #ifdef SPARC64
-  asm volatile ("flush	%0; flush %0+8" : : "r" (closure) : "memory");
+  asm volatile ("flush	%0" : : "r" (closure) : "memory");
+  asm volatile ("flush	%0" : : "r" (((char *) closure) + 8) : "memory");
 #else
-  asm volatile ("iflush	%0; iflush %0+8" : : "r" (closure) : "memory");
-  /* SPARC v8 requires 5 instructions for flush to be visible */
-  asm volatile ("nop; nop; nop; nop; nop");
+  asm volatile ("iflush	%0" : : "r" (closure) : "memory");
+  asm volatile ("iflush	%0" : : "r" (((char *) closure) + 8) : "memory");
 #endif
 
   return FFI_OK;

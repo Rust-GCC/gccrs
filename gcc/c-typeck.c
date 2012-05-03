@@ -3413,7 +3413,8 @@ pointer_diff (location_t loc, tree op0, tree op1)
      be the same as the result type (ptrdiff_t), but may need to be a wider
      type if pointers for the address space are wider than ptrdiff_t.  */
   if (TYPE_PRECISION (restype) < TYPE_PRECISION (TREE_TYPE (op0)))
-    inttype = c_common_type_for_size (TYPE_PRECISION (TREE_TYPE (op0)), 0);
+    inttype = lang_hooks.types.type_for_size
+		(TYPE_PRECISION (TREE_TYPE (op0)), 0);
   else
     inttype = restype;
 
@@ -3446,9 +3447,7 @@ pointer_diff (location_t loc, tree op0, tree op1)
   else
     con1 = op1;
 
-  gcc_assert (TREE_CODE (con0) != PLUS_EXPR
-	      && TREE_CODE (con1) != PLUS_EXPR);
-  if (TREE_CODE (con0) == POINTER_PLUS_EXPR)
+  if (TREE_CODE (con0) == PLUS_EXPR)
     {
       lit0 = TREE_OPERAND (con0, 1);
       con0 = TREE_OPERAND (con0, 0);
@@ -3456,7 +3455,7 @@ pointer_diff (location_t loc, tree op0, tree op1)
   else
     lit0 = integer_zero_node;
 
-  if (TREE_CODE (con1) == POINTER_PLUS_EXPR)
+  if (TREE_CODE (con1) == PLUS_EXPR)
     {
       lit1 = TREE_OPERAND (con1, 1);
       con1 = TREE_OPERAND (con1, 0);
@@ -7599,7 +7598,7 @@ set_nonincremental_init (struct obstack * braced_init_obstack)
 
   FOR_EACH_CONSTRUCTOR_ELT (constructor_elements, ix, index, value)
     {
-      add_pending_init (index, value, NULL_TREE, false,
+      add_pending_init (index, value, NULL_TREE, true,
 			braced_init_obstack);
     }
   constructor_elements = 0;
@@ -7692,7 +7691,7 @@ set_nonincremental_init_from_string (tree str,
 	}
 
       value = build_int_cst_wide (type, val[1], val[0]);
-      add_pending_init (purpose, value, NULL_TREE, false,
+      add_pending_init (purpose, value, NULL_TREE, true,
                         braced_init_obstack);
     }
 
@@ -9735,7 +9734,7 @@ build_binary_op (location_t location, enum tree_code code,
 	      sc = convert (TREE_TYPE (type0), sc);
 	      op1 = build_vector_from_val (type0, sc);
 	      if (!maybe_const)
-		op0 = c_wrap_maybe_const (op1, true);
+		op1 = c_wrap_maybe_const (op1, true);
 	      orig_type1 = type1 = TREE_TYPE (op1);
 	      code1 = TREE_CODE (type1);
 	      converted = 1;

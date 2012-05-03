@@ -1,6 +1,5 @@
 /* Definitions for SH running Linux-based GNU systems using ELF
-   Copyright (C) 1999, 2000, 2002, 2003, 2004, 2005, 2006, 2007, 2010, 2011,
-   2012
+   Copyright (C) 1999, 2000, 2002, 2003, 2004, 2005, 2006, 2007, 2010, 2011
    Free Software Foundation, Inc.
    Contributed by Kazumoto Kojima <kkojima@rr.iij4u.or.jp>
 
@@ -42,7 +41,7 @@ along with GCC; see the file COPYING3.  If not see
 #undef TARGET_DEFAULT
 #define TARGET_DEFAULT \
   (TARGET_CPU_DEFAULT | MASK_USERMODE | TARGET_ENDIAN_DEFAULT \
-   | TARGET_OPT_DEFAULT)
+   | TARGET_OPT_DEFAULT | MASK_SOFT_ATOMIC)
 
 #define TARGET_ASM_FILE_END file_end_indicate_exec_stack
 
@@ -136,13 +135,3 @@ along with GCC; see the file COPYING3.  If not see
 /* Install the __sync libcalls.  */
 #undef TARGET_INIT_LIBFUNCS
 #define TARGET_INIT_LIBFUNCS  sh_init_sync_libfuncs
-
-#undef SUBTARGET_OVERRIDE_OPTIONS
-#define SUBTARGET_OVERRIDE_OPTIONS			\
-  do							\
-    {							\
-      /* Defaulting to -msoft-atomic.  */		\
-      if (global_options_set.x_TARGET_SOFT_ATOMIC == 0)	\
-	TARGET_SOFT_ATOMIC = 1;				\
-    }							\
-  while (0)

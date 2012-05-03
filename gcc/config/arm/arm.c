@@ -10037,42 +10037,6 @@ minmax_code (rtx x)
     }
 }
 
-/* Match pair of min/max operators that can be implemented via usat/ssat.  */
-
-bool
-arm_sat_operator_match (rtx lo_bound, rtx hi_bound,
-			int *mask, bool *signed_sat)
-{
-  /* The high bound must be a power of two minus one.  */
-  int log = exact_log2 (INTVAL (hi_bound) + 1);
-  if (log == -1)
-    return false;
-
-  /* The low bound is either zero (for usat) or one less than the
-     negation of the high bound (for ssat).  */
-  if (INTVAL (lo_bound) == 0)
-    {
-      if (mask)
-        *mask = log;
-      if (signed_sat)
-        *signed_sat = false;
-
-      return true;
-    }
-
-  if (INTVAL (lo_bound) == -INTVAL (hi_bound) - 1)
-    {
-      if (mask)
-        *mask = log + 1;
-      if (signed_sat)
-        *signed_sat = true;
-
-      return true;
-    }
-
-  return false;
-}
-
 /* Return 1 if memory locations are adjacent.  */
 int
 adjacent_mem_locations (rtx a, rtx b)
@@ -11758,6 +11722,9 @@ arm_select_cc_mode (enum rtx_code op, rtx x, rtx y)
 	  gcc_unreachable ();
 	}
     }
+
+  if (GET_MODE_CLASS (GET_MODE (x)) == MODE_CC)
+    return GET_MODE (x);
 
   return CCmode;
 }
@@ -17748,9 +17715,9 @@ arm_print_operand (FILE *stream, rtx x, int code)
 	memsize = MEM_SIZE (x);
 
 	/* Only certain alignment specifiers are supported by the hardware.  */
-	if (memsize == 16 && (align % 32) == 0)
+	if (memsize == 32 && (align % 32) == 0)
 	  align_bits = 256;
-	else if (memsize == 16 && (align % 16) == 0)
+	else if ((memsize == 16 || memsize == 32) && (align % 16) == 0)
 	  align_bits = 128;
 	else if (memsize >= 8 && (align % 8) == 0)
 	  align_bits = 64;

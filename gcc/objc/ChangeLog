@@ -1,7 +1,6 @@
-2012-03-05  Jason Merrill  <jason@redhat.com>
+2012-03-22  Release Manager
 
-	* objc-map.c (objc_map_private_resize, objc_map_alloc_ggc): Don't
-	call _stat functions without MEM_STAT_INFO.
+	* GCC 4.7.0 released.
 
 2011-11-12  Iain Sandoe  <iains@gcc.gnu.org>
 

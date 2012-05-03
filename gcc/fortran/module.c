@@ -2244,7 +2244,6 @@ static const mstring bt_types[] = {
     minit ("PROCEDURE", BT_PROCEDURE),
     minit ("UNKNOWN", BT_UNKNOWN),
     minit ("VOID", BT_VOID),
-    minit ("ASSUMED", BT_ASSUMED),
     minit (NULL, -1)
 };
 
@@ -4389,9 +4388,24 @@ load_needed (pointer_info *p)
 
   /* Mark as only or rename for later diagnosis for explicitly imported
      but not used warnings; don't mark internal symbols such as __vtab,
-     __def_init etc.  */
+     __def_init etc. Only mark them if they have been explicitly loaded.  */
+
   if (only_flag && sym->name[0] != '_' && sym->name[1] != '_')
-    sym->attr.use_only = 1;
+    {
+      gfc_use_rename *u;
+
+      /* Search the use/rename list for the variable; if the variable is
+	 found, mark it.  */
+      for (u = gfc_rename_list; u; u = u->next)
+	{
+	  if (strcmp (u->use_name, sym->name) == 0)
+	    {
+	      sym->attr.use_only = 1;
+	      break;
+	    }
+	}
+    }
+
   if (p->u.rsym.renamed)
     sym->attr.use_rename = 1;
 
@@ -6090,17 +6104,22 @@ gfc_use_module (gfc_use_list *module)
 	parse_name (c);
       if ((start == 1 && strcmp (atom_name, "GFORTRAN") != 0)
 	  || (start == 2 && strcmp (atom_name, " module") != 0))
-	gfc_fatal_error ("File '%s' opened at %C is not a GNU Fortran"
-			 " module file", filename);
+	gfc_fatal_error ("File '%s' opened at %C is not a GFORTRAN module "
+			 "file", filename);
       if (start == 3)
 	{
 	  if (strcmp (atom_name, " version") != 0
 	      || module_char () != ' '
-	      || parse_atom () != ATOM_STRING
-	      || strcmp (atom_string, MOD_VERSION))
-	    gfc_fatal_error ("Cannot read module file '%s' opened at %C,"
-			     " because it was created by a different"
-			     " version of GNU Fortran", filename);
+	      || parse_atom () != ATOM_STRING)
+	    gfc_fatal_error ("Parse error when checking module version"
+		    	     " for file '%s' opened at %C", filename);
+
+	  if (strcmp (atom_string, MOD_VERSION))
+	    {
+	      gfc_fatal_error ("Wrong module version '%s' (expected '%s') "
+			       "for file '%s' opened at %C", atom_string,
+			       MOD_VERSION, filename);
+	    }
 
 	  free (atom_string);
 	}

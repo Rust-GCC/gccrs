@@ -175,39 +175,7 @@ error_integer (long int i)
 }
 
 
-static size_t
-gfc_widechar_display_length (gfc_char_t c)
-{
-  if (gfc_wide_is_printable (c))
-    /* Simple ASCII character  */
-    return 1;
-  else if (c < ((gfc_char_t) 1 << 8))
-    /* Displayed as \x??  */
-    return 4;
-  else if (c < ((gfc_char_t) 1 << 16))
-    /* Displayed as \u????  */
-    return 6;
-  else
-    /* Displayed as \U????????  */
-    return 10;
-}
-
-
-/* Length of the ASCII representation of the wide string, escaping wide
-   characters as print_wide_char_into_buffer() does.  */
-
-static size_t
-gfc_wide_display_length (const gfc_char_t *str)
-{
-  size_t i, len;
-
-  for (i = 0, len = 0; str[i]; i++)
-    len += gfc_widechar_display_length (str[i]);
-
-  return len;
-}
-
-static int
+static void
 print_wide_char_into_buffer (gfc_char_t c, char *buf)
 {
   static const char xdigit[16] = { '0', '1', '2', '3', '4', '5', '6',
@@ -217,7 +185,6 @@ print_wide_char_into_buffer (gfc_char_t c, char *buf)
     {
       buf[1] = '\0';
       buf[0] = (unsigned char) c;
-      return 1;
     }
   else if (c < ((gfc_char_t) 1 << 8))
     {
@@ -228,7 +195,6 @@ print_wide_char_into_buffer (gfc_char_t c, char *buf)
 
       buf[1] = 'x';
       buf[0] = '\\';
-      return 4;
     }
   else if (c < ((gfc_char_t) 1 << 16))
     {
@@ -243,7 +209,6 @@ print_wide_char_into_buffer (gfc_char_t c, char *buf)
 
       buf[1] = 'u';
       buf[0] = '\\';
-      return 6;
     }
   else
     {
@@ -266,7 +231,6 @@ print_wide_char_into_buffer (gfc_char_t c, char *buf)
 
       buf[1] = 'U';
       buf[0] = '\\';
-      return 10;
     }
 }
 
@@ -362,12 +326,16 @@ show_locus (locus *loc, int c1, int c2)
      show up on the terminal.  Tabs are converted to spaces, and 
      nonprintable characters are converted to a "\xNN" sequence.  */
 
+  /* TODO: Although setting i to the terminal width is clever, it fails
+     to work correctly when nonprintable characters exist.  A better 
+     solution should be found.  */
+
   p = &(lb->line[offset]);
-  i = gfc_wide_display_length (p);
+  i = gfc_wide_strlen (p);
   if (i > terminal_width)
     i = terminal_width - 1;
 
-  while (i > 0)
+  for (; i > 0; i--)
     {
       static char buffer[11];
 
@@ -375,7 +343,7 @@ show_locus (locus *loc, int c1, int c2)
       if (c == '\t')
 	c = ' ';
 
-      i -= print_wide_char_into_buffer (c, buffer);
+      print_wide_char_into_buffer (c, buffer);
       error_string (buffer);
     }
 
@@ -388,18 +356,13 @@ show_locus (locus *loc, int c1, int c2)
   c1 -= offset;
   c2 -= offset;
 
-  p = &(lb->line[offset]);
   for (i = 0; i <= cmax; i++)
     {
-      int spaces, j;
-      spaces = gfc_widechar_display_length (*p++);
-
       if (i == c1)
-	error_char ('1'), spaces--;
+	error_char ('1');
       else if (i == c2)
-	error_char ('2'), spaces--;
-
-      for (j = 0; j < spaces; j++)
+	error_char ('2');
+      else
 	error_char (' ');
     }
 

@@ -18134,65 +18134,13 @@ add_high_low_attributes (tree stmt, dw_die_ref die)
   if (BLOCK_FRAGMENT_CHAIN (stmt)
       && (dwarf_version >= 3 || !dwarf_strict))
     {
-      tree chain, superblock = NULL_TREE;
-      dw_die_ref pdie;
-      dw_attr_ref attr = NULL;
+      tree chain;
 
       if (inlined_function_outer_scope_p (stmt))
 	{
 	  ASM_GENERATE_INTERNAL_LABEL (label, BLOCK_BEGIN_LABEL,
 				       BLOCK_NUMBER (stmt));
 	  add_AT_lbl_id (die, DW_AT_entry_pc, label);
-	}
-
-      /* Optimize duplicate .debug_ranges lists or even tails of
-	 lists.  If this BLOCK has same ranges as its supercontext,
-	 lookup DW_AT_ranges attribute in the supercontext (and
-	 recursively so), verify that the ranges_table contains the
-	 right values and use it instead of adding a new .debug_range.  */
-      for (chain = stmt, pdie = die;
-	   BLOCK_SAME_RANGE (chain);
-	   chain = BLOCK_SUPERCONTEXT (chain))
-	{
-	  dw_attr_ref new_attr;
-
-	  pdie = pdie->die_parent;
-	  if (pdie == NULL)
-	    break;
-	  if (BLOCK_SUPERCONTEXT (chain) == NULL_TREE)
-	    break;
-	  new_attr = get_AT (pdie, DW_AT_ranges);
-	  if (new_attr == NULL
-	      || new_attr->dw_attr_val.val_class != dw_val_class_range_list)
-	    break;
-	  attr = new_attr;
-	  superblock = BLOCK_SUPERCONTEXT (chain);
-	}
-      if (attr != NULL
-	  && (ranges_table[attr->dw_attr_val.v.val_offset
-			   / 2 / DWARF2_ADDR_SIZE].num
-	      == BLOCK_NUMBER (superblock))
-	  && BLOCK_FRAGMENT_CHAIN (superblock))
-	{
-	  unsigned long off = attr->dw_attr_val.v.val_offset
-			      / 2 / DWARF2_ADDR_SIZE;
-	  unsigned long supercnt = 0, thiscnt = 0;
-	  for (chain = BLOCK_FRAGMENT_CHAIN (superblock);
-	       chain; chain = BLOCK_FRAGMENT_CHAIN (chain))
-	    {
-	      ++supercnt;
-	      gcc_checking_assert (ranges_table[off + supercnt].num
-				   == BLOCK_NUMBER (chain));
-	    }
-	  gcc_checking_assert (ranges_table[off + supercnt + 1].num == 0);
-	  for (chain = BLOCK_FRAGMENT_CHAIN (stmt);
-	       chain; chain = BLOCK_FRAGMENT_CHAIN (chain))
-	    ++thiscnt;
-	  gcc_assert (supercnt >= thiscnt);
-	  add_AT_range_list (die, DW_AT_ranges,
-			     (off + supercnt - thiscnt)
-			     * 2 * DWARF2_ADDR_SIZE);
-	  return;
 	}
 
       add_AT_range_list (die, DW_AT_ranges, add_ranges (stmt));
@@ -19941,7 +19889,9 @@ dwarf2out_decl (tree decl)
 	return;
 
       /* For local statics lookup proper context die.  */
-      if (TREE_STATIC (decl) && decl_function_context (decl))
+      if (TREE_STATIC (decl)
+	  && DECL_CONTEXT (decl)
+	  && TREE_CODE (DECL_CONTEXT (decl)) == FUNCTION_DECL)
 	context_die = lookup_decl_die (DECL_CONTEXT (decl));
 
       /* If we are in terse mode, don't generate any DIEs to represent any

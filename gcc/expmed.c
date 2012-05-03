@@ -550,7 +550,10 @@ store_bit_field_1 (rtx str_rtx, unsigned HOST_WIDE_INT bitsize,
 	{
 	  /* If I is 0, use the low-order word in both field and target;
 	     if I is 1, use the next to lowest word; and so on.  */
-	  unsigned int wordnum = (backwards ? nwords - i - 1 : i);
+	  unsigned int wordnum = (backwards
+				  ? GET_MODE_SIZE (fieldmode) / UNITS_PER_WORD
+				  - i - 1
+				  : i);
 	  unsigned int bit_offset = (backwards
 				     ? MAX ((int) bitsize - ((int) i + 1)
 					    * BITS_PER_WORD,
@@ -828,8 +831,7 @@ store_bit_field (rtx str_rtx, unsigned HOST_WIDE_INT bitsize,
   /* Under the C++0x memory model, we must not touch bits outside the
      bit region.  Adjust the address to start at the beginning of the
      bit region.  */
-  if (MEM_P (str_rtx)
-      && bitregion_start > 0)
+  if (MEM_P (str_rtx) && bitregion_start > 0)
     {
       enum machine_mode bestmode;
       enum machine_mode op_mode;
@@ -838,6 +840,8 @@ store_bit_field (rtx str_rtx, unsigned HOST_WIDE_INT bitsize,
       op_mode = mode_for_extraction (EP_insv, 3);
       if (op_mode == MAX_MACHINE_MODE)
 	op_mode = VOIDmode;
+
+      gcc_assert ((bitregion_start % BITS_PER_UNIT) == 0);
 
       offset = bitregion_start / BITS_PER_UNIT;
       bitnum -= bitregion_start;

@@ -1,5 +1,4 @@
 ! { dg-do compile }
-! { dg-options "-Wc-binding-type" }
 module test
 use iso_c_binding, only: c_int
     type, bind(c) ::  foo

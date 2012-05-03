@@ -1,5 +1,5 @@
 /* zutil.c -- target dependent utility functions for the compression library
- * Copyright (C) 1995-2005, 2010 Jean-loup Gailly.
+ * Copyright (C) 1995-2005 Jean-loup Gailly.
  * For conditions of distribution and use, see copyright notice in zlib.h
  */
 
@@ -34,25 +34,25 @@ uLong ZEXPORT zlibCompileFlags()
     uLong flags;
 
     flags = 0;
-    switch ((int)(sizeof(uInt))) {
+    switch (sizeof(uInt)) {
     case 2:     break;
     case 4:     flags += 1;     break;
     case 8:     flags += 2;     break;
     default:    flags += 3;
     }
-    switch ((int)(sizeof(uLong))) {
+    switch (sizeof(uLong)) {
     case 2:     break;
     case 4:     flags += 1 << 2;        break;
     case 8:     flags += 2 << 2;        break;
     default:    flags += 3 << 2;
     }
-    switch ((int)(sizeof(voidpf))) {
+    switch (sizeof(voidpf)) {
     case 2:     break;
     case 4:     flags += 1 << 4;        break;
     case 8:     flags += 2 << 4;        break;
     default:    flags += 3 << 4;
     }
-    switch ((int)(sizeof(z_off_t))) {
+    switch (sizeof(z_off_t)) {
     case 2:     break;
     case 4:     flags += 1 << 6;        break;
     case 8:     flags += 2 << 6;        break;
@@ -117,9 +117,9 @@ uLong ZEXPORT zlibCompileFlags()
 #  ifndef verbose
 #    define verbose 0
 #  endif
-int ZLIB_INTERNAL z_verbose = verbose;
+int z_verbose = verbose;
 
-void ZLIB_INTERNAL z_error (m)
+void z_error (m)
     char *m;
 {
     fprintf(stderr, "%s\n", m);
@@ -146,7 +146,7 @@ const char * ZEXPORT zError(err)
 
 #ifndef HAVE_MEMCPY
 
-void ZLIB_INTERNAL zmemcpy(dest, source, len)
+void zmemcpy(dest, source, len)
     Bytef* dest;
     const Bytef* source;
     uInt  len;
@@ -157,7 +157,7 @@ void ZLIB_INTERNAL zmemcpy(dest, source, len)
     } while (--len != 0);
 }
 
-int ZLIB_INTERNAL zmemcmp(s1, s2, len)
+int zmemcmp(s1, s2, len)
     const Bytef* s1;
     const Bytef* s2;
     uInt  len;
@@ -170,7 +170,7 @@ int ZLIB_INTERNAL zmemcmp(s1, s2, len)
     return 0;
 }
 
-void ZLIB_INTERNAL zmemzero(dest, len)
+void zmemzero(dest, len)
     Bytef* dest;
     uInt  len;
 {
@@ -213,7 +213,7 @@ local ptr_table table[MAX_PTR];
  * a protected system like OS/2. Use Microsoft C instead.
  */
 
-voidpf ZLIB_INTERNAL zcalloc (voidpf opaque, unsigned items, unsigned size)
+voidpf zcalloc (voidpf opaque, unsigned items, unsigned size)
 {
     voidpf buf = opaque; /* just to make some compilers happy */
     ulg bsize = (ulg)items*size;
@@ -237,7 +237,7 @@ voidpf ZLIB_INTERNAL zcalloc (voidpf opaque, unsigned items, unsigned size)
     return buf;
 }
 
-void ZLIB_INTERNAL zcfree (voidpf opaque, voidpf ptr)
+void  zcfree (voidpf opaque, voidpf ptr)
 {
     int n;
     if (*(ush*)&ptr != 0) { /* object < 64K */
@@ -272,13 +272,13 @@ void ZLIB_INTERNAL zcfree (voidpf opaque, voidpf ptr)
 #  define _hfree   hfree
 #endif
 
-voidpf ZLIB_INTERNAL zcalloc (voidpf opaque, uInt items, uInt size)
+voidpf zcalloc (voidpf opaque, unsigned items, unsigned size)
 {
     if (opaque) opaque = 0; /* to make compiler happy */
     return _halloc((long)items, size);
 }
 
-void ZLIB_INTERNAL zcfree (voidpf opaque, voidpf ptr)
+void  zcfree (voidpf opaque, voidpf ptr)
 {
     if (opaque) opaque = 0; /* to make compiler happy */
     _hfree(ptr);
@@ -297,7 +297,7 @@ extern voidp  calloc OF((uInt items, uInt size));
 extern void   free   OF((voidpf ptr));
 #endif
 
-voidpf ZLIB_INTERNAL zcalloc (opaque, items, size)
+voidpf zcalloc (opaque, items, size)
     voidpf opaque;
     unsigned items;
     unsigned size;
@@ -307,7 +307,7 @@ voidpf ZLIB_INTERNAL zcalloc (opaque, items, size)
                               (voidpf)calloc(items, size);
 }
 
-void ZLIB_INTERNAL zcfree (opaque, ptr)
+void  zcfree (opaque, ptr)
     voidpf opaque;
     voidpf ptr;
 {

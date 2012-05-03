@@ -1176,14 +1176,14 @@
 		(parallel [(const_int 0)]))
 	      (vec_select:DF (match_dup 1) (parallel [(const_int 1)])))
 	    (plusminus:DF
-	      (vec_select:DF (match_dup 1) (parallel [(const_int 2)]))
-	      (vec_select:DF (match_dup 1) (parallel [(const_int 3)]))))
-	  (vec_concat:V2DF
-	    (plusminus:DF
 	      (vec_select:DF
 		(match_operand:V4DF 2 "nonimmediate_operand" "xm")
 		(parallel [(const_int 0)]))
-	      (vec_select:DF (match_dup 2) (parallel [(const_int 1)])))
+	      (vec_select:DF (match_dup 2) (parallel [(const_int 1)]))))
+	  (vec_concat:V2DF
+	    (plusminus:DF
+	      (vec_select:DF (match_dup 1) (parallel [(const_int 2)]))
+	      (vec_select:DF (match_dup 1) (parallel [(const_int 3)])))
 	    (plusminus:DF
 	      (vec_select:DF (match_dup 2) (parallel [(const_int 2)]))
 	      (vec_select:DF (match_dup 2) (parallel [(const_int 3)]))))))]
@@ -4890,7 +4890,7 @@
 	  (vec_select:DF (match_dup 0) (parallel [(const_int 1)]))))]
   "TARGET_SSE2 && reload_completed"
   [(set (match_dup 0) (match_dup 1))]
-  "operands[0] = adjust_address (operands[0], DFmode, 8);")
+  "operands[0] = adjust_address (operands[0], DFmode, 0);")
 
 (define_insn "sse2_movsd"
   [(set (match_operand:V2DF 0 "nonimmediate_operand"   "=x,x,x,x,m,x,x,x,o")
@@ -11880,11 +11880,11 @@
 (define_insn "avx2_permvarv8si"
   [(set (match_operand:V8SI 0 "register_operand" "=x")
 	(unspec:V8SI
-	  [(match_operand:V8SI 1 "register_operand" "x")
-	   (match_operand:V8SI 2 "nonimmediate_operand" "xm")]
+	  [(match_operand:V8SI 1 "nonimmediate_operand" "xm")
+	   (match_operand:V8SI 2 "register_operand" "x")]
 	  UNSPEC_VPERMSI))]
   "TARGET_AVX2"
-  "vpermd\t{%2, %1, %0|%0, %1, %2}"
+  "vpermd\t{%1, %2, %0|%0, %2, %1}"
   [(set_attr "type" "sselog")
    (set_attr "prefix" "vex")
    (set_attr "mode" "OI")])
@@ -11905,11 +11905,11 @@
 (define_insn "avx2_permvarv8sf"
   [(set (match_operand:V8SF 0 "register_operand" "=x")
 	(unspec:V8SF
-	  [(match_operand:V8SF 1 "register_operand" "x")
-	   (match_operand:V8SF 2 "nonimmediate_operand" "xm")]
+	  [(match_operand:V8SF 1 "nonimmediate_operand" "xm")
+	   (match_operand:V8SI 2 "register_operand" "x")]
 	  UNSPEC_VPERMSF))]
   "TARGET_AVX2"
-  "vpermps\t{%2, %1, %0|%0, %1, %2}"
+  "vpermps\t{%1, %2, %0|%0, %2, %1}"
   [(set_attr "type" "sselog")
    (set_attr "prefix" "vex")
    (set_attr "mode" "OI")])

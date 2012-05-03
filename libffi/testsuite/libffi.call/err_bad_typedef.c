@@ -4,8 +4,7 @@
    PR:			none.
    Originator:	Blake Chaffin 6/6/2007	 */
 
-/* { dg-do run } */
-
+/* { dg-do run { xfail *-*-* } } */
 #include "ffitest.h"
 
 int main (void)

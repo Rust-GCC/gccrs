@@ -821,42 +821,20 @@ sh_option_override (void)
 	}
     }
 
-  /*  Adjust loop, jump and function alignment values (in bytes), if those
-      were not specified by the user using -falign-loops, -falign-jumps
-      and -falign-functions options.
-      32 bit alignment is better for speed, because instructions can be
-      fetched as a pair from a longword boundary.  For size use 16 bit
-      alignment to get more compact code.
-      Aligning all jumps increases the code size, even if it might
-      result in slightly faster code.  Thus, it is set to the smallest 
-      alignment possible if not specified by the user.  */
   if (align_loops == 0)
-    {
-      if (TARGET_SH5)
-	align_loops = 8;
-      else
-	align_loops = optimize_size ? 2 : 4;
-    }
-
+    align_loops =  1 << (TARGET_SH5 ? 3 : 2);
   if (align_jumps == 0)
-    {
-      if (TARGET_SHMEDIA)
-	align_jumps = 1 << CACHE_LOG;
-      else
-	align_jumps = 2;
-    }
+    align_jumps = 1 << CACHE_LOG;
   else if (align_jumps < (TARGET_SHMEDIA ? 4 : 2))
     align_jumps = TARGET_SHMEDIA ? 4 : 2;
 
+  /* Allocation boundary (in *bytes*) for the code of a function.
+     SH1: 32 bit alignment is faster, because instructions are always
+     fetched as a pair from a longword boundary.
+     SH2 .. SH5 : align to cache line start.  */
   if (align_functions == 0)
-    {
-      if (TARGET_SHMEDIA)
-	align_functions = optimize_size
-			  ? FUNCTION_BOUNDARY/8 : (1 << CACHE_LOG);
-      else
-	align_functions = optimize_size ? 2 : 4;
-    }
-
+    align_functions
+      = optimize_size ? FUNCTION_BOUNDARY/8 : (1 << CACHE_LOG);
   /* The linker relaxation code breaks when a function contains
      alignments that are larger than that at the start of a
      compilation unit.  */
@@ -2833,26 +2811,22 @@ shiftcosts (rtx x)
 {
   int value;
 
-  /* There is no pattern for constant first operand.  */
-  if (CONST_INT_P (XEXP (x, 0)))
-    return MAX_COST;
-
   if (TARGET_SHMEDIA)
-    return COSTS_N_INSNS (1);
+    return 1;
 
   if (GET_MODE_SIZE (GET_MODE (x)) > UNITS_PER_WORD)
     {
       if (GET_MODE (x) == DImode
 	  && CONST_INT_P (XEXP (x, 1))
 	  && INTVAL (XEXP (x, 1)) == 1)
-	return COSTS_N_INSNS (2);
+	return 2;
 
       /* Everything else is invalid, because there is no pattern for it.  */
       return MAX_COST;
     }
   /* If shift by a non constant, then this will be expensive.  */
   if (!CONST_INT_P (XEXP (x, 1)))
-    return COSTS_N_INSNS (SH_DYNAMIC_SHIFT_COST);
+    return SH_DYNAMIC_SHIFT_COST;
 
   /* Otherwise, return the true cost in instructions.  Cope with out of range
      shift counts more or less arbitrarily.  */
@@ -2864,10 +2838,10 @@ shiftcosts (rtx x)
       /* If SH3, then we put the constant in a reg and use shad.  */
       if (cost > 1 + SH_DYNAMIC_SHIFT_COST)
 	cost = 1 + SH_DYNAMIC_SHIFT_COST;
-      return COSTS_N_INSNS (cost);
+      return cost;
     }
   else
-    return COSTS_N_INSNS (shift_insns[value]);
+    return shift_insns[value];
 }
 
 /* Return the cost of an AND/XOR/IOR operation.  */
@@ -3100,7 +3074,7 @@ sh_rtx_costs (rtx x, int code, int outer_code, int opno ATTRIBUTE_UNUSED,
     case ASHIFT:
     case ASHIFTRT:
     case LSHIFTRT:
-      *total = shiftcosts (x);
+      *total = COSTS_N_INSNS (shiftcosts (x));
       return true;
 
     case DIV:
@@ -5372,9 +5346,6 @@ int
 sh_loop_align (rtx label)
 {
   rtx next = label;
-
-  if (! optimize || optimize_size)
-    return 0;
 
   do
     next = next_nonnote_insn (next);
@@ -8167,8 +8138,10 @@ sh_dwarf_register_span (rtx reg)
   return
     gen_rtx_PARALLEL (VOIDmode,
 		      gen_rtvec (2,
-				 gen_rtx_REG (SFmode, regno + 1),
-				 gen_rtx_REG (SFmode, regno)));
+				 gen_rtx_REG (SFmode,
+					      DBX_REGISTER_NUMBER (regno+1)),
+				 gen_rtx_REG (SFmode,
+					      DBX_REGISTER_NUMBER (regno))));
 }
 
 static enum machine_mode
@@ -11888,8 +11861,15 @@ sh_expand_t_scc (rtx operands[])
   val = INTVAL (op1);
   if ((code == EQ && val == 1) || (code == NE && val == 0))
     emit_insn (gen_movt (result));
+  else if (TARGET_SH2A && ((code == EQ && val == 0)
+			    || (code == NE && val == 1)))
+    emit_insn (gen_xorsi3_movrt (result));
   else if ((code == EQ && val == 0) || (code == NE && val == 1))
-   emit_insn (gen_movnegt (result));
+    {
+      emit_clobber (result);
+      emit_insn (gen_subc (result, result, result));
+      emit_insn (gen_addsi3 (result, result, const1_rtx));
+    }
   else if (code == EQ || code == NE)
     emit_insn (gen_move_insn (result, GEN_INT (code == NE)));
   else

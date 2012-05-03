@@ -1117,13 +1117,9 @@ add_method (tree type, tree method, tree using_decl)
     return false;
 
   /* Add the new binding.  */
-  if (using_decl)
-    {
-      overload = ovl_cons (method, current_fns);
-      OVL_USED (overload) = true;
-    }
-  else
-    overload = build_overload (method, current_fns);
+  overload = build_overload (method, current_fns);
+  if (using_decl && TREE_CODE (overload) == OVERLOAD)
+    OVL_USED (overload) = true;
 
   if (conv_p)
     TYPE_HAS_CONVERSION (type) = 1;
@@ -3149,8 +3145,9 @@ check_field_decls (tree t, tree *access_decls,
 	CLASSTYPE_NON_AGGREGATE (t) = 1;
 
       /* If at least one non-static data member is non-literal, the whole
-         class becomes non-literal.  */
-      if (!literal_type_p (type))
+         class becomes non-literal.  Note: if the type is incomplete we
+	 will complain later on.  */
+      if (COMPLETE_TYPE_P (type) && !literal_type_p (type))
         CLASSTYPE_LITERAL_P (t) = false;
 
       /* A standard-layout class is a class that:

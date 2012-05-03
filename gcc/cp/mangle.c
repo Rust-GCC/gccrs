@@ -942,7 +942,7 @@ write_nested_name (const tree decl)
 	}
       else
 	{
-	  write_prefix (decl_mangling_context (decl));
+	  write_prefix (CP_DECL_CONTEXT (decl));
 	  write_unqualified_name (decl);
 	}
     }
@@ -1030,7 +1030,7 @@ write_prefix (const tree node)
 	}
       else
 	{
-	  write_prefix (decl_mangling_context (decl));
+	  write_prefix (CP_DECL_CONTEXT (decl));
 	  write_unqualified_name (decl);
 	}
     }
@@ -1060,7 +1060,7 @@ write_template_prefix (const tree node)
 {
   tree decl = DECL_P (node) ? node : TYPE_NAME (node);
   tree type = DECL_P (node) ? TREE_TYPE (node) : node;
-  tree context = decl_mangling_context (decl);
+  tree context = CP_DECL_CONTEXT (decl);
   tree template_info;
   tree templ;
   tree substitution;
@@ -1933,6 +1933,13 @@ write_type (tree type)
 	      break;
 
 	    case TEMPLATE_TYPE_PARM:
+	      if (is_auto (type))
+		{
+		  write_identifier ("Da");
+		  ++is_builtin_type;
+		  break;
+		}
+	      /* else fall through.  */
 	    case TEMPLATE_PARM_INDEX:
 	      write_template_param (type);
 	      break;
@@ -2806,17 +2813,7 @@ write_expression (tree expr)
 
       if (name == NULL)
 	{
-	  switch (code)
-	    {
-	    case TRAIT_EXPR:
-	      error ("use of built-in trait %qE in function signature; "
-		     "use library traits instead", expr);
-	      break;
-
-	    default:
-	      sorry ("mangling %C", code);
-	      break;
-	    }
+	  sorry ("mangling %C", code);
 	  return;
 	}
       else

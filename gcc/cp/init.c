@@ -540,12 +540,6 @@ perform_member_init (tree member, tree init)
       else
 	{
 	  init = DECL_INITIAL (member);
-	  if (init && TREE_CODE (init) == DEFAULT_ARG)
-	    {
-	      error ("constructor required before non-static data member "
-		     "for %qD has been parsed", member);
-	      init = NULL_TREE;
-	    }
 	  /* Strip redundant TARGET_EXPR so we don't need to remap it, and
 	     so the aggregate init code below will see a CONSTRUCTOR.  */
 	  if (init && TREE_CODE (init) == TARGET_EXPR
@@ -2774,7 +2768,9 @@ build_new (VEC(tree,gc) **placement, tree type, tree nelts,
   if (type == error_mark_node)
     return error_mark_node;
 
-  if (nelts == NULL_TREE && VEC_length (tree, *init) == 1)
+  if (nelts == NULL_TREE && VEC_length (tree, *init) == 1
+      /* Don't do auto deduction where it might affect mangling.  */
+      && (!processing_template_decl || at_function_scope_p ()))
     {
       tree auto_node = type_uses_auto (type);
       if (auto_node)

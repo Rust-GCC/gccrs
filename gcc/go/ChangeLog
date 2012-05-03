@@ -1,3 +1,17 @@
+2012-04-23  Ian Lance Taylor  <iant@google.com>
+
+	* go-lang.c (go_langhook_init): Set MPFR precision to 256.
+
+2012-04-20  Ian Lance Taylor  <iant@google.com>
+
+	* lang.opt: Add -fgo-check-divide-zero and
+	-fgo-check-divide-overflow.
+	* gccgo.texi (Invoking gccgo): Document new options.
+
+2012-03-22  Release Manager
+
+	* GCC 4.7.0 released.
+
 2012-03-09  Ian Lance Taylor  <iant@google.com>
 
 	* go-gcc.cc (Gcc_backend::assignment_statement): Convert the rhs

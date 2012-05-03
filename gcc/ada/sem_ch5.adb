@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1655,8 +1655,8 @@ package body Sem_Ch5 is
             Analyzed_Bound : Node_Id) return Node_Id
          is
             Assign : Node_Id;
-            Decl   : Node_Id;
             Id     : Entity_Id;
+            Decl   : Node_Id;
 
          begin
             --  If the bound is a constant or an object, no need for a separate
@@ -1677,6 +1677,10 @@ package body Sem_Ch5 is
                return Original_Bound;
             end if;
 
+            --  Here we need to capture the value
+
+            Analyze_And_Resolve (Original_Bound, Typ);
+
             --  Normally, the best approach is simply to generate a constant
             --  declaration that captures the bound. However, there is a nasty
             --  case where this is wrong. If the bound is complex, and has a
@@ -1688,8 +1692,7 @@ package body Sem_Ch5 is
             --  proper trace of the value, useful in optimizations that get rid
             --  of junk range checks.
 
-            if not Has_Call_Using_Secondary_Stack (Analyzed_Bound) then
-               Analyze_And_Resolve (Original_Bound, Typ);
+            if not Has_Call_Using_Secondary_Stack (Original_Bound) then
                Force_Evaluation (Original_Bound);
                return Original_Bound;
             end if;
@@ -1708,6 +1711,14 @@ package body Sem_Ch5 is
               Make_Assignment_Statement (Loc,
                 Name        => New_Occurrence_Of (Id, Loc),
                 Expression  => Relocate_Node (Original_Bound));
+
+            --  We must recursively clean in the relocated expression the flag
+            --  analyzed to ensure that the expression is reanalyzed. Required
+            --  to ensure that the transient scope is established now (because
+            --  Establish_Transient_Scope discarded generating transient scopes
+            --  in the analysis of the iteration scheme).
+
+            Reset_Analyzed_Flags (Expression (Assign));
 
             Insert_Actions (Parent (N), New_List (Decl, Assign));
 
@@ -1852,13 +1863,7 @@ package body Sem_Ch5 is
                if Nkind (Nam) = N_Explicit_Dereference then
                   Subp := Etype (Nam);
 
-               --  Call using a selected component notation or Ada 2005 object
-               --  operation notation
-
-               elsif Nkind (Nam) = N_Selected_Component then
-                  Subp := Entity (Selector_Name (Nam));
-
-               --  Common case
+               --  Normal case
 
                else
                   Subp := Entity (Nam);
@@ -2097,14 +2102,7 @@ package body Sem_Ch5 is
                --  because the second one may be created in a different scope,
                --  e.g. a precondition procedure, leading to a crash in GIGI.
 
-               --  Note that if the parent node is a quantified expression,
-               --  this preservation is delayed until the expansion of the
-               --  quantified expression where the node is rewritten as an
-               --  expression with actions.
-
-               if (No (Etype (Id)) or else Etype (Id) = Any_Type)
-                 and then Nkind (Parent (N)) /= N_Quantified_Expression
-               then
+               if No (Etype (Id)) or else Etype (Id) = Any_Type then
                   Set_Etype (Id, Etype (DS));
                end if;
 
@@ -2216,9 +2214,9 @@ package body Sem_Ch5 is
       end;
    end Analyze_Iteration_Scheme;
 
-   ------------------------------------
-   -- Analyze_Iterator_Specification --
-   ------------------------------------
+   -------------------------------------
+   --  Analyze_Iterator_Specification --
+   -------------------------------------
 
    procedure Analyze_Iterator_Specification (N : Node_Id) is
       Loc       : constant Source_Ptr := Sloc (N);
@@ -2230,7 +2228,15 @@ package body Sem_Ch5 is
       Typ : Entity_Id;
 
    begin
-      Enter_Name (Def_Id);
+      --  In semantics/Alfa modes, we won't be further expanding the loop, so
+      --  introduce loop variable so that loop body can be properly analyzed.
+      --  Otherwise this happens after expansion.
+
+      if Operating_Mode = Check_Semantics
+        or else Alfa_Mode
+      then
+         Enter_Name (Def_Id);
+      end if;
 
       Set_Ekind (Def_Id, E_Variable);
 
@@ -2243,13 +2249,7 @@ package body Sem_Ch5 is
       --  The declaration must be a renaming because the body of the loop may
       --  assign to elements.
 
-      --  Note that if the parent node is a quantified expression, this
-      --  declaration is created during the expansion of the quantified
-      --  expression where the node is rewritten as an expression with actions.
-
-      if not Is_Entity_Name (Iter_Name)
-        and then Nkind (Parent (Parent (N))) /= N_Quantified_Expression
-      then
+      if not Is_Entity_Name (Iter_Name) then
          declare
             Id   : constant Entity_Id := Make_Temporary (Loc, 'R', Iter_Name);
             Decl : Node_Id;
@@ -2281,7 +2281,7 @@ package body Sem_Ch5 is
       --  Iterate is not a reserved name. What matter is that the return type
       --  of the function is an iterator type.
 
-      elsif Is_Entity_Name (Iter_Name) then
+      else
          Analyze (Iter_Name);
 
          if Nkind (Iter_Name) = N_Function_Call then

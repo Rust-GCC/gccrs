@@ -1,5 +1,4 @@
 ! { dg-do compile }
-! { dg-options "-Wc-binding-type" }
 ! This should compile, though there is a warning about the type of len
 ! (return variable of strlen()) for being implicit.
 ! PR fortran/32797

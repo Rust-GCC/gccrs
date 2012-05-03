@@ -1,7 +1,7 @@
 // Vector implementation -*- C++ -*-
 
 // Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
-// 2011, 2012 Free Software Foundation, Inc.
+// 2011 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -383,14 +383,6 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  used, then this will do at most 2N calls to the copy
        *  constructor, and logN memory reallocations.
        */
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
-      template<typename _InputIterator,
-	       typename = std::_RequireInputIter<_InputIterator>>
-        vector(_InputIterator __first, _InputIterator __last,
-	       const allocator_type& __a = allocator_type())
-	: _Base(__a)
-        { _M_initialize_dispatch(__first, __last, __false_type()); }
-#else
       template<typename _InputIterator>
         vector(_InputIterator __first, _InputIterator __last,
 	       const allocator_type& __a = allocator_type())
@@ -400,7 +392,6 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	  typedef typename std::__is_integer<_InputIterator>::__type _Integral;
 	  _M_initialize_dispatch(__first, __last, _Integral());
 	}
-#endif
 
       /**
        *  The dtor only erases the elements, and note that if the
@@ -428,36 +419,18 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  @brief  %Vector move assignment operator.
        *  @param  __x  A %vector of identical element and allocator types.
        *
-       *  The contents of @a __x are moved into this %vector (without copying).
+       *  The contents of @a __x are moved into this %vector (without copying,
+       *  if the allocators permit it).
        *  @a __x is a valid, but unspecified %vector.
        */
       vector&
       operator=(vector&& __x) noexcept(_Alloc_traits::_S_nothrow_move())
       {
-	if (_Alloc_traits::_S_propagate_on_move_assign())
-	  {
-	    // We're moving the rvalue's allocator so can move the data too.
-	    const vector __tmp(std::move(*this));     // discard existing data
-	    this->_M_impl._M_swap_data(__x._M_impl);
-	    std::__alloc_on_move(_M_get_Tp_allocator(),
-				 __x._M_get_Tp_allocator());
-	  }
-	else if (_Alloc_traits::_S_always_equal()
-	         || __x._M_get_Tp_allocator() == this->_M_get_Tp_allocator())
-	  {
-	    // The rvalue's allocator can free our storage and vice versa,
-	    // so can swap the data storage after destroying our contents.
-	    this->clear();
-	    this->_M_impl._M_swap_data(__x._M_impl);
-	  }
-	else
-	  {
-	    // The rvalue's allocator cannot be moved, or is not equal,
-	    // so we need to individually move each element.
-	    this->assign(std::__make_move_if_noexcept_iterator(__x.begin()),
-			 std::__make_move_if_noexcept_iterator(__x.end()));
-	    __x.clear();
-	  }
+        constexpr bool __move_storage =
+          _Alloc_traits::_S_propagate_on_move_assign()
+          || _Alloc_traits::_S_always_equal();
+        _M_move_assign(std::move(__x),
+                       integral_constant<bool, __move_storage>());
 	return *this;
       }
 
@@ -506,13 +479,6 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  that the resulting %vector's size is the same as the number
        *  of elements assigned.  Old data may be lost.
        */
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
-      template<typename _InputIterator,
-	       typename = std::_RequireInputIter<_InputIterator>>
-        void
-        assign(_InputIterator __first, _InputIterator __last)
-        { _M_assign_dispatch(__first, __last, __false_type()); }
-#else
       template<typename _InputIterator>
         void
         assign(_InputIterator __first, _InputIterator __last)
@@ -521,7 +487,6 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	  typedef typename std::__is_integer<_InputIterator>::__type _Integral;
 	  _M_assign_dispatch(__first, __last, _Integral());
 	}
-#endif
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
       /**
@@ -1052,14 +1017,6 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  %vector and if it is frequently used the user should
        *  consider using std::list.
        */
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
-      template<typename _InputIterator,
-	       typename = std::_RequireInputIter<_InputIterator>>
-        void
-        insert(iterator __position, _InputIterator __first,
-	       _InputIterator __last)
-        { _M_insert_dispatch(__position, __first, __last, __false_type()); }
-#else
       template<typename _InputIterator>
         void
         insert(iterator __position, _InputIterator __first,
@@ -1069,7 +1026,6 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	  typedef typename std::__is_integer<_InputIterator>::__type _Integral;
 	  _M_insert_dispatch(__position, __first, __last, _Integral());
 	}
-#endif
 
       /**
        *  @brief  Remove element at given position.
@@ -1363,6 +1319,39 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	std::_Destroy(__pos, this->_M_impl._M_finish, _M_get_Tp_allocator());
 	this->_M_impl._M_finish = __pos;
       }
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+    private:
+      // Constant-time move assignment when source object's memory can be
+      // moved, either because the source's allocator will move too
+      // or because the allocators are equal.
+      void
+      _M_move_assign(vector&& __x, std::true_type) noexcept
+      {
+	const vector __tmp(std::move(*this));
+	this->_M_impl._M_swap_data(__x._M_impl);
+	if (_Alloc_traits::_S_propagate_on_move_assign())
+	  std::__alloc_on_move(_M_get_Tp_allocator(),
+			       __x._M_get_Tp_allocator());
+      }
+
+      // Do move assignment when it might not be possible to move source
+      // object's memory, resulting in a linear-time operation.
+      void
+      _M_move_assign(vector&& __x, std::false_type)
+      {
+	if (__x._M_get_Tp_allocator() == this->_M_get_Tp_allocator())
+	  _M_move_assign(std::move(__x), std::true_type());
+	else
+	  {
+	    // The rvalue's allocator cannot be moved and is not equal,
+	    // so we need to individually move each element.
+	    this->assign(std::__make_move_if_noexcept_iterator(__x.begin()),
+			 std::__make_move_if_noexcept_iterator(__x.end()));
+	    __x.clear();
+	  }
+      }
+#endif
     };
 
 

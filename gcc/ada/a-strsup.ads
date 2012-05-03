@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2003-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 2003-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -43,11 +43,7 @@ package Ada.Strings.Superbounded is
 
    type Super_String (Max_Length : Positive) is record
       Current_Length : Natural := 0;
-      Data           : String (1 .. Max_Length);
-      --  A previous version had a default initial value for Data, which is no
-      --  longer necessary, because we now special-case this type in the
-      --  compiler, so "=" composes properly for descendants of this
-      --  type. Leaving it out is more efficient.
+      Data           : String (1 .. Max_Length) := (others => ASCII.NUL);
    end record;
    --  Type Bounded_String in Ada.Strings.Bounded.Generic_Bounded_Length is
    --  derived from this type, with the constraint of the maximum length.

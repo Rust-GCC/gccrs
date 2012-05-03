@@ -1,5 +1,4 @@
 ! { dg-do compile }
-! { dg-options "-Wc-binding-type" }
 module c_kind_tests_2
   use, intrinsic :: iso_c_binding
 

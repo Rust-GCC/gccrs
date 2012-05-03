@@ -46,10 +46,12 @@ var multicastListenerTests = []struct {
 // listener with same address family, same group address and same port.
 func TestMulticastListener(t *testing.T) {
 	switch runtime.GOOS {
-	case "netbsd", "openbsd", "plan9", "windows":
+	case "netbsd", "openbsd", "plan9", "solaris", "windows":
+		t.Logf("skipping test on %q", runtime.GOOS)
 		return
 	case "linux":
 		if runtime.GOARCH == "arm" || runtime.GOARCH == "alpha" {
+			t.Logf("skipping test on %q/%q", runtime.GOOS, runtime.GOARCH)
 			return
 		}
 	}
@@ -86,7 +88,13 @@ func TestMulticastListener(t *testing.T) {
 func TestSimpleMulticastListener(t *testing.T) {
 	switch runtime.GOOS {
 	case "plan9":
+		t.Logf("skipping test on %q", runtime.GOOS)
 		return
+	case "windows":
+		if testing.Short() || !*testExternal {
+			t.Logf("skipping test on windows to avoid firewall")
+			return
+		}
 	}
 
 	for _, tt := range multicastListenerTests {

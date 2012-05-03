@@ -1,7 +1,7 @@
 // Core algorithmic facilities -*- C++ -*-
 
 // Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
-// 2011, 2012 Free Software Foundation, Inc.
+// 2011 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -74,7 +74,6 @@ namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
-#ifndef __GXX_EXPERIMENTAL_CXX0X__
   // See http://gcc.gnu.org/ml/libstdc++/2004-08/msg00167.html: in a
   // nutshell, we are partially implementing the resolution of DR 187,
   // when it's safe, i.e., the value_types are equal.
@@ -103,7 +102,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
           swap(*__a, *__b);
         }
     };
-#endif
 
   /**
    *  @brief Swaps the contents of two iterators.
@@ -119,18 +117,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     inline void
     iter_swap(_ForwardIterator1 __a, _ForwardIterator2 __b)
     {
-      // concept requirements
-      __glibcxx_function_requires(_Mutable_ForwardIteratorConcept<
-				  _ForwardIterator1>)
-      __glibcxx_function_requires(_Mutable_ForwardIteratorConcept<
-				  _ForwardIterator2>)
-
-#ifndef __GXX_EXPERIMENTAL_CXX0X__
       typedef typename iterator_traits<_ForwardIterator1>::value_type
 	_ValueType1;
       typedef typename iterator_traits<_ForwardIterator2>::value_type
 	_ValueType2;
 
+      // concept requirements
+      __glibcxx_function_requires(_Mutable_ForwardIteratorConcept<
+				  _ForwardIterator1>)
+      __glibcxx_function_requires(_Mutable_ForwardIteratorConcept<
+				  _ForwardIterator2>)
       __glibcxx_function_requires(_ConvertibleConcept<_ValueType1,
 				  _ValueType2>)
       __glibcxx_function_requires(_ConvertibleConcept<_ValueType2,
@@ -144,9 +140,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	&& __are_same<_ValueType1&, _ReferenceType1>::__value
 	&& __are_same<_ValueType2&, _ReferenceType2>::__value>::
 	iter_swap(__a, __b);
-#else
-      swap(*__a, *__b);
-#endif
     }
 
   /**
@@ -989,12 +982,24 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   __lg(int __n)
   { return sizeof(int) * __CHAR_BIT__  - 1 - __builtin_clz(__n); }
 
+  inline unsigned
+  __lg(unsigned __n)
+  { return sizeof(int) * __CHAR_BIT__  - 1 - __builtin_clz(__n); }
+
   inline long
   __lg(long __n)
   { return sizeof(long) * __CHAR_BIT__ - 1 - __builtin_clzl(__n); }
 
+  inline unsigned long
+  __lg(unsigned long __n)
+  { return sizeof(long) * __CHAR_BIT__ - 1 - __builtin_clzl(__n); }
+
   inline long long
   __lg(long long __n)
+  { return sizeof(long long) * __CHAR_BIT__ - 1 - __builtin_clzll(__n); }
+
+  inline unsigned long long
+  __lg(unsigned long long __n)
   { return sizeof(long long) * __CHAR_BIT__ - 1 - __builtin_clzll(__n); }
 
 _GLIBCXX_END_NAMESPACE_VERSION

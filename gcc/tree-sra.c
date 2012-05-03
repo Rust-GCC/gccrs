@@ -3120,7 +3120,13 @@ sra_modify_assign (gimple *stmt, gimple_stmt_iterator *gsi)
     }
   else
     {
-      if (access_has_children_p (lacc) && access_has_children_p (racc))
+      if (access_has_children_p (lacc)
+	  && access_has_children_p (racc)
+	  /* When an access represents an unscalarizable region, it usually
+	     represents accesses with variable offset and thus must not be used
+	     to generate new memory accesses.  */
+	  && !lacc->grp_unscalarizable_region
+	  && !racc->grp_unscalarizable_region)
 	{
 	  gimple_stmt_iterator orig_gsi = *gsi;
 	  enum unscalarized_data_handling refreshed;
@@ -4693,8 +4699,8 @@ convert_callers_for_node (struct cgraph_node *node,
       if (dump_file)
 	fprintf (dump_file, "Adjusting call (%i -> %i) %s -> %s\n",
 		 cs->caller->uid, cs->callee->uid,
-		 cgraph_node_name (cs->caller),
-		 cgraph_node_name (cs->callee));
+		 xstrdup (cgraph_node_name (cs->caller)),
+		 xstrdup (cgraph_node_name (cs->callee)));
 
       ipa_modify_call_arguments (cs, cs->call_stmt, adjustments);
 

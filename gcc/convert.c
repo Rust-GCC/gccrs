@@ -44,11 +44,6 @@ convert_to_pointer (tree type, tree expr)
   if (TREE_TYPE (expr) == type)
     return expr;
 
-  /* Propagate overflow to the NULL pointer.  */
-  if (integer_zerop (expr))
-    return force_fit_type_double (type, double_int_zero, 0,
-				  TREE_OVERFLOW (expr));
-
   switch (TREE_CODE (TREE_TYPE (expr)))
     {
     case POINTER_TYPE:
@@ -88,6 +83,52 @@ convert_to_pointer (tree type, tree expr)
       error ("cannot convert to a pointer type");
       return convert_to_pointer (type, integer_zero_node);
     }
+}
+
+/* Avoid any floating point extensions from EXP.  */
+tree
+strip_float_extensions (tree exp)
+{
+  tree sub, expt, subt;
+
+  /*  For floating point constant look up the narrowest type that can hold
+      it properly and handle it like (type)(narrowest_type)constant.
+      This way we can optimize for instance a=a*2.0 where "a" is float
+      but 2.0 is double constant.  */
+  if (TREE_CODE (exp) == REAL_CST && !DECIMAL_FLOAT_TYPE_P (TREE_TYPE (exp)))
+    {
+      REAL_VALUE_TYPE orig;
+      tree type = NULL;
+
+      orig = TREE_REAL_CST (exp);
+      if (TYPE_PRECISION (TREE_TYPE (exp)) > TYPE_PRECISION (float_type_node)
+	  && exact_real_truncate (TYPE_MODE (float_type_node), &orig))
+	type = float_type_node;
+      else if (TYPE_PRECISION (TREE_TYPE (exp))
+	       > TYPE_PRECISION (double_type_node)
+	       && exact_real_truncate (TYPE_MODE (double_type_node), &orig))
+	type = double_type_node;
+      if (type)
+	return build_real (type, real_value_truncate (TYPE_MODE (type), orig));
+    }
+
+  if (!CONVERT_EXPR_P (exp))
+    return exp;
+
+  sub = TREE_OPERAND (exp, 0);
+  subt = TREE_TYPE (sub);
+  expt = TREE_TYPE (exp);
+
+  if (!FLOAT_TYPE_P (subt))
+    return exp;
+
+  if (DECIMAL_FLOAT_TYPE_P (expt) != DECIMAL_FLOAT_TYPE_P (subt))
+    return exp;
+
+  if (TYPE_PRECISION (subt) > TYPE_PRECISION (expt))
+    return exp;
+
+  return strip_float_extensions (sub);
 }
 
 
@@ -728,6 +769,7 @@ convert_to_integer (tree type, tree expr)
 		   (Otherwise would recurse infinitely in convert.  */
 		if (TYPE_PRECISION (typex) != inprec)
 		  {
+		    tree otypex = typex;
 		    /* Don't do unsigned arithmetic where signed was wanted,
 		       or vice versa.
 		       Exception: if both of the original operands were
@@ -765,10 +807,12 @@ convert_to_integer (tree type, tree expr)
 		      typex = unsigned_type_for (typex);
 		    else
 		      typex = signed_type_for (typex);
-		    return convert (type,
-				    fold_build2 (ex_form, typex,
-						 convert (typex, arg0),
-						 convert (typex, arg1)));
+
+		    if (TYPE_PRECISION (otypex) == TYPE_PRECISION (typex))
+		      return convert (type,
+				      fold_build2 (ex_form, typex,
+						   convert (typex, arg0),
+						   convert (typex, arg1)));
 		  }
 	      }
 	  }

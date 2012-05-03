@@ -1315,11 +1315,12 @@ process_options (void)
   if (flag_graphite
       || flag_graphite_identity
       || flag_loop_block
+      || flag_loop_flatten
       || flag_loop_interchange
       || flag_loop_strip_mine
       || flag_loop_parallelize_all)
     sorry ("Graphite loop optimizations cannot be used (-fgraphite, "
-	   "-fgraphite-identity, -floop-block, "
+	   "-fgraphite-identity, -floop-block, -floop-flatten, "
 	   "-floop-interchange, -floop-strip-mine, -floop-parallelize-all, "
 	   "and -ftree-loop-linear)");
 #endif
