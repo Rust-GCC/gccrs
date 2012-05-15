@@ -3134,6 +3134,12 @@ static GTY (()) VEC (pubname_entry, gc) * pubtype_table;
    defines/undefines (and file start/end markers).  */
 static GTY (()) VEC (macinfo_entry, gc) * macinfo_table;
 
+/* True if .debug_macinfo or .debug_macros section is going to be
+   emitted.  */
+#define have_macinfo \
+  (debug_info_level >= DINFO_LEVEL_VERBOSE \
+   && !VEC_empty (macinfo_entry, macinfo_table))
+
 /* Array of dies for which we should generate .debug_ranges info.  */
 static GTY ((length ("ranges_table_allocated"))) dw_ranges_ref ranges_table;
 
@@ -20655,7 +20661,7 @@ dwarf2out_define (unsigned int lineno ATTRIBUTE_UNUSED,
       macinfo_entry e;
       /* Insert a dummy first entry to be able to optimize the whole
 	 predefined macro block using DW_MACRO_GNU_transparent_include.  */
-      if (VEC_empty (macinfo_entry, macinfo_table) && lineno == 0)
+      if (VEC_empty (macinfo_entry, macinfo_table) && lineno <= 1)
 	{
 	  e.code = 0;
 	  e.lineno = 0;
@@ -20682,7 +20688,7 @@ dwarf2out_undef (unsigned int lineno ATTRIBUTE_UNUSED,
       macinfo_entry e;
       /* Insert a dummy first entry to be able to optimize the whole
 	 predefined macro block using DW_MACRO_GNU_transparent_include.  */
-      if (VEC_empty (macinfo_entry, macinfo_table) && lineno == 0)
+      if (VEC_empty (macinfo_entry, macinfo_table) && lineno <= 1)
 	{
 	  e.code = 0;
 	  e.lineno = 0;
@@ -20821,13 +20827,13 @@ optimize_macinfo_range (unsigned int idx, VEC (macinfo_entry, gc) *files,
 
   /* Optimize only if there are at least two consecutive define/undef ops,
      and either all of them are before first DW_MACINFO_start_file
-     with lineno 0 (i.e. predefined macro block), or all of them are
+     with lineno {0,1} (i.e. predefined macro block), or all of them are
      in some included header file.  */
   if (second->code != DW_MACINFO_define && second->code != DW_MACINFO_undef)
     return 0;
   if (VEC_empty (macinfo_entry, files))
     {
-      if (first->lineno != 0 || second->lineno != 0)
+      if (first->lineno > 1 || second->lineno > 1)
 	return 0;
     }
   else if (first->lineno == 0)
@@ -20840,7 +20846,7 @@ optimize_macinfo_range (unsigned int idx, VEC (macinfo_entry, gc) *files,
   for (i = idx; VEC_iterate (macinfo_entry, macinfo_table, i, cur); i++)
     if (cur->code != DW_MACINFO_define && cur->code != DW_MACINFO_undef)
       break;
-    else if (first->lineno == 0 && cur->lineno != 0)
+    else if (VEC_empty (macinfo_entry, files) && cur->lineno > 1)
       break;
     else
       {
@@ -20854,7 +20860,7 @@ optimize_macinfo_range (unsigned int idx, VEC (macinfo_entry, gc) *files,
 
   /* From the containing include filename (if any) pick up just
      usable characters from its basename.  */
-  if (first->lineno == 0)
+  if (VEC_empty (macinfo_entry, files))
     base = "";
   else
     base = lbasename (VEC_last (macinfo_entry, files)->info);
@@ -22691,7 +22697,7 @@ dwarf2out_finish (const char *filename)
     add_AT_lineptr (comp_unit_die (), DW_AT_stmt_list,
 		    debug_line_section_label);
 
-  if (debug_info_level >= DINFO_LEVEL_VERBOSE)
+  if (have_macinfo)
     add_AT_macptr (comp_unit_die (),
 		   dwarf_strict ? DW_AT_macro_info : DW_AT_GNU_macros,
 		   macinfo_section_label);
@@ -22726,8 +22732,8 @@ dwarf2out_finish (const char *filename)
   htab_delete (comdat_type_table);
 
   /* Output the main compilation unit if non-empty or if .debug_macinfo
-     will be emitted.  */
-  output_comp_unit (comp_unit_die (), debug_info_level >= DINFO_LEVEL_VERBOSE);
+     or .debug_macro will be emitted.  */
+  output_comp_unit (comp_unit_die (), have_macinfo);
 
   /* Output the abbreviation table.  */
   if (abbrev_die_table_in_use != 1)
@@ -22807,12 +22813,11 @@ dwarf2out_finish (const char *filename)
     }
 
   /* Have to end the macro section.  */
-  if (debug_info_level >= DINFO_LEVEL_VERBOSE)
+  if (have_macinfo)
     {
       switch_to_section (debug_macinfo_section);
       ASM_OUTPUT_LABEL (asm_out_file, macinfo_section_label);
-      if (!VEC_empty (macinfo_entry, macinfo_table))
-	output_macinfo ();
+      output_macinfo ();
       dw2_asm_output_data (1, 0, "End compilation unit");
     }
 

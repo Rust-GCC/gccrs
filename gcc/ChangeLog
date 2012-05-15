@@ -1,3 +1,121 @@
+2012-05-14  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR target/46098
+	* config/i386/i386.c (ix86_expand_special_args_builtin): Always
+	generate target register for "load" class builtins.
+
+	Revert:
+	2010-10-22  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR target/46098
+	* config/i386/sse.md (*avx_movu<ssemodesuffix><avxmodesuffix>):
+	Rename from avx_movu<ssemodesuffix><avxmodesuffix>.
+	(avx_movu<ssemodesuffix><avxmodesuffix>): New expander.
+	(*<sse>_movu<ssemodesuffix>): Rename from <sse>_movu<ssemodesuffix>.
+	(<sse>_movu<ssemodesuffix>): New expander.
+	(*avx_movdqu<avxmodesuffix>): Rename from avx_movdqu<avxmodesuffix>.
+	(avx_movdqu<avxmodesuffix>): New expander.
+	(*sse2_movdqu): Rename from sse2_movdqu.
+	(sse2_movdqu): New expander.
+
+2012-05-14  Jakub Jelinek  <jakub@redhat.com>
+
+	* dwarf2out.c (dwarf2out_define, dwarf2out_undef): Treat
+	lineno 1 the same as lineno 0 before first start file directive.
+	(optimize_macinfo_range): Likewise.
+
+	* dwarf2out.c (have_macinfo): Define.
+	(dwarf2out_finish): Don't emit DW_AT_GNU_macros or DW_AT_macro_info
+	attribute, don't force empty compilation unit and don't emit any
+	.debug_macinfo/.debug_macro section if macinfo_table is empty.
+
+2012-05-13  Uros Bizjak  <ubizjak@gmail.com>
+
+	Backport from mainline
+	2012-05-12  Uros Bizjak  <ubizjak@gmail.com>
+
+	* config/alpha/alpha.c (alpha_emit_conditional_branch): Handle
+	ORDERED and UNORDERED conditions.
+
+2012-05-12  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* function.c (requires_stack_frame_p): If the function can throw
+	non-call exceptions, return true if the insn can throw internally.
+
+2012-05-10  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gimplify.c (gimplify_decl_expr): For a TYPE_DECL, also gimplify the
+	DECL_ORIGINAL_TYPE if it is present.
+
+2012-05-09  Georg-Johann Lay  <avr@gjlay.de>
+
+	Backport from 2012-05-12 mainline r187342.
+
+	PR target/53256
+	* config/avr/elf.h (ASM_DECLARE_FUNCTION_NAME): Remove.
+	* config/avr/avr-protos.h (avr_asm_declare_function_name): Remove.
+	* config/avr/avr.h (struct machine_function): Add attributes_checked_p.
+	* config/avr/avr.c (avr_asm_declare_function_name): Remove.
+	(expand_prologue): Move initialization of cfun->machine->is_naked,
+	is_interrupt, is_signal, is_OS_task, is_OS_main from here to...
+	(avr_set_current_function): ...this new static function.
+	(TARGET_SET_CURRENT_FUNCTION): New define.
+	(avr_function_ok_for_sibcall): Use cfun->machine->is_* instead of
+	checking attributes of current_function_decl.
+	(avr_regs_to_save): Ditto.
+	(signal_function_p): Rename to avr_signal_function_p.
+	(interrupt_function_p): Rename to avr_interrupt_function_p.
+
+	* doc/extend.texi (Function Attributes): Better explanation of
+	'interrupt' and 'signal' for AVR. Move 'ifunc' down to establish
+	alphabetical order.
+
+2012-05-09  Matthias Klose  <doko@ubuntu.com>
+
+	* gcc-ar.c (main): Don't check for execute bits for the plugin.
+
+2012-05-08  Hans-Peter Nilsson  <hp@axis.com>
+
+	PR target/53272
+	* config/cris/cris.c (cris_normal_notice_update_cc): For TARGET_V32,
+	when a constant source operand matches an "I" constraint, the "no
+	CC0 change" applies to a register-destination only, not a
+	strict_low_part-destination.
+
+2012-05-07  Ramana Radhakrishnan  <ramana.radhakrishnan@linaro.org>
+
+	Backport from mainline:
+	2012-04-19  Ramana Radhakrishnan  <ramana.radhakrishnan@linaro.org>
+
+	* config/arm/sync.md (sync_optab): Change ior attribute to "or".
+
+2012-05-07  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/53239
+	* tree-vrp.c (get_value_range): Set VR of
+	SSA_NAME_IS_DEFAULT_DEF of DECL_BY_REFERENCE RESULT_DECL
+	to nonnull.
+
+2012-05-07  Richard Guenther  <rguenther@suse.de>
+
+	PR tree-optimization/53195
+	* tree-inline.c (setup_one_parameter): Properly add referenced
+	vars from the parameters new known value.
+
+2012-05-06  John David Anglin  <dave.anglin@nrc-cnrc.gc.ca>
+
+	Backport from mainline:
+	2012-04-27  John David Anglin  <dave.anglin@nrc-cnrc.gc.ca>
+
+	PR target/52999
+	* config/pa/pa.c (pa_legitimate_constant_p): Don't put function labels
+	in constant pool.
+
+2012-05-04  Ian Lance Taylor  <iant@google.com>
+
+	* tree-vect-patterns.c (vect_single_imm_use): Correct return
+	values from false to NULL.
+
 2012-05-04  Uros Bizjak  <ubizjak@gmail.com>
 
 	Backport from mainline

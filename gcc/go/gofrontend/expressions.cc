@@ -3606,8 +3606,7 @@ Unary_expression::do_lower(Gogo*, Named_object*, Statement_inserter*, int)
       return Expression::make_error(this->location());
     }
 
-  if (op == OPERATOR_PLUS || op == OPERATOR_MINUS
-      || op == OPERATOR_NOT || op == OPERATOR_XOR)
+  if (op == OPERATOR_PLUS || op == OPERATOR_MINUS || op == OPERATOR_XOR)
     {
       Numeric_constant nc;
       if (expr->numeric_constant_value(&nc))
@@ -3697,10 +3696,10 @@ Unary_expression::eval_constant(Operator op, const Numeric_constant* unc,
       else
 	go_unreachable();
 
-    case OPERATOR_NOT:
     case OPERATOR_XOR:
       break;
 
+    case OPERATOR_NOT:
     case OPERATOR_AND:
     case OPERATOR_MULT:
       return false;
@@ -3713,7 +3712,10 @@ Unary_expression::eval_constant(Operator op, const Numeric_constant* unc,
     return false;
 
   mpz_t uval;
-  unc->get_int(&uval);
+  if (unc->is_rune())
+    unc->get_rune(&uval);
+  else
+    unc->get_int(&uval);
   mpz_t val;
   mpz_init(val);
 
@@ -3911,6 +3913,10 @@ Unary_expression::do_check_types(Gogo*)
       break;
 
     case OPERATOR_NOT:
+      if (!type->is_boolean_type())
+	this->report_error(_("expected boolean type"));
+      break;
+
     case OPERATOR_XOR:
       if (type->integer_type() == NULL
 	  && !type->is_boolean_type())

@@ -5624,12 +5624,11 @@ resolve_typebound_static (gfc_expr* e, gfc_symtree** target,
   e->value.compcall.actual = NULL;
 
   /* If we find a deferred typebound procedure, check for derived types
-     that an over-riding typebound procedure has not been missed.  */
-  if (e->value.compcall.tbp->deferred
-	&& e->value.compcall.name
-	&& !e->value.compcall.tbp->non_overridable
-	&& e->value.compcall.base_object
-	&& e->value.compcall.base_object->ts.type == BT_DERIVED)
+     that an overriding typebound procedure has not been missed.  */
+  if (e->value.compcall.name
+      && !e->value.compcall.tbp->non_overridable
+      && e->value.compcall.base_object
+      && e->value.compcall.base_object->ts.type == BT_DERIVED)
     {
       gfc_symtree *st;
       gfc_symbol *derived;
@@ -11991,6 +11990,8 @@ resolve_fl_derived (gfc_symbol *sym)
   if (!sym->attr.is_class)
     gfc_find_symbol (sym->name, sym->ns, 0, &gen_dt);
   if (gen_dt && gen_dt->generic && gen_dt->generic->next
+      && (!gen_dt->generic->sym->attr.use_assoc
+	  || gen_dt->generic->sym->module != gen_dt->generic->next->sym->module)
       && gfc_notify_std (GFC_STD_F2003, "Fortran 2003: Generic name '%s' of "
 			 "function '%s' at %L being the same name as derived "
 			 "type at %L", sym->name,
