@@ -1,3 +1,117 @@
+2012-05-22  Richard Guenther  <rguenther@suse.de>
+
+	PR tree-optimization/53408
+	* tree-vect-loop.c (vectorizable_induction): Properly check
+	the restriction that we cannot handle induction results from
+	the inner loop outside of the outer loop.
+
+2012-05-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/53436
+	* omp-low.c (omp_build_component_ref): New function.
+	(build_receiver_ref, build_sender_ref, create_task_copyfn): Use it.
+
+	PR tree-optimization/53366
+	* tree-vect-slp.c (vect_supported_load_permutation_p): Don't shortcut
+	tests if complex_numbers == 2, but there are non-complex number loads
+	too.
+
+	PR tree-optimization/53409
+	* tree-vect-loop.c (vect_analyze_loop_operations): Don't check
+	vinfo_for_stmt (op_def_stmt) if op_def_stmt isn't inside loop.
+
+	PR tree-optimization/53410
+	* fold-const.c (fold_binary_loc): Use build_zero_cst (type)
+	instead of build_int_cst (type, 0) where vector types might be
+	involved.
+
+2012-05-21  Joseph Myers  <joseph@codesourcery.com>
+
+	PR c/53418
+	* c-typeck.c (build_conditional_expr): Remove C_MAYBE_CONST_EXPR
+	from folded operands before wrapping another around the
+	conditional expression.
+
+2012-05-21  Dave Boutcher  <daveboutcher@gmail.com>
+	    Patrick Marlier  <patrick.marlier@gmail.com>
+
+	* trans-mem.c (ipa_tm_transform_clone): Transform functions with
+	indirect calls.
+
+2012-05-21  H.J. Lu  <hongjiu.lu@intel.com>
+
+	Backport from mainline
+	2012-05-21  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR target/53416
+	* config/i386/i386.md (UNSPEC_RDRAND): Renamed to ...
+	(UNSPECV_RDRAND): This.
+	(rdrand<mode>_1): Updated.
+
+2012-05-20  H.J. Lu  <hongjiu.lu@intel.com>
+
+	Backport from mainline
+	2012-05-20  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* config/i386/driver-i386.c (host_detect_local_cpu): Support
+	RDRND, F16C and FSGSBASE.
+
+2012-05-19  Eric Botcazou  <ebotcazou@adacore.com>
+
+	Backport from mainline
+	2012-05-14  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* tree-ssa-pre.c (can_value_number_call): Delete.
+	(compute_avail): Skip all statements with side effects.
+	<GIMPLE_CALL>: Skip calls to internal functions.
+
+2012-05-18  David S. Miller  <davem@davemloft.net>
+
+	Backport r185385 from mainline
+	2012-03-14  Richard Guenther  <rguenther@suse.de>
+
+	PR middle-end/52584
+	* tree-vect-generic.c (type_for_widest_vector_mode): Take
+	element type instead of mode, use build_vector_type_for_mode
+	instead of the langhook, build a vector of proper signedness.
+	(expand_vector_operations_1): Adjust.
+
+2012-05-18  Olivier Hainque  <hainque@adacore.com>
+
+	* Makefile.in (FLAGS_TO_PASS): Pass $(libexecsubdir) instead of
+	$(libsubdir) as libexecsubdir.
+
+2012-05-16  Andrew Pinski  <apinski@cavium.com>
+
+	* gimple-fold.c (get_maxval_strlen): Move COND_EXPR handling under
+	GIMPLE_ASSIGN.
+
+2012-05-16  David S. Miller  <davem@davemloft.net>
+
+	* jump.c (delete_related_insns): If we remove a CALL, make sure
+	we delete it's NOTE_INSN_CALL_ARG_LOCATION note too.
+
+2012-05-16  Richard Henderson  <rth@redhat.com>
+
+	PR debug/52727
+	* combine-stack-adj.c (prev_active_insn_bb): New.
+	(next_active_insn_bb): New.
+	(force_move_args_size_note): New.
+	(combine_stack_adjustments_for_block): Use it.
+
+2012-05-16  Olivier Hainque  <hainque@adacore.com>
+
+	* Makefile.in (install-no-fixedincludes): New target, former toplevel
+	gcc-no-fixedincludes. Stash "include-fixed" in addition to "include".
+	Add comments and improve stamp preservation across the whole sequence.
+	(stmp-int-hdrs): Use move-if-change + cp -p to setup fix_dir/limits.h.
+
+2012-05-16  Richard Guenther  <rguenther@suse.de>
+
+	PR tree-optimization/53364
+	* tree-ssa-alias.c (indirect_ref_may_alias_decl_p): Properly
+	detect a view-conversion of the decl.
+
 2012-05-15  Jakub Jelinek  <jakub@redhat.com>
 
 	PR target/53358

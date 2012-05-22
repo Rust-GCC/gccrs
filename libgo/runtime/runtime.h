@@ -7,7 +7,6 @@
 #include "config.h"
 
 #include "go-assert.h"
-#include <setjmp.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -128,7 +127,7 @@ struct	G
 	void*	gcnext_segment;
 	void*	gcnext_sp;
 	void*	gcinitial_sp;
-	jmp_buf	gcregs;
+	ucontext_t gcregs;
 	byte*	entry;		// initial function
 	G*	alllink;	// on allg
 	void*	param;		// passed parameter on wakeup
@@ -143,13 +142,15 @@ struct	G
 	M*	m;		// for debuggers, but offset not hard-coded
 	M*	lockedm;
 	M*	idlem;
-	// int32	sig;
+	int32	sig;
 	int32	writenbuf;
 	byte*	writebuf;
-	// uintptr	sigcode0;
-	// uintptr	sigcode1;
+	uintptr	sigcode0;
+	uintptr	sigcode1;
 	// uintptr	sigpc;
 	uintptr	gopc;	// pc of go statement that created this goroutine
+
+	G*	dotraceback;
 
 	ucontext_t	context;
 	void*		stack_context[10];
@@ -289,6 +290,11 @@ void*	runtime_mal(uintptr);
 void	runtime_schedinit(void);
 void	runtime_initsig(void);
 void	runtime_sigenable(uint32 sig);
+int32	runtime_gotraceback(void);
+void	runtime_goroutineheader(G*);
+void	runtime_goroutinetrailer(G*);
+void	runtime_traceback();
+void	runtime_tracebackothers(G*);
 String	runtime_gostringnocopy(const byte*);
 void*	runtime_mstart(void*);
 G*	runtime_malg(int32, byte**, size_t*);
@@ -434,6 +440,8 @@ void	runtime_osyield(void);
 void	runtime_LockOSThread(void) __asm__("runtime.LockOSThread");
 void	runtime_UnlockOSThread(void) __asm__("runtime.UnlockOSThread");
 
+bool	runtime_showframe(const unsigned char*);
+
 uintptr	runtime_memlimit(void);
 
 // If appropriate, ask the operating system to control whether this
@@ -468,3 +476,5 @@ void	__go_register_gc_roots(struct root_list*);
 // This will be 0 when using split stacks, as in that case
 // the stacks are allocated by the splitstack library.
 extern uintptr runtime_stacks_sys;
+
+extern _Bool __go_file_line (uintptr, String*, String*, int *);

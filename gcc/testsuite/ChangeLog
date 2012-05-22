@@ -1,3 +1,72 @@
+2012-05-22  Richard Guenther  <rguenther@suse.de>
+
+	PR tree-optimization/53408
+	* gcc.dg/torture/pr53408.c: New testcase.
+
+2012-05-22  Richard Guenther  <rguenther@suse.de>
+
+	PR middle-end/51071
+	* gcc.dg/torture/pr51071-2.c: New testcase.
+
+2012-05-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/53366
+	* gcc.dg/torture/pr53366-1.c: New test.
+	* gcc.dg/torture/pr53366-2.c: New test.
+	* gcc.target/i386/pr53366-1.c: New test.
+	* gcc.target/i386/pr53366-2.c: New test.
+
+	PR tree-optimization/53409
+	* gcc.c-torture/compile/pr53409.c: New test.
+
+	PR tree-optimization/53410
+	* gcc.c-torture/compile/pr53410-1.c: New test.
+	* gcc.c-torture/compile/pr53410-2.c: New test.
+
+2012-05-21  Joseph Myers  <joseph@codesourcery.com>
+
+	PR c/53418
+	* gcc.c-torture/compile/pr53418-1.c,
+	gcc.c-torture/compile/pr53418-2.c: New tests.
+
+2012-05-21  Patrick Marlier  <patrick.marlier@gmail.com>
+
+	* gcc.dg/tm/indirect-2.c: New test.
+
+2012-05-21  H.J. Lu  <hongjiu.lu@intel.com>
+
+	Backport from mainline
+	2012-05-21  Uros Bizjak  <ubizjak@gmail.com>
+		    H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR target/53416
+	* gcc.target/i386/pr53416.c: New file.
+
+2012-05-20  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/lto13.adb: New test.
+	* gnat.dg/lto13_pkg.ad[sb]: New helper.
+
+2012-05-18  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/specs/lto12.ads: New test.
+	* gnat.dg/specs/lto12_pkg.ads: New helper.
+
+2012-05-17  David S. Miller  <davem@davemloft.net>
+
+	* gfortran.dg/bessel_7.f90: Bump allowed precision to avoid
+	failure on sparc-*-linux-gnu.
+
+2012-05-16  Richard Henderson  <rth@redhat.com>
+
+	PR debug/52727
+	* g++.dg/opt/pr52727.C: New testcase.
+
+2012-05-16  Richard Guenther  <rguenther@suse.de>
+
+	PR tree-optimization/53364
+	* g++.dg/torture/pr53364.C: New testcase.
+
 2012-05-15  Jakub Jelinek  <jakub@redhat.com>
 
 	PR target/53358
