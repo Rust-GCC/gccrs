@@ -1,3 +1,82 @@
+2012-05-25  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR lto/52178
+	* tree-inline.c (remap_gimple_op_r): Fix handling of FIELD_DECL.
+	* tree.c (RETURN_TRUE_IF_VAR): Do not return true for PLACEHOLDER_EXPR.
+
+2012-05-25  Alexander Ivchenko  <alexander.ivchenko@intel.com>
+
+	PR target/53435
+	* config/i386/i386.c (ix86_expand_vec_perm): Use correct op.
+	(ix86_expand_vec_perm): Use int mode instead of float.
+
+2012-05-25  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/52362
+	* config.gcc (i[34567]86-*-mingw* | x86_64-*-mingw*): Set gas and
+	gnu_ld variables to yes.
+	* configure.ac (HAVE_GNU_LD): Move to after config.gcc inclusion.
+	(HAVE_GNU_AS): Likewise.
+	* config.in: Regenerate.
+	* configure: Likewise.
+
+2012-05-25  Ramana Radhakrishnan  <ramana.radhakrishnan@linaro.org>
+
+	Backport from mainline
+        2012-03-12  Richard Guenther  <rguenther@suse.de>
+	* config/arm/arm.c (neon_dereference_pointer): Do not call
+	covert during RTL expansion.
+
+2012-05-24  Bill Schmidt  <wschmidt@linux.vnet.ibm.com>
+
+	Backport from mainline
+        2012-05-18  Bill Schmidt  <wschmidt@linux.vnet.ibm.com>
+
+	PR target/53385
+	* config/rs6000/rs6000.c (print_operand): Revise code that unsafely
+	relied on signed overflow behavior.
+
+2012-05-24  Richard Guenther  <rguenther@suse.de>
+
+	PR middle-end/53460
+	* tree-profile.c (tree_profiling): Cleanup the CFG if
+	execute_fixup_cfg requests it.
+
+2012-05-24  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/53465
+	* tree-vrp.c (extract_range_from_cond_expr): First copy_value_range
+	vr0 into *vr, then vrp_meet that.
+	(vrp_meet): If one vr type is VR_UNDEFINED, ensure the result doesn't
+	have any equivalences.
+	(vrp_visit_phi_node): Call copy_value_range instead of vrp_meet the
+	first time.
+
+2012-05-23  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gimple.c (gimple_types_compatible_p_1) <ARRAY_TYPE>: Remove bogus
+	size handling.
+	(gimple_canonical_types_compatible_p) <ARRAY_TYPE>: Likewise.
+	(iterative_hash_gimple_type): Adjust comment.
+	(iterative_hash_canonical_type): Likewise.  Hash the bounds of the
+	domain for an array type instead of the domain type itself.
+
+2012-05-23  Georg-Johann Lay  <avr@gjlay.de>
+
+	Backport from 2012-05-23 mainline r187803
+
+	PR target/53448
+	* config/avr/avr.h (ASM_OUTPUT_ALIGN): Don't inhibit .p2align 1.
+	* config/avr/elf.h (ASM_OUTPUT_BEFORE_CASE_LABEL): Use
+	ASM_OUTPUT_ALIGN.
+
+2012-05-23  Ganesh Gopalasubramanian  <Ganesh.Gopalasubramanian@amd.com>
+
+	Backport from 2012-05-03 mainline r187075
+
+	* config/i386/driver-i386.c (host_detect_local_cpu): Reset
+	has_fma4 for AMD processors with both fma3 and fma4 support.
+
 2012-05-22  Richard Guenther  <rguenther@suse.de>
 
 	PR tree-optimization/53408
