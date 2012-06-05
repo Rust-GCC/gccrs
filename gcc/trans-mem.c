@@ -2585,6 +2585,7 @@ expand_block_edges (struct tm_region *region, basic_block bb)
 
   for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); )
     {
+      bool do_next = true;
       gimple stmt = gsi_stmt (gsi);
 
       /* ??? TM_COMMIT (and any other tm builtin function) in a nested
@@ -2606,6 +2607,7 @@ expand_block_edges (struct tm_region *region, basic_block bb)
 	      make_tm_edge (stmt, bb, region);
 	      bb = e->dest;
 	      gsi = gsi_start_bb (bb);
+	      do_next = false;
 	    }
 
 	  /* Delete any tail-call annotation that may have been added.
@@ -2614,7 +2616,8 @@ expand_block_edges (struct tm_region *region, basic_block bb)
 	  gimple_call_set_tail (stmt, false);
 	}
 
-      gsi_next (&gsi);
+      if (do_next)
+	gsi_next (&gsi);
     }
 }
 
@@ -4319,7 +4322,8 @@ ipa_tm_create_version_alias (struct cgraph_node *node, void *data)
 
   record_tm_clone_pair (old_decl, new_decl);
 
-  if (info->old_node->needed)
+  if (info->old_node->needed
+      || ipa_ref_list_first_refering (&info->old_node->ref_list))
     ipa_tm_mark_needed_node (new_node);
   return false;
 }
@@ -4372,7 +4376,8 @@ ipa_tm_create_version (struct cgraph_node *old_node)
   record_tm_clone_pair (old_decl, new_decl);
 
   cgraph_call_function_insertion_hooks (new_node);
-  if (old_node->needed)
+  if (old_node->needed
+      || ipa_ref_list_first_refering (&old_node->ref_list))
     ipa_tm_mark_needed_node (new_node);
 
   /* Do the same thing, but for any aliases of the original node.  */

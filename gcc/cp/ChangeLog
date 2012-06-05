@@ -1,3 +1,59 @@
+2012-06-04  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/53524
+	* call.c (build_conditional_expr_1): Use OPT_Wenum_compare
+	to control enumeral mismatch in conditional expression too.
+
+2012-06-01  Jason Merrill  <jason@redhat.com>
+
+	PR c++/52973
+	* parser.c (cp_parser_class_head): Apply attributes here.
+	* semantics.c (begin_class_definition): Not here.
+	* cp-tree.h: Adjust.
+
+	PR c++/52725
+	* parser.c (cp_parser_binary_expression): Bail early if we're parsing
+	tentatively and the LHS has a parse error.
+
+2012-06-01  Jason Merrill  <jason@redhat.com>
+
+	PR c++/53137
+	* pt.c (instantiate_class_template_1): Set LAMBDA_EXPR_THIS_CAPTURE.
+	(instantiate_decl): Don't push_to_top_level for local class methods.
+	(instantiate_class_template_1): Or for local classes.
+
+	PR c++/53484
+	* pt.c (do_auto_deduction): Don't try to deduce from a
+	type-dependent initializer.
+
+2012-05-31  Jason Merrill  <jason@redhat.com>
+
+	PR c++/53500
+	PR c++/52905
+	* call.c (joust): Handle comparing list and non-list ctors.
+
+2012-05-30  Jason Merrill  <jason@redhat.com>
+
+	PR c++/53356
+	* tree.c (stabilize_init): Side effects make the init unstable.
+
+2012-05-30  Jason Merrill  <jason@redhat.com>
+
+	PR c++/53220
+	* call.c (convert_like_real) [ck_list]: Take array address directly.
+	* typeck.c (decay_conversion): Reject decay of an array compound
+	literal.
+
+2012-05-29  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/53491
+	* tree.c (stabilize_expr): Handle exp of void type.
+
+2012-05-28  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/53503
+	* semantics.c (potential_constant_expression_1): Handle LTGT_EXPR.
+
 2012-05-15  Alexandre Oliva  <aoliva@redhat.com>
 
 	PR c++/53209

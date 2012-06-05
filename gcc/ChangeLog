@@ -1,3 +1,244 @@
+2012-06-04  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/53524
+	* doc/invoke.texi (Wenum-compare): Update documentation.
+
+2012-06-04  Edmar Wienskoski  <edmar@freescale.com>
+
+	PR target/53559
+	* config/rs6000/altivec.md (altivec_stvlx): Change machine mode of
+	operands.
+	(altivec_stvlxl): Ditto.
+	(altivec_stvrx): Ditto.
+	(altivec_stvrxl): Ditto.
+
+2012-06-04  Aldy Hernandez  <aldyh@redhat.com>
+
+	PR middle-end/47530
+	* trans-mem.c (expand_block_edges): Do not skip the first
+	statement when resetting the BB.
+
+2012-06-04  Richard Guenther  <rguenther@suse.de>
+
+	PR middle-end/53471
+	* dwarf2out.c (dwarf2out_finish): If generating LTO do not
+	create new assembler names.
+
+2012-06-04  Richard Guenther  <rguenther@suse.de>
+
+	Backport from mainline
+	2012-04-25  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/52979
+	* stor-layout.c (get_best_mode): Don't return mode with bitsize
+	larger than maxbits.  Don't compute maxbits modulo align.
+	Also check that unit bytes long store at bitpos / unit * unit
+	doesn't affect bits beyond bitregion_end.
+	* expmed.c (store_bit_field_1): Avoid trying insv if OP_MODE MEM
+	would not fit into bitregion_start ... bitregion_end + 1 bit
+	region.
+	(store_split_bit_field): Decrease unit close to end of bitregion_end
+	if access is restricted in order to avoid mutual recursion.
+
+2012-06-04  Georg-Johann Lay  <avr@gjlay.de>
+
+	Backport from 2012-06-04 mainline r188172
+
+	PR target/46261
+	* config/avr/avr-stdint.h: New file.
+	* config.gcc (avr-*-*,tm_file): Use avr/avr-stdint.h instead of
+	newlib-stdint.h
+
+2012-06-04  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/53550
+	* tree-ssa-loop-niter.c (number_of_iterations_cond): If type
+	is POINTER_TYPE_P, use sizetype as step type instead of type.
+
+2012-06-04  Richard Guenther  <rguenther@suse.de>
+	    Eric Botcazou  <ebotcazou@adacore.com>
+
+	Backport from mainline
+	2012-04-03  Eric Botcazou  <ebotcazou@adacore.com>
+
+        * expr.c (get_bit_range): Add OFFSET parameter and adjust BITPOS.
+        Change type of BITOFFSET to signed.  Make sure the lower bound of
+        the computed range is non-negative by adjusting OFFSET and BITPOS.
+        (expand_assignment): Adjust call to get_bit_range.
+
+	2012-03-27  Eric Botcazou  <ebotcazou@adacore.com>
+
+        * expr.c (get_bit_range): Return the null range if the enclosing record
+        is part of a larger bit field.
+
+	2012-03-20  Richard Guenther  <rguenther@suse.de>
+
+        * stor-layout.c (finish_bitfield_representative): Fallback
+        to conservative maximum size if the padding up to the next
+        field cannot be computed as a constant.
+        (finish_bitfield_layout): If we cannot compute the distance
+        between the start of the bitfield representative and the
+        bitfield member start a new representative.
+        * expr.c (get_bit_range): The distance between the start of
+        the bitfield representative and the bitfield member is zero
+        if the field offsets are not constants.
+
+	2012-03-16  Richard Guenther  <rguenther@suse.de>
+
+        * stor-layout.c (finish_bitfield_representative): Fall back
+        to the conservative maximum size if we cannot compute the
+        size of the tail padding.
+
+	2012-03-14  Richard Guenther  <rguenther@suse.de>
+
+	* tree.h (DECL_BIT_FIELD_REPRESENTATIVE): New define.
+	* stor-layout.c (start_bitfield_representative): New function.
+	(finish_bitfield_representative): Likewise.
+	(finish_bitfield_layout): Likewise.
+	(finish_record_layout): Call finish_bitfield_layout.
+	* tree.c (free_lang_data_in_decl): Only free DECL_QUALIFIER
+	for QUAL_UNION_TYPE fields.
+	* tree-streamer-in.c (lto_input_ts_field_decl_tree_pointers):
+	Stream DECL_BIT_FIELD_REPRESENTATIVE.
+	* tree-streamer-out.c (write_ts_field_decl_tree_pointers): Likewise.
+
+	PR middle-end/52080
+	PR middle-end/52097
+	PR middle-end/48124
+	* expr.c (get_bit_range): Unconditionally extract bitrange
+	from DECL_BIT_FIELD_REPRESENTATIVE.
+	(expand_assignment): Adjust call to get_bit_range.
+
+2012-06-01  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR middle-end/53501
+	* fold-const.c (fold_binary_loc): Refine previous change.
+
+2012-06-01  Oleg Endo  <olegendo@gcc.gnu.org>
+
+	Backport from mainline
+	2012-03-27  Chung-Lin Tang  <cltang@codesourcery.com>
+
+	PR target/52667
+	* config/sh/sh.c (find_barrier): Add equality check of last_got to
+	avoid going above orig insn.  Update comments.
+
+2012-06-01  Oleg Endo  <olegendo@gcc.gnu.org>
+
+	Backport from mainline
+	2012-03-21  Kaz Kojima  <kkojima@gcc.gnu.org>
+
+	PR target/52642
+	* config/sh/sh.c (sh_expand_prologue): Emit blockage at the end of
+	prologue for unwinder and profiler.
+
+2012-06-01  Oleg Endo  <olegendo@gcc.gnu.org>
+
+	Backport from mainline
+	2012-03-03  Kaz Kojima  <kkojima@gcc.gnu.org>
+
+	* config/sh/sh.md (abssi2): Add TARGET_SH1 condition.
+
+2012-06-01  Oleg Endo  <olegendo@gcc.gnu.org>
+
+	Backport from mainline
+	2012-03-03  Kaz Kojima  <kkojima@gcc.gnu.org>
+
+	* config/sh/sh.c (sh_dwarf_register_span): Don't apply
+	DBX_REGISTER_NUMBER.
+
+2012-06-01  Oleg Endo  <olegendo@gcc.gnu.org>
+
+	Backport from mainline
+	2012-03-03  Kaz Kojima  <kkojima@gcc.gnu.org>
+
+	* config/sh/sh.c (shiftcosts): Return MAX_COST when the first
+	operand is CONST_INT.  Take COSTS_N_INSNS into account.
+	(sh_rtx_costs): Don't apply COSTS_N_INSNS to the return value of
+	shiftcosts.	
+
+2012-05-31  Georg-Johann Lay  <avr@gjlay.de>
+
+	* config/avr/avr.opt (-msp8): Document it.
+	* doc/invoke.texi (AVR Options): Copy from trunk docu.
+
+2012-05-31  Richard Guenther  <rguenther@suse.de>
+
+	PR middle-end/48493
+	* expr.c (expand_assignment): Do not use movmisalign on
+	non-memory.
+
+2012-05-30  John David Anglin  <dave.anglin@nrc-cnrc.gc.ca>
+
+	PR target/52999
+	* config/pa/pa.c (TARGET_SECTION_TYPE_FLAGS): Define.
+	(pa_section_type_flags): New.
+	(pa_legitimate_constant_p): Revert previous change.
+
+2012-05-30  Aldy Hernandez  <aldyh@redhat.com>
+
+	Backport from mainline
+	2012-05-25  Aldy Hernandez  <aldyh@redhat.com>
+
+	PR middle-end/53008
+	* trans-mem.c (ipa_tm_create_version_alias): Output new_node if
+	accessed indirectly.
+	(ipa_tm_create_version): Same.
+
+2012-05-30  Jason Merrill  <jason@redhat.com>
+
+	PR c++/53220
+	* c-typeck.c (array_to_pointer_conversion): Give -Wc++-compat warning
+	about array compound literals.
+
+2012-05-30  Richard Guenther  <rguenther@suse.de>
+
+	PR middle-end/53501
+	* fold-const.c (fold_binary_loc): Make sure to call
+	fold_plusminus_mult_expr with the original sign of operands.
+
+2012-05-30  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* explow.c (probe_stack_range): Restore simple control flow and stop
+	again when the probe cannot be generated if HAVE_check_stack.
+
+2012-05-30  Jakub Jelinek  <jakub@redhat.com>
+
+	PR rtl-optimization/53519
+	* combine.c (simplify_shift_const_1) <case NOT>: Use constm1_rtx
+	instead of GEN_INT (GET_MODE_MASK (mode)) as second operand of XOR.
+
+2012-05-29  Richard Guenther  <rguenther@suse.de>
+
+	PR tree-optimization/53516
+	* tree-data-ref.c (stmt_with_adjacent_zero_store_dr_p): Reject
+	bitfield accesses.
+	* tree-vect-data-refs.c (vect_analyze_data_refs): Likewise.
+
+2012-05-28  Bill Schmidt  <wschmidt@linux.ibm.com>
+
+	Backport from mainline
+        2012-05-28  Richard Guenther  <rguenther@suse.de>
+
+	PR tree-optimization/53438
+	* tree-sra.c (analyze_access_subtree): Correct bitfield exclusion.
+
+2012-05-26  Eric Botcazou  <ebotcazou@adacore.com>
+
+	Backport from mainline
+	2012-03-10  Chung-Lin Tang  <cltang@codesourcery.com>
+
+	PR rtl-optimization/52528
+	* combine.c (can_combine_p): Add setting of subst_low_luid
+	before call to expand_field_assignment().
+
+2012-05-26  Martin Jambor  <mjambor@suse.cz>
+
+	Backport from mainline
+	2012-05-23  Martin Jambor  <mjambor@suse.cz>
+
+	* ipa-inline-analysis.c (inline_merge_summary): Free operand_map.
+
 2012-05-25  Eric Botcazou  <ebotcazou@adacore.com>
 
 	PR lto/52178

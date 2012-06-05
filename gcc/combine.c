@@ -1822,6 +1822,10 @@ can_combine_p (rtx insn, rtx i3, rtx pred ATTRIBUTE_UNUSED,
   if (set == 0)
     return 0;
 
+  /* The simplification in expand_field_assignment may call back to
+     get_last_value, so set safe guard here.  */
+  subst_low_luid = DF_INSN_LUID (insn);
+
   set = expand_field_assignment (set);
   src = SET_SRC (set), dest = SET_DEST (set);
 
@@ -10295,8 +10299,7 @@ simplify_shift_const_1 (enum rtx_code code, enum machine_mode result_mode,
 	    break;
 
 	  /* Make this fit the case below.  */
-	  varop = gen_rtx_XOR (mode, XEXP (varop, 0),
-			       GEN_INT (GET_MODE_MASK (mode)));
+	  varop = gen_rtx_XOR (mode, XEXP (varop, 0), constm1_rtx);
 	  continue;
 
 	case IOR:

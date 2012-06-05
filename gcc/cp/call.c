@@ -4630,7 +4630,7 @@ build_conditional_expr_1 (tree arg1, tree arg2, tree arg3,
 	  && TREE_CODE (arg3_type) == ENUMERAL_TYPE)
         {
           if (complain & tf_warning)
-            warning (0, 
+            warning (OPT_Wenum_compare, 
                      "enumeral mismatch in conditional expression: %qT vs %qT",
                      arg2_type, arg3_type);
         }
@@ -5772,11 +5772,15 @@ convert_like_real (conversion *convs, tree expr, tree fn, int argnum,
 	  (elttype, cp_type_quals (elttype) | TYPE_QUAL_CONST);
 	array = build_array_of_n_type (elttype, len);
 	array = finish_compound_literal (array, new_ctor, complain);
+	/* Take the address explicitly rather than via decay_conversion
+	   to avoid the error about taking the address of a temporary.  */
+	array = cp_build_addr_expr (array, complain);
+	array = cp_convert (build_pointer_type (elttype), array);
 
 	/* Build up the initializer_list object.  */
 	totype = complete_type (totype);
 	field = next_initializable_field (TYPE_FIELDS (totype));
-	CONSTRUCTOR_APPEND_ELT (vec, field, decay_conversion (array));
+	CONSTRUCTOR_APPEND_ELT (vec, field, array);
 	field = next_initializable_field (DECL_CHAIN (field));
 	CONSTRUCTOR_APPEND_ELT (vec, field, size_int (len));
 	new_ctor = build_constructor (totype, vec);
@@ -8010,6 +8014,12 @@ joust (struct z_candidate *cand1, struct z_candidate *cand2, bool warn)
     {
       int static_1 = DECL_STATIC_FUNCTION_P (cand1->fn);
       int static_2 = DECL_STATIC_FUNCTION_P (cand2->fn);
+
+      if (DECL_CONSTRUCTOR_P (cand1->fn)
+	  && is_list_ctor (cand1->fn) != is_list_ctor (cand2->fn))
+	/* We're comparing a near-match list constructor and a near-match
+	   non-list constructor.  Just treat them as unordered.  */
+	return 0;
 
       gcc_assert (static_1 != static_2);
 
