@@ -550,8 +550,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       template<typename _Pair, typename = typename
 	std::enable_if<__and_<integral_constant<bool, !__constant_iterators>,
-			      std::is_convertible<_Pair,
-						  value_type>>::value>::type>
+			      std::is_constructible<value_type,
+						    _Pair&&>>::value>::type>
 	_Insert_Return_Type
 	insert(_Pair&& __v)
 	{ return _M_insert(std::forward<_Pair>(__v),
@@ -559,8 +559,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       template<typename _Pair, typename = typename
         std::enable_if<__and_<integral_constant<bool, !__constant_iterators>,
-			      std::is_convertible<_Pair,
-						  value_type>>::value>::type>
+			      std::is_constructible<value_type,
+						    _Pair&&>>::value>::type>
 	iterator
 	insert(const_iterator, _Pair&& __v)
 	{ return _Insert_Conv_Type()(insert(std::forward<_Pair>(__v))); }
@@ -760,11 +760,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	_M_element_count(0),
 	_M_rehash_policy()
       {
-	_M_bucket_count = std::max(_M_rehash_policy._M_next_bkt(__bucket_hint),
-				   _M_rehash_policy.
-				   _M_bkt_for_elements(__detail::
-						       __distance_fw(__f,
-								     __l)));
+	_M_bucket_count =
+	  _M_rehash_policy._M_bkt_for_elements(__detail::__distance_fw(__f,
+								       __l));
+	if (_M_bucket_count <= __bucket_hint)
+	  _M_bucket_count = _M_rehash_policy._M_next_bkt(__bucket_hint);
+
         // We don't want the rehash policy to ask for the hashtable to shrink
         // on the first insertion so we need to reset its previous resize
 	// level.
@@ -1582,10 +1583,20 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     rehash(size_type __n)
     {
       const _RehashPolicyState& __saved_state = _M_rehash_policy._M_state();
-      _M_rehash(std::max(_M_rehash_policy._M_next_bkt(__n),
-			 _M_rehash_policy._M_bkt_for_elements(_M_element_count
-							      + 1)),
-		__saved_state);
+      std::size_t __buckets
+	= _M_rehash_policy._M_bkt_for_elements(_M_element_count + 1);
+      if (__buckets <= __n)
+	__buckets = _M_rehash_policy._M_next_bkt(__n);
+
+      if (__buckets != _M_bucket_count)
+	{
+	  _M_rehash(__buckets, __saved_state);
+	  
+	  // We don't want the rehash policy to ask for the hashtable to shrink
+	  // on the next insertion so we need to reset its previous resize
+	  // level.
+	  _M_rehash_policy._M_prev_resize = 0;
+	}
     }
 
   template<typename _Key, typename _Value,

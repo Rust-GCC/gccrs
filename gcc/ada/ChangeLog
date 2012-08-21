@@ -1,3 +1,89 @@
+2012-07-19  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.c (gnat_to_gnu_entity) <object>: Try to ensure
+	that an object of CW type initialized to a value is sufficiently
+	aligned for this value.
+
+2012-07-19  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.c (gnat_to_gnu_entity) <E_Record_Subtype>: Do not
+	look up the REP part of the base type in advance.  Deal with that of
+	the variant types.
+	(get_rep_part): Be prepared for record types with fields.
+
+2012-07-03  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/trans.c (Call_to_gnu): Robustify test for function case
+	if the CICO mechanism is used.
+
+2012-07-03  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/utils2.c (build_simple_component_ref): Do not look
+	through an extension if the type contains a placeholder.
+
+2012-07-03  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_disp.adb (Expand_Dispatching_Call): Propagate the convention on
+	the designated subprogram type and also set Is_Dispatch_Table_Entity.
+	(Expand_Interface_Thunk): Propagate the convention on the thunk.
+	(Set_CPP_Constructors_Old): Set Is_Constructor and Convention_CPP on
+	the internal view of the constructors.
+	(Set_CPP_Constructors): Likewise.
+	* sem_prag.adb (Analyze_Pragma) <Pragma_CPP_Constructor>: Set the
+	convention on the function.
+	* gcc-interface/gigi.h (is_cplusplus_method): Declare.
+	* gcc-interface/decl.c (Has_Thiscall_Convention): New macro.
+	(gnat_to_gnu_entity) <E_Subprogram_Type>: Test it to set the `thiscall'
+	calling convention
+	(get_minimal_subprog_decl): Likewise.
+	(is_cplusplus_method): New predicate.
+	* gcc-interface/trans.c (Attribute_to_gnu) <Attr_Access>: Issue an
+	error on access to C++ constructor or member function.
+
+2012-07-03  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/utils.c (gnat_pushdecl): Set TYPE_CONTEXT for types
+	attached to a TYPE_DECL.
+
+2012-06-15  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/53592
+	* gcc-interface/gigi.h (maybe_vector_array): Make static inline.
+	* gcc-interface/utils.c (maybe_vector_array): Delete.
+	* gcc-interface/trans.c (gnat_to_gnu) <N_Indexed_Component>: Mark the
+	array object as addressable if it has vector type and is on the LHS.
+
+2012-06-14  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc-interface/Makefile.in (gnatlib-shared-default): Append
+	$(PICFLAG_FOR_TARGET) to GNATLIBCFLAGS_FOR_C passed to submake.
+
+2012-06-14  Release Manager
+
+	* GCC 4.7.1 released.
+
+2012-06-13  Eric Botcazou  <ebotcazou@adacore.com>
+
+	Revert
+	2012-05-19  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.c (Has_Thiscall_Convention): New macro.
+	(gnat_to_gnu_entity) <E_Subprogram_Type>: Test it to set the thiscall
+	calling convention
+	(get_minimal_subprog_decl): Likewise.
+	(gnat_first_param_is_class): New predicate.
+
+2012-06-12  Olivier Hainque  <hainque@adacore.com>
+
+	* gcc-interface/Makefile.in (GNATLIBCFLAGS_FOR_C): Remove
+	$(PIC_FLAG_FOR_TARGET).
+	(gnatlib-shared-default): Add $(PIC_FLAG_FOR_TARGET) to
+	GNATLIBCFLAGS_FOR_C passed to gnatlib.
+	(gnatlib-shared-win32): Likewise.
+	(gnatlib-shared-darwin): Likewise.
+	(gnatlib-shared-dual-win32): Pass PIC_FLAG_FOR_TARGET to
+	gnatlib-shared-win32.
+
 2012-05-26  Eric Botcazou  <ebotcazou@adacore.com>
 
 	* gcc-interface/decl.c (variant_desc): Rename 'record' to 'new_type'.

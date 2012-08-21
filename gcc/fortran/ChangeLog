@@ -1,3 +1,38 @@
+2012-07-06  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/53732
+	* trans-array.c (gfc_add_loop_ss_code): Disable self recursive calls
+	handling nested loop(s) if the subscript flag is true.
+
+2012-06-22  Tobias Burnus  <burnus@net-b.de>
+
+	Backport from mainline
+	2012-06-17  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/53691
+	PR fortran/53685
+	* check.c (gfc_calculate_transfer_sizes): Return if
+	SIZE= is not constant or source-size cannot be determined.
+
+2012-06-14  Tobias Burnus  <burnus@net-b.de>
+
+	Backport from mainline
+	2012-06-04  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/50619
+	* resolve.c (build_default_init_expr): Don't initialize
+	ASSOCIATE names.
+
+2012-06-14  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/53597
+	* decl.c (match_attr_spec): Only mark module variables
+	as SAVE_IMPLICIT for Fortran 2008 and later.
+
+2012-06-14  Release Manager
+
+	* GCC 4.7.1 released.
+
 2012-06-01  Tobias Burnus  <burnus@net-b.de>
 
 	PR fortran/53521

@@ -123,6 +123,10 @@ extern tree get_unpadded_type (Entity_Id gnat_entity);
    alias is already present, in which case it is returned instead.  */
 extern tree get_minimal_subprog_decl (Entity_Id gnat_entity);
 
+/* Return whether the E_Subprogram_Type/E_Function/E_Procedure GNAT_ENTITY is
+   a C++ imported method or equivalent.  */
+extern bool is_cplusplus_method (Entity_Id gnat_entity);
+
 /* Create a record type that contains a SIZE bytes long field of TYPE with a
     starting bit position so that it is aligned to ALIGN bits, and leaving at
     least ROOM bytes free before the field.  BASE_ALIGN is the alignment the
@@ -764,10 +768,6 @@ extern tree remove_conversions (tree exp, bool true_address);
    likewise return an expression pointing to the underlying array.  */
 extern tree maybe_unconstrained_array (tree exp);
 
-/* If EXP's type is a VECTOR_TYPE, return EXP converted to the associated
-   TYPE_REPRESENTATIVE_ARRAY.  */
-extern tree maybe_vector_array (tree exp);
-
 /* Return an expression that does an unchecked conversion of EXPR to TYPE.
    If NOTRUNC_P is true, truncation operations should be suppressed.  */
 extern tree unchecked_convert (tree type, tree expr, bool notrunc_p);
@@ -1013,3 +1013,17 @@ extern void enumerate_modes (void (*f) (const char *, int, int, int, int, int,
 
 /* Convenient shortcuts.  */
 #define VECTOR_TYPE_P(TYPE) (TREE_CODE (TYPE) == VECTOR_TYPE)
+
+/* If EXP's type is a VECTOR_TYPE, return EXP converted to the associated
+   TYPE_REPRESENTATIVE_ARRAY.  */
+
+static inline tree
+maybe_vector_array (tree exp)
+{
+  tree etype = TREE_TYPE (exp);
+
+  if (VECTOR_TYPE_P (etype))
+    exp = convert (TYPE_REPRESENTATIVE_ARRAY (etype), exp);
+
+  return exp;
+}

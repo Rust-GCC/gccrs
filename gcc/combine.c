@@ -8436,6 +8436,7 @@ force_to_mode (rtx x, enum machine_mode mode, unsigned HOST_WIDE_INT mask,
 	 in OP_MODE.  */
 
       if (CONST_INT_P (XEXP (x, 1))
+	  && INTVAL (XEXP (x, 1)) >= 0
 	  && INTVAL (XEXP (x, 1)) < HOST_BITS_PER_WIDE_INT
 	  && HWI_COMPUTABLE_MODE_P (op_mode))
 	{
@@ -10799,13 +10800,6 @@ gen_lowpart_for_combine (enum machine_mode omode, rtx x)
   rtx result;
 
   if (omode == imode)
-    return x;
-
-  /* Return identity if this is a CONST or symbolic reference.  */
-  if (omode == Pmode
-      && (GET_CODE (x) == CONST
-	  || GET_CODE (x) == SYMBOL_REF
-	  || GET_CODE (x) == LABEL_REF))
     return x;
 
   /* We can only support MODE being wider than a word if X is a

@@ -1,3 +1,162 @@
+2012-08-13  David Adler  <d.adler.s@gmail.com>
+
+	PR libstdc++/54185
+	* src/c++11/condition_variable.cc (condition_variable): Always
+	destroy native type in destructor.
+	* testsuite/30_threads/condition_variable/54185.cc: New.
+
+2012-08-06  Peter Bergner  <bergner@vnet.ibm.com>
+
+	PR libstdc++/54036
+	* include/decimal/decimal.h (_DEFINE_DECIMAL_UNARY_OP): Use _Op as
+	a unary operator.
+	* testsuite/decimal/pr54036-1.cc: New test.
+	* testsuite/decimal/pr54036-2.cc: Likewise.
+	* testsuite/decimal/pr54036-3.cc: Likewise.
+
+2012-08-02  Michael Hope  <michael.hope@linaro.org>
+
+	Backport from mainline r186389:
+	2012-04-12  Andreas Schwab  <schwab@linux-m68k.org>
+
+	* testsuite/Makefile.am (check_DEJAGNUnormal0): Run
+	prettyprinters.exp.
+	* testsuite/Makefile.in: Regenerated.
+
+2012-07-29  François Dumont  <fdumont@gcc.gnu.org>
+
+	PR libstdc++/54075
+	* include/bits/hashtable_policy.h
+	(_Prime_rehash_policy::_M_next_bkt): Add a growth factor set to 2
+	to boost growth in the number of buckets.
+	* testsuite/performance/23_containers/insert/unordered_set.cc: New.
+
+2012-07-26  François Dumont  <fdumont@gcc.gnu.org>
+
+	PR libstdc++/54075
+	* include/bits/hashtable.h
+	(_Hashtable<>::_Hashtable(_InputIterator, _InputIterator,
+	size_type, ...): Remove std::max usage to guarantee that hashtable
+	state is consistent with hash policy state.
+	(_Hashtable<>::rehash): Likewise. Set _M_prev_resize to 0 to avoid
+	the hashtable shrinking on next insertion.
+	* testsuite/23_containers/unordered_set/modifiers/reserve.cc: New.
+	* testsuite/23_containers/unordered_multiset/modifiers/reserve.cc: New.
+	* testsuite/23_containers/unordered_map/modifiers/reserve.cc: New.
+	* testsuite/23_containers/unordered_multimap/modifiers/reserve.cc: New.
+
+2012-07-20  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* testsuite/30_threads/thread/adl.cc: Add missing dg-requires.
+
+2012-07-16  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/53270
+	* include/ext/concurrence.h: Use NSDMI for gthreads types.
+	* include/ext/rope: Likewise. Destroy mutexes in destructors. Add
+	system_header pragma.
+
+	Revert:
+	2012-06-19  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/53270
+	* config/os/gnu-linux/os_defines.h: Disable static initializer macros
+	for gthreads types in C++11 mode.
+
+2012-07-16  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/53978
+	* include/bits/alloc_traits.h (allocator_traits): Define static
+	constants.
+	* include/bits/ptr_traits.h (pointer_traits): Likewise.
+	* include/ext/alloc_traits.h (__allocator_always_compares_equal):
+	Likewise.
+
+2012-07-13  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/53657
+	* include/bits/stl_pair.h (pair<>::pair(pair&&)): Declare defaulted,
+	per C++11.
+	* include/bits/stl_map.h (map<>::insert(_Pair&&), map<>::insert
+	(const_iterator, _Pair&&)): Constrain with std::is_constructible,
+	per LWG2005.
+	* include/bits/stl_multimap.h (multimap<>::insert(_Pair&&),
+	multimap<>::insert(const_iterator, _Pair&&)): Likewise.
+	* include/bits/hashtable_policy.h (_Insert<>::insert(_Pair&&),
+	_Insert<>::insert(const_iterator, _Pair&&)): Likewise.
+	* include/debug/unordered_map: Adjust.
+	* include/debug/map.h: Likewise.
+	* include/debug/multimap.h: Likewise.
+	* include/profile/unordered_map: Likewise.
+	* include/profile/map.h: Likewise.
+	* include/profile/multimap.h: Likewise.
+
+2012-07-07  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/53578
+	* include/ext/concurrence.h (__recursive_mutex::_S_destroy): Fix
+	narrowing conversion.
+	* include/std/mutex (__recursive_mutex_base::_S_destroy): Likewise.
+
+2012-07-06  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/53872
+	* include/std/thread (thread::_M_make_routine): Qualify make_shared
+	to prevent ADL.
+	* testsuite/30_threads/thread/adl.cc: New.
+
+2012-07-05  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/std/condition_variable: Update copyright years.
+
+2012-07-05  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/53830
+	* include/std/condition_variable (condition_variable_any::wait):
+	Move _Unlock type to class scope.
+	(condition_variable_any::wait_until): Reuse it.
+	* testsuite/30_threads/condition_variable_any/53830.cc: New.
+
+2012-07-02  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	Revert:
+	2011-10-04  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/49561
+	* include/bits/stl_list.h (_List_base<>::_List_impl::_M_size):
+	Add in C++0x mode.
+	(_List_base<>::_List_impl, _List_base<>::_M_get_node,
+	_List_base<>::_M_put_node, _List_base<>::_List_base(_List_base&&),
+	list<>::size, list<>::swap, list<>::splice): Use it.
+	(operator==(const list<>&, const list<>&)): Rewrite in C++0x mode.
+	* include/bits/list.tcc (list<>::erase): Likewise.
+	(list<>::merge): Adjust in C++0x mode.
+	* testsuite/23_containers/list/requirements/dr438/assign_neg.cc:
+	Adjust dg-error line number.
+	* testsuite/23_containers/list/requirements/dr438/insert_neg.cc:
+	Likewise.
+	* testsuite/23_containers/list/requirements/dr438/
+	constructor_1_neg.cc: Likewise.
+	* testsuite/23_containers/list/requirements/dr438/
+	constructor_2_neg.cc: Likewise.
+
+2012-06-19  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/53270
+	* config/os/gnu-linux/os_defines.h: Disable static initializer macros
+	for gthreads types in C++11 mode.
+
+2012-06-19  Jörg Sonnenberger <joerg@britannica.bec.de>
+	    Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/53678
+	* config/os/bsd/netbsd/ctype_base.h: Check for _CTYPE_U.
+	* testsuite/22_locale/ctype_base/53678.cc: New.
+
+2012-06-14  Release Manager
+
+	* GCC 4.7.1 released.
+
 2012-05-28  Paolo Carlini  <paolo.carlini@oracle.com>
 
 	PR c++/53503

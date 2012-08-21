@@ -211,6 +211,16 @@ if ! grep '^const O_CLOEXEC' ${OUT} >/dev/null 2>&1; then
   echo "const O_CLOEXEC = 0" >> ${OUT}
 fi
 
+# These flags can be lost on i386 GNU/Linux when using
+# -D_FILE_OFFSET_BITS=64, because we see "#define F_SETLK F_SETLK64"
+# before we see the definition of F_SETLK64.
+for flag in F_GETLK F_SETLK F_SETLKW; do
+  if ! grep "^const ${flag} " ${OUT} >/dev/null 2>&1 \
+      && grep "^const ${flag}64 " ${OUT} >/dev/null 2>&1; then
+    echo "const ${flag} = ${flag}64" >> ${OUT}
+  fi
+done
+
 # The signal numbers.
 grep '^const _SIG[^_]' gen-sysinfo.go | \
   grep -v '^const _SIGEV_' | \
@@ -522,10 +532,10 @@ grep '^const _DT_' gen-sysinfo.go |
 # The rusage struct.
 rusage=`grep '^type _rusage struct' gen-sysinfo.go`
 if test "$rusage" != ""; then
-  rusage=`echo $rusage | sed -e 's/type _rusage struct //' -e 's/[{}]//g'`
-  rusage=`echo $rusage | sed -e 's/^ *//'`
   # Remove anonymous unions from GNU/Linux <bits/resource.h>.
   rusage=`echo $rusage | sed -e 's/Godump_[0-9]* struct {\([^}]*\)};/\1/g'`
+  rusage=`echo $rusage | sed -e 's/type _rusage struct //' -e 's/[{}]//g'`
+  rusage=`echo $rusage | sed -e 's/^ *//'`
   nrusage=
   while test -n "$rusage"; do
     field=`echo $rusage | sed -e 's/^\([^;]*\);.*$/\1/'`

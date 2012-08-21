@@ -59,10 +59,10 @@
 #define Has_Stdcall_Convention(E) \
   (!TARGET_64BIT && Convention (E) == Convention_Stdcall)
 #define Has_Thiscall_Convention(E) \
-  (!TARGET_64BIT && gnat_first_param_is_class (E))
+  (!TARGET_64BIT && is_cplusplus_method (E))
 #else
 #define Has_Stdcall_Convention(E) (Convention (E) == Convention_Stdcall)
-#define Has_Thiscall_Convention(E) (gnat_first_param_is_class (E))
+#define Has_Thiscall_Convention(E) (is_cplusplus_method (E))
 #endif
 #else
 #define Has_Stdcall_Convention(E) 0
@@ -144,7 +144,6 @@ enum alias_set_op
 
 static void relate_alias_sets (tree, tree, enum alias_set_op);
 
-static bool gnat_first_param_is_class (Entity_Id) ATTRIBUTE_UNUSED;
 static bool allocatable_size_p (tree, bool);
 static void prepend_one_attribute_to (struct attrib **,
 				      enum attr_type, tree, tree, Node_Id);
@@ -912,6 +911,16 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, int definition)
 						debug_info_p);
 	  }
 
+	/* ??? If this is an object of CW type initialized to a value, try to
+	   ensure that the object is sufficient aligned for this value, but
+	   without pessimizing the allocation.  This is a kludge necessary
+	   because we don't support dynamic alignment.  */
+	if (align == 0
+	    && Ekind (Etype (gnat_entity)) == E_Class_Wide_Subtype
+	    && No (Renamed_Object (gnat_entity))
+	    && No (Address_Clause (gnat_entity)))
+	  align = get_target_system_allocator_alignment () * BITS_PER_UNIT;
+
 #ifdef MINIMUM_ATOMIC_ALIGNMENT
 	/* If the size is a constant and no alignment is specified, force
 	   the alignment to be the minimum valid atomic alignment.  The
@@ -921,7 +930,8 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, int definition)
 	   necessary and can interfere with constant replacement.  Finally,
 	   do not do it for Out parameters since that creates an
 	   size inconsistency with In parameters.  */
-	if (align == 0 && MINIMUM_ATOMIC_ALIGNMENT > TYPE_ALIGN (gnu_type)
+	if (align == 0
+	    && MINIMUM_ATOMIC_ALIGNMENT > TYPE_ALIGN (gnu_type)
 	    && !FLOAT_TYPE_P (gnu_type)
 	    && !const_flag && No (Renamed_Object (gnat_entity))
 	    && !imported_p && No (Address_Clause (gnat_entity))
@@ -3289,9 +3299,6 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, int definition)
 	      else
 		gnu_unpad_base_type = gnu_base_type;
 
-	      /* Look for a REP part in the base type.  */
-	      gnu_rep_part = get_rep_part (gnu_unpad_base_type);
-
 	      /* Look for a variant part in the base type.  */
 	      gnu_variant_part = get_variant_part (gnu_unpad_base_type);
 
@@ -3419,7 +3426,7 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, int definition)
 		       and put the field either in the new type if there is a
 		       selected variant or in one of the new variants.  */
 		    if (gnu_context == gnu_unpad_base_type
-		        || (gnu_rep_part
+		        || ((gnu_rep_part = get_rep_part (gnu_unpad_base_type))
 			    && gnu_context == TREE_TYPE (gnu_rep_part)))
 		      gnu_cont_type = gnu_type;
 		    else
@@ -3430,7 +3437,9 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, int definition)
 			t = NULL_TREE;
 			FOR_EACH_VEC_ELT_REVERSE (variant_desc,
 						  gnu_variant_list, ix, v)
-			  if (v->type == gnu_context)
+			  if (gnu_context == v->type
+			      || ((gnu_rep_part = get_rep_part (v->type))
+				  && gnu_context == TREE_TYPE (gnu_rep_part)))
 			    {
 			      t = v->type;
 			      break;
@@ -5357,58 +5366,34 @@ rest_of_type_decl_compilation_no_defer (tree decl)
     }
 }
 
-/* Return whether the E_Subprogram_Type/E_Function/E_Procedure GNAT_ENTITY has
-   a first parameter with a class or equivalent type.
+/* Return whether the E_Subprogram_Type/E_Function/E_Procedure GNAT_ENTITY is
+   a C++ imported method or equivalent.
 
    We use the predicate on 32-bit x86/Windows to find out whether we need to
    use the "thiscall" calling convention for GNAT_ENTITY.  This convention is
-   the one set for C++ methods (functions with METHOD_TYPE) by the back-end.
-   Now in Ada primitive operations are regular subprograms (e.g. you can have
-   common pointers to both) so we cannot compute an equivalent of METHOD_TYPE
-   and so we set the calling convention in an uniform way.  */
+   used for C++ methods (functions with METHOD_TYPE) by the back-end.  */
 
-static bool
-gnat_first_param_is_class (Entity_Id gnat_entity)
+bool
+is_cplusplus_method (Entity_Id gnat_entity)
 {
-  Entity_Id gnat_param = First_Formal_With_Extras (gnat_entity);
-  Entity_Id gnat_type;
-  Node_Id node;
+  if (Convention (gnat_entity) != Convention_CPP)
+    return False;
 
-  if (No (gnat_param))
-    return false;
+  /* This is the main case: C++ method imported as a primitive operation.  */
+  if (Is_Dispatching_Operation (gnat_entity))
+    return True;
 
-  gnat_type = Underlying_Type (Etype (gnat_param));
-
-  /* This is the main case.  Note that we must return the same value for
-     regular tagged types and CW types since dispatching calls have a CW
-     type on the caller side and a tagged type on the callee side.  */
-  if (Is_Tagged_Type (gnat_type))
+  /* A thunk needs to be handled like its associated primitive operation.  */
+  if (Is_Subprogram (gnat_entity) && Is_Thunk (gnat_entity))
     return True;
 
   /* C++ classes with no virtual functions can be imported as limited
      record types, but we need to return true for the constructors.  */
-  if (Is_CPP_Class (gnat_type))
+  if (Is_Constructor (gnat_entity))
     return True;
 
-  /* The language-level "protected" calling convention doesn't distinguish
-     tagged protected types from non-tagged protected types (e.g. you can
-     have common pointers to both) so we must use a single low-level calling
-     convention for it.  Since tagged protected types can be derived from
-     simple limited interfaces, we need to pick the calling convention of
-     the latters.  */
-  if (Is_Protected_Record_Type (gnat_type))
-    return True;
-
-  /* If this is the special E_Subprogram_Type built for the declaration of
-     an access to protected subprogram type, the first parameter will have
-     type Address, but we must return true to be consistent with above.  */
-  if (Is_Itype (gnat_entity)
-      && Present (node = Associated_Node_For_Itype (gnat_entity))
-      && Nkind (node) == N_Full_Type_Declaration
-      && Ekind (Defining_Identifier (node)) == E_Access_Subprogram_Type
-      && Present (node = Original_Access_Type (Defining_Identifier (node)))
-      && (Ekind (node) == E_Access_Protected_Subprogram_Type
-	  || Ekind (node) == E_Anonymous_Access_Protected_Subprogram_Type))
+  /* This is set on the E_Subprogram_Type built for a dispatching call.  */
+  if (Is_Dispatch_Table_Entity (gnat_entity))
     return True;
 
   return False;
@@ -8923,7 +8908,8 @@ get_rep_part (tree record_type)
 
   /* The REP part is the first field, internal, another record, and its name
      starts with an 'R'.  */
-  if (DECL_INTERNAL_P (field)
+  if (field
+      && DECL_INTERNAL_P (field)
       && TREE_CODE (TREE_TYPE (field)) == RECORD_TYPE
       && IDENTIFIER_POINTER (DECL_NAME (field)) [0] == 'R')
     return field;

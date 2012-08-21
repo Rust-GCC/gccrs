@@ -1,3 +1,154 @@
+2012-07-20  Jason Merrill  <jason@redhat.com>
+
+	PR c++/54038
+	* tree.c (build_cplus_array_type): Use build_cplus_array_type to build
+	canonical array type rather than mess with its TYPE_*_VARIANT.
+
+2012-07-19  Jason Merrill  <jason@redhat.com>
+
+	PR c++/54026
+	* typeck.c (cp_apply_type_quals_to_decl): Check COMPLETE_TYPE_P.
+
+2012-07-18  Jason Merrill  <jason@redhat.com>
+
+	* method.c (process_subob_fn): Make sure no_implicit_p is non-null
+	before trying to store through it.
+
+2012-07-17  Jason Merrill  <jason@redhat.com>
+
+	PR c++/53995
+	* decl.c (finish_enum_value_list): Only call
+	insert_late_enum_def_into_classtype_sorted_fields in class scope.
+
+2012-07-17  Jason Merrill  <jason@redhat.com>
+
+	PR c++/53989
+	* tree.c (build_cplus_array_type): Also add TYPE_CANONICAL
+	to the list of variants.
+
+2012-07-17  Jason Merrill  <jason@redhat.com>
+
+	PR c++/53549
+	* parser.c (cp_parser_class_head): Call xref_basetypes here.
+	(cp_parser_class_specifier_1): Not here.
+	* pt.c (tsubst_decl) [USING_DECL]: Check uses_template_parms
+	as well as DECL_DEPENDENT_P.
+
+2012-07-13  Jason Merrill  <jason@redhat.com>
+
+	PR c++/53953
+	* method.c (synthesized_method_walk): Initialize no_implicit_p sooner.
+
+2012-07-10  Jason Merrill  <jason@redhat.com>
+
+	DR 1402
+	PR c++/53733
+	* cp-tree.h (FNDECL_SUPPRESS_IMPLICIT_DECL): New.
+	(struct lang_decl_fn): Add suppress_implicit_decl field.
+	* method.c (implicitly_declare_fn): Check it.
+	(process_subob_fn): Add no_implicit_p parm.
+	(walk_field_subobs, synthesized_method_walk): Likewise.
+	(maybe_explain_implicit_delete): Adjust.
+	(explain_implicit_non_constexpr): Adjust.
+
+	* method.c (synthesized_method_walk): Cleanups don't affect the EH
+	spec either.
+
+2012-07-02  Jason Merrill  <jason@redhat.com>
+
+	PR c++/53816
+	* class.c (resolves_to_fixed_type_p): Check uses_template_parms
+	(current_function_decl) instead of processing_template_decl.
+
+	PR c++/53821
+	* semantics.c (maybe_add_lambda_conv_op): Don't set
+	DECL_INTERFACE_KNOWN.
+
+2012-06-27  Fabien Chêne  <fabien@gcc.gnu.org>
+
+	PR c++/51214
+	* cp-tree.h (insert_late_enum_def_into_classtype_sorted_fields):
+	Declare.
+	* class.c (insert_into_classtype_sorted_fields): New.
+	(add_enum_fields_to_record_type): New.
+	(count_fields): Adjust the comment.
+	(add_fields_to_record_type): Likewise.
+	(finish_struct_1): Move the code that inserts the fields for the
+	sorted case, into insert_into_classtype_sorted_fields, and call
+	it.
+	(insert_late_enum_def_into_classtype_sorted_fields): Define.
+	* decl.c (finish_enum_value_list): Call
+	insert_late_enum_def_into_classtype_sorted_fields if a late enum
+	definition is encountered.
+
+2012-06-25  Jason Merrill  <jason@redhat.com>
+
+	PR c++/53498
+	PR c++/53305
+	* pt.c (tsubst_pack_expansion): Copy before dummy tsubst.
+
+	PR c++/52988
+	* typeck.c (decay_conversion): Don't discard side-effects from
+	expressions of nullptr_t.
+
+	PR c++/53202
+	* semantics.c (build_data_member_initialization): Always keep
+	initializer for empty base.
+	(cxx_eval_bare_aggregate): Discard it here.
+
+2012-06-25  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/53594
+	* class.c (check_bases_and_members): Avoid -Wuninitialized
+	diagnostics for non-static const members or references if they
+	use NSDMI.
+
+2012-06-19  Jason Merrill  <jason@redhat.com>
+
+	PR c++/53651
+	* name-lookup.c (constructor_name_p): Don't try to look at the
+	name of a DECLTYPE_TYPE.
+
+	Reapply:
+	PR c++/53137
+	* pt.c (instantiate_class_template_1): Set LAMBDA_EXPR_THIS_CAPTURE.
+	(instantiate_decl): Don't push_to_top_level for local class methods.
+	(instantiate_class_template_1): Or for local classes.
+
+	PR c++/53599
+	* pt.c (lookup_template_class_1): Use ts_global.
+
+2012-06-14  Richard Guenther  <rguenther@suse.de>
+
+	Backport from mainline
+	2012-06-11  Richard Guenther  <rguenther@suse.de>
+
+	PR c++/53616
+	* mangle.c (write_array_type): Use double-ints for array domain
+	arithmetic.
+
+2012-06-14  Richard Guenther  <rguenther@suse.de>
+
+	Backport from mainline
+	2012-06-06  Fabien Chêne  <fabien@gcc.gnu.org>
+
+	PR c++/52841
+	* parser.c (cp_parser_alias_declaration): Return earlier
+	if an error occured.
+
+2012-06-14  Release Manager
+
+	* GCC 4.7.1 released.
+
+2012-06-12  Jason Merrill  <jason@redhat.com>
+
+	PR c++/53599
+	Revert:
+	PR c++/53137
+	* pt.c (instantiate_class_template_1): Set LAMBDA_EXPR_THIS_CAPTURE.
+	(instantiate_decl): Don't push_to_top_level for local class methods.
+	(instantiate_class_template_1): Or for local classes.
+
 2012-06-04  Paolo Carlini  <paolo.carlini@oracle.com>
 
 	PR c++/53524

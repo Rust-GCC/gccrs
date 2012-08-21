@@ -184,6 +184,11 @@
 #			the --with-sysroot configure option or the
 #			--sysroot command line option is used this
 #			will be relative to the sysroot.
+# target_type_format_char 
+# 			The default character to be used for formatting
+#			the attribute in a
+#			.type symbol_name, ${t_t_f_c}<property>
+#			directive.
 
 # The following variables are used in each case-construct to build up the
 # outgoing variables:
@@ -235,6 +240,7 @@ target_gtfiles=
 need_64bit_hwint=
 need_64bit_isa=
 native_system_header_dir=/usr/include
+target_type_format_char='@'
 
 # Don't carry these over build->host->target.  Please.
 xm_file=
@@ -321,6 +327,7 @@ am33_2.0-*-linux*)
 arm*-*-*)
 	cpu_type=arm
 	extra_headers="mmintrin.h arm_neon.h"
+	target_type_format_char='%'
 	c_target_objs="arm-c.o"
 	cxx_target_objs="arm-c.o"
 	extra_options="${extra_options} arm/arm-tables.opt"
@@ -2507,6 +2514,7 @@ tilegx-*-linux*)
 	extra_objs="mul-tables.o"
 	c_target_objs="tilegx-c.o"
 	cxx_target_objs="tilegx-c.o"
+	extra_headers="feedback.h"
 	;;
 tilepro-*-linux*)
 	tm_file="elfos.h gnu-user.h linux.h glibc-stdint.h tilepro/linux.h ${tm_file}"
@@ -2514,6 +2522,17 @@ tilepro-*-linux*)
 	extra_objs="mul-tables.o"
 	c_target_objs="tilepro-c.o"
 	cxx_target_objs="tilepro-c.o"
+	extra_headers="feedback.h"
+	;;
+v850-*-rtems*)
+	target_cpu_default="TARGET_CPU_generic"
+	tm_file="dbxelf.h elfos.h v850/v850.h"
+	tm_file="${tm_file} rtems.h v850/rtems.h newlib-stdint.h"
+	tmake_file="${tmake_file} v850/t-v850"
+	tmake_file="${tmake_file} t-rtems v850/t-rtems"
+	use_collect2=no
+	c_target_objs="v850-c.o"
+	cxx_target_objs="v850-c.o"
 	;;
 v850*-*-*)
 	case ${target} in
