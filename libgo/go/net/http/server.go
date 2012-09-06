@@ -508,8 +508,16 @@ func (w *response) Write(data []byte) (n int, err error) {
 }
 
 func (w *response) finishRequest() {
-	// If this was an HTTP/1.0 request with keep-alive and we sent a Content-Length
-	// back, we can make this a keep-alive response ...
+	// If the handler never wrote any bytes and never sent a Content-Length
+	// response header, set the length explicitly to zero. This helps
+	// HTTP/1.0 clients keep their "keep-alive" connections alive, and for
+	// HTTP/1.1 clients is just as good as the alternative: sending a
+	// chunked response and immediately sending the zero-length EOF chunk.
+	if w.written == 0 && w.header.Get("Content-Length") == "" {
+		w.header.Set("Content-Length", "0")
+	}
+	// If this was an HTTP/1.0 request with keep-alive and we sent a
+	// Content-Length back, we can make this a keep-alive response ...
 	if w.req.wantsHttp10KeepAlive() {
 		sentLength := w.header.Get("Content-Length") != ""
 		if sentLength && w.header.Get("Connection") == "keep-alive" {
@@ -836,13 +844,15 @@ func RedirectHandler(url string, code int) Handler {
 // redirecting any request containing . or .. elements to an
 // equivalent .- and ..-free URL.
 type ServeMux struct {
-	mu sync.RWMutex
-	m  map[string]muxEntry
+	mu    sync.RWMutex
+	m     map[string]muxEntry
+	hosts bool // whether any patterns contain hostnames
 }
 
 type muxEntry struct {
 	explicit bool
 	h        Handler
+	pattern  string
 }
 
 // NewServeMux allocates and returns a new ServeMux.
@@ -883,8 +893,7 @@ func cleanPath(p string) string {
 
 // Find a handler on a handler map given a path string
 // Most-specific (longest) pattern wins
-func (mux *ServeMux) match(path string) Handler {
-	var h Handler
+func (mux *ServeMux) match(path string) (h Handler, pattern string) {
 	var n = 0
 	for k, v := range mux.m {
 		if !pathMatch(k, path) {
@@ -893,37 +902,59 @@ func (mux *ServeMux) match(path string) Handler {
 		if h == nil || len(k) > n {
 			n = len(k)
 			h = v.h
+			pattern = v.pattern
 		}
 	}
-	return h
+	return
 }
 
-// handler returns the handler to use for the request r.
-func (mux *ServeMux) handler(r *Request) Handler {
+// Handler returns the handler to use for the given request,
+// consulting r.Method, r.Host, and r.URL.Path. It always returns
+// a non-nil handler. If the path is not in its canonical form, the
+// handler will be an internally-generated handler that redirects
+// to the canonical path.
+//
+// Handler also returns the registered pattern that matches the
+// request or, in the case of internally-generated redirects,
+// the pattern that will match after following the redirect.
+//
+// If there is no registered handler that applies to the request,
+// Handler returns a ``page not found'' handler and an empty pattern.
+func (mux *ServeMux) Handler(r *Request) (h Handler, pattern string) {
+	if r.Method != "CONNECT" {
+		if p := cleanPath(r.URL.Path); p != r.URL.Path {
+			_, pattern = mux.handler(r.Host, p)
+			return RedirectHandler(p, StatusMovedPermanently), pattern
+		}
+	}
+
+	return mux.handler(r.Host, r.URL.Path)
+}
+
+// handler is the main implementation of Handler.
+// The path is known to be in canonical form, except for CONNECT methods.
+func (mux *ServeMux) handler(host, path string) (h Handler, pattern string) {
 	mux.mu.RLock()
 	defer mux.mu.RUnlock()
 
 	// Host-specific pattern takes precedence over generic ones
-	h := mux.match(r.Host + r.URL.Path)
-	if h == nil {
-		h = mux.match(r.URL.Path)
+	if mux.hosts {
+		h, pattern = mux.match(host + path)
 	}
 	if h == nil {
-		h = NotFoundHandler()
+		h, pattern = mux.match(path)
 	}
-	return h
+	if h == nil {
+		h, pattern = NotFoundHandler(), ""
+	}
+	return
 }
 
 // ServeHTTP dispatches the request to the handler whose
 // pattern most closely matches the request URL.
 func (mux *ServeMux) ServeHTTP(w ResponseWriter, r *Request) {
-	// Clean path to canonical form and redirect.
-	if p := cleanPath(r.URL.Path); p != r.URL.Path {
-		w.Header().Set("Location", p)
-		w.WriteHeader(StatusMovedPermanently)
-		return
-	}
-	mux.handler(r).ServeHTTP(w, r)
+	h, _ := mux.Handler(r)
+	h.ServeHTTP(w, r)
 }
 
 // Handle registers the handler for the given pattern.
@@ -942,14 +973,26 @@ func (mux *ServeMux) Handle(pattern string, handler Handler) {
 		panic("http: multiple registrations for " + pattern)
 	}
 
-	mux.m[pattern] = muxEntry{explicit: true, h: handler}
+	mux.m[pattern] = muxEntry{explicit: true, h: handler, pattern: pattern}
+
+	if pattern[0] != '/' {
+		mux.hosts = true
+	}
 
 	// Helpful behavior:
 	// If pattern is /tree/, insert an implicit permanent redirect for /tree.
 	// It can be overridden by an explicit registration.
 	n := len(pattern)
 	if n > 0 && pattern[n-1] == '/' && !mux.m[pattern[0:n-1]].explicit {
-		mux.m[pattern[0:n-1]] = muxEntry{h: RedirectHandler(pattern, StatusMovedPermanently)}
+		// If pattern contains a host name, strip it and use remaining
+		// path for redirect.
+		path := pattern
+		if pattern[0] != '/' {
+			// In pattern, at least the last character is a '/', so
+			// strings.Index can't be -1.
+			path = pattern[strings.Index(pattern, "/"):]
+		}
+		mux.m[pattern[0:n-1]] = muxEntry{h: RedirectHandler(path, StatusMovedPermanently), pattern: pattern}
 	}
 }
 
