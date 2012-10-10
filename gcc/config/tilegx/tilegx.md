@@ -250,7 +250,7 @@
 
 ;; Define an insn type attribute.  This defines what pipes things can go in.
 (define_attr "type"
-  "X0,X0_2cycle,X1,X1_branch,X1_2cycle,X1_L2,X1_miss,X01,Y0,Y0_2cycle,Y1,Y2,Y2_2cycle,Y2_L2,Y2_miss,Y01,cannot_bundle,cannot_bundle_3cycle,cannot_bundle_4cycle,nothing"
+  "X0,X0_2cycle,X1,X1_branch,X1_2cycle,X1_L2,X1_remote,X1_miss,X01,Y0,Y0_2cycle,Y1,Y2,Y2_2cycle,Y2_L2,Y2_miss,Y01,cannot_bundle,cannot_bundle_3cycle,cannot_bundle_4cycle,nothing"
   (const_string "Y01"))
 
 (define_attr "length" ""
@@ -408,7 +408,7 @@
 			(ss_minus "")
 			(us_minus "")
 			])
- 
+
 ;; <s> is the load/store extension suffix.
 (define_code_attr s [(zero_extend "u")
 		     (sign_extend "s")])
@@ -816,11 +816,11 @@
       bit_width = INTVAL (operands[2]);
       bit_offset = INTVAL (operands[3]);
 
-      /* Reject bitfields that can be done with a normal load */
+      /* Reject bitfields that can be done with a normal load.  */
       if (MEM_ALIGN (operands[1]) >= bit_offset + bit_width)
         FAIL;
 
-      /* The value in memory cannot span more than 8 bytes. */
+      /* The value in memory cannot span more than 8 bytes.  */
       first_byte_offset = bit_offset / BITS_PER_UNIT;
       last_byte_offset = (bit_offset + bit_width - 1) / BITS_PER_UNIT;
       if (last_byte_offset - first_byte_offset > 7)
@@ -845,7 +845,6 @@
   HOST_WIDE_INT bit_width = INTVAL (operands[2]);
   HOST_WIDE_INT bit_offset = INTVAL (operands[3]);
 
-
   if (MEM_P (operands[1]))
     {
       HOST_WIDE_INT first_byte_offset, last_byte_offset;
@@ -853,11 +852,11 @@
       if (GET_MODE (operands[1]) != QImode)
         FAIL;
 
-      /* Reject bitfields that can be done with a normal load */
+      /* Reject bitfields that can be done with a normal load.  */
       if (MEM_ALIGN (operands[1]) >= bit_offset + bit_width)
         FAIL;
 
-      /* The value in memory cannot span more than 8 bytes. */
+      /* The value in memory cannot span more than 8 bytes.  */
       first_byte_offset = bit_offset / BITS_PER_UNIT;
       last_byte_offset = (bit_offset + bit_width - 1) / BITS_PER_UNIT;
       if (last_byte_offset - first_byte_offset > 7)
@@ -873,7 +872,7 @@
 
     if (bit_offset == 0)
       {
-	 /* Extracting the low bits is just a bitwise AND. */
+	 /* Extracting the low bits is just a bitwise AND.  */
 	 HOST_WIDE_INT mask = ((HOST_WIDE_INT)1 << bit_width) - 1;
 	 emit_insn (gen_anddi3 (operands[0], operands[1], GEN_INT (mask)));
 	 DONE;
@@ -891,7 +890,7 @@
   [(set (match_operand:DI 0 "register_operand" "")
 	(const:DI (unspec:DI [(match_operand:DI 1 "symbolic_operand" "")]
 			     UNSPEC_HW2_LAST)))])
-  
+
 ;; Second step of the 3-insn sequence to materialize a symbolic
 ;; address.
 (define_expand "mov_address_step2"
@@ -947,7 +946,7 @@
   "%1 = . + 8\n\tlnk\t%0"
   [(set_attr "type" "Y1")])
 
-;; First step of the 3-insn sequence to materialize a position
+;; The next three patterns are used to to materialize a position
 ;; independent address by adding the difference of two labels to a
 ;; base label in the text segment, assuming that the difference fits
 ;; in 32 signed bits.
@@ -959,10 +958,6 @@
                         UNSPEC_HW1_LAST_PCREL)))]
   "flag_pic")
   
-;; Second step of the 3-insn sequence to materialize a position
-;; independent address by adding the difference of two labels to a
-;; base label in the text segment, assuming that the difference fits
-;; in 32 signed bits.
 (define_expand "mov_pcrel_step2<bitsuffix>"
   [(set (match_operand:I48MODE 0 "register_operand" "")
 	(unspec:I48MODE
@@ -973,11 +968,7 @@
 			   UNSPEC_HW0_PCREL))]
 	 UNSPEC_INSN_ADDR_SHL16INSLI))]
   "flag_pic")
-  
-;; Third step of the 3-insn sequence to materialize a position
-;; independent address by adding the difference of two labels to a base
-;; label in the text segment, assuming that the difference fits in 32
-;; signed bits.
+
 (define_insn "mov_pcrel_step3<bitsuffix>"
   [(set (match_operand:I48MODE 0 "register_operand" "=r")
         (unspec:I48MODE [(match_operand:I48MODE 1 "reg_or_0_operand" "rO")
@@ -1334,7 +1325,6 @@
 
   DONE;
 })
-
 
 (define_expand "subdf3"
   [(set (match_operand:DF 0 "register_operand" "")
@@ -1708,7 +1698,6 @@
   "ctz\t%0, %r1"
   [(set_attr "type" "Y0")])
 
-
 (define_insn "popcount<mode>2"
   [(set (match_operand:I48MODE 0 "register_operand" "=r")
 	(popcount:I48MODE (match_operand:DI 1 "reg_or_0_operand" "rO")))]
@@ -1937,7 +1926,7 @@
 (define_insn "*zero_extendsidi_truncdisi"
   [(set (match_operand:DI 0 "register_operand" "=r")
 	(zero_extend:DI
-	 (truncate:SI (match_operand:DI 1 "reg_or_0_operand" "0"))))]
+	 (truncate:SI (match_operand:DI 1 "reg_or_0_operand" "rO"))))]
   ""
   "v4int_l\t%0, zero, %r1"
   [(set_attr "type" "X01")])
@@ -2008,7 +1997,7 @@
   shruxi\t%0, %r1, %2
   shrux\t%0, %r1, %r2"
   [(set_attr "type" "X01,X01")])
-  
+
 (define_insn "*lshrsi_truncdisi2"
   [(set (match_operand:SI 0 "register_operand" "=r")
 	(lshiftrt:SI
@@ -2213,7 +2202,8 @@
 ;; Loops
 ;;
 
-;; Define the subtract-one-and-jump insns so loop.c knows what to generate.
+;; Define the subtract-one-and-jump insns so loop.c knows what to
+;; generate.
 (define_expand "doloop_end"
   [(use (match_operand 0 "" ""))    ;; loop pseudo
    (use (match_operand 1 "" ""))    ;; iterations; zero if unknown
@@ -2481,8 +2471,8 @@
  [(set_attr "type" "*,*,X01")])
 
 ;; Used for move sp, r52, to pop a stack frame.  We need to make sure
-;; that stack frame memory operations have been issued before we do this.
-;; TODO: see above TODO.
+;; that stack frame memory operations have been issued before we do
+;; this.  TODO: see above TODO.
 (define_insn "sp_restore<bitsuffix>"
   [(set (match_operand:I48MODE 0 "register_operand" "=r")
         (match_operand:I48MODE 1 "register_operand" "r"))
@@ -2627,7 +2617,7 @@
   "bfextu\t%0, %r1, %2, %3"
   [(set_attr "type" "X0")])
 
-(define_insn "*bfins"
+(define_insn "insn_bfins"
   [(set (match_operand:DI 0 "register_operand" "=r")
         (unspec:DI [(match_operand:DI 1 "reg_or_0_operand" "0")
                     (match_operand:DI 2 "reg_or_0_operand" "rO")
@@ -2637,36 +2627,6 @@
    ""
    "bfins\t%0, %r2, %3, %4"
    [(set_attr "type" "X0")])
-
-(define_expand "insn_bfins"
-  [(set (match_operand:DI 0 "register_operand" "")
-        (unspec:DI [(match_operand:DI 1 "reg_or_0_operand" "")
-                    (match_operand:DI 2 "reg_or_0_operand" "")
-                    (match_operand:DI 3 "u6bit_cint_operand" "")
-                    (match_operand:DI 4 "u6bit_cint_operand" "")]
-                   UNSPEC_INSN_BFINS))]
-  "INTVAL (operands[3]) != 64"
-{
-  HOST_WIDE_INT first = INTVAL (operands[3]);
-  HOST_WIDE_INT last = INTVAL (operands[4]);
-
-  if (last >= first)
-    {
-      /* This is not a wacky wraparound case, so we can express this
-         as a standard insv. */
-      if (operands[0] != operands[1])
-        {
-	  operands[2] = make_safe_from (operands[2], operands[0]);
-	  emit_move_insn (operands[0], operands[1]);
-	}
-
-      emit_insn (gen_insv (operands[0],
-			   GEN_INT (last - first + 1), operands[3],
-			   operands[2]));
-
-      DONE;
-    }
-})
 
 (define_insn "insn_cmpexch<four_if_si>"
   [(set (match_operand:I48MODE 0 "register_operand" "=r")
@@ -2679,7 +2639,7 @@
 	 UNSPEC_INSN_CMPEXCH))]
   ""
   "cmpexch<four_if_si>\t%0, %r1, %r2"
-  [(set_attr "type" "X1_L2")])
+  [(set_attr "type" "X1_remote")])
 
 (define_insn "insn_cmul"
   [(set (match_operand:DI 0 "register_operand" "=r")
@@ -2817,7 +2777,7 @@
 	 UNSPEC_INSN_EXCH))]
   ""
   "exch<four_if_si>\t%0, %r1, %r2"
-  [(set_attr "type" "X1_2cycle")])
+  [(set_attr "type" "X1_remote")])
 
 (define_insn "insn_fdouble_add_flags"
   [(set (match_operand:DI 0 "register_operand" "=r")
@@ -2903,7 +2863,7 @@
                       (match_operand:I48MODE 2 "reg_or_0_operand" "rO")))]
   ""
   "fetchadd<four_if_si>\t%0, %r1, %r2"
-  [(set_attr "type" "X1_2cycle")])
+  [(set_attr "type" "X1_remote")])
 
 (define_insn "insn_fetchaddgez<four_if_si>"
   [(set (match_operand:I48MODE 0 "register_operand" "=r")
@@ -2916,7 +2876,7 @@
                         UNSPEC_INSN_FETCHADDGEZ))]
   ""
   "fetchaddgez<four_if_si>\t%0, %r1, %r2"
-  [(set_attr "type" "X1_2cycle")])
+  [(set_attr "type" "X1_remote")])
 
 (define_insn "insn_fetchand<four_if_si>"
   [(set (match_operand:I48MODE 0 "register_operand" "=r")
@@ -2928,7 +2888,7 @@
                      (match_operand:I48MODE 2 "reg_or_0_operand" "rO")))]
   ""
   "fetchand<four_if_si>\t%0, %r1, %r2"
-  [(set_attr "type" "X1_2cycle")])
+  [(set_attr "type" "X1_remote")])
 
 (define_insn "insn_fetchor<four_if_si>"
   [(set (match_operand:I48MODE 0 "register_operand" "=r")
@@ -2940,7 +2900,7 @@
                      (match_operand:I48MODE 2 "reg_or_0_operand" "rO")))]
   ""
   "fetchor<four_if_si>\t%0, %r1, %r2"
-  [(set_attr "type" "X1_2cycle")])
+  [(set_attr "type" "X1_remote")])
 
 (define_insn "insn_finv"
   [(unspec_volatile:VOID [(match_operand 0 "pointer_operand" "rO")]

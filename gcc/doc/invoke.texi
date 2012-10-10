@@ -626,7 +626,7 @@ Objective-C and Objective-C++ Dialects}.
 -mincoming-stack-boundary=@var{num} @gol
 -mcld -mcx16 -msahf -mmovbe -mcrc32 @gol
 -mrecip -mrecip=@var{opt} @gol
--mvzeroupper @gol
+-mvzeroupper -mprefer-avx128 @gol
 -mmmx  -msse  -msse2 -msse3 -mssse3 -msse4.1 -msse4.2 -msse4 -mavx @gol
 -mavx2 -maes -mpclmul -mfsgsbase -mrdrnd -mf16c -mfma @gol
 -msse4a -m3dnow -mpopcnt -mabm -mbmi -mtbm -mfma4 -mxop -mlzcnt @gol
@@ -926,10 +926,10 @@ See RS/6000 and PowerPC Options.
 @gccoptlist{-Qy  -Qn  -YP,@var{paths}  -Ym,@var{dir}}
 
 @emph{TILE-Gx Options}
-@gccoptlist{-mcpu=CPU -m32 -m64}
+@gccoptlist{-mcpu=@var{cpu} -m32 -m64}
 
 @emph{TILEPro Options}
-@gccoptlist{-mcpu=CPU -m32}
+@gccoptlist{-mcpu=@var{cpu} -m32}
 
 @emph{V850 Options}
 @gccoptlist{-mlong-calls  -mno-long-calls  -mep  -mno-ep @gol
@@ -5524,7 +5524,9 @@ Dump after live range splitting.
 @opindex fdump-rtl-dfinish
 These dumps are defined but always produce empty files.
 
-@item -fdump-rtl-all
+@item -da
+@itemx -fdump-rtl-all
+@opindex da
 @opindex fdump-rtl-all
 Produce all the dumps listed above.
 
@@ -5540,11 +5542,6 @@ normal output.
 @item -dH
 @opindex dH
 Produce a core dump whenever an error occurs.
-
-@item -dm
-@opindex dm
-Print statistics on memory usage, at the end of the run, to
-standard error.
 
 @item -dp
 @opindex dp
@@ -11142,10 +11139,12 @@ section on @code{EIND} and linker stubs below.
 
 @item -mshort-calls
 @opindex mshort-calls
+This option has been deprecated and will be removed in GCC 4.8.
+See @code{-mrelax} for a replacement.
+
 Use @code{RCALL}/@code{RJMP} instructions even on devices with
 16@tie{}KiB or more of program memory, i.e.@: on devices that
 have the @code{CALL} and @code{JMP} instructions.
-See also the @code{-mrelax} command line option.
 
 @item -msp8
 @opindex msp8
@@ -11461,6 +11460,10 @@ address as if addressed by an instruction to access RAM like @code{LD}
 or @code{STS}. This offset depends on the device architecture and has
 to be subtracted from the RAM address in order to get the
 respective I/O@tie{}address.
+
+@item __WITH_AVRLIBC__
+The compiler is configured to be used together with AVR-Libc.
+See the @code{--with-avrlibc} configure option.
 
 @end table
 
@@ -13677,6 +13680,11 @@ This option instructs GCC to emit a @code{vzeroupper} instruction
 before a transfer of control flow out of the function to minimize
 AVX to SSE transition penalty as well as remove unnecessary zeroupper
 intrinsics.
+
+@item -mprefer-avx128
+@opindex mprefer-avx128
+This option instructs GCC to use 128-bit AVX instructions instead of
+256-bit AVX instructions in the auto-vectorizer.
 
 @item -mcx16
 @opindex mcx16

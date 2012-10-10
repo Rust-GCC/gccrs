@@ -10706,6 +10706,16 @@ tsubst_decl (tree t, tree args, tsubst_flags_t complain)
 	    break;
 	  }
 
+	if (TREE_CODE (t) == VAR_DECL && DECL_ANON_UNION_VAR_P (t))
+	  {
+	    /* Just use name lookup to find a member alias for an anonymous
+	       union, but then add it to the hash table.  */
+	    r = lookup_name (DECL_NAME (t));
+	    gcc_assert (DECL_ANON_UNION_VAR_P (r));
+	    register_local_specialization (r, t);
+	    break;
+	  }
+
 	/* Create a new node for the specialization we need.  */
 	r = copy_decl (t);
 	if (type == NULL_TREE)
@@ -19470,10 +19480,15 @@ value_dependent_expression_p (tree expression)
 
     case VAR_DECL:
        /* A constant with literal type and is initialized
-	  with an expression that is value-dependent.  */
+	  with an expression that is value-dependent.
+
+          Note that a non-dependent parenthesized initializer will have
+          already been replaced with its constant value, so if we see
+          a TREE_LIST it must be dependent.  */
       if (DECL_INITIAL (expression)
 	  && decl_constant_var_p (expression)
-	  && value_dependent_expression_p (DECL_INITIAL (expression)))
+	  && (TREE_CODE (DECL_INITIAL (expression)) == TREE_LIST
+	      || value_dependent_expression_p (DECL_INITIAL (expression))))
 	return true;
       return false;
 

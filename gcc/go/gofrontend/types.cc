@@ -430,7 +430,7 @@ Type::are_identical(const Type* t1, const Type* t2, bool errors_are_identical,
 
     case TYPE_CALL_MULTIPLE_RESULT:
       if (reason != NULL)
-	*reason = "invalid use of multiple value function call";
+	*reason = "invalid use of multiple-value function call";
       return false;
 
     default:
@@ -588,6 +588,9 @@ Type::are_compatible_for_comparison(bool is_equality_op, const Type *t1,
 	       p != fields->end();
 	       ++p)
 	    {
+	      if (Gogo::is_sink_name(p->field_name()))
+		continue;
+
 	      if (!p->type()->is_comparable())
 		{
 		  if (reason != NULL)
@@ -633,8 +636,8 @@ Type::are_assignable_check_hidden(const Type* lhs, const Type* rhs,
       if (rhs->is_call_multiple_result_type())
 	{
 	  if (reason != NULL)
-	    reason->assign(_("multiple value function call in "
-			     "single value context"));
+	    reason->assign(_("multiple-value function call in "
+			     "single-value context"));
 	  return false;
 	}
     }
@@ -1295,7 +1298,8 @@ Type::type_descriptor_var_name(Gogo* gogo, Named_type* nt)
     return "__go_td_" + this->mangled_name(gogo);
 
   Named_object* no = nt->named_object();
-  const Named_object* in_function = nt->in_function();
+  unsigned int index;
+  const Named_object* in_function = nt->in_function(&index);
   std::string ret = "__go_tdn_";
   if (nt->is_builtin())
     go_assert(in_function == NULL);
@@ -1310,6 +1314,13 @@ Type::type_descriptor_var_name(Gogo* gogo, Named_type* nt)
 	{
 	  ret.append(Gogo::unpack_hidden_name(in_function->name()));
 	  ret.append(1, '.');
+	  if (index > 0)
+	    {
+	      char buf[30];
+	      snprintf(buf, sizeof buf, "%u", index);
+	      ret.append(buf);
+	      ret.append(1, '.');
+	    }
 	}
     }
 
@@ -1746,9 +1757,19 @@ Type::specific_type_functions(Gogo* gogo, Named_type* name,
     {
       // This name is already hidden or not as appropriate.
       base_name = name->name();
-      const Named_object* in_function = name->in_function();
+      unsigned int index;
+      const Named_object* in_function = name->in_function(&index);
       if (in_function != NULL)
-	base_name += '$' + Gogo::unpack_hidden_name(in_function->name());
+	{
+	  base_name += '$' + Gogo::unpack_hidden_name(in_function->name());
+	  if (index > 0)
+	    {
+	      char buf[30];
+	      snprintf(buf, sizeof buf, "%u", index);
+	      base_name += '$';
+	      base_name += buf;
+	    }
+	}
     }
   std::string hash_name = base_name + "$hash";
   std::string equal_name = base_name + "$equal";
@@ -1989,10 +2010,19 @@ Type::uncommon_type_constructor(Gogo* gogo, Type* uncommon_type,
 				     ? gogo->pkgpath()
 				     : package->pkgpath());
 	  n.assign(pkgpath);
-	  if (name->in_function() != NULL)
+	  unsigned int index;
+	  const Named_object* in_function = name->in_function(&index);
+	  if (in_function != NULL)
 	    {
 	      n.append(1, '.');
-	      n.append(Gogo::unpack_hidden_name(name->in_function()->name()));
+	      n.append(Gogo::unpack_hidden_name(in_function->name()));
+	      if (index > 0)
+		{
+		  char buf[30];
+		  snprintf(buf, sizeof buf, "%u", index);
+		  n.append(1, '.');
+		  n.append(buf);
+		}
 	    }
 	  s = Expression::make_string(n, bloc);
 	  vals->push_back(Expression::make_unary(OPERATOR_AND, s, bloc));
@@ -4276,6 +4306,9 @@ Struct_type::do_compare_is_identity(Gogo* gogo) const
        pf != fields->end();
        ++pf)
     {
+      if (Gogo::is_sink_name(pf->field_name()))
+	return false;
+
       if (!pf->type()->compare_is_identity(gogo))
 	return false;
 
@@ -4530,6 +4563,20 @@ Struct_type::method_function(const std::string& name, bool* is_ambiguous) const
   return Type::method_function(this->all_methods_, name, is_ambiguous);
 }
 
+// Return a pointer to the interface method table for this type for
+// the interface INTERFACE.  IS_POINTER is true if this is for a
+// pointer to THIS.
+
+tree
+Struct_type::interface_method_table(Gogo* gogo,
+				    const Interface_type* interface,
+				    bool is_pointer)
+{
+  return Type::interface_method_table(gogo, this, interface, is_pointer,
+				      &this->interface_method_tables_,
+				      &this->pointer_interface_method_tables_);
+}
+
 // Convert struct fields to the backend representation.  This is not
 // declared in types.h so that types.h doesn't have to #include
 // backend.h.
@@ -4749,6 +4796,9 @@ Struct_type::write_hash_function(Gogo* gogo, Named_type*,
        pf != fields->end();
        ++pf)
     {
+      if (Gogo::is_sink_name(pf->field_name()))
+	continue;
+
       if (first)
 	first = false;
       else
@@ -4840,6 +4890,9 @@ Struct_type::write_equal_function(Gogo* gogo, Named_type* name)
        pf != fields->end();
        ++pf, ++field_index)
     {
+      if (Gogo::is_sink_name(pf->field_name()))
+	continue;
+
       // Compare one field in both P1 and P2.
       Expression* f1 = Expression::make_temporary_reference(p1, bloc);
       f1 = Expression::make_unary(OPERATOR_MULT, f1, bloc);
@@ -4875,14 +4928,15 @@ Struct_type::write_equal_function(Gogo* gogo, Named_type* name)
 void
 Struct_type::do_reflection(Gogo* gogo, std::string* ret) const
 {
-  ret->append("struct { ");
+  ret->append("struct {");
 
   for (Struct_field_list::const_iterator p = this->fields_->begin();
        p != this->fields_->end();
        ++p)
     {
       if (p != this->fields_->begin())
-	ret->append("; ");
+	ret->push_back(';');
+      ret->push_back(' ');
       if (p->is_anonymous())
 	ret->push_back('?');
       else
@@ -4915,7 +4969,10 @@ Struct_type::do_reflection(Gogo* gogo, std::string* ret) const
 	}
     }
 
-  ret->append(" }");
+  if (!this->fields_->empty())
+    ret->push_back(' ');
+
+  ret->push_back('}');
 }
 
 // Mangled name.
@@ -6815,7 +6872,8 @@ Interface_type::implements_interface(const Type* t, std::string* reason) const
 	      std::string n = Gogo::message_name(p->name());
 	      size_t len = 100 + n.length();
 	      char* buf = new char[len];
-	      snprintf(buf, len, _("method %s%s%s requires a pointer"),
+	      snprintf(buf, len,
+		       _("method %s%s%s requires a pointer receiver"),
 		       open_quote, n.c_str(), close_quote);
 	      reason->assign(buf);
 	      delete[] buf;
@@ -7151,7 +7209,17 @@ Interface_type::do_mangled_name(Gogo* gogo, std::string* ret) const
 	{
 	  if (!p->name().empty())
 	    {
-	      std::string n = Gogo::unpack_hidden_name(p->name());
+	      std::string n;
+	      if (!Gogo::is_hidden_name(p->name()))
+		n = p->name();
+	      else
+		{
+		  n = ".";
+		  std::string pkgpath = Gogo::hidden_name_pkgpath(p->name());
+		  n.append(Gogo::pkgpath_for_symbol(pkgpath));
+		  n.append(1, '.');
+		  n.append(Gogo::unpack_hidden_name(p->name()));
+		}
 	      char buf[20];
 	      snprintf(buf, sizeof buf, "%u_",
 		       static_cast<unsigned int>(n.length()));
@@ -7704,32 +7772,9 @@ tree
 Named_type::interface_method_table(Gogo* gogo, const Interface_type* interface,
 				   bool is_pointer)
 {
-  go_assert(!interface->is_empty());
-
-  Interface_method_tables** pimt = (is_pointer
-				    ? &this->interface_method_tables_
-				    : &this->pointer_interface_method_tables_);
-
-  if (*pimt == NULL)
-    *pimt = new Interface_method_tables(5);
-
-  std::pair<const Interface_type*, tree> val(interface, NULL_TREE);
-  std::pair<Interface_method_tables::iterator, bool> ins = (*pimt)->insert(val);
-
-  if (ins.second)
-    {
-      // This is a new entry in the hash table.
-      go_assert(ins.first->second == NULL_TREE);
-      ins.first->second = gogo->interface_method_table_for_type(interface,
-								this,
-								is_pointer);
-    }
-
-  tree decl = ins.first->second;
-  if (decl == error_mark_node)
-    return error_mark_node;
-  go_assert(decl != NULL_TREE && TREE_CODE(decl) == VAR_DECL);
-  return build_fold_addr_expr(decl);
+  return Type::interface_method_table(gogo, this, interface, is_pointer,
+				      &this->interface_method_tables_,
+				      &this->pointer_interface_method_tables_);
 }
 
 // Return whether a named type has any hidden fields.
@@ -8358,8 +8403,17 @@ Named_type::do_reflection(Gogo* gogo, std::string* ret) const
     }
   if (this->in_function_ != NULL)
     {
+      ret->push_back('\t');
       ret->append(Gogo::unpack_hidden_name(this->in_function_->name()));
       ret->push_back('$');
+      if (this->in_function_index_ > 0)
+	{
+	  char buf[30];
+	  snprintf(buf, sizeof buf, "%u", this->in_function_index_);
+	  ret->append(buf);
+	  ret->push_back('$');
+	}
+      ret->push_back('\t');
     }
   ret->append(Gogo::unpack_hidden_name(this->named_object_->name()));
 }
@@ -8389,6 +8443,13 @@ Named_type::do_mangled_name(Gogo* gogo, std::string* ret) const
 	{
 	  name.append(Gogo::unpack_hidden_name(this->in_function_->name()));
 	  name.append(1, '$');
+	  if (this->in_function_index_ > 0)
+	    {
+	      char buf[30];
+	      snprintf(buf, sizeof buf, "%u", this->in_function_index_);
+	      name.append(buf);
+	      name.append(1, '$');
+	    }
 	}
     }
   name.append(Gogo::unpack_hidden_name(no->name()));
@@ -8899,6 +8960,42 @@ Type::method_function(const Methods* methods, const std::string& name,
   return m;
 }
 
+// Return a pointer to the interface method table for TYPE for the
+// interface INTERFACE.
+
+tree
+Type::interface_method_table(Gogo* gogo, Type* type,
+			     const Interface_type *interface,
+			     bool is_pointer,
+			     Interface_method_tables** method_tables,
+			     Interface_method_tables** pointer_tables)
+{
+  go_assert(!interface->is_empty());
+
+  Interface_method_tables** pimt = is_pointer ? method_tables : pointer_tables;
+
+  if (*pimt == NULL)
+    *pimt = new Interface_method_tables(5);
+
+  std::pair<const Interface_type*, tree> val(interface, NULL_TREE);
+  std::pair<Interface_method_tables::iterator, bool> ins = (*pimt)->insert(val);
+
+  if (ins.second)
+    {
+      // This is a new entry in the hash table.
+      go_assert(ins.first->second == NULL_TREE);
+      ins.first->second = gogo->interface_method_table_for_type(interface,
+								type,
+								is_pointer);
+    }
+
+  tree decl = ins.first->second;
+  if (decl == error_mark_node)
+    return error_mark_node;
+  go_assert(decl != NULL_TREE && TREE_CODE(decl) == VAR_DECL);
+  return build_fold_addr_expr(decl);
+}
+
 // Look for field or method NAME for TYPE.  Return an Expression for
 // the field or method bound to EXPR.  If there is no such field or
 // method, give an appropriate error and return an error expression.
@@ -8990,7 +9087,7 @@ Type::bind_field_or_method(Gogo* gogo, const Type* type, Expression* expr,
 		 Gogo::message_name(name).c_str(), ambig1.c_str(),
 		 ambig2.c_str());
       else if (found_pointer_method)
-	error_at(location, "method requires a pointer");
+	error_at(location, "method requires a pointer receiver");
       else if (nt == NULL && st == NULL && it == NULL)
 	error_at(location,
 		 ("reference to field %qs in object which "

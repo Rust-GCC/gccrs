@@ -1,3 +1,151 @@
+2012-10-05 Pavel Chupin <pavel.v.chupin@intel.com>
+ 
+	        Fix missing gthr-default.h issue on separate libstdc++ configure
+	        * acinclude.m4: Define glibcxx_thread_h.
+	        * include/Makefile.am: Use glibcxx_thread_h.
+	        * Makefile.in: Regenerate.
+	        * configure: Regenerate.
+	        * doc/Makefile.in: Regenerate.
+	        * include/Makefile.in: Regenerate.
+	        * libsupc++/Makefile.in: Regenerate.
+	        * po/Makefile.in: Regenerate.
+	        * python/Makefile.in: Regenerate.
+	        * src/Makefile.in: Regenerate.
+	        * src/c++11/Makefile.in: Regenerate.
+	        * src/c++98/Makefile.in: Regenerate.
+	        * testsuite/Makefile.in: Regenerate.
+
+2012-09-20  Benjamin Kosnik  <bkoz@redhat.com>
+
+	PR libstdc++/54102, part 2
+	* doc/Makefile.am (XSL_HTML_STYLE): use xhtml, not html.
+	* doc/Makefile.in: Regenerate.
+	* doc/html/*: Same.
+
+2012-09-20  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* doc/html/*: Regenerate.
+
+2012-09-20  Benjamin Kosnik  <bkoz@redhat.com>
+
+	PR libstdc++/54102
+	* doc/xsl/customization.xsl.in: New.
+	* configure.ac: Output local copy of customization xsl.
+	* doc/Makefile.am (stamp-html-single-docbook): Use XSL_LOCAL_STYLE.
+	(stamp-html-docbook): Set stringparam to UTF-8.
+	* Makefile.in: Regenerated.
+	* configure: Same.
+	* doc/Makefile.in: Same.
+
+2012-09-20  Release Manager
+
+	* GCC 4.7.2 released.
+
+2012-09-11  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libstdc++/54172
+	* libsupc++/guard.cc (__cxa_guard_acquire): Fix up the last
+	argument of the first __atomic_compare_exchange_n.
+
+2012-09-09  Thiago Macieira  <thiago.macieira@intel.com>
+
+	PR libstdc++/54172
+        * libsupc++/guard.cc (__cxa_guard_acquire): Exit the loop earlier if
+        we detect that another thread has had success. Don't compare_exchange
+        from a finished state back to a waiting state. Comment.
+
+2012-09-09  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/54388
+	* include/std/array (array::at() const): Ensure lvalue result.
+	* testsuite/23_containers/array/element_access/54388.cc: New.
+
+2012-09-06  Marc Glisse  <marc.glisse@inria.fr>
+	    Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/54376
+	* include/bits/random.h (lognormal_distribution<>::operator==,
+	gamma_distribution<>::operator==,
+	chi_squared_distribution<>::operator==,
+	fisher_f_distribution<>::operator==,
+	student_t_distribution<>::operator==,
+	binomial_distribution<>::operator==,
+	negative_binomial_distribution<>::operator==,
+	poisson_distribution<>::operator==): Change inline friend definition
+	to non-template.
+	* testsuite/26_numerics/random/binomial_distribution/requirements/
+	explicit_instantiation/1.cc: New.
+	* testsuite/26_numerics/random/cauchy_distribution/requirements/
+	explicit_instantiation/1.cc: Likewise.
+	* testsuite/26_numerics/random/chi_squared_distribution/
+	requirements/explicit_instantiation/1.cc: Likewise.
+	* testsuite/26_numerics/random/discrete_distribution/requirements/
+	explicit_instantiation/1.cc: Likewise.
+	* testsuite/26_numerics/random/exponential_distribution/
+	requirements/explicit_instantiation/1.cc: Likewise.
+	* testsuite/26_numerics/random/extreme_value_distribution/
+	requirements/explicit_instantiation/1.cc: Likewise.
+	* testsuite/26_numerics/random/fisher_f_distribution/requirements/
+	explicit_instantiation/1.cc: Likewise.
+	* testsuite/26_numerics/random/gamma_distribution/requirements/
+	explicit_instantiation/1.cc: Likewise.
+	* testsuite/26_numerics/random/geometric_distribution/requirements/
+	explicit_instantiation/1.cc: Likewise.
+	* testsuite/26_numerics/random/lognormal_distribution/requirements/
+	explicit_instantiation/1.cc: Likewise.
+	* testsuite/26_numerics/random/negative_binomial_distribution/
+	requirements/explicit_instantiation/1.cc: Likewise.
+	* testsuite/26_numerics/random/normal_distribution/requirements/
+	explicit_instantiation/1.cc: Likewise.
+	* testsuite/26_numerics/random/piecewise_constant_distribution/
+	requirements/explicit_instantiation/1.cc: Likewise.
+	* testsuite/26_numerics/random/piecewise_linear_distribution/
+	requirements/explicit_instantiation/1.cc: Likewise.
+	* testsuite/26_numerics/random/poisson_distribution/requirements/
+	explicit_instantiation/1.cc: Likewise.
+	* testsuite/26_numerics/random/student_t_distribution/requirements/
+	explicit_instantiation/1.cc: Likewise.
+	* testsuite/26_numerics/random/uniform_int_distribution/
+	requirements/explicit_instantiation/1.cc: Likewise.
+	* testsuite/26_numerics/random/uniform_real_distribution/
+	requirements/explicit_instantiation/1.cc: Likewise.
+	* testsuite/26_numerics/random/weibull_distribution/requirements/
+	explicit_instantiation/1.cc: Likewise.
+
+2012-08-26  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* testsuite/30_threads/async/54297.cc: Add dg-require-nanosleep.
+
+2012-08-26  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/54297
+	* src/c++11/future.cc (~_Async_state_common): Move to...
+	* src/c++11/compatibility-thread-c++0x.cc (~_Async_state_common):
+	Here.
+	(_GLIBCXX_ABI_COMPAT_ASYNC): Rename to _GLIBCXX_ASYNC_ABI_COMPAT.
+	* include/std/future (_GLIBCXX_ABI_COMPAT_ASYNC): Likewise.
+
+2012-08-26  Jonathan Wakely  <jwakely.gcc@gmail.com>
+	    Geoff Romer  <gromer@google.com>
+
+	PR libstdc++/54351
+	* include/bits/unique_ptr.h (unique_ptr<T>::~unique_ptr): Do not use
+	reset().
+	(unique_ptr<T[]>::~unique_ptr()): Likewise.
+	* testsuite/20_util/unique_ptr/54351.cc: New.
+	* testsuite/20_util/unique_ptr/assign/48635_neg.cc: Adjust dg-error
+	line numbers.
+
+2012-08-25  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/54297
+	* include/std/future (~_Async_state_impl): Join thread before
+	derived class members are destroyed.
+	(~_Async_state_common): Only define non-trivial destructor when
+	included from future.cc for ABI compatibility reasons.
+	* src/c++11/future.cc (_GLIBCXX_ABI_COMPAT_ASYNC): Define.
+	* testsuite/30_threads/async/54297.cc: New.
+
 2012-08-13  David Adler  <d.adler.s@gmail.com>
 
 	PR libstdc++/54185

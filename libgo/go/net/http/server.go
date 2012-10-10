@@ -390,6 +390,11 @@ func (w *response) WriteHeader(code int) {
 	if !w.req.ProtoAtLeast(1, 0) {
 		return
 	}
+
+	if w.closeAfterReply && !hasToken(w.header.Get("Connection"), "close") {
+		w.header.Set("Connection", "close")
+	}
+
 	proto := "HTTP/1.0"
 	if w.req.ProtoAtLeast(1, 1) {
 		proto = "HTTP/1.1"
@@ -825,13 +830,13 @@ func RedirectHandler(url string, code int) Handler {
 // patterns and calls the handler for the pattern that
 // most closely matches the URL.
 //
-// Patterns named fixed, rooted paths, like "/favicon.ico",
+// Patterns name fixed, rooted paths, like "/favicon.ico",
 // or rooted subtrees, like "/images/" (note the trailing slash).
 // Longer patterns take precedence over shorter ones, so that
 // if there are handlers registered for both "/images/"
 // and "/images/thumbnails/", the latter handler will be
 // called for paths beginning "/images/thumbnails/" and the
-// former will receiver requests for any other paths in the
+// former will receive requests for any other paths in the
 // "/images/" subtree.
 //
 // Patterns may optionally begin with a host name, restricting matches to

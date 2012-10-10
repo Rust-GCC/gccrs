@@ -761,6 +761,7 @@ uniquify_nodes (struct data_in *data_in, unsigned from)
 	     variant list state before fixup is broken.  */
 	  tree tem, mv;
 
+#ifdef ENABLE_CHECKING
 	  /* Remove us from our main variant list if we are not the
 	     variant leader.  */
 	  if (TYPE_MAIN_VARIANT (t) != t)
@@ -768,10 +769,9 @@ uniquify_nodes (struct data_in *data_in, unsigned from)
 	      tem = TYPE_MAIN_VARIANT (t);
 	      while (tem && TYPE_NEXT_VARIANT (tem) != t)
 		tem = TYPE_NEXT_VARIANT (tem);
-	      if (tem)
-		TYPE_NEXT_VARIANT (tem) = TYPE_NEXT_VARIANT (t);
-	      TYPE_NEXT_VARIANT (t) = NULL_TREE;
+	      gcc_assert (!tem && !TYPE_NEXT_VARIANT (t));
 	    }
+#endif
 
 	  /* Query our new main variant.  */
 	  mv = GIMPLE_REGISTER_TYPE (TYPE_MAIN_VARIANT (t));
@@ -994,7 +994,6 @@ lto_resolution_read (splay_tree file_ids, FILE *resolution, lto_file *file)
   unsigned int num_symbols;
   unsigned int i;
   struct lto_file_decl_data *file_data;
-  unsigned max_index = 0;
   splay_tree_node nd = NULL; 
 
   if (!resolution)
@@ -1036,13 +1035,12 @@ lto_resolution_read (splay_tree file_ids, FILE *resolution, lto_file *file)
       unsigned int j;
       unsigned int lto_resolution_str_len =
 	sizeof (lto_resolution_str) / sizeof (char *);
+      res_pair rp;
 
       t = fscanf (resolution, "%u " HOST_WIDE_INT_PRINT_HEX_PURE " %26s %*[^\n]\n", 
 		  &index, &id, r_str);
       if (t != 3)
         internal_error ("invalid line in the resolution file");
-      if (index > max_index)
-	max_index = index;
 
       for (j = 0; j < lto_resolution_str_len; j++)
 	{
@@ -1064,11 +1062,13 @@ lto_resolution_read (splay_tree file_ids, FILE *resolution, lto_file *file)
 	}
 
       file_data = (struct lto_file_decl_data *)nd->value;
-      VEC_safe_grow_cleared (ld_plugin_symbol_resolution_t, heap, 
-			     file_data->resolutions,
-			     max_index + 1);
-      VEC_replace (ld_plugin_symbol_resolution_t, 
-		   file_data->resolutions, index, r);
+      /* The indexes are very sparse. To save memory save them in a compact
+         format that is only unpacked later when the subfile is processed. */
+      rp.res = r;
+      rp.index = index;
+      VEC_safe_push (res_pair, heap, file_data->respairs, &rp);
+      if (file_data->max_index < index)
+        file_data->max_index = index;
     }
 }
 
@@ -1148,6 +1148,18 @@ lto_file_finalize (struct lto_file_decl_data *file_data, lto_file *file)
 {
   const char *data;
   size_t len;
+  VEC(ld_plugin_symbol_resolution_t,heap) *resolutions = NULL;
+  int i;
+  res_pair *rp;
+
+  /* Create vector for fast access of resolution. We do this lazily
+     to save memory. */ 
+  VEC_safe_grow_cleared (ld_plugin_symbol_resolution_t, heap, 
+                            resolutions,
+                            file_data->max_index + 1);
+  for (i = 0; VEC_iterate (res_pair, file_data->respairs, i, rp); i++)
+    VEC_replace (ld_plugin_symbol_resolution_t, resolutions, rp->index, rp->res);
+  VEC_free (res_pair, heap, file_data->respairs);
 
   file_data->renaming_hash_table = lto_create_renaming_table ();
   file_data->file_name = file->filename;
@@ -1157,7 +1169,8 @@ lto_file_finalize (struct lto_file_decl_data *file_data, lto_file *file)
       internal_error ("cannot read LTO decls from %s", file_data->file_name);
       return;
     }
-  lto_read_decls (file_data, data, file_data->resolutions);
+  /* Frees resolutions */
+  lto_read_decls (file_data, data, resolutions);
   lto_free_section_data (file_data, LTO_section_decls, NULL, data, len);
 }
 

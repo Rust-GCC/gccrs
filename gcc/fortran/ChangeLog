@@ -1,3 +1,35 @@
+2012-09-20  Release Manager
+
+	* GCC 4.7.2 released.
+
+2012-09-13  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/54556
+	* resolve.c (resolve_formal_arglist): Allow VALUE arguments
+	with implicit_pure.
+	(gfc_impure_variable): Don't check gfc_pure such that the
+	function also works for gfc_implicit_pure procedures.
+
+2012-09-12  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/54225
+	PR fortran/53306
+	* array.c (match_subscript, gfc_match_array_ref): Fix
+	diagnostic of coarray's '*'.
+
+2012-09-10  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/54435
+	PR fortran/54443
+	* match.c (gfc_match_select_type): Make sure to only access CLASS_DATA
+	for BT_CLASS.
+
+2012-09-08  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/54208
+	* simplify.c (simplify_bound_dim): Resolve array spec before
+	proceeding with simplification.
+
 2012-07-06  Mikael Morin  <mikael@gcc.gnu.org>
 
 	PR fortran/53732

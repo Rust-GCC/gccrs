@@ -674,6 +674,16 @@ avr_regs_to_save (HARD_REG_SET *set)
   return count;
 }
 
+
+/* Implement `TARGET_ALLOCATE_STACK_SLOTS_FOR_ARGS' */
+
+static bool
+avr_allocate_stack_slots_for_args (void)
+{
+  return !cfun->machine->is_naked;
+}
+
+
 /* Return true if register FROM can be eliminated via register TO.  */
 
 static bool
@@ -6968,9 +6978,6 @@ avr_pgm_check_var_decl (tree node)
 
   if (reason)
     {
-      avr_edump ("%?: %s, %d, %d\n",
-                 avr_addrspace[as].name,
-                 avr_addrspace[as].segment, avr_current_device->n_flash);
       if (avr_addrspace[as].segment >= avr_current_device->n_flash)
         {
           if (TYPE_P (node))
@@ -9916,7 +9923,7 @@ avr_mem_clobber (void)
 static void
 avr_expand_delay_cycles (rtx operands0)
 {
-  unsigned HOST_WIDE_INT cycles = UINTVAL (operands0);
+  unsigned HOST_WIDE_INT cycles = UINTVAL (operands0) & GET_MODE_MASK (SImode);
   unsigned HOST_WIDE_INT cycles_used;
   unsigned HOST_WIDE_INT loop_count;
   
@@ -10929,6 +10936,9 @@ avr_fold_builtin (tree fndecl, int n_args ATTRIBUTE_UNUSED, tree *arg,
 #define TARGET_FRAME_POINTER_REQUIRED avr_frame_pointer_required_p
 #undef  TARGET_CAN_ELIMINATE
 #define TARGET_CAN_ELIMINATE avr_can_eliminate
+
+#undef  TARGET_ALLOCATE_STACK_SLOTS_FOR_ARGS
+#define TARGET_ALLOCATE_STACK_SLOTS_FOR_ARGS avr_allocate_stack_slots_for_args
 
 #undef  TARGET_CLASS_LIKELY_SPILLED_P
 #define TARGET_CLASS_LIKELY_SPILLED_P avr_class_likely_spilled_p
