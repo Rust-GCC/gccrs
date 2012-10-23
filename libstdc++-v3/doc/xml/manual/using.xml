@@ -847,17 +847,6 @@ g++ -Winvalid-pch -I. -include stdc++.h -H -g -O2 hello.cc -o test.exe
     </para>
     </listitem></varlistentry>
 
-    <varlistentry><term><code>_GLIBCXX_FORCE_NEW</code></term>
-    <listitem>
-      <para>
-	Undefined by default. When defined, memory allocation and
-	allocators controlled by libstdc++ call operator new/delete
-	without caching and pooling. Configurable via
-	<code>--enable-libstdcxx-allocator</code>. ABI-changing.
-      </para>
-    </listitem></varlistentry>
-
-
     <varlistentry><term><code>_GLIBCXX_CONCEPT_CHECKS</code></term>
     <listitem>
       <para>
@@ -1182,12 +1171,6 @@ A quick read of the relevant part of the GCC
 	    </para>
 	  </listitem>
 	  <listitem>
-	    <para>
-	      IRIX ld:
-              <literal>-Wl,-rpath,</literal><filename class="directory">destdir/lib</filename>
-	    </para>
-	  </listitem>
-	  <listitem>
 	  <para>
 	    Solaris ld:
             <literal>-Wl,-R</literal><filename class="directory">destdir/lib</filename>
@@ -1267,9 +1250,8 @@ A quick read of the relevant part of the GCC
       just linking) and link-library additions and/or replacements at
       link time.  The documentation is weak.  Here is a quick summary
       to display how ad hoc this is: On Solaris, both -pthreads and
-      -threads (with subtly different meanings) are honored.  On OSF,
-      -pthread and -threads (with subtly different meanings) are
-      honored.  On GNU/Linux x86, -pthread is honored.  On FreeBSD,
+      -threads (with subtly different meanings) are honored.  
+      On GNU/Linux x86, -pthread is honored.  On FreeBSD,
       -pthread is honored.  Some other ports use other switches.
       AFAIK, none of this is properly documented anywhere other than
       in ``gcc -dumpspecs'' (look at lib and cpp entries).

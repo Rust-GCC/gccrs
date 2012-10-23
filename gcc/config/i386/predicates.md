@@ -1,5 +1,5 @@
 ;; Predicate definitions for IA-32 and x86-64.
-;; Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
+;; Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012
 ;; Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
@@ -26,7 +26,7 @@
 ;; Return true if OP is an i387 fp register.
 (define_predicate "fp_register_operand"
   (and (match_code "reg")
-       (match_test "FP_REGNO_P (REGNO (op))")))
+       (match_test "STACK_REGNO_P (REGNO (op))")))
 
 ;; Return true if OP is a non-fp register_operand.
 (define_predicate "register_and_not_any_fp_reg_operand"
@@ -36,7 +36,7 @@
 ;; Return true if OP is a register operand other than an i387 fp register.
 (define_predicate "register_and_not_fp_reg_operand"
   (and (match_code "reg")
-       (not (match_test "FP_REGNO_P (REGNO (op))"))))
+       (not (match_test "STACK_REGNO_P (REGNO (op))"))))
 
 ;; True if the operand is an MMX register.
 (define_predicate "mmx_reg_operand"
@@ -92,33 +92,6 @@
   (and (match_code "reg")
        (match_test "TARGET_64BIT")
        (match_test "REGNO (op) > BX_REG")))
-
-;; Return true if op is not xmm0 register.
-(define_predicate "reg_not_xmm0_operand"
-  (match_operand 0 "register_operand")
-{
-  if (GET_CODE (op) == SUBREG)
-    op = SUBREG_REG (op);
-
-  return !REG_P (op) || REGNO (op) != FIRST_SSE_REG;
-})
-
-;; As above, but also allow memory operands.
-(define_predicate "nonimm_not_xmm0_operand"
-  (ior (match_operand 0 "memory_operand")
-       (match_operand 0 "reg_not_xmm0_operand")))
-
-;; Return true if op is not xmm0 register, but only for non-AVX targets.
-(define_predicate "reg_not_xmm0_operand_maybe_avx"
-  (if_then_else (match_test "TARGET_AVX")
-    (match_operand 0 "register_operand")
-    (match_operand 0 "reg_not_xmm0_operand")))
-
-;; As above, but also allow memory operands.
-(define_predicate "nonimm_not_xmm0_operand_maybe_avx"
-  (if_then_else (match_test "TARGET_AVX")
-    (match_operand 0 "nonimmediate_operand")
-    (match_operand 0 "nonimm_not_xmm0_operand")))
 
 ;; Return true if VALUE can be stored in a sign extended immediate field.
 (define_predicate "x86_64_immediate_operand"
@@ -228,8 +201,7 @@
 		{
 		case UNSPEC_DTPOFF:
 		case UNSPEC_NTPOFF:
-		  if (offset > 0
-		      && trunc_int_for_mode (offset, SImode) == offset)
+		  if (trunc_int_for_mode (offset, SImode) == offset)
 		    return true;
 		}
 	      break;
@@ -338,6 +310,16 @@
   (if_then_else (match_test "TARGET_64BIT")
     (ior (match_operand 0 "nonimmediate_operand")
 	 (match_operand 0 "x86_64_immediate_operand"))
+    (match_operand 0 "general_operand")))
+
+;; Return true if OP is general operand representable on x86_64
+;; as zero extended constant.  This predicate is used in zero-extending
+;; conversion operations that require non-VOIDmode immediate operands.
+(define_predicate "x86_64_zext_general_operand"
+  (if_then_else (match_test "TARGET_64BIT")
+    (ior (match_operand 0 "nonimmediate_operand")
+	 (and (match_operand 0 "x86_64_zext_immediate_operand")
+	      (match_test "GET_MODE (op) != VOIDmode")))
     (match_operand 0 "general_operand")))
 
 ;; Return true if OP is general operand representable on x86_64
@@ -483,11 +465,11 @@
        (match_operand 0 "local_symbolic_operand")))
 
 ;; Test for various thread-local symbols.
-(define_predicate "tls_symbolic_operand"
+(define_special_predicate "tls_symbolic_operand"
   (and (match_code "symbol_ref")
        (match_test "SYMBOL_REF_TLS_MODEL (op)")))
 
-(define_predicate "tls_modbase_operand"
+(define_special_predicate "tls_modbase_operand"
   (and (match_code "symbol_ref")
        (match_test "op == ix86_tls_module_base ()")))
 
@@ -558,20 +540,23 @@
 
 ;; Test for a valid operand for indirect branch.
 (define_predicate "indirect_branch_operand"
-  (if_then_else (match_test "TARGET_X32")
-    (match_operand 0 "register_operand")
-    (match_operand 0 "nonimmediate_operand")))
+  (ior (match_operand 0 "register_operand")
+       (and (not (match_test "TARGET_X32"))
+	    (match_operand 0 "memory_operand"))))
 
 ;; Test for a valid operand for a call instruction.
-(define_predicate "call_insn_operand"
-  (ior (match_operand 0 "constant_call_address_operand")
+;; Allow constant call address operands in Pmode only.
+(define_special_predicate "call_insn_operand"
+  (ior (match_test "constant_call_address_operand
+		     (op, mode == VOIDmode ? mode : Pmode)")
        (match_operand 0 "call_register_no_elim_operand")
        (and (not (match_test "TARGET_X32"))
 	    (match_operand 0 "memory_operand"))))
 
 ;; Similarly, but for tail calls, in which we cannot allow memory references.
-(define_predicate "sibcall_insn_operand"
-  (ior (match_operand 0 "constant_call_address_operand")
+(define_special_predicate "sibcall_insn_operand"
+  (ior (match_test "constant_call_address_operand
+		     (op, mode == VOIDmode ? mode : Pmode)")
        (match_operand 0 "register_no_elim_operand")))
 
 ;; Match exactly zero.
@@ -792,6 +777,12 @@
   (ior (match_operand 0 "nonimmediate_operand")
        (match_operand 0 "const0_operand")))
 
+;; Return true when OP is either nonimmediate operand, or any
+;; CONST_VECTOR.
+(define_predicate "nonimmediate_or_const_vector_operand"
+  (ior (match_operand 0 "nonimmediate_operand")
+       (match_code "const_vector")))
+
 ;; Return true when OP is nonimmediate or standard SSE constant.
 (define_predicate "nonimmediate_or_sse_const_operand"
   (match_operand 0 "general_operand")
@@ -821,6 +812,10 @@
   gcc_assert (ok);
   return parts.seg == SEG_DEFAULT;
 })
+
+;; Return true for RTX codes that force SImode address.
+(define_predicate "SImode_address_operand"
+  (match_code "subreg,zero_extend,and"))
 
 ;; Return true if op if a valid base register, displacement or
 ;; sum of base register and displacement for VSIB addressing.
@@ -991,7 +986,7 @@
 ;; by the modRM array.
 (define_predicate "long_memory_operand"
   (and (match_operand 0 "memory_operand")
-       (match_test "memory_address_length (op)")))
+       (match_test "memory_address_length (op, false)")))
 
 ;; Return true if OP is a comparison operator that can be issued by fcmov.
 (define_predicate "fcmov_comparison_operator"

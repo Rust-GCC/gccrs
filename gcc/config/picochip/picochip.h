@@ -221,7 +221,7 @@ extern enum picochip_dfa_type picochip_schedule_type;
 #define CALL_USED_REGISTERS {1,1,1,1,1,1,0,0, 0,0,0,0,1,1,0,1, 1,1,1,1}
 #define CALL_REALLY_USED_REGISTERS {1,1,1,1,1,1,0,0, 0,0,0,0,1,1,0,0, 0,1,0,0}
 
-/* Define the number of the picoChip link and condition psuedo registers. */
+/* Define the number of the picoChip link and condition pseudo registers. */
 #define LINK_REGNUM 12
 #define CC_REGNUM 17
 #define ACC_REGNUM 16
@@ -488,7 +488,8 @@ do {                                                                         \
 #define ASM_APP_ON "// High-level ASM start\n"
 #define ASM_APP_OFF "// High-level ASM end\n"
 
-#define ASM_OUTPUT_IDENT(STREAM,STRING) fprintf(STREAM, ".ident %s\n", STRING)
+#undef TARGET_ASM_OUTPUT_IDENT
+#define TARGET_ASM_OUTPUT_IDENT default_asm_output_ident_directive
 
 /* Output of Data  */
 

@@ -1,18 +1,143 @@
-2012-09-20  Release Manager
+2012-10-06  Diego Novillo  <dnovillo@google.com>
 
-	* GCC 4.7.2 released.
+	* testsuite-management/x86_64-unknown-linux-gnu.xfail: Update.
 
-2012-06-14  Release Manager
+2012-10-02   Christophe Lyon  <christophe.lyon@linaro.org>
 
-	* GCC 4.7.1 released.
+	* check_GNU_style.sh: Remove temporay file upon exit.
 
-2012-03-22  Release Manager
+2012-09-26  Joern Rennecke  <joern.rennecke@embecosm.com>
 
-	* GCC 4.7.0 released.
+	* contrib-list.mk (LIST): Remove arm-freebsd6, arm-linux,
+	arm-ecos-elf, arm-rtems, arm-elf and arm-wince-pe.
+	Use --enable-obsolete for picochip-elf.
+
+2012-09-10   Diego Novillo  <dnovillo@google.com>
+
+	* testsuite-management/x86_64-unknown-linux-gnu.xfail: Update.
+
+2012-09-04  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* make_sunver.pl: Add missing newline at the end of extern "C++" block.
+
+2012-08-24   Diego Novillo  <dnovillo@google.com>
+
+	* testsuite-management/x86_64-unknown-linux-gnu.xfail: Update.
+	
+2012-08-14   Diego Novillo  <dnovillo@google.com>
+
+	* testsuite-management/x86_64-unknown-linux-gnu.xfail: New.
+
+2012-08-13  Diego Novillo  <dnovillo@google.com>
+
+	* testsuite-management/validate_failures.py (ExpirationDate): Tidy
+	comment.
+
+2012-08-13  Diego Novillo  <dnovillo@google.com>
+
+	* testsuite-management/validate_failures.py (ParseSummary): Fix
+	comment.
+
+2012-08-13  Diego Novillo  <dnovillo@google.com>
+
+	* testsuite-management/validate_failures.py: Import datetime.
+	(TestResult.ExpirationDate): New.
+	(TestResult.HasExpired): New.
+	(ParseSummary): Call it.  If it returns True, warn that the
+	expected failure has expired and do not add it to the set of
+	expected results.
+	(GetResults): Clarify documentation.
+
+2012-07-26   Diego Novillo  <dnovillo@google.com>
+
+	* testsuite-management/validate_failures.py: Do not use
+	'with ... as ...' constructs.
+
+2012-07-19   Diego Novillo  <dnovillo@google.com>
+
+	* testsuite-management/validate_failures.py (CollectSumFiles):
+	Rename from GetSumFiles.
+	(GetSumFiles): Factor out of CheckExpectedResults.
+	(CheckExpectedResults): Call it.
+	(ProduceManifest): Call it.
+
+2012-07-18   Diego Novillo  <dnovillo@google.com>
+
+	* testsuite-management/validate_failures.py: Fix
+	/usr/bin/python invocation.
+
+2012-06-19  Steven Bosscher  <steven@gcc.gnu.org>
+
+	* check_makefile_deps.sh: Look for c-common.o in c-family/.
+	Add a few more crt* files to the list of files to skip.
+
+2012-05-31  Marek Polacek  <polacek@redhat.com>
+
+       * mklog: Prevent printing three spaces after the date.
+
+2012-06-04   Diego Novillo  <dnovillo@google.com>
+
+	* testsuite-management/validate_failures.py (GetResults):
+	Change argument to accept list of summary files to analyze.
+	Update callers.
+	(CheckExpectedResults): Handle options.manifest, options.results
+	and options.ignore_missing_failures.
+	(Main): Add options --manifest, --results and --ignore_missing_failures.
+
+2012-05-31   Diego Novillo  <dnovillo@google.com>
+	     Cary Coutant  <ccoutant@google.com>
+
+	* mklog: New.
+
+2012-05-25  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR bootstrap/53472
+	* contrib/compare-debug (remove_comment): New function.
+	Remove any .comment sections if the first cmp failed.
+
+2012-05-09  David Edelsohn  <dje.gcc@gmail.com>
+
+	* gcc_update: Use $GCC_SVN to retrieve branch and revision.
+
+2012-05-01  Richard Henderson  <rth@redhat.com>
+
+	* gcc_update: Add libatomic generated files.
+
+2012-04-23  Manuel López-Ibáñez  <manu@gcc.gnu.org>
+
+	* compare_tests: Append '/' to make 'find' traverse
+	symlinked directories.
+
+2012-04-16  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* testsuite-management/validate_failures.py (GetBuildData): Use
+	target_alias.
+
+2012-04-06  Doug Evans  <dje@google.com>
+
+	* dg-extract-results.sh: Handle KFAILs.
+
+2012-03-14  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config-list.mk (LIST): Remove mips-sgi-irix6.5.
 
 2012-03-13  Joseph Myers  <joseph@codesourcery.com>
 
 	* gennews (files): Add files for GCC 4.7.
+
+2012-03-12  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config-list.mk (LIST): Remove mips-openbsd.
+
+2012-03-12  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config-list.mk (LIST): Remove alpha-dec-osf5.1.
+
+2012-03-02   Diego Novillo  <dnovillo@google.com>
+
+	* testsuite-management/validate_failures.py (class TestResult): Fix
+	match pattern for the summary line.  If there is a parsing failure,
+	show the line we failed to parse.
 
 2012-02-27  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 

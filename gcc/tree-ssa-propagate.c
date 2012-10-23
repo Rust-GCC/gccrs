@@ -27,13 +27,10 @@
 #include "flags.h"
 #include "tm_p.h"
 #include "basic-block.h"
-#include "output.h"
 #include "function.h"
 #include "gimple-pretty-print.h"
-#include "timevar.h"
-#include "tree-dump.h"
+#include "dumpfile.h"
 #include "tree-flow.h"
-#include "tree-pass.h"
 #include "tree-ssa-propagate.h"
 #include "langhooks.h"
 #include "vec.h"
@@ -723,7 +720,7 @@ update_gimple_call (gimple_stmt_iterator *si_p, tree fn, int nargs, ...)
    call.  This can only be done if EXPR is a CALL_EXPR with valid
    GIMPLE operands as arguments, or if it is a suitable RHS expression
    for a GIMPLE_ASSIGN.  More complex expressions will require
-   gimplification, which will introduce addtional statements.  In this
+   gimplification, which will introduce additional statements.  In this
    event, no update is performed, and the function returns false.
    Note that we cannot mutate a GIMPLE_CALL in-place, so we always
    replace the statement at *SI_P with an entirely new statement.
@@ -794,12 +791,11 @@ update_call_from_tree (gimple_stmt_iterator *si_p, tree expr)
              variable.  Create an assignment statement
              with a dummy (unused) lhs variable.  */
           STRIP_USELESS_TYPE_CONVERSION (expr);
-          lhs = create_tmp_var (TREE_TYPE (expr), NULL);
-          new_stmt = gimple_build_assign (lhs, expr);
-          add_referenced_var (lhs);
 	  if (gimple_in_ssa_p (cfun))
-	    lhs = make_ssa_name (lhs, new_stmt);
-          gimple_assign_set_lhs (new_stmt, lhs);
+	    lhs = make_ssa_name (TREE_TYPE (expr), NULL);
+	  else
+	    lhs = create_tmp_var (TREE_TYPE (expr), NULL);
+          new_stmt = gimple_build_assign (lhs, expr);
 	  gimple_set_vuse (new_stmt, gimple_vuse (stmt));
 	  gimple_set_vdef (new_stmt, gimple_vdef (stmt));
           move_ssa_defining_stmt_for_defs (new_stmt, stmt);
@@ -1032,7 +1028,7 @@ substitute_and_fold (ssa_prop_get_value_fn get_value_fn,
 	gimple_stmt_iterator gsi;
 
 	if (!name
-	    || !is_gimple_reg (name))
+	    || virtual_operand_p (name))
 	  continue;
 
 	def_stmt = SSA_NAME_DEF_STMT (name);

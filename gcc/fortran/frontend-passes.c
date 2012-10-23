@@ -1,5 +1,5 @@
 /* Pass manager for Fortran front end.
-   Copyright (C) 2010, 2011 Free Software Foundation, Inc.
+   Copyright (C) 2010, 2011, 2012 Free Software Foundation, Inc.
    Contributed by Thomas König.
 
 This file is part of GCC.
@@ -20,6 +20,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #include "system.h"
+#include "coretypes.h"
 #include "gfortran.h"
 #include "arith.h"
 #include "flags.h"
@@ -37,6 +38,7 @@ static bool optimize_comparison (gfc_expr *, gfc_intrinsic_op);
 static bool optimize_trim (gfc_expr *);
 static bool optimize_lexical_comparison (gfc_expr *);
 static void optimize_minmaxloc (gfc_expr **);
+static bool empty_string (gfc_expr *e);
 
 /* How deep we are inside an argument list.  */
 
@@ -183,8 +185,9 @@ cfe_register_funcs (gfc_expr **e, int *walk_subtrees ATTRIBUTE_UNUSED,
   if (forall_level > 0)
     return 0;
 
-  /* Function elimination inside an iterator could lead to functions
-     which depend on iterator variables being moved outside.  */
+  /* Function elimination inside an iterator could lead to functions which
+     depend on iterator variables being moved outside.  FIXME: We should check
+     if the functions do indeed depend on the iterator variable.  */
 
   if (iterator_level > 0)
     return 0;
@@ -242,7 +245,7 @@ cfe_register_funcs (gfc_expr **e, int *walk_subtrees ATTRIBUTE_UNUSED,
 }
 
 /* Returns a new expression (a variable) to be used in place of the old one,
-   with an an assignment statement before the current statement to set
+   with an assignment statement before the current statement to set
    the value of the variable. Creates a new BLOCK for the statement if
    that hasn't already been done and puts the statement, plus the
    newly created variables, in that block.  */
@@ -733,10 +736,15 @@ optimize_assignment (gfc_code * c)
   lhs = c->expr1;
   rhs = c->expr2;
 
-  /* Optimize away a = trim(b), where a is a character variable.  */
+  if (lhs->ts.type == BT_CHARACTER && !lhs->ts.deferred)
+    {
+      /* Optimize  a = trim(b)  to  a = b.  */
+      remove_trim (rhs);
 
-  if (lhs->ts.type == BT_CHARACTER)
-    remove_trim (rhs);
+      /* Replace a = '   ' by a = '' to optimize away a memcpy.  */
+      if (empty_string(rhs))
+	rhs->value.character.length = 0;
+    }
 
   if (lhs->rank > 0 && gfc_check_dependency (lhs, rhs, true) == 0)
     optimize_binop_array_assignment (c, &rhs, false);
@@ -805,20 +813,45 @@ optimize_op (gfc_expr *e)
 {
   gfc_intrinsic_op op = e->value.op.op;
 
+  /* Only use new-style comparisons.  */
+  switch(op)
+    {
+    case INTRINSIC_EQ_OS:
+      op = INTRINSIC_EQ;
+      break;
+
+    case INTRINSIC_GE_OS:
+      op = INTRINSIC_GE;
+      break;
+
+    case INTRINSIC_LE_OS:
+      op = INTRINSIC_LE;
+      break;
+
+    case INTRINSIC_NE_OS:
+      op = INTRINSIC_NE;
+      break;
+
+    case INTRINSIC_GT_OS:
+      op = INTRINSIC_GT;
+      break;
+
+    case INTRINSIC_LT_OS:
+      op = INTRINSIC_LT;
+      break;
+
+    default:
+      break;
+    }
+
   switch (op)
     {
     case INTRINSIC_EQ:
-    case INTRINSIC_EQ_OS:
     case INTRINSIC_GE:
-    case INTRINSIC_GE_OS:
     case INTRINSIC_LE:
-    case INTRINSIC_LE_OS:
     case INTRINSIC_NE:
-    case INTRINSIC_NE_OS:
     case INTRINSIC_GT:
-    case INTRINSIC_GT_OS:
     case INTRINSIC_LT:
-    case INTRINSIC_LT_OS:
       return optimize_comparison (e, op);
 
     default:
@@ -826,6 +859,63 @@ optimize_op (gfc_expr *e)
     }
 
   return false;
+}
+
+
+/* Return true if a constant string contains only blanks.  */
+
+static bool
+empty_string (gfc_expr *e)
+{
+  int i;
+
+  if (e->ts.type != BT_CHARACTER || e->expr_type != EXPR_CONSTANT)
+    return false;
+
+  for (i=0; i < e->value.character.length; i++)
+    {
+      if (e->value.character.string[i] != ' ')
+	return false;
+    }
+
+  return true;
+}
+
+
+/* Insert a call to the intrinsic len_trim. Use a different name for
+   the symbol tree so we don't run into trouble when the user has
+   renamed len_trim for some reason.  */
+
+static gfc_expr*
+get_len_trim_call (gfc_expr *str, int kind)
+{
+  gfc_expr *fcn;
+  gfc_actual_arglist *actual_arglist, *next;
+
+  fcn = gfc_get_expr ();
+  fcn->expr_type = EXPR_FUNCTION;
+  fcn->value.function.isym = gfc_intrinsic_function_by_id (GFC_ISYM_LEN_TRIM);
+  actual_arglist = gfc_get_actual_arglist ();
+  actual_arglist->expr = str;
+  next = gfc_get_actual_arglist ();
+  next->expr = gfc_get_int_expr (gfc_default_integer_kind, NULL, kind);
+  actual_arglist->next = next;
+
+  fcn->value.function.actual = actual_arglist;
+  fcn->where = str->where;
+  fcn->ts.type = BT_INTEGER;
+  fcn->ts.kind = gfc_charlen_int_kind;
+
+  gfc_get_sym_tree ("__internal_len_trim", current_ns, &fcn->symtree, false);
+  fcn->symtree->n.sym->ts = fcn->ts;
+  fcn->symtree->n.sym->attr.flavor = FL_PROCEDURE;
+  fcn->symtree->n.sym->attr.function = 1;
+  fcn->symtree->n.sym->attr.elemental = 1;
+  fcn->symtree->n.sym->attr.referenced = 1;
+  fcn->symtree->n.sym->attr.access = ACCESS_PRIVATE;
+  gfc_commit_symbol (fcn->symtree->n.sym);
+
+  return fcn;
 }
 
 /* Optimize expressions for equality.  */
@@ -848,7 +938,7 @@ optimize_comparison (gfc_expr *e, gfc_intrinsic_op op)
     }
   else if (e->expr_type == EXPR_FUNCTION)
     {
-      /* One of the lexical comparision functions.  */
+      /* One of the lexical comparison functions.  */
       firstarg = e->value.function.actual;
       secondarg = firstarg->next;
       op1 = firstarg->expr;
@@ -870,6 +960,45 @@ optimize_comparison (gfc_expr *e, gfc_intrinsic_op op)
      argument. For example the any intrinsic. See PR 45380.  */
   if (e->rank > 0)
     return change;
+
+  /* Replace a == '' with len_trim(a) == 0 and a /= '' with
+     len_trim(a) != 0 */
+  if (op1->ts.type == BT_CHARACTER && op2->ts.type == BT_CHARACTER
+      && (op == INTRINSIC_EQ || op == INTRINSIC_NE))
+    {
+      bool empty_op1, empty_op2;
+      empty_op1 = empty_string (op1);
+      empty_op2 = empty_string (op2);
+
+      if (empty_op1 || empty_op2)
+	{
+	  gfc_expr *fcn;
+	  gfc_expr *zero;
+	  gfc_expr *str;
+
+	  /* This can only happen when an error for comparing
+	     characters of different kinds has already been issued.  */
+	  if (empty_op1 && empty_op2)
+	    return false;
+
+	  zero = gfc_get_int_expr (gfc_charlen_int_kind, &e->where, 0);
+	  str = empty_op1 ? op2 : op1;
+
+	  fcn = get_len_trim_call (str, gfc_charlen_int_kind);
+
+
+	  if (empty_op1)
+	    gfc_free_expr (op1);
+	  else
+	    gfc_free_expr (op2);
+
+	  op1 = fcn;
+	  op2 = zero;
+	  e->value.op.op1 = fcn;
+	  e->value.op.op2 = zero;
+	}
+    }
+
 
   /* Don't compare REAL or COMPLEX expressions when honoring NaNs.  */
 
@@ -944,32 +1073,26 @@ optimize_comparison (gfc_expr *e, gfc_intrinsic_op op)
 	  switch (op)
 	    {
 	    case INTRINSIC_EQ:
-	    case INTRINSIC_EQ_OS:
 	      result = eq == 0;
 	      break;
 	      
 	    case INTRINSIC_GE:
-	    case INTRINSIC_GE_OS:
 	      result = eq >= 0;
 	      break;
 
 	    case INTRINSIC_LE:
-	    case INTRINSIC_LE_OS:
 	      result = eq <= 0;
 	      break;
 
 	    case INTRINSIC_NE:
-	    case INTRINSIC_NE_OS:
 	      result = eq != 0;
 	      break;
 
 	    case INTRINSIC_GT:
-	    case INTRINSIC_GT_OS:
 	      result = eq > 0;
 	      break;
 
 	    case INTRINSIC_LT:
-	    case INTRINSIC_LT_OS:
 	      result = eq < 0;
 	      break;
 	      
@@ -1001,7 +1124,6 @@ optimize_trim (gfc_expr *e)
   gfc_expr *a;
   gfc_ref *ref;
   gfc_expr *fcn;
-  gfc_actual_arglist *actual_arglist, *next;
   gfc_ref **rr = NULL;
 
   /* Don't do this optimization within an argument list, because
@@ -1048,24 +1170,14 @@ optimize_trim (gfc_expr *e)
 
   ref->u.ss.start = gfc_get_int_expr (gfc_default_integer_kind, NULL, 1);
 
-  /* Build the function call to len_trim(x, gfc_defaul_integer_kind).  */
+  /* Build the function call to len_trim(x, gfc_default_integer_kind).  */
 
-  fcn = gfc_get_expr ();
-  fcn->expr_type = EXPR_FUNCTION;
-  fcn->value.function.isym =
-    gfc_intrinsic_function_by_id (GFC_ISYM_LEN_TRIM);
-  actual_arglist = gfc_get_actual_arglist ();
-  actual_arglist->expr = gfc_copy_expr (e);
-  next = gfc_get_actual_arglist ();
-  next->expr = gfc_get_int_expr (gfc_default_integer_kind, NULL,
-				 gfc_default_integer_kind);
-  actual_arglist->next = next;
-  fcn->value.function.actual = actual_arglist;
+  fcn = get_len_trim_call (gfc_copy_expr (e), gfc_default_integer_kind);
 
   /* Set the end of the reference to the call to len_trim.  */
 
   ref->u.ss.end = fcn;
-  gcc_assert (*rr == NULL);
+  gcc_assert (rr != NULL && *rr == NULL);
   *rr = ref;
   return true;
 }

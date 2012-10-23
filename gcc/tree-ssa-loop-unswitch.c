@@ -24,10 +24,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "tm_p.h"
 #include "basic-block.h"
-#include "output.h"
 #include "tree-flow.h"
-#include "tree-dump.h"
-#include "timevar.h"
 #include "cfgloop.h"
 #include "params.h"
 #include "tree-pass.h"
@@ -81,6 +78,7 @@ tree_ssa_unswitch_loops (void)
   loop_iterator li;
   struct loop *loop;
   bool changed = false;
+  HOST_WIDE_INT iterations;
 
   /* Go through inner loops (only original ones).  */
   FOR_EACH_LOOP (li, loop, LI_ONLY_INNERMOST)
@@ -104,6 +102,16 @@ tree_ssa_unswitch_loops (void)
             fprintf (dump_file, ";; Not unswitching, loop too big\n");
           continue;
         }
+
+      /* If the loop is not expected to iterate, there is no need
+	 for unswitching.  */
+      iterations = estimated_loop_iterations_int (loop);
+      if (iterations >= 0 && iterations <= 1)
+	{
+          if (dump_file && (dump_flags & TDF_DETAILS))
+            fprintf (dump_file, ";; Not unswitching, loop is not expected to iterate\n");
+          continue;
+	}
 
       changed |= tree_unswitch_single_loop (loop, 0);
     }

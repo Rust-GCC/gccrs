@@ -26,11 +26,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "tm_p.h"
 #include "basic-block.h"
-#include "timevar.h"
 #include "gimple-pretty-print.h"
 #include "tree-flow.h"
 #include "tree-pass.h"
-#include "tree-dump.h"
 #include "domwalk.h"
 #include "flags.h"
 #include "langhooks.h"
@@ -94,7 +92,7 @@ dse_possible_dead_store_p (gimple stmt, gimple *use_stmt)
   temp = stmt;
   do
     {
-      gimple use_stmt;
+      gimple use_stmt, defvar_def;
       imm_use_iterator ui;
       bool fail = false;
       tree defvar;
@@ -108,6 +106,7 @@ dse_possible_dead_store_p (gimple stmt, gimple *use_stmt)
 	defvar = PHI_RESULT (temp);
       else
 	defvar = gimple_vdef (temp);
+      defvar_def = temp;
       temp = NULL;
       FOR_EACH_IMM_USE_STMT (use_stmt, ui, defvar)
 	{
@@ -139,7 +138,14 @@ dse_possible_dead_store_p (gimple stmt, gimple *use_stmt)
 		  fail = true;
 		  BREAK_FROM_IMM_USE_STMT (ui);
 		}
-	      temp = use_stmt;
+	      /* Do not consider the PHI as use if it dominates the 
+	         stmt defining the virtual operand we are processing,
+		 we have processed it already in this case.  */
+	      if (gimple_bb (defvar_def) != gimple_bb (use_stmt)
+		  && !dominated_by_p (CDI_DOMINATORS,
+				      gimple_bb (defvar_def),
+				      gimple_bb (use_stmt)))
+		temp = use_stmt;
 	    }
 	  /* If the statement is a use the store is not dead.  */
 	  else if (ref_maybe_used_by_stmt_p (use_stmt,
@@ -169,7 +175,7 @@ dse_possible_dead_store_p (gimple stmt, gimple *use_stmt)
 	 just pretend the stmt makes itself dead.  Otherwise fail.  */
       if (!temp)
 	{
-	  if (is_hidden_global_store (stmt))
+	  if (stmt_may_clobber_global_p (stmt))
 	    return false;
 
 	  temp = stmt;
@@ -199,9 +205,9 @@ dse_possible_dead_store_p (gimple stmt, gimple *use_stmt)
    post dominates the first store, then the first store is dead.  */
 
 static void
-dse_optimize_stmt (gimple_stmt_iterator gsi)
+dse_optimize_stmt (gimple_stmt_iterator *gsi)
 {
-  gimple stmt = gsi_stmt (gsi);
+  gimple stmt = gsi_stmt (*gsi);
 
   /* If this statement has no virtual defs, then there is nothing
      to do.  */
@@ -232,6 +238,8 @@ dse_optimize_stmt (gimple_stmt_iterator gsi)
 				gimple_get_lhs (use_stmt), 0)))
 	  || stmt_kills_ref_p (use_stmt, gimple_assign_lhs (stmt)))
 	{
+	  basic_block bb;
+
 	  /* If use_stmt is or might be a nop assignment, e.g. for
 	     struct { ... } S a, b, *p; ...
 	     b = a; b = b;
@@ -250,17 +258,17 @@ dse_optimize_stmt (gimple_stmt_iterator gsi)
 	  if (dump_file && (dump_flags & TDF_DETAILS))
             {
               fprintf (dump_file, "  Deleted dead store '");
-              print_gimple_stmt (dump_file, gsi_stmt (gsi), dump_flags, 0);
+              print_gimple_stmt (dump_file, gsi_stmt (*gsi), dump_flags, 0);
               fprintf (dump_file, "'\n");
             }
 
 	  /* Then we need to fix the operand of the consuming stmt.  */
 	  unlink_stmt_vdef (stmt);
 
-	  bitmap_set_bit (need_eh_cleanup, gimple_bb (stmt)->index);
-
 	  /* Remove the dead store.  */
-	  gsi_remove (&gsi, true);
+	  bb = gimple_bb (stmt);
+	  if (gsi_remove (gsi, true))
+	    bitmap_set_bit (need_eh_cleanup, bb->index);
 
 	  /* And release any SSA_NAMEs set in this statement back to the
 	     SSA_NAME manager.  */
@@ -275,8 +283,14 @@ dse_enter_block (struct dom_walk_data *walk_data ATTRIBUTE_UNUSED,
 {
   gimple_stmt_iterator gsi;
 
-  for (gsi = gsi_last (bb_seq (bb)); !gsi_end_p (gsi); gsi_prev (&gsi))
-    dse_optimize_stmt (gsi);
+  for (gsi = gsi_last_bb (bb); !gsi_end_p (gsi);)
+    {
+      dse_optimize_stmt (&gsi);
+      if (gsi_end_p (gsi))
+	gsi = gsi_last_bb (bb);
+      else
+	gsi_prev (&gsi);
+    }
 }
 
 /* Main entry point.  */

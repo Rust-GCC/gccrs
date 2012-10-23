@@ -233,12 +233,6 @@ proc check_weak_available { } {
         return 1
     }
 
-    # DEC OSF/1/Digital UNIX/Tru64 UNIX supports it
-
-    if { [istarget alpha*-dec-osf*] } {
-	return 1
-    }
-
     # Windows targets Cygwin and MingW32 support it
 
     if { [istarget *-*-cygwin*] || [istarget *-*-mingw*] } {
@@ -472,15 +466,6 @@ proc check_profiling_available { test_what } {
 	return 0
     }
 
-    # Support for -p on irix relies on libprof1.a which doesn't appear to
-    # exist on any irix6 system currently posting testsuite results.
-    # Support for -pg on irix relies on gcrt1.o which doesn't exist yet.
-    # See: http://gcc.gnu.org/ml/gcc/2002-10/msg00169.html
-    if { [istarget mips*-*-irix*]
-         && ($test_what == "-p" || $test_what == "-pg") } {
-	return 0
-    }
-
     # We don't yet support profiling for MIPS16.
     if { [istarget mips*-*-*]
 	 && ![check_effective_target_nomips16]
@@ -584,16 +569,11 @@ proc check_effective_target_pcc_bitfield_type_matters { } {
 # Add to FLAGS all the target-specific flags needed to use thread-local storage.
 
 proc add_options_for_tls { flags } {
-    # Tru64 UNIX uses emutls, which relies on a couple of pthread functions
-    # which only live in libpthread, so always pass -pthread for TLS.
-    if { [istarget alpha*-dec-osf*] } {
-	return "$flags -pthread"
-    }
-    # On Solaris 8 and 9, __tls_get_addr/___tls_get_addr only lives in
+    # On Solaris 9, __tls_get_addr/___tls_get_addr only lives in
     # libthread, so always pass -pthread for native TLS.
     # Need to duplicate native TLS check from
     # check_effective_target_tls_native to avoid recursion.
-    if { [istarget *-*-solaris2.\[89\]*] &&
+    if { [istarget *-*-solaris2.9*] &&
 	 [check_no_messages_and_pattern tls_native "!emutls" assembly {
 	     __thread int i;
 	     int f (void) { return i; }
@@ -993,12 +973,7 @@ proc check_iconv_available { test_what } {
 # Return 1 if an ASCII locale is supported on this host, 0 otherwise.
 
 proc check_ascii_locale_available { } {
-    if { ([ishost alpha*-dec-osf*] || [ishost mips-sgi-irix*]) } {
-	# Neither Tru64 UNIX nor IRIX support an ASCII locale.
-	return 0
-    } else {
-	return 1
-    }
+    return 1
 }
 
 # Return true if named sections are supported on this target.
@@ -1006,6 +981,14 @@ proc check_ascii_locale_available { } {
 proc check_named_sections_available { } {
     return [check_no_compiler_messages named_sections assembly {
 	int __attribute__ ((section("whatever"))) foo;
+    }]
+}
+
+# Return true if the "naked" function attribute is supported on this target.
+
+proc check_effective_target_naked_functions { } {
+    return [check_no_compiler_messages naked_functions assembly {
+	void f() __attribute__((naked));
     }]
 }
 
@@ -1706,6 +1689,15 @@ proc check_effective_target_llp64 { } {
     }]
 }
 
+# Return 1 if long and int have different sizes,
+# 0 otherwise.
+
+proc check_effective_target_long_neq_int { } {
+    return [check_no_compiler_messages long_ne_int object {
+	int dummy[sizeof (int) != sizeof (long) ? 1 : -1];
+    }]
+}
+
 # Return 1 if the target supports long double larger than double,
 # 0 otherwise.
 
@@ -2061,7 +2053,8 @@ proc check_effective_target_arm_vfp_ok { } {
 # options.
 
 proc check_effective_target_arm_hard_vfp_ok { } {
-    if { [check_effective_target_arm32] } {
+    if { [check_effective_target_arm32] 
+	 && ! [check-flags [list "" { *-*-* } { "-mfloat-abi=*" } { "-mfloat-abi=hard" }]] } {
 	return [check_no_compiler_messages arm_hard_vfp_ok executable {
 	    int main() { return 0;}
 	} "-mfpu=vfp -mfloat-abi=hard"]
@@ -2107,6 +2100,19 @@ proc add_options_for_arm_neon { flags } {
     return "$flags $et_arm_neon_flags"
 }
 
+# Add the options needed for NEON.  We need either -mfloat-abi=softfp
+# or -mfloat-abi=hard, but if one is already specified by the
+# multilib, use it.  Similarly, if a -mfpu option already enables
+# NEON, do not add -mfpu=neon.
+
+proc add_options_for_arm_neonv2 { flags } {
+    if { ! [check_effective_target_arm_neonv2_ok] } {
+	return "$flags"
+    }
+    global et_arm_neonv2_flags
+    return "$flags $et_arm_neonv2_flags"
+}
+
 # Return 1 if this is an ARM target supporting -mfpu=neon
 # -mfloat-abi=softfp or equivalent options.  Some multilibs may be
 # incompatible with these options.  Also set et_arm_neon_flags to the
@@ -2133,6 +2139,38 @@ proc check_effective_target_arm_neon_ok_nocache { } {
 proc check_effective_target_arm_neon_ok { } {
     return [check_cached_effective_target arm_neon_ok \
 		check_effective_target_arm_neon_ok_nocache]
+}
+
+# Return 1 if this is an ARM target supporting -mfpu=neon-vfpv4
+# -mfloat-abi=softfp or equivalent options.  Some multilibs may be
+# incompatible with these options.  Also set et_arm_neonv2_flags to the
+# best options to add.
+
+proc check_effective_target_arm_neonv2_ok_nocache { } {
+    global et_arm_neonv2_flags
+    set et_arm_neonv2_flags ""
+    if { [check_effective_target_arm32] } {
+	foreach flags {"" "-mfloat-abi=softfp" "-mfpu=neon-vfpv4" "-mfpu=neon-vfpv4 -mfloat-abi=softfp"} {
+	    if { [check_no_compiler_messages_nocache arm_neonv2_ok object {
+		#include "arm_neon.h"
+		float32x2_t 
+		foo (float32x2_t a, float32x2_t b, float32x2_t c)
+                {
+                  return vfma_f32 (a, b, c);
+                }
+	    } "$flags"] } {
+		set et_arm_neonv2_flags $flags
+		return 1
+	    }
+	}
+    }
+
+    return 0
+}
+
+proc check_effective_target_arm_neonv2_ok { } {
+    return [check_cached_effective_target arm_neonv2_ok \
+		check_effective_target_arm_neonv2_ok_nocache]
 }
 
 # Add the options needed for NEON.  We need either -mfloat-abi=softfp
@@ -2194,10 +2232,22 @@ proc check_effective_target_arm_fp16_ok { } {
 # (Thumb in particular - but others may be added in the future)
 # Usage: /* { dg-require-effective-target arm_arch_v5_ok } */
 #        /* { dg-add-options arm_arch_v5 } */
-foreach { armfunc armflag armdef } { v5 "-march=armv5 -marm" __ARM_ARCH_5__
+#	 /* { dg-require-effective-target arm_arch_v5_multilib } */
+foreach { armfunc armflag armdef } { v4 "-march=armv4 -marm" __ARM_ARCH_4__
+				     v4t "-march=armv4t" __ARM_ARCH_4T__
+				     v5 "-march=armv5 -marm" __ARM_ARCH_5__
+				     v5t "-march=armv5t" __ARM_ARCH_5T__
+				     v5te "-march=armv5te" __ARM_ARCH_5TE__
 				     v6 "-march=armv6" __ARM_ARCH_6__
 				     v6k "-march=armv6k" __ARM_ARCH_6K__
-				     v7a "-march=armv7-a" __ARM_ARCH_7A__ } {
+				     v6t2 "-march=armv6t2" __ARM_ARCH_6T2__
+				     v6z "-march=armv6z" __ARM_ARCH_6Z__
+				     v6m "-march=armv6-m -mthumb" __ARM_ARCH_6M__
+				     v7a "-march=armv7-a" __ARM_ARCH_7A__
+				     v7r "-march=armv7-r" __ARM_ARCH_7R__
+				     v7m "-march=armv7-m -mthumb" __ARM_ARCH_7M__
+				     v7em "-march=armv7e-m -mthumb" __ARM_ARCH_7EM__
+				     v8a "-march=armv8-a" __ARM_ARCH_8A__ } {
     eval [string map [list FUNC $armfunc FLAG $armflag DEF $armdef ] {
 	proc check_effective_target_arm_arch_FUNC_ok { } {
 	    if { [ string match "*-marm*" "FLAG" ] &&
@@ -2214,6 +2264,16 @@ foreach { armfunc armflag armdef } { v5 "-march=armv5 -marm" __ARM_ARCH_5__
 	proc add_options_for_arm_arch_FUNC { flags } {
 	    return "$flags FLAG"
 	}
+
+	proc check_effective_target_arm_arch_FUNC_multilib { } {
+	    return [check_runtime arm_arch_FUNC_multilib {
+		int
+		main (void)
+		{
+		    return 0;
+		}
+	    } [add_options_for_arm_arch_FUNC ""]]
+        }
     }]
 }
 
@@ -2305,6 +2365,21 @@ proc check_effective_target_arm_neon_hw { } {
     } [add_options_for_arm_neon ""]]
 }
 
+proc check_effective_target_arm_neonv2_hw { } {
+    return [check_runtime arm_neon_hwv2_available {
+	#include "arm_neon.h"
+	int
+	main (void)
+	{
+	  float32x2_t a, b, c;
+	  asm ("vfma.f32 %P0, %P1, %P2"
+	       : "=w" (a)
+	       : "w" (b), "w" (c));
+	  return 0;
+	}
+    } [add_options_for_arm_neonv2 ""]]
+}
+
 # Return 1 if this is a ARM target with NEON enabled.
 
 proc check_effective_target_arm_neon { } {
@@ -2314,6 +2389,24 @@ proc check_effective_target_arm_neon { } {
 	    #error not NEON
 	    #else
 	    int dummy;
+	    #endif
+	}]
+    } else {
+	return 0
+    }
+}
+
+proc check_effective_target_arm_neonv2 { } {
+    if { [check_effective_target_arm32] } {
+	return [check_no_compiler_messages arm_neon object {
+	    #ifndef __ARM_NEON__
+	    #error not NEON
+	    #else
+	    #ifndef __ARM_FEATURE_FMA
+	    #error not NEONv2
+            #else
+	    int dummy;
+	    #endif
 	    #endif
 	}]
     } else {
@@ -2345,6 +2438,19 @@ proc check_effective_target_arm_eabi { } {
     }]
 }
 
+# Return 1 if this is an ARM target that adheres to the hard-float variant of
+# the ABI for the ARM Architecture (e.g. -mfloat-abi=hard).
+
+proc check_effective_target_arm_hf_eabi { } {
+    return [check_no_compiler_messages arm_hf_eabi object {
+	#if !defined(__ARM_EABI__) || !defined(__ARM_PCS_VFP)
+	#error not hard-float EABI
+	#else
+	int dummy;
+	#endif
+    }]
+}
+
 # Return 1 if this is an ARM target supporting -mcpu=iwmmxt.
 # Some multilibs may be incompatible with this option.
 
@@ -2356,6 +2462,18 @@ proc check_effective_target_arm_iwmmxt_ok { } {
     } else {
 	return 0
     }
+}
+
+# Return true if LDRD/STRD instructions are prefered over LDM/STM instructions
+# for an ARM target.
+proc check_effective_target_arm_prefer_ldrd_strd { } {
+    if { ![check_effective_target_arm32] } {
+      return 0;
+    }
+
+    return [check_no_messages_and_pattern arm_prefer_ldrd_strd "strd\tr" assembly {
+        void foo (int *p) { p[0] = 1; p[1] = 0;}
+    }  "-O2 -mthumb" ]
 }
 
 # Return 1 if this is a PowerPC target with floating-point registers.
@@ -3507,7 +3625,8 @@ proc check_effective_target_vect_char_mult { } {
 	set et_vect_char_mult_saved 0
 	if { [istarget ia64-*-*]
 	     || [istarget i?86-*-*]
-	     || [istarget x86_64-*-*] } {
+	     || [istarget x86_64-*-*]
+            || [check_effective_target_arm32] } {
 	   set et_vect_char_mult_saved 1
 	}
     }
@@ -3818,7 +3937,7 @@ proc check_effective_target_sync_long_long_runtime { } {
 		}
 	    } ""
 	}]
-    } elseif { [istarget arm*-*-linux-gnueabi] } {
+    } elseif { [istarget arm*-*-linux-*] } {
 	return [check_runtime sync_longlong_runtime {
 	    #include <stdlib.h>
 	    int main ()
@@ -3840,6 +3959,8 @@ proc check_effective_target_sync_long_long_runtime { } {
 		 && [check_effective_target_lp64]
 		 && [check_effective_target_ultrasparc_hw]) } {
 	return 1
+    } elseif { [istarget powerpc*-*-*] && [check_effective_target_lp64] } {
+	return 1
     } else {
 	return 0
     }
@@ -3860,11 +3981,12 @@ proc check_effective_target_sync_int_long { } {
 	     || [istarget i?86-*-*]
 	     || [istarget x86_64-*-*]
 	     || [istarget alpha*-*-*] 
-	     || [istarget arm*-*-linux-gnueabi] 
+	     || [istarget arm*-*-linux-*] 
 	     || [istarget bfin*-*linux*]
 	     || [istarget hppa*-*linux*]
 	     || [istarget s390*-*-*] 
 	     || [istarget powerpc*-*-*]
+	     || [istarget crisv32-*-*] || [istarget cris-*-*]
 	     || ([istarget sparc*-*-*] && [check_effective_target_sparc_v9])
 	     || [check_effective_target_mips_llsc] } {
            set et_sync_int_long_saved 1
@@ -3890,10 +4012,11 @@ proc check_effective_target_sync_char_short { } {
 	     || [istarget i?86-*-*]
 	     || [istarget x86_64-*-*]
 	     || [istarget alpha*-*-*] 
-	     || [istarget arm*-*-linux-gnueabi] 
+	     || [istarget arm*-*-linux-*] 
 	     || [istarget hppa*-*linux*]
 	     || [istarget s390*-*-*] 
 	     || [istarget powerpc*-*-*]
+	     || [istarget crisv32-*-*] || [istarget cris-*-*]
 	     || ([istarget sparc*-*-*] && [check_effective_target_sparc_v9])
 	     || [check_effective_target_mips_llsc] } {
            set et_sync_char_short_saved 1
@@ -4169,9 +4292,6 @@ proc check_effective_target_fd_truncate { } {
 
 proc add_options_for_c99_runtime { flags } {
     if { [istarget *-*-solaris2*] } {
-	return "$flags -std=c99"
-    }
-    if { [istarget mips-sgi-irix6.5*] } {
 	return "$flags -std=c99"
     }
     if { [istarget powerpc-*-darwin*] } {
@@ -4497,11 +4617,18 @@ proc check_effective_target_c++11 { } {
     return [check-flags { { } { } { -std=c++0x -std=gnu++0x -std=c++11 -std=gnu++11 } }]
 }
 
+proc check_effective_target_c++1y { } {
+    if ![check_effective_target_c++] {
+	return 0
+    }
+    return [check-flags { { } { } { -std=c++1y -std=gnu++1y } }]
+}
+
 proc check_effective_target_c++98 { } {
     if ![check_effective_target_c++] {
 	return 0
     }
-    return [check-flags { { } { } { } { -std=c++0x -std=gnu++0x -std=c++11 -std=gnu++11 } }]
+    return [check-flags { { } { } { } { -std=c++0x -std=gnu++0x -std=c++11 -std=gnu++11 -std=c++1y -std=gnu++1y } }]
 }
 
 # Return 1 if expensive testcases should be run.

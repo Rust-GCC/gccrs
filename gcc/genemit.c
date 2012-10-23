@@ -160,9 +160,6 @@ gen_exp (rtx x, enum rtx_code subroutine_type, char *used)
       gen_rtx_scratch (x, subroutine_type);
       return;
 
-    case ADDRESS:
-      fatal ("ADDRESS expression code used in named instruction pattern");
-
     case PC:
       printf ("pc_rtx");
       return;
@@ -812,7 +809,7 @@ from the machine description file `md'.  */\n\n");
   printf ("#include \"tm-constrs.h\"\n");
   printf ("#include \"ggc.h\"\n");
   printf ("#include \"basic-block.h\"\n");
-  printf ("#include \"integrate.h\"\n\n");
+  printf ("#include \"target.h\"\n\n");
   printf ("#define FAIL return (end_sequence (), _val)\n");
   printf ("#define DONE return (_val = get_insns (), end_sequence (), _val)\n\n");
 

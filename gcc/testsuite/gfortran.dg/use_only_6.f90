@@ -11,4 +11,3 @@ subroutine aa()
   implicit none
   a = 1
 end subroutine aa
-! { dg-final { cleanup-modules "mm" } }

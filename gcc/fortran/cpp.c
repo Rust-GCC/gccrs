@@ -38,6 +38,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "cppbuiltin.h"
 #include "mkdeps.h"
 
+#ifndef TARGET_SYSTEM_ROOT
+# define TARGET_SYSTEM_ROOT NULL
+#endif
+
 #ifndef TARGET_CPU_CPP_BUILTINS
 # define TARGET_CPU_CPP_BUILTINS()
 #endif
@@ -267,7 +271,7 @@ gfc_cpp_init_options (unsigned int decoded_options_count,
 
   gfc_cpp_option.multilib = NULL;
   gfc_cpp_option.prefix = NULL;
-  gfc_cpp_option.sysroot = NULL;
+  gfc_cpp_option.sysroot = TARGET_SYSTEM_ROOT;
 
   gfc_cpp_option.deferred_opt = XNEWVEC (gfc_cpp_deferred_opt_t,
 					 decoded_options_count);
@@ -822,6 +826,7 @@ print_line (source_location src_loc, const char *special_flags)
       size_t to_file_len;
       unsigned char *to_file_quoted;
       unsigned char *p;
+      int sysp;
 
       loc = expand_location (src_loc);
       to_file_len = strlen (loc.file);
@@ -838,9 +843,10 @@ print_line (source_location src_loc, const char *special_flags)
 	       print.src_line == 0 ? 1 : print.src_line,
 	       to_file_quoted, special_flags);
 
-      if (loc.sysp == 2)
+      sysp = in_system_header_at (src_loc);
+      if (sysp == 2)
 	fputs (" 3 4", print.outf);
-      else if (loc.sysp == 1)
+      else if (sysp == 1)
 	fputs (" 3", print.outf);
 
       putc ('\n', print.outf);

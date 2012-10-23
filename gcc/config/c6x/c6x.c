@@ -40,10 +40,9 @@
 #include "tm-preds.h"
 #include "tm-constrs.h"
 #include "df.h"
-#include "integrate.h"
+#include "function.h"
 #include "diagnostic-core.h"
 #include "cgraph.h"
-#include "cfglayout.h"
 #include "langhooks.h"
 #include "target.h"
 #include "target-def.h"
@@ -52,6 +51,7 @@
 #include "opts.h"
 #include "hw-doloop.h"
 #include "regrename.h"
+#include "dumpfile.h"
 
 /* Table of supported architecture variants.  */
 typedef struct
@@ -126,7 +126,7 @@ DEF_VEC_ALLOC_O(c6x_sched_insn_info, heap);
 static VEC(c6x_sched_insn_info, heap) *insn_info;
 
 #define INSN_INFO_LENGTH (VEC_length (c6x_sched_insn_info, insn_info))
-#define INSN_INFO_ENTRY(N) (*VEC_index (c6x_sched_insn_info, insn_info, (N)))
+#define INSN_INFO_ENTRY(N) (VEC_index (c6x_sched_insn_info, insn_info, (N)))
 
 static bool done_cfi_sections;
 
@@ -735,7 +735,8 @@ c6x_initialize_trampoline (rtx tramp, tree fndecl, rtx cxt)
   tramp = XEXP (tramp, 0);
   emit_library_call (gen_rtx_SYMBOL_REF (Pmode, "__gnu_clear_cache"),
 		     LCT_NORMAL, VOIDmode, 2, tramp, Pmode,
-		     plus_constant (tramp, TRAMPOLINE_SIZE), Pmode);
+		     plus_constant (Pmode, tramp, TRAMPOLINE_SIZE),
+		     Pmode);
 #endif
 }
 
@@ -822,7 +823,8 @@ c6x_output_mi_thunk (FILE *file ATTRIBUTE_UNUSED,
       output_asm_insn ("ldw .d1t1 %3, %2", xops);
 
       /* Adjust the this parameter.  */
-      xops[0] = gen_rtx_MEM (Pmode, plus_constant (a0tmp, vcall_offset));
+      xops[0] = gen_rtx_MEM (Pmode, plus_constant (Pmode, a0tmp,
+						   vcall_offset));
       if (!memory_operand (xops[0], Pmode))
 	{
 	  rtx tmp2 = gen_rtx_REG (Pmode, REG_A1);
@@ -2536,7 +2538,7 @@ must_reload_pic_reg_p (void)
 
   i = cgraph_local_info (current_function_decl);
 
-  if ((crtl->uses_pic_offset_table || !current_function_is_leaf) && !i->local)
+  if ((crtl->uses_pic_offset_table || !crtl->is_leaf) && !i->local)
     return true;
   return false;
 }
@@ -2550,7 +2552,7 @@ c6x_save_reg (unsigned int regno)
 	   && !fixed_regs[regno])
 	  || (regno == RETURN_ADDR_REGNO
 	      && (df_regs_ever_live_p (regno)
-		  || !current_function_is_leaf))
+		  || !crtl->is_leaf))
 	  || (regno == PIC_OFFSET_TABLE_REGNUM && must_reload_pic_reg_p ()));
 }
 
@@ -2641,7 +2643,7 @@ c6x_compute_frame_layout (struct c6x_frame *frame)
     offset += frame->nregs * 4;
 
   if (offset == 0 && size == 0 && crtl->outgoing_args_size == 0
-      && !current_function_is_leaf)
+      && !crtl->is_leaf)
     /* Don't use the bottom of the caller's frame if we have no
        allocation of our own and call other functions.  */
     frame->padding0 = frame->padding1 = 4;
@@ -3446,8 +3448,8 @@ try_rename_operands (rtx head, rtx tail, unit_req_table reqs, rtx insn,
     {
       unsigned int mask1, mask2, mask_changed;
       int count, side1, side2, req1, req2;
-      insn_rr_info *this_rr = VEC_index (insn_rr_info, insn_rr,
-					 INSN_UID (chain->insn));
+      insn_rr_info *this_rr = &VEC_index (insn_rr_info, insn_rr,
+					  INSN_UID (chain->insn));
 
       count = get_unit_reqs (chain->insn, &req1, &side1, &req2, &side2);
 
@@ -3553,7 +3555,7 @@ reshuffle_units (basic_block loop)
       if (!get_unit_operand_masks (insn, &mask1, &mask2))
 	continue;
 
-      info = VEC_index (insn_rr_info, insn_rr, INSN_UID (insn));
+      info = &VEC_index (insn_rr_info, insn_rr, INSN_UID (insn));
       if (info->op_info == NULL)
 	continue;
 
@@ -3628,7 +3630,7 @@ typedef struct c6x_sched_context
 /* The current scheduling state.  */
 static struct c6x_sched_context ss;
 
-/* The following variable value is DFA state before issueing the first insn
+/* The following variable value is DFA state before issuing the first insn
    in the current clock cycle.  This is used in c6x_variable_issue for
    comparison with the state after issuing the last insn in a cycle.  */
 static state_t prev_cycle_state;
@@ -3910,6 +3912,13 @@ c6x_free_sched_context (void *_sc)
   free (_sc);
 }
 
+/* True if we are currently performing a preliminary scheduling
+   pass before modulo scheduling; we can't allow the scheduler to
+   modify instruction patterns using packetization assumptions,
+   since there will be another scheduling pass later if modulo
+   scheduling fails.  */
+static bool in_hwloop;
+
 /* Provide information about speculation capabilities, and set the
    DO_BACKTRACKING flag.  */
 static void
@@ -3921,6 +3930,8 @@ c6x_set_sched_flags (spec_info_t spec_info)
     {
       *flags |= DO_BACKTRACKING | DO_PREDICATION;
     }
+  if (in_hwloop)
+    *flags |= DONT_BREAK_DEPENDENCIES;
 
   spec_info->mask = 0;
 }
@@ -4584,7 +4595,7 @@ gen_one_bundle (rtx *slot, int n_filled, int real_first)
   bundle = gen_rtx_SEQUENCE (VOIDmode, gen_rtvec_v (n_filled, slot));
   bundle = make_insn_raw (bundle);
   BLOCK_FOR_INSN (bundle) = BLOCK_FOR_INSN (slot[0]);
-  INSN_LOCATOR (bundle) = INSN_LOCATOR (slot[0]);
+  INSN_LOCATION (bundle) = INSN_LOCATION (slot[0]);
   PREV_INSN (bundle) = PREV_INSN (slot[real_first]);
 
   t = NULL_RTX;
@@ -4598,7 +4609,7 @@ gen_one_bundle (rtx *slot, int n_filled, int real_first)
 	NEXT_INSN (t) = insn;
       t = insn;
       if (i > 0)
-	INSN_LOCATOR (slot[i]) = INSN_LOCATOR (bundle);
+	INSN_LOCATION (slot[i]) = INSN_LOCATION (bundle);
     }
 
   NEXT_INSN (bundle) = NEXT_INSN (PREV_INSN (bundle));
@@ -5534,9 +5545,11 @@ hwloop_optimize (hwloop_info loop)
 
   reshuffle_units (loop->head);
 
+  in_hwloop = true;
   schedule_ebbs_init ();
   schedule_ebb (BB_HEAD (loop->tail), loop->loop_end, true);
   schedule_ebbs_finish ();
+  in_hwloop = false;
 
   bb = loop->head;
   loop_earliest = bb_earliest_end_cycle (bb, loop->loop_end) + 1;

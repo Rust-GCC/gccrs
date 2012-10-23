@@ -3,7 +3,7 @@
 
 int main ()
 {
-  {
-    union A { } v;
+  { 
+    union A { } v; 
   }
 }

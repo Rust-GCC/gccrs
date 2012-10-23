@@ -34,7 +34,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "flags.h"
 #include "langhooks.h"
 #include "diagnostic-core.h"
-#include "tree-dump.h"
+#include "dumpfile.h"
 #include "gimple.h"
 #include "tree-iterator.h"
 #include "cgraph.h"
@@ -128,7 +128,8 @@ build_delete_destructor_body (tree delete_dtor, tree complete_dtor)
 
   /* Call the corresponding complete destructor.  */
   gcc_assert (complete_dtor);
-  call_dtor = build_cxx_call (complete_dtor, 1, &parm);
+  call_dtor = build_cxx_call (complete_dtor, 1, &parm,
+			      tf_warning_or_error);
   add_stmt (call_dtor);
 
   add_stmt (build_stmt (0, LABEL_EXPR, cdtor_label));
@@ -138,7 +139,8 @@ build_delete_destructor_body (tree delete_dtor, tree complete_dtor)
                                       virtual_size,
                                       /*global_p=*/false,
                                       /*placement=*/NULL_TREE,
-                                      /*alloc_fn=*/NULL_TREE);
+                                      /*alloc_fn=*/NULL_TREE,
+				      tf_warning_or_error);
   add_stmt (call_delete);
 
   /* Return the address of the object.  */
@@ -324,8 +326,8 @@ maybe_clone_body (tree fn)
 		 *[CD][12]*.  */
 	      comdat_group = cdtor_comdat_group (fns[1], fns[0]);
 	      DECL_COMDAT_GROUP (fns[0]) = comdat_group;
-	      cgraph_add_to_same_comdat_group (cgraph_get_node (clone),
-					       cgraph_get_node (fns[0]));
+	      symtab_add_to_same_comdat_group (symtab_get_node (clone),
+					       symtab_get_node (fns[0]));
 	    }
 	}
 
@@ -337,8 +339,9 @@ maybe_clone_body (tree fn)
 	  /* If *[CD][12]* dtors go into the *[CD]5* comdat group and dtor is
 	     virtual, it goes into the same comdat group as well.  */
 	  if (comdat_group)
-	    cgraph_add_to_same_comdat_group (cgraph_get_create_node (clone),
-					     cgraph_get_node (fns[0]));
+	    symtab_add_to_same_comdat_group
+	       ((symtab_node) cgraph_get_create_node (clone),
+	        symtab_get_node (fns[0]));
 	}
       else if (alias)
 	/* No need to populate body.  */ ;

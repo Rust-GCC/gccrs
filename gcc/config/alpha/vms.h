@@ -1,6 +1,6 @@
 /* Output variables, constants and external declarations, for GNU compiler.
    Copyright (C) 1996, 1997, 1998, 2000, 2001, 2002, 2004, 2005, 2007, 2008,
-   2009, 2010, 2011
+   2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -43,22 +43,15 @@ along with GCC; see the file COPYING3.  If not see
         builtin_define ("__IEEE_FLOAT");	\
     } while (0)
 
-#undef TARGET_DEFAULT
-#if POINTER_SIZE == 64
-#define TARGET_DEFAULT (MASK_FPREGS | MASK_GAS | MASK_MALLOC64)
-#else
-#define TARGET_DEFAULT (MASK_FPREGS | MASK_GAS)
-#endif
-
-#define VMS_DEBUG_MAIN_POINTER "TRANSFER$BREAK$GO"
-
 #undef PCC_STATIC_STRUCT_RETURN
 
 #define MAX_OFILE_ALIGNMENT 524288  /* 8 x 2^16 by DEC Ada Test CD40VRA */
 
 /* The maximum alignment 'malloc' honors.  */
 #undef  MALLOC_ABI_ALIGNMENT
-#define MALLOC_ABI_ALIGNMENT ((TARGET_MALLOC64 ? 16 : 8) * BITS_PER_UNIT)
+#define MALLOC_ABI_ALIGNMENT \
+  ((flag_vms_malloc64 && flag_vms_pointer_size != VMS_POINTER_SIZE_NONE \
+   ? 16 : 8) * BITS_PER_UNIT)
 
 #undef FIXED_REGISTERS
 #define FIXED_REGISTERS  \
@@ -160,11 +153,12 @@ typedef struct {int num_args; enum avms_arg_type atypes[6];} avms_arg_info;
 
 #define DEFAULT_PCC_STRUCT_RETURN 0
 
-#if POINTER_SIZE == 64
-/* Eventhough pointers are 64bits, only 32bit ever remain significant in code
+/* Even though pointers are 64bits, only 32bit ever remain significant in code
    addresses.  */
-#define MASK_RETURN_ADDR (GEN_INT (0xffffffff))
-#endif
+#define MASK_RETURN_ADDR                                \
+  (flag_vms_pointer_size == VMS_POINTER_SIZE_NONE       \
+   ? constm1_rtx                                        \
+   : GEN_INT (0xffffffff))
 
 #undef  ASM_WEAKEN_LABEL
 #define ASM_WEAKEN_LABEL(FILE, NAME)                            \
@@ -205,10 +199,6 @@ typedef struct {int num_args; enum avms_arg_type atypes[6];} avms_arg_info;
 #define TARGET_ASM_CONSTRUCTOR  vms_asm_out_constructor
 #define TARGET_ASM_DESTRUCTOR   vms_asm_out_destructor
 
-#undef SDB_DEBUGGING_INFO
-#undef MIPS_DEBUGGING_INFO
-#undef DBX_DEBUGGING_INFO
-
 #define DWARF2_DEBUGGING_INFO 1
 #define VMS_DEBUGGING_INFO 1
 
@@ -216,7 +206,7 @@ typedef struct {int num_args; enum avms_arg_type atypes[6];} avms_arg_info;
 
 #undef EH_RETURN_HANDLER_RTX
 #define EH_RETURN_HANDLER_RTX \
-  gen_rtx_MEM (Pmode, plus_constant (stack_pointer_rtx, 8))
+  gen_rtx_MEM (Pmode, plus_constant (Pmode, stack_pointer_rtx, 8))
 
 #define LINK_EH_SPEC "vms-dwarf2eh.o%s "
 #define LINK_GCC_C_SEQUENCE_SPEC "%G"
@@ -225,9 +215,21 @@ typedef struct {int num_args; enum avms_arg_type atypes[6];} avms_arg_info;
    that says to advance the location counter
    to a multiple of 2**LOG bytes.  */
 
-#undef ASM_OUTPUT_ALIGN
 #define ASM_OUTPUT_ALIGN(FILE,LOG)	\
     fprintf (FILE, "\t.align %d\n", LOG);
+
+/* This is how to advance the location counter by SIZE bytes.  */
+
+#define ASM_OUTPUT_SKIP(FILE,SIZE)  \
+  fprintf (FILE, "\t.space "HOST_WIDE_INT_PRINT_UNSIGNED"\n", (SIZE))
+
+/* This says how to output an assembler line
+   to define a global common symbol.  */
+
+#define ASM_OUTPUT_LOCAL(FILE, NAME, SIZE,ROUNDED)	\
+( fputs ("\t.lcomm ", (FILE)),				\
+  assemble_name ((FILE), (NAME)),			\
+  fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED"\n", (SIZE)))
 
 /* Switch into a generic section.  */
 #define TARGET_ASM_NAMED_SECTION vms_asm_named_section
@@ -255,7 +257,15 @@ typedef struct {int num_args; enum avms_arg_type atypes[6];} avms_arg_info;
 #undef ASM_FINAL_SPEC
 
 /* The VMS convention is to always provide minimal debug info
-   for a traceback unless specifically overridden.  */
+   for a traceback unless specifically overridden.
+
+   Because ASM_OUTPUT_ADDR_DIFF_ELT is not defined for alpha-vms,
+   jump tables cannot be output for PIC code, because you can't put
+   an absolute address in a readonly section.  Putting the table in
+   a writable section is a security hole.  Therefore, we unset the
+   flag_jump_tables flag, forcing switch statements to be expanded
+   using decision trees.  There are probably other ways to address
+   this issue, but using a decision tree is clearly safe.  */
 
 #undef SUBTARGET_OVERRIDE_OPTIONS
 #define SUBTARGET_OVERRIDE_OPTIONS                  \
@@ -266,6 +276,8 @@ do {                                                \
       write_symbols = VMS_DEBUG;                    \
       debug_info_level = DINFO_LEVEL_TERSE;         \
     }                                               \
+  if (flag_pic)                                     \
+    flag_jump_tables = 0;                           \
 } while (0)
 
 #undef LINK_SPEC
@@ -275,21 +287,14 @@ do {                                                \
 #else
 /* Link with vms-dwarf2.o if -g (except -g0). This causes the
    VMS link to pull all the dwarf2 debug sections together.  */
-#define LINK_SPEC "%{g:-g vms-dwarf2.o%s} %{g0} %{g1:-g1 vms-dwarf2.o%s} \
-%{g2:-g2 vms-dwarf2.o%s} %{g3:-g3 vms-dwarf2.o%s} %{shared} %{v} %{map}"
+#define LINK_SPEC "%{g0} %{g*:-g vms-dwarf2.o%s} %{shared} %{v} %{map}"
 #endif
 
 #undef STARTFILE_SPEC
-#define STARTFILE_SPEC \
-"%{!shared:%{mvms-return-codes:vcrt0.o%s} %{!mvms-return-codes:pcrt0.o%s} \
-    crtbegin.o%s} \
+#define STARTFILE_SPEC "%{!shared:crt0.o%s crtbegin.o%s} \
  %{!static:%{shared:crtbeginS.o%s}}"
 
-#define ENDFILE_SPEC \
-"%{!shared:crtend.o%s} %{!static:%{shared:crtendS.o%s}}"
-
-#define NAME__MAIN "__gccmain"
-#define SYMBOL__MAIN __gccmain
+#define ENDFILE_SPEC "%{!shared:crtend.o%s} %{!static:%{shared:crtendS.o%s}}"
 
 #define INIT_SECTION_ASM_OP "\t.section LIB$INITIALIZE,GBL,NOWRT"
 
@@ -297,3 +302,7 @@ do {                                                \
 
 #undef TARGET_VALID_POINTER_MODE
 #define TARGET_VALID_POINTER_MODE vms_valid_pointer_mode
+
+/* Default values for _CRTL_VER and _VMS_VER.  */
+#define VMS_DEFAULT_CRTL_VER 70320000
+#define VMS_DEFAULT_VMS_VER 70320000

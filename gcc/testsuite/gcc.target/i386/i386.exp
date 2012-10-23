@@ -1,4 +1,4 @@
-# Copyright (C) 1997, 2004, 2007, 2008, 2009, 2010
+# Copyright (C) 1997, 2004, 2007, 2008, 2009, 2010, 2011, 2012
 # Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
@@ -243,14 +243,48 @@ proc check_effective_target_bmi2 { } {
     } "-mbmi2" ]
 }
 
+# Return 1 if ADX instructions can be compiled.
+proc check_effective_target_adx { } {
+    return [check_no_compiler_messages adx object {
+	unsigned char
+	_adxcarry_u32 (unsigned char __CF, unsigned int __X,
+		   unsigned int __Y, unsigned int *__P)
+	{
+	    return __builtin_ia32_addcarryx_u32 (__CF, __X, __Y, __P);
+	}
+    } "-madx" ]
+}
+
+# Return 1 if rtm instructions can be compiled.
+proc check_effective_target_rtm { } {
+    return [check_no_compiler_messages rtm object {
+	void
+	_rtm_xend (void)
+	{
+	    return __builtin_ia32_xend ();
+	}
+    } "-mrtm" ]
+}
+
 # If the linker used understands -M <mapfile>, pass it to clear hardware
 # capabilities set by the Sun assembler.
-set clearcap_ldflags "-Wl,-M,$srcdir/$subdir/clearcap.map"
+# Try mapfile syntax v2 first which is the only way to clear hwcap_2 flags.
+set clearcap_ldflags "-Wl,-M,$srcdir/$subdir/clearcapv2.map"
 
-if [check_no_compiler_messages mapfile executable {
+if ![check_no_compiler_messages mapfilev2 executable {
+    int main (void) { return 0; }
+} $clearcap_ldflags ] {
+    # If this doesn't work, fall back to the less capable v1 syntax.
+    set clearcap_ldflags "-Wl,-M,$srcdir/$subdir/clearcap.map"
+
+    if ![check_no_compiler_messages mapfile executable {
 	int main (void) { return 0; }
-  } $clearcap_ldflags ] {
+    } $clearcap_ldflags ] {
+	unset clearcap_ldflags
+    }
+}
 
+if [info exists clearcap_ldflags] {
   if { [info procs gcc_target_compile] != [list] \
 	&& [info procs saved_gcc_target_compile] == [list] } {
     rename gcc_target_compile saved_gcc_target_compile

@@ -1,8 +1,8 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -msynci isa_rev>=2" } */
-/* { dg-final { scan-assembler "synci" } } */
-/* { dg-final { scan-assembler "jr.hb" } } */
-/* { dg-final { scan-assembler-not "_flush_cache" } } */
+/* { dg-options "-msynci isa_rev>=2" } */
+/* { dg-final { scan-assembler "\tsynci\t" } } */
+/* { dg-final { scan-assembler "\tjr.hb\t" } } */
+/* { dg-final { scan-assembler-not "_flush_cache|mips_sync_icache|_cacheflush" } } */
 
 NOMIPS16 void f()
 {

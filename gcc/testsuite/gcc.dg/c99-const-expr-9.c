@@ -3,7 +3,7 @@
    expansion.  */
 /* Origin: Joseph Myers <joseph@codesourcery.com> */
 /* { dg-do compile } */
-/* { dg-options "-std=iso9899:1999 -pedantic-errors" } */
+/* { dg-options "-std=iso9899:1999 -pedantic-errors -ftrack-macro-expansion=0" } */
 
 struct s {
   int a;
@@ -14,7 +14,7 @@ struct t {
   int b[2];
 };
 
-#define old_offsetof(TYPE, MEMBER) ((__SIZE_TYPE__) &((TYPE *)0)->MEMBER)
+#define old_offsetof(TYPE, MEMBER) ((__SIZE_TYPE__)(__UINTPTR_TYPE__) &((TYPE *)0)->MEMBER)
 
 enum e {
   E1 = old_offsetof (struct s, a), /* { dg-error "constant" } */

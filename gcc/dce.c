@@ -32,7 +32,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "df.h"
 #include "cselib.h"
 #include "dce.h"
-#include "timevar.h"
+#include "valtrack.h"
 #include "tree-pass.h"
 #include "dbgcnt.h"
 #include "tm_p.h"
@@ -46,6 +46,9 @@ along with GCC; see the file COPYING3.  If not see
 /* True if we are invoked while the df engine is running; in this case,
    we don't want to reenter it.  */
 static bool df_in_progress = false;
+
+/* True if we are allowed to alter the CFG in this pass.  */
+static bool can_alter_cfg = false;
 
 /* Instructions that have been marked but whose dependencies have not
    yet been processed.  */
@@ -113,8 +116,9 @@ deletable_insn_p (rtx insn, bool fast, bitmap arg_stores)
   if (!NONJUMP_INSN_P (insn))
     return false;
 
-  /* Don't delete insns that can throw.  */
-  if (!insn_nothrow_p (insn))
+  /* Don't delete insns that may throw if we cannot do so.  */
+  if (!(cfun->can_delete_dead_exceptions && can_alter_cfg)
+      && !insn_nothrow_p (insn))
     return false;
 
   body = PATTERN (insn);
@@ -700,7 +704,10 @@ init_dce (bool fast)
   if (!df_in_progress)
     {
       if (!fast)
-	df_chain_add_problem (DF_UD_CHAIN);
+	{
+	  df_set_flags (DF_RD_PRUNE_DEAD_DEFS);
+	  df_chain_add_problem (DF_UD_CHAIN);
+	}
       df_analyze ();
     }
 
@@ -711,7 +718,10 @@ init_dce (bool fast)
     {
       bitmap_obstack_initialize (&dce_blocks_bitmap_obstack);
       bitmap_obstack_initialize (&dce_tmp_bitmap_obstack);
+      can_alter_cfg = false;
     }
+  else
+    can_alter_cfg = true;
 
   marked = sbitmap_alloc (get_max_uid () + 1);
   sbitmap_zero (marked);
@@ -799,14 +809,17 @@ struct rtl_opt_pass pass_ud_rtl_dce =
 /* Process basic block BB.  Return true if the live_in set has
    changed. REDO_OUT is true if the info at the bottom of the block
    needs to be recalculated before starting.  AU is the proper set of
-   artificial uses. */
+   artificial uses.  Track global substitution of uses of dead pseudos
+   in debug insns using GLOBAL_DEBUG.  */
 
 static bool
-word_dce_process_block (basic_block bb, bool redo_out)
+word_dce_process_block (basic_block bb, bool redo_out,
+			struct dead_debug_global *global_debug)
 {
   bitmap local_live = BITMAP_ALLOC (&dce_tmp_bitmap_obstack);
   rtx insn;
   bool block_changed;
+  struct dead_debug_local debug;
 
   if (redo_out)
     {
@@ -828,11 +841,24 @@ word_dce_process_block (basic_block bb, bool redo_out)
     }
 
   bitmap_copy (local_live, DF_WORD_LR_OUT (bb));
+  dead_debug_local_init (&debug, NULL, global_debug);
 
   FOR_BB_INSNS_REVERSE (bb, insn)
-    if (NONDEBUG_INSN_P (insn))
+    if (DEBUG_INSN_P (insn))
+      {
+	df_ref *use_rec;
+	for (use_rec = DF_INSN_USES (insn); *use_rec; use_rec++)
+	  if (DF_REF_REGNO (*use_rec) >= FIRST_PSEUDO_REGISTER
+	      && (GET_MODE_SIZE (GET_MODE (DF_REF_REAL_REG (*use_rec)))
+		  == 2 * UNITS_PER_WORD)
+	      && !bitmap_bit_p (local_live, 2 * DF_REF_REGNO (*use_rec))
+	      && !bitmap_bit_p (local_live, 2 * DF_REF_REGNO (*use_rec) + 1))
+	    dead_debug_add (&debug, *use_rec, DF_REF_REGNO (*use_rec));
+      }
+    else if (INSN_P (insn))
       {
 	bool any_changed;
+
 	/* No matter if the instruction is needed or not, we remove
 	   any regno in the defs from the live set.  */
 	any_changed = df_word_lr_simulate_defs (insn, local_live);
@@ -843,6 +869,19 @@ word_dce_process_block (basic_block bb, bool redo_out)
 	   anything in local_live.  */
 	if (marked_insn_p (insn))
 	  df_word_lr_simulate_uses (insn, local_live);
+
+	/* Insert debug temps for dead REGs used in subsequent debug
+	   insns.  We may have to emit a debug temp even if the insn
+	   was marked, in case the debug use was after the point of
+	   death.  */
+	if (debug.used && !bitmap_empty_p (debug.used))
+	  {
+	    df_ref *def_rec;
+
+	    for (def_rec = DF_INSN_DEFS (insn); *def_rec; def_rec++)
+	      dead_debug_insert_temp (&debug, DF_REF_REGNO (*def_rec), insn,
+				      DEBUG_TEMP_BEFORE_WITH_VALUE);
+	  }
 
 	if (dump_file)
 	  {
@@ -856,6 +895,7 @@ word_dce_process_block (basic_block bb, bool redo_out)
   if (block_changed)
     bitmap_copy (DF_WORD_LR_IN (bb), local_live);
 
+  dead_debug_local_finish (&debug, NULL);
   BITMAP_FREE (local_live);
   return block_changed;
 }
@@ -864,15 +904,18 @@ word_dce_process_block (basic_block bb, bool redo_out)
 /* Process basic block BB.  Return true if the live_in set has
    changed. REDO_OUT is true if the info at the bottom of the block
    needs to be recalculated before starting.  AU is the proper set of
-   artificial uses. */
+   artificial uses.  Track global substitution of uses of dead pseudos
+   in debug insns using GLOBAL_DEBUG.  */
 
 static bool
-dce_process_block (basic_block bb, bool redo_out, bitmap au)
+dce_process_block (basic_block bb, bool redo_out, bitmap au,
+		   struct dead_debug_global *global_debug)
 {
   bitmap local_live = BITMAP_ALLOC (&dce_tmp_bitmap_obstack);
   rtx insn;
   bool block_changed;
   df_ref *def_rec;
+  struct dead_debug_local debug;
 
   if (redo_out)
     {
@@ -896,9 +939,18 @@ dce_process_block (basic_block bb, bool redo_out, bitmap au)
   bitmap_copy (local_live, DF_LR_OUT (bb));
 
   df_simulate_initialize_backwards (bb, local_live);
+  dead_debug_local_init (&debug, NULL, global_debug);
 
   FOR_BB_INSNS_REVERSE (bb, insn)
-    if (INSN_P (insn))
+    if (DEBUG_INSN_P (insn))
+      {
+	df_ref *use_rec;
+	for (use_rec = DF_INSN_USES (insn); *use_rec; use_rec++)
+	  if (!bitmap_bit_p (local_live, DF_REF_REGNO (*use_rec))
+	      && !bitmap_bit_p (au, DF_REF_REGNO (*use_rec)))
+	    dead_debug_add (&debug, *use_rec, DF_REF_REGNO (*use_rec));
+      }
+    else if (INSN_P (insn))
       {
 	bool needed = marked_insn_p (insn);
 
@@ -921,8 +973,18 @@ dce_process_block (basic_block bb, bool redo_out, bitmap au)
 	   anything in local_live.  */
 	if (needed)
 	  df_simulate_uses (insn, local_live);
+
+	/* Insert debug temps for dead REGs used in subsequent debug
+	   insns.  We may have to emit a debug temp even if the insn
+	   was marked, in case the debug use was after the point of
+	   death.  */
+	if (debug.used && !bitmap_empty_p (debug.used))
+	  for (def_rec = DF_INSN_DEFS (insn); *def_rec; def_rec++)
+	    dead_debug_insert_temp (&debug, DF_REF_REGNO (*def_rec), insn,
+				    DEBUG_TEMP_BEFORE_WITH_VALUE);
       }
 
+  dead_debug_local_finish (&debug, NULL);
   df_simulate_finalize_backwards (bb, local_live);
 
   block_changed = !bitmap_equal_p (local_live, DF_LR_IN (bb));
@@ -959,11 +1021,14 @@ fast_dce (bool word_level)
   bitmap au = &df->regular_block_artificial_uses;
   bitmap au_eh = &df->eh_block_artificial_uses;
   int i;
+  struct dead_debug_global global_debug;
 
   prescan_insns_for_dce (true);
 
   for (i = 0; i < n_blocks; i++)
     bitmap_set_bit (all_blocks, postorder[i]);
+
+  dead_debug_global_init (&global_debug, NULL);
 
   while (global_changed)
     {
@@ -983,11 +1048,13 @@ fast_dce (bool word_level)
 
 	  if (word_level)
 	    local_changed
-	      = word_dce_process_block (bb, bitmap_bit_p (redo_out, index));
+	      = word_dce_process_block (bb, bitmap_bit_p (redo_out, index),
+					&global_debug);
 	  else
 	    local_changed
 	      = dce_process_block (bb, bitmap_bit_p (redo_out, index),
-				   bb_has_eh_pred (bb) ? au_eh : au);
+				   bb_has_eh_pred (bb) ? au_eh : au,
+				   &global_debug);
 	  bitmap_set_bit (processed, index);
 
 	  if (local_changed)
@@ -1034,6 +1101,8 @@ fast_dce (bool word_level)
 	  prescan_insns_for_dce (true);
 	}
     }
+
+  dead_debug_global_finish (&global_debug, NULL);
 
   delete_unmarked_insns ();
 

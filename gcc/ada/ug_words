@@ -63,6 +63,7 @@ gcc -c          ^ GNAT COMPILE
 -gnateD         ^ /SYMBOL_PREPROCESSING
 -gnatef         ^ /FULL_PATH_IN_BRIEF_MESSAGES
 -gnateG         ^ /GENERATE_PROCESSED_SOURCE
+-gnatei         ^ /MAX_INSTANTIATIONS=
 -gnateI         ^ /MULTI_UNIT_INDEX=
 -gnatem         ^ /MAPPING_FILE
 -gnatep         ^ /DATA_PREPROCESSING
@@ -83,8 +84,11 @@ gcc -c          ^ GNAT COMPILE
 -gnatm          ^ /ERROR_LIMIT
 -gnatm2         ^ /ERROR_LIMIT=2
 -gnatn          ^ /INLINE=PRAGMA
+-gnatn1         ^ /INLINE=PRAGMA_LEVEL_1
+-gnatn2         ^ /INLINE=PRAGMA_LEVEL_2
 -gnatN          ^ /INLINE=FULL
 -gnato          ^ /CHECKS=OVERFLOW
+-gnato??        ^ /OVERFLOW_CHECKS=??
 -gnatp          ^ /CHECKS=SUPPRESS_ALL
 -gnat-p         ^ /CHECKS=UNSUPPRESS_ALL
 -gnatP          ^ /POLLING

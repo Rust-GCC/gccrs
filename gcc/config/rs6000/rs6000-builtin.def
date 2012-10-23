@@ -1,6 +1,5 @@
 /* Builtin functions for rs6000/powerpc.
-   Copyright (C) 2009, 2010, 2011
-   Free Software Foundation, Inc.
+   Copyright (C) 2009-2012 Free Software Foundation, Inc.
    Contributed by Michael Meissner (meissner@linux.vnet.ibm.com)
 
    This file is part of GCC.
@@ -503,18 +502,18 @@ BU_ALTIVEC_2 (VMINSH,	      "vminsh",		CONST,	sminv8hi3)
 BU_ALTIVEC_2 (VMINUW,	      "vminuw",		CONST,	uminv4si3)
 BU_ALTIVEC_2 (VMINSW,	      "vminsw",		CONST,	sminv4si3)
 BU_ALTIVEC_2 (VMINFP,	      "vminfp",		CONST,	sminv4sf3)
-BU_ALTIVEC_2 (VMULEUB,	      "vmuleub",	CONST,	altivec_vmuleub)
-BU_ALTIVEC_2 (VMULEUB_UNS,    "vmuleub_uns",	CONST,	altivec_vmuleub)
-BU_ALTIVEC_2 (VMULESB,	      "vmulesb",	CONST,	altivec_vmulesb)
-BU_ALTIVEC_2 (VMULEUH,	      "vmuleuh",	CONST,	altivec_vmuleuh)
-BU_ALTIVEC_2 (VMULEUH_UNS,    "vmuleuh_uns",	CONST,	altivec_vmuleuh)
-BU_ALTIVEC_2 (VMULESH,	      "vmulesh",	CONST,	altivec_vmulesh)
-BU_ALTIVEC_2 (VMULOUB,	      "vmuloub",	CONST,	altivec_vmuloub)
-BU_ALTIVEC_2 (VMULOUB_UNS,    "vmuloub_uns",	CONST,	altivec_vmuloub)
-BU_ALTIVEC_2 (VMULOSB,	      "vmulosb",	CONST,	altivec_vmulosb)
-BU_ALTIVEC_2 (VMULOUH,	      "vmulouh",	CONST,	altivec_vmulouh)
-BU_ALTIVEC_2 (VMULOUH_UNS,    "vmulouh_uns",	CONST,	altivec_vmulouh)
-BU_ALTIVEC_2 (VMULOSH,	      "vmulosh",	CONST,	altivec_vmulosh)
+BU_ALTIVEC_2 (VMULEUB,	      "vmuleub",	CONST,	vec_widen_umult_even_v16qi)
+BU_ALTIVEC_2 (VMULEUB_UNS,    "vmuleub_uns",	CONST,	vec_widen_umult_even_v16qi)
+BU_ALTIVEC_2 (VMULESB,	      "vmulesb",	CONST,	vec_widen_smult_even_v16qi)
+BU_ALTIVEC_2 (VMULEUH,	      "vmuleuh",	CONST,	vec_widen_umult_even_v8hi)
+BU_ALTIVEC_2 (VMULEUH_UNS,    "vmuleuh_uns",	CONST,	vec_widen_umult_even_v8hi)
+BU_ALTIVEC_2 (VMULESH,	      "vmulesh",	CONST,	vec_widen_smult_even_v8hi)
+BU_ALTIVEC_2 (VMULOUB,	      "vmuloub",	CONST,	vec_widen_umult_odd_v16qi)
+BU_ALTIVEC_2 (VMULOUB_UNS,    "vmuloub_uns",	CONST,	vec_widen_umult_odd_v16qi)
+BU_ALTIVEC_2 (VMULOSB,	      "vmulosb",	CONST,	vec_widen_smult_odd_v16qi)
+BU_ALTIVEC_2 (VMULOUH,	      "vmulouh",	CONST,	vec_widen_umult_odd_v8hi)
+BU_ALTIVEC_2 (VMULOUH_UNS,    "vmulouh_uns",	CONST,	vec_widen_umult_odd_v8hi)
+BU_ALTIVEC_2 (VMULOSH,	      "vmulosh",	CONST,	vec_widen_smult_odd_v8hi)
 BU_ALTIVEC_2 (VNOR,	      "vnor",		CONST,	norv4si3)
 BU_ALTIVEC_2 (VOR,	      "vor",		CONST,	iorv4si3)
 BU_ALTIVEC_2 (VPKUHUM,	      "vpkuhum",	CONST,	altivec_vpkuhum)
@@ -1430,9 +1429,12 @@ BU_SPECIAL_X (RS6000_BUILTIN_RSQRT, "__builtin_rsqrt", RS6000_BTM_FRSQRTE,
 BU_SPECIAL_X (RS6000_BUILTIN_RSQRTF, "__builtin_rsqrtf", RS6000_BTM_FRSQRTES,
 	      RS6000_BTC_FP)
 
-BU_SPECIAL_X (RS6000_BUILTIN_BSWAP_HI, "__builtin_bswap16", RS6000_BTM_POWERPC,
-	      RS6000_BTC_MEM)
+BU_SPECIAL_X (RS6000_BUILTIN_GET_TB, "__builtin_ppc_get_timebase",
+	     RS6000_BTM_ALWAYS, RS6000_BTC_MISC)
+
+BU_SPECIAL_X (RS6000_BUILTIN_MFTB, "__builtin_ppc_mftb",
+	     RS6000_BTM_ALWAYS, RS6000_BTC_MISC)
 
 /* Darwin CfString builtin.  */
-BU_SPECIAL_X (RS6000_BUILTIN_CFSTRING, "__builtin_cfstring", RS6000_BTM_POWERPC,
+BU_SPECIAL_X (RS6000_BUILTIN_CFSTRING, "__builtin_cfstring", RS6000_BTM_ALWAYS,
 	      RS6000_BTC_MISC)

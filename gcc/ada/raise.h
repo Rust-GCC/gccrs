@@ -6,7 +6,7 @@
  *                                                                          *
  *                              C Header File                               *
  *                                                                          *
- *          Copyright (C) 1992-2011, Free Software Foundation, Inc.         *
+ *          Copyright (C) 1992-2012, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -48,6 +48,8 @@ struct Exception_Data
 };
 
 typedef struct Exception_Data *Exception_Id;
+
+struct Exception_Occurrence;
 
 extern void _gnat_builtin_longjmp	(void *, int);
 extern void __gnat_unhandled_terminate	(void);

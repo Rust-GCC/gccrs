@@ -1,5 +1,5 @@
 /* Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
-   2011
+   2011, 2012
    Free Software Foundation, Inc.
    Contributed by Andy Vaught
    F2003 I/O support contributed by Jerry DeLisle
@@ -39,13 +39,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #include <string.h>
 #include <errno.h>
-
-
-/* min macro that evaluates its arguments only once.  */
-#define min(a,b)		\
-  ({ typeof (a) _a = (a);	\
-    typeof (b) _b = (b);	\
-    _a < _b ? _a : _b; })
 
 
 /* For mingw, we don't identify files by their inode number, but by a
@@ -106,8 +99,19 @@ id_from_fd (const int fd)
   return id_from_handle ((HANDLE) _get_osfhandle (fd));
 }
 
+#endif /* HAVE_WORKING_STAT */
+#endif /* __MINGW32__ */
+
+
+/* min macro that evaluates its arguments only once.  */
+#ifdef min
+#undef min
 #endif
-#endif
+
+#define min(a,b)		\
+  ({ typeof (a) _a = (a);	\
+    typeof (b) _b = (b);	\
+    _a < _b ? _a : _b; })
 
 #ifndef PATH_MAX
 #define PATH_MAX 1024
@@ -173,6 +177,17 @@ fallback_access (const char *path, int mode)
 
 #undef access
 #define access fallback_access
+#endif
+
+
+/* Fallback directory for creating temporary files.  P_tmpdir is
+   defined on many POSIX platforms.  */
+#ifndef P_tmpdir
+#ifdef _P_tmpdir
+#define P_tmpdir _P_tmpdir  /* MinGW */
+#else
+#define P_tmpdir "/tmp"
+#endif
 #endif
 
 
@@ -401,17 +416,21 @@ raw_close (unix_stream * s)
   return retval;
 }
 
+static const struct stream_vtable raw_vtable = {
+  .read = (void *) raw_read,
+  .write = (void *) raw_write,
+  .seek = (void *) raw_seek,
+  .tell = (void *) raw_tell,
+  .size = (void *) raw_size,
+  .trunc = (void *) raw_truncate,
+  .close = (void *) raw_close,
+  .flush = (void *) raw_flush 
+};
+
 static int
 raw_init (unix_stream * s)
 {
-  s->st.read = (void *) raw_read;
-  s->st.write = (void *) raw_write;
-  s->st.seek = (void *) raw_seek;
-  s->st.tell = (void *) raw_tell;
-  s->st.size = (void *) raw_size;
-  s->st.trunc = (void *) raw_truncate;
-  s->st.close = (void *) raw_close;
-  s->st.flush = (void *) raw_flush;
+  s->st.vptr = &raw_vtable;
 
   s->buffer = NULL;
   return 0;
@@ -619,19 +638,23 @@ buf_close (unix_stream * s)
   return raw_close (s);
 }
 
+static const struct stream_vtable buf_vtable = {
+  .read = (void *) buf_read,
+  .write = (void *) buf_write,
+  .seek = (void *) buf_seek,
+  .tell = (void *) buf_tell,
+  .size = (void *) buf_size,
+  .trunc = (void *) buf_truncate,
+  .close = (void *) buf_close,
+  .flush = (void *) buf_flush 
+};
+
 static int
 buf_init (unix_stream * s)
 {
-  s->st.read = (void *) buf_read;
-  s->st.write = (void *) buf_write;
-  s->st.seek = (void *) buf_seek;
-  s->st.tell = (void *) buf_tell;
-  s->st.size = (void *) buf_size;
-  s->st.trunc = (void *) buf_truncate;
-  s->st.close = (void *) buf_close;
-  s->st.flush = (void *) buf_flush;
+  s->st.vptr = &buf_vtable;
 
-  s->buffer = get_mem (BUFFER_SIZE);
+  s->buffer = xmalloc (BUFFER_SIZE);
   return 0;
 }
 
@@ -728,7 +751,7 @@ mem_alloc_w4 (stream * strm, int * len)
 }
 
 
-/* Stream read function for character(kine=1) internal units.  */
+/* Stream read function for character(kind=1) internal units.  */
 
 static ssize_t
 mem_read (stream * s, void * buf, ssize_t nbytes)
@@ -872,6 +895,31 @@ mem_close (unix_stream * s)
   return 0;
 }
 
+static const struct stream_vtable mem_vtable = {
+  .read = (void *) mem_read,
+  .write = (void *) mem_write,
+  .seek = (void *) mem_seek,
+  .tell = (void *) mem_tell,
+  /* buf_size is not a typo, we just reuse an identical
+     implementation.  */
+  .size = (void *) buf_size,
+  .trunc = (void *) mem_truncate,
+  .close = (void *) mem_close,
+  .flush = (void *) mem_flush 
+};
+
+static const struct stream_vtable mem4_vtable = {
+  .read = (void *) mem_read4,
+  .write = (void *) mem_write4,
+  .seek = (void *) mem_seek,
+  .tell = (void *) mem_tell,
+  /* buf_size is not a typo, we just reuse an identical
+     implementation.  */
+  .size = (void *) buf_size,
+  .trunc = (void *) mem_truncate,
+  .close = (void *) mem_close,
+  .flush = (void *) mem_flush 
+};
 
 /*********************************************************************
   Public functions -- A reimplementation of this module needs to
@@ -886,25 +934,14 @@ open_internal (char *base, int length, gfc_offset offset)
 {
   unix_stream *s;
 
-  s = get_mem (sizeof (unix_stream));
-  memset (s, '\0', sizeof (unix_stream));
+  s = xcalloc (1, sizeof (unix_stream));
 
   s->buffer = base;
   s->buffer_offset = offset;
 
-  s->logical_offset = 0;
   s->active = s->file_length = length;
 
-  s->st.close = (void *) mem_close;
-  s->st.seek = (void *) mem_seek;
-  s->st.tell = (void *) mem_tell;
-  /* buf_size is not a typo, we just reuse an identical
-     implementation.  */
-  s->st.size = (void *) buf_size;
-  s->st.trunc = (void *) mem_truncate;
-  s->st.read = (void *) mem_read;
-  s->st.write = (void *) mem_write;
-  s->st.flush = (void *) mem_flush;
+  s->st.vptr = &mem_vtable;
 
   return (stream *) s;
 }
@@ -917,25 +954,14 @@ open_internal4 (char *base, int length, gfc_offset offset)
 {
   unix_stream *s;
 
-  s = get_mem (sizeof (unix_stream));
-  memset (s, '\0', sizeof (unix_stream));
+  s = xcalloc (1, sizeof (unix_stream));
 
   s->buffer = base;
   s->buffer_offset = offset;
 
-  s->logical_offset = 0;
-  s->active = s->file_length = length;
+  s->active = s->file_length = length * sizeof (gfc_char4_t);
 
-  s->st.close = (void *) mem_close;
-  s->st.seek = (void *) mem_seek;
-  s->st.tell = (void *) mem_tell;
-  /* buf_size is not a typo, we just reuse an identical
-     implementation.  */
-  s->st.size = (void *) buf_size;
-  s->st.trunc = (void *) mem_truncate;
-  s->st.read = (void *) mem_read4;
-  s->st.write = (void *) mem_write4;
-  s->st.flush = (void *) mem_flush;
+  s->st.vptr = &mem4_vtable;
 
   return (stream *) s;
 }
@@ -950,13 +976,9 @@ fd_to_stream (int fd)
   struct stat statbuf;
   unix_stream *s;
 
-  s = get_mem (sizeof (unix_stream));
-  memset (s, '\0', sizeof (unix_stream));
+  s = xcalloc (1, sizeof (unix_stream));
 
   s->fd = fd;
-  s->buffer_offset = 0;
-  s->physical_offset = 0;
-  s->logical_offset = 0;
 
   /* Get the current length of the file. */
 
@@ -1019,54 +1041,26 @@ unpack_filename (char *cstring, const char *fstring, int len)
 }
 
 
-/* tempfile()-- Generate a temporary filename for a scratch file and
- * open it.  mkstemp() opens the file for reading and writing, but the
- * library mode prevents anything that is not allowed.  The descriptor
- * is returned, which is -1 on error.  The template is pointed to by 
- * opp->file, which is copied into the unit structure
- * and freed later. */
+/* Helper function for tempfile(). Tries to open a temporary file in
+   the directory specified by tempdir. If successful, the file name is
+   stored in fname and the descriptor returned. Returns -1 on
+   failure.  */
 
 static int
-tempfile (st_parameter_open *opp)
+tempfile_open (const char *tempdir, char **fname)
 {
-  const char *tempdir;
-  char *template;
-  const char *slash = "/";
   int fd;
-  size_t tempdirlen;
-
-#ifndef HAVE_MKSTEMP
-  int count;
-  size_t slashlen;
+  const char *slash = "/";
+#if defined(HAVE_UMASK) && defined(HAVE_MKSTEMP)
+  mode_t mode_mask;
 #endif
 
-  tempdir = getenv ("GFORTRAN_TMPDIR");
-#ifdef __MINGW32__
-  if (tempdir == NULL)
-    {
-      char buffer[MAX_PATH + 1];
-      DWORD ret;
-      ret = GetTempPath (MAX_PATH, buffer);
-      /* If we are not able to get a temp-directory, we use
-	 current directory.  */
-      if (ret > MAX_PATH || !ret)
-        buffer[0] = 0;
-      else
-        buffer[ret] = 0;
-      tempdir = strdup (buffer);
-    }
-#else
-  if (tempdir == NULL)
-    tempdir = getenv ("TMP");
-  if (tempdir == NULL)
-    tempdir = getenv ("TEMP");
-  if (tempdir == NULL)
-    tempdir = DEFAULT_TEMPDIR;
-#endif
+  if (!tempdir)
+    return -1;
 
-  /* Check for special case that tempdir contains slash
-     or backslash at end.  */
-  tempdirlen = strlen (tempdir);
+  /* Check for the special case that tempdir ends with a slash or
+     backslash.  */
+  size_t tempdirlen = strlen (tempdir);
   if (*tempdir == 0 || tempdir[tempdirlen - 1] == '/'
 #ifdef __MINGW32__
       || tempdir[tempdirlen - 1] == '\\'
@@ -1075,18 +1069,27 @@ tempfile (st_parameter_open *opp)
     slash = "";
 
   // Take care that the template is longer in the mktemp() branch.
-  template = get_mem (tempdirlen + 23);
+  char * template = xmalloc (tempdirlen + 23);
 
 #ifdef HAVE_MKSTEMP
   snprintf (template, tempdirlen + 23, "%s%sgfortrantmpXXXXXX", 
 	    tempdir, slash);
 
+#ifdef HAVE_UMASK
+  /* Temporarily set the umask such that the file has 0600 permissions.  */
+  mode_mask = umask (S_IXUSR | S_IRWXG | S_IRWXO);
+#endif
+
   fd = mkstemp (template);
+
+#ifdef HAVE_UMASK
+  (void) umask (mode_mask);
+#endif
 
 #else /* HAVE_MKSTEMP */
   fd = -1;
-  count = 0;
-  slashlen = strlen (slash);
+  int count = 0;
+  size_t slashlen = strlen (slash);
   do
     {
       snprintf (template, tempdirlen + 23, "%s%sgfortrantmpaaaXXXXXX", 
@@ -1120,8 +1123,59 @@ tempfile (st_parameter_open *opp)
   while (fd == -1 && errno == EEXIST);
 #endif /* HAVE_MKSTEMP */
 
-  opp->file = template;
-  opp->file_len = strlen (template);	/* Don't include trailing nul */
+  *fname = template;
+  return fd;
+}
+
+
+/* tempfile()-- Generate a temporary filename for a scratch file and
+ * open it.  mkstemp() opens the file for reading and writing, but the
+ * library mode prevents anything that is not allowed.  The descriptor
+ * is returned, which is -1 on error.  The template is pointed to by 
+ * opp->file, which is copied into the unit structure
+ * and freed later. */
+
+static int
+tempfile (st_parameter_open *opp)
+{
+  const char *tempdir;
+  char *fname;
+  int fd = -1;
+
+  tempdir = secure_getenv ("TMPDIR");
+  fd = tempfile_open (tempdir, &fname);
+#ifdef __MINGW32__
+  if (fd == -1)
+    {
+      char buffer[MAX_PATH + 1];
+      DWORD ret;
+      ret = GetTempPath (MAX_PATH, buffer);
+      /* If we are not able to get a temp-directory, we use
+	 current directory.  */
+      if (ret > MAX_PATH || !ret)
+        buffer[0] = 0;
+      else
+        buffer[ret] = 0;
+      tempdir = strdup (buffer);
+      fd = tempfile_open (tempdir, &fname);
+    }
+#elif defined(__CYGWIN__)
+  if (fd == -1)
+    {
+      tempdir = secure_getenv ("TMP");
+      fd = tempfile_open (tempdir, &fname);
+    }
+  if (fd == -1)
+    {
+      tempdir = secure_getenv ("TEMP");
+      fd = tempfile_open (tempdir, &fname);
+    }
+#endif
+  if (fd == -1)
+    fd = tempfile_open (P_tmpdir, &fname);
+ 
+  opp->file = fname;
+  opp->file_len = strlen (fname);	/* Don't include trailing nul */
 
   return fd;
 }

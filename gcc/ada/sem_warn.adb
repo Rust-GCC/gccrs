@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1999-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 1999-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -103,7 +103,7 @@ package body Sem_Warn is
    --       and then Has_Warnings_Off (E)
 
    --  This way if some-other-predicate is false, we avoid a false indication
-   --  that a Warnings (Off,E) pragma was useful in preventing a warning.
+   --  that a Warnings (Off, E) pragma was useful in preventing a warning.
 
    --  The second rule is that if both Has_Unmodified and Has_Warnings_Off, or
    --  Has_Unreferenced and Has_Warnings_Off are called, make sure that the
@@ -472,32 +472,41 @@ package body Sem_Warn is
                return Abandon;
             end if;
 
-            --  If we appear in the context of a procedure call, then also
-            --  abandon, since there may be issues of non-visible side
-            --  effects going on in the call.
+            --  If the condition contains a function call, we consider it may
+            --  be modified by side-effects from a procedure call. Otherwise,
+            --  we consider the condition may not be modified, although that
+            --  might happen if Variable is itself a by-reference parameter,
+            --  and the procedure called modifies the global object referred to
+            --  by Variable, but we actually prefer to issue a warning in this
+            --  odd case. Note that the case where the procedure called has
+            --  visibility over Variable is treated in another case below.
 
-            declare
-               P : Node_Id;
+            if Function_Call_Found then
+               declare
+                  P : Node_Id;
 
-            begin
-               P := N;
-               loop
-                  P := Parent (P);
-                  exit when P = Loop_Statement;
+               begin
+                  P := N;
+                  loop
+                     P := Parent (P);
+                     exit when P = Loop_Statement;
 
-                  --  Abandon if at procedure call, or something strange is
-                  --  going on (perhaps a node with no parent that should
-                  --  have one but does not?) As always, for a warning we
-                  --  prefer to just abandon the warning than get into the
-                  --  business of complaining about the tree structure here!
+                     --  Abandon if at procedure call, or something strange is
+                     --  going on (perhaps a node with no parent that should
+                     --  have one but does not?) As always, for a warning we
+                     --  prefer to just abandon the warning than get into the
+                     --  business of complaining about the tree structure here!
 
-                  if No (P) or else Nkind (P) = N_Procedure_Call_Statement then
-                     return Abandon;
-                  end if;
-               end loop;
-            end;
+                     if No (P)
+                       or else Nkind (P) = N_Procedure_Call_Statement
+                     then
+                        return Abandon;
+                     end if;
+                  end loop;
+               end;
+            end if;
 
-            --  Reference to variable renaming variable in question
+         --  Reference to variable renaming variable in question
 
          elsif Is_Entity_Name (N)
            and then Present (Entity (N))
@@ -509,11 +518,10 @@ package body Sem_Warn is
          then
             return Abandon;
 
-            --  Call to subprogram
+         --  Call to subprogram
 
-         elsif Nkind (N) = N_Procedure_Call_Statement
-           or else Nkind (N) = N_Function_Call
-         then
+         elsif Nkind (N) in N_Subprogram_Call then
+
             --  If subprogram is within the scope of the entity we are dealing
             --  with as the loop variable, then it could modify this parameter,
             --  so we abandon in this case. In the case of a subprogram that is
@@ -1749,7 +1757,7 @@ package body Sem_Warn is
 
                      function Within_Postcondition return Boolean;
                      --  Returns True iff N is within a Postcondition or
-                     --  Ensures component in a Test_Case.
+                     --  Ensures component in a Contract_Case or Test_Case.
 
                      --------------------------
                      -- Within_Postcondition --
@@ -1770,9 +1778,12 @@ package body Sem_Warn is
                               P := Parent (Nod);
 
                               if Nkind (P) = N_Pragma
-                                and then Pragma_Name (P) = Name_Test_Case
                                 and then
-                                  Nod = Get_Ensures_From_Test_Case_Pragma (P)
+                                  (Pragma_Name (P) = Name_Contract_Case
+                                     or else
+                                   Pragma_Name (P) = Name_Test_Case)
+                                and then
+                                  Nod = Get_Ensures_From_CTC_Pragma (P)
                               then
                                  return True;
                               end if;
@@ -3279,7 +3290,7 @@ package body Sem_Warn is
 
       --  Exclude calls rewritten as enumeration literals
 
-      if not Nkind_In (N, N_Function_Call, N_Procedure_Call_Statement) then
+      if Nkind (N) not in N_Subprogram_Call then
          return;
       end if;
 

@@ -118,12 +118,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "flags.h"
 #include "tm_p.h"
 #include "basic-block.h"
-#include "output.h"
 #include "function.h"
-#include "tree-pretty-print.h"
 #include "gimple-pretty-print.h"
-#include "timevar.h"
-#include "tree-dump.h"
 #include "tree-flow.h"
 #include "tree-pass.h"
 #include "tree-ssa-propagate.h"
@@ -134,6 +130,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "dbgcnt.h"
 #include "gimple-fold.h"
 #include "params.h"
+#include "hash-table.h"
 
 
 /* Possible lattice values.  */
@@ -189,12 +186,11 @@ dump_lattice_value (FILE *outf, const char *prefix, prop_value_t val)
     case CONSTANT:
       fprintf (outf, "%sCONSTANT ", prefix);
       if (TREE_CODE (val.value) != INTEGER_CST
-	  || double_int_zero_p (val.mask))
+	  || val.mask.is_zero ())
 	print_generic_expr (outf, val.value, dump_flags);
       else
 	{
-	  double_int cval = double_int_and_not (tree_to_double_int (val.value),
-						val.mask);
+	  double_int cval = tree_to_double_int (val.value).and_not (val.mask);
 	  fprintf (outf, "%sCONSTANT " HOST_WIDE_INT_PRINT_DOUBLE_HEX,
 		   prefix, cval.high, cval.low);
 	  fprintf (outf, " (" HOST_WIDE_INT_PRINT_DOUBLE_HEX ")",
@@ -240,7 +236,6 @@ debug_lattice_value (prop_value_t val)
 static prop_value_t
 get_default_value (tree var)
 {
-  tree sym = SSA_NAME_VAR (var);
   prop_value_t val = { UNINITIALIZED, NULL_TREE, { 0, 0 } };
   gimple stmt;
 
@@ -252,8 +247,8 @@ get_default_value (tree var)
 	 before being initialized.  If VAR is a local variable, we
 	 can assume initially that it is UNDEFINED, otherwise we must
 	 consider it VARYING.  */
-      if (is_gimple_reg (sym)
-	  && TREE_CODE (sym) == VAR_DECL)
+      if (!virtual_operand_p (var)
+	  && TREE_CODE (SSA_NAME_VAR (var)) == VAR_DECL)
 	val.lattice_val = UNDEFINED;
       else
 	{
@@ -327,7 +322,7 @@ get_constant_value (tree var)
   if (val
       && val->lattice_val == CONSTANT
       && (TREE_CODE (val->value) != INTEGER_CST
-	  || double_int_zero_p (val->mask)))
+	  || val->mask.is_zero ()))
     return val->value;
   return NULL_TREE;
 }
@@ -418,11 +413,8 @@ valid_lattice_transition (prop_value_t old_val, prop_value_t new_val)
   /* Bit-lattices have to agree in the still valid bits.  */
   if (TREE_CODE (old_val.value) == INTEGER_CST
       && TREE_CODE (new_val.value) == INTEGER_CST)
-    return double_int_equal_p
-		(double_int_and_not (tree_to_double_int (old_val.value),
-				     new_val.mask),
-		 double_int_and_not (tree_to_double_int (new_val.value),
-				     new_val.mask));
+    return tree_to_double_int (old_val.value).and_not (new_val.mask)
+	   == tree_to_double_int (new_val.value).and_not (new_val.mask);
 
   /* Otherwise constant values have to agree.  */
   return operand_equal_p (old_val.value, new_val.value, 0);
@@ -448,10 +440,9 @@ set_lattice_value (tree var, prop_value_t new_val)
       && TREE_CODE (old_val->value) == INTEGER_CST)
     {
       double_int diff;
-      diff = double_int_xor (tree_to_double_int (new_val.value),
-			     tree_to_double_int (old_val->value));
-      new_val.mask = double_int_ior (new_val.mask,
-				     double_int_ior (old_val->mask, diff));
+      diff = tree_to_double_int (new_val.value)
+	     ^ tree_to_double_int (old_val->value);
+      new_val.mask = new_val.mask | old_val->mask | diff;
     }
 
   gcc_assert (valid_lattice_transition (*old_val, new_val));
@@ -462,7 +453,7 @@ set_lattice_value (tree var, prop_value_t new_val)
       || (new_val.lattice_val == CONSTANT
 	  && TREE_CODE (new_val.value) == INTEGER_CST
 	  && (TREE_CODE (old_val->value) != INTEGER_CST
-	      || !double_int_equal_p (new_val.mask, old_val->mask))))
+	      || new_val.mask != old_val->mask)))
     {
       /* ???  We would like to delay creation of INTEGER_CSTs from
 	 partially constants here.  */
@@ -514,16 +505,16 @@ get_value_from_alignment (tree expr)
 
   gcc_assert (TREE_CODE (expr) == ADDR_EXPR);
 
-  align = get_object_alignment_1 (TREE_OPERAND (expr, 0), &bitpos);
-  val.mask
-    = double_int_and_not (POINTER_TYPE_P (type) || TYPE_UNSIGNED (type)
-			  ? double_int_mask (TYPE_PRECISION (type))
-			  : double_int_minus_one,
-			  uhwi_to_double_int (align / BITS_PER_UNIT - 1));
-  val.lattice_val = double_int_minus_one_p (val.mask) ? VARYING : CONSTANT;
+  get_pointer_alignment_1 (expr, &align, &bitpos);
+  val.mask = (POINTER_TYPE_P (type) || TYPE_UNSIGNED (type)
+	      ? double_int::mask (TYPE_PRECISION (type))
+	      : double_int_minus_one)
+	     .and_not (double_int::from_uhwi (align / BITS_PER_UNIT - 1));
+  val.lattice_val = val.mask.is_minus_one () ? VARYING : CONSTANT;
   if (val.lattice_val == CONSTANT)
     val.value
-      = double_int_to_tree (type, uhwi_to_double_int (bitpos / BITS_PER_UNIT));
+      = double_int_to_tree (type,
+			    double_int::from_uhwi (bitpos / BITS_PER_UNIT));
   else
     val.value = NULL_TREE;
 
@@ -766,7 +757,7 @@ ccp_initialize (void)
         {
           gimple phi = gsi_stmt (i);
 
-	  if (!is_gimple_reg (gimple_phi_result (phi)))
+	  if (virtual_operand_p (gimple_phi_result (phi)))
             prop_set_simulate_again (phi, false);
 	  else
             prop_set_simulate_again (phi, true);
@@ -813,7 +804,6 @@ ccp_finalize (void)
     {
       tree name = ssa_name (i);
       prop_value_t *val;
-      struct ptr_info_def *pi;
       unsigned int tem, align;
 
       if (!name
@@ -829,12 +819,9 @@ ccp_finalize (void)
 	 bits the misalignment.  */
       tem = val->mask.low;
       align = (tem & -tem);
-      if (align == 1)
-	continue;
-
-      pi = get_ptr_info (name);
-      pi->align = align;
-      pi->misalign = TREE_INT_CST_LOW (val->value) & (align - 1);
+      if (align > 1)
+	set_ptr_info_alignment (get_ptr_info (name), align,
+				TREE_INT_CST_LOW (val->value) & (align - 1));
     }
 
   /* Perform substitutions based on the known constant values.  */
@@ -888,12 +875,10 @@ ccp_lattice_meet (prop_value_t *val1, prop_value_t *val2)
 
          For INTEGER_CSTs mask unequal bits.  If no equal bits remain,
 	 drop to varying.  */
-      val1->mask
-	  = double_int_ior (double_int_ior (val1->mask,
-					    val2->mask),
-			    double_int_xor (tree_to_double_int (val1->value),
-					    tree_to_double_int (val2->value)));
-      if (double_int_minus_one_p (val1->mask))
+      val1->mask = val1->mask | val2->mask
+		   | (tree_to_double_int (val1->value)
+		      ^ tree_to_double_int (val2->value));
+      if (val1->mask.is_minus_one ())
 	{
 	  val1->lattice_val = VARYING;
 	  val1->value = NULL_TREE;
@@ -1088,7 +1073,7 @@ bit_value_unop_1 (enum tree_code code, tree type,
     {
     case BIT_NOT_EXPR:
       *mask = rmask;
-      *val = double_int_not (rval);
+      *val = ~rval;
       break;
 
     case NEGATE_EXPR:
@@ -1107,16 +1092,14 @@ bit_value_unop_1 (enum tree_code code, tree type,
 	bool uns;
 
 	/* First extend mask and value according to the original type.  */
-	uns = (TREE_CODE (rtype) == INTEGER_TYPE && TYPE_IS_SIZETYPE (rtype)
-	       ? 0 : TYPE_UNSIGNED (rtype));
-	*mask = double_int_ext (rmask, TYPE_PRECISION (rtype), uns);
-	*val = double_int_ext (rval, TYPE_PRECISION (rtype), uns);
+	uns = TYPE_UNSIGNED (rtype);
+	*mask = rmask.ext (TYPE_PRECISION (rtype), uns);
+	*val = rval.ext (TYPE_PRECISION (rtype), uns);
 
 	/* Then extend mask and value according to the target type.  */
-	uns = (TREE_CODE (type) == INTEGER_TYPE && TYPE_IS_SIZETYPE (type)
-	       ? 0 : TYPE_UNSIGNED (type));
-	*mask = double_int_ext (*mask, TYPE_PRECISION (type), uns);
-	*val = double_int_ext (*val, TYPE_PRECISION (type), uns);
+	uns = TYPE_UNSIGNED (type);
+	*mask = (*mask).ext (TYPE_PRECISION (type), uns);
+	*val = (*val).ext (TYPE_PRECISION (type), uns);
 	break;
       }
 
@@ -1136,8 +1119,7 @@ bit_value_binop_1 (enum tree_code code, tree type,
 		   tree r1type, double_int r1val, double_int r1mask,
 		   tree r2type, double_int r2val, double_int r2mask)
 {
-  bool uns = (TREE_CODE (type) == INTEGER_TYPE
-	      && TYPE_IS_SIZETYPE (type) ? 0 : TYPE_UNSIGNED (type));
+  bool uns = TYPE_UNSIGNED (type);
   /* Assume we'll get a constant result.  Use an initial varying value,
      we fall back to varying in the end if necessary.  */
   *mask = double_int_minus_one;
@@ -1146,37 +1128,33 @@ bit_value_binop_1 (enum tree_code code, tree type,
     case BIT_AND_EXPR:
       /* The mask is constant where there is a known not
 	 set bit, (m1 | m2) & ((v1 | m1) & (v2 | m2)) */
-      *mask = double_int_and (double_int_ior (r1mask, r2mask),
-			      double_int_and (double_int_ior (r1val, r1mask),
-					      double_int_ior (r2val, r2mask)));
-      *val = double_int_and (r1val, r2val);
+      *mask = (r1mask | r2mask) & (r1val | r1mask) & (r2val | r2mask);
+      *val = r1val & r2val;
       break;
 
     case BIT_IOR_EXPR:
       /* The mask is constant where there is a known
 	 set bit, (m1 | m2) & ~((v1 & ~m1) | (v2 & ~m2)).  */
-      *mask = double_int_and_not
-	  	(double_int_ior (r1mask, r2mask),
-		 double_int_ior (double_int_and_not (r1val, r1mask),
-				 double_int_and_not (r2val, r2mask)));
-      *val = double_int_ior (r1val, r2val);
+      *mask = (r1mask | r2mask)
+	      .and_not (r1val.and_not (r1mask) | r2val.and_not (r2mask));
+      *val = r1val | r2val;
       break;
 
     case BIT_XOR_EXPR:
       /* m1 | m2  */
-      *mask = double_int_ior (r1mask, r2mask);
-      *val = double_int_xor (r1val, r2val);
+      *mask = r1mask | r2mask;
+      *val = r1val ^ r2val;
       break;
 
     case LROTATE_EXPR:
     case RROTATE_EXPR:
-      if (double_int_zero_p (r2mask))
+      if (r2mask.is_zero ())
 	{
 	  HOST_WIDE_INT shift = r2val.low;
 	  if (code == RROTATE_EXPR)
 	    shift = -shift;
-	  *mask = double_int_lrotate (r1mask, shift, TYPE_PRECISION (type));
-	  *val = double_int_lrotate (r1val, shift, TYPE_PRECISION (type));
+	  *mask = r1mask.lrotate (shift, TYPE_PRECISION (type));
+	  *val = r1val.lrotate (shift, TYPE_PRECISION (type));
 	}
       break;
 
@@ -1185,7 +1163,7 @@ bit_value_binop_1 (enum tree_code code, tree type,
       /* ???  We can handle partially known shift counts if we know
 	 its sign.  That way we can tell that (x << (y | 8)) & 255
 	 is zero.  */
-      if (double_int_zero_p (r2mask))
+      if (r2mask.is_zero ())
 	{
 	  HOST_WIDE_INT shift = r2val.low;
 	  if (code == RSHIFT_EXPR)
@@ -1197,25 +1175,14 @@ bit_value_binop_1 (enum tree_code code, tree type,
 	     the sign bit was varying.  */
 	  if (shift > 0)
 	    {
-	      *mask = double_int_lshift (r1mask, shift,
-					 TYPE_PRECISION (type), false);
-	      *val = double_int_lshift (r1val, shift,
-					TYPE_PRECISION (type), false);
+	      *mask = r1mask.llshift (shift, TYPE_PRECISION (type));
+	      *val = r1val.llshift (shift, TYPE_PRECISION (type));
 	    }
 	  else if (shift < 0)
 	    {
-	      /* ???  We can have sizetype related inconsistencies in
-		 the IL.  */
-	      if ((TREE_CODE (r1type) == INTEGER_TYPE
-		   && (TYPE_IS_SIZETYPE (r1type)
-		       ? 0 : TYPE_UNSIGNED (r1type))) != uns)
-		break;
-
 	      shift = -shift;
-	      *mask = double_int_rshift (r1mask, shift,
-					 TYPE_PRECISION (type), !uns);
-	      *val = double_int_rshift (r1val, shift,
-					TYPE_PRECISION (type), !uns);
+	      *mask = r1mask.rshift (shift, TYPE_PRECISION (type), !uns);
+	      *val = r1val.rshift (shift, TYPE_PRECISION (type), !uns);
 	    }
 	  else
 	    {
@@ -1231,21 +1198,18 @@ bit_value_binop_1 (enum tree_code code, tree type,
 	double_int lo, hi;
 	/* Do the addition with unknown bits set to zero, to give carry-ins of
 	   zero wherever possible.  */
-	lo = double_int_add (double_int_and_not (r1val, r1mask),
-			     double_int_and_not (r2val, r2mask));
-	lo = double_int_ext (lo, TYPE_PRECISION (type), uns);
+	lo = r1val.and_not (r1mask) + r2val.and_not (r2mask);
+	lo = lo.ext (TYPE_PRECISION (type), uns);
 	/* Do the addition with unknown bits set to one, to give carry-ins of
 	   one wherever possible.  */
-	hi = double_int_add (double_int_ior (r1val, r1mask),
-			     double_int_ior (r2val, r2mask));
-	hi = double_int_ext (hi, TYPE_PRECISION (type), uns);
+	hi = (r1val | r1mask) + (r2val | r2mask);
+	hi = hi.ext (TYPE_PRECISION (type), uns);
 	/* Each bit in the result is known if (a) the corresponding bits in
 	   both inputs are known, and (b) the carry-in to that bit position
 	   is known.  We can check condition (b) by seeing if we got the same
 	   result with minimised carries as with maximised carries.  */
-	*mask = double_int_ior (double_int_ior (r1mask, r2mask),
-				double_int_xor (lo, hi));
-	*mask = double_int_ext (*mask, TYPE_PRECISION (type), uns);
+	*mask = r1mask | r2mask | (lo ^ hi);
+	*mask = (*mask).ext (TYPE_PRECISION (type), uns);
 	/* It shouldn't matter whether we choose lo or hi here.  */
 	*val = lo;
 	break;
@@ -1266,8 +1230,8 @@ bit_value_binop_1 (enum tree_code code, tree type,
       {
 	/* Just track trailing zeros in both operands and transfer
 	   them to the other.  */
-	int r1tz = double_int_ctz (double_int_ior (r1val, r1mask));
-	int r2tz = double_int_ctz (double_int_ior (r2val, r2mask));
+	int r1tz = (r1val | r1mask).trailing_zeros ();
+	int r2tz = (r2val | r2mask).trailing_zeros ();
 	if (r1tz + r2tz >= HOST_BITS_PER_DOUBLE_INT)
 	  {
 	    *mask = double_int_zero;
@@ -1275,8 +1239,8 @@ bit_value_binop_1 (enum tree_code code, tree type,
 	  }
 	else if (r1tz + r2tz > 0)
 	  {
-	    *mask = double_int_not (double_int_mask (r1tz + r2tz));
-	    *mask = double_int_ext (*mask, TYPE_PRECISION (type), uns);
+	    *mask = ~double_int::mask (r1tz + r2tz);
+	    *mask = (*mask).ext (TYPE_PRECISION (type), uns);
 	    *val = double_int_zero;
 	  }
 	break;
@@ -1285,9 +1249,8 @@ bit_value_binop_1 (enum tree_code code, tree type,
     case EQ_EXPR:
     case NE_EXPR:
       {
-	double_int m = double_int_ior (r1mask, r2mask);
-	if (!double_int_equal_p (double_int_and_not (r1val, m),
-				 double_int_and_not (r2val, m)))
+	double_int m = r1mask | r2mask;
+	if (r1val.and_not (m) != r2val.and_not (m))
 	  {
 	    *mask = double_int_zero;
 	    *val = ((code == EQ_EXPR) ? double_int_zero : double_int_one);
@@ -1318,24 +1281,17 @@ bit_value_binop_1 (enum tree_code code, tree type,
       {
 	int minmax, maxmin;
 	/* If the most significant bits are not known we know nothing.  */
-	if (double_int_negative_p (r1mask) || double_int_negative_p (r2mask))
+	if (r1mask.is_negative () || r2mask.is_negative ())
 	  break;
 
 	/* For comparisons the signedness is in the comparison operands.  */
-	uns = (TREE_CODE (r1type) == INTEGER_TYPE
-	       && TYPE_IS_SIZETYPE (r1type) ? 0 : TYPE_UNSIGNED (r1type));
-	/* ???  We can have sizetype related inconsistencies in the IL.  */
-	if ((TREE_CODE (r2type) == INTEGER_TYPE
-	     && TYPE_IS_SIZETYPE (r2type) ? 0 : TYPE_UNSIGNED (r2type)) != uns)
-	  break;
+	uns = TYPE_UNSIGNED (r1type);
 
 	/* If we know the most significant bits we know the values
 	   value ranges by means of treating varying bits as zero
 	   or one.  Do a cross comparison of the max/min pairs.  */
-	maxmin = double_int_cmp (double_int_ior (r1val, r1mask),
-				 double_int_and_not (r2val, r2mask), uns);
-	minmax = double_int_cmp (double_int_and_not (r1val, r1mask),
-				 double_int_ior (r2val, r2mask), uns);
+	maxmin = (r1val | r1mask).cmp (r2val.and_not (r2mask), uns);
+	minmax = r1val.and_not (r1mask).cmp (r2val | r2mask, uns);
 	if (maxmin < 0)  /* r1 is less than r2.  */
 	  {
 	    *mask = double_int_zero;
@@ -1381,10 +1337,10 @@ bit_value_unop (enum tree_code code, tree type, tree rhs)
 
   gcc_assert ((rval.lattice_val == CONSTANT
 	       && TREE_CODE (rval.value) == INTEGER_CST)
-	      || double_int_minus_one_p (rval.mask));
+	      || rval.mask.is_minus_one ());
   bit_value_unop_1 (code, type, &value, &mask,
 		    TREE_TYPE (rhs), value_to_double_int (rval), rval.mask);
-  if (!double_int_minus_one_p (mask))
+  if (!mask.is_minus_one ())
     {
       val.lattice_val = CONSTANT;
       val.mask = mask;
@@ -1422,14 +1378,14 @@ bit_value_binop (enum tree_code code, tree type, tree rhs1, tree rhs2)
 
   gcc_assert ((r1val.lattice_val == CONSTANT
 	       && TREE_CODE (r1val.value) == INTEGER_CST)
-	      || double_int_minus_one_p (r1val.mask));
+	      || r1val.mask.is_minus_one ());
   gcc_assert ((r2val.lattice_val == CONSTANT
 	       && TREE_CODE (r2val.value) == INTEGER_CST)
-	      || double_int_minus_one_p (r2val.mask));
+	      || r2val.mask.is_minus_one ());
   bit_value_binop_1 (code, type, &value, &mask,
 		     TREE_TYPE (rhs1), value_to_double_int (r1val), r1val.mask,
 		     TREE_TYPE (rhs2), value_to_double_int (r2val), r2val.mask);
-  if (!double_int_minus_one_p (mask))
+  if (!mask.is_minus_one ())
     {
       val.lattice_val = CONSTANT;
       val.mask = mask;
@@ -1462,7 +1418,7 @@ bit_value_assume_aligned (gimple stmt)
     return ptrval;
   gcc_assert ((ptrval.lattice_val == CONSTANT
 	       && TREE_CODE (ptrval.value) == INTEGER_CST)
-	      || double_int_minus_one_p (ptrval.mask));
+	      || ptrval.mask.is_minus_one ());
   align = gimple_call_arg (stmt, 1);
   if (!host_integerp (align, 1))
     return ptrval;
@@ -1484,7 +1440,7 @@ bit_value_assume_aligned (gimple stmt)
   bit_value_binop_1 (BIT_AND_EXPR, type, &value, &mask,
 		     type, value_to_double_int (ptrval), ptrval.mask,
 		     type, value_to_double_int (alignval), alignval.mask);
-  if (!double_int_minus_one_p (mask))
+  if (!mask.is_minus_one ())
     {
       val.lattice_val = CONSTANT;
       val.mask = mask;
@@ -1648,7 +1604,7 @@ evaluate_stmt (gimple stmt)
 	    case BUILT_IN_STRNDUP:
 	      val.lattice_val = CONSTANT;
 	      val.value = build_int_cst (TREE_TYPE (gimple_get_lhs (stmt)), 0);
-	      val.mask = shwi_to_double_int
+	      val.mask = double_int::from_shwi
 		  	   (~(((HOST_WIDE_INT) MALLOC_ABI_ALIGNMENT)
 			      / BITS_PER_UNIT - 1));
 	      break;
@@ -1660,9 +1616,8 @@ evaluate_stmt (gimple stmt)
 		       : BIGGEST_ALIGNMENT);
 	      val.lattice_val = CONSTANT;
 	      val.value = build_int_cst (TREE_TYPE (gimple_get_lhs (stmt)), 0);
-	      val.mask = shwi_to_double_int
-		  	   (~(((HOST_WIDE_INT) align)
-			      / BITS_PER_UNIT - 1));
+	      val.mask = double_int::from_shwi (~(((HOST_WIDE_INT) align)
+						  / BITS_PER_UNIT - 1));
 	      break;
 
 	    /* These builtins return their first argument, unmodified.  */
@@ -1711,11 +1666,14 @@ evaluate_stmt (gimple stmt)
   return val;
 }
 
+typedef hash_table <pointer_hash <gimple_statement_d> > gimple_htab;
+
 /* Given a BUILT_IN_STACK_SAVE value SAVED_VAL, insert a clobber of VAR before
    each matching BUILT_IN_STACK_RESTORE.  Mark visited phis in VISITED.  */
 
 static void
-insert_clobber_before_stack_restore (tree saved_val, tree var, htab_t *visited)
+insert_clobber_before_stack_restore (tree saved_val, tree var,
+				     gimple_htab *visited)
 {
   gimple stmt, clobber_stmt;
   tree clobber;
@@ -1735,10 +1693,10 @@ insert_clobber_before_stack_restore (tree saved_val, tree var, htab_t *visited)
       }
     else if (gimple_code (stmt) == GIMPLE_PHI)
       {
-	if (*visited == NULL)
-	  *visited = htab_create (10, htab_hash_pointer, htab_eq_pointer, NULL);
+	if (!visited->is_created ())
+	  visited->create (10);
 
-	slot = (gimple *)htab_find_slot (*visited, stmt, INSERT);
+	slot = visited->find_slot (stmt, INSERT);
 	if (*slot != NULL)
 	  continue;
 
@@ -1781,7 +1739,7 @@ insert_clobbers_for_var (gimple_stmt_iterator i, tree var)
 {
   gimple stmt;
   tree saved_val;
-  htab_t visited = NULL;
+  gimple_htab visited;
 
   for (; !gsi_end_p (i); gsi_prev_dom_bb_nondebug (&i))
     {
@@ -1798,8 +1756,8 @@ insert_clobbers_for_var (gimple_stmt_iterator i, tree var)
       break;
     }
 
-  if (visited != NULL)
-    htab_delete (visited);
+  if (visited.is_created ())
+    visited.dispose ();
 }
 
 /* Detects a __builtin_alloca_with_align with constant size argument.  Declares
@@ -1877,7 +1835,7 @@ ccp_fold_stmt (gimple_stmt_iterator *gsi)
 	   fold more conditionals here.  */
 	val = evaluate_stmt (stmt);
 	if (val.lattice_val != CONSTANT
-	    || !double_int_zero_p (val.mask))
+	    || !val.mask.is_zero ())
 	  return false;
 
 	if (dump_file)
@@ -2057,7 +2015,7 @@ visit_cond_stmt (gimple stmt, edge *taken_edge_p)
   block = gimple_bb (stmt);
   val = evaluate_stmt (stmt);
   if (val.lattice_val != CONSTANT
-      || !double_int_zero_p (val.mask))
+      || !val.mask.is_zero ())
     return SSA_PROP_VARYING;
 
   /* Find which edge out of the conditional block will be taken and add it
@@ -2176,6 +2134,7 @@ struct gimple_opt_pass pass_ccp =
   0,					/* properties_destroyed */
   0,					/* todo_flags_start */
   TODO_verify_ssa
+  | TODO_update_address_taken
   | TODO_verify_stmts | TODO_ggc_collect/* todo_flags_finish */
  }
 };
@@ -2344,6 +2303,72 @@ optimize_stdarg_builtin (gimple call)
     }
 }
 
+/* Attemp to make the block of __builtin_unreachable I unreachable by changing
+   the incoming jumps.  Return true if at least one jump was changed.  */
+
+static bool
+optimize_unreachable (gimple_stmt_iterator i)
+{
+  basic_block bb = gsi_bb (i);
+  gimple_stmt_iterator gsi;
+  gimple stmt;
+  edge_iterator ei;
+  edge e;
+  bool ret;
+
+  for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
+    {
+      stmt = gsi_stmt (gsi);
+
+      if (is_gimple_debug (stmt))
+       continue;
+
+      if (gimple_code (stmt) == GIMPLE_LABEL)
+	{
+	  /* Verify we do not need to preserve the label.  */
+	  if (FORCED_LABEL (gimple_label_label (stmt)))
+	    return false;
+
+	  continue;
+	}
+
+      /* Only handle the case that __builtin_unreachable is the first statement
+	 in the block.  We rely on DCE to remove stmts without side-effects
+	 before __builtin_unreachable.  */
+      if (gsi_stmt (gsi) != gsi_stmt (i))
+        return false;
+    }
+
+  ret = false;
+  FOR_EACH_EDGE (e, ei, bb->preds)
+    {
+      gsi = gsi_last_bb (e->src);
+      if (gsi_end_p (gsi))
+	continue;
+
+      stmt = gsi_stmt (gsi);
+      if (gimple_code (stmt) == GIMPLE_COND)
+	{
+	  if (e->flags & EDGE_TRUE_VALUE)
+	    gimple_cond_make_false (stmt);
+	  else if (e->flags & EDGE_FALSE_VALUE)
+	    gimple_cond_make_true (stmt);
+	  else
+	    gcc_unreachable ();
+	  update_stmt (stmt);
+	}
+      else
+	{
+	  /* Todo: handle other cases, f.i. switch statement.  */
+	  continue;
+	}
+
+      ret = true;
+    }
+
+  return ret;
+}
+
 /* A simple pass that attempts to fold all builtin functions.  This pass
    is run after we've propagated as many constants as we can.  */
 
@@ -2405,6 +2430,11 @@ execute_fold_all_builtins (void)
 		gsi_next (&i);
 		continue;
 
+	      case BUILT_IN_UNREACHABLE:
+		if (optimize_unreachable (i))
+		  cfg_changed = true;
+		break;
+
 	      case BUILT_IN_VA_START:
 	      case BUILT_IN_VA_END:
 	      case BUILT_IN_VA_COPY:
@@ -2418,6 +2448,9 @@ execute_fold_all_builtins (void)
 		gsi_next (&i);
 		continue;
 	      }
+
+	  if (result == NULL_TREE)
+	    break;
 
 	  if (dump_file && (dump_flags & TDF_DETAILS))
 	    {

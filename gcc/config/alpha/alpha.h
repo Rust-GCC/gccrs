@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler, for DEC Alpha.
    Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
-   2000, 2001, 2002, 2004, 2005, 2007, 2008, 2009, 2010, 2011
+   2000, 2001, 2002, 2004, 2005, 2007, 2008, 2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
    Contributed by Richard Kenner (kenner@vlsi1.ultra.nyu.edu)
 
@@ -146,12 +146,6 @@ extern enum alpha_fp_trap_mode alpha_fptm;
 #define TARGET_ABI_OPEN_VMS	0
 #define TARGET_ABI_OSF		(!TARGET_ABI_OPEN_VMS)
 
-#ifndef TARGET_AS_CAN_SUBTRACT_LABELS
-#define TARGET_AS_CAN_SUBTRACT_LABELS TARGET_GAS
-#endif
-#ifndef TARGET_AS_SLASH_BEFORE_SUFFIX
-#define TARGET_AS_SLASH_BEFORE_SUFFIX TARGET_GAS
-#endif
 #ifndef TARGET_CAN_FAULT_IN_PROLOGUE
 #define TARGET_CAN_FAULT_IN_PROLOGUE 0
 #endif
@@ -160,9 +154,6 @@ extern enum alpha_fp_trap_mode alpha_fptm;
 #endif
 #ifndef TARGET_PROFILING_NEEDS_GP
 #define TARGET_PROFILING_NEEDS_GP 0
-#endif
-#ifndef TARGET_LD_BUGGY_LDGP
-#define TARGET_LD_BUGGY_LDGP 0
 #endif
 #ifndef TARGET_FIXUP_EV5_PREFETCH
 #define TARGET_FIXUP_EV5_PREFETCH 0
@@ -293,6 +284,7 @@ extern enum alpha_fp_trap_mode alpha_fptm;
 #define STRUCTURE_SIZE_BOUNDARY 8
 
 /* A bit-field declared as `int' forces `int' alignment for the struct.  */
+#undef PCC_BITFILED_TYPE_MATTERS
 #define PCC_BITFIELD_TYPE_MATTERS 1
 
 /* No data type wants to be aligned rounder than this.  */
@@ -709,11 +701,13 @@ extern int alpha_memory_latency;
 
 /* This macro produces the initial definition of a function.  */
 
+#undef ASM_DECLARE_FUNCTION_NAME
 #define ASM_DECLARE_FUNCTION_NAME(FILE,NAME,DECL) \
   alpha_start_function(FILE,NAME,DECL);
 
 /* This macro closes up a function definition for the assembler.  */
 
+#undef ASM_DECLARE_FUNCTION_SIZE
 #define ASM_DECLARE_FUNCTION_SIZE(FILE,NAME,DECL) \
   alpha_end_function(FILE,NAME,DECL)
 
@@ -773,7 +767,7 @@ extern int alpha_memory_latency;
 #define EH_RETURN_DATA_REGNO(N)	((N) < 4 ? (N) + 16 : INVALID_REGNUM)
 #define EH_RETURN_STACKADJ_RTX	gen_rtx_REG (Pmode, 28)
 #define EH_RETURN_HANDLER_RTX \
-  gen_rtx_MEM (Pmode, plus_constant (stack_pointer_rtx, \
+  gen_rtx_MEM (Pmode, plus_constant (Pmode, stack_pointer_rtx, \
 				     crtl->outgoing_args_size))
 
 /* Addressing modes, and classification of registers for them.  */
@@ -857,13 +851,6 @@ do {									     \
     }									     \
 } while (0)
 
-/* Go to LABEL if ADDR (a legitimate address expression)
-   has an effect that depends on the machine mode it is used for.
-   On the Alpha this is true only for the unaligned modes.   We can
-   simplify this test since we know that the address must be valid.  */
-
-#define GO_IF_MODE_DEPENDENT_ADDRESS(ADDR,LABEL)  \
-{ if (GET_CODE (ADDR) == AND) goto LABEL; }
 
 /* Specify the machine mode that this machine uses
    for the index in the tablejump instruction.  */
@@ -991,10 +978,6 @@ do {									     \
 
 #define TEXT_SECTION_ASM_OP "\t.text"
 
-/* Output before read-only data.  */
-
-#define READONLY_DATA_SECTION_ASM_OP "\t.rdata"
-
 /* Output before writable data.  */
 
 #define DATA_SECTION_ASM_OP "\t.data"
@@ -1029,102 +1012,23 @@ do {						\
 /* Globalizing directive for a label.  */
 #define GLOBAL_ASM_OP "\t.globl "
 
-/* The prefix to add to user-visible assembler symbols.  */
+/* Use dollar signs rather than periods in special g++ assembler names.  */
 
-#define USER_LABEL_PREFIX ""
-
-/* This is how to output a label for a jump table.  Arguments are the same as
-   for (*targetm.asm_out.internal_label), except the insn for the jump table is
-   passed.  */
-
-#define ASM_OUTPUT_CASE_LABEL(FILE,PREFIX,NUM,TABLEINSN)	\
-{ ASM_OUTPUT_ALIGN (FILE, 2); (*targetm.asm_out.internal_label) (FILE, PREFIX, NUM); }
+#undef NO_DOLLAR_IN_LABEL
 
 /* This is how to store into the string LABEL
    the symbol_ref name of an internal numbered label where
    PREFIX is the class of label and NUM is the number within the class.
    This is suitable for output with `assemble_name'.  */
 
+#undef ASM_GENERATE_INTERNAL_LABEL
 #define ASM_GENERATE_INTERNAL_LABEL(LABEL,PREFIX,NUM)	\
   sprintf ((LABEL), "*$%s%ld", (PREFIX), (long)(NUM))
-
-/* We use the default ASCII-output routine, except that we don't write more
-   than 50 characters since the assembler doesn't support very long lines.  */
-
-#define ASM_OUTPUT_ASCII(MYFILE, MYSTRING, MYLENGTH) \
-  do {									      \
-    FILE *_hide_asm_out_file = (MYFILE);				      \
-    const unsigned char *_hide_p = (const unsigned char *) (MYSTRING);	      \
-    int _hide_thissize = (MYLENGTH);					      \
-    int _size_so_far = 0;						      \
-    {									      \
-      FILE *asm_out_file = _hide_asm_out_file;				      \
-      const unsigned char *p = _hide_p;					      \
-      int thissize = _hide_thissize;					      \
-      int i;								      \
-      fprintf (asm_out_file, "\t.ascii \"");				      \
-									      \
-      for (i = 0; i < thissize; i++)					      \
-	{								      \
-	  register int c = p[i];					      \
-									      \
-	  if (_size_so_far ++ > 50 && i < thissize - 4)			      \
-	    _size_so_far = 0, fprintf (asm_out_file, "\"\n\t.ascii \"");      \
-									      \
-	  if (c == '\"' || c == '\\')					      \
-	    putc ('\\', asm_out_file);					      \
-	  if (c >= ' ' && c < 0177)					      \
-	    putc (c, asm_out_file);					      \
-	  else								      \
-	    {								      \
-	      fprintf (asm_out_file, "\\%o", c);			      \
-	      /* After an octal-escape, if a digit follows,		      \
-		 terminate one string constant and start another.	      \
-		 The VAX assembler fails to stop reading the escape	      \
-		 after three digits, so this is the only way we		      \
-		 can get it to parse the data properly.  */		      \
-	      if (i < thissize - 1 && ISDIGIT (p[i + 1]))		      \
-		_size_so_far = 0, fprintf (asm_out_file, "\"\n\t.ascii \"");  \
-	  }								      \
-	}								      \
-      fprintf (asm_out_file, "\"\n");					      \
-    }									      \
-  }									      \
-  while (0)
 
 /* This is how to output an element of a case-vector that is relative.  */
 
 #define ASM_OUTPUT_ADDR_DIFF_ELT(FILE, BODY, VALUE, REL) \
   fprintf (FILE, "\t.gprel32 $L%d\n", (VALUE))
-
-/* This is how to output an assembler line
-   that says to advance the location counter
-   to a multiple of 2**LOG bytes.  */
-
-#define ASM_OUTPUT_ALIGN(FILE,LOG)	\
-  if ((LOG) != 0)			\
-    fprintf (FILE, "\t.align %d\n", LOG);
-
-/* This is how to advance the location counter by SIZE bytes.  */
-
-#define ASM_OUTPUT_SKIP(FILE,SIZE)  \
-  fprintf (FILE, "\t.space "HOST_WIDE_INT_PRINT_UNSIGNED"\n", (SIZE))
-
-/* This says how to output an assembler line
-   to define a global common symbol.  */
-
-#define ASM_OUTPUT_COMMON(FILE, NAME, SIZE, ROUNDED)  \
-( fputs ("\t.comm ", (FILE)),			\
-  assemble_name ((FILE), (NAME)),		\
-  fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED"\n", (SIZE)))
-
-/* This says how to output an assembler line
-   to define a local common symbol.  */
-
-#define ASM_OUTPUT_LOCAL(FILE, NAME, SIZE,ROUNDED)	\
-( fputs ("\t.lcomm ", (FILE)),				\
-  assemble_name ((FILE), (NAME)),			\
-  fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED"\n", (SIZE)))
 
 
 /* Print operand X (an rtx) in assembler syntax to file FILE.
@@ -1157,23 +1061,10 @@ do {						\
 #define PRINT_OPERAND_ADDRESS(FILE, ADDR) \
   print_operand_address((FILE), (ADDR))
 
-/* Tell collect that the object format is ECOFF.  */
-#define OBJECT_FORMAT_COFF
-#define EXTENDED_COFF
-
 /* If we use NM, pass -g to it so it only lists globals.  */
 #define NM_FLAGS "-pg"
 
 /* Definitions for debugging.  */
-
-#define SDB_DEBUGGING_INFO 1		/* generate info for mips-tfile */
-#define DBX_DEBUGGING_INFO 1		/* generate embedded stabs */
-#define MIPS_DEBUGGING_INFO 1		/* MIPS specific debugging info */
-
-#ifndef PREFERRED_DEBUGGING_TYPE	/* assume SDB_DEBUGGING_INFO */
-#define PREFERRED_DEBUGGING_TYPE  SDB_DEBUG
-#endif
-
 
 /* Correct the offset of automatic variables and arguments.  Note that
    the Alpha debug format wants all automatic variables and arguments
@@ -1194,99 +1085,11 @@ extern long alpha_auto_offset;
   ((GET_CODE (X) == PLUS ? INTVAL (XEXP (X, 1)) : 0) + alpha_auto_offset)
 #define DEBUGGER_ARG_OFFSET(OFFSET, X) (OFFSET + alpha_arg_offset)
 
-/* mips-tfile doesn't understand .stabd directives.  */
-#define DBX_OUTPUT_SOURCE_LINE(STREAM, LINE, COUNTER) do {	\
-  dbxout_begin_stabn_sline (LINE);				\
-  dbxout_stab_value_internal_label ("LM", &COUNTER);		\
-} while (0)
-
-/* We want to use MIPS-style .loc directives for SDB line numbers.  */
-extern int num_source_filenames;
-#define SDB_OUTPUT_SOURCE_LINE(STREAM, LINE)	\
-  fprintf (STREAM, "\t.loc\t%d %d\n", num_source_filenames, LINE)
-
 #define ASM_OUTPUT_SOURCE_FILENAME(STREAM, NAME)			\
   alpha_output_filename (STREAM, NAME)
 
-/* mips-tfile.c limits us to strings of one page.  We must underestimate this
-   number, because the real length runs past this up to the next
-   continuation point.  This is really a dbxout.c bug.  */
-#define DBX_CONTIN_LENGTH 3000
-
 /* By default, turn on GDB extensions.  */
 #define DEFAULT_GDB_EXTENSIONS 1
-
-/* Stabs-in-ECOFF can't handle dbxout_function_end().  */
-#define NO_DBX_FUNCTION_END 1
-
-/* If we are smuggling stabs through the ALPHA ECOFF object
-   format, put a comment in front of the .stab<x> operation so
-   that the ALPHA assembler does not choke.  The mips-tfile program
-   will correctly put the stab into the object file.  */
-
-#define ASM_STABS_OP	((TARGET_GAS) ? "\t.stabs\t" : " #.stabs\t")
-#define ASM_STABN_OP	((TARGET_GAS) ? "\t.stabn\t" : " #.stabn\t")
-#define ASM_STABD_OP	((TARGET_GAS) ? "\t.stabd\t" : " #.stabd\t")
-
-/* Forward references to tags are allowed.  */
-#define SDB_ALLOW_FORWARD_REFERENCES
-
-/* Unknown tags are also allowed.  */
-#define SDB_ALLOW_UNKNOWN_REFERENCES
-
-#define PUT_SDB_DEF(a)					\
-do {							\
-  fprintf (asm_out_file, "\t%s.def\t",			\
-	   (TARGET_GAS) ? "" : "#");			\
-  ASM_OUTPUT_LABELREF (asm_out_file, a); 		\
-  fputc (';', asm_out_file);				\
-} while (0)
-
-#define PUT_SDB_PLAIN_DEF(a)				\
-do {							\
-  fprintf (asm_out_file, "\t%s.def\t.%s;",		\
-	   (TARGET_GAS) ? "" : "#", (a));		\
-} while (0)
-
-#define PUT_SDB_TYPE(a)					\
-do {							\
-  fprintf (asm_out_file, "\t.type\t0x%x;", (a));	\
-} while (0)
-
-/* For block start and end, we create labels, so that
-   later we can figure out where the correct offset is.
-   The normal .ent/.end serve well enough for functions,
-   so those are just commented out.  */
-
-extern int sdb_label_count;		/* block start/end next label # */
-
-#define PUT_SDB_BLOCK_START(LINE)			\
-do {							\
-  fprintf (asm_out_file,				\
-	   "$Lb%d:\n\t%s.begin\t$Lb%d\t%d\n",		\
-	   sdb_label_count,				\
-	   (TARGET_GAS) ? "" : "#",			\
-	   sdb_label_count,				\
-	   (LINE));					\
-  sdb_label_count++;					\
-} while (0)
-
-#define PUT_SDB_BLOCK_END(LINE)				\
-do {							\
-  fprintf (asm_out_file,				\
-	   "$Le%d:\n\t%s.bend\t$Le%d\t%d\n",		\
-	   sdb_label_count,				\
-	   (TARGET_GAS) ? "" : "#",			\
-	   sdb_label_count,				\
-	   (LINE));					\
-  sdb_label_count++;					\
-} while (0)
-
-#define PUT_SDB_FUNCTION_START(LINE)
-
-#define PUT_SDB_FUNCTION_END(LINE)
-
-#define PUT_SDB_EPILOGUE_END(NAME) ((void)(NAME))
 
 /* The system headers under Alpha systems are generally C++-aware.  */
 #define NO_IMPLICIT_EXTERN_C

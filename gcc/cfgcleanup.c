@@ -38,8 +38,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "rtl.h"
 #include "hard-reg-set.h"
 #include "regs.h"
-#include "timevar.h"
-#include "output.h"
 #include "insn-config.h"
 #include "flags.h"
 #include "recog.h"
@@ -48,7 +46,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "params.h"
 #include "tm_p.h"
 #include "target.h"
-#include "cfglayout.h"
+#include "function.h" /* For inline functions in emit-rtl.h they need crtl.  */
 #include "emit-rtl.h"
 #include "tree-pass.h"
 #include "cfgloop.h"
@@ -62,7 +60,7 @@ along with GCC; see the file COPYING3.  If not see
 /* Set to true when we are running first pass of try_optimize_cfg loop.  */
 static bool first_pass;
 
-/* Set to true if crossjumps occured in the latest run of try_optimize_cfg.  */
+/* Set to true if crossjumps occurred in the latest run of try_optimize_cfg.  */
 static bool crossjumps_occured;
 
 /* Set to true if we couldn't run an optimization due to stale liveness
@@ -483,13 +481,15 @@ try_forward_edges (int mode, basic_block b)
 		  int new_locus = single_succ_edge (target)->goto_locus;
 		  int locus = goto_locus;
 
-		  if (new_locus && locus && !locator_eq (new_locus, locus))
+		  if (new_locus != UNKNOWN_LOCATION
+		      && locus != UNKNOWN_LOCATION
+		      && new_locus != locus)
 		    new_target = NULL;
 		  else
 		    {
 		      rtx last;
 
-		      if (new_locus)
+		      if (new_locus != UNKNOWN_LOCATION)
 			locus = new_locus;
 
 		      last = BB_END (target);
@@ -497,13 +497,15 @@ try_forward_edges (int mode, basic_block b)
 			last = prev_nondebug_insn (last);
 
 		      new_locus = last && INSN_P (last)
-				  ? INSN_LOCATOR (last) : 0;
+				  ? INSN_LOCATION (last) : 0;
 
-		      if (new_locus && locus && !locator_eq (new_locus, locus))
+		      if (new_locus != UNKNOWN_LOCATION
+			  && locus != UNKNOWN_LOCATION
+			  && new_locus != locus)
 			new_target = NULL;
 		      else
 			{
-			  if (new_locus)
+			  if (new_locus != UNKNOWN_LOCATION)
 			    locus = new_locus;
 
 			  goto_locus = locus;
@@ -779,6 +781,11 @@ merge_blocks_move (edge e, basic_block b, basic_block c, int mode)
   if (e->flags & EDGE_FALLTHRU)
     {
       int b_index = b->index, c_index = c->index;
+
+      /* Protect the loop latches.  */
+      if (current_loops && c->loop_father->latch == c)
+	return NULL;
+
       merge_blocks (b, c);
       update_forwarder_flag (b);
 
@@ -2581,21 +2588,21 @@ try_optimize_cfg (int mode)
 
 		      if (current_ir_type () == IR_RTL_CFGLAYOUT)
 			{
-			  if (b->il.rtl->footer
-			      && BARRIER_P (b->il.rtl->footer))
+			  if (BB_FOOTER (b)
+			      && BARRIER_P (BB_FOOTER (b)))
 			    FOR_EACH_EDGE (e, ei, b->preds)
 			      if ((e->flags & EDGE_FALLTHRU)
-				  && e->src->il.rtl->footer == NULL)
+				  && BB_FOOTER (e->src) == NULL)
 				{
-				  if (b->il.rtl->footer)
+				  if (BB_FOOTER (b))
 				    {
-				      e->src->il.rtl->footer = b->il.rtl->footer;
-				      b->il.rtl->footer = NULL;
+				      BB_FOOTER (e->src) = BB_FOOTER (b);
+				      BB_FOOTER (b) = NULL;
 				    }
 				  else
 				    {
 				      start_sequence ();
-				      e->src->il.rtl->footer = emit_barrier ();
+				      BB_FOOTER (e->src) = emit_barrier ();
 				      end_sequence ();
 				    }
 				}
@@ -2632,27 +2639,14 @@ try_optimize_cfg (int mode)
 		      || ! label_is_jump_target_p (BB_HEAD (b),
 						   BB_END (single_pred (b)))))
 		{
-		  rtx label = BB_HEAD (b);
-
-		  delete_insn_chain (label, label, false);
-		  /* If the case label is undeletable, move it after the
-		     BASIC_BLOCK note.  */
-		  if (NOTE_KIND (BB_HEAD (b)) == NOTE_INSN_DELETED_LABEL)
-		    {
-		      rtx bb_note = NEXT_INSN (BB_HEAD (b));
-
-		      reorder_insns_nobb (label, label, bb_note);
-		      BB_HEAD (b) = bb_note;
-		      if (BB_END (b) == bb_note)
-			BB_END (b) = label;
-		    }
+		  delete_insn (BB_HEAD (b));
 		  if (dump_file)
 		    fprintf (dump_file, "Deleted label in block %i.\n",
 			     b->index);
 		}
 
 	      /* If we fall through an empty block, we can remove it.  */
-	      if (!(mode & CLEANUP_CFGLAYOUT)
+	      if (!(mode & (CLEANUP_CFGLAYOUT | CLEANUP_NO_INSN_DEL))
 		  && single_pred_p (b)
 		  && (single_pred_edge (b)->flags & EDGE_FALLTHRU)
 		  && !LABEL_P (BB_HEAD (b))
@@ -2806,7 +2800,7 @@ delete_unreachable_blocks (void)
      have dominators information, walking blocks backward gets us a
      better chance of retaining most debug information than
      otherwise.  */
-  if (MAY_HAVE_DEBUG_STMTS && current_ir_type () == IR_GIMPLE
+  if (MAY_HAVE_DEBUG_INSNS && current_ir_type () == IR_GIMPLE
       && dom_info_available_p (CDI_DOMINATORS))
     {
       for (b = EXIT_BLOCK_PTR->prev_bb; b != ENTRY_BLOCK_PTR; b = prev_bb)
@@ -2976,41 +2970,30 @@ cleanup_cfg (int mode)
   if (!(mode & CLEANUP_CFGLAYOUT))
     delete_dead_jumptables ();
 
+  /* ???  We probably do this way too often.  */
+  if (current_loops
+      && (changed
+	  || (mode & CLEANUP_CFG_CHANGED)))
+    {
+      bitmap changed_bbs;
+      timevar_push (TV_REPAIR_LOOPS);
+      /* The above doesn't preserve dominance info if available.  */
+      gcc_assert (!dom_info_available_p (CDI_DOMINATORS));
+      calculate_dominance_info (CDI_DOMINATORS);
+      changed_bbs = BITMAP_ALLOC (NULL);
+      fix_loop_structure (changed_bbs);
+      BITMAP_FREE (changed_bbs);
+      free_dominance_info (CDI_DOMINATORS);
+      timevar_pop (TV_REPAIR_LOOPS);
+    }
+
   timevar_pop (TV_CLEANUP_CFG);
 
   return changed;
 }
 
 static unsigned int
-rest_of_handle_jump (void)
-{
-  if (crtl->tail_call_emit)
-    fixup_tail_calls ();
-  return 0;
-}
-
-struct rtl_opt_pass pass_jump =
-{
- {
-  RTL_PASS,
-  "sibling",                            /* name */
-  NULL,                                 /* gate */
-  rest_of_handle_jump,			/* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_JUMP,                              /* tv_id */
-  0,                                    /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  TODO_ggc_collect,                     /* todo_flags_start */
-  TODO_verify_flow,                     /* todo_flags_finish */
- }
-};
-
-
-static unsigned int
-rest_of_handle_jump2 (void)
+execute_jump (void)
 {
   delete_trivially_dead_insns (get_insns (), max_reg_num ());
   if (dump_file)
@@ -3020,22 +3003,47 @@ rest_of_handle_jump2 (void)
   return 0;
 }
 
+struct rtl_opt_pass pass_jump =
+{
+ {
+  RTL_PASS,
+  "jump",				/* name */
+  NULL,					/* gate */
+  execute_jump,				/* execute */
+  NULL,					/* sub */
+  NULL,					/* next */
+  0,					/* static_pass_number */
+  TV_JUMP,				/* tv_id */
+  0,					/* properties_required */
+  0,					/* properties_provided */
+  0,					/* properties_destroyed */
+  TODO_ggc_collect,			/* todo_flags_start */
+  TODO_verify_rtl_sharing,		/* todo_flags_finish */
+ }
+};
+
+static unsigned int
+execute_jump2 (void)
+{
+  cleanup_cfg (flag_crossjumping ? CLEANUP_CROSSJUMP : 0);
+  return 0;
+}
 
 struct rtl_opt_pass pass_jump2 =
 {
  {
   RTL_PASS,
-  "jump",                               /* name */
-  NULL,                                 /* gate */
-  rest_of_handle_jump2,			/* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_JUMP,                              /* tv_id */
-  0,                                    /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  TODO_ggc_collect,                     /* todo_flags_start */
-  TODO_verify_rtl_sharing,              /* todo_flags_finish */
+  "jump2",				/* name */
+  NULL,					/* gate */
+  execute_jump2,			/* execute */
+  NULL,					/* sub */
+  NULL,					/* next */
+  0,					/* static_pass_number */
+  TV_JUMP,				/* tv_id */
+  0,					/* properties_required */
+  0,					/* properties_provided */
+  0,					/* properties_destroyed */
+  TODO_ggc_collect,			/* todo_flags_start */
+  TODO_verify_rtl_sharing,		/* todo_flags_finish */
  }
 };

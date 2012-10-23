@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2001-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -226,6 +226,7 @@ package body Prj.Attr is
    "Lainclude_switches#" &
    "Sainclude_path#" &
    "Sainclude_path_file#" &
+   "Laobject_path_switches#" &
 
    --  package Builder
 
@@ -279,6 +280,13 @@ package body Prj.Attr is
    "SVmax_command_line_length#" &
    "SVresponse_file_format#" &
    "LVresponse_file_switches#" &
+
+   --  package Clean
+
+   "Pclean#" &
+   "LVswitches#" &
+   "Lasource_artifact_extensions#" &
+   "Laobject_artifact_extensions#" &
 
    --  package Cross_Reference
 
@@ -342,6 +350,16 @@ package body Prj.Attr is
    "SVvcs_file_check#" &
    "SVvcs_log_check#" &
    "SVdocumentation_dir#" &
+
+   --  package Install
+
+   "Pinstall#" &
+   "SVprefix#" &
+   "SVsources_subdir#" &
+   "SVexec_subdir#" &
+   "SVlib_subdir#" &
+   "SVproject_subdir#" &
+   "SVactive#" &
 
    --  package Stack
 
@@ -833,7 +851,7 @@ package body Prj.Attr is
 
       for Index in Package_Attributes.First .. Package_Attributes.Last loop
          if Package_Attributes.Table (Index).Name = Pkg_Name then
-            Fail ("cannot register a package with a non unique name"""
+            Fail ("cannot register a package with a non unique name """
                   & Name
                   & """");
             Id := Empty_Package;
@@ -871,7 +889,7 @@ package body Prj.Attr is
 
       for Index in Package_Attributes.First .. Package_Attributes.Last loop
          if Package_Attributes.Table (Index).Name = Pkg_Name then
-            Fail ("cannot register a package with a non unique name"""
+            Fail ("cannot register a package with a non unique name """
                   & Name
                   & """");
             raise Project_Error;

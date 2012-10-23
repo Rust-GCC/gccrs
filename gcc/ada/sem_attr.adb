@@ -28,6 +28,7 @@ with Ada.Characters.Latin_1; use Ada.Characters.Latin_1;
 with Atree;    use Atree;
 with Casing;   use Casing;
 with Checks;   use Checks;
+with Debug;    use Debug;
 with Einfo;    use Einfo;
 with Errout;   use Errout;
 with Eval_Fat;
@@ -54,6 +55,7 @@ with Sem_Ch8;  use Sem_Ch8;
 with Sem_Ch10; use Sem_Ch10;
 with Sem_Dim;  use Sem_Dim;
 with Sem_Dist; use Sem_Dist;
+with Sem_Elab; use Sem_Elab;
 with Sem_Elim; use Sem_Elim;
 with Sem_Eval; use Sem_Eval;
 with Sem_Res;  use Sem_Res;
@@ -217,9 +219,13 @@ package body Sem_Attr is
       --  allowed with a type that has predicates. If the type is a generic
       --  actual, then the message is a warning, and we generate code to raise
       --  program error with an appropriate reason. No error message is given
-      --  for internally generated uses of the attributes.
-      --  The legality rule only applies to scalar types, even though the
-      --  current AI mentions all subtypes.
+      --  for internally generated uses of the attributes. This legality rule
+      --  only applies to scalar types.
+
+      procedure Check_Ada_2012_Attribute;
+      --  Check that we are in Ada 2012 mode for an Ada 2012 attribute, and
+      --  issue appropriate messages if not (and return to caller even in
+      --  the error case).
 
       procedure Check_Array_Or_Scalar_Type;
       --  Common procedure used by First, Last, Range attribute to check
@@ -270,6 +276,9 @@ package body Sem_Attr is
       --  reference when analyzing an inlined body will lose a proper warning
       --  on a useless with_clause.
 
+      procedure Check_First_Last_Valid;
+      --  Perform all checks for First_Valid and Last_Valid attributes
+
       procedure Check_Fixed_Point_Type;
       --  Verify that prefix of attribute N is a fixed type
 
@@ -314,7 +323,7 @@ package body Sem_Attr is
       --  type or a private type for which no full view has been given.
 
       procedure Check_Object_Reference (P : Node_Id);
-      --  Check that P (the prefix of the attribute) is an object reference
+      --  Check that P is an object reference
 
       procedure Check_Program_Unit;
       --  Verify that prefix of attribute N is a program unit
@@ -637,6 +646,13 @@ package body Sem_Attr is
                Kill_Current_Values;
             end if;
 
+            --  Treat as call for elaboration purposes and we are all
+            --  done. Suppress this treatment under debug flag.
+
+            if not Debug_Flag_Dot_UU then
+               Check_Elab_Call (N);
+            end if;
+
             return;
 
          --  Component is an operation of a protected type
@@ -861,6 +877,21 @@ package body Sem_Attr is
               ("type& has predicates, attribute % not allowed", N, P_Type);
          end if;
       end Bad_Attribute_For_Predicate;
+
+      ------------------------------
+      -- Check_Ada_2012_Attribute --
+      ------------------------------
+
+      procedure Check_Ada_2012_Attribute is
+      begin
+         if Ada_Version < Ada_2012 then
+            Error_Msg_Name_1 := Aname;
+            Error_Msg_N
+              ("attribute % is an Ada 2012 feature", N);
+            Error_Msg_N
+              ("\unit must be compiled with -gnat2012 switch", N);
+         end if;
+      end Check_Ada_2012_Attribute;
 
       --------------------------------
       -- Check_Array_Or_Scalar_Type --
@@ -1100,9 +1131,7 @@ package body Sem_Attr is
 
          --  Case of a subtype mark
 
-         if Is_Entity_Name (P)
-           and then Is_Type (Entity (P))
-         then
+         if Is_Entity_Name (P) and then Is_Type (Entity (P)) then
             return;
          end if;
 
@@ -1112,13 +1141,13 @@ package body Sem_Attr is
 
          if Is_Access_Type (P_Type) then
 
-            --  If there is an implicit dereference, then we must freeze
-            --  the designated type of the access type, since the type of
-            --  the referenced array is this type (see AI95-00106).
+            --  If there is an implicit dereference, then we must freeze the
+            --  designated type of the access type, since the type of the
+            --  referenced array is this type (see AI95-00106).
 
             --  As done elsewhere, freezing must not happen when pre-analyzing
-            --  a pre- or postcondition or a default value for an object or
-            --  for a formal parameter.
+            --  a pre- or postcondition or a default value for an object or for
+            --  a formal parameter.
 
             if not In_Spec_Expression then
                Freeze_Before (N, Designated_Type (P_Type));
@@ -1243,6 +1272,48 @@ package body Sem_Attr is
             end loop;
          end if;
       end Check_Enum_Image;
+
+      ----------------------------
+      -- Check_First_Last_Valid --
+      ----------------------------
+
+      procedure Check_First_Last_Valid is
+      begin
+         Check_Ada_2012_Attribute;
+         Check_Discrete_Type;
+
+         --  Freeze the subtype now, so that the following test for predicates
+         --  works (we set the predicates stuff up at freeze time)
+
+         Insert_Actions (N, Freeze_Entity (P_Type, P));
+
+         --  Now test for dynamic predicate
+
+         if Has_Predicates (P_Type)
+           and then No (Static_Predicate (P_Type))
+         then
+            Error_Attr_P
+              ("prefix of % attribute may not have dynamic predicate");
+         end if;
+
+         --  Check non-static subtype
+
+         if not Is_Static_Subtype (P_Type) then
+            Error_Attr_P ("prefix of % attribute must be a static subtype");
+         end if;
+
+         --  Test case for no values
+
+         if Expr_Value (Type_Low_Bound (P_Type)) >
+            Expr_Value (Type_High_Bound (P_Type))
+           or else (Has_Predicates (P_Type)
+                     and then Is_Empty_List (Static_Predicate (P_Type)))
+         then
+            Error_Attr_P
+              ("prefix of % attribute must be subtype with "
+               & "at least one value");
+         end if;
+      end Check_First_Last_Valid;
 
       ----------------------------
       -- Check_Fixed_Point_Type --
@@ -2134,15 +2205,21 @@ package body Sem_Attr is
 
       case Attr_Id is
 
-         --  Attributes related to Ada 2012 iterators. Attribute specifications
-         --  exist for these, but they cannot be queried.
+      --  Attributes related to Ada 2012 iterators. Attribute specifications
+      --  exist for these, but they cannot be queried.
 
-         when Attribute_Constant_Indexing    |
-              Attribute_Default_Iterator     |
-              Attribute_Implicit_Dereference |
-              Attribute_Iterator_Element     |
-              Attribute_Variable_Indexing    =>
-            Error_Msg_N ("illegal attribute", N);
+      when Attribute_Constant_Indexing    |
+           Attribute_Default_Iterator     |
+           Attribute_Implicit_Dereference |
+           Attribute_Iterator_Element     |
+           Attribute_Variable_Indexing    =>
+         Error_Msg_N ("illegal attribute", N);
+
+      --  Internal attributes used to deal with Ada 2012 delayed aspects. These
+      --  were already rejected by the parser. Thus they shouldn't appear here.
+
+      when Internal_Attribute_Id =>
+         raise Program_Error;
 
       ------------------
       -- Abort_Signal --
@@ -2495,6 +2572,15 @@ package body Sem_Attr is
 
          Set_Etype (N, RTE (RE_AST_Handler));
       end AST_Entry;
+
+      -----------------------------
+      -- Atomic_Always_Lock_Free --
+      -----------------------------
+
+      when Attribute_Atomic_Always_Lock_Free =>
+         Check_E0;
+         Check_Type;
+         Set_Etype (N, Standard_Boolean);
 
       ----------
       -- Base --
@@ -3217,12 +3303,7 @@ package body Sem_Attr is
 
       when Attribute_Fast_Math =>
          Check_Standard_Prefix;
-
-         if Opt.Fast_Math then
-            Rewrite (N, New_Occurrence_Of (Standard_True, Loc));
-         else
-            Rewrite (N, New_Occurrence_Of (Standard_False, Loc));
-         end if;
+         Rewrite (N, New_Occurrence_Of (Boolean_Literals (Fast_Math), Loc));
 
       -----------
       -- First --
@@ -3239,6 +3320,14 @@ package body Sem_Attr is
       when Attribute_First_Bit =>
          Check_Component;
          Set_Etype (N, Universal_Integer);
+
+      -----------------
+      -- First_Valid --
+      -----------------
+
+      when Attribute_First_Valid =>
+         Check_First_Last_Valid;
+         Set_Etype (N, P_Type);
 
       -----------------
       -- Fixed_Value --
@@ -3456,6 +3545,14 @@ package body Sem_Attr is
          Check_Component;
          Set_Etype (N, Universal_Integer);
 
+      ----------------
+      -- Last_Valid --
+      ----------------
+
+      when Attribute_Last_Valid =>
+         Check_First_Last_Valid;
+         Set_Etype (N, P_Type);
+
       ------------------
       -- Leading_Part --
       ------------------
@@ -3473,6 +3570,19 @@ package body Sem_Attr is
       when Attribute_Length =>
          Check_Array_Type;
          Set_Etype (N, Universal_Integer);
+
+      ---------------
+      -- Lock_Free --
+      ---------------
+
+      when Attribute_Lock_Free =>
+         Check_E0;
+         Set_Etype (N, Standard_Boolean);
+
+         if not Is_Protected_Type (P_Type) then
+            Error_Attr_P
+              ("prefix of % attribute must be a protected object");
+         end if;
 
       -------------
       -- Machine --
@@ -3762,8 +3872,7 @@ package body Sem_Attr is
 
          --  Case of attribute used as actual for subprogram (positional)
 
-         elsif Nkind_In (Parnt, N_Procedure_Call_Statement,
-                                N_Function_Call)
+         elsif Nkind (Parnt) in N_Subprogram_Call
             and then Is_Entity_Name (Name (Parnt))
          then
             Must_Be_Imported (Entity (Name (Parnt)));
@@ -3771,8 +3880,7 @@ package body Sem_Attr is
          --  Case of attribute used as actual for subprogram (named)
 
          elsif Nkind (Parnt) = N_Parameter_Association
-           and then Nkind_In (GParnt, N_Procedure_Call_Statement,
-                                      N_Function_Call)
+           and then Nkind (GParnt) in N_Subprogram_Call
            and then Is_Entity_Name (Name (GParnt))
          then
             Must_Be_Imported (Entity (Name (GParnt)));
@@ -3799,10 +3907,95 @@ package body Sem_Attr is
       -- Old --
       ---------
 
-      when Attribute_Old =>
+      when Attribute_Old => Old : declare
+         CS : Entity_Id;
+         --  The enclosing scope, excluding loops for quantified expressions.
+         --  During analysis, it is the postcondition subprogram. During
+         --  pre-analysis, it is the scope of the subprogram declaration.
 
-         --  The attribute reference is a primary. If expressions follow, the
-         --  attribute reference is an indexable object, so rewrite the node
+         Prag : Node_Id;
+         --  During pre-analysis, Prag is the enclosing pragma node if any
+
+      begin
+         --  Find enclosing scopes, excluding loops
+
+         CS := Current_Scope;
+         while Ekind (CS) = E_Loop loop
+            CS := Scope (CS);
+         end loop;
+
+         --  If we are in Spec_Expression mode, this should be the prescan of
+         --  the postcondition (or contract case, or test case) pragma.
+
+         if In_Spec_Expression then
+
+            --  Check in postcondition or Ensures clause
+
+            Prag := N;
+            while not Nkind_In (Prag, N_Pragma,
+                                N_Function_Specification,
+                                N_Procedure_Specification,
+                                N_Subprogram_Body)
+            loop
+               Prag := Parent (Prag);
+            end loop;
+
+            if Nkind (Prag) /= N_Pragma then
+               Error_Attr ("% attribute can only appear in postcondition", P);
+
+            elsif Get_Pragma_Id (Prag) = Pragma_Contract_Case
+                    or else
+                  Get_Pragma_Id (Prag) = Pragma_Test_Case
+            then
+               declare
+                  Arg_Ens : constant Node_Id :=
+                              Get_Ensures_From_CTC_Pragma (Prag);
+                  Arg     : Node_Id;
+
+               begin
+                  Arg := N;
+                  while Arg /= Prag and Arg /= Arg_Ens loop
+                     Arg := Parent (Arg);
+                  end loop;
+
+                  if Arg /= Arg_Ens then
+                     if Get_Pragma_Id (Prag) = Pragma_Contract_Case then
+                        Error_Attr
+                          ("% attribute misplaced inside contract case", P);
+                     else
+                        Error_Attr
+                          ("% attribute misplaced inside test case", P);
+                     end if;
+                  end if;
+               end;
+
+            elsif Get_Pragma_Id (Prag) /= Pragma_Postcondition then
+               Error_Attr ("% attribute can only appear in postcondition", P);
+            end if;
+
+         --  Body case, where we must be inside a generated _Postcondition
+         --  procedure, or else the attribute use is definitely misplaced. The
+         --  postcondition itself may have generated transient scopes, and is
+         --  not necessarily the current one.
+
+         else
+            while Present (CS) and then CS /= Standard_Standard loop
+               if Chars (CS) = Name_uPostconditions then
+                  exit;
+               else
+                  CS := Scope (CS);
+               end if;
+            end loop;
+
+            if Chars (CS) /= Name_uPostconditions then
+               Error_Attr ("% attribute can only appear in postcondition", P);
+            end if;
+         end if;
+
+         --  Either the attribute reference is generated for a Requires
+         --  clause, in which case no expressions follow, or it is a
+         --  primary. In that case, if expressions follow, the attribute
+         --  reference is an indexable object, so rewrite the node
          --  accordingly.
 
          if Present (E1) then
@@ -3820,16 +4013,12 @@ package body Sem_Attr is
 
          Check_E0;
 
-         --  Prefix has not been analyzed yet, and its full analysis will take
-         --  place during expansion (see below).
+         --  Prefix has not been analyzed yet, and its full analysis will
+         --  take place during expansion (see below).
 
          Preanalyze_And_Resolve (P);
          P_Type := Etype (P);
          Set_Etype (N, P_Type);
-
-         if No (Current_Subprogram) then
-            Error_Attr ("attribute % can only appear within subprogram", N);
-         end if;
 
          if Is_Limited_Type (P_Type) then
             Error_Attr ("attribute % cannot apply to limited objects", P);
@@ -3842,98 +4031,38 @@ package body Sem_Attr is
               ("?attribute Old applied to constant has no effect", P);
          end if;
 
-         --  Check that the expression does not refer to local entities
-
-         Check_Local : declare
-            Subp : Entity_Id := Current_Subprogram;
-
-            function Process (N : Node_Id) return Traverse_Result;
-            --  Check that N does not contain references to local variables or
-            --  other local entities of Subp.
-
-            -------------
-            -- Process --
-            -------------
-
-            function Process (N : Node_Id) return Traverse_Result is
-            begin
-               if Is_Entity_Name (N)
-                 and then Present (Entity (N))
-                 and then not Is_Formal (Entity (N))
-                 and then Enclosing_Subprogram (Entity (N)) = Subp
-               then
-                  Error_Msg_Node_1 := Entity (N);
-                  Error_Attr
-                    ("attribute % cannot refer to local variable&", N);
-               end if;
-
-               return OK;
-            end Process;
-
-            procedure Check_No_Local is new Traverse_Proc;
-
-         --  Start of processing for Check_Local
-
-         begin
-            Check_No_Local (P);
-
-            if In_Parameter_Specification (P) then
-
-               --  We have additional restrictions on using 'Old in parameter
-               --  specifications.
-
-               if Present (Enclosing_Subprogram (Current_Subprogram)) then
-
-                  --  Check that there is no reference to the enclosing
-                  --  subprogram local variables. Otherwise, we might end up
-                  --  being called from the enclosing subprogram and thus using
-                  --  'Old on a local variable which is not defined at entry
-                  --  time.
-
-                  Subp := Enclosing_Subprogram (Current_Subprogram);
-                  Check_No_Local (P);
-
-               else
-                  --  We must prevent default expression of library-level
-                  --  subprogram from using 'Old, as the subprogram may be
-                  --  used in elaboration code for which there is no enclosing
-                  --  subprogram.
-
-                  Error_Attr
-                    ("attribute % can only appear within subprogram", N);
-               end if;
-            end if;
-         end Check_Local;
-
          --  The attribute appears within a pre/postcondition, but refers to
-         --  an entity in the enclosing subprogram. If it is a component of a
-         --  formal its expansion might generate actual subtypes that may be
-         --  referenced in an inner context, and which must be elaborated
-         --  within the subprogram itself. As a result we create a declaration
-         --  for it and insert it at the start of the enclosing subprogram
-         --  This is properly an expansion activity but it has to be performed
-         --  now to prevent out-of-order issues.
+         --  an entity in the enclosing subprogram. If it is a component of
+         --  a formal its expansion might generate actual subtypes that may
+         --  be referenced in an inner context, and which must be elaborated
+         --  within the subprogram itself. If the prefix includes a function
+         --  call it may involve finalization actions that should only be
+         --  inserted when the attribute has been rewritten as a declarations.
+         --  As a result, if the prefix is not a simple name we create
+         --  a declaration for it now, and insert it at the start of the
+         --  enclosing subprogram. This is properly an expansion activity
+         --  but it has to be performed now to prevent out-of-order issues.
 
-         if Nkind (P) = N_Selected_Component
-           and then Has_Discriminants (Etype (Prefix (P)))
-         then
+         --  This expansion is both harmful and not needed in Alfa mode, since
+         --  the formal verification backend relies on the types of nodes
+         --  (hence is not robust w.r.t. a change to base type here), and does
+         --  not suffer from the out-of-order issue described above. Thus, this
+         --  expansion is skipped in Alfa mode.
+
+         if not Is_Entity_Name (P) and then not Alfa_Mode then
             P_Type := Base_Type (P_Type);
             Set_Etype (N, P_Type);
             Set_Etype (P, P_Type);
+            Analyze_Dimension (N);
             Expand (N);
          end if;
+      end Old;
 
       ----------------------
       -- Overlaps_Storage --
       ----------------------
 
       when Attribute_Overlaps_Storage =>
-         if Ada_Version < Ada_2012 then
-            Error_Msg_N
-              ("attribute Overlaps_Storage is an Ada 2012 feature", N);
-            Error_Msg_N
-              ("\unit must be compiled with -gnat2012 switch", N);
-         end if;
          Check_E1;
 
          --  Both arguments must be objects of any type
@@ -4160,9 +4289,9 @@ package body Sem_Attr is
          end if;
 
          --  If we are in the scope of a function and in Spec_Expression mode,
-         --  this is likely the prescan of the postcondition pragma, and we
-         --  just set the proper type. If there is an error it will be caught
-         --  when the real Analyze call is done.
+         --  this is likely the prescan of the postcondition (or contract case,
+         --  or test case) pragma, and we just set the proper type. If there is
+         --  an error it will be caught when the real Analyze call is done.
 
          if Ekind (CS) = E_Function
            and then In_Spec_Expression
@@ -4177,7 +4306,7 @@ package body Sem_Attr is
                Error_Attr;
             end if;
 
-            --  Check in postcondition of function
+            --  Check in postcondition or Ensures clause of function
 
             Prag := N;
             while not Nkind_In (Prag, N_Pragma,
@@ -4192,10 +4321,13 @@ package body Sem_Attr is
                  ("% attribute can only appear in postcondition of function",
                   P);
 
-            elsif Get_Pragma_Id (Prag) = Pragma_Test_Case then
+            elsif Get_Pragma_Id (Prag) = Pragma_Contract_Case
+                    or else
+                  Get_Pragma_Id (Prag) = Pragma_Test_Case
+            then
                declare
                   Arg_Ens : constant Node_Id :=
-                              Get_Ensures_From_Test_Case_Pragma (Prag);
+                              Get_Ensures_From_CTC_Pragma (Prag);
                   Arg     : Node_Id;
 
                begin
@@ -4205,7 +4337,13 @@ package body Sem_Attr is
                   end loop;
 
                   if Arg /= Arg_Ens then
-                     Error_Attr ("% attribute misplaced inside Test_Case", P);
+                     if Get_Pragma_Id (Prag) = Pragma_Contract_Case then
+                        Error_Attr
+                          ("% attribute misplaced inside contract case", P);
+                     else
+                        Error_Attr
+                          ("% attribute misplaced inside test case", P);
+                     end if;
                   end if;
                end;
 
@@ -4242,8 +4380,8 @@ package body Sem_Attr is
             end if;
 
          --  Body case, where we must be inside a generated _Postcondition
-         --  procedure, and the prefix must be on the scope stack, or else
-         --  the attribute use is definitely misplaced. The condition itself
+         --  procedure, and the prefix must be on the scope stack, or else the
+         --  attribute use is definitely misplaced. The postcondition itself
          --  may have generated transient scopes, and is not necessarily the
          --  current one.
 
@@ -4351,9 +4489,9 @@ package body Sem_Attr is
          Check_Decimal_Fixed_Point_Type;
          Set_Etype (N, P_Base_Type);
 
-         --  Because the context is universal_real (3.5.10(12)) it is a legal
-         --  context for a universal fixed expression. This is the only
-         --  attribute whose functional description involves U_R.
+         --  Because the context is universal_real (3.5.10(12)) it is a
+         --  legal context for a universal fixed expression. This is the
+         --  only attribute whose functional description involves U_R.
 
          if Etype (E1) = Universal_Fixed then
             declare
@@ -4425,13 +4563,7 @@ package body Sem_Attr is
       ------------------
 
       when Attribute_Same_Storage =>
-         if Ada_Version < Ada_2012 then
-            Error_Msg_N
-              ("attribute Same_Storage is an Ada 2012 feature", N);
-            Error_Msg_N
-              ("\unit must be compiled with -gnat2012 switch", N);
-         end if;
-
+         Check_Ada_2012_Attribute;
          Check_E1;
 
          --  The arguments must be objects of any type
@@ -4441,6 +4573,36 @@ package body Sem_Attr is
          Check_Object_Reference (P);
          Check_Object_Reference (E1);
          Set_Etype (N, Standard_Boolean);
+
+      --------------------------
+      -- Scalar_Storage_Order --
+      --------------------------
+
+      when Attribute_Scalar_Storage_Order => Scalar_Storage_Order :
+      begin
+         Check_E0;
+         Check_Type;
+
+         if not Is_Record_Type (P_Type) or else Is_Array_Type (P_Type) then
+            Error_Attr_P
+              ("prefix of % attribute must be record or array type");
+         end if;
+
+         if Bytes_Big_Endian xor Reverse_Storage_Order (P_Type) then
+            Rewrite (N,
+              New_Occurrence_Of (RTE (RE_High_Order_First), Loc));
+         else
+            Rewrite (N,
+              New_Occurrence_Of (RTE (RE_Low_Order_First), Loc));
+         end if;
+
+         Set_Etype (N, RTE (RE_Bit_Order));
+         Resolve (N);
+
+         --  Reset incorrect indication of staticness
+
+         Set_Is_Static_Expression (N, False);
+      end Scalar_Storage_Order;
 
       -----------
       -- Scale --
@@ -4624,8 +4786,8 @@ package body Sem_Attr is
 
                Validate_Remote_Access_To_Class_Wide_Type (N);
 
-            --  The prefix is allowed to be an implicit dereference
-            --  of an access value designating a task.
+            --  The prefix is allowed to be an implicit dereference of an
+            --  access value designating a task.
 
             else
                Check_Task_Prefix;
@@ -5082,6 +5244,20 @@ package body Sem_Attr is
 
          Set_Etype (N, Standard_Boolean);
 
+      -------------------
+      -- Valid_Scalars --
+      -------------------
+
+      when Attribute_Valid_Scalars =>
+         Check_E0;
+         Check_Object_Reference (P);
+
+         if No_Scalar_Parts (P_Type) then
+            Error_Attr_P ("?attribute % always True, no scalars to check");
+         end if;
+
+         Set_Etype (N, Standard_Boolean);
+
       -----------
       -- Value --
       -----------
@@ -5359,10 +5535,11 @@ package body Sem_Attr is
       --  Used for First, Last and Length attributes applied to an array or
       --  array subtype. Sets the variables Lo_Bound and Hi_Bound to the low
       --  and high bound expressions for the index referenced by the attribute
-      --  designator (i.e. the first index if no expression is present, and
-      --  the N'th index if the value N is present as an expression). Also
-      --  used for First and Last of scalar types. Static is reset to False
-      --  if the type or index type is not statically constrained.
+      --  designator (i.e. the first index if no expression is present, and the
+      --  N'th index if the value N is present as an expression). Also used for
+      --  First and Last of scalar types and for First_Valid and Last_Valid.
+      --  Static is reset to False if the type or index type is not statically
+      --  constrained.
 
       function Statically_Denotes_Entity (N : Node_Id) return Boolean;
       --  Verify that the prefix of a potentially static array attribute
@@ -5703,7 +5880,7 @@ package body Sem_Attr is
             begin
                if No (E1) then
                   if C in Predefined_Check_Id then
-                     R := Scope_Suppress (C);
+                     R := Scope_Suppress.Suppress (C);
                   else
                      R := Is_Check_Suppressed (Empty, C);
                   end if;
@@ -5712,11 +5889,7 @@ package body Sem_Attr is
                   R := Is_Check_Suppressed (Entity (E1), C);
                end if;
 
-               if R then
-                  Rewrite (N, New_Occurrence_Of (Standard_False, Loc));
-               else
-                  Rewrite (N, New_Occurrence_Of (Standard_True, Loc));
-               end if;
+               Rewrite (N, New_Occurrence_Of (Boolean_Literals (not R), Loc));
             end;
          end if;
 
@@ -5792,6 +5965,13 @@ package body Sem_Attr is
                return;
             end if;
 
+         --  For Lock_Free, we apply the attribute to the type of the object.
+         --  This is allowed since we have already verified that the type is a
+         --  protected type.
+
+         elsif Id = Attribute_Lock_Free then
+            P_Entity := Etype (P);
+
          --  No other attributes for objects are folded
 
          else
@@ -5857,16 +6037,21 @@ package body Sem_Attr is
 
       --  Definite must be folded if the prefix is not a generic type,
       --  that is to say if we are within an instantiation. Same processing
-      --  applies to the GNAT attributes Has_Discriminants, Type_Class,
-      --  Has_Tagged_Value, and Unconstrained_Array.
+      --  applies to the GNAT attributes Atomic_Always_Lock_Free,
+      --  Has_Discriminants, Lock_Free, Type_Class, Has_Tagged_Value, and
+      --  Unconstrained_Array.
 
-      elsif (Id = Attribute_Definite
+      elsif (Id = Attribute_Atomic_Always_Lock_Free
+               or else
+             Id = Attribute_Definite
                or else
              Id = Attribute_Has_Access_Values
                or else
              Id = Attribute_Has_Discriminants
                or else
              Id = Attribute_Has_Tagged_Values
+               or else
+             Id = Attribute_Lock_Free
                or else
              Id = Attribute_Type_Class
                or else
@@ -5919,7 +6104,7 @@ package body Sem_Attr is
          return;
 
       --  No other cases are foldable (they certainly aren't static, and at
-      --  the moment we don't try to fold any cases other than these three).
+      --  the moment we don't try to fold any cases other than the ones above).
 
       else
          Check_Expressions;
@@ -5972,22 +6157,27 @@ package body Sem_Attr is
       --  since we can't do anything with unconstrained arrays. In addition,
       --  only the First, Last and Length attributes are possibly static.
 
-      --  Definite, Has_Access_Values, Has_Discriminants, Has_Tagged_Values,
-      --  Type_Class, and Unconstrained_Array are again exceptions, because
-      --  they apply as well to unconstrained types.
+      --  Atomic_Always_Lock_Free, Definite, Has_Access_Values,
+      --  Has_Discriminants, Has_Tagged_Values, Lock_Free, Type_Class, and
+      --  Unconstrained_Array are again exceptions, because they apply as well
+      --  to unconstrained types.
 
       --  In addition Component_Size is an exception since it is possibly
       --  foldable, even though it is never static, and it does apply to
       --  unconstrained arrays. Furthermore, it is essential to fold this
       --  in the packed case, since otherwise the value will be incorrect.
 
-      elsif Id = Attribute_Definite
+      elsif Id = Attribute_Atomic_Always_Lock_Free
+              or else
+            Id = Attribute_Definite
               or else
             Id = Attribute_Has_Access_Values
               or else
             Id = Attribute_Has_Discriminants
               or else
             Id = Attribute_Has_Tagged_Values
+              or else
+            Id = Attribute_Lock_Free
               or else
             Id = Attribute_Type_Class
               or else
@@ -6159,11 +6349,18 @@ package body Sem_Attr is
 
          --  Attributes related to Ada 2012 iterators (placeholder ???)
 
-         when Attribute_Constant_Indexing    => null;
-         when Attribute_Default_Iterator     => null;
-         when Attribute_Implicit_Dereference => null;
-         when Attribute_Iterator_Element     => null;
-         when Attribute_Variable_Indexing    => null;
+         when Attribute_Constant_Indexing    |
+              Attribute_Default_Iterator     |
+              Attribute_Implicit_Dereference |
+              Attribute_Iterator_Element     |
+              Attribute_Variable_Indexing    => null;
+
+         --  Internal attributes used to deal with Ada 2012 delayed aspects.
+         --  These were already rejected by the parser. Thus they shouldn't
+         --  appear here.
+
+         when Internal_Attribute_Id =>
+            raise Program_Error;
 
       --------------
       -- Adjacent --
@@ -6209,6 +6406,30 @@ package body Sem_Attr is
          else
             null;
          end if;
+
+      -----------------------------
+      -- Atomic_Always_Lock_Free --
+      -----------------------------
+
+      --  Atomic_Always_Lock_Free attribute is a Boolean, thus no need to fold
+      --  here.
+
+      when Attribute_Atomic_Always_Lock_Free => Atomic_Always_Lock_Free :
+      declare
+         V : constant Entity_Id :=
+               Boolean_Literals
+                 (Support_Atomic_Primitives_On_Target
+                   and then Support_Atomic_Primitives (P_Type));
+
+      begin
+         Rewrite (N, New_Occurrence_Of (V, Loc));
+
+         --  Analyze and resolve as boolean. Note that this attribute is a
+         --  static attribute in GNAT.
+
+         Analyze_And_Resolve (N, Standard_Boolean);
+         Static := True;
+      end Atomic_Always_Lock_Free;
 
       ---------
       -- Bit --
@@ -6431,6 +6652,31 @@ package body Sem_Attr is
       end First_Attr;
 
       -----------------
+      -- First_Valid --
+      -----------------
+
+      when Attribute_First_Valid => First_Valid :
+      begin
+         if Has_Predicates (P_Type)
+           and then Present (Static_Predicate (P_Type))
+         then
+            declare
+               FirstN : constant Node_Id := First (Static_Predicate (P_Type));
+            begin
+               if Nkind (FirstN) = N_Range then
+                  Fold_Uint (N, Expr_Value (Low_Bound (FirstN)), Static);
+               else
+                  Fold_Uint (N, Expr_Value (FirstN), Static);
+               end if;
+            end;
+
+         else
+            Set_Bounds;
+            Fold_Uint (N, Expr_Value (Lo_Bound), Static);
+         end if;
+      end First_Valid;
+
+      -----------------
       -- Fixed_Value --
       -----------------
 
@@ -6601,11 +6847,28 @@ package body Sem_Attr is
               True);
          end if;
 
+      ---------------
+      -- Lock_Free --
+      ---------------
+
+      when Attribute_Lock_Free => Lock_Free : declare
+         V : constant Entity_Id := Boolean_Literals (Uses_Lock_Free (P_Type));
+
+      begin
+         Rewrite (N, New_Occurrence_Of (V, Loc));
+
+         --  Analyze and resolve as boolean. Note that this attribute is a
+         --  static attribute in GNAT.
+
+         Analyze_And_Resolve (N, Standard_Boolean);
+         Static := True;
+      end Lock_Free;
+
       ----------
       -- Last --
       ----------
 
-      when Attribute_Last => Last :
+      when Attribute_Last => Last_Attr :
       begin
          Set_Bounds;
 
@@ -6629,7 +6892,32 @@ package body Sem_Attr is
          else
             Check_Concurrent_Discriminant (Hi_Bound);
          end if;
-      end Last;
+      end Last_Attr;
+
+      ----------------
+      -- Last_Valid --
+      ----------------
+
+      when Attribute_Last_Valid => Last_Valid :
+      begin
+         if Has_Predicates (P_Type)
+           and then Present (Static_Predicate (P_Type))
+         then
+            declare
+               LastN : constant Node_Id := Last (Static_Predicate (P_Type));
+            begin
+               if Nkind (LastN) = N_Range then
+                  Fold_Uint (N, Expr_Value (High_Bound (LastN)), Static);
+               else
+                  Fold_Uint (N, Expr_Value (LastN), Static);
+               end if;
+            end;
+
+         else
+            Set_Bounds;
+            Fold_Uint (N, Expr_Value (Hi_Bound), Static);
+         end if;
+      end Last_Valid;
 
       ------------------
       -- Leading_Part --
@@ -7963,6 +8251,7 @@ package body Sem_Attr is
            Attribute_Priority                   |
            Attribute_Read                       |
            Attribute_Result                     |
+           Attribute_Scalar_Storage_Order       |
            Attribute_Simple_Storage_Pool        |
            Attribute_Storage_Pool               |
            Attribute_Storage_Size               |
@@ -7979,6 +8268,7 @@ package body Sem_Attr is
            Attribute_Universal_Literal_String   |
            Attribute_Unrestricted_Access        |
            Attribute_Valid                      |
+           Attribute_Valid_Scalars              |
            Attribute_Value                      |
            Attribute_Wchar_T_Size               |
            Attribute_Wide_Value                 |
@@ -8538,14 +8828,13 @@ package body Sem_Attr is
                if Ada_Version >= Ada_2005
                  and then (Is_Local_Anonymous_Access (Btyp)
 
-                            --  Handle cases where Btyp is the
-                            --  anonymous access type of an Ada 2012
-                            --  stand-alone object.
+                            --  Handle cases where Btyp is the anonymous access
+                            --  type of an Ada 2012 stand-alone object.
 
                             or else Nkind (Associated_Node_For_Itype (Btyp)) =
                                                         N_Object_Declaration)
-                 and then Object_Access_Level (P)
-                          > Deepest_Type_Access_Level (Btyp)
+                 and then
+                   Object_Access_Level (P) > Deepest_Type_Access_Level (Btyp)
                  and then Attr_Id = Attribute_Access
                then
                   --  In an instance, this is a runtime check, but one we
@@ -8714,6 +9003,21 @@ package body Sem_Attr is
                then
                   Accessibility_Message;
                   return;
+
+               --  AI05-0225: If the context is not an access to protected
+               --  function, the prefix must be a variable, given that it may
+               --  be used subsequently in a protected call.
+
+               elsif Nkind (P) = N_Selected_Component
+                 and then not Is_Variable (Prefix (P))
+                 and then Ekind (Entity (Selector_Name (P))) /= E_Function
+               then
+                  Error_Msg_N
+                    ("target object of access to protected procedure "
+                      & "must be variable", N);
+
+               elsif Is_Entity_Name (P) then
+                  Check_Internal_Protected_Use (N, Entity (P));
                end if;
 
             elsif Ekind_In (Btyp, E_Access_Subprogram_Type,

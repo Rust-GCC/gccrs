@@ -703,7 +703,7 @@ stabstr_O (tree cst)
      present.  */
   {
     const unsigned int width = TYPE_PRECISION (TREE_TYPE (cst));
-    if (width == HOST_BITS_PER_WIDE_INT * 2)
+    if (width == HOST_BITS_PER_DOUBLE_INT)
       ;
     else if (width > HOST_BITS_PER_WIDE_INT)
       high &= (((HOST_WIDE_INT) 1 << (width - HOST_BITS_PER_WIDE_INT)) - 1);
@@ -2483,7 +2483,7 @@ dbxout_expand_expr (tree expr)
 	     return NULL, otherwise stabs might reference an undefined
 	     symbol.  */
 	  struct varpool_node *node = varpool_get_node (expr);
-	  if (!node || !node->needed)
+	  if (!node || !node->analyzed)
 	    return NULL;
 	}
       /* FALLTHRU */
@@ -2948,7 +2948,7 @@ dbxout_symbol (tree decl, int local ATTRIBUTE_UNUSED)
 
       decl_rtl = eliminate_regs (decl_rtl, VOIDmode, NULL_RTX);
 #ifdef LEAF_REG_REMAP
-      if (current_function_uses_only_leaf_regs)
+      if (crtl->uses_only_leaf_regs)
 	leaf_renumber_regs_insn (decl_rtl);
 #endif
 
@@ -3454,7 +3454,7 @@ dbxout_parms (tree parms)
 	SET_DECL_RTL (parms,
 		      eliminate_regs (DECL_RTL (parms), VOIDmode, NULL_RTX));
 #ifdef LEAF_REG_REMAP
-	if (current_function_uses_only_leaf_regs)
+	if (crtl->uses_only_leaf_regs)
 	  {
 	    leaf_renumber_regs_insn (DECL_INCOMING_RTL (parms));
 	    leaf_renumber_regs_insn (DECL_RTL (parms));
@@ -3816,5 +3816,41 @@ dbxout_begin_function (tree decl)
 #endif /* DBX_DEBUGGING_INFO */
 
 #endif /* DBX_DEBUGGING_INFO || XCOFF_DEBUGGING_INFO */
+
+/* Record an element in the table of global destructors.  SYMBOL is
+   a SYMBOL_REF of the function to be called; PRIORITY is a number
+   between 0 and MAX_INIT_PRIORITY.  */
+
+void
+default_stabs_asm_out_destructor (rtx symbol ATTRIBUTE_UNUSED,
+				  int priority ATTRIBUTE_UNUSED)
+{
+#if defined DBX_DEBUGGING_INFO || defined XCOFF_DEBUGGING_INFO
+  /* Tell GNU LD that this is part of the static destructor set.
+     This will work for any system that uses stabs, most usefully
+     aout systems.  */
+  dbxout_begin_simple_stabs ("___DTOR_LIST__", 22 /* N_SETT */);
+  dbxout_stab_value_label (XSTR (symbol, 0));
+#else
+  sorry ("global destructors not supported on this target");
+#endif
+}
+
+/* Likewise for global constructors.  */
+
+void
+default_stabs_asm_out_constructor (rtx symbol ATTRIBUTE_UNUSED,
+				   int priority ATTRIBUTE_UNUSED)
+{
+#if defined DBX_DEBUGGING_INFO || defined XCOFF_DEBUGGING_INFO
+  /* Tell GNU LD that this is part of the static destructor set.
+     This will work for any system that uses stabs, most usefully
+     aout systems.  */
+  dbxout_begin_simple_stabs ("___CTOR_LIST__", 22 /* N_SETT */);
+  dbxout_stab_value_label (XSTR (symbol, 0));
+#else
+  sorry ("global constructors not supported on this target");
+#endif
+}
 
 #include "gt-dbxout.h"

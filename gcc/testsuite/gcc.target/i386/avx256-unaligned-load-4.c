@@ -3,7 +3,7 @@
 
 #define N 1024
 
-float a[N], b[N+3];
+float a[N+3], b[N];
 
 void
 avx_test (void)
@@ -14,6 +14,6 @@ avx_test (void)
     b[i] = a[i+3] * 2;
 }
 
-/* { dg-final { scan-assembler "avx_movups256/1" } } */
-/* { dg-final { scan-assembler-not "avx_movups/1" } } */
+/* { dg-final { scan-assembler "avx_loadups256" } } */
+/* { dg-final { scan-assembler-not "sse_loadups" } } */
 /* { dg-final { scan-assembler-not "vinsertf128" } } */

@@ -85,52 +85,6 @@ convert_to_pointer (tree type, tree expr)
     }
 }
 
-/* Avoid any floating point extensions from EXP.  */
-tree
-strip_float_extensions (tree exp)
-{
-  tree sub, expt, subt;
-
-  /*  For floating point constant look up the narrowest type that can hold
-      it properly and handle it like (type)(narrowest_type)constant.
-      This way we can optimize for instance a=a*2.0 where "a" is float
-      but 2.0 is double constant.  */
-  if (TREE_CODE (exp) == REAL_CST && !DECIMAL_FLOAT_TYPE_P (TREE_TYPE (exp)))
-    {
-      REAL_VALUE_TYPE orig;
-      tree type = NULL;
-
-      orig = TREE_REAL_CST (exp);
-      if (TYPE_PRECISION (TREE_TYPE (exp)) > TYPE_PRECISION (float_type_node)
-	  && exact_real_truncate (TYPE_MODE (float_type_node), &orig))
-	type = float_type_node;
-      else if (TYPE_PRECISION (TREE_TYPE (exp))
-	       > TYPE_PRECISION (double_type_node)
-	       && exact_real_truncate (TYPE_MODE (double_type_node), &orig))
-	type = double_type_node;
-      if (type)
-	return build_real (type, real_value_truncate (TYPE_MODE (type), orig));
-    }
-
-  if (!CONVERT_EXPR_P (exp))
-    return exp;
-
-  sub = TREE_OPERAND (exp, 0);
-  subt = TREE_TYPE (sub);
-  expt = TREE_TYPE (exp);
-
-  if (!FLOAT_TYPE_P (subt))
-    return exp;
-
-  if (DECIMAL_FLOAT_TYPE_P (expt) != DECIMAL_FLOAT_TYPE_P (subt))
-    return exp;
-
-  if (TYPE_PRECISION (subt) > TYPE_PRECISION (expt))
-    return exp;
-
-  return strip_float_extensions (sub);
-}
-
 
 /* Convert EXPR to some floating-point type TYPE.
 
@@ -583,7 +537,6 @@ convert_to_integer (tree type, tree expr)
       else if (outprec >= inprec)
 	{
 	  enum tree_code code;
-	  tree tem;
 
 	  /* If the precision of the EXPR's type is K bits and the
 	     destination mode has more bits, and the sign is changing,
@@ -601,13 +554,7 @@ convert_to_integer (tree type, tree expr)
 	  else
 	    code = NOP_EXPR;
 
-	  tem = fold_unary (code, type, expr);
-	  if (tem)
-	    return tem;
-
-	  tem = build1 (code, type, expr);
-	  TREE_NO_WARNING (tem) = 1;
-	  return tem;
+	  return fold_build1 (code, type, expr);
 	}
 
       /* If TYPE is an enumeral type or a type with a precision less
@@ -769,7 +716,6 @@ convert_to_integer (tree type, tree expr)
 		   (Otherwise would recurse infinitely in convert.  */
 		if (TYPE_PRECISION (typex) != inprec)
 		  {
-		    tree otypex = typex;
 		    /* Don't do unsigned arithmetic where signed was wanted,
 		       or vice versa.
 		       Exception: if both of the original operands were
@@ -807,12 +753,10 @@ convert_to_integer (tree type, tree expr)
 		      typex = unsigned_type_for (typex);
 		    else
 		      typex = signed_type_for (typex);
-
-		    if (TYPE_PRECISION (otypex) == TYPE_PRECISION (typex))
-		      return convert (type,
-				      fold_build2 (ex_form, typex,
-						   convert (typex, arg0),
-						   convert (typex, arg1)));
+		    return convert (type,
+				    fold_build2 (ex_form, typex,
+						 convert (typex, arg0),
+						 convert (typex, arg1)));
 		  }
 	      }
 	  }

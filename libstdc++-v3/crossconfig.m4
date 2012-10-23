@@ -198,7 +198,7 @@ case "${host}" in
     ;;
   *-solaris*)
     case "$target" in
-      *-solaris2.8 | *-solaris2.9 | *-solaris2.10)
+      *-solaris2.9 | *-solaris2.10)
          GLIBCXX_CHECK_LINKER_FEATURES
          AC_DEFINE(HAVE_MBSTATE_T)
          AC_DEFINE(HAVE_FINITE)
@@ -222,8 +222,8 @@ case "${host}" in
     ;;
   *-tpf)
     SECTION_FLAGS='-ffunction-sections -fdata-sections'
+    SECTION_LDFLAGS='-Wl,--gc-sections $SECTION_LDFLAGS'
     AC_SUBST(SECTION_FLAGS)
-    GLIBCXX_CHECK_LINKER_FEATURES
     AC_DEFINE(HAVE_FINITE)
     AC_DEFINE(HAVE_FINITEF)
     AC_DEFINE(HAVE_FREXPF)
@@ -240,6 +240,12 @@ case "${host}" in
       AC_DEFINE(HAVE_ISINFL)
       AC_DEFINE(HAVE_ISNANL)
     fi
+    ;;
+  *-*vms*)
+    # Check for available headers.
+    # Don't call GLIBCXX_CHECK_LINKER_FEATURES, VMS doesn't have a GNU ld
+    GLIBCXX_CHECK_MATH_SUPPORT
+    GLIBCXX_CHECK_STDLIB_SUPPORT
     ;;
   *-vxworks)
     AC_DEFINE(HAVE_ACOSF)

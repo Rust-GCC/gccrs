@@ -291,8 +291,8 @@ package body Ada.Containers.Indefinite_Doubly_Linked_Lists is
          L : Natural renames C.Lock;
       begin
          return R : constant Constant_Reference_Type :=
-                      (Element => Position.Node.Element.all'Access,
-                       Control => (Controlled with Position.Container))
+           (Element => Position.Node.Element.all'Access,
+            Control => (Controlled with Position.Container))
          do
             B := B + 1;
             L := L + 1;
@@ -801,7 +801,7 @@ package body Ada.Containers.Indefinite_Doubly_Linked_Lists is
 
          procedure Sort (Front, Back : Node_Access) is
             Pivot : constant Node_Access :=
-                      (if Front = null then Container.First else Front.Next);
+              (if Front = null then Container.First else Front.Next);
          begin
             if Pivot /= Back then
                Partition (Pivot, Back);
@@ -888,9 +888,19 @@ package body Ada.Containers.Indefinite_Doubly_Linked_Lists is
       end if;
 
       declare
+         --  The element allocator may need an accessibility check in the case
+         --  the actual type is class-wide or has access discriminants (see
+         --  RM 4.8(10.1) and AI12-0035). We don't unsuppress the check on the
+         --  allocator in the loop below, because the one in this block would
+         --  have failed already.
+
+         pragma Unsuppress (Accessibility_Check);
+
          Element : Element_Access := new Element_Type'(New_Item);
+
       begin
          New_Node := new Node_Type'(Element, null, null);
+
       exception
          when others =>
             Free (Element);
@@ -1031,9 +1041,9 @@ package body Ada.Containers.Indefinite_Doubly_Linked_Lists is
       --  for a reverse iterator, Container.Last is the beginning.
 
       return It : constant Iterator :=
-                    Iterator'(Limited_Controlled with
-                                Container => Container'Unrestricted_Access,
-                                Node      => null)
+        Iterator'(Limited_Controlled with
+                    Container => Container'Unrestricted_Access,
+                    Node      => null)
       do
          B := B + 1;
       end return;
@@ -1080,9 +1090,9 @@ package body Ada.Containers.Indefinite_Doubly_Linked_Lists is
       --  is a forward or reverse iteration.
 
       return It : constant Iterator :=
-                    Iterator'(Limited_Controlled with
-                                Container => Container'Unrestricted_Access,
-                                Node      => Start.Node)
+        Iterator'(Limited_Controlled with
+                    Container => Container'Unrestricted_Access,
+                    Node      => Start.Node)
       do
          B := B + 1;
       end return;
@@ -1335,7 +1345,7 @@ package body Ada.Containers.Indefinite_Doubly_Linked_Lists is
 
       declare
          Element : Element_Access :=
-                     new Element_Type'(Element_Type'Input (Stream));
+           new Element_Type'(Element_Type'Input (Stream));
       begin
          Dst := new Node_Type'(Element, null, null);
       exception
@@ -1351,7 +1361,7 @@ package body Ada.Containers.Indefinite_Doubly_Linked_Lists is
       while Item.Length < N loop
          declare
             Element : Element_Access :=
-                        new Element_Type'(Element_Type'Input (Stream));
+              new Element_Type'(Element_Type'Input (Stream));
          begin
             Dst := new Node_Type'(Element, Next => null, Prev => Item.Last);
          exception
@@ -1420,8 +1430,8 @@ package body Ada.Containers.Indefinite_Doubly_Linked_Lists is
          L : Natural renames C.Lock;
       begin
          return R : constant Reference_Type :=
-                      (Element => Position.Node.Element.all'Access,
-                       Control => (Controlled with Position.Container))
+           (Element => Position.Node.Element.all'Access,
+            Control => (Controlled with Position.Container))
          do
             B := B + 1;
             L := L + 1;
@@ -1461,6 +1471,12 @@ package body Ada.Containers.Indefinite_Doubly_Linked_Lists is
       pragma Assert (Vet (Position), "bad cursor in Replace_Element");
 
       declare
+         --  The element allocator may need an accessibility check in the case
+         --  the actual type is class-wide or has access discriminants (see
+         --  RM 4.8(10.1) and AI12-0035).
+
+         pragma Unsuppress (Accessibility_Check);
+
          X : Element_Access := Position.Node.Element;
 
       begin

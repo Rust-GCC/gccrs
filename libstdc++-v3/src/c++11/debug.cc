@@ -1,7 +1,7 @@
 // Debugging mode support code -*- C++ -*-
 
 // Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
-// 2011 Free Software Foundation, Inc.
+// 2011, 2012 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -131,7 +131,7 @@ namespace __gnu_debug
     "attempt to flip a singular bitset reference",
     // std::list checks
     "attempt to splice a list into itself",
-    "attempt to splice lists with inequal allocators",
+    "attempt to splice lists with unequal allocators",
     "attempt to splice elements referenced by a %1.state; iterator",
     "attempt to splice an iterator from a different container",
     "splice destination %1.name;"
@@ -177,7 +177,11 @@ namespace __gnu_debug
     // std::unordered_container::local_iterator
     "attempt to compare local iterators from different unordered container"
     " buckets",
-    "function requires a non-empty iterator range [%1.name;, %2.name;)"
+    "function requires a non-empty iterator range [%1.name;, %2.name;)",
+    "attempt to self move assign",
+    "attempt to access container with out-of-bounds bucket index %2;,"
+    " container only holds %3; buckets",
+    "load factor shall be positive"
   };
 
   void

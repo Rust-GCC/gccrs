@@ -1,6 +1,6 @@
 /* Machine mode definitions for GCC; included by rtl.h and tree.h.
    Copyright (C) 1991, 1993, 1994, 1996, 1998, 1999, 2000, 2001, 2003,
-   2007, 2008, 2009, 2010 Free Software Foundation, Inc.
+   2007, 2008, 2009, 2010, 2012 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -166,6 +166,7 @@ extern const unsigned char mode_class[NUM_MACHINE_MODES];
 /* Nonzero if CLASS modes can be widened.  */
 #define CLASS_HAS_WIDER_MODES_P(CLASS)         \
   (CLASS == MODE_INT                           \
+   || CLASS == MODE_PARTIAL_INT                \
    || CLASS == MODE_FLOAT                      \
    || CLASS == MODE_DECIMAL_FLOAT              \
    || CLASS == MODE_COMPLEX_FLOAT              \
@@ -178,7 +179,8 @@ extern const unsigned char mode_class[NUM_MACHINE_MODES];
 
 extern CONST_MODE_SIZE unsigned char mode_size[NUM_MACHINE_MODES];
 #define GET_MODE_SIZE(MODE)    ((unsigned short) mode_size[MODE])
-#define GET_MODE_BITSIZE(MODE) ((unsigned short) (GET_MODE_SIZE (MODE) * BITS_PER_UNIT))
+#define GET_MODE_BITSIZE(MODE) \
+  ((unsigned short) (GET_MODE_SIZE (MODE) * BITS_PER_UNIT))
 
 /* Get the number of value bits of an object of mode MODE.  */
 extern const unsigned short mode_precision[NUM_MACHINE_MODES];
@@ -204,12 +206,21 @@ extern const unsigned HOST_WIDE_INT mode_mask_array[NUM_MACHINE_MODES];
 extern const unsigned char mode_inner[NUM_MACHINE_MODES];
 #define GET_MODE_INNER(MODE) ((enum machine_mode) mode_inner[MODE])
 
-/* Get the size in bytes of the basic parts of an object of mode MODE.  */
+/* Get the size in bytes or bites of the basic parts of an
+   object of mode MODE.  */
 
 #define GET_MODE_UNIT_SIZE(MODE)		\
   (GET_MODE_INNER (MODE) == VOIDmode		\
    ? GET_MODE_SIZE (MODE)			\
    : GET_MODE_SIZE (GET_MODE_INNER (MODE)))
+
+#define GET_MODE_UNIT_BITSIZE(MODE) \
+  ((unsigned short) (GET_MODE_UNIT_SIZE (MODE) * BITS_PER_UNIT))
+
+#define GET_MODE_UNIT_PRECISION(MODE)		\
+  (GET_MODE_INNER (MODE) == VOIDmode		\
+   ? GET_MODE_PRECISION (MODE)			\
+   : GET_MODE_PRECISION (GET_MODE_INNER (MODE)))
 
 /* Get the number of units in the object.  */
 

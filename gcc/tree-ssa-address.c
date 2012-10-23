@@ -28,12 +28,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "tm_p.h"
 #include "basic-block.h"
-#include "output.h"
 #include "tree-pretty-print.h"
 #include "tree-flow.h"
-#include "tree-dump.h"
-#include "tree-pass.h"
-#include "timevar.h"
+#include "dumpfile.h"
 #include "flags.h"
 #include "tree-inline.h"
 #include "tree-affine.h"
@@ -45,6 +42,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "expr.h"
 #include "ggc.h"
 #include "target.h"
+#include "expmed.h"
 
 /* TODO -- handling of symbols (according to Richard Hendersons
    comments, http://gcc.gnu.org/ml/gcc-patches/2005-04/msg00949.html):
@@ -200,8 +198,8 @@ addr_for_mem_ref (struct mem_address *addr, addr_space_t as,
 
   if (addr->offset && !integer_zerop (addr->offset))
     off = immed_double_int_const
-	    (double_int_sext (tree_to_double_int (addr->offset),
-			      TYPE_PRECISION (TREE_TYPE (addr->offset))),
+	    (tree_to_double_int (addr->offset)
+	     .sext (TYPE_PRECISION (TREE_TYPE (addr->offset))),
 	     pointer_mode);
   else
     off = NULL_RTX;
@@ -217,7 +215,8 @@ addr_for_mem_ref (struct mem_address *addr, addr_space_t as,
 			       templ_index + 1);
 
       /* Reuse the templates for addresses, so that we do not waste memory.  */
-      templ = VEC_index (mem_addr_template, mem_addr_template_list, templ_index);
+      templ = &VEC_index (mem_addr_template, mem_addr_template_list,
+			  templ_index);
       if (!templ->ref)
 	{
 	  sym = (addr->symbol ?
@@ -401,7 +400,7 @@ move_fixed_address_to_symbol (struct mem_address *parts, aff_tree *addr)
 
   for (i = 0; i < addr->n; i++)
     {
-      if (!double_int_one_p (addr->elts[i].coef))
+      if (!addr->elts[i].coef.is_one ())
 	continue;
 
       val = addr->elts[i].val;
@@ -429,7 +428,7 @@ move_hint_to_base (tree type, struct mem_address *parts, tree base_hint,
 
   for (i = 0; i < addr->n; i++)
     {
-      if (!double_int_one_p (addr->elts[i].coef))
+      if (!addr->elts[i].coef.is_one ())
 	continue;
 
       val = addr->elts[i].val;
@@ -461,7 +460,7 @@ move_pointer_to_base (struct mem_address *parts, aff_tree *addr)
 
   for (i = 0; i < addr->n; i++)
     {
-      if (!double_int_one_p (addr->elts[i].coef))
+      if (!addr->elts[i].coef.is_one ())
 	continue;
 
       val = addr->elts[i].val;
@@ -549,15 +548,15 @@ most_expensive_mult_to_index (tree type, struct mem_address *parts,
   best_mult = double_int_zero;
   for (i = 0; i < addr->n; i++)
     {
-      if (!double_int_fits_in_shwi_p (addr->elts[i].coef))
+      if (!addr->elts[i].coef.fits_shwi ())
 	continue;
 
-      coef = double_int_to_shwi (addr->elts[i].coef);
+      coef = addr->elts[i].coef.to_shwi ();
       if (coef == 1
 	  || !multiplier_allowed_in_address_p (coef, TYPE_MODE (type), as))
 	continue;
 
-      acost = multiply_by_cost (coef, address_mode, speed);
+      acost = mult_by_coeff_cost (coef, address_mode, speed);
 
       if (acost > best_mult_cost)
 	{
@@ -573,11 +572,11 @@ most_expensive_mult_to_index (tree type, struct mem_address *parts,
   for (i = j = 0; i < addr->n; i++)
     {
       amult = addr->elts[i].coef;
-      amult_neg = double_int_ext_for_comb (double_int_neg (amult), addr);
+      amult_neg = double_int_ext_for_comb (-amult, addr);
 
-      if (double_int_equal_p (amult, best_mult))
+      if (amult == best_mult)
 	op_code = PLUS_EXPR;
-      else if (double_int_equal_p (amult_neg, best_mult))
+      else if (amult_neg == best_mult)
 	op_code = MINUS_EXPR;
       else
 	{
@@ -625,7 +624,7 @@ addr_to_parts (tree type, aff_tree *addr, tree iv_cand,
   parts->index = NULL_TREE;
   parts->step = NULL_TREE;
 
-  if (!double_int_zero_p (addr->offset))
+  if (!addr->offset.is_zero ())
     parts->offset = double_int_to_tree (sizetype, addr->offset);
   else
     parts->offset = NULL_TREE;
@@ -657,7 +656,7 @@ addr_to_parts (tree type, aff_tree *addr, tree iv_cand,
   for (i = 0; i < addr->n; i++)
     {
       part = fold_convert (sizetype, addr->elts[i].val);
-      if (!double_int_one_p (addr->elts[i].coef))
+      if (!addr->elts[i].coef.is_one ())
 	part = fold_build2 (MULT_EXPR, sizetype, part,
 			    double_int_to_tree (sizetype, addr->elts[i].coef));
       add_to_parts (parts, part);
@@ -822,16 +821,6 @@ get_address_description (tree op, struct mem_address *addr)
   addr->offset = TMR_OFFSET (op);
 }
 
-/* Copies the additional information attached to target_mem_ref FROM to TO.  */
-
-void
-copy_mem_ref_info (tree to, tree from)
-{
-  /* And the info about the original reference.  */
-  TREE_SIDE_EFFECTS (to) = TREE_SIDE_EFFECTS (from);
-  TREE_THIS_VOLATILE (to) = TREE_THIS_VOLATILE (from);
-}
-
 /* Copies the reference information from OLD_REF to NEW_REF, where
    NEW_REF should be either a MEM_REF or a TARGET_MEM_REF.  */
 
@@ -863,26 +852,26 @@ copy_ref_info (tree new_ref, tree old_ref)
 	       && SSA_NAME_PTR_INFO (TREE_OPERAND (base, 0)))
 	{
 	  struct ptr_info_def *new_pi;
+	  unsigned int align, misalign;
+
 	  duplicate_ssa_name_ptr_info
 	    (new_ptr_base, SSA_NAME_PTR_INFO (TREE_OPERAND (base, 0)));
 	  new_pi = SSA_NAME_PTR_INFO (new_ptr_base);
-	  /* We have to be careful about transfering alignment information.  */
-	  if (TREE_CODE (old_ref) == MEM_REF
+	  /* We have to be careful about transferring alignment information.  */
+	  if (get_ptr_info_alignment (new_pi, &align, &misalign)
+	      && TREE_CODE (old_ref) == MEM_REF
 	      && !(TREE_CODE (new_ref) == TARGET_MEM_REF
 		   && (TMR_INDEX2 (new_ref)
 		       || (TMR_STEP (new_ref)
 			   && (TREE_INT_CST_LOW (TMR_STEP (new_ref))
-			       < new_pi->align)))))
+			       < align)))))
 	    {
-	      new_pi->misalign += double_int_sub (mem_ref_offset (old_ref),
-						  mem_ref_offset (new_ref)).low;
-	      new_pi->misalign &= (new_pi->align - 1);
+	      unsigned int inc = (mem_ref_offset (old_ref)
+				  - mem_ref_offset (new_ref)).low;
+	      adjust_ptr_info_misalignment (new_pi, inc);
 	    }
 	  else
-	    {
-	      new_pi->align = 1;
-	      new_pi->misalign = 0;
-	    }
+	    mark_ptr_info_alignment_unknown (new_pi);
 	}
       else if (TREE_CODE (base) == VAR_DECL
 	       || TREE_CODE (base) == PARM_DECL
@@ -902,7 +891,7 @@ maybe_fold_tmr (tree ref)
 {
   struct mem_address addr;
   bool changed = false;
-  tree ret, off;
+  tree new_ref, off;
 
   get_address_description (ref, &addr);
 
@@ -963,10 +952,11 @@ maybe_fold_tmr (tree ref)
      ended up folding it, always create a new TARGET_MEM_REF regardless
      if it is valid in this for on the target - the propagation result
      wouldn't be anyway.  */
-  ret = create_mem_ref_raw (TREE_TYPE (ref),
-			    TREE_TYPE (addr.offset), &addr, false);
-  copy_mem_ref_info (ret, ref);
-  return ret;
+  new_ref = create_mem_ref_raw (TREE_TYPE (ref),
+			        TREE_TYPE (addr.offset), &addr, false);
+  TREE_SIDE_EFFECTS (new_ref) = TREE_SIDE_EFFECTS (ref);
+  TREE_THIS_VOLATILE (new_ref) = TREE_THIS_VOLATILE (ref);
+  return new_ref;
 }
 
 /* Dump PARTS to FILE.  */

@@ -55,46 +55,46 @@
 ;; The movsi for a gotless symbol could be split (post reload).
 
 
-(define_constants
+(define_c_enum ""
   [
    ;; PLT reference from call expansion: operand 0 is the address,
    ;; the mode is VOIDmode.  Always wrapped in CONST.
    ;; The value is relative to the GOT.
-   (CRIS_UNSPEC_PLT_GOTREL 0)
+   CRIS_UNSPEC_PLT_GOTREL
 
    ;; PLT reference from call expansion: operand 0 is the address,
    ;; the mode is VOIDmode.  Always wrapped in CONST.
    ;; The value is relative to the PC.  It's arch-dependent whether
    ;; the offset counts from the start or the end of the current item.
-   (CRIS_UNSPEC_PLT_PCREL 1)
+   CRIS_UNSPEC_PLT_PCREL
 
    ;; The address of the global offset table as a source operand.
-   (CRIS_UNSPEC_GOT 2)
+   CRIS_UNSPEC_GOT
 
    ;; The offset from the global offset table to the operand.
-   (CRIS_UNSPEC_GOTREL 3)
+   CRIS_UNSPEC_GOTREL
 
    ;; The PC-relative offset to the operand.  It's arch-dependent whether
    ;; the offset counts from the start or the end of the current item.
-   (CRIS_UNSPEC_PCREL 4)
+   CRIS_UNSPEC_PCREL
 
    ;; The index into the global offset table of a symbol, while
    ;; also generating a GOT entry for the symbol.
-   (CRIS_UNSPEC_GOTREAD 5)
+   CRIS_UNSPEC_GOTREAD
 
    ;; Similar to CRIS_UNSPEC_GOTREAD, but also generating a PLT entry.
-   (CRIS_UNSPEC_PLTGOTREAD 6)
+   CRIS_UNSPEC_PLTGOTREAD
 
    ;; Condition for v32 casesi jump, since it needs to have if_then_else
    ;; form with register as one branch and default label as other.
    ;; Operand 0 is const_int 0.
-   (CRIS_UNSPEC_CASESI 7)
+   CRIS_UNSPEC_CASESI
 
    ;; Stack frame deallocation barrier.
-   (CRIS_UNSPEC_FRAME_DEALLOC 8)
+   CRIS_UNSPEC_FRAME_DEALLOC
 
    ;; Swap all 32 bits of the operand; 31 <=> 0, 30 <=> 1...
-   (CRIS_UNSPEC_SWAP_BITS 9)
+   CRIS_UNSPEC_SWAP_BITS
   ])
 
 ;; Register numbers.
@@ -976,7 +976,7 @@
 		    tem = gen_rtx_UNSPEC (Pmode, gen_rtvec (1, sym),
 					  CRIS_UNSPEC_PCREL);
 		    if (offs != 0)
-		      tem = plus_constant (tem, offs);
+		      tem = plus_constant (Pmode, tem, offs);
 		    rm = rn;
 		    emit_move_insn (rm, gen_rtx_CONST (Pmode, tem));
 		  }
@@ -988,7 +988,7 @@
 		    tem = gen_rtx_UNSPEC (Pmode, gen_rtvec (1, sym),
 					  CRIS_UNSPEC_GOTREL);
 		    if (offs != 0)
-		      tem = plus_constant (tem, offs);
+		      tem = plus_constant (Pmode, tem, offs);
 		    rm = gen_reg_rtx (Pmode);
 		    emit_move_insn (rm, gen_rtx_CONST (Pmode, tem));
 		    if (expand_binop (Pmode, add_optab, rm, pic_offset_table_rtx,
@@ -1530,7 +1530,7 @@
   "movs<m> %1,%0"
   [(set_attr "slottable" "yes,yes,no")])
 
-;; To do a byte->word extension, extend to dword, exept that the top half
+;; To do a byte->word extension, extend to dword, except that the top half
 ;; of the register will be clobbered.  FIXME: Perhaps this is not needed.
 
 (define_insn "extendqihi2"
@@ -3825,6 +3825,14 @@
   ""
   "nop"
   [(set_attr "cc" "none")])
+
+;; Same as the gdb trap breakpoint, will cause a SIGTRAP for
+;; cris-linux* and crisv32-linux*, as intended.  Will work in
+;; freestanding environments with sufficient framework.
+(define_insn "trap"
+  [(trap_if (const_int 1) (const_int 8))]
+  "TARGET_TRAP_USING_BREAK8"
+  "break 8")
 
 ;; We need to stop accesses to the stack after the memory is
 ;; deallocated.  Unfortunately, reorg doesn't look at naked clobbers,
@@ -3868,7 +3876,7 @@
      (use (label_ref (match_operand 3 "" "")))])]
   ""
 {
-  operands[2] = plus_constant (operands[2], 1);
+  operands[2] = plus_constant (SImode, operands[2], 1);
   operands[5] = gen_reg_rtx (SImode);
   operands[6] = gen_reg_rtx (SImode);
   operands[7] = gen_reg_rtx (SImode);
@@ -3903,7 +3911,7 @@
   rtx xlabel = gen_rtx_LABEL_REF (VOIDmode, operands[3]);
   for (i = 5; i <= 10; i++)
     operands[i] = gen_reg_rtx (SImode);
-  operands[2] = plus_constant (operands[2], 1);
+  operands[2] = plus_constant (SImode, operands[2], 1);
 
   /* Don't forget to decorate labels too, for PIC.  */
   operands[11] = flag_pic
@@ -4157,6 +4165,8 @@
 	 3 [(match_dup 0)
 	    (match_dup 1)]))]
   "")
+
+(include "sync.md")
 
 ;; Splits for all cases in side-effect insns where (possibly after reload
 ;; and register allocation) rx and ry in [rx=ry+i] are equal.
@@ -4936,17 +4946,17 @@
   "operands[7]
      = rtx_equal_p (operands[3], operands[0]) ? operands[4] : operands[3];")
 
-;;  I cannot tell GCC (2.1, 2.7.2) how to correctly reload an instruction
-;; that looks like
-;;   and.b some_byte,const,reg_32
-;; where reg_32 is the destination of the "three-address" code optimally.
+;; There seems to be no other way to make GCC (including 4.8/trunk at
+;; r186932) optimally reload an instruction that looks like
+;;   and.d reg_or_mem,const_32__65535,other_reg
+;; where other_reg is the destination.
 ;; It should be:
-;;   movu.b some_byte,reg_32
-;;   and.b const,reg_32
+;;   movu.[bw] reg_or_mem,reg_32
+;;   and.[bw] trunc_int_for_mode([bw], const_32__65535),reg_32 ;; or andq
 ;; but it turns into:
-;;   move.b some_byte,reg_32
-;;   and.d const,reg_32
-;; Fix it here.
+;;   move.d reg_or_mem,reg_32
+;;   and.d const_32__65535,reg_32
+;; Fix it with these two peephole2's.
 ;; Testcases: gcc.dg/cris-peep2-andu1.c gcc.dg/cris-peep2-andu2.c
 
 (define_peephole2 ; andu (casesi+45)
@@ -4982,6 +4992,36 @@
 		   GEN_INT (trunc_int_for_mode (INTVAL (operands[3]),
 						amode == SImode
 						? QImode : amode)));
+})
+
+;; Since r186861, gcc.dg/cris-peep2-andu2.c trigs this pattern, with which
+;; we fix up e.g.:
+;;  movu.b 254,$r9.
+;;  and.d $r10,$r9
+;; into:
+;;  movu.b $r10,$r9
+;;  andq -2,$r9.
+;; Only do this for values fitting the quick immediate operand.
+(define_peephole2 ; andqu (casesi+46)
+  [(set (match_operand:SI 0 "register_operand")
+	(match_operand:SI 1 "const_int_operand"))
+   (set (match_dup 0)
+	(and:SI (match_dup 0) (match_operand:SI 2 "nonimmediate_operand")))]
+   ;; Since the size of the memory access will be made different here,
+   ;; don't do this for a volatile access or a post-incremented address.
+  "satisfies_constraint_O (operands[1])
+   && !side_effects_p (operands[2])
+   && !reg_overlap_mentioned_p (operands[0], operands[2])"
+  [(set (match_dup 0) (match_dup 3))
+   (set (match_dup 0) (and:SI (match_dup 0) (match_dup 4)))]
+{
+  enum machine_mode zmode = INTVAL (operands[2]) <= 255 ? QImode : HImode;
+  rtx op1
+    = (REG_S_P (operands[2])
+       ? gen_rtx_REG (zmode, REGNO (operands[2]))
+       : adjust_address (operands[2], zmode, 0));
+  operands[3] = gen_rtx_ZERO_EXTEND (SImode, op1);
+  operands[4] = GEN_INT (trunc_int_for_mode (INTVAL (operands[1]), QImode));
 })
 
 ;; Try and avoid GOTPLT reads escaping a call: transform them into

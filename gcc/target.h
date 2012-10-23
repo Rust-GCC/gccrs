@@ -120,6 +120,13 @@ struct loop;
 /* This is defined in tree-ssa-alias.h.  */
 struct ao_ref_s;
 
+/* This is defined in tree-vectorizer.h.  */
+struct _stmt_vec_info;
+
+/* These are defined in tree-vect-stmts.c.  */
+extern tree stmt_vectype (struct _stmt_vec_info *);
+extern bool stmt_in_inner_loop_p (struct _stmt_vec_info *);
+
 /* Assembler instructions for creating various kinds of integer object.  */
 
 struct asm_int_op
@@ -146,7 +153,16 @@ enum vect_cost_for_stmt
   cond_branch_not_taken,
   cond_branch_taken,
   vec_perm,
-  vec_promote_demote
+  vec_promote_demote,
+  vec_construct
+};
+
+/* Separate locations for which the vectorizer cost model should
+   track costs.  */
+enum vect_cost_model_location {
+  vect_prologue = 0,
+  vect_body = 1,
+  vect_epilogue = 2
 };
 
 /* The target structure.  This holds all the backend hooks.  */

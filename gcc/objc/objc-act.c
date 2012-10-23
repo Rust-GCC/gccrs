@@ -27,10 +27,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 
 #ifdef OBJCPLUS
-#include "cp-tree.h"
+#include "cp/cp-tree.h"
 #else
-#include "c-tree.h"
-#include "c-lang.h"
+#include "c/c-tree.h"
+#include "c/c-lang.h"
 #endif
 
 #include "c-family/c-common.h"
@@ -43,7 +43,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "objc-map.h"
 #include "input.h"
 #include "function.h"
-#include "output.h"
 #include "toplev.h"
 #include "ggc.h"
 #include "debug.h"
@@ -52,7 +51,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "intl.h"
 #include "cgraph.h"
 #include "tree-iterator.h"
-#include "hashtab.h"
+#include "hash-table.h"
 #include "langhooks-def.h"
 /* Different initialization, code gen and meta data generation for each
    runtime.  */
@@ -3210,7 +3209,7 @@ objc_build_constructor (tree type, VEC(constructor_elt,gc) *elts)
 #ifdef OBJCPLUS
   /* Adjust for impedance mismatch.  We should figure out how to build
      CONSTRUCTORs that consistently please both the C and C++ gods.  */
-  if (!VEC_index (constructor_elt, elts, 0)->index)
+  if (!VEC_index (constructor_elt, elts, 0).index)
     TREE_TYPE (constructor) = init_list_type_node;
 #endif
 
@@ -3293,7 +3292,7 @@ objc_get_class_reference (tree ident)
 #ifdef OBJCPLUS
   if (processing_template_decl)
     /* Must wait until template instantiation time.  */
-    return build_min_nt (CLASS_REFERENCE_EXPR, ident);
+    return build_min_nt_loc (UNKNOWN_LOCATION, CLASS_REFERENCE_EXPR, ident);
 #endif
 
   if (TREE_CODE (ident) == TYPE_DECL)
@@ -3553,7 +3552,6 @@ objc_build_ivar_assignment (tree outervar, tree lhs, tree rhs)
 		tree_cons (NULL_TREE, offs,
 		    NULL_TREE)));
 
-  assemble_external (func);
   return build_function_call (input_location, func, func_params);
 }
 
@@ -3566,7 +3564,6 @@ objc_build_global_assignment (tree lhs, tree rhs)
 		      build_unary_op (input_location, ADDR_EXPR, lhs, 0)),
 		    NULL_TREE));
 
-  assemble_external (objc_assign_global_decl);
   return build_function_call (input_location,
 			      objc_assign_global_decl, func_params);
 }
@@ -3580,7 +3577,6 @@ objc_build_strong_cast_assignment (tree lhs, tree rhs)
 		      build_unary_op (input_location, ADDR_EXPR, lhs, 0)),
 		    NULL_TREE));
 
-  assemble_external (objc_assign_strong_cast_decl);
   return build_function_call (input_location,
 			      objc_assign_strong_cast_decl, func_params);
 }
@@ -3828,18 +3824,23 @@ objc_get_class_ivars (tree class_name)
    allows us to store keys in the hashtable, without values (it looks
    more like a set).  So, we store the DECLs, but define equality as
    DECLs having the same name, and hash as the hash of the name.  */
-static hashval_t
-hash_instance_variable (const PTR p)
+
+struct decl_name_hash : typed_noop_remove <tree_node>
 {
-  const_tree q = (const_tree)p;
+  typedef tree_node T;
+  static inline hashval_t hash (const T *);
+  static inline bool equal (const T *, const T *);
+};
+
+inline hashval_t
+decl_name_hash::hash (const T *q)
+{
   return (hashval_t) ((intptr_t)(DECL_NAME (q)) >> 3);
 }
 
-static int
-eq_instance_variable (const PTR p1, const PTR p2)
+inline bool
+decl_name_hash::equal (const T *a, const T *b)
 {
-  const_tree a = (const_tree)p1;
-  const_tree b = (const_tree)p2;
   return DECL_NAME (a) == DECL_NAME (b);
 }
 
@@ -3920,8 +3921,8 @@ objc_detect_field_duplicates (bool check_superclasses_only)
 	  {
 	    /* First, build the hashtable by putting all the instance
 	       variables of superclasses in it.  */
-	    htab_t htab = htab_create (37, hash_instance_variable,
-				       eq_instance_variable, NULL);
+	    hash_table <decl_name_hash> htab;
+	    htab.create (37);
 	    tree interface;
 	    for (interface = lookup_interface (CLASS_SUPER_NAME
 					       (objc_interface_context));
@@ -3934,7 +3935,7 @@ objc_detect_field_duplicates (bool check_superclasses_only)
 		  {
 		    if (DECL_NAME (ivar) != NULL_TREE)
 		      {
-			void **slot = htab_find_slot (htab, ivar, INSERT);
+			tree_node **slot = htab.find_slot (ivar, INSERT);
 			/* Do not check for duplicate instance
 			   variables in superclasses.  Errors have
 			   already been generated.  */
@@ -3954,7 +3955,7 @@ objc_detect_field_duplicates (bool check_superclasses_only)
 		  {
 		    if (DECL_NAME (ivar) != NULL_TREE)
 		      {
-			tree duplicate_ivar = (tree)(htab_find (htab, ivar));
+			tree duplicate_ivar = htab.find (ivar);
 			if (duplicate_ivar != HTAB_EMPTY_ENTRY)
 			  {
 			    error_at (DECL_SOURCE_LOCATION (ivar),
@@ -3981,7 +3982,7 @@ objc_detect_field_duplicates (bool check_superclasses_only)
 		  {
 		    if (DECL_NAME (ivar) != NULL_TREE)
 		      {
-			void **slot = htab_find_slot (htab, ivar, INSERT);
+			tree_node **slot = htab.find_slot (ivar, INSERT);
 			if (*slot)
 			  {
 			    tree duplicate_ivar = (tree)(*slot);
@@ -3998,7 +3999,7 @@ objc_detect_field_duplicates (bool check_superclasses_only)
 		      }
 		  }
 	      }
-	    htab_delete (htab);
+	    htab.dispose ();
 	    return true;
 	  }
       }
@@ -4628,7 +4629,7 @@ mark_referenced_methods (void)
       chain = CLASS_CLS_METHODS (impent->imp_context);
       while (chain)
 	{
-	  cgraph_mark_needed_node (
+	  cgraph_mark_force_output_node (
 			   cgraph_get_create_node (METHOD_DEFINITION (chain)));
 	  chain = DECL_CHAIN (chain);
 	}
@@ -4636,7 +4637,7 @@ mark_referenced_methods (void)
       chain = CLASS_NST_METHODS (impent->imp_context);
       while (chain)
 	{
-	  cgraph_mark_needed_node (
+	  cgraph_mark_force_output_node (
 			   cgraph_get_create_node (METHOD_DEFINITION (chain)));
 	  chain = DECL_CHAIN (chain);
 	}
@@ -5275,8 +5276,8 @@ objc_build_message_expr (tree receiver, tree message_args)
 #ifdef OBJCPLUS
   if (processing_template_decl)
     /* Must wait until template instantiation time.  */
-    return build_min_nt (MESSAGE_SEND_EXPR, receiver, sel_name,
-			 method_params);
+    return build_min_nt_loc (UNKNOWN_LOCATION, MESSAGE_SEND_EXPR, receiver,
+			     sel_name, method_params);
 #endif
 
   return objc_finish_message_expr (receiver, sel_name, method_params, NULL);

@@ -1728,9 +1728,9 @@ package body Ada.Containers.Bounded_Vectors is
       --  for a reverse iterator, Container.Last is the beginning.
 
       return It : constant Iterator :=
-                    (Limited_Controlled with
-                       Container => V,
-                       Index     => No_Index)
+        (Limited_Controlled with
+           Container => V,
+           Index     => No_Index)
       do
          B := B + 1;
       end return;
@@ -1781,9 +1781,9 @@ package body Ada.Containers.Bounded_Vectors is
       --  a forward or reverse iteration.
 
       return It : constant Iterator :=
-                    (Limited_Controlled with
-                       Container => V,
-                       Index     => Start.Index)
+        (Limited_Controlled with
+           Container => V,
+           Index     => Start.Index)
       do
          B := B + 1;
       end return;
@@ -2319,7 +2319,7 @@ package body Ada.Containers.Bounded_Vectors is
       Index     : Index_Type := Index_Type'Last) return Extended_Index
    is
       Last : constant Index_Type'Base :=
-               Index_Type'Min (Container.Last, Index);
+        Index_Type'Min (Container.Last, Index);
 
    begin
       for Indx in reverse Index_Type'First .. Last loop
@@ -2368,7 +2368,7 @@ package body Ada.Containers.Bounded_Vectors is
    begin
       --  Set_Length allows the user to set the length explicitly, instead of
       --  implicitly as a side-effect of deletion or insertion. If the
-      --  requested length is less then the current length, this is equivalent
+      --  requested length is less than the current length, this is equivalent
       --  to deleting items from the back end of the vector. If the requested
       --  length is greater than the current length, then this is equivalent to
       --  inserting "space" (nonce items) at the end.

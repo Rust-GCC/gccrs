@@ -1,7 +1,5 @@
 /* Common hooks for IBM RS/6000.
-   Copyright (C) 1991, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
-   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
-   Free Software Foundation, Inc.
+   Copyright (C) 1991-2012 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -83,36 +81,24 @@ rs6000_handle_option (struct gcc_options *opts, struct gcc_options *opts_set,
 
   switch (code)
     {
-    case OPT_mno_power:
-      opts->x_target_flags &= ~(MASK_POWER | MASK_POWER2
-				| MASK_MULTIPLE | MASK_STRING);
-      opts_set->x_target_flags |= (MASK_POWER | MASK_POWER2
-				   | MASK_MULTIPLE | MASK_STRING);
-      break;
-    case OPT_mno_powerpc:
-      opts->x_target_flags &= ~(MASK_POWERPC | MASK_PPC_GPOPT
-				| MASK_PPC_GFXOPT | MASK_POWERPC64);
-      opts_set->x_target_flags |= (MASK_POWERPC | MASK_PPC_GPOPT
-				   | MASK_PPC_GFXOPT | MASK_POWERPC64);
-      break;
     case OPT_mfull_toc:
-      opts->x_target_flags &= ~MASK_MINIMAL_TOC;
+      opts->x_rs6000_isa_flags &= ~OPTION_MASK_MINIMAL_TOC;
       opts->x_TARGET_NO_FP_IN_TOC = 0;
       opts->x_TARGET_NO_SUM_IN_TOC = 0;
-      opts_set->x_target_flags |= MASK_MINIMAL_TOC;
+      opts_set->x_rs6000_isa_flags |= OPTION_MASK_MINIMAL_TOC;
 #ifdef TARGET_USES_SYSV4_OPT
       /* Note, V.4 no longer uses a normal TOC, so make -mfull-toc, be
 	 just the same as -mminimal-toc.  */
-      opts->x_target_flags |= MASK_MINIMAL_TOC;
-      opts_set->x_target_flags |= MASK_MINIMAL_TOC;
+      opts->x_rs6000_isa_flags |= OPTION_MASK_MINIMAL_TOC;
+      opts_set->x_rs6000_isa_flags |= OPTION_MASK_MINIMAL_TOC;
 #endif
       break;
 
 #ifdef TARGET_USES_SYSV4_OPT
     case OPT_mtoc:
       /* Make -mtoc behave like -mminimal-toc.  */
-      opts->x_target_flags |= MASK_MINIMAL_TOC;
-      opts_set->x_target_flags |= MASK_MINIMAL_TOC;
+      opts->x_rs6000_isa_flags |= OPTION_MASK_MINIMAL_TOC;
+      opts_set->x_rs6000_isa_flags |= OPTION_MASK_MINIMAL_TOC;
       break;
 #endif
 
@@ -121,9 +107,10 @@ rs6000_handle_option (struct gcc_options *opts, struct gcc_options *opts_set,
 #else
     case OPT_m64:
 #endif
-      opts->x_target_flags |= MASK_POWERPC64 | MASK_POWERPC;
-      opts->x_target_flags |= ~opts_set->x_target_flags & MASK_PPC_GFXOPT;
-      opts_set->x_target_flags |= MASK_POWERPC64 | MASK_POWERPC;
+      opts->x_rs6000_isa_flags |= OPTION_MASK_POWERPC64;
+      opts->x_rs6000_isa_flags |= (~opts_set->x_rs6000_isa_flags
+				   & OPTION_MASK_PPC_GFXOPT);
+      opts_set->x_rs6000_isa_flags |= OPTION_MASK_POWERPC64;
       break;
 
 #ifdef TARGET_USES_AIX64_OPT
@@ -131,8 +118,8 @@ rs6000_handle_option (struct gcc_options *opts, struct gcc_options *opts_set,
 #else
     case OPT_m32:
 #endif
-      opts->x_target_flags &= ~MASK_POWERPC64;
-      opts_set->x_target_flags |= MASK_POWERPC64;
+      opts->x_rs6000_isa_flags &= ~OPTION_MASK_POWERPC64;
+      opts_set->x_rs6000_isa_flags |= OPTION_MASK_POWERPC64;
       break;
 
     case OPT_mminimal_toc:
@@ -143,31 +130,8 @@ rs6000_handle_option (struct gcc_options *opts, struct gcc_options *opts_set,
 	}
       break;
 
-    case OPT_mpower:
-      if (value == 1)
-	{
-	  opts->x_target_flags |= (MASK_MULTIPLE | MASK_STRING);
-	  opts_set->x_target_flags |= (MASK_MULTIPLE | MASK_STRING);
-	}
-      break;
-
-    case OPT_mpower2:
-      if (value == 1)
-	{
-	  opts->x_target_flags |= (MASK_POWER | MASK_MULTIPLE | MASK_STRING);
-	  opts_set->x_target_flags |= (MASK_POWER
-				       | MASK_MULTIPLE
-				       | MASK_STRING);
-	}
-      break;
-
     case OPT_mpowerpc_gpopt:
     case OPT_mpowerpc_gfxopt:
-      if (value == 1)
-	{
-	  opts->x_target_flags |= MASK_POWERPC;
-	  opts_set->x_target_flags |= MASK_POWERPC;
-	}
       break;
 
     case OPT_mdebug_:
@@ -218,8 +182,8 @@ rs6000_handle_option (struct gcc_options *opts, struct gcc_options *opts_set,
     case OPT_mrelocatable:
       if (value == 1)
 	{
-	  opts->x_target_flags |= MASK_MINIMAL_TOC;
-	  opts_set->x_target_flags |= MASK_MINIMAL_TOC;
+	  opts->x_rs6000_isa_flags |= OPTION_MASK_MINIMAL_TOC;
+	  opts_set->x_rs6000_isa_flags |= OPTION_MASK_MINIMAL_TOC;
 	  opts->x_TARGET_NO_FP_IN_TOC = 1;
 	}
       break;
@@ -227,14 +191,16 @@ rs6000_handle_option (struct gcc_options *opts, struct gcc_options *opts_set,
     case OPT_mrelocatable_lib:
       if (value == 1)
 	{
-	  opts->x_target_flags |= MASK_RELOCATABLE | MASK_MINIMAL_TOC;
-	  opts_set->x_target_flags |= MASK_RELOCATABLE | MASK_MINIMAL_TOC;
+	  opts->x_rs6000_isa_flags |= (OPTION_MASK_RELOCATABLE
+				       | OPTION_MASK_MINIMAL_TOC);
+	  opts_set->x_rs6000_isa_flags |= (OPTION_MASK_RELOCATABLE
+					   | OPTION_MASK_MINIMAL_TOC);
 	  opts->x_TARGET_NO_FP_IN_TOC = 1;
 	}
       else
 	{
-	  opts->x_target_flags &= ~MASK_RELOCATABLE;
-	  opts_set->x_target_flags |= MASK_RELOCATABLE;
+	  opts->x_rs6000_isa_flags &= ~OPTION_MASK_RELOCATABLE;
+	  opts_set->x_rs6000_isa_flags |= OPTION_MASK_RELOCATABLE;
 	}
       break;
 #endif
@@ -264,15 +230,15 @@ rs6000_handle_option (struct gcc_options *opts, struct gcc_options *opts_set,
 		    "-msingle-float option equivalent to -mhard-float");
       /* -msingle-float implies -mno-double-float and TARGET_HARD_FLOAT. */
       opts->x_rs6000_double_float = 0;
-      opts->x_target_flags &= ~MASK_SOFT_FLOAT;
-      opts_set->x_target_flags |= MASK_SOFT_FLOAT;
+      opts->x_rs6000_isa_flags &= ~OPTION_MASK_SOFT_FLOAT;
+      opts_set->x_rs6000_isa_flags |= OPTION_MASK_SOFT_FLOAT;
       break;
 
     case OPT_mdouble_float:
       /* -mdouble-float implies -msingle-float and TARGET_HARD_FLOAT. */
       opts->x_rs6000_single_float = 1;
-      opts->x_target_flags &= ~MASK_SOFT_FLOAT;
-      opts_set->x_target_flags |= MASK_SOFT_FLOAT;
+      opts->x_rs6000_isa_flags &= ~OPTION_MASK_SOFT_FLOAT;
+      opts_set->x_rs6000_isa_flags |= OPTION_MASK_SOFT_FLOAT;
       break;
 
     case OPT_msimple_fpu:
@@ -296,8 +262,8 @@ rs6000_handle_option (struct gcc_options *opts, struct gcc_options *opts_set,
 	{
 	  /* If -mfpu is not none, then turn off SOFT_FLOAT, turn on
 	     HARD_FLOAT. */
-	  opts->x_target_flags &= ~MASK_SOFT_FLOAT;
-	  opts_set->x_target_flags |= MASK_SOFT_FLOAT;
+	  opts->x_rs6000_isa_flags &= ~OPTION_MASK_SOFT_FLOAT;
+	  opts_set->x_rs6000_isa_flags |= OPTION_MASK_SOFT_FLOAT;
 	  opts->x_rs6000_xilinx_fpu = 1;
 	  if (fpu_type == FPU_SF_LITE || fpu_type == FPU_SF_FULL) 
 	    opts->x_rs6000_single_float = 1;
@@ -309,8 +275,8 @@ rs6000_handle_option (struct gcc_options *opts, struct gcc_options *opts_set,
       else
 	{
 	  /* -mfpu=none is equivalent to -msoft-float.  */
-	  opts->x_target_flags |= MASK_SOFT_FLOAT;
-	  opts_set->x_target_flags |= MASK_SOFT_FLOAT;
+	  opts->x_rs6000_isa_flags |= OPTION_MASK_SOFT_FLOAT;
+	  opts_set->x_rs6000_isa_flags |= OPTION_MASK_SOFT_FLOAT;
 	  opts->x_rs6000_single_float = opts->x_rs6000_double_float = 0;
 	}
       break;
@@ -333,9 +299,5 @@ rs6000_handle_option (struct gcc_options *opts, struct gcc_options *opts_set,
 
 #undef TARGET_OPTION_OPTIMIZATION_TABLE
 #define TARGET_OPTION_OPTIMIZATION_TABLE rs6000_option_optimization_table
-
-#undef TARGET_DEFAULT_TARGET_FLAGS
-#define TARGET_DEFAULT_TARGET_FLAGS \
-  (TARGET_DEFAULT)
 
 struct gcc_targetm_common targetm_common = TARGETM_COMMON_INITIALIZER;

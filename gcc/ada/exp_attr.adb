@@ -76,6 +76,14 @@ package body Exp_Attr is
    -- Local Subprograms --
    -----------------------
 
+   function Build_Array_VS_Func
+     (A_Type : Entity_Id;
+      Nod    : Node_Id) return Entity_Id;
+   --  Build function to test Valid_Scalars for array type A_Type. Nod is the
+   --  Valid_Scalars attribute node, used to insert the function body, and the
+   --  value returned is the entity of the constructed function body. We do not
+   --  bother to generate a separate spec for this subprogram.
+
    procedure Compile_Stream_Body_In_Scope
      (N     : Node_Id;
       Decl  : Node_Id;
@@ -174,6 +182,149 @@ package body Exp_Attr is
    --  expansion. Typically used for rounding and truncation attributes that
    --  appear directly inside a conversion to integer.
 
+   -------------------------
+   -- Build_Array_VS_Func --
+   -------------------------
+
+   function Build_Array_VS_Func
+     (A_Type : Entity_Id;
+      Nod    : Node_Id) return Entity_Id
+   is
+      Loc        : constant Source_Ptr := Sloc (Nod);
+      Comp_Type  : constant Entity_Id  := Component_Type (A_Type);
+      Body_Stmts : List_Id;
+      Index_List : List_Id;
+      Func_Id    : Entity_Id;
+      Formals    : List_Id;
+
+      function Test_Component return List_Id;
+      --  Create one statement to test validity of one component designated by
+      --  a full set of indexes. Returns statement list containing test.
+
+      function Test_One_Dimension (N : Int) return List_Id;
+      --  Create loop to test one dimension of the array. The single statement
+      --  in the loop body tests the inner dimensions if any, or else the
+      --  single component. Note that this procedure is called recursively,
+      --  with N being the dimension to be initialized. A call with N greater
+      --  than the number of dimensions simply generates the component test,
+      --  terminating the recursion. Returns statement list containing tests.
+
+      --------------------
+      -- Test_Component --
+      --------------------
+
+      function Test_Component return List_Id is
+         Comp : Node_Id;
+         Anam : Name_Id;
+
+      begin
+         Comp :=
+           Make_Indexed_Component (Loc,
+             Prefix      => Make_Identifier (Loc, Name_uA),
+             Expressions => Index_List);
+
+         if Is_Scalar_Type (Comp_Type) then
+            Anam := Name_Valid;
+         else
+            Anam := Name_Valid_Scalars;
+         end if;
+
+         return New_List (
+           Make_If_Statement (Loc,
+             Condition =>
+               Make_Op_Not (Loc,
+                 Right_Opnd =>
+                   Make_Attribute_Reference (Loc,
+                     Attribute_Name => Anam,
+                     Prefix         => Comp)),
+             Then_Statements => New_List (
+               Make_Simple_Return_Statement (Loc,
+                 Expression => New_Occurrence_Of (Standard_False, Loc)))));
+      end Test_Component;
+
+      ------------------------
+      -- Test_One_Dimension --
+      ------------------------
+
+      function Test_One_Dimension (N : Int) return List_Id is
+         Index : Entity_Id;
+
+      begin
+         --  If all dimensions dealt with, we simply test the component
+
+         if N > Number_Dimensions (A_Type) then
+            return Test_Component;
+
+         --  Here we generate the required loop
+
+         else
+            Index :=
+              Make_Defining_Identifier (Loc, New_External_Name ('J', N));
+
+            Append (New_Reference_To (Index, Loc), Index_List);
+
+            return New_List (
+              Make_Implicit_Loop_Statement (Nod,
+                Identifier => Empty,
+                Iteration_Scheme =>
+                  Make_Iteration_Scheme (Loc,
+                    Loop_Parameter_Specification =>
+                      Make_Loop_Parameter_Specification (Loc,
+                        Defining_Identifier => Index,
+                        Discrete_Subtype_Definition =>
+                          Make_Attribute_Reference (Loc,
+                            Prefix => Make_Identifier (Loc, Name_uA),
+                            Attribute_Name  => Name_Range,
+                            Expressions     => New_List (
+                              Make_Integer_Literal (Loc, N))))),
+                Statements =>  Test_One_Dimension (N + 1)),
+              Make_Simple_Return_Statement (Loc,
+                Expression => New_Occurrence_Of (Standard_True, Loc)));
+         end if;
+      end Test_One_Dimension;
+
+   --  Start of processing for Build_Array_VS_Func
+
+   begin
+      Index_List := New_List;
+      Func_Id := Make_Defining_Identifier (Loc, New_Internal_Name ('V'));
+
+      Body_Stmts := Test_One_Dimension (1);
+
+      --  Parameter is always (A : A_Typ)
+
+      Formals := New_List (
+        Make_Parameter_Specification (Loc,
+          Defining_Identifier => Make_Defining_Identifier (Loc, Name_uA),
+          In_Present          => True,
+          Out_Present         => False,
+          Parameter_Type      => New_Reference_To (A_Type, Loc)));
+
+      --  Build body
+
+      Set_Ekind       (Func_Id, E_Function);
+      Set_Is_Internal (Func_Id);
+
+      Insert_Action (Nod,
+        Make_Subprogram_Body (Loc,
+          Specification              =>
+            Make_Function_Specification (Loc,
+              Defining_Unit_Name       => Func_Id,
+              Parameter_Specifications => Formals,
+                Result_Definition        =>
+                  New_Occurrence_Of (Standard_Boolean, Loc)),
+          Declarations               => New_List,
+          Handled_Statement_Sequence =>
+            Make_Handled_Sequence_Of_Statements (Loc,
+              Statements => Body_Stmts)));
+
+      if not Debug_Generated_Code then
+         Set_Debug_Info_Off (Func_Id);
+      end if;
+
+      return Func_Id;
+   end Build_Array_VS_Func;
+
    ----------------------------------
    -- Compile_Stream_Body_In_Scope --
    ----------------------------------
@@ -270,7 +421,7 @@ package body Exp_Attr is
             Par := Parent (Par);
          end if;
 
-         if Nkind_In (Par, N_Procedure_Call_Statement, N_Function_Call)
+         if Nkind (Par) in N_Subprogram_Call
             and then Is_Entity_Name (Name (Par))
          then
             Subp := Entity (Name (Par));
@@ -664,11 +815,19 @@ package body Exp_Attr is
       --  rewrite into reference to current instance.
 
       if Is_Protected_Self_Reference (Pref)
-           and then not
-             (Nkind_In (Parent (N), N_Index_Or_Discriminant_Constraint,
-                                    N_Discriminant_Association)
-                and then Nkind (Parent (Parent (Parent (Parent (N))))) =
+        and then not
+          (Nkind_In (Parent (N), N_Index_Or_Discriminant_Constraint,
+                                 N_Discriminant_Association)
+            and then Nkind (Parent (Parent (Parent (Parent (N))))) =
                                                       N_Component_Definition)
+
+         --  No action needed for these attributes since the current instance
+         --  will be rewritten to be the name of the _object parameter
+         --  associated with the enclosing protected subprogram (see below).
+
+        and then Id /= Attribute_Access
+        and then Id /= Attribute_Unchecked_Access
+        and then Id /= Attribute_Unrestricted_Access
       then
          Rewrite (Pref, Concurrent_Ref (Pref));
          Analyze (Pref);
@@ -676,15 +835,27 @@ package body Exp_Attr is
 
       --  Remaining processing depends on specific attribute
 
+      --  Note: individual sections of the following case statement are
+      --  allowed to assume there is no code after the case statement, and
+      --  are legitimately allowed to execute return statements if they have
+      --  nothing more to do.
+
       case Id is
 
-         --  Attributes related to Ada 2012 iterators (placeholder ???)
+      --  Attributes related to Ada 2012 iterators (placeholder ???)
 
-         when Attribute_Constant_Indexing    => null;
-         when Attribute_Default_Iterator     => null;
-         when Attribute_Implicit_Dereference => null;
-         when Attribute_Iterator_Element     => null;
-         when Attribute_Variable_Indexing    => null;
+      when Attribute_Constant_Indexing    |
+           Attribute_Default_Iterator     |
+           Attribute_Implicit_Dereference |
+           Attribute_Iterator_Element     |
+           Attribute_Variable_Indexing    =>
+         null;
+
+      --  Internal attributes used to deal with Ada 2012 delayed aspects. These
+      --  were already rejected by the parser. Thus they shouldn't appear here.
+
+      when Internal_Attribute_Id =>
+         raise Program_Error;
 
       ------------
       -- Access --
@@ -870,10 +1041,36 @@ package body Exp_Attr is
                          New_Occurrence_Of (Formal, Loc)));
                      Set_Etype (N, Typ);
 
-                     --  The expression must appear in a default expression,
-                     --  (which in the initialization procedure is the
-                     --  right-hand side of an assignment), and not in a
-                     --  discriminant constraint.
+                  elsif Is_Protected_Type (Entity (Pref)) then
+
+                     --  No action needed for current instance located in a
+                     --  component definition (expansion will occur in the
+                     --  init proc)
+
+                     if Is_Protected_Type (Current_Scope) then
+                        null;
+
+                     --  If the current instance reference is located in a
+                     --  protected subprogram or entry then rewrite the access
+                     --  attribute to be the name of the "_object" parameter.
+                     --  An unchecked conversion is applied to ensure a type
+                     --  match in cases of expander-generated calls (e.g. init
+                     --  procs).
+
+                     else
+                        Formal :=
+                          First_Entity
+                            (Protected_Body_Subprogram (Current_Scope));
+                        Rewrite (N,
+                          Unchecked_Convert_To (Typ,
+                            New_Occurrence_Of (Formal, Loc)));
+                        Set_Etype (N, Typ);
+                     end if;
+
+                  --  The expression must appear in a default expression,
+                  --  (which in the initialization procedure is the right-hand
+                  --  side of an assignment), and not in a discriminant
+                  --  constraint.
 
                   else
                      Par := Parent (N);
@@ -2996,8 +3193,25 @@ package body Exp_Attr is
       -- Max_Size_In_Storage_Elements --
       ----------------------------------
 
-      when Attribute_Max_Size_In_Storage_Elements =>
+      when Attribute_Max_Size_In_Storage_Elements => declare
+         Typ  : constant Entity_Id := Etype (N);
+         Attr : Node_Id;
+
+         Conversion_Added : Boolean := False;
+         --  A flag which tracks whether the original attribute has been
+         --  wrapped inside a type conversion.
+
+      begin
          Apply_Universal_Integer_Attribute_Checks (N);
+
+         --  The universal integer check may sometimes add a type conversion,
+         --  retrieve the original attribute reference from the expression.
+
+         Attr := N;
+         if Nkind (Attr) = N_Type_Conversion then
+            Attr := Expression (Attr);
+            Conversion_Added := True;
+         end if;
 
          --  Heap-allocated controlled objects contain two extra pointers which
          --  are not part of the actual type. Transform the attribute reference
@@ -3007,20 +3221,20 @@ package body Exp_Attr is
          --  two pointers are already present in the type.
 
          if VM_Target = No_VM
-           and then Nkind (N) = N_Attribute_Reference
+           and then Nkind (Attr) = N_Attribute_Reference
            and then Needs_Finalization (Ptyp)
-           and then not Header_Size_Added (N)
+           and then not Header_Size_Added (Attr)
          then
-            Set_Header_Size_Added (N);
+            Set_Header_Size_Added (Attr);
 
             --  Generate:
             --    P'Max_Size_In_Storage_Elements +
             --      Universal_Integer
             --        (Header_Size_With_Padding (Ptyp'Alignment))
 
-            Rewrite (N,
+            Rewrite (Attr,
               Make_Op_Add (Loc,
-                Left_Opnd  => Relocate_Node (N),
+                Left_Opnd  => Relocate_Node (Attr),
                 Right_Opnd =>
                   Convert_To (Universal_Integer,
                     Make_Function_Call (Loc,
@@ -3034,9 +3248,19 @@ package body Exp_Attr is
                             New_Reference_To (Ptyp, Loc),
                           Attribute_Name => Name_Alignment))))));
 
-            Analyze (N);
+            --  Add a conversion to the target type
+
+            if not Conversion_Added then
+               Rewrite (Attr,
+                 Make_Type_Conversion (Loc,
+                   Subtype_Mark => New_Reference_To (Typ, Loc),
+                   Expression   => Relocate_Node (Attr)));
+            end if;
+
+            Analyze (Attr);
             return;
          end if;
+      end;
 
       --------------------
       -- Mechanism_Code --
@@ -3100,13 +3324,13 @@ package body Exp_Attr is
          --    Furthermore, (-value - 1) can be expressed as -(value + 1)
          --    which we can compute using the integer base type.
 
-         --  Once this is done we analyze the conditional expression without
-         --  range checks, because we know everything is in range, and we
-         --  want to prevent spurious warnings on either branch.
+         --  Once this is done we analyze the if expression without range
+         --  checks, because we know everything is in range, and we want
+         --  to prevent spurious warnings on either branch.
 
          else
             Rewrite (N,
-              Make_Conditional_Expression (Loc,
+              Make_If_Expression (Loc,
                 Expressions => New_List (
                   Make_Op_Ge (Loc,
                     Left_Opnd  => Duplicate_Subexpr (Arg),
@@ -3160,6 +3384,13 @@ package body Exp_Attr is
          Asn_Stm : Node_Id;
 
       begin
+         --  If assertions are disabled, no need to create the declaration
+         --  that preserves the value.
+
+         if not Assertions_Enabled then
+            return;
+         end if;
+
          --  Find the nearest subprogram body, ignoring _Preconditions
 
          Subp := N;
@@ -3269,7 +3500,7 @@ package body Exp_Attr is
               Right_Opnd => Y_Addr);
 
          Rewrite (N,
-           Make_Conditional_Expression (Loc,
+           Make_If_Expression (Loc,
              New_List (
                Cond,
 
@@ -5140,6 +5371,13 @@ package body Exp_Attr is
 
          Validity_Checks_On := False;
 
+         --  Retrieve the base type. Handle the case where the base type is a
+         --  private enumeration type.
+
+         if Is_Private_Type (Btyp) and then Present (Full_View (Btyp)) then
+            Btyp := Full_View (Btyp);
+         end if;
+
          --  Floating-point case. This case is handled by the Valid attribute
          --  code in the floating-point attribute run-time library.
 
@@ -5240,15 +5478,14 @@ package body Exp_Attr is
          --       (X >= type(X)'First and then type(X)'Last <= X)
 
          elsif Is_Enumeration_Type (Ptyp)
-           and then Present (Enum_Pos_To_Rep (Base_Type (Ptyp)))
+           and then Present (Enum_Pos_To_Rep (Btyp))
          then
             Tst :=
               Make_Op_Ge (Loc,
                 Left_Opnd =>
                   Make_Function_Call (Loc,
                     Name =>
-                      New_Reference_To
-                        (TSS (Base_Type (Ptyp), TSS_Rep_To_Pos), Loc),
+                      New_Reference_To (TSS (Btyp, TSS_Rep_To_Pos), Loc),
                     Parameter_Associations => New_List (
                       Pref,
                       New_Occurrence_Of (Standard_False, Loc))),
@@ -5367,6 +5604,96 @@ package body Exp_Attr is
          Analyze_And_Resolve (N, Standard_Boolean);
          Validity_Checks_On := Save_Validity_Checks_On;
       end Valid;
+
+      -------------------
+      -- Valid_Scalars --
+      -------------------
+
+      when Attribute_Valid_Scalars => Valid_Scalars : declare
+         Ftyp : Entity_Id;
+
+      begin
+         if Present (Underlying_Type (Ptyp)) then
+            Ftyp := Underlying_Type (Ptyp);
+         else
+            Ftyp := Ptyp;
+         end if;
+
+         --  For scalar types, Valid_Scalars is the same as Valid
+
+         if Is_Scalar_Type (Ftyp) then
+            Rewrite (N,
+              Make_Attribute_Reference (Loc,
+                Attribute_Name => Name_Valid,
+                Prefix         => Pref));
+            Analyze_And_Resolve (N, Standard_Boolean);
+
+         --  For array types, we construct a function that determines if there
+         --  are any non-valid scalar subcomponents, and call the function.
+         --  We only do this for arrays whose component type needs checking
+
+         elsif Is_Array_Type (Ftyp)
+           and then not No_Scalar_Parts (Component_Type (Ftyp))
+         then
+            Rewrite (N,
+              Make_Function_Call (Loc,
+                Name                   =>
+                  New_Occurrence_Of (Build_Array_VS_Func (Ftyp, N), Loc),
+                Parameter_Associations => New_List (Pref)));
+
+            Analyze_And_Resolve (N, Standard_Boolean);
+
+         --  For record types, we build a big if expression, applying Valid or
+         --  Valid_Scalars as appropriate to all relevant components.
+
+         elsif (Is_Record_Type (Ptyp) or else Has_Discriminants (Ptyp))
+           and then not No_Scalar_Parts (Ptyp)
+         then
+            declare
+               C : Entity_Id;
+               X : Node_Id;
+               A : Name_Id;
+
+            begin
+               X := New_Occurrence_Of (Standard_True, Loc);
+               C := First_Component_Or_Discriminant (Ptyp);
+               while Present (C) loop
+                  if No_Scalar_Parts (Etype (C)) then
+                     goto Continue;
+                  elsif Is_Scalar_Type (Etype (C)) then
+                     A := Name_Valid;
+                  else
+                     A := Name_Valid_Scalars;
+                  end if;
+
+                  X :=
+                    Make_And_Then (Loc,
+                      Left_Opnd   => X,
+                      Right_Opnd  =>
+                        Make_Attribute_Reference (Loc,
+                          Attribute_Name => A,
+                          Prefix         =>
+                            Make_Selected_Component (Loc,
+                              Prefix        =>
+                                Duplicate_Subexpr (Pref, Name_Req => True),
+                              Selector_Name =>
+                                New_Occurrence_Of (C, Loc))));
+               <<Continue>>
+                  Next_Component_Or_Discriminant (C);
+               end loop;
+
+               Rewrite (N, X);
+               Analyze_And_Resolve (N, Standard_Boolean);
+            end;
+
+         --  For all other types, result is True (but not static)
+
+         else
+            Rewrite (N, New_Occurrence_Of (Standard_Boolean, Loc));
+            Analyze_And_Resolve (N, Standard_Boolean);
+            Set_Is_Static_Expression (N, False);
+         end if;
+      end Valid_Scalars;
 
       -----------
       -- Value --
@@ -5672,7 +5999,8 @@ package body Exp_Attr is
            Attribute_Definite                     |
            Attribute_Null_Parameter               |
            Attribute_Passed_By_Reference          |
-           Attribute_Pool_Address                 =>
+           Attribute_Pool_Address                 |
+           Attribute_Scalar_Storage_Order         =>
          null;
 
       --  The following attributes are also handled by the back end, but return
@@ -5689,6 +6017,7 @@ package body Exp_Attr is
 
       when Attribute_Abort_Signal                 |
            Attribute_Address_Size                 |
+           Attribute_Atomic_Always_Lock_Free      |
            Attribute_Base                         |
            Attribute_Class                        |
            Attribute_Compiler_Version             |
@@ -5700,10 +6029,13 @@ package body Exp_Attr is
            Attribute_Enabled                      |
            Attribute_Epsilon                      |
            Attribute_Fast_Math                    |
+           Attribute_First_Valid                  |
            Attribute_Has_Access_Values            |
            Attribute_Has_Discriminants            |
            Attribute_Has_Tagged_Values            |
            Attribute_Large                        |
+           Attribute_Last_Valid                   |
+           Attribute_Lock_Free                    |
            Attribute_Machine_Emax                 |
            Attribute_Machine_Emin                 |
            Attribute_Machine_Mantissa             |
@@ -5746,6 +6078,11 @@ package body Exp_Attr is
            Attribute_Asm_Output                   =>
          null;
       end case;
+
+   --  Note: as mentioned earlier, individual sections of the above case
+   --  statement assume there is no code after the case statement, and are
+   --  legitimately allowed to execute return statements if they have nothing
+   --  more to do, so DO NOT add code at this point.
 
    exception
       when RE_Not_Available =>

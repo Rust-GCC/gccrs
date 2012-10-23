@@ -109,7 +109,8 @@ gfc_trans_label_assign (gfc_code * code)
 
   label_tree = gfc_get_label_decl (code->label1);
 
-  if (code->label1->defined == ST_LABEL_TARGET)
+  if (code->label1->defined == ST_LABEL_TARGET
+      || code->label1->defined == ST_LABEL_DO_TARGET)
     {
       label_tree = gfc_build_addr_expr (pvoid_type_node, label_tree);
       len_tree = integer_minus_one_node;
@@ -273,7 +274,7 @@ gfc_conv_elemental_dependencies (gfc_se * se, gfc_se * loopse,
 	  /* Obtain the argument descriptor for unpacking.  */
 	  gfc_init_se (&parmse, NULL);
 	  parmse.want_pointer = 1;
-	  gfc_conv_expr_descriptor (&parmse, e, gfc_walk_expr (e));
+	  gfc_conv_expr_descriptor (&parmse, e);
 	  gfc_add_block_to_block (&se->pre, &parmse.pre);
 
 	  /* If we've got INTENT(INOUT) or a derived type with INTENT(OUT),
@@ -863,9 +864,7 @@ gfc_trans_sync (gfc_code *code, gfc_exec_op type)
 			     "implemented for image-set at %L",
 			     gfc_c_int_kind, &code->expr1->where);
 
-	  gfc_conv_array_parameter (&se, code->expr1,
-				    gfc_walk_expr (code->expr1), true, NULL,
-				    NULL, &len);
+	  gfc_conv_array_parameter (&se, code->expr1, true, NULL, NULL, &len);
 	  images = se.expr;
 
 	  tmp = gfc_typenode_for_spec (&code->expr1->ts);
@@ -1140,6 +1139,10 @@ trans_associate_var (gfc_symbol *sym, gfc_wrapped_block *block)
   gfc_expr *e;
   tree tmp;
   bool class_target;
+  tree desc;
+  tree offset;
+  tree dim;
+  int n;
 
   gcc_assert (sym->assoc);
   e = sym->assoc->target;
@@ -1155,7 +1158,6 @@ trans_associate_var (gfc_symbol *sym, gfc_wrapped_block *block)
       && (sym->as->type == AS_DEFERRED || sym->assoc->variable))
     {
       gfc_se se;
-      gfc_ss *ss;
       tree desc;
 
       desc = sym->backend_decl;
@@ -1163,13 +1165,12 @@ trans_associate_var (gfc_symbol *sym, gfc_wrapped_block *block)
       /* If association is to an expression, evaluate it and create temporary.
 	 Otherwise, get descriptor of target for pointer assignment.  */
       gfc_init_se (&se, NULL);
-      ss = gfc_walk_expr (e);
       if (sym->assoc->variable)
 	{
 	  se.direct_byref = 1;
 	  se.expr = desc;
 	}
-      gfc_conv_expr_descriptor (&se, e, ss);
+      gfc_conv_expr_descriptor (&se, e);
 
       /* If we didn't already do the pointer assignment, set associate-name
 	 descriptor to the one generated for the temporary.  */
@@ -1191,8 +1192,9 @@ trans_associate_var (gfc_symbol *sym, gfc_wrapped_block *block)
 			    gfc_finish_block (&se.post));
     }
 
-  /* CLASS arrays just need the descriptor to be directly assigned.  */
-  else if (class_target && sym->attr.dimension)
+  /* Derived type temporaries, arising from TYPE IS, just need the
+     descriptor of class arrays to be assigned directly.  */
+  else if (class_target && sym->ts.type == BT_DERIVED && sym->attr.dimension)
     {
       gfc_se se;
 
@@ -1217,7 +1219,47 @@ trans_associate_var (gfc_symbol *sym, gfc_wrapped_block *block)
       gcc_assert (!sym->attr.dimension);
 
       gfc_init_se (&se, NULL);
-      gfc_conv_expr (&se, e);
+
+      /* Class associate-names come this way because they are
+	 unconditionally associate pointers and the symbol is scalar.  */
+      if (sym->ts.type == BT_CLASS && CLASS_DATA (sym)->attr.dimension)
+	{
+	  /* For a class array we need a descriptor for the selector.  */
+	  gfc_conv_expr_descriptor (&se, e);
+
+	  /* Obtain a temporary class container for the result.  */ 
+	  gfc_conv_class_to_class (&se, e, sym->ts, false, true, false, false);
+	  se.expr = build_fold_indirect_ref_loc (input_location, se.expr);
+
+	  /* Set the offset.  */
+	  desc = gfc_class_data_get (se.expr);
+	  offset = gfc_index_zero_node;
+	  for (n = 0; n < e->rank; n++)
+	    {
+	      dim = gfc_rank_cst[n];
+	      tmp = fold_build2_loc (input_location, MULT_EXPR,
+				     gfc_array_index_type,
+				     gfc_conv_descriptor_stride_get (desc, dim),
+				     gfc_conv_descriptor_lbound_get (desc, dim));
+	      offset = fold_build2_loc (input_location, MINUS_EXPR,
+				        gfc_array_index_type,
+				        offset, tmp);
+	    }
+	  gfc_conv_descriptor_offset_set (&se.pre, desc, offset);
+	}
+      else if (sym->ts.type == BT_CLASS && e->ts.type == BT_CLASS
+	       && CLASS_DATA (e)->attr.dimension)
+	{
+	  /* This is bound to be a class array element.  */
+	  gfc_conv_expr_reference (&se, e);
+	  /* Get the _vptr component of the class object.  */ 
+	  tmp = gfc_get_vptr_from_expr (se.expr);
+	  /* Obtain a temporary class container for the result.  */
+	  gfc_conv_derived_to_class (&se, e, sym->ts, tmp, false, false);
+	  se.expr = build_fold_indirect_ref_loc (input_location, se.expr);
+	}
+      else
+	gfc_conv_expr (&se, e);
 
       tmp = TREE_TYPE (sym->backend_decl);
       tmp = gfc_build_addr_expr (tmp, se.expr);
@@ -1743,7 +1785,7 @@ gfc_trans_do_while (gfc_code * code)
   gfc_conv_expr_val (&cond, code->expr1);
   gfc_add_block_to_block (&block, &cond.pre);
   cond.expr = fold_build1_loc (code->expr1->where.lb->location,
-			       TRUTH_NOT_EXPR, boolean_type_node, cond.expr);
+			       TRUTH_NOT_EXPR, TREE_TYPE (cond.expr), cond.expr);
 
   /* Build "IF (! cond) GOTO exit_label".  */
   tmp = build1_v (GOTO_EXPR, exit_label);
@@ -1918,7 +1960,8 @@ gfc_trans_integer_select (gfc_code * code)
     }
 
   tmp = gfc_finish_block (&body);
-  tmp = build3_v (SWITCH_EXPR, se.expr, tmp, NULL_TREE);
+  tmp = fold_build3_loc (input_location, SWITCH_EXPR, NULL_TREE,
+			 se.expr, tmp, NULL_TREE);
   gfc_add_expr_to_block (&block, tmp);
 
   tmp = build1_v (LABEL_EXPR, end_label);
@@ -2203,7 +2246,8 @@ gfc_trans_character_select (gfc_code *code)
 	  gfc_add_block_to_block (&block, &expr1se.post);
 
 	  tmp = gfc_finish_block (&body);
-	  tmp = build3_v (SWITCH_EXPR, case_num, tmp, NULL_TREE);
+	  tmp = fold_build3_loc (input_location, SWITCH_EXPR, NULL_TREE,
+				 case_num, tmp, NULL_TREE);
 	  gfc_add_expr_to_block (&block, tmp);
 
 	  tmp = build1_v (LABEL_EXPR, end_label);
@@ -2349,7 +2393,8 @@ gfc_trans_character_select (gfc_code *code)
   gfc_add_block_to_block (&block, &expr1se.post);
 
   tmp = gfc_finish_block (&body);
-  tmp = build3_v (SWITCH_EXPR, case_num, tmp, NULL_TREE);
+  tmp = fold_build3_loc (input_location, SWITCH_EXPR, NULL_TREE,
+			 case_num, tmp, NULL_TREE);
   gfc_add_expr_to_block (&block, tmp);
 
   tmp = build1_v (LABEL_EXPR, end_label);
@@ -3087,7 +3132,7 @@ compute_inner_temp_size (gfc_expr *expr1, gfc_expr *expr2,
 
       /* Calculate the bounds of the scalarization.  */
       save_flag = gfc_option.rtcheck;
-      gfc_option.rtcheck &= !GFC_RTCHECK_BOUNDS;
+      gfc_option.rtcheck &= ~GFC_RTCHECK_BOUNDS;
       gfc_conv_ss_startstride (&loop);
       gfc_option.rtcheck = save_flag;
       gfc_conv_loop_setup (&loop, &expr2->where);
@@ -3453,8 +3498,7 @@ gfc_trans_pointer_assign_need_temp (gfc_expr * expr1, gfc_expr * expr2,
       gfc_init_se (&lse, NULL);
       lse.expr = gfc_build_array_ref (tmp1, count, NULL);
       lse.direct_byref = 1;
-      rss = gfc_walk_expr (expr2);
-      gfc_conv_expr_descriptor (&lse, expr2, rss);
+      gfc_conv_expr_descriptor (&lse, expr2);
 
       gfc_add_block_to_block (&body, &lse.pre);
       gfc_add_block_to_block (&body, &lse.post);
@@ -3475,9 +3519,8 @@ gfc_trans_pointer_assign_need_temp (gfc_expr * expr1, gfc_expr * expr2,
       gfc_add_modify (block, count, gfc_index_zero_node);
 
       parm = gfc_build_array_ref (tmp1, count, NULL);
-      lss = gfc_walk_expr (expr1);
       gfc_init_se (&lse, NULL);
-      gfc_conv_expr_descriptor (&lse, expr1, lss);
+      gfc_conv_expr_descriptor (&lse, expr1);
       gfc_add_modify (&lse.pre, lse.expr, parm);
       gfc_start_block (&body);
       gfc_add_block_to_block (&body, &lse.pre);
@@ -4831,7 +4874,7 @@ gfc_trans_allocate (gfc_code * code)
 	  gfc_init_se (&se_sz, NULL);
 	  gfc_conv_expr_reference (&se_sz, code->expr3);
 	  gfc_conv_class_to_class (&se_sz, code->expr3,
-				   code->expr3->ts, false);
+				   code->expr3->ts, false, true, false, false);
 	  gfc_add_block_to_block (&se.pre, &se_sz.pre);
 	  gfc_add_block_to_block (&se.post, &se_sz.post);
 	  classexpr = build_fold_indirect_ref_loc (input_location,
@@ -5087,7 +5130,7 @@ gfc_trans_allocate (gfc_code * code)
 	      gfc_actual_arglist *actual;
 	      gfc_expr *ppc;
 	      gfc_code *ppc_code;
-	      gfc_ref *dataref;
+	      gfc_ref *ref, *dataref;
 
 	      /* Do a polymorphic deep copy.  */
 	      actual = gfc_get_actual_arglist ();
@@ -5099,13 +5142,15 @@ gfc_trans_allocate (gfc_code * code)
 	      actual->next->expr->ts.type = BT_CLASS;
 	      gfc_add_data_component (actual->next->expr);
 
-	      dataref = actual->next->expr->ref;
+	      dataref = NULL;
 	      /* Make sure we go up through the reference chain to
 		 the _data reference, where the arrayspec is found.  */
-	      while (dataref->next && dataref->next->type != REF_ARRAY)
-		dataref = dataref->next;
+	      for (ref = actual->next->expr->ref; ref; ref = ref->next)
+		if (ref->type == REF_COMPONENT
+		    && strcmp (ref->u.c.component->name, "_data") == 0)
+		  dataref = ref;
 
-	      if (dataref->u.c.component->as)
+	      if (dataref && dataref->u.c.component->as)
 		{
 		  int dim;
 		  gfc_expr *temp;

@@ -176,8 +176,7 @@ init_parameter_lattice_values (void)
 
   for (parm = DECL_ARGUMENTS (cfun->decl); parm ; parm = DECL_CHAIN (parm))
     if (is_complex_reg (parm)
-	&& var_ann (parm) != NULL
-	&& (ssa_name = gimple_default_def (cfun, parm)) != NULL_TREE)
+	&& (ssa_name = ssa_default_def (cfun, parm)) != NULL_TREE)
       VEC_replace (complex_lattice_t, complex_lattice_values,
 		   SSA_NAME_VERSION (ssa_name), VARYING);
 }
@@ -423,7 +422,6 @@ create_one_component_var (tree type, tree orig, const char *prefix,
 			  const char *suffix, enum tree_code code)
 {
   tree r = create_tmp_var (type, prefix);
-  add_referenced_var (r);
 
   DECL_SOURCE_LOCATION (r) = DECL_SOURCE_LOCATION (orig);
   DECL_ARTIFICIAL (r) = 1;
@@ -490,18 +488,21 @@ get_component_ssa_name (tree ssa_name, bool imag_p)
   ret = VEC_index (tree, complex_ssa_name_components, ssa_name_index);
   if (ret == NULL)
     {
-      ret = get_component_var (SSA_NAME_VAR (ssa_name), imag_p);
+      if (SSA_NAME_VAR (ssa_name))
+	ret = get_component_var (SSA_NAME_VAR (ssa_name), imag_p);
+      else
+	ret = TREE_TYPE (TREE_TYPE (ssa_name));
       ret = make_ssa_name (ret, NULL);
 
       /* Copy some properties from the original.  In particular, whether it
 	 is used in an abnormal phi, and whether it's uninitialized.  */
       SSA_NAME_OCCURS_IN_ABNORMAL_PHI (ret)
 	= SSA_NAME_OCCURS_IN_ABNORMAL_PHI (ssa_name);
-      if (TREE_CODE (SSA_NAME_VAR (ssa_name)) == VAR_DECL
-	  && gimple_nop_p (SSA_NAME_DEF_STMT (ssa_name)))
+      if (SSA_NAME_IS_DEFAULT_DEF (ssa_name)
+	  && TREE_CODE (SSA_NAME_VAR (ssa_name)) == VAR_DECL)
 	{
 	  SSA_NAME_DEF_STMT (ret) = SSA_NAME_DEF_STMT (ssa_name);
-	  set_default_def (SSA_NAME_VAR (ret), ret);
+	  set_ssa_default_def (cfun, SSA_NAME_VAR (ret), ret);
 	}
 
       VEC_replace (tree, complex_ssa_name_components, ssa_name_index, ret);
@@ -551,7 +552,8 @@ set_component_ssa_name (tree ssa_name, bool imag_p, tree value)
     {
       /* Replace an anonymous base value with the variable from cvc_lookup.
 	 This should result in better debug info.  */
-      if (DECL_IGNORED_P (SSA_NAME_VAR (value))
+      if (SSA_NAME_VAR (ssa_name)
+	  && (!SSA_NAME_VAR (value) || DECL_IGNORED_P (SSA_NAME_VAR (value)))
 	  && !DECL_IGNORED_P (SSA_NAME_VAR (ssa_name)))
 	{
 	  comp = get_component_var (SSA_NAME_VAR (ssa_name), imag_p);
@@ -661,17 +663,16 @@ update_complex_components_on_edge (edge e, tree lhs, tree r, tree i)
 static void
 update_complex_assignment (gimple_stmt_iterator *gsi, tree r, tree i)
 {
-  gimple_stmt_iterator orig_si = *gsi;
   gimple stmt;
 
-  if (gimple_in_ssa_p (cfun))
-    update_complex_components (gsi, gsi_stmt (*gsi), r, i);
-
-  gimple_assign_set_rhs_with_ops (&orig_si, COMPLEX_EXPR, r, i);
-  stmt = gsi_stmt (orig_si);
+  gimple_assign_set_rhs_with_ops (gsi, COMPLEX_EXPR, r, i);
+  stmt = gsi_stmt (*gsi);
   update_stmt (stmt);
   if (maybe_clean_eh_stmt (stmt))
     gimple_purge_dead_eh_edges (gimple_bb (stmt));
+
+  if (gimple_in_ssa_p (cfun))
+    update_complex_components (gsi, gsi_stmt (*gsi), r, i);
 }
 
 
@@ -693,7 +694,7 @@ update_parameter_components (void)
 	continue;
 
       type = TREE_TYPE (type);
-      ssa_name = gimple_default_def (cfun, parm);
+      ssa_name = ssa_default_def (cfun, parm);
       if (!ssa_name)
 	continue;
 
@@ -723,17 +724,11 @@ update_phi_components (basic_block bb)
 
 	  lr = get_component_ssa_name (gimple_phi_result (phi), false);
 	  if (TREE_CODE (lr) == SSA_NAME)
-	    {
-	      pr = create_phi_node (lr, bb);
-	      SSA_NAME_DEF_STMT (lr) = pr;
-	    }
+	    pr = create_phi_node (lr, bb);
 
 	  li = get_component_ssa_name (gimple_phi_result (phi), true);
 	  if (TREE_CODE (li) == SSA_NAME)
-	    {
-	      pi = create_phi_node (li, bb);
-	      SSA_NAME_DEF_STMT (li) = pi;
-	    }
+	    pi = create_phi_node (li, bb);
 
 	  for (i = 0, n = gimple_phi_num_args (phi); i < n; ++i)
 	    {
@@ -1158,8 +1153,8 @@ expand_complex_div_wide (gimple_stmt_iterator *gsi, tree inner_type,
           set_immediate_dominator (CDI_DOMINATORS, bb_false, bb_cond);
         }
 
-      rr = make_rename_temp (inner_type, NULL);
-      ri = make_rename_temp (inner_type, NULL);
+      rr = create_tmp_reg (inner_type, NULL);
+      ri = create_tmp_reg (inner_type, NULL);
     }
 
   /* In the TRUE branch, we compute

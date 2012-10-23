@@ -45,13 +45,13 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm_p.h"
 #include "ggc.h"
 #include "diagnostic-core.h"
-#include "integrate.h"
 #include "target.h"
 #include "target-def.h"
 #include "langhooks.h"
 #include "df.h"
 #include "gimple.h"
 #include "opts.h"
+#include "dumpfile.h"
 
 /* Structure of this file:
 
@@ -212,7 +212,7 @@ static int mep_sched_reorder (FILE *, int, rtx *, int *, int);
 static rtx mep_make_bundle (rtx, rtx);
 static void mep_bundle_insns (rtx);
 static bool mep_rtx_cost (rtx, int, int, int, int *, bool);
-static int mep_address_cost (rtx, bool);
+static int mep_address_cost (rtx, enum machine_mode, addr_space_t, bool);
 static void mep_setup_incoming_varargs (cumulative_args_t, enum machine_mode,
 					tree, int *, int);
 static bool mep_pass_by_reference (cumulative_args_t cum, enum machine_mode,
@@ -595,132 +595,6 @@ mep_regno_reg_class (int regno)
   gcc_assert (regno >= FIRST_SHADOW_REGISTER && regno <= LAST_SHADOW_REGISTER);
   return NO_REGS;
 }
-
-#if 0
-int
-mep_reg_class_from_constraint (int c, const char *str)
-{
-  switch (c)
-    {
-    case 'a':
-      return SP_REGS;
-    case 'b':
-      return TP_REGS;
-    case 'c':
-      return CONTROL_REGS;
-    case 'd':
-      return HILO_REGS;
-    case 'e':
-      {
-	switch (str[1])
-	  {
-	  case 'm':
-	    return LOADABLE_CR_REGS;
-	  case 'x':
-	    return mep_have_copro_copro_moves_p ? CR_REGS : NO_REGS;
-	  case 'r':
-	    return mep_have_core_copro_moves_p ? CR_REGS : NO_REGS;
-	  default:
-	    return NO_REGS;
-	  }
-      }
-    case 'h':
-      return HI_REGS;
-    case 'j':
-      return RPC_REGS;
-    case 'l':
-      return LO_REGS;
-    case 't':
-      return TPREL_REGS;
-    case 'v':
-      return GP_REGS;
-    case 'x':
-      return CR_REGS;
-    case 'y':
-      return CCR_REGS;
-    case 'z':
-      return R0_REGS;
-
-    case 'A':
-    case 'B':
-    case 'C':
-    case 'D':
-      {
-	enum reg_class which = c - 'A' + USER0_REGS;
-	return (reg_class_size[which] > 0 ? which : NO_REGS);
-      }
-
-    default:
-      return NO_REGS;
-    }
-}
-
-bool
-mep_const_ok_for_letter_p (HOST_WIDE_INT value, int c)
-{
-  switch (c)
-    {
-      case 'I': return value >= -32768 && value <      32768;
-      case 'J': return value >=      0 && value <      65536;
-      case 'K': return value >=      0 && value < 0x01000000;
-      case 'L': return value >=    -32 && value <         32;
-      case 'M': return value >=      0 && value <         32;
-      case 'N': return value >=      0 && value <         16;
-      case 'O':
-	if (value & 0xffff)
-	  return false;
-	return value >= -2147483647-1 && value <= 2147483647;
-    default:
-      gcc_unreachable ();
-    }
-}
-
-bool
-mep_extra_constraint (rtx value, int c)
-{
-  encode_pattern (value);
-
-  switch (c)
-    {
-    case 'R':
-      /* For near symbols, like what call uses.  */
-      if (GET_CODE (value) == REG)
-	return 0;
-      return mep_call_address_operand (value, GET_MODE (value));
-
-    case 'S':
-      /* For signed 8-bit immediates.  */
-      return (GET_CODE (value) == CONST_INT
-	      && INTVAL (value) >= -128
-	      && INTVAL (value) <= 127);
-
-    case 'T':
-      /* For tp/gp relative symbol values.  */
-      return (RTX_IS ("u3s") || RTX_IS ("u2s")
-              || RTX_IS ("+u3si") || RTX_IS ("+u2si"));
-
-    case 'U':
-      /* Non-absolute memories.  */
-      return GET_CODE (value) == MEM && ! CONSTANT_P (XEXP (value, 0));
-
-    case 'W':
-      /* %hi(sym) */
-      return RTX_IS ("Hs");
-
-    case 'Y':
-      /* Register indirect.  */
-      return RTX_IS ("mr");
-
-    case 'Z':
-      return mep_section_tag (value) == 'c' && RTX_IS ("ms");
-    }
-
-  return false;
-}
-#endif
-
-#undef PASS
-#undef FAIL
 
 static bool
 const_in_range (rtx x, int minv, int maxv)
@@ -2366,7 +2240,7 @@ mep_allocate_initial_value (rtx reg)
     }
 
   rss = cfun->machine->reg_save_slot[REGNO(reg)];
-  return gen_rtx_MEM (SImode, plus_constant (arg_pointer_rtx, -rss));
+  return gen_rtx_MEM (SImode, plus_constant (Pmode, arg_pointer_rtx, -rss));
 }
 
 rtx
@@ -2523,16 +2397,16 @@ mep_interrupt_saved_reg (int r)
 	  || (r == RPB_REGNO || r == RPE_REGNO || r == RPC_REGNO || r == LP_REGNO)
 	  || IVC2_ISAVED_REG (r)))
     return true;
-  if (!current_function_is_leaf)
+  if (!crtl->is_leaf)
     /* Function calls mean we need to save $lp.  */
     if (r == LP_REGNO || IVC2_ISAVED_REG (r))
       return true;
-  if (!current_function_is_leaf || cfun->machine->doloop_tags > 0)
+  if (!crtl->is_leaf || cfun->machine->doloop_tags > 0)
     /* The interrupt handler might use these registers for repeat blocks,
        or it might call a function that does so.  */
     if (r == RPB_REGNO || r == RPE_REGNO || r == RPC_REGNO)
       return true;
-  if (current_function_is_leaf && call_used_regs[r] && !df_regs_ever_live_p(r))
+  if (crtl->is_leaf && call_used_regs[r] && !df_regs_ever_live_p(r))
     return false;
   /* Functions we call might clobber these.  */
   if (call_used_regs[r] && !fixed_regs[r])
@@ -2743,7 +2617,7 @@ mep_reload_pointer (int regno, const char *symbol)
 {
   rtx reg, sym;
 
-  if (!df_regs_ever_live_p(regno) && current_function_is_leaf)
+  if (!df_regs_ever_live_p(regno) && crtl->is_leaf)
     return;
 
   reg = gen_rtx_REG (SImode, regno);
@@ -2844,7 +2718,8 @@ mep_expand_prologue (void)
 	   ALLOCATE_INITIAL_VALUE.  The moves emitted here can then be safely
 	   deleted as dead.  */
 	mem = gen_rtx_MEM (rmode,
-			   plus_constant (stack_pointer_rtx, sp_offset - rss));
+			   plus_constant (Pmode, stack_pointer_rtx,
+					  sp_offset - rss));
 	maybe_dead_p = rtx_equal_p (mem, has_hard_reg_initial_val (rmode, i));
 
 	if (GR_REGNO_P (i) || LOADABLE_CR_REGNO_P (i))
@@ -2855,7 +2730,8 @@ mep_expand_prologue (void)
 	    int be = TARGET_BIG_ENDIAN ? 4 : 0;
 
 	    mem = gen_rtx_MEM (SImode,
-			       plus_constant (stack_pointer_rtx, sp_offset - rss + be));
+			       plus_constant (Pmode, stack_pointer_rtx,
+					      sp_offset - rss + be));
 
 	    maybe_dead_move (gen_rtx_REG (SImode, REGSAVE_CONTROL_TEMP),
 			     gen_rtx_REG (SImode, i),
@@ -2876,7 +2752,8 @@ mep_expand_prologue (void)
 				       copy_rtx (mem),
 				       gen_rtx_REG (rmode, i)));
 	    mem = gen_rtx_MEM (SImode,
-			       plus_constant (stack_pointer_rtx, sp_offset - rss + (4-be)));
+			       plus_constant (Pmode, stack_pointer_rtx,
+					      sp_offset - rss + (4-be)));
 	    insn = maybe_dead_move (mem,
 				    gen_rtx_REG (SImode, REGSAVE_CONTROL_TEMP+1),
 				    maybe_dead_p);
@@ -3083,8 +2960,8 @@ mep_expand_epilogue (void)
 	if (GR_REGNO_P (i) || LOADABLE_CR_REGNO_P (i))
 	  emit_move_insn (gen_rtx_REG (rmode, i),
 			  gen_rtx_MEM (rmode,
-				       plus_constant (stack_pointer_rtx,
-						      sp_offset-rss)));
+				       plus_constant (Pmode, stack_pointer_rtx,
+						      sp_offset - rss)));
 	else
 	  {
 	    if (i == LP_REGNO && !mep_sibcall_epilogue && !interrupt_handler)
@@ -3096,7 +2973,8 @@ mep_expand_epilogue (void)
 	      {
 		emit_move_insn (gen_rtx_REG (rmode, REGSAVE_CONTROL_TEMP),
 				gen_rtx_MEM (rmode,
-					     plus_constant (stack_pointer_rtx,
+					     plus_constant (Pmode,
+							    stack_pointer_rtx,
 							    sp_offset-rss)));
 		emit_move_insn (gen_rtx_REG (rmode, i),
 				gen_rtx_REG (rmode, REGSAVE_CONTROL_TEMP));
@@ -3109,7 +2987,7 @@ mep_expand_epilogue (void)
 	 register when we return by jumping indirectly via the temp.  */
       emit_move_insn (gen_rtx_REG (SImode, REGSAVE_CONTROL_TEMP),
 		      gen_rtx_MEM (SImode,
-				   plus_constant (stack_pointer_rtx,
+				   plus_constant (Pmode, stack_pointer_rtx,
 						  lp_slot)));
       lp_temp = REGSAVE_CONTROL_TEMP;
     }
@@ -3865,7 +3743,7 @@ static int prev_opcode = 0;
 
 /* This isn't as optimal as it could be, because we don't know what
    control register the STC opcode is storing in.  We only need to add
-   the nop if it's the relevent register, but we add it for irrelevent
+   the nop if it's the relevant register, but we add it for irrelevant
    registers also.  */
 
 void
@@ -5019,7 +4897,7 @@ mep_reorg_regmove (rtx insns)
       done = 1;
       for (insn = insns; insn; insn = next)
 	{
-	  next = NEXT_INSN (insn);
+	  next = next_nonnote_nondebug_insn (insn);
 	  if (GET_CODE (insn) != INSN)
 	    continue;
 	  pat = PATTERN (insn);
@@ -5032,7 +4910,7 @@ mep_reorg_regmove (rtx insns)
 	      && find_regno_note (insn, REG_DEAD, REGNO (SET_SRC (pat)))
 	      && mep_compatible_reg_class (REGNO (SET_SRC (pat)), REGNO (SET_DEST (pat))))
 	    {
-	      follow = next_nonnote_insn (insn);
+	      follow = next_nonnote_nondebug_insn (insn);
 	      if (dump_file)
 		fprintf (dump_file, "superfluous moves: considering %d\n", INSN_UID (insn));
 
@@ -5093,7 +4971,7 @@ mep_reorg_regmove (rtx insns)
 					       follow, where))
 		{
 		  count ++;
-		  next = delete_insn (insn);
+		  delete_insn (insn);
 		  if (dump_file)
 		    {
 		      fprintf (dump_file, "\n----- Success!  new insn:\n\n");
@@ -6059,33 +5937,17 @@ mep_init_builtins (void)
   v4uhi_type_node = build_vector_type (unsigned_intHI_type_node, 4);
   v2usi_type_node = build_vector_type (unsigned_intSI_type_node, 2);
 
-  (*lang_hooks.decls.pushdecl)
-    (build_decl (BUILTINS_LOCATION, TYPE_DECL, get_identifier ("cp_data_bus_int"),
-		 cp_data_bus_int_type_node));
+  add_builtin_type ("cp_data_bus_int", cp_data_bus_int_type_node);
 
-  (*lang_hooks.decls.pushdecl)
-    (build_decl (BUILTINS_LOCATION, TYPE_DECL, get_identifier ("cp_vector"),
-		 opaque_vector_type_node));
+  add_builtin_type ("cp_vector", opaque_vector_type_node);
 
-  (*lang_hooks.decls.pushdecl)
-    (build_decl (BUILTINS_LOCATION, TYPE_DECL, get_identifier ("cp_v8qi"),
-		 v8qi_type_node));
-  (*lang_hooks.decls.pushdecl)
-    (build_decl (BUILTINS_LOCATION, TYPE_DECL, get_identifier ("cp_v4hi"),
-		 v4hi_type_node));
-  (*lang_hooks.decls.pushdecl)
-    (build_decl (BUILTINS_LOCATION, TYPE_DECL, get_identifier ("cp_v2si"),
-		 v2si_type_node));
+  add_builtin_type ("cp_v8qi", v8qi_type_node);
+  add_builtin_type ("cp_v4hi", v4hi_type_node);
+  add_builtin_type ("cp_v2si", v2si_type_node);
 
-  (*lang_hooks.decls.pushdecl)
-    (build_decl (BUILTINS_LOCATION, TYPE_DECL, get_identifier ("cp_v8uqi"),
-		 v8uqi_type_node));
-  (*lang_hooks.decls.pushdecl)
-    (build_decl (BUILTINS_LOCATION, TYPE_DECL, get_identifier ("cp_v4uhi"),
-		 v4uhi_type_node));
-  (*lang_hooks.decls.pushdecl)
-    (build_decl (BUILTINS_LOCATION, TYPE_DECL, get_identifier ("cp_v2usi"),
-		 v2usi_type_node));
+  add_builtin_type ("cp_v8uqi", v8uqi_type_node);
+  add_builtin_type ("cp_v4uhi", v4uhi_type_node);
+  add_builtin_type ("cp_v2usi", v2usi_type_node);
 
   /* Intrinsics like mep_cadd3 are implemented with two groups of
      instructions, one which uses UNSPECs and one which uses a specific
@@ -6952,9 +6814,9 @@ mep_make_bundle (rtx core, rtx cop)
   /* Derive a location for the bundle.  Individual instructions cannot
      have their own location because there can be no assembler labels
      between CORE and COP.  */
-  INSN_LOCATOR (insn) = INSN_LOCATOR (INSN_LOCATOR (core) ? core : cop);
-  INSN_LOCATOR (core) = 0;
-  INSN_LOCATOR (cop) = 0;
+  INSN_LOCATION (insn) = INSN_LOCATION (INSN_LOCATION (core) ? core : cop);
+  INSN_LOCATION (core) = 0;
+  INSN_LOCATION (cop) = 0;
 
   return insn;
 }
@@ -7005,7 +6867,7 @@ core_insn_p (rtx insn)
 }
 
 /* Mark coprocessor instructions that can be bundled together with
-   the immediately preceeding core instruction.  This is later used
+   the immediately preceding core instruction.  This is later used
    to emit the "+" that tells the assembler to create a VLIW insn.
 
    For unbundled insns, the assembler will automatically add coprocessor
@@ -7051,7 +6913,7 @@ mep_bundle_insns (rtx insns)
 	     whenever the current line changes, set the location info
 	     for INSN to match FIRST.  */
 
-	  INSN_LOCATOR (insn) = INSN_LOCATOR (first);
+	  INSN_LOCATION (insn) = INSN_LOCATION (first);
 
 	  note = PREV_INSN (insn);
 	  while (note && note != first)
@@ -7290,7 +7152,10 @@ mep_rtx_cost (rtx x, int code, int outer_code ATTRIBUTE_UNUSED,
 }
 
 static int
-mep_address_cost (rtx addr ATTRIBUTE_UNUSED, bool ATTRIBUTE_UNUSED speed_p)
+mep_address_cost (rtx addr ATTRIBUTE_UNUSED,
+		  enum machine_mode mode ATTRIBUTE_UNUSED,
+		  addr_space_t as ATTRIBUTE_UNUSED,
+		  bool ATTRIBUTE_UNUSED speed_p)
 {
   return 1;
 }

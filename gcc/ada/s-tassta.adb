@@ -6,7 +6,7 @@
 --                                                                          --
 --                                  B o d y                                 --
 --                                                                          --
---         Copyright (C) 1992-2011, Free Software Foundation, Inc.          --
+--         Copyright (C) 1992-2012, Free Software Foundation, Inc.          --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -527,6 +527,12 @@ package body System.Tasking.Stages is
          then Self_ID.Common.Base_Priority
          else System.Any_Priority (Priority));
 
+      --  Legal values of CPU are the special Unspecified_CPU value which is
+      --  inserted by the compiler for tasks without CPU aspect, and those in
+      --  the range of CPU_Range but no greater than Number_Of_CPUs. Otherwise
+      --  the task is defined to have failed, and it becomes a completed task
+      --  (RM D.16(14/3)).
+
       if CPU /= Unspecified_CPU
         and then (CPU < Integer (System.Multiprocessors.CPU_Range'First)
                     or else
@@ -539,6 +545,13 @@ package body System.Tasking.Stages is
       --  Normal CPU affinity
 
       else
+         --  When the application code says nothing about the task affinity
+         --  (task without CPU aspect) then the compiler inserts the
+         --  Unspecified_CPU value which indicates to the run-time library that
+         --  the task will activate and execute on the same processor as its
+         --  activating task if the activating task is assigned a processor
+         --  (RM D.16(14/3)).
+
          Base_CPU :=
            (if CPU = Unspecified_CPU
             then Self_ID.Common.Base_CPU
@@ -1892,7 +1905,16 @@ package body System.Tasking.Stages is
       C := All_Tasks_List;
       P := null;
       while C /= null loop
-         if C.Common.Parent = Self_ID and then C.Master_of_Task >= CM then
+
+         --  If Free_On_Termination is set, do nothing here, and let the
+         --  task free itself if not already done, otherwise we risk a race
+         --  condition where Vulnerable_Free_Task is called in the loop below,
+         --  while the task calls Free_Task itself, in Terminate_Task.
+
+         if C.Common.Parent = Self_ID
+           and then C.Master_of_Task >= CM
+           and then not C.Free_On_Termination
+         then
             if P /= null then
                P.Common.All_Tasks_Link := C.Common.All_Tasks_Link;
             else
@@ -2075,9 +2097,7 @@ package body System.Tasking.Stages is
    --  is called from Expunge_Unactivated_Tasks.
 
    --  For tasks created by elaboration of task object declarations it is
-   --  called from the finalization code of the Task_Wrapper procedure. It is
-   --  also called from Ada.Unchecked_Deallocation, for objects that are or
-   --  contain tasks.
+   --  called from the finalization code of the Task_Wrapper procedure.
 
    procedure Vulnerable_Free_Task (T : Task_Id) is
    begin

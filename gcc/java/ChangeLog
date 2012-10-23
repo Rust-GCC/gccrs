@@ -1,18 +1,107 @@
-2012-09-20  Release Manager
+2012-10-01  Lawrence Crowl  <crowl@google.com>
 
-	* GCC 4.7.2 released.
+	* Make-lang.in (JAVA_OBJS): Add dependence on hash-table.o.
+	(JCFDUMP_OBJS): Add dependence on hash-table.o.
+	(jcf-io.o): Add dependence on hash-table.h.
+	* jcf-io.c (memoized_class_lookups): Change to use type-safe hash table.
 
-2012-06-14  Release Manager
+2012-09-24  Lawrence Crowl  <crowl@google.com>
 
-	* GCC 4.7.1 released.
+	* decl.c (java_init_decl_processing): Change to new double_int API.
+	* jcf-parse.c (get_constant): Likewise.
+	* boehm.c (mark_reference_fields): Likewise.
+	(get_boehm_type_descriptor): Likewise.
 
-2012-05-11  Bill Schmidt  <wschmidt@linux.vnet.ibm.com>
+2012-07-30  Laurynas Biveinis  <laurynas.biveinis@gmail.com>
 
-	* typeck.c (java_type_for_size): Handle 128-bit sizes for bitsizetype.
+	* jcf.h (CPool): Use the "atomic" GTY option for the tags field.
+	(bootstrap_method): Likewise for the bootstrap_arguments field.
 
-2012-03-22  Release Manager
+2012-07-16  Steven Bosscher  <steven@gcc.gnu.org>
 
-	* GCC 4.7.0 released.
+	* java-gimplify.c Include dumpfile.h instead of tree-dump.h
+	* Make-lang.in: Fix dependencies.
+
+2012-07-11  Steven Bosscher  <steven@gcc.gnu.org>
+
+	* java-tree.h (force_evaluation_order): Remove prototype.
+	* expr.c (force_evaluation_order): Remove unused function.
+
+2012-07-11  Steven Bosscher  <steven@gcc.gnu.org>
+
+	* decl.c: Do not include libfuncs.h.
+	* class.c: Do not include defaults.h.
+	* jvgenmain.c: Likewise.
+	* magnle.c: Likewise.
+	* Make-lang.in (decl.o): Fix dependencies.
+
+2012-07-08  Steven Bosscher  <steven@gcc.gnu.org>
+
+	* verify.h: Do not include system.h and coretypes.h here.
+	* verify-impl.c: Include them here instead.
+
+2012-07-05  Uros Bizjak  <ubizjak@gmail.com>
+
+	* jcf-io.c (read_zip_member): Initialize d_stream.
+
+2012-05-31  Steven Bosscher  <steven@gcc.gnu.org>
+
+	* resource.c: Do not include output.h.
+
+2012-05-21  John David Anglin  <dave.anglin@nrc-cnrc.gc.ca>
+
+	PR java/52815
+	* class.c (emit_register_classes_in_jcr_section): Revise placement
+	of #ifdef JCR_SECTION_NAME.
+
+2012-04-22  Jan Hubicka  <jh@suse.cz>
+
+	* class.c (build_utf8_ref): Do not mark varpool node as needed.
+
+2012-04-20  Jan Hubicka  <jh@suse.cz>
+
+	* class.c (make_local_function_alias): Do not mark symbol referenced.
+
+2012-04-11  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* jcf-dump.c (print_constant): Cast JPOOL_USHORT2, JPOOL_USHORT1
+	results to long to match formats.
+
+2012-04-11  Andrew Haley  <aph@redhat.com>
+
+	* jcf-reader.c (jcf_parse_bootstrap_methods): Add
+	ATTRIBUTE_UNUSED.
+
+2012-04-11  Andrew Haley  <aph@redhat.com>
+
+	* jcf.h (bootstrap_method): New.
+	(BootstrapMethods): New.
+	(JCF): Add BootstrapMethods.
+	(enum cpool_tag): Add MethodHandle, MethodType, and InvokeDynamic.
+	* jcf-reader.c (jcf_parse_bootstrap_methods): New.
+	(jcf_parse_constant_pool): Handlers for MethodHandle, MethodType,
+	and InvokeDynamic.
+	(jcf_parse_bootstrap_methods): New.
+	* javaop.def (invokedynamic): New opcode.
+	* jcf-parse.c (get_constant): An unknown constant type should not
+	be an internal error, but a fatal one.  Make it so.
+	* jcf-dump.c (HANDLE_BOOTSTRAP_METHODS_ATTRIBUTE): New.
+	(HANDLE_END_BOOTSTRAP_METHODS): New.
+	(print_constant): Handlers for MethodHandle, MethodType, and
+	InvokeDynamic.
+
+2012-04-02  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* class.c (emit_register_classes_in_jcr_section): Set DECL_USER_ALIGN.
+	Clear TREE_READONLY.
+
+2012-03-29  Steven Bosscher  <steven@gcc.gnu.org>
+
+	PR java/52730
+	* class.c (emit_register_classes_in_jcr_section): New function.
+	(emit_Jv_RegisterClass_calls): New function, split out from ...
+	(emit_register_classes): ... here. Reorganize.  Do not call
+	output_constant.
 
 2012-01-23  Andreas Schwab  <schwab@linux-m68k.org>
 
@@ -615,7 +704,7 @@
 	(predefined_filenames): Declare.
 	(add_predefined_file): Use it.
 	(predefined_filename_p): Likewise.
-	(java_parse_file): Adjust for new type of current_file_list.                                                                                                                                                     *
+	(java_parse_file): Adjust for new type of current_file_list.
 
 2010-05-25  Jakub Jelinek  <jakub@redhat.com>
 

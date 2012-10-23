@@ -61,10 +61,8 @@ along with GCC; see the file COPYING3.  If not see
    numbers after the special ones.  */
 #define UNUSED_NAME_VERSION 0
 
-#ifdef GATHER_STATISTICS
 unsigned int ssa_name_nodes_reused;
 unsigned int ssa_name_nodes_created;
-#endif
 
 /* Initialize management of SSA_NAMEs to default SIZE.  If SIZE is
    zero use default.  */
@@ -87,7 +85,8 @@ init_ssanames (struct function *fn, int size)
   VEC_quick_push (tree, SSANAMES (fn), NULL_TREE);
   FREE_SSANAMES (fn) = NULL;
 
-  SYMS_TO_RENAME (fn) = BITMAP_GGC_ALLOC ();
+  fn->gimple_df->ssa_renaming_needed = 0;
+  fn->gimple_df->rename_vops = 0;
 }
 
 /* Finalize management of SSA_NAMEs.  */
@@ -101,14 +100,12 @@ fini_ssanames (void)
 
 /* Dump some simple statistics regarding the re-use of SSA_NAME nodes.  */
 
-#ifdef GATHER_STATISTICS
 void
 ssanames_print_statistics (void)
 {
   fprintf (stderr, "SSA_NAME nodes allocated: %u\n", ssa_name_nodes_created);
   fprintf (stderr, "SSA_NAME nodes reused: %u\n", ssa_name_nodes_reused);
 }
-#endif
 
 /* Return an SSA_NAME node for variable VAR defined in statement STMT
    in function FN.  STMT may be an empty statement for artificial
@@ -121,15 +118,17 @@ make_ssa_name_fn (struct function *fn, tree var, gimple stmt)
   tree t;
   use_operand_p imm;
 
-  gcc_assert (DECL_P (var));
+  gcc_assert (TREE_CODE (var) == VAR_DECL
+	      || TREE_CODE (var) == PARM_DECL
+	      || TREE_CODE (var) == RESULT_DECL
+	      || (TYPE_P (var) && is_gimple_reg_type (var)));
 
   /* If our free list has an element, then use it.  */
   if (!VEC_empty (tree, FREE_SSANAMES (fn)))
     {
       t = VEC_pop (tree, FREE_SSANAMES (fn));
-#ifdef GATHER_STATISTICS
-      ssa_name_nodes_reused++;
-#endif
+      if (GATHER_STATISTICS)
+	ssa_name_nodes_reused++;
 
       /* The node was cleared out when we put it on the free list, so
 	 there is no need to do so again here.  */
@@ -141,13 +140,20 @@ make_ssa_name_fn (struct function *fn, tree var, gimple stmt)
       t = make_node (SSA_NAME);
       SSA_NAME_VERSION (t) = VEC_length (tree, SSANAMES (fn));
       VEC_safe_push (tree, gc, SSANAMES (fn), t);
-#ifdef GATHER_STATISTICS
-      ssa_name_nodes_created++;
-#endif
+      if (GATHER_STATISTICS)
+	ssa_name_nodes_created++;
     }
 
-  TREE_TYPE (t) = TREE_TYPE (var);
-  SSA_NAME_VAR (t) = var;
+  if (TYPE_P (var))
+    {
+      TREE_TYPE (t) = var;
+      SET_SSA_NAME_VAR_OR_IDENTIFIER (t, NULL_TREE);
+    }
+  else
+    {
+      TREE_TYPE (t) = TREE_TYPE (var);
+      SET_SSA_NAME_VAR_OR_IDENTIFIER (t, var);
+    }
   SSA_NAME_DEF_STMT (t) = stmt;
   SSA_NAME_PTR_INFO (t) = NULL;
   SSA_NAME_IN_FREE_LIST (t) = 0;
@@ -228,7 +234,7 @@ release_ssa_name (tree var)
 
       /* Hopefully this can go away once we have the new incremental
          SSA updating code installed.  */
-      SSA_NAME_VAR (var) = saved_ssa_name_var;
+      SET_SSA_NAME_VAR_OR_IDENTIFIER (var, saved_ssa_name_var);
 
       /* Note this SSA_NAME is now in the first list.  */
       SSA_NAME_IN_FREE_LIST (var) = 1;
@@ -238,6 +244,62 @@ release_ssa_name (tree var)
     }
 }
 
+/* If the alignment of the pointer described by PI is known, return true and
+   store the alignment and the deviation from it into *ALIGNP and *MISALIGNP
+   respectively.  Otherwise return false.  */
+
+bool
+get_ptr_info_alignment (struct ptr_info_def *pi, unsigned int *alignp,
+			unsigned int *misalignp)
+{
+  if (pi->align)
+    {
+      *alignp = pi->align;
+      *misalignp = pi->misalign;
+      return true;
+    }
+  else
+    return false;
+}
+
+/* State that the pointer described by PI has unknown alignment.  */
+
+void
+mark_ptr_info_alignment_unknown (struct ptr_info_def *pi)
+{
+  pi->align = 0;
+  pi->misalign = 0;
+}
+
+/* Store the the power-of-two byte alignment and the deviation from that
+   alignment of pointer described by PI to ALIOGN and MISALIGN
+   respectively.  */
+
+void
+set_ptr_info_alignment (struct ptr_info_def *pi, unsigned int align,
+			    unsigned int misalign)
+{
+  gcc_checking_assert (align != 0);
+  gcc_assert ((align & (align - 1)) == 0);
+  gcc_assert ((misalign & ~(align - 1)) == 0);
+
+  pi->align = align;
+  pi->misalign = misalign;
+}
+
+/* If pointer described by PI has known alignment, increase its known
+   misalignment by INCREMENT modulo its current alignment.  */
+
+void
+adjust_ptr_info_misalignment (struct ptr_info_def *pi,
+			      unsigned int increment)
+{
+  if (pi->align != 0)
+    {
+      pi->misalign += increment;
+      pi->misalign &= (pi->align - 1);
+    }
+}
 
 /* Return the alias information associated with pointer T.  It creates a
    new instance if none existed.  */
@@ -254,13 +316,33 @@ get_ptr_info (tree t)
     {
       pi = ggc_alloc_cleared_ptr_info_def ();
       pt_solution_reset (&pi->pt);
-      pi->align = 1;
-      pi->misalign = 0;
+      mark_ptr_info_alignment_unknown (pi);
       SSA_NAME_PTR_INFO (t) = pi;
     }
 
   return pi;
 }
+
+
+/* Creates a new SSA name using the template NAME tobe defined by
+   statement STMT in function FN.  */
+
+tree
+copy_ssa_name_fn (struct function *fn, tree name, gimple stmt)
+{
+  tree new_name;
+
+  if (SSA_NAME_VAR (name))
+    new_name = make_ssa_name_fn (fn, SSA_NAME_VAR (name), stmt);
+  else
+    {
+      new_name = make_ssa_name_fn (fn, TREE_TYPE (name), stmt);
+      SET_SSA_NAME_VAR_OR_IDENTIFIER (new_name, SSA_NAME_IDENTIFIER (name));
+    }
+
+  return new_name;
+}
+
 
 /* Creates a duplicate of the ptr_info_def at PTR_INFO for use by
    the SSA name NAME.  */
@@ -283,12 +365,13 @@ duplicate_ssa_name_ptr_info (tree name, struct ptr_info_def *ptr_info)
 }
 
 
-/* Creates a duplicate of a ssa name NAME tobe defined by statement STMT.  */
+/* Creates a duplicate of a ssa name NAME tobe defined by statement STMT
+   in function FN.  */
 
 tree
-duplicate_ssa_name (tree name, gimple stmt)
+duplicate_ssa_name_fn (struct function *fn, tree name, gimple stmt)
 {
-  tree new_name = make_ssa_name (SSA_NAME_VAR (name), stmt);
+  tree new_name = copy_ssa_name_fn (fn, name, stmt);
   struct ptr_info_def *old_ptr_info = SSA_NAME_PTR_INFO (name);
 
   if (old_ptr_info)
@@ -321,33 +404,45 @@ release_defs (gimple stmt)
 void
 replace_ssa_name_symbol (tree ssa_name, tree sym)
 {
-  SSA_NAME_VAR (ssa_name) = sym;
+  SET_SSA_NAME_VAR_OR_IDENTIFIER (ssa_name, sym);
   TREE_TYPE (ssa_name) = TREE_TYPE (sym);
 }
 
-/* Return SSA names that are unused to GGC memory.  This is used to keep
-   footprint of compiler during interprocedural optimization.
-   As a side effect the SSA_NAME_VERSION number reuse is reduced
-   so this function should not be used too often.  */
+/* Return SSA names that are unused to GGC memory and compact the SSA
+   version namespace.  This is used to keep footprint of compiler during
+   interprocedural optimization.  */
 static unsigned int
 release_dead_ssa_names (void)
 {
-  tree t;
+  unsigned i, j;
   int n = VEC_length (tree, FREE_SSANAMES (cfun));
-  referenced_var_iterator rvi;
 
-  /* Current defs point to various dead SSA names that in turn point to
-     eventually dead variables so a bunch of memory is held live.  */
-  FOR_EACH_REFERENCED_VAR (cfun, t, rvi)
-    set_current_def (t, NULL);
   /* Now release the freelist.  */
   VEC_free (tree, gc, FREE_SSANAMES (cfun));
   FREE_SSANAMES (cfun) = NULL;
 
+  /* And compact the SSA number space.  We make sure to not change the
+     relative order of SSA versions.  */
+  for (i = 1, j = 1; i < VEC_length (tree, cfun->gimple_df->ssa_names); ++i)
+    {
+      tree name = ssa_name (i);
+      if (name)
+	{
+	  if (i != j)
+	    {
+	      SSA_NAME_VERSION (name) = j;
+	      VEC_replace (tree, cfun->gimple_df->ssa_names, j, name);
+	    }
+	  j++;
+	}
+    }
+  VEC_truncate (tree, cfun->gimple_df->ssa_names, j);
+
   statistics_counter_event (cfun, "SSA names released", n);
+  statistics_counter_event (cfun, "SSA name holes removed", i - j);
   if (dump_file)
-    fprintf (dump_file, "Released %i names, %.2f%%\n",
-	     n, n * 100.0 / num_ssa_names);
+    fprintf (dump_file, "Released %i names, %.2f%%, removed %i holes\n",
+	     n, n * 100.0 / num_ssa_names, i - j);
   return 0;
 }
 

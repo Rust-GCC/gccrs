@@ -26,6 +26,7 @@ along with GCC; see the file COPYING3.  If not see
    
 #include "config.h"
 #include "system.h"
+#include "coretypes.h"
 #include "gfortran.h"
 #include "dependency.h"
 #include "constructor.h"
@@ -260,6 +261,9 @@ gfc_dep_compare_expr (gfc_expr *e1, gfc_expr *e2)
   n1 = NULL;
   n2 = NULL;
 
+  if (e1 == NULL && e2 == NULL)
+    return 0;
+
   /* Remove any integer conversion functions to larger types.  */
   if (e1->expr_type == EXPR_FUNCTION && e1->value.function.isym
       && e1->value.function.isym->id == GFC_ISYM_CONVERSION
@@ -391,30 +395,21 @@ gfc_dep_compare_expr (gfc_expr *e1, gfc_expr *e2)
       l = gfc_dep_compare_expr (e1->value.op.op1, e2->value.op.op1);
       r = gfc_dep_compare_expr (e1->value.op.op2, e2->value.op.op2);
 
-      if (l <= -2)
+      if (l != 0)
 	return l;
 
-      if (l == 0)
-	{
-	  /* Watch out for 'A ' // x vs. 'A' // x.  */
-	  gfc_expr *e1_left = e1->value.op.op1;
-	  gfc_expr *e2_left = e2->value.op.op1;
+      /* Left expressions of // compare equal, but
+	 watch out for 'A ' // x vs. 'A' // x.  */
+      gfc_expr *e1_left = e1->value.op.op1;
+      gfc_expr *e2_left = e2->value.op.op1;
 
-	  if (e1_left->expr_type == EXPR_CONSTANT
-	      && e2_left->expr_type == EXPR_CONSTANT
-	      && e1_left->value.character.length
-		 != e2_left->value.character.length)
-	    return -2;
-	  else
-	    return r;
-	}
+      if (e1_left->expr_type == EXPR_CONSTANT
+	  && e2_left->expr_type == EXPR_CONSTANT
+	  && e1_left->value.character.length
+	  != e2_left->value.character.length)
+	return -2;
       else
-	{
-	  if (l != 0)
-	    return l;
-	  else
-	    return r;
-	}
+	return r;
     }
 
   /* Compare X vs. X-C, for INTEGER only.  */
@@ -1216,7 +1211,7 @@ check_section_vs_section (gfc_array_ref *l_ar, gfc_array_ref *r_ar, int n)
   else
     start_comparison = -2;
       
-  free (one_expr);
+  gfc_free_expr (one_expr);
 
   /* Determine LHS upper and lower bounds.  */
   if (l_dir == 1)

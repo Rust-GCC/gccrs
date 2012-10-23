@@ -298,9 +298,26 @@ package Prj is
    --  Type for the kind of language. All languages are file based, except Ada
    --  which is unit based.
 
-   type Dependency_File_Kind is (None, Makefile, ALI_File);
-   --  Type of dependency to be checked: no dependency file, Makefile fragment
-   --  or ALI file (for Ada).
+   --  Type of dependency to be checked
+
+   type Dependency_File_Kind is
+     (None,
+      --  There is no dependency file, the source must always be recompiled
+
+      Makefile,
+      --  The dependency file is a Makefile fragment indicating all the files
+      --  the source depends on. If the object file or the dependency file is
+      --  more recent than any of these files, the source must be recompiled.
+
+      ALI_File,
+      --  The dependency file is an ALI file and the source must be recompiled
+      --  if the object or ALI file is more recent than any of the sources
+      --  listed in the D lines.
+
+      ALI_Closure);
+      --  The dependency file is an ALI file and the source must be recompiled
+      --  if the object or ALI file is more recent than any source in the full
+      --  closure.
 
    Makefile_Dependency_Suffix : constant String := ".d";
    ALI_Dependency_Suffix      : constant String := ".ali";
@@ -472,6 +489,11 @@ package Prj is
       --  are used to specify the object file. The object file name is appended
       --  to the last switch in the list. Example: ("-o", "").
 
+      Object_Path_Switches : Name_List_Index := No_Name_List;
+      --  List of switches to specify to the compiler the path name of a
+      --  temporary file containing the list of object directories in the
+      --  correct order.
+
       Compilation_PIC_Option : Name_List_Index := No_Name_List;
       --  The option(s) to compile a source in Position Independent Code for
       --  shared libraries. Specified in the configuration. When not specified,
@@ -584,6 +606,12 @@ package Prj is
       Toolchain_Description : Name_Id := No_Name;
       --  Hold the value of attribute Toolchain_Description for the language
 
+      Clean_Object_Artifacts : Name_List_Index := No_Name_List;
+      --  List of object artifact extensions to be deleted by gprclean
+
+      Clean_Source_Artifacts : Name_List_Index := No_Name_List;
+      --  List of source artifact extensions to be deleted by gprclean
+
    end record;
 
    No_Language_Config : constant Language_Config :=
@@ -602,6 +630,7 @@ package Prj is
                            Source_File_Switches         => No_Name_List,
                            Object_File_Suffix           => No_Name,
                            Object_File_Switches         => No_Name_List,
+                           Object_Path_Switches         => No_Name_List,
                            Compilation_PIC_Option       => No_Name_List,
                            Object_Generated             => True,
                            Objects_Linked               => True,
@@ -631,7 +660,9 @@ package Prj is
                            Binder_Required_Switches     => No_Name_List,
                            Binder_Prefix                => No_Name,
                            Toolchain_Version            => No_Name,
-                           Toolchain_Description        => No_Name);
+                           Toolchain_Description        => No_Name,
+                           Clean_Object_Artifacts       => No_Name_List,
+                           Clean_Source_Artifacts       => No_Name_List);
 
    --  The following record ???
 
@@ -752,8 +783,12 @@ package Prj is
       Locally_Removed : Boolean := False;
       --  True if the source has been "excluded"
 
+      Suppressed : Boolean := False;
+      --  True if the source is a locally removed direct source of the project.
+      --  These sources should not be put in the mapping file.
+
       Replaced_By : Source_Id := No_Source;
-      --  Missing comment ???
+      --  Source in an extending project that replaces the current source
 
       File : File_Name_Type := No_File;
       --  Canonical file name of the source
@@ -835,6 +870,7 @@ package Prj is
                        Unit                   => No_Unit_Index,
                        Index                  => 0,
                        Locally_Removed        => False,
+                       Suppressed             => False,
                        Compilable             => Unknown,
                        In_The_Queue           => False,
                        Replaced_By            => No_Source,
@@ -1232,6 +1268,10 @@ package Prj is
       Exec_Directory : Path_Information := No_Path_Information;
       --  The path name of the exec directory of this project file. Default is
       --  equal to Object_Directory.
+
+      Object_Path_File : Path_Name_Type := No_Path;
+      --  Store the name of the temporary file that contains the list of object
+      --  directories, when attribute Object_Path_Switches is declared.
 
       -------------
       -- Library --

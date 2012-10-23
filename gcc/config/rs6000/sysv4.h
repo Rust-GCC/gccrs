@@ -1,7 +1,5 @@
 /* Target definitions for GNU compiler for PowerPC running System V.4
-   Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003,
-   2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
-   Free Software Foundation, Inc.
+   Copyright (C) 1995-2012 Free Software Foundation, Inc.
    Contributed by Cygnus Support.
 
    This file is part of GCC.
@@ -42,9 +40,10 @@
 #undef	ASM_DEFAULT_SPEC
 #define	ASM_DEFAULT_SPEC "-mppc"
 
-#define	TARGET_TOC		((target_flags & MASK_64BIT)		\
-				 || ((target_flags & (MASK_RELOCATABLE	\
-						      | MASK_MINIMAL_TOC)) \
+#define	TARGET_TOC		((rs6000_isa_flags & OPTION_MASK_64BIT)	\
+				 || ((rs6000_isa_flags			\
+				      & (OPTION_MASK_RELOCATABLE	\
+					 | OPTION_MASK_MINIMAL_TOC))	\
 				     && flag_pic > 1)			\
 				 || DEFAULT_ABI == ABI_AIX)
 
@@ -79,13 +78,13 @@ do {									\
   else if (!strcmp (rs6000_abi_name, "sysv-noeabi"))			\
     {									\
       rs6000_current_abi = ABI_V4;					\
-      target_flags &= ~ MASK_EABI;					\
+      rs6000_isa_flags &= ~ OPTION_MASK_EABI;				\
     }									\
   else if (!strcmp (rs6000_abi_name, "sysv-eabi")			\
 	   || !strcmp (rs6000_abi_name, "eabi"))			\
     {									\
       rs6000_current_abi = ABI_V4;					\
-      target_flags |= MASK_EABI;					\
+      rs6000_isa_flags |= OPTION_MASK_EABI;				\
     }									\
   else if (!strcmp (rs6000_abi_name, "aixdesc"))			\
     rs6000_current_abi = ABI_AIX;					\
@@ -104,8 +103,8 @@ do {									\
   else if (!strcmp (rs6000_abi_name, "i960-old"))			\
     {									\
       rs6000_current_abi = ABI_V4;					\
-      target_flags |= (MASK_LITTLE_ENDIAN | MASK_EABI);			\
-      target_flags &= ~MASK_STRICT_ALIGN;				\
+      rs6000_isa_flags |= (OPTION_MASK_LITTLE_ENDIAN | OPTION_MASK_EABI); \
+      rs6000_isa_flags &= ~OPTION_MASK_STRICT_ALIGN;			\
       TARGET_NO_BITFIELD_WORD = 1;					\
     }									\
   else									\
@@ -170,13 +169,13 @@ do {									\
 									\
   if (TARGET_RELOCATABLE && !TARGET_MINIMAL_TOC)			\
     {									\
-      target_flags |= MASK_MINIMAL_TOC;					\
+      rs6000_isa_flags |= OPTION_MASK_MINIMAL_TOC;			\
       error ("-mrelocatable and -mno-minimal-toc are incompatible");	\
     }									\
 									\
   if (TARGET_RELOCATABLE && rs6000_current_abi == ABI_AIX)		\
     {									\
-      target_flags &= ~MASK_RELOCATABLE;				\
+      rs6000_isa_flags &= ~OPTION_MASK_RELOCATABLE;			\
       error ("-mrelocatable and -mcall-%s are incompatible",		\
 	     rs6000_abi_name);						\
     }									\
@@ -190,7 +189,7 @@ do {									\
 									\
   if (rs6000_current_abi == ABI_AIX && TARGET_LITTLE_ENDIAN)		\
     {									\
-      target_flags &= ~MASK_LITTLE_ENDIAN;				\
+      rs6000_isa_flags &= ~OPTION_MASK_LITTLE_ENDIAN;			\
       error ("-mcall-aixdesc must be big endian");			\
     }									\
 									\
@@ -202,7 +201,7 @@ do {									\
   /* Treat -fPIC the same as -mrelocatable.  */				\
   if (flag_pic > 1 && DEFAULT_ABI != ABI_AIX)				\
     {									\
-      target_flags |= MASK_RELOCATABLE | MASK_MINIMAL_TOC;		\
+      rs6000_isa_flags |= OPTION_MASK_RELOCATABLE | OPTION_MASK_MINIMAL_TOC; \
       TARGET_NO_FP_IN_TOC = 1;						\
     }									\
 									\
@@ -214,23 +213,19 @@ do {									\
 #ifndef RS6000_BI_ARCH
 # define SUBSUBTARGET_OVERRIDE_OPTIONS					\
 do {									\
-  if ((TARGET_DEFAULT ^ target_flags) & MASK_64BIT)			\
+  if ((TARGET_DEFAULT ^ rs6000_isa_flags) & OPTION_MASK_64BIT)		\
     error ("-m%s not supported in this configuration",			\
-	   (target_flags & MASK_64BIT) ? "64" : "32");			\
+	   (rs6000_isa_flags & OPTION_MASK_64BIT) ? "64" : "32");	\
 } while (0)
 #endif
 
 /* Override rs6000.h definition.  */
 #undef	TARGET_DEFAULT
-#define	TARGET_DEFAULT (MASK_POWERPC | MASK_NEW_MNEMONICS)
+#define	TARGET_DEFAULT 0
 
 /* Override rs6000.h definition.  */
 #undef	PROCESSOR_DEFAULT
 #define	PROCESSOR_DEFAULT PROCESSOR_PPC750
-
-/* SVR4 only defined for PowerPC, so short-circuit POWER patterns.  */
-#undef  TARGET_POWER
-#define TARGET_POWER 0
 
 #define FIXED_R2 1
 /* System V.4 uses register 13 as a pointer to the small data area,
@@ -242,16 +237,6 @@ do {									\
 #undef	WORDS_BIG_ENDIAN
 #define	BYTES_BIG_ENDIAN (TARGET_BIG_ENDIAN)
 #define	WORDS_BIG_ENDIAN (TARGET_BIG_ENDIAN)
-
-/* Define cutoff for using external functions to save floating point.
-   When optimizing for size, use external functions when profitable.  */
-#define FP_SAVE_INLINE(FIRST_REG) (optimize_size			\
-				   ? ((FIRST_REG) == 62			\
-				      || (FIRST_REG) == 63)		\
-				   : (FIRST_REG) < 64)
-/* And similarly for general purpose registers.  */
-#define GP_SAVE_INLINE(FIRST_REG) ((FIRST_REG) < 32	\
-				   && !optimize_size)
 
 /* Put jump tables in read-only memory, rather than in .text.  */
 #define JUMP_TABLES_IN_TEXT_SECTION 0
@@ -466,7 +451,7 @@ do {									\
 do {									\
   if (DEFAULT_ABI == ABI_V4)						\
     asm_fprintf (FILE,							\
-		 "\t{stu|stwu} %s,-16(%s)\n\t{st|stw} %s,12(%s)\n",	\
+		 "\tstwu %s,-16(%s)\n\tstw %s,12(%s)\n",	\
 		 reg_names[1], reg_names[1], reg_names[REGNO],		\
 		 reg_names[1]);						\
 } while (0)
@@ -478,7 +463,7 @@ do {									\
 do {									\
   if (DEFAULT_ABI == ABI_V4)						\
     asm_fprintf (FILE,							\
-		 "\t{l|lwz} %s,12(%s)\n\t{ai|addic} %s,%s,16\n",	\
+		 "\tlwz %s,12(%s)\n\taddic %s,%s,16\n",	\
 		 reg_names[REGNO], reg_names[1], reg_names[1],		\
 		 reg_names[1]);						\
 } while (0)
@@ -516,8 +501,8 @@ extern int fixuplabelno;
 #define TARGET_OS_SYSV_CPP_BUILTINS()		\
   do						\
     {						\
-      if (target_flags_explicit			\
-	  & MASK_RELOCATABLE)			\
+      if (rs6000_isa_flags_explicit		\
+	  & OPTION_MASK_RELOCATABLE)		\
 	builtin_define ("_RELOCATABLE");	\
     }						\
   while (0)

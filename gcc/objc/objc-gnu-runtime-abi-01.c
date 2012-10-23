@@ -24,10 +24,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 
 #ifdef OBJCPLUS
-#include "cp-tree.h"
+#include "cp/cp-tree.h"
 #else
-#include "c-tree.h"
-#include "c-lang.h"
+#include "c/c-tree.h"
+#include "c/c-lang.h"
 #endif
 
 #include "langhooks.h"
@@ -574,8 +574,6 @@ gnu_runtime_abi_01_get_class_reference (tree ident)
 						(IDENTIFIER_LENGTH (ident) + 1,
 						 IDENTIFIER_POINTER (ident)));
 
-  /* FIXME: Do we need this assemble_external() ? */
-  /* assemble_external (objc_get_class_decl);*/
   return build_function_call (input_location, objc_get_class_decl, params);
 }
 
@@ -839,8 +837,6 @@ gnu_runtime_abi_01_get_category_super_ref (location_t loc ATTRIBUTE_UNUSED,
 
   add_class_reference (super_name);
   super_class = (inst_meth ? objc_get_class_decl : objc_get_meta_class_decl);
-  /* FIXME: Do we need this assemble_external() ? */
-  /* assemble_external (super_class);*/
   super_name = my_build_string_pointer (IDENTIFIER_LENGTH (super_name) + 1,
 					IDENTIFIER_POINTER (super_name));
   /* super_class = get_{meta_}class("CLASS_SUPER_NAME");  */

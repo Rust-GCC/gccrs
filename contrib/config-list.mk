@@ -12,11 +12,10 @@ TEST=all-gcc
 #
 # v850e1-elf is rejected by config.sub
 LIST = alpha-linux-gnu alpha-freebsd6 alpha-netbsd alpha-openbsd \
-  alpha-dec-osf5.1OPT-enable-obsolete alpha64-dec-vms alpha-dec-vms \
-  am33_2.0-linux \
-  arm-wrs-vxworks arm-freebsd6 arm-netbsdelf arm-linux \
-  arm-linux-androideabi arm-uclinux_eabi arm-ecos-elf arm-eabi \
-  arm-symbianelf arm-rtems arm-elf arm-wince-pe avr-rtems avr-elf \
+  alpha64-dec-vms alpha-dec-vms am33_2.0-linux \
+  arm-wrs-vxworks arm-netbsdelf \
+  arm-linux-androideabi arm-uclinux_eabi arm-eabi \
+  arm-symbianelf avr-rtems avr-elf \
   bfin-elf bfin-uclinux bfin-linux-uclibc bfin-rtems bfin-openbsd \
   c6x-elf c6x-uclinux cr16-elf cris-elf cris-linux crisv32-elf crisv32-linux \
   epiphany-elf epiphany-elfOPT-with-stack-offset=16 fido-elf \
@@ -37,14 +36,14 @@ LIST = alpha-linux-gnu alpha-freebsd6 alpha-netbsd alpha-openbsd \
   m32r-linux m32rle-linux m68k-elf m68k-netbsdelf \
   m68k-openbsd m68k-uclinux m68k-linux m68k-rtems \
   mcore-elf mep-elf microblaze-linux microblaze-elf \
-  mips-sgi-irix6.5OPT-with-stabsOPT-enable-threads=posixOPT-enable-obsolete \
   mips-netbsd \
   mips64el-st-linux-gnu mips64octeon-linux mipsisa64r2-linux \
-  mipsisa32r2-linux-gnu mips-openbsd mipsisa64r2-sde-elf mipsisa32-elfoabi \
+  mipsisa32r2-linux-gnu mipsisa64r2-sde-elf mipsisa32-elfoabi \
   mipsisa64-elfoabi mipsisa64r2el-elf mipsisa64sr71k-elf mipsisa64sb1-elf \
   mipsel-elf mips64-elf mips64vr-elf mips64orion-elf mips-rtems \
   mips-wrs-vxworks mipstx39-elf mmix-knuth-mmixware mn10300-elf moxie-elf \
-  moxie-uclinux moxie-rtems pdp11-aout picochip-elf powerpc-darwin8 \
+  moxie-uclinux moxie-rtems pdp11-aout picochip-elfOPT-enable-obsolete \
+  powerpc-darwin8 \
   powerpc-darwin7 powerpc64-darwin powerpc-freebsd6 powerpc-netbsd \
   powerpc-eabispe powerpc-eabisimaltivec powerpc-eabisim ppc-elf \
   powerpc-eabialtivec powerpc-xilinx-eabi powerpc-eabi \

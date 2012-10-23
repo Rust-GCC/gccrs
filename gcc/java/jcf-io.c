@@ -31,7 +31,7 @@ The Free Software Foundation is independent of Sun Microsystems, Inc.  */
 #include "jcf.h"
 #include "tree.h"
 #include "java-tree.h"
-#include "hashtab.h"
+#include "hash-table.h"
 #include <dirent.h>
 
 #include "zlib.h"
@@ -202,9 +202,7 @@ read_zip_member (JCF *jcf,  ZipDirectory *zipd, ZipFile *zipf)
     {
       char *buffer;
       z_stream d_stream; /* decompression stream */
-      d_stream.zalloc = (alloc_func) 0;
-      d_stream.zfree = (free_func) 0;
-      d_stream.opaque = (voidpf) 0;
+      memset (&d_stream, 0, sizeof (d_stream));
 
       jcf->buffer = XNEWVEC (unsigned char, zipd->uncompressed_size);
       d_stream.next_out = jcf->buffer;
@@ -273,20 +271,34 @@ find_classfile (char *filename, JCF *jcf, const char *dep_name)
   return open_class (filename, jcf, fd, dep_name);
 }
 
-/* Returns 1 if the CLASSNAME (really a char *) matches the name
-   stored in TABLE_ENTRY (also a char *).  */
 
-static int
-memoized_class_lookup_eq (const void *table_entry, const void *classname)
+/* Hash table helper.  */
+
+struct charstar_hash : typed_noop_remove <char>
 {
-  return strcmp ((const char *)classname, (const char *)table_entry) == 0;
+  typedef const char T;
+  static inline hashval_t hash (const T *candidate);
+  static inline bool equal (const T *existing, const T *candidate);
+};
+
+inline hashval_t
+charstar_hash::hash (const T *candidate)
+{
+  return htab_hash_string (candidate);
 }
+
+inline bool
+charstar_hash::equal (const T *existing, const T *candidate)
+{
+  return strcmp (existing, candidate) == 0;
+}
+
 
 /* A hash table keeping track of class names that were not found
    during class lookup.  (There is no need to cache the values
    associated with names that were found; they are saved in
    IDENTIFIER_CLASS_VALUE.)  */
-static htab_t memoized_class_lookups;
+static hash_table <charstar_hash> memoized_class_lookups;
 
 /* Returns a freshly malloc'd string with the fully qualified pathname
    of the .class file for the class CLASSNAME.  CLASSNAME must be
@@ -308,16 +320,13 @@ find_class (const char *classname, int classname_length, JCF *jcf)
   hashval_t hash;
 
   /* Create the hash table, if it does not already exist.  */
-  if (!memoized_class_lookups)
-    memoized_class_lookups = htab_create (37, 
-					  htab_hash_string, 
-					  memoized_class_lookup_eq,
-					  NULL);
+  if (!memoized_class_lookups.is_created ())
+    memoized_class_lookups.create (37);
 
   /* Loop for this class in the hashtable.  If it is present, we've
      already looked for this class and failed to find it.  */
-  hash = htab_hash_string (classname);
-  if (htab_find_with_hash (memoized_class_lookups, classname, hash))
+  hash = charstar_hash::hash (classname);
+  if (memoized_class_lookups.find_with_hash (classname, hash))
     return NULL;
 
   /* Allocate and zero out the buffer, since we don't explicitly put a
@@ -392,8 +401,8 @@ find_class (const char *classname, int classname_length, JCF *jcf)
 
   /* Remember that this class could not be found so that we do not
      have to look again.  */
-  *htab_find_slot_with_hash (memoized_class_lookups, classname, hash, INSERT)
-    = (void *) CONST_CAST (char *, classname);
+  *memoized_class_lookups.find_slot_with_hash (classname, hash, INSERT)
+    = classname;
 
   return NULL;
  found:
@@ -517,6 +526,26 @@ verify_constant_pool (JCF *jcf)
 	case CONSTANT_Integer:
 	case CONSTANT_Utf8:
 	case CONSTANT_Unicode:
+	  break;
+	case CONSTANT_MethodHandle:
+	  n = JPOOL_USHORT1 (jcf, i);
+	  if (n < 1 || n > 9)
+	    return i;
+	  n = JPOOL_USHORT2 (jcf, i);
+	  if (n <= 0 || n >= JPOOL_SIZE(jcf))
+	    return i;
+	  break;
+	case CONSTANT_MethodType:
+	  n = JPOOL_USHORT1 (jcf, i);
+	  if (n <= 0 || n >= JPOOL_SIZE(jcf)
+	      || JPOOL_TAG (jcf, n) != CONSTANT_Utf8)
+	    return i;
+	  break;
+	case CONSTANT_InvokeDynamic:
+	  n = JPOOL_USHORT2 (jcf, i);
+	  if (n <= 0 || n >= JPOOL_SIZE(jcf)
+	      || JPOOL_TAG (jcf, n) != CONSTANT_NameAndType)
+	    return i;
 	  break;
 	default:
 	  return i;

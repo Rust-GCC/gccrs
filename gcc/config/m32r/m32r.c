@@ -29,6 +29,7 @@
 #include "insn-config.h"
 #include "conditions.h"
 #include "output.h"
+#include "dbxout.h"
 #include "insn-attr.h"
 #include "flags.h"
 #include "expr.h"
@@ -36,7 +37,6 @@
 #include "recog.h"
 #include "diagnostic-core.h"
 #include "ggc.h"
-#include "integrate.h"
 #include "df.h"
 #include "tm_p.h"
 #include "target.h"
@@ -62,7 +62,7 @@ static void  block_move_call (rtx, rtx, rtx);
 static int   m32r_is_insn (rtx);
 static bool  m32r_legitimate_address_p (enum machine_mode, rtx, bool);
 static rtx   m32r_legitimize_address (rtx, rtx, enum machine_mode);
-static bool  m32r_mode_dependent_address_p (const_rtx);
+static bool  m32r_mode_dependent_address_p (const_rtx, addr_space_t);
 static tree  m32r_handle_model_attribute (tree *, tree, tree, int, bool *);
 static void  m32r_print_operand (FILE *, rtx, int);
 static void  m32r_print_operand_address (FILE *, rtx);
@@ -161,7 +161,7 @@ static const struct attribute_spec m32r_attribute_table[] =
 #undef  TARGET_RTX_COSTS
 #define TARGET_RTX_COSTS m32r_rtx_costs
 #undef  TARGET_ADDRESS_COST
-#define TARGET_ADDRESS_COST hook_int_rtx_bool_0
+#define TARGET_ADDRESS_COST hook_int_rtx_mode_as_bool_0
 
 #undef  TARGET_PROMOTE_PROTOTYPES
 #define TARGET_PROMOTE_PROTOTYPES hook_bool_const_tree_true
@@ -1293,7 +1293,7 @@ m32r_setup_incoming_varargs (cumulative_args_t cum, enum machine_mode mode,
       rtx regblock;
 
       regblock = gen_frame_mem (BLKmode,
-				plus_constant (arg_pointer_rtx,
+				plus_constant (Pmode, arg_pointer_rtx,
 					       FIRST_PARM_OFFSET (0)));
       set_mem_alias_set (regblock, get_varargs_alias_set ());
       move_block_from_reg (first_reg_offset, regblock, size);
@@ -1984,7 +1984,7 @@ m32r_legitimize_pic_address (rtx orig, rtx reg)
       if (CONST_INT_P (offset))
         {
           if (INT16_P (INTVAL (offset)))
-            return plus_constant (base, INTVAL (offset));
+            return plus_constant (Pmode, base, INTVAL (offset));
           else
 	    {
 	      gcc_assert (! reload_in_progress && ! reload_completed);
@@ -2011,7 +2011,7 @@ m32r_legitimize_address (rtx x, rtx orig_x ATTRIBUTE_UNUSED,
 /* Worker function for TARGET_MODE_DEPENDENT_ADDRESS_P.  */
 
 static bool
-m32r_mode_dependent_address_p (const_rtx addr)
+m32r_mode_dependent_address_p (const_rtx addr, addr_space_t as ATTRIBUTE_UNUSED)
 {
   if (GET_CODE (addr) == LO_SUM)
     return true;
@@ -2087,9 +2087,9 @@ m32r_print_operand (FILE * file, rtx x, int code)
 	     currently necessary, but keep it around.  */
 	  if (GET_CODE (XEXP (x, 0)) == PRE_INC
 	      || GET_CODE (XEXP (x, 0)) == PRE_DEC)
-	    output_address (plus_constant (XEXP (XEXP (x, 0), 0), 4));
+	    output_address (plus_constant (Pmode, XEXP (XEXP (x, 0), 0), 4));
 	  else
-	    output_address (plus_constant (XEXP (x, 0), 4));
+	    output_address (plus_constant (Pmode, XEXP (x, 0), 4));
 	  fputc (')', file);
 	}
       else
@@ -2327,7 +2327,8 @@ m32r_print_operand_address (FILE * file, rtx addr)
 	    fputs ("sda(", file);
 	  else
 	    fputs ("low(", file);
-	  output_addr_const (file, plus_constant (XEXP (base, 1), offset));
+	  output_addr_const (file, plus_constant (Pmode, XEXP (base, 1),
+						  offset));
 	  fputs ("),", file);
 	  fputs (reg_names[REGNO (XEXP (base, 0))], file);
 	}

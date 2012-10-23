@@ -1,6 +1,6 @@
 /* Subroutines for insn-output.c for Renesas H8/300.
    Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000,
-   2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
+   2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
    Contributed by Steve Chamberlain (sac@cygnus.com),
    Jim Wilson (wilson@cygnus.com), and Doug Evans (dje@cygnus.com).
@@ -316,6 +316,14 @@ h8300_option_override (void)
   static const char *const h8_pop_ops[2]  = { "pop"  , "pop.l"  };
   static const char *const h8_mov_ops[2]  = { "mov.w", "mov.l"  };
 
+#ifndef OBJECT_FORMAT_ELF
+  if (TARGET_H8300SX)
+    {
+      error ("-msx is not supported in coff");
+      target_flags |= MASK_H8300S;
+    }
+#endif
+
   if (TARGET_H8300)
     {
       cpu_type = (int) CPU_H8300;
@@ -339,9 +347,33 @@ h8300_option_override (void)
 
   if (TARGET_H8300 && TARGET_NORMAL_MODE)
     {
-      error ("-mn is used without -mh or -ms");
+      error ("-mn is used without -mh or -ms or -msx");
       target_flags ^= MASK_NORMAL_MODE;
     }
+
+  if (! TARGET_H8300S &&  TARGET_EXR)
+    {
+      error ("-mexr is used without -ms");
+      target_flags |= MASK_H8300S_1;
+    }
+
+  if (TARGET_H8300 && TARGET_INT32)
+   {
+      error ("-mint32 is not supported for H8300 and H8300L targets");
+      target_flags ^= MASK_INT32;
+   }
+
+ if ((!TARGET_H8300S  &&  TARGET_EXR) && (!TARGET_H8300SX && TARGET_EXR))
+   {
+      error ("-mexr is used without -ms or -msx");
+      target_flags |= MASK_H8300S_1;
+   }
+
+ if ((!TARGET_H8300S  &&  TARGET_NEXR) && (!TARGET_H8300SX && TARGET_NEXR))
+   {
+      warning (OPT_mno_exr, "-mno-exr valid only with -ms or -msx    \
+               - Option ignored!");
+   }
 
   /* Some of the shifts are optimized for speed by default.
      See http://gcc.gnu.org/ml/gcc-patches/2002-07/msg01858.html
@@ -448,7 +480,7 @@ byte_reg (rtx x, int b)
 	  handlers.  */							\
        || (h8300_current_function_interrupt_function_p ()		\
 	   && call_used_regs[regno]					\
-	   && !current_function_is_leaf)))
+	   && !crtl->is_leaf)))
 
 /* We use this to wrap all emitted insns in the prologue.  */
 static rtx
@@ -646,12 +678,13 @@ h8300_push_pop (int regno, int nregs, bool pop_p, bool return_p)
 	  /* Register REGNO + NREGS - 1 is popped first.  Before the
 	     stack adjustment, its slot is at address @sp.  */
 	  lhs = gen_rtx_REG (SImode, regno + j);
-	  rhs = gen_rtx_MEM (SImode, plus_constant (sp, (nregs - j - 1) * 4));
+	  rhs = gen_rtx_MEM (SImode, plus_constant (Pmode, sp,
+						    (nregs - j - 1) * 4));
 	}
       else
 	{
 	  /* Register REGNO is pushed first and will be stored at @(-4,sp).  */
-	  lhs = gen_rtx_MEM (SImode, plus_constant (sp, (j + 1) * -4));
+	  lhs = gen_rtx_MEM (SImode, plus_constant (Pmode, sp, (j + 1) * -4));
 	  rhs = gen_rtx_REG (SImode, regno + j);
 	}
       RTVEC_ELT (vec, i + j) = gen_rtx_SET (VOIDmode, lhs, rhs);
@@ -795,9 +828,9 @@ h8300_expand_prologue (void)
     return;
 
   if (h8300_monitor_function_p (current_function_decl))
-    /* My understanding of monitor functions is they act just like
-       interrupt functions, except the prologue must mask
-       interrupts.  */
+ /* The monitor function act as normal functions, which means it
+    can accept parameters and return values. In addition to this, 
+    interrupts are masked in prologue and return with "rte" in epilogue. */
     emit_insn (gen_monitor_prologue ());
 
   if (frame_pointer_needed)
@@ -925,8 +958,13 @@ h8300_expand_epilogue (void)
 int
 h8300_current_function_interrupt_function_p (void)
 {
-  return (h8300_interrupt_function_p (current_function_decl)
-	  || h8300_monitor_function_p (current_function_decl));
+  return (h8300_interrupt_function_p (current_function_decl));
+}
+
+int
+h8300_current_function_monitor_function_p ()
+{
+  return (h8300_monitor_function_p (current_function_decl));
 }
 
 /* Output assembly code for the start of the file.  */
@@ -1206,7 +1244,7 @@ h8300_rtx_costs (rtx x, int code, int outer_code, int opno ATTRIBUTE_UNUSED,
 	    *total = 0;
 	    return true;
 	  }
-	if (-4 <= n || n <= 4)
+	if (-4 <= n && n <= 4)
 	  {
 	    switch ((int) n)
 	      {
@@ -1408,6 +1446,12 @@ h8300_print_operand (FILE *file, rtx x, int code)
 
   switch (code)
     {
+    case 'C':
+      if (h8300_constant_length (x) == 2)
+       fprintf (file, ":16");
+      else
+       fprintf (file, ":32");
+      return;
     case 'E':
       switch (GET_CODE (x))
 	{
@@ -1965,7 +2009,8 @@ h8300_return_addr_rtx (int count, rtx frame)
   else
     ret = gen_rtx_MEM (Pmode,
 		       memory_address (Pmode,
-				       plus_constant (frame, UNITS_PER_WORD)));
+				       plus_constant (Pmode, frame,
+						      UNITS_PER_WORD)));
   set_mem_alias_set (ret, get_frame_alias_set ());
   return ret;
 }
@@ -2121,7 +2166,8 @@ h8300_get_index (rtx x, enum machine_mode mode, int *size)
    (the amount of decrement or increment being the length of the operand).  */
 
 static bool
-h8300_mode_dependent_address_p (const_rtx addr)
+h8300_mode_dependent_address_p (const_rtx addr,
+				addr_space_t as ATTRIBUTE_UNUSED)
 {
   if (GET_CODE (addr) == PLUS
       && h8300_get_index (XEXP (addr, 0), VOIDmode, 0) != XEXP (addr, 0))
@@ -2682,17 +2728,17 @@ h8300_swap_into_er6 (rtx addr)
   rtx insn = push (HARD_FRAME_POINTER_REGNUM);
   if (frame_pointer_needed)
     add_reg_note (insn, REG_CFA_DEF_CFA,
-		  plus_constant (gen_rtx_MEM (Pmode, stack_pointer_rtx),
+		  plus_constant (Pmode, gen_rtx_MEM (Pmode, stack_pointer_rtx),
 				 2 * UNITS_PER_WORD));
   else
     add_reg_note (insn, REG_CFA_ADJUST_CFA,
 		  gen_rtx_SET (VOIDmode, stack_pointer_rtx,
-			       plus_constant (stack_pointer_rtx, 4)));
+			       plus_constant (Pmode, stack_pointer_rtx, 4)));
 
   emit_move_insn (hard_frame_pointer_rtx, addr);
   if (REGNO (addr) == SP_REG)
     emit_move_insn (hard_frame_pointer_rtx,
-		    plus_constant (hard_frame_pointer_rtx,
+		    plus_constant (Pmode, hard_frame_pointer_rtx,
 				   GET_MODE_SIZE (word_mode)));
 }
 
@@ -2711,11 +2757,12 @@ h8300_swap_out_of_er6 (rtx addr)
   RTX_FRAME_RELATED_P (insn) = 1;
   if (frame_pointer_needed)
     add_reg_note (insn, REG_CFA_DEF_CFA,
-		  plus_constant (hard_frame_pointer_rtx, 2 * UNITS_PER_WORD));
+		  plus_constant (Pmode, hard_frame_pointer_rtx,
+				 2 * UNITS_PER_WORD));
   else
     add_reg_note (insn, REG_CFA_ADJUST_CFA,
 		  gen_rtx_SET (VOIDmode, stack_pointer_rtx,
-			       plus_constant (stack_pointer_rtx, -4)));
+			       plus_constant (Pmode, stack_pointer_rtx, -4)));
 }
 
 /* Return the length of mov instruction.  */

@@ -65,6 +65,45 @@ fix = {
 };
 
 
+/* On AIX when _LARGE_FILES is defined fcntl.h defines open to
+ * open64 and creat to creat64.  This fixes fcntl.h to
+ * undef those defines and use __asm__ to alias the symbols if
+ * building with g++ and -D_LARGE_FILES
+ */
+fix = {
+    hackname  = AAB_aix_fcntl;
+    files     = fcntl.h;
+    select    = "define open[ \t]open64";
+    mach      = "*-*-aix*";
+    test-text = ''; /* no way to test */
+
+    c_fix     = wrap;
+
+    c_fix_arg = "";
+
+    c_fix_arg = <<- _EOArg_
+
+	#if defined __GNUG__ && defined _LARGE_FILES && defined __cplusplus
+	#define __need__aix_fcntl_h_fix
+	#ifdef __need__aix_fcntl_h_fix
+	#undef open
+	#undef creat
+	#undef openat
+	/* Alias the symbols using asm */
+	extern "C" {
+	extern int open(const char *, int, ...) __asm__("open64");
+	extern int creat(const char *, mode_t) __asm__("creat64");
+	#if (_XOPEN_SOURCE >= 700)
+	extern int openat(int, const char *, int, ...) __asm__("open64at");
+	#endif
+	}
+	#endif
+	#endif
+
+	_EOArg_;
+};
+
+
 /*
  *  On Mac OS 10.3.9, the 'long double' functions are available in
  *  libSystem, but are not prototyped in math.h.
@@ -397,7 +436,9 @@ fix = {
 };
 
 /*
- *  pthread.h on AIX defines PTHREAD_ONCE_INIT without enough braces.
+ *  pthread.h on AIX defines PTHREAD_ONCE_INIT, PTHREAD_MUTEX_INITIALIZER,
+ *  PTHREAD_COND_INITIALIZER and PTHREAD_RWLOCK_INITIALIZER without enough
+ *  braces.
  */
 fix = {
     hackname  = aix_once_init_1;
@@ -423,6 +464,45 @@ fix = {
 		"}}\n";
     test_text = "	0 \\\\\n"
 		"}\n";
+};
+
+fix = {
+    hackname  = aix_mutex_initializer_1;
+    mach      = "*-*-aix*";
+    files     = "pthread.h";
+    select    = "#define[ \t]PTHREAD_MUTEX_INITIALIZER \\\\\n"
+		"\\{ \\\\\n";
+    c_fix     = format;
+    c_fix_arg = "#define PTHREAD_MUTEX_INITIALIZER \\\n"
+		"{{ \\\n";
+    test_text = "#define PTHREAD_MUTEX_INITIALIZER \\\\\n"
+		"{ \\\\\n";
+};
+
+fix = {
+    hackname  = aix_cond_initializer_1;
+    mach      = "*-*-aix*";
+    files     = "pthread.h";
+    select    = "#define[ \t]PTHREAD_COND_INITIALIZER \\\\\n"
+		"\\{ \\\\\n";
+    c_fix     = format;
+    c_fix_arg = "#define PTHREAD_COND_INITIALIZER \\\n"
+		"{{ \\\n";
+    test_text = "#define PTHREAD_COND_INITIALIZER \\\\\n"
+		"{ \\\\\n";
+};
+
+fix = {
+    hackname  = aix_rwlock_initializer_1;
+    mach      = "*-*-aix*";
+    files     = "pthread.h";
+    select    = "#define[ \t]PTHREAD_RWLOCK_INITIALIZER \\\\\n"
+		"\\{ \\\\\n";
+    c_fix     = format;
+    c_fix_arg = "#define PTHREAD_RWLOCK_INITIALIZER \\\n"
+		"{{ \\\n";
+    test_text = "#define PTHREAD_RWLOCK_INITIALIZER \\\\\n"
+		"{ \\\\\n";
 };
 
 /*
@@ -599,63 +679,6 @@ fix = {
 
 
 /*
- *  Obey __PRAGMA_EXTERN_PREFIX for Tru64 UNIX V4/5 headers.
- */
-fix = {
-    hackname  = alpha___extern_prefix;
-    select    = "(.*)(defined\\(__DECC\\)|def[ \t]*__DECC)[ \t]*\n"
-                "(#[ \t]*pragma[ \t]*extern_prefix.*)";
-
-    mach      = "alpha*-dec-osf*";
-    c_fix     = format;
-    c_fix_arg = "%1 (defined(__DECC) || defined(__PRAGMA_EXTERN_PREFIX))\n%3";
-
-    test_text = "#ifdef  __DECC\n"
-		"#pragma extern_prefix \"_P\"\n"
-		"#   if defined(__DECC)\n"
-		"#     pragma extern_prefix \"_E\"\n"
-		"# if !defined(_LIBC_POLLUTION_H_) && defined(__DECC)\n"
-		"#  pragma extern_prefix \"\"";
-};
-
-
-/*
- *  Obey __PRAGMA_EXTERN_PREFIX for Tru64 UNIX V4/5 <standards.h>.
- */
-fix = {
-    hackname  = alpha___extern_prefix_standards;
-    files     = standards.h;
-    select    = ".*!defined\\(_LIBC_POLLUTION_H_\\) && !defined\\(__DECC\\)";
-
-    mach      = "alpha*-dec-osf*";
-    c_fix     = format;
-    c_fix_arg = "%0 && !defined(__PRAGMA_EXTERN_PREFIX)";
-
-    test_text = "#if (_ISO_C_SOURCE>=19990L) "
-                "&& !defined(_LIBC_POLLUTION_H_) && !defined(__DECC)";
-};
-
-
-/*
- *  Obey __PRAGMA_EXTERN_PREFIX for Tru64 UNIX V5 <sys/mount.h> and
- *  <sys/stat.h>.  The tests for __DECC are special in various ways, so
- *  alpha__extern_prefix cannot be used.
- */
-fix = {
-    hackname  = alpha___extern_prefix_sys_stat;
-    files     = sys/stat.h;
-    files     = sys/mount.h;
-    select    = "#[ \t]*if[ \t]*defined\\(__DECC\\)";
-
-    mach      = "alpha*-dec-osf5*";
-    c_fix     = format;
-    c_fix_arg = "%0 || defined(__PRAGMA_EXTERN_PREFIX)";
-
-    test_text = "#   if defined(__DECC)";
-};
-
-
-/*
  *  Fix assert macro in assert.h on Alpha OSF/1.
  *  The superfluous int cast breaks C++.
  */
@@ -667,37 +690,6 @@ fix = {
     c_fix_arg = "%1(EX)";
     test_text = '#define assert(EX) (((int) (EX)) ? (void)0 '
                 ': __assert(#EX, __FILE__, __LINE__))';
-};
-
-
-/*
- *  Fix #defines under Alpha OSF/1:
- *  The following files contain '#pragma extern_prefix "_FOO"' followed by
- *  a '#define something(x,y,z) _FOOsomething(x,y,z)'.  The intent of these
- *  statements is to reduce namespace pollution.  While these macros work
- *  properly in most cases, they don't allow you to take a pointer to the
- *  "something" being modified.  To get around this limitation, change these
- *  statements to be of the form '#define something _FOOsomething'.
- *
- *  sed ain't egrep, lesson 2463:  sed can use self-referential
- *  regular expressions.  In the substitute expression below,
- *  "\\1" and "\\2" refer to subexpressions found earlier in the
- *  same match.  So, we continue to use sed.  "extern_prefix" will
- *  be a rare match anyway...
- */
-fix = {
-    hackname = alpha_bad_lval;
-
-    select   = "^[ \t]*#[ \t]*pragma[ \t]+extern_prefix";
-    mach      = "alpha*-dec-osf*";
-
-    sed      =
-        "s/^[ \t]*#[ \t]*define[ \t][ \t]*\\([^(]*\\)\\(([^)]*)\\)[ \t]*"
-               "\\(_.*\\)\\1\\2[ \t]*$/#define \\1 \\3\\1/";
-
-    test_text = '#pragma extern_prefix "_FOO"'"\n"
-                "#define something(x,y,z) _FOOsomething(x,y,z)\n"
-                "#define mumble _FOOmumble";
 };
 
 
@@ -738,99 +730,6 @@ fix = {
     c_fix     = format;
     c_fix_arg = "#ifndef __mips64";
     test_text = "#ifndef(__mips64) /* bogus */\nextern int foo;\n#endif";
-};
-
-
-/*
- *  Obey __PRAGMA_EXTERN_PREFIX for Tru64 UNIX <pthread.h>.
- */
-fix = {
-    hackname  = alpha_pthread;
-    files     = pthread.h;
-    select    = "((#[ \t]*if)([ \t]*defined[ \t]*\\(_PTHREAD_ENV_DECC\\)"
-                "|def _PTHREAD_ENV_DECC)(.*))\n"
-		"(#[ \t]*define _PTHREAD_USE_PTDNAM_)";
-
-    mach      = "alpha*-dec-osf*";
-    c_fix     = format;
-    c_fix_arg = "%2 defined (_PTHREAD_ENV_DECC)%4 "
-                "|| defined (__PRAGMA_EXTERN_PREFIX)\n%5";
-
-    test_text = "#  if defined (_PTHREAD_ENV_DECC) "
-                      "|| defined (_PTHREAD_ENV_EPCC)\n"
-		"#   define _PTHREAD_USE_PTDNAM_\n"
-		"#  endif\n"
-		"#  ifdef _PTHREAD_ENV_DECC\n"
-		"#   define _PTHREAD_USE_PTDNAM_\n"
-		"#  endif";
-};
-
-
-/*
- *  Recognize GCC in Tru64 UNIX V5.1B <pthread.h>.
- */
-fix = {
-    hackname  = alpha_pthread_gcc;
-    files     = pthread.h;
-    select    = "#else\n# error <pthread.h>: unrecognized compiler.";
-
-    mach      = "alpha*-dec-osf*";
-    c_fix     = format;
-    c_fix_arg = "#elif defined (__GNUC__)\n"
-		"# define _PTHREAD_ENV_GCC\n"
-    		"%0";
-
-    test_text = "# define _PTHREAD_ENV_INTELC\n"
-		"#else\n"
-		"# error <pthread.h>: unrecognized compiler.\n"
-		"#endif";
-};
-
-
-/*
- * Compaq Tru64 v5.1 defines all of its PTHREAD_*_INITIALIZER macros
- * incorrectly, specifying less fields in the initializers than are
- * defined in the corresponding structure types.  Use of these macros
- * in user code results in spurious warnings.
- */
-fix = {
-    hackname  = alpha_pthread_init;
-    files     = pthread.h;
-    select    = ' \* @\(#\).RCSfile: pthread\.h,v \$'
-                ' .Revision: 1\.1\.33\.21 \$ \(DEC\)'
-                ' .Date: 2000/08/15 15:30:13 \$';
-    mach      = "alpha*-dec-osf*";
-    sed       = "s@MVALID\\(.*\\)A}@MVALID\\1A, 0, 0, 0, 0, 0, 0 }@\n"
-                "s@MVALID\\(.*\\)_}@MVALID\\1_, 0, 0, 0, 0 }@\n"
-                "s@CVALID\\(.*\\)A}@CVALID\\1A, 0, 0, 0, 0 }@\n"
-                "s@CVALID\\(.*\\)_}@CVALID\\1_, 0, 0 }@\n"
-                "s@WVALID\\(.*\\)A}@WVALID\\1A, 0, 0, 0, 0, 0, 0, 0, 0, 0 }@\n"
-                "s@WVALID\\(.*\\)_}@WVALID\\1_, 0, 0, 0, 0, 0, 0, 0 }@\n";
-    test_text = <<- _EOText_
-	/*
-	 * @(#)_RCSfile: pthread.h,v $ _Revision: 1.1.33.21 $ (DEC) _Date: 2000/08/15 15:30:13 $
-	 */
-	#ifndef _PTHREAD_NOMETER_STATIC
-	# define PTHREAD_MUTEX_INITIALIZER \
-	    {_PTHREAD_MSTATE_CONFIG, _PTHREAD_MVALID | _PTHREAD_MVF_STA}
-	# define PTHREAD_COND_INITIALIZER \
-	    {_PTHREAD_CSTATE_SLOW, _PTHREAD_CVALID | _PTHREAD_CVF_STA}
-	# define PTHREAD_MUTEX_INITWITHNAME_NP(_n_,_a_) \
-	    {_PTHREAD_MSTATE_CONFIG, _PTHREAD_MVALID | _PTHREAD_MVF_STA, _n_, _a_}
-	# define PTHREAD_COND_INITWITHNAME_NP(_n_,_a_) \
-	    {_PTHREAD_CSTATE_SLOW, _PTHREAD_CVALID | _PTHREAD_CVF_STA, _n_, _a_}
-	#else
-	# define PTHREAD_MUTEX_INITIALIZER {0, _PTHREAD_MVALID | _PTHREAD_MVF_STA}
-	# define PTHREAD_MUTEX_INITWITHNAME_NP(_n_,_a_) \
-	    {0, _PTHREAD_MVALID | _PTHREAD_MVF_STA, _n_, _a_}
-	# define PTHREAD_COND_INITWITHNAME_NP(_n_,_a_) \
-	    {0, _PTHREAD_CVALID | _PTHREAD_CVF_STA, _n_, _a_}
-	#endif
-
-	#define PTHREAD_RWLOCK_INITIALIZER {_PTHREAD_RWVALID | _PTHREAD_RWVF_STA}
-	#define PTHREAD_RWLOCK_INITWITHNAME_NP(_n_,_a_) \
-	        {_PTHREAD_RWVALID | _PTHREAD_RWVF_STA, _n_, _a_}
-	_EOText_;
 };
 
 
@@ -974,10 +873,6 @@ fix = {
 /*
  *  Remove `extern double cabs' declarations from math.h.
  *  This conflicts with C99.  Discovered on AIX.
- *  IRIX 5 and IRIX 6 before 6.5.18 (where C99 support was introduced)
- *  declares cabs() to take a struct __cabs_s argument.
- *  SunOS4 has its cabs() declaration followed by a comment which
- *  terminates on the following line.
  *  Darwin hides its broken cabs in architecture-specific subdirs.
  */
 fix = {
@@ -993,11 +888,7 @@ fix = {
                 "#else\n"
                 "extern     double   cabs();\n"
                 "#endif\n"
-                "extern double cabs ( _Complex z );\n"
-                "extern double cabs(); /* This is a comment\n"
-                "                         and it ends here. */\n"
-                "extern double	cabs(struct __cabs_s);\n"
-                "extern long double cabsl( struct __cabsl_s );";
+                "extern double cabs ( _Complex z );";
 };
 
 
@@ -2437,110 +2328,6 @@ fix = {
 
 
 /*
- *  IRIX 6.5.1[89] <internal/sgimacros.h> unconditionally defines
- *  __restrict as restrict iff __c99.  This is wrong for C++, which
- *  needs many C99 features, but only supports __restrict.
- */
-fix = {
-    hackname  = irix___restrict;
-    files     = internal/sgimacros.h;
-    select    = "(#ifdef __c99\n)(#[ \t]*define __restrict restrict)";
-
-    mach      = "mips-sgi-irix6.5";
-    c_fix     = format;
-    c_fix_arg = "%1"
-		"#  ifndef __cplusplus\n%2\n#  endif";
-
-    test_text = "#ifdef __c99\n#  define __restrict restrict";
-};
-
-/*
- * IRIX 6.5.22 <internal/math_core.h> uses the SGI c99 __generic() intrinsic
- * to define the fpclasify, isfinite, isinf, isnan, isnormal and signbit 
- * functions.
- *
- * This was probably introduced around IRIX 6.5.18
- */
-fix = {
-    hackname  = irix___generic1;
-    files     = internal/math_core.h;
-    mach      = "mips-sgi-irix6.5";
-    select    = "#define ([a-z]+)\\(x\\) *__generic.*";
-
-    c_fix     = format;
-    c_fix_arg = "extern int %1(double);\n"
-		"extern int %1f(float);\n"
-		"extern int %1l(long double);\n"
-		"#define %1(x) (sizeof(x) == sizeof(double) ? _%1(x) \\\n"
-		"               : sizeof(x) == sizeof(float) ? _%1f(x) \\\n"
-		"               : _%1l(x))\n";
-
-    test_text = 
-      "#define isnan(x) __generic(x,,, _isnan, _isnanf, _isnanl,,,)(x)\n";
-};
-
-
-/* Likewise <internal/math_core.h> on IRIX 6.5.19 and later uses the SGI
-   compiler's __generic intrinsic to define isgreater, isgreaterequal,
-   isless, islessequal, islessgreater and isunordered functions.  */
-fix = {
-    hackname  = irix___generic2;
-    files     = internal/math_core.h;
-    mach      = "mips-sgi-irix6.5";
-    select    = "#define ([a-z]+)\\(x,y\\) *__generic.*";
-
-    c_fix     = format;
-    c_fix_arg = "#define %1(x,y) \\\n"
-		"  ((sizeof(x)<=4 && sizeof(y)<=4) ? _%1f(x,y) \\\n"
-		"   : (sizeof(x)<=8 && sizeof(y)<=8) ? _%1(x,y) \\\n"
-		"   : _%1l(x,y))\n";
-
-    test_text = 
-      "#define isless(x,y)         __generic(x,y,, _isless, _islessf, _islessl,,,)(x,y)";
-};
-
-
-/*
- *  IRIX 5.2's <sys/asm.h> contains an asm comment with a contraction
- *  that causes the assembly preprocessor to complain about an
- *  unterminated character constant.
- */
-fix = {
-    hackname  = irix_asm_apostrophe;
-    files     = sys/asm.h;
-
-    select    = "^[ \t]*#.*[Ww]e're";
-    c_fix     = format;
-    c_fix_arg = "%1 are";
-    c_fix_arg = "^([ \t]*#.*[Ww]e)'re";
-    test_text = "\t# and we're on vacation";
-};
-
-
-/*
- * IRIX 6.5 complex.h defines _Complex_I and _Imaginary_I in terms of __I__,
- * which is a MIPSpro compiler builtin.  Remove _Imaginary_I and imaginary
- * definitions which are not supported by GCC. 
- */
-fix = {
-    hackname  = irix_complex;
-    mach      = "mips-sgi-irix6.5";
-    files     = complex.h;
-    select    = "#define[ \t]_Complex_I[ \t]\\(\\(float[ \t]_Complex\\)[ \t]\\(__I__\\)\\)";
-    sed	      = "s/#define[ \t]_Complex_I[ \t]((float[ \t]_Complex)[ \t](__I__))/"
-		"#define _Complex_I (__extension__ 1.0iF)/";
-    sed	      = "/#define[ \t]imaginary[ \t]_Imaginary/d";
-    sed	      = "/#define[ \t]_Imaginary_I/d";
-    sed       = "s/#define[ \t]I[ \t]_Imaginary_I/#define I _Complex_I/";
-    test_text = "#define _Complex_I ((float _Complex) (__I__))\n"
-		"#define imaginary _Imaginary\n"
-		"// #define _Imaginary_I ((float _Imaginary) 1)\n"
-		"#define _Imaginary_I __I__\n"
-		"#define I _Imaginary_I";
-};
-
-
-/*
  *  Non-traditional "const" declaration in Irix's limits.h.
  */
 fix = {
@@ -2554,181 +2341,18 @@ fix = {
 
 
 /*
- *  IRIX 6.5 PTHREAD_*_INITIALIZER need an additional level of braces in
- *  <pthread.h>.
- */
-fix = {
-    hackname    = irix_pthread_init;
-    files       = pthread.h;
-    select      = "^(#define[ \t]+PTHREAD_.*_INITIALIZER[ \t]+)(\\{ 0 \\})";
-
-    mach	= "mips-sgi-irix6.5";
-    c_fix       = format;
-    c_fix_arg   = "%1{ %2 }";
-    test_text   = "#define PTHREAD_MUTEX_INITIALIZER	{ 0 }\n"
-		  "#define PTHREAD_COND_INITIALIZER	{ 0 }\n"
-		  "#define PTHREAD_RWLOCK_INITIALIZER	{ 0 }";
-};
-
-
-/*
- *  IRIX 6.5.1[78] <sys/socket.h> has a broken definition of socklen_t.
- *  Various socket function prototypes use different types instead,
- *  depending on the API in use (BSD, XPG4/5), but the socklen_t
- *  definition doesn't reflect this (SGI Bug Id 864477, fixed in
- *  IRIX 6.5.19).
- */
-fix = {
-    hackname  = irix_socklen_t;
-    files     = sys/socket.h;
-    select    = "(#define _SOCKLEN_T\n)(typedef u_int32_t socklen_t;)";
-
-    mach      = "mips-sgi-irix6.5";
-    c_fix     = format;
-    c_fix_arg = "%1"
-    		"#if _NO_XOPEN4 && _NO_XOPEN5\n"
-    		"typedef int socklen_t;\n"
-		"#else\n"
-    		"%2\n"
-    		"#endif /* _NO_XOPEN4 && _NO_XOPEN5 */";
-
-    test_text = "#define _SOCKLEN_T\ntypedef u_int32_t socklen_t;";
-};
-
-/*
- *  IRIX 6.5 <stdint.h> only works with ISO C99 and errors out
- *  otherwise.
- */
-fix = {
-    hackname  = irix_stdint_c99_mode;
-    files     = stdint.h;
-    select = "(#ifndef __c99\n)(#error This header file is to be used only for c99 mode compilations)";
-
-    mach      = "mips-sgi-irix6.5";
-    c_fix  = format;
-    c_fix_arg = "#if 0\n"
-	        "%2";
-    test_text =
-    "#ifndef __c99\n#error This header file is to be used only for c99 mode compilations\n#else";
-};
-
-
-/*
- *  IRIX 6.5 <stdint.h> has some *_MIN/MAX constants whose types don't
- *  match the corresponding types, as required by ISO C99.
- */
-fix = {
-    hackname  = irix_stdint_c99_types;
-    files     = stdint-irix65.h, stdint.h;
-    mach      = "mips-sgi-irix6.5";
-    sed       = "s@^#define INT64_MIN.*(-0x7fffffffffffffff - 1)$@"
-                "#define INT64_MIN               (-0x7fffffffffffffffLL - 1)@";
-    sed       = "s@^#define INT64_MAX.*0x7fffffffffffffff$@"
-                "#define INT64_MAX               0x7fffffffffffffffLL@";
-    sed       = "s@^#define UINT32_MAX.*0xffffffff$@"
-                "#define UINT32_MAX              0xffffffffU@";
-    sed       = "s@^#define UINT64_MAX.*0xffffffffffffffff$@"
-                "#define UINT64_MAX              0xffffffffffffffffULL@";
-    sed       = "s@^#define INTPTR_MIN.*INT32_MIN$@"
-                "#define INTPTR_MIN              (-0x7fffffffL - 1)@";
-    sed       = "s@^#define INTPTR_MAX.*INT32_MAX$@"
-                "#define INTPTR_MAX              0x7fffffffL@";
-    sed       = "s@^#define UINTPTR_MAX.*UINT32_MAX$@"
-                "#define UINTPTR_MAX             0xffffffffUL@";
-    sed       = "s@^#define INTPTR_MIN.*INT64_MIN@"
-                "#define INTPTR_MIN              (-0x7fffffffffffffffL - 1)@";
-    sed       = "s@^#define INTPTR_MAX.*INT64_MAX$@"
-                "#define INTPTR_MAX              0x7fffffffffffffffL@";
-    sed       = "s@^#define UINTPTR_MAX.*UINT64_MAX$@"
-                "#define UINTPTR_MAX             0xffffffffffffffffUL@";
-    sed       = "s@^#define PTRDIFF_MIN.*INT64_MIN$@"
-                "#define PTRDIFF_MIN             (-0x7fffffffffffffffL - 1)@";
-    sed       = "s@^#define PTRDIFF_MAX.*INT64_MAX$@"
-                "#define PTRDIFF_MAX             0x7fffffffffffffffL@";
-    sed       = "s@^#define SIZE_MAX.*UINT64_MAX$@"
-                "#define SIZE_MAX                0xffffffffffffffffUL@";
-    test_text = "#define INT64_MIN               (-0x7fffffffffffffff - 1)\n"
-                "#define INT64_MAX               0x7fffffffffffffff\n"
-                "#define UINT32_MAX              0xffffffff\n"
-                "#define UINT64_MAX              0xffffffffffffffff\n"
-                "#define INTPTR_MIN              INT32_MIN\n"
-                "#define INTPTR_MAX              INT32_MAX\n"
-                "#define UINTPTR_MAX             UINT32_MAX\n"
-                "#define INTPTR_MIN              INT64_MIN\n"
-                "#define INTPTR_MAX              INT64_MAX\n"
-                "#define UINTPTR_MAX             UINT64_MAX\n"
-                "#define PTRDIFF_MIN             INT64_MIN\n"
-                "#define PTRDIFF_MAX             INT64_MAX\n"
-                "#define SIZE_MAX                UINT64_MAX";
-};
-
-
-/*
- *  IRIX 6.5 <stdint.h> uses casts in some macros which cannot thus be used
- *  in preprocessor tests, although ISO C99 requires this.
- */
-fix = {
-    hackname  = irix_stdint_c99_macros;
-    files     = stdint-irix65.h, stdint.h;
-    mach      = "mips-sgi-irix6.5";
-    sed       = "s@^#define INT8_C(x).*int.*_t.*$@#define INT8_C(x)               (x)@";
-    sed       = "s@^#define INT16_C(x).*int.*_t.*$@#define INT16_C(x)              (x)@";
-    sed       = "s@^#define INT32_C(x).*int.*_t.*$@#define INT32_C(x)              (x)@";
-    sed       = "s@^#define INT64_C(x).*int.*_t.*$@#define INT64_C(x)              (x ## LL)@";
-    sed       = "s@^#define UINT8_C(x).*int.*_t.*$@#define UINT8_C(x)              (x)@";
-    sed       = "s@^#define UINT16_C(x).*int.*_t.*$@#define UINT16_C(x)             (x)@";
-    sed       = "s@^#define UINT32_C(x).*int.*_t.*$@#define UINT32_C(x)             (x ## U)@";
-    sed       = "s@^#define UINT64_C(x).*int.*_t.*$@#define UINT64_C(x)             (x ## ULL)@";
-    sed       = "s@^#define INTMAX_C(x).*int.*_t.*$@#define INTMAX_C(x)             (x ## LL)@";
-    sed       = "s@^#define UINTMAX_C(x).*int.*_t.*$@#define UINTMAX_C(x)            (x ## ULL)@";
-    test_text = "#define INT8_C(x)               (int_least8_t)(x)\n"
-                "#define INT16_C(x)              (int_least16_t)(x)\n"
-                "#define INT32_C(x)              (int_least32_t)(x)\n"
-                "#define INT64_C(x)              (int_least64_t)(x)\n"
-                "#define UINT8_C(x)              (uint_least8_t)(x)\n"
-                "#define UINT16_C(x)             (uint_least16_t)(x)\n"
-                "#define UINT32_C(x)             (uint_least32_t)(x)\n"
-                "#define UINT64_C(x)             (uint_least64_t)(x)\n"
-                "#define INTMAX_C(x)             (intmax_t)(x)\n"
-                "#define UINTMAX_C(x)            (uintmax_t)(x)";
-};
-
-
-/*
- *  IRIX 5.x's stdio.h and IRIX 6.5's internal/stdio_core.h declare
- *  some functions that take a va_list as
+ *  IRIX 5.x's stdio.h declares some functions that take a va_list as
  *  taking char *.  However, GCC uses void * for va_list, so
  *  calling vfprintf with a va_list fails in C++.  */
 fix = {
     hackname  = irix_stdio_va_list;
     files     = stdio.h;
-    files     = internal/stdio_core.h;
 
     select = '/\* va_list \*/ char \*';
     c_fix  = format;
     c_fix_arg = "__gnuc_va_list";
     test_text =
     "extern int printf( const char *, /* va_list */ char * );";
-};
-
-
-/*
- *  IRIX 6.5.19 <internal/wchar_core.h> provides the XPG4 variant of
- *  wcsftime by default.  ISO C99 requires the XPG5 variant instead.
- */
-fix = {
-    hackname  = irix_wcsftime;
-    files     = internal/wchar_core.h;
-    select    = "#if _NO_XOPEN5\n(extern size_t[ \t]+wcsftime.*const char \*.*)";
-
-    mach      = "mips-sgi-irix6.5";
-    c_fix     = format;
-    c_fix_arg = "#if _NO_XOPEN5 && !defined(__c99)\n%1";
-
-    test_text = "#if _NO_XOPEN5\n"
-		"extern size_t wcsftime(wchar_t *, "
-		"__SGI_LIBC_NAMESPACE_QUALIFIER size_t, const char *, "
-		"const struct tm *);";
 };
 
 
@@ -2851,7 +2475,7 @@ fix = {
     files     = math.h;
     select    = "struct exception";
     /*
-     * This should be bypassed on __cplusplus, but some supposedly C++ C++
+     * This should be bypassed on __cplusplus, but some supposedly C++
      * aware headers, such as Solaris 8 and 9, don't wrap their struct
      * exception either.  So currently we bypass only for glibc, based on a
      * comment in the fixed glibc header.  Ick.
@@ -3395,26 +3019,6 @@ fix = {
 
 
 /*
- * Solaris 8 PTHREAD_COND_INITIALIZER lacks the __pthread_cond_magic field.
- * COND_MAGIC is only defined in <synch.h> and pollutes the namespace, so
- * use the value literally instead.
- */
-fix = {
-    hackname = solaris_cond_init;
-    select = '@\(#\)pthread.h' "[ \t]+1.[0-9]+[ \t]+[0-9/]+ SMI";
-    files = pthread.h;
-    mach = '*-*-solaris2.8';
-    c_fix = format;
-    c_fix_arg = "%1, 0x4356%2";
-    c_fix_arg = "^(#define[ \t]+PTHREAD_COND_INITIALIZER[ \t]+"
-                "\\{.*0)(\\},[ \t]*0\\}.*)$";
-    test_text =
-    '#pragma ident	"@(#)pthread.h	1.29	01/07/07 SMI"'"\n"
-    '#define	PTHREAD_COND_INITIALIZER	{{{0}, 0}, 0}	/* = DEFAULTCV */';
-};
-
-
-/*
  *  g++ rejects functions declared with both C and C++ linkage.
  */
 fix = {
@@ -3891,13 +3495,13 @@ fix = {
 
 
 /*
- * On Solaris 8 and 9, __va_list needs to become a typedef for
+ * On Solaris 9, __va_list needs to become a typedef for
  * __builtin_va_list to make -Wmissing-format-attribute work.
  */
 fix = {
     hackname = solaris_sys_va_list;
     files    = sys/va_list.h;
-    mach     = '*-*-solaris2.[89]';
+    mach     = '*-*-solaris2.9';
     select   = "#if.*__STDC__.*\n"
 	       "typedef void \\*__va_list;\n"
 	       "#else\n"
@@ -3961,15 +3565,11 @@ fix = {
  *  of __gnuc_va_list, __DJ_va_list, or _G_va_list is taken to
  *  indicate that the header knows what it's doing -- under SUSv2,
  *  stdio.h is required to define va_list, and we shouldn't break
- *  that.  On IRIX 6.5, internal/wchar_core.h used to get its
- *  definition of va_list from stdio.h.  Since this doesn't happen any
- *  longer, use __gnuc_va_list there, too.
+ *  that.
  */
 fix = {
     hackname = stdio_va_list;
     files    = stdio.h;
-    files    = internal/stdio_core.h;
-    files    = internal/wchar_core.h;
     bypass   = '__gnuc_va_list|_BSD_VA_LIST_|__DJ_va_list|_G_va_list';
     /* 
      * On Solaris 10, the definition in 
@@ -4345,9 +3945,6 @@ fix = {
 
     select    =
     'profil\(unsigned short \*, unsigned int, unsigned int, unsigned int\)';
-    /* The fix is wrong on IRIX 5/6 and creates a conflict with another
-       prototype in <sys/profil.h>.  */
-    bypass    = 'Silicon Graphics';
     c_fix     = format;
     c_fix_arg = 'profil(unsigned short *, size_t, int, unsigned int)';
 
@@ -4621,6 +4218,129 @@ fix = {
     c_fix_arg = "#if !defined(__VAX) && !defined(__GNUC__)\n";
 
     test_text = "#if !defined(__VAX)\n";
+};
+
+/*
+ * On VMS, change <resource.h> to <sys/resource.h> to avoid a
+ * conflict while building gcc.  Likewise for <builtins.h>
+ */
+fix = {
+    hackname  = vms_use_quoted_include;
+    select    = "(#[ \t]*include[ \t]+)<(resource|builtins)\\.h>";
+    mach      = "*-*-*vms*";
+    files     = rtldef/wait.h, starlet_c/pthread.h;
+    c_fix     = format;
+
+    c_fix_arg = '%1<sys/%2.h>';
+
+    test_text = "#   include <resource.h>";
+};
+
+/*
+ * On VMS, add missing braces around sigset_t constants.
+ */
+fix = {
+    hackname  = vms_add_missing_braces;
+    select    = "(_SIG_[A-Z]+_SET[ \t]+= \\{)(0x[0F]+, 0x[0F]+)";
+    mach      = "*-*-*vms*";
+    files     = "rtldef/signal.h";
+    c_fix     = format;
+
+    c_fix_arg = '%1 {%2} ';
+
+    test_text = "static const __sigset_t _SIG_EMPTY_SET  = "
+                "{0x00000000, 0x00000000},\n"
+                " _SIG_FULL_SET   = {0xFFFFFFFF, 0xFFFFFFFF};\n";
+};
+
+/*
+ * On VMS, fix incompatible redeclaration of hostalias.
+ */
+fix = {
+    hackname  = vms_do_not_redeclare_hostalias;
+    select    = "(void[ \t]+fp_nquery \\(const u_char \\*, int, FILE \\*\\);)\n"
+                "(__char_ptr32[ \t]+hostalias \\(const char \\*\\);)";
+    mach      = "*-*-*vms*";
+    files     = "rtldef/resolv.h";
+    c_fix     = format;
+
+    c_fix_arg = "%1\n"
+                "/* %2 */";
+
+    test_text = "void		fp_nquery (const u_char *, int, FILE *);\n"
+                "__char_ptr32	hostalias (const char *);\n";
+};
+
+/*
+ * On VMS, some DEC-C builtins are directly used.
+ */
+fix = {
+    hackname  = vms_decc_builtin;
+    select    = "(__MEMSET|__MEMMOVE|__MEMCPY|__STRLEN|__STRCPY)";
+    mach      = "*-*-*vms*";
+    files     = rtldef/string.h, rtldef/time.h, rtldef/strings.h,
+                rtldef/socket.h;
+    sed       = "s@__MEMSET@memset@";
+    sed       = "s@__MEMMOVE@memmove@";
+    sed       = "s@__MEMCPY@memcpy@";
+    sed       = "s@__STRLEN@strlen@";
+    sed       = "s@__STRCPY@strcpy@";
+
+    test_text = "define FD_ZERO(__p) __MEMSET((__p), 0, sizeof(*(__p)))\n";
+};
+
+/*
+ * On VMS, do not declare getopt and al if pointers are 64 bit.
+ */
+fix = {
+    hackname  = vms_no_64bit_getopt;
+    select    = "^[ \t]*(extern[ \t]*)?(int[ \t]*(getopt|optind|opterr|optopt)|(char \\*optarg))([ \t]*\\(.*\\))?;\n";
+    /*    select    = "^[ \t](extern[ \t))?(int[ \t](getopt|optind|opterr|optopt))|(char *optarg).*;\n"; */
+    mach      = "*-*-*vms*";
+    files     = rtldef/stdio.h, rtldef/unistd.h;
+    c_fix     = format;
+
+    c_fix_arg = "#if __INITIAL_POINTER_SIZE != 64 /* getopt is short ptr only.  */\n"
+                "%0"
+                "#endif\n";
+
+    test_text = "int getopt (int, char * const [], const char *);";
+};
+
+/*
+ * On VMS, forward declare structure before referencing them in prototypes.
+ */
+fix = {
+    hackname  = vms_forward_declare_struct;
+    select    = "(/\\* forward decls for C\\+\\+ \\*/\n)"
+                "#ifdef __cplusplus\n";
+    mach      = "*-*-*vms*";
+    files     = rtldef/if.h;
+    c_fix     = format;
+
+    c_fix_arg = "%1"
+                "#if defined (__cplusplus) || defined (__GNUC__)\n";
+
+    test_text = "/* forward decls for C++ */\n"
+                "#ifdef __cplusplus\n"
+                "struct foo;\n"
+                "#endif\n";
+};
+
+/*
+ * On VMS, force the use of fast setjmp, as the normal setjmp uses conditions
+ * which is not yet fully supported by gcc.
+ */
+fix = {
+    hackname  = vms_use_fast_setjmp;
+    select    = "(#[ \t]*if[ \t]*defined\\(__FAST_SETJMP\\)[ \t]*\\|\\|)";
+    mach      = "*-*-*vms*";
+    files     = rtldef/setjmp.h;
+    c_fix     = format;
+
+    c_fix_arg = "%0 defined (__GNUC__) ||";
+
+    test_text = "#   if defined(__FAST_SETJMP) || defined(__UNIX_SETJMP)";
 };
 
 /*

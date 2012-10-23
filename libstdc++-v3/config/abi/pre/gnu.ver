@@ -1057,7 +1057,12 @@ GLIBCXX_3.4.11 {
     _ZTISt12system_error;
     _ZTVSt12system_error;
     _ZNSt12system_errorD*Ev;
+    # Those template instantiations weren't exported on Solaris in GCC 4.6
+    # and aren't necessary for correct operation, so don't emit them now
+    # (PR libstdc++/54872).
+#if !defined(__sun__) && !defined(__svr4__)
     _ZNSt12system_errorC*;
+#endif
 
     _ZNKSt4hashISt10error_codeEclES0_;
 
@@ -1321,6 +1326,21 @@ GLIBCXX_3.4.17 {
 
 } GLIBCXX_3.4.16;
 
+GLIBCXX_3.4.18 {
+
+  global:
+
+    # Names inside the 'extern' block are demangled names.
+    extern "C++"
+    {
+      std::random_device::*;
+    };
+
+    # construction vtable
+    _ZTCSt*;
+
+} GLIBCXX_3.4.17;
+
 # Symbols in the support library (libsupc++) have their own tag.
 CXXABI_1.3 {
 
@@ -1357,6 +1377,7 @@ CXXABI_1.3 {
     __cxa_vec_new3;
     __gxx_personality_v0;
     __gxx_personality_sj0;
+    __gxx_personality_seh0;
     __dynamic_cast;
 
     # *_type_info classes, ctor and dtor
@@ -1514,6 +1535,10 @@ CXXABI_1.3.6 {
     __cxa_deleted_virtual;
 
 } CXXABI_1.3.5;
+
+CXXABI_1.3.7 {
+    __cxa_thread_atexit;
+} CXXABI_1.3.6;
 
 
 # Symbols in the support library (libsupc++) supporting transactional memory.

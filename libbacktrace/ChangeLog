@@ -1,0 +1,169 @@
+2012-10-11  Ian Lance Taylor  <iant@google.com>
+
+	* configure.ac: Do not use dl_iterate_phdr on Solaris 10.
+	* configure: Rebuild.
+
+2012-10-10  Ian Lance Taylor  <iant@google.com>
+
+	* elf.c: Rename all Elf typedefs to start with b_elf, and be all
+	lower case.
+
+2012-10-10  Hans-Peter Nilsson  <hp@bitrange.com>
+
+	* elf.c (elf_add_syminfo_data): Add casts to avoid warning.
+
+2012-10-09  Ian Lance Taylor  <iant@google.com>
+
+	* dwarf.c (dwarf_fileline): Add cast to avoid warning.
+	(backtrace_dwarf_add): Likewise.
+
+2012-10-09  Ian Lance Taylor  <iant@google.com>
+
+	Add support for tracing through shared libraries.
+	* configure.ac: Check for link.h and dl_iterate_phdr.
+	* elf.c: #include <link.h> if system has dl_iterate_phdr.  #undef
+	ELF macros before #defining them.
+	(dl_phdr_info, dl_iterate_phdr): Define if system does not have
+	dl_iterate_phdr.
+	(struct elf_syminfo_data): Add next field.
+	(elf_initialize_syminfo): Initialize next field.
+	(elf_add_syminfo_data): New static function.
+	(elf_add): New static function, broken out of
+	backtrace_initialize.  Call backtrace_dwarf_add instead of
+	backtrace_dwarf_initialize.
+	(struct phdr_data): Define.
+	(phdr_callback): New static function.
+	(backtrace_initialize): Call elf_add.
+	* dwarf.c (struct dwarf_data): Add next and base_address fields.
+	(add_unit_addr): Add base_address parameter.  Change all callers.
+	(add_unit_ranges, build_address_map): Likewise.
+	(add_line): Add ddata parameter.  Change all callers.
+	(read_line_program, add_function_range): Likewise.
+	(dwarf_lookup_pc): New static function, broken out of
+	dwarf_fileline.
+	(dwarf_fileline): Call dwarf_lookup_pc.
+	(build_dwarf_data): New static function.
+	(backtrace_dwarf_add): New function.
+	(backtrace_dwarf_initialize): Remove.
+	* internal.h (backtrace_dwarf_initialize): Don't declare.
+	(backtrace_dwarf_add): Declare.
+	* configure, config.h.in: Rebuild.
+
+2012-10-04  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* btest.c (f23): Avoid uninitialized variable warning.
+
+2012-10-04  Ian Lance Taylor  <iant@google.com>
+
+	* dwarf.c: If the system header files do not declare strnlen,
+	provide our own version.
+
+2012-10-03  Ian Lance Taylor  <iant@google.com>
+
+	* dwarf.c (read_uleb128): Fix overflow test.
+	(read_sleb128): Likewise.
+	(build_address_map): Don't change unit_buf.start.
+
+2012-10-02  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR other/54761
+	* configure.ac (EXTRA_FLAGS): New.
+	* Makefile.am (AM_FLAGS): Add $(EXTRA_FLAGS).
+	* configure, Makefile.in: Regenerate.
+
+2012-09-29  Ian Lance Taylor  <iant@google.com>
+
+	PR other/54749
+	* fileline.c (fileline_initialize): Pass errnum as -1 when
+	reporting that we could not read executable information after a
+	previous failure.
+
+2012-09-27  Ian Lance Taylor  <iant@google.com>
+
+	PR bootstrap/54732
+	* configure.ac: Add no-dependencies to AM_INIT_AUTOMAKE.
+	* Makefile.am: Add dependencies for all objects.
+	* configure, aclocal.m4, Makefile.in: Rebuild.
+
+2012-09-27  Ian Lance Taylor  <iant@google.com>
+
+	PR other/54726
+	* elf.c (backtrace_initialize): Set *fileln_fn, not
+	state->fileln_fn.
+
+2012-09-19  Ian Lance Taylor  <iant@google.com>
+
+	* configure.ac: Only use GCC_CHECK_UNWIND_GETIPINFO when compiled
+	as a target library.
+	* configure: Rebuild.
+
+2012-09-19  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+	    Ian Lance Taylor  <iant@google.com>
+
+        * configure.ac (GCC_HEADER_STDINT): Invoke.
+        * backtrace.h: If we can't find <stdint.h>, use "gstdint.h".
+        * btest.c: Don't include <stdint.h>.
+        * dwarf.c: Likewise.
+        * configure, aclocal.m4, Makefile.in, config.h.in: Rebuild.
+
+2012-09-18  Ian Lance Taylor  <iant@google.com>
+
+	PR bootstrap/54623
+	* Makefile.am (AM_CPPFLAGS): Define.
+	(AM_CFLAGS): Remove -I options.
+	* Makefile.in: Rebuild.
+
+2012-09-18  Ian Lance Taylor  <iant@google.com>
+
+	* posix.c (O_BINARY): Define if not defined.
+	(backtrace_open): Pass O_BINARY to open.  Only call fcntl if
+	HAVE_FCNTL is defined.
+	* configure.ac: Test for the fcntl function.
+	* configure, config.h.in: Rebuild.
+
+2012-09-18  Ian Lance Taylor  <iant@google.com>
+
+	* btest.c (test1, test2, test3, test4): Add the unused attribute.
+
+2012-09-18  Ian Lance Taylor  <iant@google.com>
+
+	* dwarf.c: Correct test of HAVE_DECL_STRNLEN.
+
+2012-09-18  Ian Lance Taylor  <iant@google.com>
+
+	* configure.ac: Add AC_USE_SYSTEM_EXTENSIONS.
+	* mmapio.c: Don't define _GNU_SOURCE.
+	* configure, config.h.in: Rebuild.
+
+2012-09-18  Ian Lance Taylor  <iant@google.com>
+
+	* configure.ac: Check whether strnlen is declared.
+	* dwarf.c: Declare strnlen if not declared.
+	* configure, config.h.in: Rebuild.
+
+2012-09-18  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* fileline.c: Include <stdlib.h>.
+	* mmap.c: Likewise.
+
+2012-09-17  Ian Lance Taylor  <iant@google.com>
+
+	PR bootstrap/54611
+	* nounwind.c (backtrace_full): Rename from backtrace.  Add state
+	parameter.
+
+2012-09-17  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	PR bootstrap/54611
+	* nounwind.c (backtrace_simple): Add state parameter.
+
+2012-09-17  Ian Lance Taylor  <iant@google.com>
+
+	PR bootstrap/54609
+	* unknown.c (unknown_fileline): Add state parameter, remove
+	fileline_data parameter, name error_callback parameter.
+	(backtrace_initialize): Add state parameter.
+
+2012-09-17  Ian Lance Taylor  <iant@google.com>
+
+	* Initial implementation.

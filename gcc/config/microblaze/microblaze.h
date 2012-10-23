@@ -546,7 +546,7 @@ typedef struct microblaze_args
 
 #define FUNCTION_MODE   SImode
 
-/* Mode should alwasy be SImode */
+/* Mode should always be SImode */
 #define REGISTER_MOVE_COST(MODE, FROM, TO)			\
   ( GR_REG_CLASS_P (FROM) && GR_REG_CLASS_P (TO) ? 2 		\
    : (FROM) == ST_REGS && GR_REG_CLASS_P (TO) ? 4		\
@@ -696,8 +696,8 @@ do {									\
 #define ASCII_DATA_ASM_OP		"\t.ascii\t"
 #define STRING_ASM_OP			"\t.asciz\t"
 
-#define ASM_OUTPUT_IDENT(FILE, STRING)					\
-  microblaze_asm_output_ident (FILE, STRING)
+#undef TARGET_ASM_OUTPUT_IDENT
+#define TARGET_ASM_OUTPUT_IDENT microblaze_asm_output_ident
 
 /* Default to -G 8 */
 #ifndef MICROBLAZE_DEFAULT_GVALUE
@@ -737,13 +737,6 @@ extern int interrupt_handler;
 extern int save_volatiles;
 
 #define INTERRUPT_HANDLER_NAME "_interrupt_handler"
-
-/* These #define added for C++.  */
-#define UNALIGNED_SHORT_ASM_OP          ".data16"
-#define UNALIGNED_INT_ASM_OP            ".data32"
-#define UNALIGNED_DOUBLE_INT_ASM_OP     ".data8"
-
-#define ASM_BYTE_OP                     ".data8"
 
 /* The following #defines are used in the headers files. Always retain these.  */
 

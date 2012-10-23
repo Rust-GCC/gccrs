@@ -1,7 +1,8 @@
 /* Breadth-first and depth-first routines for
    searching multiple-inheritance lattice for GNU C++.
    Copyright (C) 1987, 1989, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-   1999, 2000, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010, 2011
+   1999, 2000, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010, 2011,
+   2012
    Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com)
 
@@ -31,7 +32,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "cp-tree.h"
 #include "intl.h"
 #include "flags.h"
-#include "output.h"
 #include "toplev.h"
 #include "target.h"
 
@@ -66,14 +66,12 @@ static tree dfs_get_pure_virtuals (tree, void *);
 
 
 /* Variables for gathering statistics.  */
-#ifdef GATHER_STATISTICS
 static int n_fields_searched;
 static int n_calls_lookup_field, n_calls_lookup_field_1;
 static int n_calls_lookup_fnfields, n_calls_lookup_fnfields_1;
 static int n_calls_get_base_type;
 static int n_outer_fields_searched;
 static int n_contexts_saved;
-#endif /* GATHER_STATISTICS */
 
 
 /* Data for lookup_base and its workers.  */
@@ -181,13 +179,13 @@ accessible_base_p (tree t, tree base, bool consider_local_p)
    non-NULL, fill with information about what kind of base we
    discovered.
 
-   If the base is inaccessible, or ambiguous, and the ba_quiet bit is
-   not set in ACCESS, then an error is issued and error_mark_node is
-   returned.  If the ba_quiet bit is set, then no error is issued and
-   NULL_TREE is returned.  */
+   If the base is inaccessible, or ambiguous, then error_mark_node is
+   returned.  If the tf_error bit of COMPLAIN is not set, no error
+   is issued.  */
 
 tree
-lookup_base (tree t, tree base, base_access access, base_kind *kind_ptr)
+lookup_base (tree t, tree base, base_access access,
+	     base_kind *kind_ptr, tsubst_flags_t complain)
 {
   tree binfo;
   tree t_binfo;
@@ -253,11 +251,9 @@ lookup_base (tree t, tree base, base_access access, base_kind *kind_ptr)
 	break;
 
       case bk_ambig:
-	if (!(access & ba_quiet))
-	  {
-	    error ("%qT is an ambiguous base of %qT", base, t);
-	    binfo = error_mark_node;
-	  }
+	if (complain & tf_error)
+	  error ("%qT is an ambiguous base of %qT", base, t);
+	binfo = error_mark_node;
 	break;
 
       default:
@@ -271,13 +267,9 @@ lookup_base (tree t, tree base, base_access access, base_kind *kind_ptr)
 	    && COMPLETE_TYPE_P (base)
 	    && !accessible_base_p (t, base, !(access & ba_ignore_scope)))
 	  {
-	    if (!(access & ba_quiet))
-	      {
-		error ("%qT is an inaccessible base of %qT", base, t);
-		binfo = error_mark_node;
-	      }
-	    else
-	      binfo = NULL_TREE;
+	    if (complain & tf_error)
+	      error ("%qT is an inaccessible base of %qT", base, t);
+	    binfo = error_mark_node;
 	    bk = bk_inaccessible;
 	  }
 	break;
@@ -384,6 +376,8 @@ lookup_field_1 (tree type, tree name, bool want_type)
 {
   tree field;
 
+  gcc_assert (TREE_CODE (name) == IDENTIFIER_NODE);
+
   if (TREE_CODE (type) == TEMPLATE_TYPE_PARM
       || TREE_CODE (type) == BOUND_TEMPLATE_TEMPLATE_PARM
       || TREE_CODE (type) == TYPENAME_TYPE)
@@ -405,9 +399,8 @@ lookup_field_1 (tree type, tree name, bool want_type)
 	{
 	  i = (lo + hi) / 2;
 
-#ifdef GATHER_STATISTICS
-	  n_fields_searched++;
-#endif /* GATHER_STATISTICS */
+	  if (GATHER_STATISTICS)
+	    n_fields_searched++;
 
 	  if (DECL_NAME (fields[i]) > name)
 	    hi = i;
@@ -452,16 +445,16 @@ lookup_field_1 (tree type, tree name, bool want_type)
 
   field = TYPE_FIELDS (type);
 
-#ifdef GATHER_STATISTICS
-  n_calls_lookup_field_1++;
-#endif /* GATHER_STATISTICS */
+  if (GATHER_STATISTICS)
+    n_calls_lookup_field_1++;
+
   for (field = TYPE_FIELDS (type); field; field = DECL_CHAIN (field))
     {
       tree decl = field;
 
-#ifdef GATHER_STATISTICS
-      n_fields_searched++;
-#endif /* GATHER_STATISTICS */
+      if (GATHER_STATISTICS)
+	n_fields_searched++;
+
       gcc_assert (DECL_P (field));
       if (DECL_NAME (field) == NULL_TREE
 	  && ANON_AGGR_TYPE_P (TREE_TYPE (field)))
@@ -577,7 +570,8 @@ context_for_name_lookup (tree decl)
      declared.  */
   tree context = DECL_CONTEXT (decl);
 
-  while (context && TYPE_P (context) && ANON_AGGR_TYPE_P (context))
+  while (context && TYPE_P (context)
+	 && (ANON_AGGR_TYPE_P (context) || UNSCOPED_ENUM_P (context)))
     context = TYPE_CONTEXT (context);
   if (!context)
     context = global_namespace;
@@ -621,9 +615,7 @@ dfs_access_in_type (tree binfo, void *data)
   else
     {
       /* First, check for an access-declaration that gives us more
-	 access to the DECL.  The CONST_DECL for an enumeration
-	 constant will not have DECL_LANG_SPECIFIC, and thus no
-	 DECL_ACCESS.  */
+	 access to the DECL.  */
       if (DECL_LANG_SPECIFIC (decl) && !DECL_DISCRIMINATOR_P (decl))
 	{
 	  tree decl_access = purpose_member (type, DECL_ACCESS (decl));
@@ -827,7 +819,7 @@ friend_accessible_p (tree scope, tree decl, tree binfo)
 /* Called via dfs_walk_once_accessible from accessible_p */
 
 static tree
-dfs_accessible_post (tree binfo, void *data ATTRIBUTE_UNUSED)
+dfs_accessible_post (tree binfo, void * /*data*/)
 {
   if (BINFO_ACCESS (binfo) != ak_none)
     {
@@ -1202,9 +1194,8 @@ lookup_member (tree xbasetype, tree name, int protect, bool want_type,
   if (!basetype_path)
     return NULL_TREE;
 
-#ifdef GATHER_STATISTICS
-  n_calls_lookup_field++;
-#endif /* GATHER_STATISTICS */
+  if (GATHER_STATISTICS)
+    n_calls_lookup_field++;
 
   memset (&lfi, 0, sizeof (lfi));
   lfi.type = type;
@@ -1250,10 +1241,14 @@ lookup_member (tree xbasetype, tree name, int protect, bool want_type,
     only the first call to "f" is valid.  However, if the function is
     static, we can check.  */
   if (rval && protect 
-      && !really_overloaded_fn (rval)
-      && !(TREE_CODE (rval) == FUNCTION_DECL
-	   && DECL_NONSTATIC_MEMBER_FUNCTION_P (rval)))
-    perform_or_defer_access_check (basetype_path, rval, rval);
+      && !really_overloaded_fn (rval))
+    {
+      tree decl = is_overloaded_fn (rval) ? get_first_fn (rval) : rval;
+      if (!DECL_NONSTATIC_MEMBER_FUNCTION_P (decl)
+	  && !perform_or_defer_access_check (basetype_path, decl, decl,
+					     complain))
+	rval = error_mark_node;
+    }
 
   if (errstr && protect)
     {
@@ -1365,9 +1360,8 @@ lookup_fnfields_idx_nolazy (tree type, tree name)
   if (!method_vec)
     return -1;
 
-#ifdef GATHER_STATISTICS
-  n_calls_lookup_fnfields_1++;
-#endif /* GATHER_STATISTICS */
+  if (GATHER_STATISTICS)
+    n_calls_lookup_fnfields_1++;
 
   /* Constructors are first...  */
   if (name == ctor_identifier)
@@ -1403,9 +1397,8 @@ lookup_fnfields_idx_nolazy (tree type, tree name)
 	{
 	  i = (lo + hi) / 2;
 
-#ifdef GATHER_STATISTICS
-	  n_outer_fields_searched++;
-#endif /* GATHER_STATISTICS */
+	  if (GATHER_STATISTICS)
+	    n_outer_fields_searched++;
 
 	  tmp = VEC_index (tree, method_vec, i);
 	  tmp = DECL_NAME (OVL_CURRENT (tmp));
@@ -1420,9 +1413,8 @@ lookup_fnfields_idx_nolazy (tree type, tree name)
   else
     for (; VEC_iterate (tree, method_vec, i, fn); ++i)
       {
-#ifdef GATHER_STATISTICS
-	n_outer_fields_searched++;
-#endif /* GATHER_STATISTICS */
+	if (GATHER_STATISTICS)
+	  n_outer_fields_searched++;
 	if (DECL_NAME (OVL_CURRENT (fn)) == name)
 	  return i;
       }
@@ -1539,14 +1531,13 @@ adjust_result_of_qualified_name_lookup (tree decl,
 	 or ambiguity -- in either case, the choice of a static member
 	 function might make the usage valid.  */
       base = lookup_base (context_class, qualifying_scope,
-			  ba_unique | ba_quiet, NULL);
-      if (base)
+			  ba_unique, NULL, tf_none);
+      if (base && base != error_mark_node)
 	{
 	  BASELINK_ACCESS_BINFO (decl) = base;
 	  BASELINK_BINFO (decl)
 	    = lookup_base (base, BINFO_TYPE (BASELINK_BINFO (decl)),
-			   ba_unique | ba_quiet,
-			   NULL);
+			   ba_unique, NULL, tf_none);
 	}
     }
 
@@ -1877,17 +1868,19 @@ check_final_overrider (tree overrider, tree basefn)
 	  /* Strictly speaking, the standard requires the return type to be
 	     complete even if it only differs in cv-quals, but that seems
 	     like a bug in the wording.  */
-	  if (!same_type_ignoring_top_level_qualifiers_p (base_return, over_return))
+	  if (!same_type_ignoring_top_level_qualifiers_p (base_return,
+							  over_return))
 	    {
 	      tree binfo = lookup_base (over_return, base_return,
-					ba_check | ba_quiet, NULL);
+					ba_check, NULL, tf_none);
 
-	      if (!binfo)
+	      if (!binfo || binfo == error_mark_node)
 		fail = 1;
 	    }
 	}
       else if (!pedantic
-	       && can_convert (TREE_TYPE (base_type), TREE_TYPE (over_type)))
+	       && can_convert (TREE_TYPE (base_type), TREE_TYPE (over_type),
+			       tf_warning_or_error))
 	/* GNU extension, allow trivial pointer conversions such as
 	   converting to void *, or qualification conversion.  */
 	{
@@ -2167,7 +2160,7 @@ maybe_suppress_debug_info (tree t)
    information anyway.  */
 
 static tree
-dfs_debug_mark (tree binfo, void *data ATTRIBUTE_UNUSED)
+dfs_debug_mark (tree binfo, void * /*data*/)
 {
   tree t = BINFO_TYPE (binfo);
 
@@ -2201,28 +2194,28 @@ note_debug_info_needed (tree type)
 void
 print_search_statistics (void)
 {
-#ifdef GATHER_STATISTICS
+  if (! GATHER_STATISTICS)
+    {
+      fprintf (stderr, "no search statistics\n");
+      return;
+    }
+
   fprintf (stderr, "%d fields searched in %d[%d] calls to lookup_field[_1]\n",
 	   n_fields_searched, n_calls_lookup_field, n_calls_lookup_field_1);
   fprintf (stderr, "%d fnfields searched in %d calls to lookup_fnfields\n",
 	   n_outer_fields_searched, n_calls_lookup_fnfields);
   fprintf (stderr, "%d calls to get_base_type\n", n_calls_get_base_type);
-#else /* GATHER_STATISTICS */
-  fprintf (stderr, "no search statistics\n");
-#endif /* GATHER_STATISTICS */
 }
 
 void
 reinit_search_statistics (void)
 {
-#ifdef GATHER_STATISTICS
   n_fields_searched = 0;
   n_calls_lookup_field = 0, n_calls_lookup_field_1 = 0;
   n_calls_lookup_fnfields = 0, n_calls_lookup_fnfields_1 = 0;
   n_calls_get_base_type = 0;
   n_outer_fields_searched = 0;
   n_contexts_saved = 0;
-#endif /* GATHER_STATISTICS */
 }
 
 /* Helper for lookup_conversions_r.  TO_TYPE is the type converted to
@@ -2426,6 +2419,11 @@ lookup_conversions_r (tree binfo,
 	  if (!IDENTIFIER_MARKED (name))
 	    {
 	      tree type = DECL_CONV_FN_TYPE (cur);
+	      if (type_uses_auto (type))
+		{
+		  mark_used (cur);
+		  type = DECL_CONV_FN_TYPE (cur);
+		}
 
 	      if (check_hidden_convs (binfo, virtual_depth, virtualness,
 				      type, parent_convs, other_convs))

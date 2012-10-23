@@ -88,6 +88,22 @@ package body Exp_Ch3 is
    --  used for attachment of any actions required in its construction.
    --  It also supplies the source location used for the procedure.
 
+   function Build_Array_Invariant_Proc
+     (A_Type : Entity_Id;
+      Nod    : Node_Id) return Node_Id;
+   --  If the component of type of array type has invariants, build procedure
+   --  that checks invariant on all components of the array. Ada 2012 specifies
+   --  that an invariant on some type T must be applied to in-out parameters
+   --  and return values that include a part of type T. If the array type has
+   --  an otherwise specified invariant, the component check procedure is
+   --  called from within the user-specified invariant. Otherwise this becomes
+   --  the invariant procedure for the array type.
+
+   function Build_Record_Invariant_Proc
+     (R_Type : Entity_Id;
+      Nod    : Node_Id) return Node_Id;
+   --  Ditto for record types.
+
    function Build_Discriminant_Formals
      (Rec_Id : Entity_Id;
       Use_Dl : Boolean) return List_Id;
@@ -180,6 +196,14 @@ package body Exp_Ch3 is
    --  Treat user-defined stream operations as renaming_as_body if the
    --  subprogram they rename is not frozen when the type is frozen.
 
+   procedure Insert_Component_Invariant_Checks
+     (N   : Node_Id;
+     Typ  : Entity_Id;
+     Proc : Node_Id);
+   --  If a composite type has invariants and also has components with defined
+   --  invariants. the component invariant procedure is inserted into the user-
+   --  defined invariant procedure and added to the checks to be performed.
+
    procedure Initialization_Warning (E : Entity_Id);
    --  If static elaboration of the package is requested, indicate
    --  when a type does meet the conditions for static initialization. If
@@ -201,6 +225,9 @@ package body Exp_Ch3 is
    function In_Runtime (E : Entity_Id) return Boolean;
    --  Check if E is defined in the RTL (in a child of Ada or System). Used
    --  to avoid to bring in the overhead of _Input, _Output for tagged types.
+
+   function Is_User_Defined_Equality (Prim : Node_Id) return Boolean;
+   --  Returns true if Prim is a user defined equality function
 
    function Is_Variable_Size_Array (E : Entity_Id) return Boolean;
    --  Returns true if E has variable size components
@@ -236,6 +263,11 @@ package body Exp_Ch3 is
    --  components of local temporaries named X and Y (that are declared as
    --  formals at some upper level). E provides the Sloc to be used for the
    --  generated code.
+
+   function Make_Neq_Body (Tag_Typ : Entity_Id) return Node_Id;
+   --  Search for a renaming of the inequality dispatching primitive of
+   --  this tagged type. If found then build and return the corresponding
+   --  rename-as-body inequality subprogram; otherwise return Empty.
 
    procedure Make_Predefined_Primitive_Specs
      (Tag_Typ     : Entity_Id;
@@ -510,11 +542,11 @@ package body Exp_Ch3 is
    ---------------------------
 
    procedure Build_Array_Init_Proc (A_Type : Entity_Id; Nod : Node_Id) is
-      Loc              : constant Source_Ptr := Sloc (Nod);
       Comp_Type        : constant Entity_Id  := Component_Type (A_Type);
       Body_Stmts       : List_Id;
       Has_Default_Init : Boolean;
       Index_List       : List_Id;
+      Loc              : Source_Ptr;
       Proc_Id          : Entity_Id;
 
       function Init_Component return List_Id;
@@ -623,6 +655,19 @@ package body Exp_Ch3 is
    --  Start of processing for Build_Array_Init_Proc
 
    begin
+      --  The init proc is created when analyzing the freeze node for the type,
+      --  but it properly belongs with the array type declaration. However, if
+      --  the freeze node is for a subtype of a type declared in another unit
+      --  it seems preferable to use the freeze node as the source location of
+      --  the init proc. In any case this is preferable for gcov usage, and
+      --  the Sloc is not otherwise used by the compiler.
+
+      if In_Open_Scopes (Scope (A_Type)) then
+         Loc := Sloc (A_Type);
+      else
+         Loc := Sloc (Nod);
+      end if;
+
       --  Nothing to generate in the following cases:
 
       --    1. Initialization is suppressed for the type
@@ -758,6 +803,138 @@ package body Exp_Ch3 is
          end if;
       end if;
    end Build_Array_Init_Proc;
+
+   --------------------------------
+   -- Build_Array_Invariant_Proc --
+   --------------------------------
+
+   function Build_Array_Invariant_Proc
+     (A_Type : Entity_Id;
+      Nod    : Node_Id) return Node_Id
+   is
+      Loc : constant Source_Ptr := Sloc (Nod);
+
+      Object_Name : constant Name_Id := New_Internal_Name ('I');
+      --  Name for argument of invariant procedure
+
+      Object_Entity : constant Node_Id :=
+                        Make_Defining_Identifier (Loc, Object_Name);
+      --  The procedure declaration entity for the argument
+
+      Body_Stmts : List_Id;
+      Index_List : List_Id;
+      Proc_Id    : Entity_Id;
+      Proc_Body  : Node_Id;
+
+      function Build_Component_Invariant_Call return Node_Id;
+      --  Create one statement to verify invariant on one array component,
+      --  designated by a full set of indexes.
+
+      function Check_One_Dimension (N : Int) return List_Id;
+      --  Create loop to check on one dimension of the array. The single
+      --  statement in the loop body checks the inner dimensions if any, or
+      --  else a single component. This procedure is called recursively, with
+      --  N being the dimension to be initialized. A call with N greater than
+      --  the number of dimensions generates the component initialization
+      --  and terminates the recursion.
+
+      ------------------------------------
+      -- Build_Component_Invariant_Call --
+      ------------------------------------
+
+      function Build_Component_Invariant_Call return Node_Id is
+         Comp : Node_Id;
+      begin
+         Comp :=
+           Make_Indexed_Component (Loc,
+             Prefix      => New_Occurrence_Of (Object_Entity, Loc),
+             Expressions => Index_List);
+         return
+           Make_Procedure_Call_Statement (Loc,
+             Name                   =>
+               New_Occurrence_Of
+                 (Invariant_Procedure (Component_Type (A_Type)), Loc),
+             Parameter_Associations => New_List (Comp));
+      end Build_Component_Invariant_Call;
+
+      -------------------------
+      -- Check_One_Dimension --
+      -------------------------
+
+      function Check_One_Dimension (N : Int) return List_Id is
+         Index : Entity_Id;
+
+      begin
+         --  If all dimensions dealt with, we simply check invariant of the
+         --  component.
+
+         if N > Number_Dimensions (A_Type) then
+            return New_List (Build_Component_Invariant_Call);
+
+         --  Else generate one loop and recurse
+
+         else
+            Index :=
+              Make_Defining_Identifier (Loc, New_External_Name ('J', N));
+
+            Append (New_Reference_To (Index, Loc), Index_List);
+
+            return New_List (
+              Make_Implicit_Loop_Statement (Nod,
+                Identifier       => Empty,
+                Iteration_Scheme =>
+                  Make_Iteration_Scheme (Loc,
+                    Loop_Parameter_Specification =>
+                      Make_Loop_Parameter_Specification (Loc,
+                        Defining_Identifier         => Index,
+                        Discrete_Subtype_Definition =>
+                          Make_Attribute_Reference (Loc,
+                            Prefix          =>
+                              New_Occurrence_Of (Object_Entity, Loc),
+                            Attribute_Name  => Name_Range,
+                            Expressions     => New_List (
+                              Make_Integer_Literal (Loc, N))))),
+                Statements       =>  Check_One_Dimension (N + 1)));
+         end if;
+      end Check_One_Dimension;
+
+   --  Start of processing for Build_Array_Invariant_Proc
+
+   begin
+      Index_List := New_List;
+
+      Proc_Id :=
+        Make_Defining_Identifier (Loc,
+           Chars => New_External_Name (Chars (A_Type), "CInvariant"));
+
+      Body_Stmts := Check_One_Dimension (1);
+
+      Proc_Body :=
+        Make_Subprogram_Body (Loc,
+          Specification =>
+            Make_Procedure_Specification (Loc,
+              Defining_Unit_Name       => Proc_Id,
+              Parameter_Specifications => New_List (
+                Make_Parameter_Specification (Loc,
+                  Defining_Identifier => Object_Entity,
+                  Parameter_Type      => New_Occurrence_Of (A_Type, Loc)))),
+
+          Declarations               => Empty_List,
+          Handled_Statement_Sequence =>
+            Make_Handled_Sequence_Of_Statements (Loc,
+              Statements => Body_Stmts));
+
+      Set_Ekind          (Proc_Id, E_Procedure);
+      Set_Is_Public      (Proc_Id, Is_Public (A_Type));
+      Set_Is_Internal    (Proc_Id);
+      Set_Has_Completion (Proc_Id);
+
+      if not Debug_Generated_Code then
+         Set_Debug_Info_Off (Proc_Id);
+      end if;
+
+      return Proc_Body;
+   end Build_Array_Invariant_Proc;
 
    --------------------------------
    -- Build_Discr_Checking_Funcs --
@@ -2636,6 +2813,102 @@ package body Exp_Ch3 is
                      Actions := Build_Assignment (Id, Expression (Decl));
                   end if;
 
+               --  CPU, Dispatching_Domain, Priority and Size components are
+               --  filled with the corresponding rep item expression of the
+               --  concurrent type (if any).
+
+               elsif Ekind (Scope (Id)) = E_Record_Type
+                 and then Present (Corresponding_Concurrent_Type (Scope (Id)))
+                 and then (Chars (Id) = Name_uCPU                or else
+                           Chars (Id) = Name_uDispatching_Domain or else
+                           Chars (Id) = Name_uPriority)
+               then
+                  declare
+                     Exp   : Node_Id;
+                     Nam   : Name_Id;
+                     Ritem : Node_Id;
+
+                  begin
+                     if Chars (Id) = Name_uCPU then
+                        Nam := Name_CPU;
+
+                     elsif Chars (Id) = Name_uDispatching_Domain then
+                        Nam := Name_Dispatching_Domain;
+
+                     elsif Chars (Id) = Name_uPriority then
+                        Nam := Name_Priority;
+                     end if;
+
+                     --  Get the Rep Item (aspect specification, attribute
+                     --  definition clause or pragma) of the corresponding
+                     --  concurrent type.
+
+                     Ritem :=
+                       Get_Rep_Item
+                         (Corresponding_Concurrent_Type (Scope (Id)),
+                          Nam,
+                          Check_Parents => False);
+
+                     if Present (Ritem) then
+
+                        --  Pragma case
+
+                        if Nkind (Ritem) = N_Pragma then
+                           Exp := First (Pragma_Argument_Associations (Ritem));
+
+                           if Nkind (Exp) = N_Pragma_Argument_Association then
+                              Exp := Expression (Exp);
+                           end if;
+
+                           --  Conversion for Priority expression
+
+                           if Nam = Name_Priority then
+                              if Pragma_Name (Ritem) = Name_Priority
+                                and then not GNAT_Mode
+                              then
+                                 Exp := Convert_To (RTE (RE_Priority), Exp);
+                              else
+                                 Exp :=
+                                   Convert_To (RTE (RE_Any_Priority), Exp);
+                              end if;
+                           end if;
+
+                        --  Aspect/Attribute definition clause case
+
+                        else
+                           Exp := Expression (Ritem);
+
+                           --  Conversion for Priority expression
+
+                           if Nam = Name_Priority then
+                              if Chars (Ritem) = Name_Priority
+                                and then not GNAT_Mode
+                              then
+                                 Exp := Convert_To (RTE (RE_Priority), Exp);
+                              else
+                                 Exp :=
+                                   Convert_To (RTE (RE_Any_Priority), Exp);
+                              end if;
+                           end if;
+                        end if;
+
+                        --  Conversion for Dispatching_Domain value
+
+                        if Nam = Name_Dispatching_Domain then
+                           Exp :=
+                             Unchecked_Convert_To
+                               (RTE (RE_Dispatching_Domain_Access), Exp);
+                        end if;
+
+                        Actions := Build_Assignment (Id, Exp);
+
+                     --  Nothing needed if no Rep Item
+
+                     else
+                        Actions := No_List;
+                     end if;
+                  end;
+
                --  Composite component with its own Init_Proc
 
                elsif not Is_Interface (Typ)
@@ -2890,7 +3163,7 @@ package body Exp_Ch3 is
          --  to make it a valid Ada tree.
 
          if Is_Empty_List (Stmts) then
-            Append (New_Node (N_Null_Statement, Loc), Stmts);
+            Append (Make_Null_Statement (Loc), Stmts);
          end if;
 
          return Stmts;
@@ -3359,6 +3632,207 @@ package body Exp_Ch3 is
          end;
       end if;
    end Build_Record_Init_Proc;
+
+   --------------------------------
+   -- Build_Record_Invariant_Proc --
+   --------------------------------
+
+   function Build_Record_Invariant_Proc
+     (R_Type : Entity_Id;
+      Nod    : Node_Id) return Node_Id
+   is
+      Loc : constant Source_Ptr := Sloc (Nod);
+
+      Object_Name : constant Name_Id := New_Internal_Name ('I');
+      --  Name for argument of invariant procedure
+
+      Object_Entity : constant Node_Id :=
+        Make_Defining_Identifier (Loc, Object_Name);
+      --  The procedure declaration entity for the argument
+
+      Invariant_Found : Boolean;
+      --  Set if any component needs an invariant check.
+
+      Proc_Id   : Entity_Id;
+      Proc_Body : Node_Id;
+      Stmts     : List_Id;
+      Type_Def  : Node_Id;
+
+      function Build_Invariant_Checks (Comp_List : Node_Id) return List_Id;
+      --  Recursive procedure that generates a list of checks for components
+      --  that need it, and recurses through variant parts when present.
+
+      function Build_Component_Invariant_Call (Comp : Entity_Id)
+      return Node_Id;
+      --  Build call to invariant procedure for a record component.
+
+      ------------------------------------
+      -- Build_Component_Invariant_Call --
+      ------------------------------------
+
+      function Build_Component_Invariant_Call (Comp : Entity_Id)
+      return Node_Id
+      is
+         Sel_Comp : Node_Id;
+         Typ      : Entity_Id;
+         Call     : Node_Id;
+
+      begin
+         Invariant_Found := True;
+         Typ := Etype (Comp);
+
+         Sel_Comp :=
+           Make_Selected_Component (Loc,
+             Prefix      => New_Occurrence_Of (Object_Entity, Loc),
+             Selector_Name => New_Occurrence_Of (Comp, Loc));
+
+         if Is_Access_Type (Typ) then
+            Sel_Comp := Make_Explicit_Dereference (Loc, Sel_Comp);
+            Typ := Designated_Type (Typ);
+         end if;
+
+         Call :=
+           Make_Procedure_Call_Statement (Loc,
+             Name                   =>
+               New_Occurrence_Of (Invariant_Procedure (Typ), Loc),
+             Parameter_Associations => New_List (Sel_Comp));
+
+         if Is_Access_Type (Etype (Comp)) then
+            Call :=
+              Make_If_Statement (Loc,
+                Condition =>
+                  Make_Op_Ne (Loc,
+                    Left_Opnd   => Make_Null (Loc),
+                    Right_Opnd  =>
+                       Make_Selected_Component (Loc,
+                         Prefix      => New_Occurrence_Of (Object_Entity, Loc),
+                         Selector_Name => New_Occurrence_Of (Comp, Loc))),
+                Then_Statements => New_List (Call));
+         end if;
+
+         return Call;
+      end Build_Component_Invariant_Call;
+
+      ----------------------------
+      -- Build_Invariant_Checks --
+      ----------------------------
+
+      function Build_Invariant_Checks (Comp_List : Node_Id) return List_Id is
+         Decl     : Node_Id;
+         Id       : Entity_Id;
+         Stmts    : List_Id;
+
+      begin
+         Stmts := New_List;
+         Decl := First_Non_Pragma (Component_Items (Comp_List));
+         while Present (Decl) loop
+            if Nkind (Decl) = N_Component_Declaration then
+               Id  := Defining_Identifier (Decl);
+
+               if Has_Invariants (Etype (Id))
+                 and then In_Open_Scopes (Scope (R_Type))
+               then
+                  Append_To (Stmts, Build_Component_Invariant_Call (Id));
+
+               elsif Is_Access_Type (Etype (Id))
+                 and then not Is_Access_Constant (Etype (Id))
+                 and then Has_Invariants (Designated_Type (Etype (Id)))
+                 and then In_Open_Scopes (Scope (Designated_Type (Etype (Id))))
+               then
+                  Append_To (Stmts, Build_Component_Invariant_Call (Id));
+               end if;
+            end if;
+
+            Next (Decl);
+         end loop;
+
+         if Present (Variant_Part (Comp_List)) then
+            declare
+               Variant_Alts  : constant List_Id := New_List;
+               Var_Loc       : Source_Ptr;
+               Variant       : Node_Id;
+               Variant_Stmts : List_Id;
+
+            begin
+               Variant :=
+                 First_Non_Pragma (Variants (Variant_Part (Comp_List)));
+               while Present (Variant) loop
+                  Variant_Stmts :=
+                    Build_Invariant_Checks (Component_List (Variant));
+                  Var_Loc := Sloc (Variant);
+                  Append_To (Variant_Alts,
+                    Make_Case_Statement_Alternative (Var_Loc,
+                      Discrete_Choices =>
+                        New_Copy_List (Discrete_Choices (Variant)),
+                      Statements => Variant_Stmts));
+
+                  Next_Non_Pragma (Variant);
+               end loop;
+
+               --  The expression in the case statement is the reference to
+               --  the discriminant of the target object.
+
+               Append_To (Stmts,
+                 Make_Case_Statement (Var_Loc,
+                   Expression =>
+                     Make_Selected_Component (Var_Loc,
+                      Prefix => New_Occurrence_Of (Object_Entity, Var_Loc),
+                      Selector_Name => New_Occurrence_Of
+                        (Entity
+                          (Name (Variant_Part (Comp_List))), Var_Loc)),
+                      Alternatives => Variant_Alts));
+            end;
+         end if;
+
+         return Stmts;
+      end Build_Invariant_Checks;
+
+   --  Start of processing for Build_Record_Invariant_Proc
+
+   begin
+      Invariant_Found := False;
+      Type_Def := Type_Definition (Parent (R_Type));
+
+      if Nkind (Type_Def) = N_Record_Definition
+        and then not Null_Present (Type_Def)
+      then
+         Stmts := Build_Invariant_Checks (Component_List (Type_Def));
+      else
+         return Empty;
+      end if;
+
+      if not Invariant_Found then
+         return Empty;
+      end if;
+
+      Proc_Id :=
+        Make_Defining_Identifier (Loc,
+           Chars => New_External_Name (Chars (R_Type), "Invariant"));
+
+      Proc_Body :=
+        Make_Subprogram_Body (Loc,
+          Specification =>
+            Make_Procedure_Specification (Loc,
+              Defining_Unit_Name       => Proc_Id,
+              Parameter_Specifications => New_List (
+                Make_Parameter_Specification (Loc,
+                  Defining_Identifier => Object_Entity,
+                  Parameter_Type      => New_Occurrence_Of (R_Type, Loc)))),
+
+          Declarations               => Empty_List,
+          Handled_Statement_Sequence =>
+            Make_Handled_Sequence_Of_Statements (Loc,
+              Statements => Stmts));
+
+      Set_Ekind          (Proc_Id, E_Procedure);
+      Set_Is_Public      (Proc_Id, Is_Public (R_Type));
+      Set_Is_Internal    (Proc_Id);
+      Set_Has_Completion (Proc_Id);
+
+      return Proc_Body;
+      --  Insert_After (Nod, Proc_Body);
+      --  Analyze (Proc_Body);
+   end Build_Record_Invariant_Proc;
 
    ----------------------------
    -- Build_Slice_Assignment --
@@ -4659,8 +5133,15 @@ package body Exp_Ch3 is
          --  Expr's type, both types share the same dispatch table and there is
          --  no need to displace the pointer.
 
-         elsif Comes_From_Source (N)
-           and then Is_Interface (Typ)
+         elsif Is_Interface (Typ)
+
+           --  Avoid never-ending recursion because if Equivalent_Type is set
+           --  then we've done it already and must not do it again!
+
+           and then not
+             (Nkind (Object_Definition (N)) = N_Identifier
+               and then
+                 Present (Equivalent_Type (Entity (Object_Definition (N)))))
          then
             pragma Assert (Is_Class_Wide_Type (Typ));
 
@@ -4836,6 +5317,17 @@ package body Exp_Ch3 is
                       Subtype_Mark        => New_Occurrence_Of (Typ, Loc),
                       Name => Convert_Tag_To_Interface (Typ, Tag_Comp)));
 
+                  --  If the original entity comes from source, then mark the
+                  --  new entity as needing debug information, even though it's
+                  --  defined by a generated renaming that does not come from
+                  --  source, so that Materialize_Entity will be set on the
+                  --  entity when Debug_Renaming_Declaration is called during
+                  --  analysis.
+
+                  if Comes_From_Source (Def_Id) then
+                     Set_Debug_Info_Needed (Defining_Identifier (N));
+                  end if;
+
                   Analyze (N, Suppress => All_Checks);
 
                   --  Replace internal identifier of rewritten node by the
@@ -4845,10 +5337,12 @@ package body Exp_Ch3 is
                   --  object renaming declaration ---because these identifiers
                   --  were previously added by Enter_Name to the current scope.
                   --  We must preserve the homonym chain of the source entity
-                  --  as well.
+                  --  as well. We must also preserve the kind of the entity,
+                  --  which may be a constant.
 
                   Set_Chars (Defining_Identifier (N), Chars (Def_Id));
                   Set_Homonym (Defining_Identifier (N), Homonym (Def_Id));
+                  Set_Ekind (Defining_Identifier (N), Ekind (Def_Id));
                   Exchange_Entities (Defining_Identifier (N), Def_Id);
                end;
             end if;
@@ -4931,6 +5425,8 @@ package body Exp_Ch3 is
               and then not Is_CPP_Class (Typ)
               and then Tagged_Type_Expansion
               and then Nkind (Expr) /= N_Aggregate
+              and then (Nkind (Expr) /= N_Qualified_Expression
+                         or else Nkind (Expression (Expr)) /= N_Aggregate)
             then
                declare
                   Full_Typ : constant Entity_Id := Underlying_Type (Typ);
@@ -5079,7 +5575,7 @@ package body Exp_Ch3 is
             --  renaming that does not come from source.
 
             if Comes_From_Source (Defining_Identifier (N)) then
-               Set_Needs_Debug_Info (Defining_Identifier (N));
+               Set_Debug_Info_Needed (Defining_Identifier (N));
             end if;
 
             --  Now call the routine to generate debug info for the renaming
@@ -5395,6 +5891,19 @@ package body Exp_Ch3 is
         or else Is_Public (Typ)
       then
          Build_Array_Init_Proc (Base, N);
+      end if;
+
+      if Has_Invariants (Component_Type (Base))
+        and then In_Open_Scopes (Scope (Component_Type (Base)))
+      then
+         --  Generate component invariant checking procedure. This is only
+         --  relevant if the array type is within the scope of the component
+         --  type. Otherwise an array object can only be built using the public
+         --  subprograms for the component type, and calls to those will have
+         --  invariant checks.
+
+         Insert_Component_Invariant_Checks
+           (N, Base, Build_Array_Invariant_Proc (Base, N));
       end if;
    end Expand_Freeze_Array_Type;
 
@@ -6131,9 +6640,8 @@ package body Exp_Ch3 is
 
       --  This is done unconditionally to ensure that tools can be linked
       --  properly with user programs compiled with older language versions.
-      --  It might be worth including a switch to revert to a non-composable
-      --  equality for untagged records, even though no program depending on
-      --  non-composability has surfaced ???
+      --  In addition, this is needed because "=" composes for bounded strings
+      --  in all language versions (see Exp_Ch4.Expand_Composite_Equality).
 
       elsif Comes_From_Source (Def_Id)
         and then Convention (Def_Id) = Convention_Ada
@@ -6363,6 +6871,12 @@ package body Exp_Ch3 is
             end loop;
          end;
       end if;
+
+      --  Check whether individual components have a defined invariant,
+      --  and add the corresponding component invariant checks.
+
+      Insert_Component_Invariant_Checks
+        (N, Def_Id, Build_Record_Invariant_Proc (Def_Id, N));
    end Expand_Freeze_Record_Type;
 
    ------------------------------
@@ -7127,6 +7641,63 @@ package body Exp_Ch3 is
       return Is_RTU (S1, System) or else Is_RTU (S1, Ada);
    end In_Runtime;
 
+   ---------------------------------------
+   -- Insert_Component_Invariant_Checks --
+   ---------------------------------------
+
+   procedure Insert_Component_Invariant_Checks
+     (N   : Node_Id;
+     Typ  : Entity_Id;
+     Proc : Node_Id)
+   is
+      Loc     : constant Source_Ptr := Sloc (Typ);
+      Proc_Id : Entity_Id;
+
+   begin
+      if Present (Proc) then
+         Proc_Id := Defining_Entity (Proc);
+
+         if not Has_Invariants (Typ) then
+            Set_Has_Invariants (Typ);
+            Set_Has_Invariants (Proc_Id);
+            Set_Invariant_Procedure (Typ, Proc_Id);
+            Insert_After (N, Proc);
+            Analyze (Proc);
+
+         else
+
+            --  Find already created invariant body, insert body of component
+            --  invariant proc in it, and add call after other checks.
+
+            declare
+               Bod : Node_Id;
+               Inv_Id : constant Entity_Id := Invariant_Procedure (Typ);
+               Call   : constant Node_Id :=
+                 Make_Procedure_Call_Statement (Loc,
+                   Name => New_Occurrence_Of (Proc_Id, Loc),
+                   Parameter_Associations =>
+                     New_List
+                       (New_Reference_To (First_Formal (Inv_Id), Loc)));
+
+            begin
+
+               --  The invariant  body has not been analyzed yet, so we do a
+               --  sequential search forward, and retrieve it by name.
+
+               Bod := Next (N);
+               while Present (Bod) loop
+                  exit when Nkind (Bod) = N_Subprogram_Body
+                    and then Chars (Defining_Entity (Bod)) = Chars (Inv_Id);
+                  Next (Bod);
+               end loop;
+
+               Append_To (Declarations (Bod), Proc);
+               Append_To (Statements (Handled_Statement_Sequence (Bod)), Call);
+            end;
+         end if;
+      end if;
+   end Insert_Component_Invariant_Checks;
+
    ----------------------------
    -- Initialization_Warning --
    ----------------------------
@@ -7568,6 +8139,18 @@ package body Exp_Ch3 is
          Next_Elmt (Iface_Tag_Elmt);
       end loop;
    end Init_Secondary_Tags;
+
+   ------------------------
+   -- Is_User_Defined_Eq --
+   ------------------------
+
+   function Is_User_Defined_Equality (Prim : Node_Id) return Boolean is
+   begin
+      return Chars (Prim) = Name_Op_Eq
+        and then Etype (First_Formal (Prim)) =
+                 Etype (Next_Formal (First_Formal (Prim)))
+        and then Base_Type (Etype (Prim)) = Standard_Boolean;
+   end Is_User_Defined_Equality;
 
    ----------------------------
    -- Is_Variable_Size_Array --
@@ -8032,6 +8615,175 @@ package body Exp_Ch3 is
       end if;
    end Make_Eq_If;
 
+   --------------------
+   --  Make_Neq_Body --
+   --------------------
+
+   function Make_Neq_Body (Tag_Typ : Entity_Id) return Node_Id is
+
+      function Is_Predefined_Neq_Renaming (Prim : Node_Id) return Boolean;
+      --  Returns true if Prim is a renaming of an unresolved predefined
+      --  inequality operation.
+
+      --------------------------------
+      -- Is_Predefined_Neq_Renaming --
+      --------------------------------
+
+      function Is_Predefined_Neq_Renaming (Prim : Node_Id) return Boolean is
+      begin
+         return Chars (Prim) /= Name_Op_Ne
+           and then Present (Alias (Prim))
+           and then Comes_From_Source (Prim)
+           and then Is_Intrinsic_Subprogram (Alias (Prim))
+           and then Chars (Alias (Prim)) = Name_Op_Ne;
+      end Is_Predefined_Neq_Renaming;
+
+      --  Local variables
+
+      Loc           : constant Source_Ptr := Sloc (Parent (Tag_Typ));
+      Stmts         : constant List_Id    := New_List;
+      Decl          : Node_Id;
+      Eq_Prim       : Entity_Id;
+      Left_Op       : Entity_Id;
+      Renaming_Prim : Entity_Id;
+      Right_Op      : Entity_Id;
+      Target        : Entity_Id;
+
+   --  Start of processing for Make_Neq_Body
+
+   begin
+      --  For a call on a renaming of a dispatching subprogram that is
+      --  overridden, if the overriding occurred before the renaming, then
+      --  the body executed is that of the overriding declaration, even if the
+      --  overriding declaration is not visible at the place of the renaming;
+      --  otherwise, the inherited or predefined subprogram is called, see
+      --  (RM 8.5.4(8))
+
+      --  Stage 1: Search for a renaming of the inequality primitive and also
+      --  search for an overriding of the equality primitive located before the
+      --  renaming declaration.
+
+      declare
+         Elmt : Elmt_Id;
+         Prim : Node_Id;
+
+      begin
+         Eq_Prim       := Empty;
+         Renaming_Prim := Empty;
+
+         Elmt := First_Elmt (Primitive_Operations (Tag_Typ));
+         while Present (Elmt) loop
+            Prim := Node (Elmt);
+
+            if Is_User_Defined_Equality (Prim)
+              and then No (Alias (Prim))
+            then
+               if No (Renaming_Prim) then
+                  pragma Assert (No (Eq_Prim));
+                  Eq_Prim := Prim;
+               end if;
+
+            elsif Is_Predefined_Neq_Renaming (Prim) then
+               Renaming_Prim := Prim;
+            end if;
+
+            Next_Elmt (Elmt);
+         end loop;
+      end;
+
+      --  No further action needed if no renaming was found
+
+      if No (Renaming_Prim) then
+         return Empty;
+      end if;
+
+      --  Stage 2: Replace the renaming declaration by a subprogram declaration
+      --  (required to add its body)
+
+      Decl := Parent (Parent (Renaming_Prim));
+      Rewrite (Decl,
+        Make_Subprogram_Declaration (Loc,
+          Specification => Specification (Decl)));
+      Set_Analyzed (Decl);
+
+      --  Remove the decoration of intrinsic renaming subprogram
+
+      Set_Is_Intrinsic_Subprogram (Renaming_Prim, False);
+      Set_Convention (Renaming_Prim, Convention_Ada);
+      Set_Alias (Renaming_Prim, Empty);
+      Set_Has_Completion (Renaming_Prim, False);
+
+      --  Stage 3: Build the corresponding body
+
+      Left_Op  := First_Formal (Renaming_Prim);
+      Right_Op := Next_Formal (Left_Op);
+
+      Decl :=
+        Predef_Spec_Or_Body (Loc,
+          Tag_Typ => Tag_Typ,
+          Name    => Chars (Renaming_Prim),
+          Profile => New_List (
+            Make_Parameter_Specification (Loc,
+              Defining_Identifier =>
+                Make_Defining_Identifier (Loc, Chars (Left_Op)),
+              Parameter_Type      => New_Reference_To (Tag_Typ, Loc)),
+
+            Make_Parameter_Specification (Loc,
+              Defining_Identifier =>
+                Make_Defining_Identifier (Loc, Chars (Right_Op)),
+              Parameter_Type      => New_Reference_To (Tag_Typ, Loc))),
+
+          Ret_Type => Standard_Boolean,
+          For_Body => True);
+
+      --  If the overriding of the equality primitive occurred before the
+      --  renaming, then generate:
+
+      --    function <Neq_Name> (X : Y : Typ) return Boolean is
+      --    begin
+      --       return not Oeq (X, Y);
+      --    end;
+
+      if Present (Eq_Prim) then
+         Target := Eq_Prim;
+
+      --  Otherwise build a nested subprogram which performs the predefined
+      --  evaluation of the equality operator. That is, generate:
+
+      --    function <Neq_Name> (X : Y : Typ) return Boolean is
+      --       function Oeq (X : Y) return Boolean is
+      --       begin
+      --          <<body of default implementation>>
+      --       end;
+      --    begin
+      --       return not Oeq (X, Y);
+      --    end;
+
+      else
+         declare
+            Local_Subp : Node_Id;
+         begin
+            Local_Subp := Make_Eq_Body (Tag_Typ, Name_Op_Eq);
+            Set_Declarations (Decl, New_List (Local_Subp));
+            Target := Defining_Entity (Local_Subp);
+         end;
+      end if;
+
+      Append_To (Stmts,
+        Make_Simple_Return_Statement (Loc,
+          Expression =>
+            Make_Op_Not (Loc,
+              Make_Function_Call (Loc,
+                Name => New_Reference_To (Target, Loc),
+                Parameter_Associations => New_List (
+                  Make_Identifier (Loc, Chars (Left_Op)),
+                  Make_Identifier (Loc, Chars (Right_Op)))))));
+
+      Set_Handled_Statement_Sequence
+        (Decl, Make_Handled_Sequence_Of_Statements (Loc, Stmts));
+      return Decl;
+   end Make_Neq_Body;
+
    -------------------------------
    -- Make_Null_Procedure_Specs --
    -------------------------------
@@ -8130,13 +8882,6 @@ package body Exp_Ch3 is
       Predef_List : out List_Id;
       Renamed_Eq  : out Entity_Id)
    is
-      Loc       : constant Source_Ptr := Sloc (Tag_Typ);
-      Res       : constant List_Id    := New_List;
-      Eq_Name   : Name_Id := Name_Op_Eq;
-      Eq_Needed : Boolean;
-      Eq_Spec   : Node_Id;
-      Prim      : Elmt_Id;
-
       function Is_Predefined_Eq_Renaming (Prim : Node_Id) return Boolean;
       --  Returns true if Prim is a renaming of an unresolved predefined
       --  equality operation.
@@ -8153,6 +8898,19 @@ package body Exp_Ch3 is
            and then Is_Intrinsic_Subprogram (Alias (Prim))
            and then Chars (Alias (Prim)) = Name_Op_Eq;
       end Is_Predefined_Eq_Renaming;
+
+      --  Local variables
+
+      Loc       : constant Source_Ptr := Sloc (Tag_Typ);
+      Res       : constant List_Id    := New_List;
+      Eq_Name   : Name_Id := Name_Op_Eq;
+      Eq_Needed : Boolean;
+      Eq_Spec   : Node_Id;
+      Prim      : Elmt_Id;
+
+      Has_Predef_Eq_Renaming : Boolean := False;
+      --  Set to True if Tag_Typ has a primitive that renames the predefined
+      --  equality operator. Used to implement (RM 8-5-4(8)).
 
    --  Start of processing for Make_Predefined_Primitive_Specs
 
@@ -8191,9 +8949,9 @@ package body Exp_Ch3 is
          end loop;
       end;
 
-      --  Spec of "=" is expanded if the type is not limited and if a
-      --  user defined "=" was not already declared for the non-full
-      --  view of a private extension
+      --  Spec of "=" is expanded if the type is not limited and if a user
+      --  defined "=" was not already declared for the non-full view of a
+      --  private extension
 
       if not Is_Limited_Type (Tag_Typ) then
          Eq_Needed := True;
@@ -8203,21 +8961,18 @@ package body Exp_Ch3 is
             --  If a primitive is encountered that renames the predefined
             --  equality operator before reaching any explicit equality
             --  primitive, then we still need to create a predefined equality
-            --  function, because calls to it can occur via the renaming. A new
-            --  name is created for the equality to avoid conflicting with any
-            --  user-defined equality. (Note that this doesn't account for
+            --  function, because calls to it can occur via the renaming. A
+            --  new name is created for the equality to avoid conflicting with
+            --  any user-defined equality. (Note that this doesn't account for
             --  renamings of equality nested within subpackages???)
 
             if Is_Predefined_Eq_Renaming (Node (Prim)) then
+               Has_Predef_Eq_Renaming := True;
                Eq_Name := New_External_Name (Chars (Node (Prim)), 'E');
 
             --  User-defined equality
 
-            elsif Chars (Node (Prim)) = Name_Op_Eq
-              and then Etype (First_Formal (Node (Prim))) =
-                         Etype (Next_Formal (First_Formal (Node (Prim))))
-              and then Base_Type (Etype (Node (Prim))) = Standard_Boolean
-            then
+            elsif Is_User_Defined_Equality (Node (Prim)) then
                if No (Alias (Node (Prim)))
                  or else Nkind (Unit_Declaration_Node (Node (Prim))) =
                            N_Subprogram_Renaming_Declaration
@@ -8286,7 +9041,7 @@ package body Exp_Ch3 is
                 Ret_Type => Standard_Boolean);
             Append_To (Res, Eq_Spec);
 
-            if Eq_Name /= Name_Op_Eq then
+            if Has_Predef_Eq_Renaming then
                Renamed_Eq := Defining_Unit_Name (Specification (Eq_Spec));
 
                Prim := First_Elmt (Primitive_Operations (Tag_Typ));
@@ -8855,6 +9610,14 @@ package body Exp_Ch3 is
 
          if Eq_Needed then
             Decl := Make_Eq_Body (Tag_Typ, Eq_Name);
+            Append_To (Res, Decl);
+         end if;
+
+         --  Body for inequality (if required!)
+
+         Decl := Make_Neq_Body (Tag_Typ);
+
+         if Present (Decl) then
             Append_To (Res, Decl);
          end if;
 

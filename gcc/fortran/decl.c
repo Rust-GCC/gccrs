@@ -21,6 +21,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #include "system.h"
+#include "coretypes.h"
 #include "gfortran.h"
 #include "match.h"
 #include "parse.h"
@@ -268,7 +269,7 @@ var_element (gfc_data_variable *new_var)
 
   if (gfc_current_state () != COMP_BLOCK_DATA
       && sym->attr.in_common
-      && gfc_notify_std (GFC_STD_GNU, "Extension: initialization of "
+      && gfc_notify_std (GFC_STD_GNU, "initialization of "
 			 "common block variable '%s' in DATA statement at %C",
 			 sym->name) == FAILURE)
     return MATCH_ERROR;
@@ -360,6 +361,8 @@ match_data_constant (gfc_expr **result)
 	m = MATCH_ERROR;
       return m;
     }
+  else if (m == MATCH_YES)
+    gfc_free_expr (*result);
 
   gfc_current_locus = old_loc;
 
@@ -450,8 +453,7 @@ top_val_list (gfc_data *data)
 	}
       else
 	{
-	  if (expr->ts.type == BT_INTEGER)
-	    mpz_set (tail->repeat, expr->value.integer);
+	  mpz_set (tail->repeat, expr->value.integer);
 	  gfc_free_expr (expr);
 
 	  m = match_data_constant (&tail->expr);
@@ -586,12 +588,19 @@ cleanup:
 /************************ Declaration statements *********************/
 
 
-/* Auxilliary function to merge DIMENSION and CODIMENSION array specs.  */
+/* Auxiliary function to merge DIMENSION and CODIMENSION array specs.  */
 
-static void
+static gfc_try
 merge_array_spec (gfc_array_spec *from, gfc_array_spec *to, bool copy)
 {
   int i;
+
+  if ((from->type == AS_ASSUMED_RANK && to->corank)
+      || (to->type == AS_ASSUMED_RANK && from->corank))
+    {
+      gfc_error ("The assumed-rank array at %C shall not have a codimension");
+      return FAILURE;
+    }
 
   if (to->rank == 0 && from->rank > 0)
     {
@@ -638,6 +647,8 @@ merge_array_spec (gfc_array_spec *from, gfc_array_spec *to, bool copy)
 	    }
 	}
     }
+
+  return SUCCESS;
 }
 
 
@@ -676,7 +687,7 @@ char_len_param_value (gfc_expr **expr, bool *deferred)
 
   if (gfc_match_char (':') == MATCH_YES)
     {
-      if (gfc_notify_std (GFC_STD_F2003, "Fortran 2003: deferred type "
+      if (gfc_notify_std (GFC_STD_F2003, "deferred type "
 			  "parameter at %C") == FAILURE)
 	return MATCH_ERROR;
 
@@ -722,7 +733,7 @@ syntax:
    char_len_param_value in parenthesis.  */
 
 static match
-match_char_length (gfc_expr **expr, bool *deferred)
+match_char_length (gfc_expr **expr, bool *deferred, bool obsolescent_check)
 {
   int length;
   match m;
@@ -738,8 +749,9 @@ match_char_length (gfc_expr **expr, bool *deferred)
 
   if (m == MATCH_YES)
     {
-      if (gfc_notify_std (GFC_STD_F95_OBS, "Obsolescent feature: "
-			  "Old-style character length at %C") == FAILURE)
+      if (obsolescent_check
+	  && gfc_notify_std (GFC_STD_F95_OBS,
+			     "Old-style character length at %C") == FAILURE)
 	return MATCH_ERROR;
       *expr = gfc_get_int_expr (gfc_default_integer_kind, NULL, length);
       return m;
@@ -880,7 +892,6 @@ get_proc_name (const char *name, gfc_symbol **result, bool module_fcn_entry)
     return rc;
 
   sym = *result;
-  gfc_current_ns->refs++;
 
   if (sym && !sym->gfc_new && gfc_current_state () != COMP_INTERFACE)
     {
@@ -1026,8 +1037,8 @@ gfc_verify_c_interop_param (gfc_symbol *sym)
 			   "because it is polymorphic",
 			   sym->name, &(sym->declared_at),
 			   sym->ns->proc_name->name);
-	      else
-		gfc_warning ("Variable '%s' at %L is a parameter to the "
+	      else if (gfc_option.warn_c_binding_type)
+		gfc_warning ("Variable '%s' at %L is a dummy argument of the "
 			     "BIND(C) procedure '%s' but may not be C "
 			     "interoperable",
 			     sym->name, &(sym->declared_at),
@@ -1081,7 +1092,7 @@ gfc_verify_c_interop_param (gfc_symbol *sym)
 	      retval = FAILURE;
 	    }
 	  else if (sym->attr.optional == 1
-		   && gfc_notify_std (GFC_STD_F2008_TS, "TS29113: Variable '%s' "
+		   && gfc_notify_std (GFC_STD_F2008_TS, "Variable '%s' "
 				      "at %L with OPTIONAL attribute in "
 				      "procedure '%s' which is BIND(C)",
 				      sym->name, &(sym->declared_at),
@@ -1090,29 +1101,15 @@ gfc_verify_c_interop_param (gfc_symbol *sym)
 	    retval = FAILURE;
 
           /* Make sure that if it has the dimension attribute, that it is
-	     either assumed size or explicit shape.  */
-	  if (sym->as != NULL)
-	    {
-	      if (sym->as->type == AS_ASSUMED_SHAPE)
-		{
-		  gfc_error ("Assumed-shape array '%s' at %L cannot be an "
-			     "argument to the procedure '%s' at %L because "
-			     "the procedure is BIND(C)", sym->name,
-			     &(sym->declared_at), sym->ns->proc_name->name,
-			     &(sym->ns->proc_name->declared_at));
-		  retval = FAILURE;
-		}
-
-	      if (sym->as->type == AS_DEFERRED)
-		{
-		  gfc_error ("Deferred-shape array '%s' at %L cannot be an "
-			     "argument to the procedure '%s' at %L because "
-			     "the procedure is BIND(C)", sym->name,
-			     &(sym->declared_at), sym->ns->proc_name->name,
- 			     &(sym->ns->proc_name->declared_at));
-		  retval = FAILURE;
-		}
-	  }
+	     either assumed size or explicit shape. Deferred shape is already
+	     covered by the pointer/allocatable attribute.  */
+	  if (sym->as != NULL && sym->as->type == AS_ASSUMED_SHAPE
+	      && gfc_notify_std (GFC_STD_F2008_TS, "Assumed-shape array '%s' "
+			      "at %L as dummy argument to the BIND(C) "
+			      "procedure '%s' at %L", sym->name,
+			      &(sym->declared_at), sym->ns->proc_name->name,
+			      &(sym->ns->proc_name->declared_at)) == FAILURE)
+	    retval = FAILURE;
 	}
     }
 
@@ -1658,7 +1655,10 @@ scalar:
       bool delayed = (gfc_state_stack->sym == c->ts.u.derived)
 		     || (!c->ts.u.derived->components
 			 && !c->ts.u.derived->attr.zero_comp);
-      return gfc_build_class_symbol (&c->ts, &c->attr, &c->as, delayed);
+      gfc_try t2 = gfc_build_class_symbol (&c->ts, &c->attr, &c->as, delayed);
+
+      if (t != FAILURE)
+	t = t2;
     }
 
   return t;
@@ -1712,7 +1712,7 @@ match_pointer_init (gfc_expr **init, int procptr)
       return MATCH_ERROR;
     }
 
-  /* Match NULL() initilization.  */
+  /* Match NULL() initialization.  */
   m = gfc_match_null (init);
   if (m != MATCH_NO)
     return m;
@@ -1734,7 +1734,7 @@ match_pointer_init (gfc_expr **init, int procptr)
   if (!procptr)
     gfc_resolve_expr (*init);
   
-  if (gfc_notify_std (GFC_STD_F2008, "Fortran 2008: non-NULL pointer "
+  if (gfc_notify_std (GFC_STD_F2008, "non-NULL pointer "
 		      "initialization at %C") == FAILURE)
     return MATCH_ERROR;
 
@@ -1805,8 +1805,12 @@ variable_decl (int elem)
 
   if (m == MATCH_NO)
     as = gfc_copy_array_spec (current_as);
-  else if (current_as)
-    merge_array_spec (current_as, as, true);
+  else if (current_as
+	   && merge_array_spec (current_as, as, true) == FAILURE)
+    {
+      m = MATCH_ERROR;
+      goto cleanup;
+    }
 
   if (gfc_option.flag_cray_pointer)
     cp_as = gfc_copy_array_spec (as);
@@ -1831,7 +1835,7 @@ variable_decl (int elem)
 
       if (as->type == AS_IMPLIED_SHAPE
 	  && gfc_notify_std (GFC_STD_F2008,
-			     "Fortran 2008: Implied-shape array at %L",
+			     "Implied-shape array at %L",
 			     &var_locus) == FAILURE)
 	{
 	  m = MATCH_ERROR;
@@ -1845,7 +1849,7 @@ variable_decl (int elem)
 
   if (current_ts.type == BT_CHARACTER)
     {
-      switch (match_char_length (&char_len, &cl_deferred))
+      switch (match_char_length (&char_len, &cl_deferred, false))
 	{
 	case MATCH_YES:
 	  cl = gfc_new_charlen (gfc_current_ns, NULL);
@@ -1990,7 +1994,7 @@ variable_decl (int elem)
 
   if (!colon_seen && gfc_match (" /") == MATCH_YES)
     {
-      if (gfc_notify_std (GFC_STD_GNU, "Extension: Old-style "
+      if (gfc_notify_std (GFC_STD_GNU, "Old-style "
 			  "initialization at %C") == FAILURE)
 	return MATCH_ERROR;
  
@@ -2232,7 +2236,7 @@ kind_expr:
      C interoperable kind (and store the fact).	 */
   if (e->ts.is_c_interop == 1)
     {
-      /* Mark this as c interoperable if being declared with one
+      /* Mark this as C interoperable if being declared with one
 	 of the named constants from iso_c_binding.  */
       ts->is_c_interop = e->ts.is_iso_c;
       ts->f90_type = e->ts.f90_type;
@@ -2407,7 +2411,7 @@ gfc_match_char_spec (gfc_typespec *ts)
   /* Try the old-style specification first.  */
   old_char_selector = 0;
 
-  m = match_char_length (&len, &deferred);
+  m = match_char_length (&len, &deferred, true);
   if (m != MATCH_NO)
     {
       if (m == MATCH_YES)
@@ -2530,10 +2534,10 @@ done:
   ts->kind = kind == 0 ? gfc_default_character_kind : kind;
   ts->deferred = deferred;
 
-  /* We have to know if it was a c interoperable kind so we can
+  /* We have to know if it was a C interoperable kind so we can
      do accurate type checking of bind(c) procs, etc.  */
   if (kind != 0)
-    /* Mark this as c interoperable if being declared with one
+    /* Mark this as C interoperable if being declared with one
        of the named constants from iso_c_binding.  */
     ts->is_c_interop = is_iso_c;
   else if (len != NULL)
@@ -2583,7 +2587,7 @@ gfc_match_decl_type_spec (gfc_typespec *ts, int implicit_flag)
 
   if (gfc_match (" byte") == MATCH_YES)
     {
-      if (gfc_notify_std (GFC_STD_GNU, "Extension: BYTE type at %C")
+      if (gfc_notify_std (GFC_STD_GNU, "BYTE type at %C")
 	  == FAILURE)
 	return MATCH_ERROR;
 
@@ -2600,9 +2604,31 @@ gfc_match_decl_type_spec (gfc_typespec *ts, int implicit_flag)
     }
 
 
-  m = gfc_match (" type ( %n", name);
+  m = gfc_match (" type (");
   matched_type = (m == MATCH_YES);
-  
+  if (matched_type)
+    {
+      gfc_gobble_whitespace ();
+      if (gfc_peek_ascii_char () == '*')
+	{
+	  if ((m = gfc_match ("*)")) != MATCH_YES)
+	    return m;
+	  if (gfc_current_state () == COMP_DERIVED)
+	    {
+	      gfc_error ("Assumed type at %C is not allowed for components");
+	      return MATCH_ERROR;
+	    }
+	  if (gfc_notify_std (GFC_STD_F2008_TS, "Assumed type "
+			  "at %C") == FAILURE)
+	    return MATCH_ERROR;
+	  ts->type = BT_ASSUMED;
+	  return MATCH_YES;
+	}
+
+      m = gfc_match ("%n", name);
+      matched_type = (m == MATCH_YES);
+    }
+
   if ((matched_type && strcmp ("integer", name) == 0)
       || (!matched_type && gfc_match (" integer") == MATCH_YES))
     {
@@ -2615,7 +2641,7 @@ gfc_match_decl_type_spec (gfc_typespec *ts, int implicit_flag)
       || (!matched_type && gfc_match (" character") == MATCH_YES))
     {
       if (matched_type
-	  && gfc_notify_std (GFC_STD_F2008, "Fortran 2008: TYPE with "
+	  && gfc_notify_std (GFC_STD_F2008, "TYPE with "
 			  "intrinsic-type-spec at %C") == FAILURE)
 	return MATCH_ERROR;
 
@@ -2646,7 +2672,7 @@ gfc_match_decl_type_spec (gfc_typespec *ts, int implicit_flag)
       || (!matched_type && gfc_match (" double precision") == MATCH_YES))
     {
       if (matched_type
-	  && gfc_notify_std (GFC_STD_F2008, "Fortran 2008: TYPE with "
+	  && gfc_notify_std (GFC_STD_F2008, "TYPE with "
 			  "intrinsic-type-spec at %C") == FAILURE)
 	return MATCH_ERROR;
       if (matched_type && gfc_match_char (')') != MATCH_YES)
@@ -2671,12 +2697,12 @@ gfc_match_decl_type_spec (gfc_typespec *ts, int implicit_flag)
 	       && gfc_match (" complex") == MATCH_YES)))
       || (!matched_type && gfc_match (" double complex") == MATCH_YES))
     {
-      if (gfc_notify_std (GFC_STD_GNU, "Extension: DOUBLE COMPLEX at %C")
+      if (gfc_notify_std (GFC_STD_GNU, "DOUBLE COMPLEX at %C")
 	  == FAILURE)
 	return MATCH_ERROR;
 
       if (matched_type
-	  && gfc_notify_std (GFC_STD_F2008, "Fortran 2008: TYPE with "
+	  && gfc_notify_std (GFC_STD_F2008, "TYPE with "
 			  "intrinsic-type-spec at %C") == FAILURE)
 	return MATCH_ERROR;
 
@@ -2718,7 +2744,7 @@ gfc_match_decl_type_spec (gfc_typespec *ts, int implicit_flag)
 	return m;
       ts->type = BT_CLASS;
 
-      if (gfc_notify_std (GFC_STD_F2003, "Fortran 2003: CLASS statement at %C")
+      if (gfc_notify_std (GFC_STD_F2003, "CLASS statement at %C")
 			  == FAILURE)
 	return MATCH_ERROR;
     }
@@ -2741,7 +2767,7 @@ gfc_match_decl_type_spec (gfc_typespec *ts, int implicit_flag)
   /* Search for the name but allow the components to be defined later.  If
      type = -1, this typespec has been seen in a function declaration but
      the type could not be accessed at that point.  The actual derived type is
-     stored in a symtree with the first letter of the name captialized; the
+     stored in a symtree with the first letter of the name capitalized; the
      symtree with the all lower-case name contains the associated
      generic function.  */
   dt_name = gfc_get_string ("%c%s",
@@ -2826,7 +2852,7 @@ gfc_match_decl_type_spec (gfc_typespec *ts, int implicit_flag)
 
 get_kind:
   if (matched_type
-      && gfc_notify_std (GFC_STD_F2008, "Fortran 2008: TYPE with "
+      && gfc_notify_std (GFC_STD_F2008, "TYPE with "
 			 "intrinsic-type-spec at %C") == FAILURE)
     return MATCH_ERROR;
 
@@ -3111,7 +3137,7 @@ gfc_match_import (void)
       return MATCH_ERROR;
     }
 
-  if (gfc_notify_std (GFC_STD_F2003, "Fortran 2003: IMPORT statement at %C")
+  if (gfc_notify_std (GFC_STD_F2003, "IMPORT statement at %C")
       == FAILURE)
     return MATCH_ERROR;
 
@@ -3175,7 +3201,7 @@ gfc_match_import (void)
 	  if (sym->attr.generic && (sym = gfc_find_dt_in_generic (sym)))
 	    {
 	      /* The actual derived type is stored in a symtree with the first
-		 letter of the name captialized; the symtree with the all
+		 letter of the name capitalized; the symtree with the all
 		 lower-case name contains the associated generic function. */
 	      st = gfc_new_symtree (&gfc_current_ns->sym_root,
 			gfc_get_string ("%c%s",
@@ -3239,7 +3265,7 @@ static match
 match_attr_spec (void)
 {
   /* Modifiers that can exist in a type statement.  */
-  typedef enum
+  enum
   { GFC_DECL_BEGIN = 0,
     DECL_ALLOCATABLE = GFC_DECL_BEGIN, DECL_DIMENSION, DECL_EXTERNAL,
     DECL_IN, DECL_OUT, DECL_INOUT, DECL_INTRINSIC, DECL_OPTIONAL,
@@ -3247,8 +3273,7 @@ match_attr_spec (void)
     DECL_PUBLIC, DECL_SAVE, DECL_TARGET, DECL_VALUE, DECL_VOLATILE,
     DECL_IS_BIND_C, DECL_CODIMENSION, DECL_ASYNCHRONOUS, DECL_CONTIGUOUS,
     DECL_NONE, GFC_DECL_END /* Sentinel */
-  }
-  decl_types;
+  };
 
 /* GFC_DECL_END is the sentinel, index starts at 0.  */
 #define NUM_DECL GFC_DECL_END
@@ -3497,7 +3522,8 @@ match_attr_spec (void)
 	    current_as = as;
 	  else if (m == MATCH_YES)
 	    {
-	      merge_array_spec (as, current_as, false);
+	      if (merge_array_spec (as, current_as, false) == FAILURE)
+		m = MATCH_ERROR;
 	      free (as);
 	    }
 
@@ -3608,7 +3634,7 @@ match_attr_spec (void)
 	{
 	  if (d == DECL_ALLOCATABLE)
 	    {
-	      if (gfc_notify_std (GFC_STD_F2003, "Fortran 2003: ALLOCATABLE "
+	      if (gfc_notify_std (GFC_STD_F2003, "ALLOCATABLE "
 				  "attribute at %C in a TYPE definition")
 		  == FAILURE)
 		{
@@ -3636,7 +3662,7 @@ match_attr_spec (void)
 	      && gfc_state_stack->previous
 	      && gfc_state_stack->previous->state == COMP_MODULE)
 	    {
-	      if (gfc_notify_std (GFC_STD_F2003, "Fortran 2003: Attribute %s "
+	      if (gfc_notify_std (GFC_STD_F2003, "Attribute %s "
 				  "at %L in a TYPE definition", attr,
 				  &seen_at[d])
 		  == FAILURE)
@@ -3662,7 +3688,7 @@ match_attr_spec (void)
 
 	case DECL_ASYNCHRONOUS:
 	  if (gfc_notify_std (GFC_STD_F2003,
-			      "Fortran 2003: ASYNCHRONOUS attribute at %C")
+			      "ASYNCHRONOUS attribute at %C")
 	      == FAILURE)
 	    t = FAILURE;
 	  else
@@ -3675,7 +3701,7 @@ match_attr_spec (void)
 
 	case DECL_CONTIGUOUS:
 	  if (gfc_notify_std (GFC_STD_F2008,
-			      "Fortran 2008: CONTIGUOUS attribute at %C")
+			      "CONTIGUOUS attribute at %C")
 	      == FAILURE)
 	    t = FAILURE;
 	  else
@@ -3727,7 +3753,7 @@ match_attr_spec (void)
 	       break;
 	    }
 
-	  if (gfc_notify_std (GFC_STD_F2003, "Fortran 2003: PROTECTED "
+	  if (gfc_notify_std (GFC_STD_F2003, "PROTECTED "
 			      "attribute at %C")
 	      == FAILURE)
 	    t = FAILURE;
@@ -3758,7 +3784,7 @@ match_attr_spec (void)
            break;
            
 	case DECL_VALUE:
-	  if (gfc_notify_std (GFC_STD_F2003, "Fortran 2003: VALUE attribute "
+	  if (gfc_notify_std (GFC_STD_F2003, "VALUE attribute "
 			      "at %C")
 	      == FAILURE)
 	    t = FAILURE;
@@ -3768,7 +3794,7 @@ match_attr_spec (void)
 
 	case DECL_VOLATILE:
 	  if (gfc_notify_std (GFC_STD_F2003,
-			      "Fortran 2003: VOLATILE attribute at %C")
+			      "VOLATILE attribute at %C")
 	      == FAILURE)
 	    t = FAILURE;
 	  else
@@ -3820,7 +3846,7 @@ set_binding_label (const char **dest_label, const char *sym_name,
     }
 
   if (curr_binding_label)
-    /* Binding label given; store in temp holder til have sym.  */
+    /* Binding label given; store in temp holder till have sym.  */
     *dest_label = curr_binding_label;
   else
     {
@@ -3855,9 +3881,9 @@ gfc_verify_c_interop (gfc_typespec *ts)
 	   ? SUCCESS : FAILURE;
   else if (ts->type == BT_CLASS)
     return FAILURE;
-  else if (ts->is_c_interop != 1)
+  else if (ts->is_c_interop != 1 && ts->type != BT_ASSUMED)
     return FAILURE;
-  
+
   return SUCCESS;
 }
 
@@ -3909,7 +3935,7 @@ verify_bind_c_sym (gfc_symbol *tmp_sym, gfc_typespec *ts,
     {
       tmp_sym = tmp_sym->result;
       /* Make sure it wasn't an implicitly typed result.  */
-      if (tmp_sym->attr.implicit_type)
+      if (tmp_sym->attr.implicit_type && gfc_option.warn_c_binding_type)
 	{
 	  gfc_warning ("Implicitly declared BIND(C) function '%s' at "
                        "%L may not be C interoperable", tmp_sym->name,
@@ -3930,7 +3956,7 @@ verify_bind_c_sym (gfc_symbol *tmp_sym, gfc_typespec *ts,
       if (gfc_verify_c_interop (&(tmp_sym->ts)) != SUCCESS)
 	{
 	  /* See if we're dealing with a sym in a common block or not.	*/
-	  if (is_in_common == 1)
+	  if (is_in_common == 1 && gfc_option.warn_c_binding_type)
 	    {
 	      gfc_warning ("Variable '%s' in common block '%s' at %L "
                            "may not be a C interoperable "
@@ -3944,7 +3970,7 @@ verify_bind_c_sym (gfc_symbol *tmp_sym, gfc_typespec *ts,
                 gfc_error ("Type declaration '%s' at %L is not C "
                            "interoperable but it is BIND(C)",
                            tmp_sym->name, &(tmp_sym->declared_at));
-              else
+              else if (gfc_option.warn_c_binding_type)
                 gfc_warning ("Variable '%s' at %L "
                              "may not be a C interoperable "
                              "kind but it is bind(c)",
@@ -4348,7 +4374,7 @@ gfc_match_prefix (gfc_typespec *ts)
       if (gfc_match ("impure% ") == MATCH_YES)
 	{
 	  if (gfc_notify_std (GFC_STD_F2008,
-			      "Fortran 2008: IMPURE procedure at %C")
+			      "IMPURE procedure at %C")
 		== FAILURE)
 	    goto error;
 
@@ -4634,7 +4660,7 @@ gfc_match_suffix (gfc_symbol *sym, gfc_symbol **result)
       /* Fortran 2008 draft allows BIND(C) for internal procedures.  */
       if (gfc_current_state () == COMP_CONTAINS
 	  && sym->ns->proc_name->attr.flavor != FL_MODULE
-	  && gfc_notify_std (GFC_STD_F2008, "Fortran 2008: BIND(C) attribute "
+	  && gfc_notify_std (GFC_STD_F2008, "BIND(C) attribute "
 			     "at %L may not be specified for an internal "
 			     "procedure", &gfc_current_locus)
 	     == FAILURE)
@@ -4766,41 +4792,20 @@ match_procedure_interface (gfc_symbol **proc_if)
   gfc_current_ns = old_ns;
   *proc_if = st->n.sym;
 
-  /* Various interface checks.  */
   if (*proc_if)
     {
       (*proc_if)->refs++;
       /* Resolve interface if possible. That way, attr.procedure is only set
 	 if it is declared by a later procedure-declaration-stmt, which is
-	 invalid per C1212.  */
+	 invalid per F08:C1216 (cf. resolve_procedure_interface).  */
       while ((*proc_if)->ts.interface)
 	*proc_if = (*proc_if)->ts.interface;
 
-      if ((*proc_if)->generic)
-	{
-	  gfc_error ("Interface '%s' at %C may not be generic",
-		     (*proc_if)->name);
-	  return MATCH_ERROR;
-	}
-      if ((*proc_if)->attr.proc == PROC_ST_FUNCTION)
-	{
-	  gfc_error ("Interface '%s' at %C may not be a statement function",
-		     (*proc_if)->name);
-	  return MATCH_ERROR;
-	}
-      /* Handle intrinsic procedures.  */
-      if (!((*proc_if)->attr.external || (*proc_if)->attr.use_assoc
-	    || (*proc_if)->attr.if_source == IFSRC_IFBODY)
-	  && (gfc_is_intrinsic ((*proc_if), 0, gfc_current_locus)
-	      || gfc_is_intrinsic ((*proc_if), 1, gfc_current_locus)))
-	(*proc_if)->attr.intrinsic = 1;
-      if ((*proc_if)->attr.intrinsic
-	  && !gfc_intrinsic_actual_ok ((*proc_if)->name, 0))
-	{
-	  gfc_error ("Intrinsic procedure '%s' not allowed "
-		    "in PROCEDURE statement at %C", (*proc_if)->name);
-	  return MATCH_ERROR;
-	}
+      if ((*proc_if)->attr.flavor == FL_UNKNOWN
+	  && (*proc_if)->ts.type == BT_UNKNOWN
+	  && gfc_add_flavor (&(*proc_if)->attr, FL_PROCEDURE,
+			      (*proc_if)->name, NULL) == FAILURE)
+	return MATCH_ERROR;
     }
 
 got_ts:
@@ -4833,6 +4838,13 @@ match_procedure_decl (void)
   m = match_attr_spec();
   if (m == MATCH_ERROR)
     return MATCH_ERROR;
+
+  if (proc_if && proc_if->attr.is_bind_c && !current_attr.is_bind_c)
+    {
+      current_attr.is_bind_c = 1;
+      has_name_equals = 0;
+      curr_binding_label = NULL;
+    }
 
   /* Get procedure symbols.  */
   for(num=1;;num++)
@@ -4998,7 +5010,7 @@ match_ppc_decl (void)
       return MATCH_ERROR;
     }
 
-  if (gfc_notify_std (GFC_STD_F2003, "Fortran 2003: Procedure pointer "
+  if (gfc_notify_std (GFC_STD_F2003, "Procedure pointer "
                      "component at %C") == FAILURE)
     return MATCH_ERROR;
 
@@ -5038,6 +5050,7 @@ match_ppc_decl (void)
 	{
 	  c->ts = ts;
 	  c->ts.interface = gfc_new_symbol ("", gfc_current_ns);
+	  c->ts.interface->result = c->ts.interface;
 	  c->ts.interface->ts = ts;
 	  c->ts.interface->attr.flavor = FL_PROCEDURE;
 	  c->ts.interface->attr.function = 1;
@@ -5076,6 +5089,7 @@ match_procedure_in_interface (void)
   match m;
   gfc_symbol *sym;
   char name[GFC_MAX_SYMBOL_LEN + 1];
+  locus old_locus;
 
   if (current_interface.type == INTERFACE_NAMELESS
       || current_interface.type == INTERFACE_ABSTRACT)
@@ -5083,6 +5097,19 @@ match_procedure_in_interface (void)
       gfc_error ("PROCEDURE at %C must be in a generic interface");
       return MATCH_ERROR;
     }
+
+  /* Check if the F2008 optional double colon appears.  */
+  gfc_gobble_whitespace ();
+  old_locus = gfc_current_locus;
+  if (gfc_match ("::") == MATCH_YES)
+    {
+      if (gfc_notify_std (GFC_STD_F2008, "double colon in "
+			 "MODULE PROCEDURE statement at %L", &old_locus)
+	  == FAILURE)
+	return MATCH_ERROR;
+    }
+  else
+    gfc_current_locus = old_locus;
 
   for(;;)
     {
@@ -5146,7 +5173,7 @@ gfc_match_procedure (void)
   if (m != MATCH_YES)
     return m;
 
-  if (gfc_notify_std (GFC_STD_F2003, "Fortran 2003: PROCEDURE statement at %C")
+  if (gfc_notify_std (GFC_STD_F2003, "PROCEDURE statement at %C")
       == FAILURE)
     return MATCH_ERROR;
 
@@ -5357,7 +5384,7 @@ gfc_match_entry (void)
   if (m != MATCH_YES)
     return m;
 
-  if (gfc_notify_std (GFC_STD_F2008_OBS, "Fortran 2008 obsolescent feature: "
+  if (gfc_notify_std (GFC_STD_F2008_OBS,
 		      "ENTRY statement at %C") == FAILURE)
     return MATCH_ERROR;
 
@@ -5668,7 +5695,7 @@ gfc_match_subroutine (void)
       /* The following is allowed in the Fortran 2008 draft.  */
       if (gfc_current_state () == COMP_CONTAINS
 	  && sym->ns->proc_name->attr.flavor != FL_MODULE
-	  && gfc_notify_std (GFC_STD_F2008, "Fortran 2008: BIND(C) attribute "
+	  && gfc_notify_std (GFC_STD_F2008, "BIND(C) attribute "
 			     "at %L may not be specified for an internal "
 			     "procedure", &gfc_current_locus)
 	     == FAILURE)
@@ -6038,7 +6065,7 @@ gfc_match_end (gfc_statement *st)
     {
       if (!eos_ok && (*st == ST_END_SUBROUTINE || *st == ST_END_FUNCTION))
 	{
-	  if (gfc_notify_std (GFC_STD_F2008, "Fortran 2008: END statement "
+	  if (gfc_notify_std (GFC_STD_F2008, "END statement "
 			      "instead of %s statement at %L",
 			      gfc_ascii_statement (*st), &old_loc) == FAILURE)
 	    goto cleanup;
@@ -6564,7 +6591,7 @@ gfc_match_codimension (void)
 match
 gfc_match_contiguous (void)
 {
-  if (gfc_notify_std (GFC_STD_F2008, "Fortran 2008: CONTIGUOUS statement at %C")
+  if (gfc_notify_std (GFC_STD_F2008, "CONTIGUOUS statement at %C")
       == FAILURE)
     return MATCH_ERROR;
 
@@ -6717,7 +6744,7 @@ gfc_match_protected (void)
 
     }
 
-  if (gfc_notify_std (GFC_STD_F2003, "Fortran 2003: PROTECTED statement at %C")
+  if (gfc_notify_std (GFC_STD_F2003, "PROTECTED statement at %C")
       == FAILURE)
     return MATCH_ERROR;
 
@@ -7015,7 +7042,7 @@ gfc_match_value (void)
       return MATCH_ERROR;
     }
 
-  if (gfc_notify_std (GFC_STD_F2003, "Fortran 2003: VALUE statement at %C")
+  if (gfc_notify_std (GFC_STD_F2003, "VALUE statement at %C")
       == FAILURE)
     return MATCH_ERROR;
 
@@ -7066,7 +7093,7 @@ gfc_match_volatile (void)
   gfc_symbol *sym;
   match m;
 
-  if (gfc_notify_std (GFC_STD_F2003, "Fortran 2003: VOLATILE statement at %C")
+  if (gfc_notify_std (GFC_STD_F2003, "VOLATILE statement at %C")
       == FAILURE)
     return MATCH_ERROR;
 
@@ -7127,7 +7154,7 @@ gfc_match_asynchronous (void)
   gfc_symbol *sym;
   match m;
 
-  if (gfc_notify_std (GFC_STD_F2003, "Fortran 2003: ASYNCHRONOUS statement at %C")
+  if (gfc_notify_std (GFC_STD_F2003, "ASYNCHRONOUS statement at %C")
       == FAILURE)
     return MATCH_ERROR;
 
@@ -7218,7 +7245,7 @@ gfc_match_modproc (void)
   old_locus = gfc_current_locus;
   if (gfc_match ("::") == MATCH_YES)
     {
-      if (gfc_notify_std (GFC_STD_F2008, "Fortran 2008: double colon in "
+      if (gfc_notify_std (GFC_STD_F2008, "double colon in "
 			 "MODULE PROCEDURE statement at %L", &old_locus)
 	  == FAILURE)
 	return MATCH_ERROR;
@@ -7385,7 +7412,7 @@ gfc_get_type_attr_spec (symbol_attribute *attr, char *name)
     }
   else if (gfc_match (" , abstract") == MATCH_YES)
     {
-      if (gfc_notify_std (GFC_STD_F2003, "Fortran 2003: ABSTRACT type at %C")
+      if (gfc_notify_std (GFC_STD_F2003, "ABSTRACT type at %C")
 	    == FAILURE)
 	return MATCH_ERROR;
 
@@ -7616,7 +7643,7 @@ gfc_match_enum (void)
   if (m != MATCH_YES)
     return m;
 
-  if (gfc_notify_std (GFC_STD_F2003, "Fortran 2003: ENUM and ENUMERATOR at %C")
+  if (gfc_notify_std (GFC_STD_F2003, "ENUM and ENUMERATOR at %C")
       == FAILURE)
     return MATCH_ERROR;
 
@@ -7833,7 +7860,7 @@ match_binding_attributes (gfc_typebound_proc* ba, bool generic, bool ppc)
   bool seen_ptr = false;
   match m = MATCH_YES;
 
-  /* Intialize to defaults.  Do so even before the MATCH_NO check so that in
+  /* Initialize to defaults.  Do so even before the MATCH_NO check so that in
      this case the defaults are in there.  */
   ba->access = ACCESS_UNKNOWN;
   ba->pass_arg = NULL;
@@ -8110,7 +8137,7 @@ match_procedure_in_type (void)
 	  return MATCH_ERROR;
 	}
 
-      if (num>1 && gfc_notify_std (GFC_STD_F2008, "Fortran 2008: PROCEDURE list"
+      if (num>1 && gfc_notify_std (GFC_STD_F2008, "PROCEDURE list"
 				   " at %C") == FAILURE)
 	return MATCH_ERROR;
 

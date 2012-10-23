@@ -1,6 +1,5 @@
 ;; Decimal Floating Point (DFP) patterns.
-;; Copyright (C) 2007, 2008, 2010, 2011
-;; Free Software Foundation, Inc.
+;; Copyright (C) 2007-2012 Free Software Foundation, Inc.
 ;; Contributed by Ben Elliston (bje@au.ibm.com) and Peter Bergner
 ;; (bergner@vnet.ibm.com).
 
@@ -62,46 +61,44 @@
 }")
 
 (define_insn "movsd_hardfloat"
-  [(set (match_operand:SD 0 "nonimmediate_operand" "=r,r,m,f,*c*l,*q,!r,*h,!r,!r")
-	(match_operand:SD 1 "input_operand"        "r,m,r,f,r,r,h,0,G,Fn"))]
+  [(set (match_operand:SD 0 "nonimmediate_operand" "=r,r,m,f,*c*l,!r,*h,!r,!r")
+	(match_operand:SD 1 "input_operand"        "r,m,r,f,r,h,0,G,Fn"))]
   "(gpc_reg_operand (operands[0], SDmode)
    || gpc_reg_operand (operands[1], SDmode))
    && (TARGET_HARD_FLOAT && TARGET_FPRS)"
   "@
    mr %0,%1
-   {l%U1%X1|lwz%U1%X1} %0,%1
-   {st%U0%X0|stw%U0%X0} %1,%0
+   lwz%U1%X1 %0,%1
+   stw%U0%X0 %1,%0
    fmr %0,%1
    mt%0 %1
-   mt%0 %1
    mf%1 %0
-   {cror 0,0,0|nop}
+   nop
    #
    #"
-  [(set_attr "type" "*,load,store,fp,mtjmpr,*,mfjmpr,*,*,*")
-   (set_attr "length" "4,4,4,4,4,4,4,4,4,8")])
+  [(set_attr "type" "*,load,store,fp,mtjmpr,mfjmpr,*,*,*")
+   (set_attr "length" "4,4,4,4,4,4,4,4,8")])
 
 (define_insn "movsd_softfloat"
-  [(set (match_operand:SD 0 "nonimmediate_operand" "=r,cl,q,r,r,m,r,r,r,r,r,*h")
-	(match_operand:SD 1 "input_operand" "r,r,r,h,m,r,I,L,R,G,Fn,0"))]
+  [(set (match_operand:SD 0 "nonimmediate_operand" "=r,cl,r,r,m,r,r,r,r,r,*h")
+	(match_operand:SD 1 "input_operand" "r,r,h,m,r,I,L,R,G,Fn,0"))]
   "(gpc_reg_operand (operands[0], SDmode)
    || gpc_reg_operand (operands[1], SDmode))
    && (TARGET_SOFT_FLOAT || !TARGET_FPRS)"
   "@
    mr %0,%1
    mt%0 %1
-   mt%0 %1
    mf%1 %0
-   {l%U1%X1|lwz%U1%X1} %0,%1
-   {st%U0%X0|stw%U0%X0} %1,%0
-   {lil|li} %0,%1
-   {liu|lis} %0,%v1
-   {cal|la} %0,%a1
+   lwz%U1%X1 %0,%1
+   stw%U0%X0 %1,%0
+   li %0,%1
+   lis %0,%v1
+   la %0,%a1
    #
    #
-   {cror 0,0,0|nop}"
-  [(set_attr "type" "*,mtjmpr,*,mfjmpr,load,store,*,*,*,*,*,*")
-   (set_attr "length" "4,4,4,4,4,4,4,4,4,4,8,4")])
+   nop"
+  [(set_attr "type" "*,mtjmpr,mfjmpr,load,store,*,*,*,*,*,*")
+   (set_attr "length" "4,4,4,4,4,4,4,4,4,8,4")])
 
 (define_insn "movsd_store"
   [(set (match_operand:DD 0 "nonimmediate_operand" "=m")
@@ -338,7 +335,7 @@
    stfd%U0%X0 %1,%0
    mt%0 %1
    mf%1 %0
-   {cror 0,0,0|nop}
+   nop
    #
    #
    #
@@ -364,7 +361,7 @@
    stfd%U0%X0 %1,%0
    mt%0 %1
    mf%1 %0
-   {cror 0,0,0|nop}
+   nop
    #
    #
    #"
@@ -386,7 +383,7 @@
    #
    #
    #
-   {cror 0,0,0|nop}"
+   nop"
   [(set_attr "type" "load,store,*,mtjmpr,mfjmpr,*,*,*,*")
    (set_attr "length" "4,4,4,4,4,8,12,16,4")])
 
@@ -545,6 +542,13 @@
   "TARGET_DFP"
   "dcmpuq %0,%1,%2"
   [(set_attr "type" "fpcompare")])
+
+(define_insn "floatdidd2"
+  [(set (match_operand:DD 0 "gpc_reg_operand" "=d")
+	(float:DD (match_operand:DI 1 "gpc_reg_operand" "d")))]
+  "TARGET_DFP && TARGET_POPCNTD"
+  "dcffix %0,%1"
+  [(set_attr "type" "fp")])
 
 (define_insn "floatditd2"
   [(set (match_operand:TD 0 "gpc_reg_operand" "=d")

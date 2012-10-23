@@ -1,6 +1,6 @@
 // unique_ptr implementation -*- C++ -*-
 
-// Copyright (C) 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
+// Copyright (C) 2008-2012 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -45,6 +45,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    * @{
    */
 
+#if _GLIBCXX_USE_DEPRECATED
+  template<typename> class auto_ptr;
+#endif
+
   /// Primary template, default_delete.
   template<typename _Tp>
     struct default_delete
@@ -83,7 +87,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       template<typename _Up> void operator()(_Up*) const = delete;
     };
 
-  /// 20.7.12.2 unique_ptr for single objects.
+  /// 20.7.1.2 unique_ptr for single objects.
   template <typename _Tp, typename _Dp = default_delete<_Tp> >
     class unique_ptr
     {
@@ -161,8 +165,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	std::enable_if<std::is_convertible<_Up*, _Tp*>::value
 		       && std::is_same<_Dp,
 				       default_delete<_Tp>>::value>::type>
-	unique_ptr(auto_ptr<_Up>&& __u) noexcept
-	: _M_t(__u.release(), deleter_type()) { }
+	unique_ptr(auto_ptr<_Up>&& __u) noexcept;
 #endif
 
       // Destructor.
@@ -263,7 +266,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       unique_ptr& operator=(const unique_ptr&) = delete;
   };
 
-  /// 20.7.12.3 unique_ptr for array objects with a runtime length
+  /// 20.7.1.3 unique_ptr for array objects with a runtime length
   // [unique.ptr.runtime]
   // _GLIBCXX_RESOLVE_LIB_DEFECTS
   // DR 740 - omit specialization for array objects with a compile time length
@@ -415,7 +418,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       unique_ptr& operator=(const unique_ptr&) = delete;
 
       // Disable construction from convertible pointer types.
-      // (N2315 - 20.6.5.3.1)
+      // (N2315 - 20.7.1.3.1)
       template<typename _Up>
 	unique_ptr(_Up*, typename
 		   std::conditional<std::is_reference<deleter_type>::value,

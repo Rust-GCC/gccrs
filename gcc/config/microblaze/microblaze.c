@@ -31,7 +31,6 @@
 #include "conditions.h"
 #include "insn-flags.h"
 #include "insn-attr.h"
-#include "integrate.h"
 #include "recog.h"
 #include "tree.h"
 #include "function.h"
@@ -48,6 +47,7 @@
 #include "df.h"
 #include "optabs.h"
 #include "diagnostic-core.h"
+#include "cgraph.h"
 
 #define MICROBLAZE_VERSION_COMPARE(VA,VB) strcasecmp (VA, VB)
 
@@ -190,7 +190,7 @@ enum reg_class microblaze_regno_to_class[] =
 /* MicroBlaze specific machine attributes.
    interrupt_handler - Interrupt handler attribute to add interrupt prologue 
 		       and epilogue and use appropriate interrupt return.
-   save_volatiles    - Similiar to interrupt handler, but use normal return.  */
+   save_volatiles    - Similar to interrupt handler, but use normal return.  */
 int interrupt_handler;
 int save_volatiles;
 
@@ -341,7 +341,8 @@ double_memory_operand (rtx op, enum machine_mode mode)
     return 1;
 
   return memory_address_p ((GET_MODE_CLASS (mode) == MODE_INT
-			    ? SImode : SFmode), plus_constant (addr, 4));
+			    ? SImode : SFmode),
+			   plus_constant (Pmode, addr, 4));
 }
 
 /* Implement REG_OK_FOR_BASE_P -and- REG_OK_FOR_INDEX_P.  */
@@ -808,8 +809,8 @@ microblaze_block_move_loop (rtx dest, rtx src, HOST_WIDE_INT length)
   microblaze_block_move_straight (dest, src, MAX_MOVE_BYTES);
 
   /* Move on to the next block.  */
-  emit_move_insn (src_reg, plus_constant (src_reg, MAX_MOVE_BYTES));
-  emit_move_insn (dest_reg, plus_constant (dest_reg, MAX_MOVE_BYTES));
+  emit_move_insn (src_reg, plus_constant (Pmode, src_reg, MAX_MOVE_BYTES));
+  emit_move_insn (dest_reg, plus_constant (Pmode, dest_reg, MAX_MOVE_BYTES));
 
   /* Emit the test & branch.  */
   emit_insn (gen_cbranchsi4 (gen_rtx_NE (SImode, src_reg, final_src),
@@ -1042,7 +1043,9 @@ microblaze_address_insns (rtx x, enum machine_mode mode)
 /* Provide the costs of an addressing mode that contains ADDR.
    If ADDR is not a valid address, its cost is irrelevant.  */
 static int
-microblaze_address_cost (rtx addr, bool speed ATTRIBUTE_UNUSED)
+microblaze_address_cost (rtx addr, enum machine_mode mode ATTRIBUTE_UNUSED,
+			 addr_space_t as ATTRIBUTE_UNUSED,
+			 bool speed ATTRIBUTE_UNUSED)
 {
   return COSTS_N_INSNS (microblaze_address_insns (addr, GET_MODE (addr)));
 }
@@ -1477,7 +1480,7 @@ microblaze_must_save_register (int regno)
   if (frame_pointer_needed && (regno == HARD_FRAME_POINTER_REGNUM))
     return 1;
 
-  if (!current_function_is_leaf)
+  if (!crtl->is_leaf)
     {
       if (regno == MB_ABI_SUB_RETURN_ADDR_REGNUM)
 	return 1;
@@ -1602,7 +1605,7 @@ compute_frame_size (HOST_WIDE_INT size)
 
   /* No space to be allocated for link register in leaf functions with no other
      stack requirements.  */
-  if (total_size == 0 && current_function_is_leaf)
+  if (total_size == 0 && crtl->is_leaf)
     link_debug_size = 0;
   else
     link_debug_size = UNITS_PER_WORD;
@@ -1663,7 +1666,7 @@ microblaze_initial_elimination_offset (int from, int to)
 	gcc_unreachable ();
       break;
     case RETURN_ADDRESS_POINTER_REGNUM:
-      if (current_function_is_leaf)
+      if (crtl->is_leaf)
 	offset = 0;
       else
 	offset = current_frame_info.gp_offset +
@@ -2353,7 +2356,7 @@ microblaze_expand_prologue (void)
 	RTX_FRAME_RELATED_P (insn) = 1;
 
       /* Handle SUB_RETURN_ADDR_REGNUM specially at first.  */
-      if (!current_function_is_leaf || interrupt_handler)
+      if (!crtl->is_leaf || interrupt_handler)
 	{
 	  mem_rtx = gen_rtx_MEM (SImode,
 				 gen_rtx_PLUS (Pmode, stack_pointer_rtx,
@@ -2458,7 +2461,7 @@ microblaze_expand_epilogue (void)
          a load-use stall cycle  :)   This is also important to handle alloca. 
          (See comments for if (frame_pointer_needed) below.  */
 
-      if (!current_function_is_leaf || interrupt_handler)
+      if (!crtl->is_leaf || interrupt_handler)
 	{
 	  mem_rtx =
 	    gen_rtx_MEM (SImode,
@@ -2736,16 +2739,28 @@ microblaze_return_addr (int count, rtx frame ATTRIBUTE_UNUSED)
 		       GEN_INT (8));
 }
 
-/* Put string into .sdata2 if below threashold.  */
+/* Queue an .ident string in the queue of top-level asm statements.
+   If the string size is below the threshold, put it into .sdata2.
+   If the front-end is done, we must be being called from toplev.c.
+   In that case, do nothing.  */
 void 
-microblaze_asm_output_ident (FILE *file ATTRIBUTE_UNUSED, const char *string)
+microblaze_asm_output_ident (const char *string)
 {
-  int size = strlen (string) + 1;
+  const char *section_asm_op;
+  int size;
+  char *buf;
+
+  if (cgraph_state != CGRAPH_STATE_PARSING)
+    return;
+
+  size = strlen (string) + 1;
   if (size <= microblaze_section_threshold)
-    switch_to_section (sdata2_section);
+    section_asm_op = SDATA2_SECTION_ASM_OP;
   else
-    switch_to_section (readonly_data_section);
-  assemble_string (string, size);
+    section_asm_op = READONLY_DATA_SECTION_ASM_OP;
+
+  buf = ACONCAT ((section_asm_op, "\n\t.ascii \"", string, "\\0\"\n", NULL));
+  add_asm_node (build_string (strlen (buf), buf));
 }
 
 static void

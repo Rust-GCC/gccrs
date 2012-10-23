@@ -132,6 +132,15 @@ package body Sem_Ch6 is
    function Can_Override_Operator (Subp : Entity_Id) return Boolean;
    --  Returns true if Subp can override a predefined operator.
 
+   procedure Check_And_Build_Body_To_Inline
+     (N       : Node_Id;
+      Spec_Id : Entity_Id;
+      Body_Id : Entity_Id);
+   --  Spec_Id and Body_Id are the entities of the specification and body of
+   --  the subprogram body N. If N can be inlined by the frontend (supported
+   --  cases documented in Check_Body_To_Inline) then build the body-to-inline
+   --  associated with N and attach it to the declaration node of Spec_Id.
+
    procedure Check_Conformance
      (New_Id                   : Entity_Id;
       Old_Id                   : Entity_Id;
@@ -860,6 +869,24 @@ package body Sem_Ch6 is
          then
             Rewrite (Expr, Convert_To (R_Type, Relocate_Node (Expr)));
             Analyze_And_Resolve (Expr, R_Type);
+
+         --  If this is a local anonymous access to subprogram, the
+         --  accessibility check can be applied statically. The return is
+         --  illegal if the access type of the return expression is declared
+         --  inside of the subprogram (except if it is the subtype indication
+         --  of an extended return statement).
+
+         elsif  Ekind (R_Type) = E_Anonymous_Access_Subprogram_Type then
+            if not Comes_From_Source (Current_Scope)
+              or else Ekind (Current_Scope) = E_Return_Statement
+            then
+               null;
+
+            elsif
+                Scope_Depth (Scope (Etype (Expr))) >= Scope_Depth (Scope_Id)
+            then
+               Error_Msg_N ("cannot return local access to subprogram", N);
+            end if;
          end if;
 
          --  If the result type is class-wide, then check that the return
@@ -1251,9 +1278,7 @@ package body Sem_Ch6 is
       --  rewritten if the original call was in prefix notation) then error
       --  has been emitted already, mark node and return.
 
-      if Error_Posted (N)
-        or else Etype (Name (N)) = Any_Type
-      then
+      if Error_Posted (N) or else Etype (Name (N)) = Any_Type then
          Set_Etype (N, Any_Type);
          return;
       end if;
@@ -1273,9 +1298,9 @@ package body Sem_Ch6 is
       --  Special processing for Elab_Spec, Elab_Body and Elab_Subp_Body calls
 
       if Nkind (P) = N_Attribute_Reference
-        and then (Attribute_Name (P) = Name_Elab_Spec
-                   or else Attribute_Name (P) = Name_Elab_Body
-                   or else Attribute_Name (P) = Name_Elab_Subp_Body)
+        and then (Attribute_Name (P) = Name_Elab_Spec or else
+                  Attribute_Name (P) = Name_Elab_Body or else
+                  Attribute_Name (P) = Name_Elab_Subp_Body)
       then
          if Present (Actuals) then
             Error_Msg_N
@@ -1797,13 +1822,11 @@ package body Sem_Ch6 is
 
    procedure Analyze_Subprogram_Body_Helper (N : Node_Id) is
       Loc          : constant Source_Ptr := Sloc (N);
-      Body_Deleted : constant Boolean    := False;
       Body_Spec    : constant Node_Id    := Specification (N);
       Body_Id      : Entity_Id           := Defining_Entity (Body_Spec);
       Prev_Id      : constant Entity_Id  := Current_Entity_In_Scope (Body_Id);
       Conformant   : Boolean;
       HSS          : Node_Id;
-      P_Ent        : Entity_Id;
       Prot_Typ     : Entity_Id := Empty;
       Spec_Id      : Entity_Id;
       Spec_Decl    : Node_Id   := Empty;
@@ -2070,9 +2093,8 @@ package body Sem_Ch6 is
                   Set_Has_Missing_Return (Id);
                end if;
 
-            elsif (Is_Generic_Subprogram (Id)
-                     or else not Is_Machine_Code_Subprogram (Id))
-              and then not Body_Deleted
+            elsif Is_Generic_Subprogram (Id)
+              or else not Is_Machine_Code_Subprogram (Id)
             then
                Error_Msg_N ("missing RETURN statement in function body", N);
             end if;
@@ -2498,41 +2520,25 @@ package body Sem_Ch6 is
          end if;
       end if;
 
-      --  Do not inline any subprogram that contains nested subprograms, since
-      --  the backend inlining circuit seems to generate uninitialized
-      --  references in this case. We know this happens in the case of front
-      --  end ZCX support, but it also appears it can happen in other cases as
-      --  well. The backend often rejects attempts to inline in the case of
-      --  nested procedures anyway, so little if anything is lost by this.
-      --  Note that this is test is for the benefit of the back-end. There is
-      --  a separate test for front-end inlining that also rejects nested
-      --  subprograms.
+      --  Ada 2012 aspects may appear in a subprogram body, but only if there
+      --  is no previous spec.
 
-      --  Do not do this test if errors have been detected, because in some
-      --  error cases, this code blows up, and we don't need it anyway if
-      --  there have been errors, since we won't get to the linker anyway.
-
-      if Comes_From_Source (Body_Id)
-        and then Serious_Errors_Detected = 0
-      then
-         P_Ent := Body_Id;
-         loop
-            P_Ent := Scope (P_Ent);
-            exit when No (P_Ent) or else P_Ent = Standard_Standard;
-
-            if Is_Subprogram (P_Ent) then
-               Set_Is_Inlined (P_Ent, False);
-
-               if Comes_From_Source (P_Ent)
-                 and then Has_Pragma_Inline (P_Ent)
-               then
-                  Cannot_Inline
-                    ("cannot inline& (nested subprogram)?",
-                     N, P_Ent);
-               end if;
-            end if;
-         end loop;
+      if Has_Aspects (N) then
+         if Present (Corresponding_Spec (N)) then
+            Error_Msg_N
+              ("aspect specifications must appear in subprogram declaration",
+                N);
+         else
+            Analyze_Aspect_Specifications (N, Body_Id);
+         end if;
       end if;
+
+      --  Previously we scanned the body to look for nested subprograms, and
+      --  rejected an inline directive if nested subprograms were present,
+      --  because the back-end would generate conflicting symbols for the
+      --  nested bodies. This is now unnecessary.
+
+      --  Look ahead to recognize a pragma Inline that appears after the body
 
       Check_Inline_Pragma (Spec_Id);
 
@@ -2842,14 +2848,31 @@ package body Sem_Ch6 is
 
       if Nkind (N) = N_Subprogram_Body_Stub then
          return;
+      end if;
 
-      elsif Present (Spec_Id)
-        and then Expander_Active
-        and then
-          (Has_Pragma_Inline_Always (Spec_Id)
-             or else (Has_Pragma_Inline (Spec_Id) and Front_End_Inlining))
+      --  Handle frontend inlining. There is no need to prepare us for inlining
+      --  if we will not generate the code.
+
+      --  Old semantics
+
+      if not Debug_Flag_Dot_K then
+         if Present (Spec_Id)
+           and then Expander_Active
+           and then
+             (Has_Pragma_Inline_Always (Spec_Id)
+                or else (Has_Pragma_Inline (Spec_Id) and Front_End_Inlining))
+         then
+            Build_Body_To_Inline (N, Spec_Id);
+         end if;
+
+      --  New semantics
+
+      elsif Expander_Active
+        and then Serious_Errors_Detected = 0
+        and then Present (Spec_Id)
+        and then Has_Pragma_Inline (Spec_Id)
       then
-         Build_Body_To_Inline (N, Spec_Id);
+         Check_And_Build_Body_To_Inline (N, Spec_Id, Body_Id);
       end if;
 
       --  Ada 2005 (AI-262): In library subprogram bodies, after the analysis
@@ -3126,13 +3149,9 @@ package body Sem_Ch6 is
             end loop;
          end if;
 
-         --  Check references in body unless it was deleted. Note that the
-         --  check of Body_Deleted here is not just for efficiency, it is
-         --  necessary to avoid junk warnings on formal parameters.
+         --  Check references in body
 
-         if not Body_Deleted then
-            Check_References (Body_Id);
-         end if;
+         Check_References (Body_Id);
       end;
    end Analyze_Subprogram_Body_Helper;
 
@@ -3448,6 +3467,10 @@ package body Sem_Ch6 is
       if Present (Formals) then
          Push_Scope (Designator);
          Process_Formals (Formals, N);
+
+         --  Check dimensions in N for formals with default expression
+
+         Analyze_Dimension_Formals (N, Formals);
 
          --  Ada 2005 (AI-345): If this is an overriding operation of an
          --  inherited interface operation, and the controlling type is
@@ -4086,28 +4109,1208 @@ package body Sem_Ch6 is
    -- Cannot_Inline --
    -------------------
 
-   procedure Cannot_Inline (Msg : String; N : Node_Id; Subp : Entity_Id) is
+   procedure Cannot_Inline
+     (Msg        : String;
+      N          : Node_Id;
+      Subp       : Entity_Id;
+      Is_Serious : Boolean := False)
+   is
    begin
-      --  Do not emit warning if this is a predefined unit which is not the
-      --  main unit. With validity checks enabled, some predefined subprograms
-      --  may contain nested subprograms and become ineligible for inlining.
+      pragma Assert (Msg (Msg'Last) = '?');
 
-      if Is_Predefined_File_Name (Unit_File_Name (Get_Source_Unit (Subp)))
-        and then not In_Extended_Main_Source_Unit (Subp)
-      then
-         null;
+      --  Old semantics
 
-      elsif Has_Pragma_Inline_Always (Subp) then
+      if not Debug_Flag_Dot_K then
 
-         --  Remove last character (question mark) to make this into an error,
-         --  because the Inline_Always pragma cannot be obeyed.
+         --  Do not emit warning if this is a predefined unit which is not
+         --  the main unit. With validity checks enabled, some predefined
+         --  subprograms may contain nested subprograms and become ineligible
+         --  for inlining.
+
+         if Is_Predefined_File_Name (Unit_File_Name (Get_Source_Unit (Subp)))
+           and then not In_Extended_Main_Source_Unit (Subp)
+         then
+            null;
+
+         elsif Has_Pragma_Inline_Always (Subp) then
+
+            --  Remove last character (question mark) to make this into an
+            --  error, because the Inline_Always pragma cannot be obeyed.
+
+            Error_Msg_NE (Msg (Msg'First .. Msg'Last - 1), N, Subp);
+
+         elsif Ineffective_Inline_Warnings then
+            Error_Msg_NE (Msg, N, Subp);
+         end if;
+
+         return;
+
+      --  New semantics
+
+      elsif Is_Serious then
+
+         --  Remove last character (question mark) to make this into an error.
 
          Error_Msg_NE (Msg (Msg'First .. Msg'Last - 1), N, Subp);
 
-      elsif Ineffective_Inline_Warnings then
-         Error_Msg_NE (Msg, N, Subp);
+      elsif Optimization_Level = 0 then
+
+         --  Do not emit warning if this is a predefined unit which is not
+         --  the main unit. This behavior is currently provided for backward
+         --  compatibility but it will be removed when we enforce the
+         --  strictness of the new rules.
+
+         if Is_Predefined_File_Name (Unit_File_Name (Get_Source_Unit (Subp)))
+           and then not In_Extended_Main_Source_Unit (Subp)
+         then
+            null;
+
+         elsif Has_Pragma_Inline_Always (Subp) then
+
+            --  Emit a warning if this is a call to a runtime subprogram
+            --  which is located inside a generic. Previously this call
+            --  was silently skipped!
+
+            if Is_Generic_Instance (Subp) then
+               declare
+                  Gen_P : constant Entity_Id := Generic_Parent (Parent (Subp));
+               begin
+                  if Is_Predefined_File_Name
+                    (Unit_File_Name (Get_Source_Unit (Gen_P)))
+                  then
+                     Set_Is_Inlined (Subp, False);
+                     Error_Msg_NE (Msg, N, Subp);
+                     return;
+                  end if;
+               end;
+            end if;
+
+            --  Remove last character (question mark) to make this into an
+            --  error, because the Inline_Always pragma cannot be obeyed.
+
+            Error_Msg_NE (Msg (Msg'First .. Msg'Last - 1), N, Subp);
+
+         else pragma Assert (Front_End_Inlining);
+            Set_Is_Inlined (Subp, False);
+
+            --  When inlining cannot take place we must issue an error.
+            --  For backward compatibility we still report a warning.
+
+            if Ineffective_Inline_Warnings then
+               Error_Msg_NE (Msg, N, Subp);
+            end if;
+         end if;
+
+      --  Compiling with optimizations enabled it is too early to report
+      --  problems since the backend may still perform inlining. In order
+      --  to report unhandled inlinings the program must be compiled with
+      --  -Winline and the error is reported by the backend.
+
+      else
+         null;
       end if;
    end Cannot_Inline;
+
+   ------------------------------------
+   -- Check_And_Build_Body_To_Inline --
+   ------------------------------------
+
+   procedure Check_And_Build_Body_To_Inline
+     (N       : Node_Id;
+      Spec_Id : Entity_Id;
+      Body_Id : Entity_Id)
+   is
+      procedure Build_Body_To_Inline (N : Node_Id; Spec_Id : Entity_Id);
+      --  Use generic machinery to build an unexpanded body for the subprogram.
+      --  This body is subsequently used for inline expansions at call sites.
+
+      function Can_Split_Unconstrained_Function (N : Node_Id) return Boolean;
+      --  Return true if the function body N has no local declarations and its
+      --  unique statement is a single extended return statement with a handled
+      --  statements sequence.
+
+      function Check_Body_To_Inline
+        (N    : Node_Id;
+         Subp : Entity_Id) return Boolean;
+      --  N is the N_Subprogram_Body of Subp. Return true if Subp can be
+      --  inlined by the frontend. These are the rules:
+      --    * At -O0 use fe inlining when inline_always is specified except if
+      --      the function returns a controlled type.
+      --    * At other optimization levels use the fe inlining for both inline
+      --      and inline_always in the following cases:
+      --       - function returning a known at compile time constant
+      --       - function returning a call to an intrinsic function
+      --       - function returning an unconstrained type (see Can_Split
+      --         Unconstrained_Function).
+      --       - function returning a call to a frontend-inlined function
+      --      Use the back-end mechanism otherwise
+      --
+      --  In addition, in the following cases the function cannot be inlined by
+      --  the frontend:
+      --    - functions that uses the secondary stack
+      --    - functions that have declarations of:
+      --         - Concurrent types
+      --         - Packages
+      --         - Instantiations
+      --         - Subprograms
+      --    - functions that have some of the following statements:
+      --         - abort
+      --         - asynchronous-select
+      --         - conditional-entry-call
+      --         - delay-relative
+      --         - delay-until
+      --         - selective-accept
+      --         - timed-entry-call
+      --    - functions that have exception handlers
+      --    - functions that have some enclosing body containing instantiations
+      --      that appear before the corresponding generic body.
+
+      procedure Generate_Body_To_Inline
+        (N              : Node_Id;
+         Body_To_Inline : out Node_Id);
+      --  Generate a parameterless duplicate of subprogram body N. Occurrences
+      --  of pragmas referencing the formals are removed since they have no
+      --  meaning when the body is inlined and the formals are rewritten (the
+      --  analysis of the non-inlined body will handle these pragmas properly).
+      --  A new internal name is associated with Body_To_Inline.
+
+      procedure Split_Unconstrained_Function
+        (N       : Node_Id;
+         Spec_Id : Entity_Id);
+      --  N is an inlined function body that returns an unconstrained type and
+      --  has a single extended return statement. Split N in two subprograms:
+      --  a procedure P' and a function F'. The formals of P' duplicate the
+      --  formals of N plus an extra formal which is used return a value;
+      --  its body is composed by the declarations and list of statements
+      --  of the extended return statement of N.
+
+      --------------------------
+      -- Build_Body_To_Inline --
+      --------------------------
+
+      procedure Build_Body_To_Inline (N : Node_Id; Spec_Id : Entity_Id) is
+         Decl            : constant Node_Id := Unit_Declaration_Node (Spec_Id);
+         Original_Body   : Node_Id;
+         Body_To_Analyze : Node_Id;
+
+      begin
+         pragma Assert (Current_Scope = Spec_Id);
+
+         --  Within an instance, the body to inline must be treated as a nested
+         --  generic, so that the proper global references are preserved. We
+         --  do not do this at the library level, because it is not needed, and
+         --  furthermore this causes trouble if front end inlining is activated
+         --  (-gnatN).
+
+         if In_Instance
+           and then Scope (Current_Scope) /= Standard_Standard
+         then
+            Save_Env (Scope (Current_Scope), Scope (Current_Scope));
+         end if;
+
+         --  We need to capture references to the formals in order
+         --  to substitute the actuals at the point of inlining, i.e.
+         --  instantiation. To treat the formals as globals to the body to
+         --  inline, we nest it within a dummy parameterless subprogram,
+         --  declared within the real one.
+
+         Generate_Body_To_Inline (N, Original_Body);
+         Body_To_Analyze := Copy_Generic_Node (Original_Body, Empty, False);
+
+         --  Set return type of function, which is also global and does not
+         --  need to be resolved.
+
+         if Ekind (Spec_Id) = E_Function then
+            Set_Result_Definition (Specification (Body_To_Analyze),
+              New_Occurrence_Of (Etype (Spec_Id), Sloc (N)));
+         end if;
+
+         if No (Declarations (N)) then
+            Set_Declarations (N, New_List (Body_To_Analyze));
+         else
+            Append_To (Declarations (N), Body_To_Analyze);
+         end if;
+
+         Preanalyze (Body_To_Analyze);
+
+         Push_Scope (Defining_Entity (Body_To_Analyze));
+         Save_Global_References (Original_Body);
+         End_Scope;
+         Remove (Body_To_Analyze);
+
+         --  Restore environment if previously saved
+
+         if In_Instance
+           and then Scope (Current_Scope) /= Standard_Standard
+         then
+            Restore_Env;
+         end if;
+
+         pragma Assert (No (Body_To_Inline (Decl)));
+         Set_Body_To_Inline (Decl, Original_Body);
+         Set_Ekind (Defining_Entity (Original_Body), Ekind (Spec_Id));
+      end Build_Body_To_Inline;
+
+      --------------------------
+      -- Check_Body_To_Inline --
+      --------------------------
+
+      function Check_Body_To_Inline
+        (N    : Node_Id;
+         Subp : Entity_Id) return Boolean
+      is
+         Max_Size   : constant := 10;
+         Stat_Count : Integer := 0;
+
+         function Has_Excluded_Declaration (Decls : List_Id) return Boolean;
+         --  Check for declarations that make inlining not worthwhile
+
+         function Has_Excluded_Statement   (Stats : List_Id) return Boolean;
+         --  Check for statements that make inlining not worthwhile: any
+         --  tasking statement, nested at any level. Keep track of total
+         --  number of elementary statements, as a measure of acceptable size.
+
+         function Has_Pending_Instantiation return Boolean;
+         --  Return True if some enclosing body contains instantiations that
+         --  appear before the corresponding generic body.
+
+         function Returns_Compile_Time_Constant (N : Node_Id) return Boolean;
+         --  Return True if all the return statements of the function body N
+         --  are simple return statements and return a compile time constant
+
+         function Returns_Intrinsic_Function_Call (N : Node_Id) return Boolean;
+         --  Return True if all the return statements of the function body N
+         --  are simple return statements and return an intrinsic function call
+
+         function Uses_Secondary_Stack (N : Node_Id) return Boolean;
+         --  If the body of the subprogram includes a call that returns an
+         --  unconstrained type, the secondary stack is involved, and it
+         --  is not worth inlining.
+
+         ------------------------------
+         -- Has_Excluded_Declaration --
+         ------------------------------
+
+         function Has_Excluded_Declaration (Decls : List_Id) return Boolean is
+            D : Node_Id;
+
+            function Is_Unchecked_Conversion (D : Node_Id) return Boolean;
+            --  Nested subprograms make a given body ineligible for inlining,
+            --  but we make an exception for instantiations of unchecked
+            --  conversion. The body has not been analyzed yet, so check the
+            --  name, and verify that the visible entity with that name is the
+            --  predefined unit.
+
+            -----------------------------
+            -- Is_Unchecked_Conversion --
+            -----------------------------
+
+            function Is_Unchecked_Conversion (D : Node_Id) return Boolean is
+               Id   : constant Node_Id := Name (D);
+               Conv : Entity_Id;
+
+            begin
+               if Nkind (Id) = N_Identifier
+                 and then Chars (Id) = Name_Unchecked_Conversion
+               then
+                  Conv := Current_Entity (Id);
+
+               elsif Nkind_In (Id, N_Selected_Component, N_Expanded_Name)
+                 and then Chars (Selector_Name (Id))
+                            = Name_Unchecked_Conversion
+               then
+                  Conv := Current_Entity (Selector_Name (Id));
+               else
+                  return False;
+               end if;
+
+               return Present (Conv)
+                 and then Is_Predefined_File_Name
+                            (Unit_File_Name (Get_Source_Unit (Conv)))
+                 and then Is_Intrinsic_Subprogram (Conv);
+            end Is_Unchecked_Conversion;
+
+         --  Start of processing for Has_Excluded_Declaration
+
+         begin
+            D := First (Decls);
+            while Present (D) loop
+               if (Nkind (D) = N_Function_Instantiation
+                   and then not Is_Unchecked_Conversion (D))
+                 or else Nkind_In (D, N_Protected_Type_Declaration,
+                                   N_Package_Declaration,
+                                   N_Package_Instantiation,
+                                   N_Subprogram_Body,
+                                   N_Procedure_Instantiation,
+                                   N_Task_Type_Declaration)
+               then
+                  Cannot_Inline
+                    ("cannot inline & (non-allowed declaration)?", D, Subp);
+
+                  return True;
+               end if;
+
+               Next (D);
+            end loop;
+
+            return False;
+         end Has_Excluded_Declaration;
+
+         ----------------------------
+         -- Has_Excluded_Statement --
+         ----------------------------
+
+         function Has_Excluded_Statement (Stats : List_Id) return Boolean is
+            S : Node_Id;
+            E : Node_Id;
+
+         begin
+            S := First (Stats);
+            while Present (S) loop
+               Stat_Count := Stat_Count + 1;
+
+               if Nkind_In (S, N_Abort_Statement,
+                            N_Asynchronous_Select,
+                            N_Conditional_Entry_Call,
+                            N_Delay_Relative_Statement,
+                            N_Delay_Until_Statement,
+                            N_Selective_Accept,
+                            N_Timed_Entry_Call)
+               then
+                  Cannot_Inline
+                    ("cannot inline & (non-allowed statement)?", S, Subp);
+                  return True;
+
+               elsif Nkind (S) = N_Block_Statement then
+                  if Present (Declarations (S))
+                    and then Has_Excluded_Declaration (Declarations (S))
+                  then
+                     return True;
+
+                  elsif Present (Handled_Statement_Sequence (S)) then
+                     if Present
+                       (Exception_Handlers (Handled_Statement_Sequence (S)))
+                     then
+                        Cannot_Inline
+                          ("cannot inline& (exception handler)?",
+                           First (Exception_Handlers
+                             (Handled_Statement_Sequence (S))),
+                           Subp);
+                        return True;
+
+                     elsif Has_Excluded_Statement
+                       (Statements (Handled_Statement_Sequence (S)))
+                     then
+                        return True;
+                     end if;
+                  end if;
+
+               elsif Nkind (S) = N_Case_Statement then
+                  E := First (Alternatives (S));
+                  while Present (E) loop
+                     if Has_Excluded_Statement (Statements (E)) then
+                        return True;
+                     end if;
+
+                     Next (E);
+                  end loop;
+
+               elsif Nkind (S) = N_If_Statement then
+                  if Has_Excluded_Statement (Then_Statements (S)) then
+                     return True;
+                  end if;
+
+                  if Present (Elsif_Parts (S)) then
+                     E := First (Elsif_Parts (S));
+                     while Present (E) loop
+                        if Has_Excluded_Statement (Then_Statements (E)) then
+                           return True;
+                        end if;
+                        Next (E);
+                     end loop;
+                  end if;
+
+                  if Present (Else_Statements (S))
+                    and then Has_Excluded_Statement (Else_Statements (S))
+                  then
+                     return True;
+                  end if;
+
+               elsif Nkind (S) = N_Loop_Statement
+                 and then Has_Excluded_Statement (Statements (S))
+               then
+                  return True;
+
+               elsif Nkind (S) = N_Extended_Return_Statement then
+                  if Present (Handled_Statement_Sequence (S))
+                    and then
+                      Has_Excluded_Statement
+                        (Statements (Handled_Statement_Sequence (S)))
+                  then
+                     return True;
+
+                  elsif Present (Handled_Statement_Sequence (S))
+                    and then
+                      Present (Exception_Handlers
+                               (Handled_Statement_Sequence (S)))
+                  then
+                     Cannot_Inline
+                       ("cannot inline& (exception handler)?",
+                        First (Exception_Handlers
+                          (Handled_Statement_Sequence (S))),
+                        Subp);
+                     return True;
+                  end if;
+               end if;
+
+               Next (S);
+            end loop;
+
+            return False;
+         end Has_Excluded_Statement;
+
+         -------------------------------
+         -- Has_Pending_Instantiation --
+         -------------------------------
+
+         function Has_Pending_Instantiation return Boolean is
+            S : Entity_Id;
+
+         begin
+            S := Current_Scope;
+            while Present (S) loop
+               if Is_Compilation_Unit (S)
+                 or else Is_Child_Unit (S)
+               then
+                  return False;
+
+               elsif Ekind (S) = E_Package
+                 and then Has_Forward_Instantiation (S)
+               then
+                  return True;
+               end if;
+
+               S := Scope (S);
+            end loop;
+
+            return False;
+         end Has_Pending_Instantiation;
+
+         ------------------------------------
+         --  Returns_Compile_Time_Constant --
+         ------------------------------------
+
+         function Returns_Compile_Time_Constant (N : Node_Id) return Boolean is
+
+            function Check_Return (N : Node_Id) return Traverse_Result;
+
+            ------------------
+            -- Check_Return --
+            ------------------
+
+            function Check_Return (N : Node_Id) return Traverse_Result is
+            begin
+               if Nkind (N) = N_Extended_Return_Statement then
+                  return Abandon;
+
+               elsif Nkind (N) = N_Simple_Return_Statement then
+                  if Present (Expression (N)) then
+                     declare
+                        Orig_Expr : constant Node_Id :=
+                          Original_Node (Expression (N));
+
+                     begin
+                        if Nkind_In (Orig_Expr, N_Integer_Literal,
+                                     N_Real_Literal,
+                                     N_Character_Literal)
+                        then
+                           return OK;
+
+                        elsif Is_Entity_Name (Orig_Expr)
+                          and then Ekind (Entity (Orig_Expr)) = E_Constant
+                          and then Is_Static_Expression (Orig_Expr)
+                        then
+                           return OK;
+                        else
+                           return Abandon;
+                        end if;
+                     end;
+
+                  --  Expression has wrong form
+
+                  else
+                     return Abandon;
+                  end if;
+
+               --  Continue analyzing statements
+
+               else
+                  return OK;
+               end if;
+            end Check_Return;
+
+            function Check_All_Returns is new Traverse_Func (Check_Return);
+
+            --  Start of processing for Returns_Compile_Time_Constant
+
+         begin
+            return Check_All_Returns (N) = OK;
+         end Returns_Compile_Time_Constant;
+
+         --------------------------------------
+         --  Returns_Intrinsic_Function_Call --
+         --------------------------------------
+
+         function Returns_Intrinsic_Function_Call
+           (N : Node_Id) return Boolean
+         is
+            function Check_Return (N : Node_Id) return Traverse_Result;
+
+            ------------------
+            -- Check_Return --
+            ------------------
+
+            function Check_Return (N : Node_Id) return Traverse_Result is
+            begin
+               if Nkind (N) = N_Extended_Return_Statement then
+                  return Abandon;
+
+               elsif Nkind (N) = N_Simple_Return_Statement then
+                  if Present (Expression (N)) then
+                     declare
+                        Orig_Expr : constant Node_Id :=
+                                      Original_Node (Expression (N));
+
+                     begin
+                        if Nkind (Orig_Expr) in N_Op
+                          and then Is_Intrinsic_Subprogram (Entity (Orig_Expr))
+                        then
+                           return OK;
+
+                        elsif Nkind (Orig_Expr) in N_Has_Entity
+                          and then Present (Entity (Orig_Expr))
+                          and then Ekind (Entity (Orig_Expr)) = E_Function
+                          and then Is_Inlined (Entity (Orig_Expr))
+                        then
+                           return OK;
+
+                        elsif Nkind (Orig_Expr) in N_Has_Entity
+                          and then Present (Entity (Orig_Expr))
+                          and then Is_Intrinsic_Subprogram (Entity (Orig_Expr))
+                        then
+                           return OK;
+
+                        else
+                           return Abandon;
+                        end if;
+                     end;
+
+                  --  Expression has wrong form
+
+                  else
+                     return Abandon;
+                  end if;
+
+               --  Continue analyzing statements
+
+               else
+                  return OK;
+               end if;
+            end Check_Return;
+
+            function Check_All_Returns is new Traverse_Func (Check_Return);
+
+         --  Start of processing for Returns_Intrinsic_Function_Call
+
+         begin
+            return Check_All_Returns (N) = OK;
+         end Returns_Intrinsic_Function_Call;
+
+         --------------------------
+         -- Uses_Secondary_Stack --
+         --------------------------
+
+         function Uses_Secondary_Stack (N : Node_Id) return Boolean is
+
+            function Check_Call (N : Node_Id) return Traverse_Result;
+            --  Look for function calls that return an unconstrained type
+
+            ----------------
+            -- Check_Call --
+            ----------------
+
+            function Check_Call (N : Node_Id) return Traverse_Result is
+            begin
+               if Nkind (N) = N_Function_Call
+                 and then Is_Entity_Name (Name (N))
+                 and then Is_Composite_Type (Etype (Entity (Name (N))))
+                 and then not Is_Constrained (Etype (Entity (Name (N))))
+               then
+                  Cannot_Inline
+                    ("cannot inline & (call returns unconstrained type)?",
+                     N, Subp);
+
+                  return Abandon;
+               else
+                  return OK;
+               end if;
+            end Check_Call;
+
+            function Check_Calls is new Traverse_Func (Check_Call);
+
+         --  Start of processing for Uses_Secondary_Stack
+
+         begin
+            return Check_Calls (N) = Abandon;
+         end Uses_Secondary_Stack;
+
+         --  Local variables
+
+         Decl       : constant Node_Id := Unit_Declaration_Node (Spec_Id);
+         May_Inline : constant Boolean :=
+                        Has_Pragma_Inline_Always (Spec_Id)
+                          or else (Has_Pragma_Inline (Spec_Id)
+                                     and then ((Optimization_Level > 0
+                                                  and then Ekind (Spec_Id)
+                                                             = E_Function)
+                                               or else Front_End_Inlining));
+         Body_To_Analyze : Node_Id;
+
+      --  Start of processing for Check_Body_To_Inline
+
+      begin
+         --  No action needed in stubs since the attribute Body_To_Inline
+         --  is not available
+
+         if Nkind (Decl) = N_Subprogram_Body_Stub then
+            return False;
+
+         --  Cannot build the body to inline if the attribute is already set.
+         --  This attribute may have been set if this is a subprogram renaming
+         --  declarations (see Freeze.Build_Renamed_Body).
+
+         elsif Present (Body_To_Inline (Decl)) then
+            return False;
+
+         --  No action needed if the subprogram does not fulfill the minimum
+         --  conditions to be inlined by the frontend
+
+         elsif not May_Inline then
+            return False;
+         end if;
+
+         --  Check excluded declarations
+
+         if Present (Declarations (N))
+           and then Has_Excluded_Declaration (Declarations (N))
+         then
+            return False;
+         end if;
+
+         --  Check excluded statements
+
+         if Present (Handled_Statement_Sequence (N)) then
+            if Present
+                 (Exception_Handlers (Handled_Statement_Sequence (N)))
+            then
+               Cannot_Inline
+                 ("cannot inline& (exception handler)?",
+                  First
+                    (Exception_Handlers (Handled_Statement_Sequence (N))),
+                  Subp);
+
+               return False;
+
+            elsif Has_Excluded_Statement
+              (Statements (Handled_Statement_Sequence (N)))
+            then
+               return False;
+            end if;
+         end if;
+
+         --  For backward compatibility, compiling under -gnatN we do not
+         --  inline a subprogram that is too large, unless it is marked
+         --  Inline_Always. This pragma does not suppress the other checks
+         --  on inlining (forbidden declarations, handlers, etc).
+
+         if Front_End_Inlining
+           and then not Has_Pragma_Inline_Always (Subp)
+           and then Stat_Count > Max_Size
+         then
+            Cannot_Inline ("cannot inline& (body too large)?", N, Subp);
+            return False;
+         end if;
+
+         --  If some enclosing body contains instantiations that appear before
+         --  the corresponding generic body, the enclosing body has a freeze
+         --  node so that it can be elaborated after the generic itself. This
+         --  might conflict with subsequent inlinings, so that it is unsafe to
+         --  try to inline in such a case.
+
+         if Has_Pending_Instantiation then
+            Cannot_Inline
+              ("cannot inline& (forward instance within enclosing body)?",
+               N, Subp);
+
+            return False;
+         end if;
+
+         --  Generate and preanalyze the body to inline (needed to perform
+         --  the rest of the checks)
+
+         Generate_Body_To_Inline (N, Body_To_Analyze);
+
+         if Ekind (Subp) = E_Function then
+            Set_Result_Definition (Specification (Body_To_Analyze),
+              New_Occurrence_Of (Etype (Subp), Sloc (N)));
+         end if;
+
+         --  Nest the body to analyze within the real one
+
+         if No (Declarations (N)) then
+            Set_Declarations (N, New_List (Body_To_Analyze));
+         else
+            Append_To (Declarations (N), Body_To_Analyze);
+         end if;
+
+         Preanalyze (Body_To_Analyze);
+         Remove (Body_To_Analyze);
+
+         --  Keep separate checks needed when compiling without optimizations
+
+         if Optimization_Level = 0
+
+           --  AAMP and VM targets have no support for inlining in the backend
+           --  and hence we use frontend inlining at all optimization levels.
+
+           or else AAMP_On_Target
+           or else VM_Target /= No_VM
+         then
+            --  Cannot inline functions whose body has a call that returns an
+            --  unconstrained type since the secondary stack is involved, and
+            --  it is not worth inlining.
+
+            if Uses_Secondary_Stack (Body_To_Analyze) then
+               return False;
+
+            --  Cannot inline functions that return controlled types since
+            --  controlled actions interfere in complex ways with inlining.
+
+            elsif Ekind (Subp) = E_Function
+              and then Needs_Finalization (Etype (Subp))
+            then
+               Cannot_Inline
+                 ("cannot inline & (controlled return type)?", N, Subp);
+               return False;
+
+            elsif Returns_Unconstrained_Type (Subp) then
+               Cannot_Inline
+                 ("cannot inline & (unconstrained return type)?", N, Subp);
+               return False;
+            end if;
+
+         --  Compiling with optimizations enabled
+
+         else
+            --  Procedures are never frontend inlined in this case!
+
+            if Ekind (Subp) /= E_Function then
+               return False;
+
+            --  Functions returning unconstrained types are tested
+            --  separately (see Can_Split_Unconstrained_Function).
+
+            elsif Returns_Unconstrained_Type (Subp) then
+               null;
+
+            --  Check supported cases
+
+            elsif not Returns_Compile_Time_Constant (Body_To_Analyze)
+              and then Convention (Subp) /= Convention_Intrinsic
+              and then not Returns_Intrinsic_Function_Call (Body_To_Analyze)
+            then
+               return False;
+            end if;
+         end if;
+
+         return True;
+      end Check_Body_To_Inline;
+
+      --------------------------------------
+      -- Can_Split_Unconstrained_Function --
+      --------------------------------------
+
+      function Can_Split_Unconstrained_Function (N : Node_Id) return Boolean
+      is
+         Ret_Node : constant Node_Id :=
+                      First (Statements (Handled_Statement_Sequence (N)));
+         D : Node_Id;
+
+      begin
+         --  No user defined declarations allowed in the function except inside
+         --  the unique return statement; implicit labels are the only allowed
+         --  declarations.
+
+         if not Is_Empty_List (Declarations (N)) then
+            D := First (Declarations (N));
+            while Present (D) loop
+               if Nkind (D) /= N_Implicit_Label_Declaration then
+                  return False;
+               end if;
+
+               Next (D);
+            end loop;
+         end if;
+
+         return Present (Ret_Node)
+           and then Nkind (Ret_Node) = N_Extended_Return_Statement
+           and then No (Next (Ret_Node))
+           and then Present (Handled_Statement_Sequence (Ret_Node));
+      end Can_Split_Unconstrained_Function;
+
+      -----------------------------
+      -- Generate_Body_To_Inline --
+      -----------------------------
+
+      procedure Generate_Body_To_Inline
+        (N              : Node_Id;
+         Body_To_Inline : out Node_Id)
+      is
+         procedure Remove_Pragmas (N : Node_Id);
+         --  Remove occurrences of pragmas that may reference the formals of
+         --  N. The analysis of the non-inlined body will handle these pragmas
+         --  properly.
+
+         --------------------
+         -- Remove_Pragmas --
+         --------------------
+
+         procedure Remove_Pragmas (N : Node_Id) is
+            Decl : Node_Id;
+            Nxt  : Node_Id;
+
+         begin
+            Decl := First (Declarations (N));
+            while Present (Decl) loop
+               Nxt := Next (Decl);
+
+               if Nkind (Decl) = N_Pragma
+                 and then (Pragma_Name (Decl) = Name_Unreferenced
+                           or else
+                             Pragma_Name (Decl) = Name_Unmodified)
+               then
+                  Remove (Decl);
+               end if;
+
+               Decl := Nxt;
+            end loop;
+         end Remove_Pragmas;
+
+      --  Start of processing for Generate_Body_To_Inline
+
+      begin
+         --  Within an instance, the body to inline must be treated as a nested
+         --  generic, so that the proper global references are preserved.
+
+         --  Note that we do not do this at the library level, because it
+         --  is not needed, and furthermore this causes trouble if front
+         --  end inlining is activated (-gnatN).
+
+         if In_Instance
+           and then Scope (Current_Scope) /= Standard_Standard
+         then
+            Body_To_Inline := Copy_Generic_Node (N, Empty, True);
+         else
+            Body_To_Inline := Copy_Separate_Tree (N);
+         end if;
+
+         --  A pragma Unreferenced or pragma Unmodified that mentions a formal
+         --  parameter has no meaning when the body is inlined and the formals
+         --  are rewritten. Remove it from body to inline. The analysis of the
+         --  non-inlined body will handle the pragma properly.
+
+         Remove_Pragmas (Body_To_Inline);
+
+         --  We need to capture references to the formals in order
+         --  to substitute the actuals at the point of inlining, i.e.
+         --  instantiation. To treat the formals as globals to the body to
+         --  inline, we nest it within a dummy parameterless subprogram,
+         --  declared within the real one.
+
+         Set_Parameter_Specifications
+           (Specification (Body_To_Inline), No_List);
+
+         --  A new internal name is associated with Body_To_Inline to avoid
+         --  conflicts when the non-inlined body N is analyzed.
+
+         Set_Defining_Unit_Name (Specification (Body_To_Inline),
+            Make_Defining_Identifier (Sloc (N), New_Internal_Name ('P')));
+         Set_Corresponding_Spec (Body_To_Inline, Empty);
+      end Generate_Body_To_Inline;
+
+      ----------------------------------
+      -- Split_Unconstrained_Function --
+      ----------------------------------
+
+      procedure Split_Unconstrained_Function
+        (N        : Node_Id;
+         Spec_Id  : Entity_Id)
+      is
+         Loc      : constant Source_Ptr := Sloc (N);
+         Ret_Node : constant Node_Id :=
+                      First (Statements (Handled_Statement_Sequence (N)));
+         Ret_Obj  : constant Node_Id :=
+                      First (Return_Object_Declarations (Ret_Node));
+
+         procedure Build_Procedure
+           (Proc_Id   : out Entity_Id;
+            Decl_List : out List_Id);
+         --  Build a procedure containing the statements found in the extended
+         --  return statement of the unconstrained function body N.
+
+         procedure Build_Procedure
+           (Proc_Id   : out Entity_Id;
+            Decl_List : out List_Id)
+         is
+            Formal      : Entity_Id;
+            Formal_List : constant List_Id := New_List;
+            Proc_Spec   : Node_Id;
+            Proc_Body   : Node_Id;
+            Subp_Name   : constant Name_Id := New_Internal_Name ('F');
+            Body_Decl_List : List_Id := No_List;
+            Param_Type  : Node_Id;
+
+         begin
+            if Nkind (Object_Definition (Ret_Obj)) = N_Identifier then
+               Param_Type := New_Copy (Object_Definition (Ret_Obj));
+            else
+               Param_Type :=
+                 New_Copy (Subtype_Mark (Object_Definition (Ret_Obj)));
+            end if;
+
+            Append_To (Formal_List,
+              Make_Parameter_Specification (Loc,
+                Defining_Identifier =>
+                  Make_Defining_Identifier (Loc,
+                    Chars => Chars (Defining_Identifier (Ret_Obj))),
+                In_Present  => False,
+                Out_Present => True,
+                Null_Exclusion_Present => False,
+                Parameter_Type => Param_Type));
+
+            Formal := First_Formal (Spec_Id);
+            while Present (Formal) loop
+               Append_To (Formal_List,
+                 Make_Parameter_Specification (Loc,
+                   Defining_Identifier =>
+                     Make_Defining_Identifier (Sloc (Formal),
+                       Chars => Chars (Formal)),
+                   In_Present  => In_Present (Parent (Formal)),
+                   Out_Present => Out_Present (Parent (Formal)),
+                   Null_Exclusion_Present =>
+                     Null_Exclusion_Present (Parent (Formal)),
+                   Parameter_Type =>
+                     New_Reference_To (Etype (Formal), Loc),
+                   Expression =>
+                     Copy_Separate_Tree (Expression (Parent (Formal)))));
+
+               Next_Formal (Formal);
+            end loop;
+
+            Proc_Id :=
+              Make_Defining_Identifier (Loc, Chars => Subp_Name);
+
+            Proc_Spec :=
+              Make_Procedure_Specification (Loc,
+                Defining_Unit_Name => Proc_Id,
+                Parameter_Specifications => Formal_List);
+
+            Decl_List := New_List;
+
+            Append_To (Decl_List,
+              Make_Subprogram_Declaration (Loc, Proc_Spec));
+
+            --  Can_Convert_Unconstrained_Function checked that the function
+            --  has no local declarations except implicit label declarations.
+            --  Copy these declarations to the built procedure.
+
+            if Present (Declarations (N)) then
+               Body_Decl_List := New_List;
+
+               declare
+                  D     : Node_Id;
+                  New_D : Node_Id;
+
+               begin
+                  D := First (Declarations (N));
+                  while Present (D) loop
+                     pragma Assert (Nkind (D) = N_Implicit_Label_Declaration);
+
+                     New_D :=
+                       Make_Implicit_Label_Declaration (Loc,
+                         Make_Defining_Identifier (Loc,
+                           Chars => Chars (Defining_Identifier (D))),
+                         Label_Construct => Empty);
+                     Append_To (Body_Decl_List, New_D);
+
+                     Next (D);
+                  end loop;
+               end;
+            end if;
+
+            pragma Assert (Present (Handled_Statement_Sequence (Ret_Node)));
+
+            Proc_Body :=
+              Make_Subprogram_Body (Loc,
+                Specification => Copy_Separate_Tree (Proc_Spec),
+                Declarations  => Body_Decl_List,
+                Handled_Statement_Sequence =>
+                  Copy_Separate_Tree (Handled_Statement_Sequence (Ret_Node)));
+
+            Set_Defining_Unit_Name (Specification (Proc_Body),
+               Make_Defining_Identifier (Loc, Subp_Name));
+
+            Append_To (Decl_List, Proc_Body);
+         end Build_Procedure;
+
+         --  Local variables
+
+         New_Obj   : constant Node_Id := Copy_Separate_Tree (Ret_Obj);
+         Blk_Stmt  : Node_Id;
+         Proc_Id   : Entity_Id;
+         Proc_Call : Node_Id;
+
+      --  Start of processing for Split_Unconstrained_Function
+
+      begin
+         --  Build the associated procedure, analyze it and insert it before
+         --  the function body N
+
+         declare
+            Scope     : constant Entity_Id := Current_Scope;
+            Decl_List : List_Id;
+         begin
+            Pop_Scope;
+            Build_Procedure (Proc_Id, Decl_List);
+            Insert_Actions (N, Decl_List);
+            Push_Scope (Scope);
+         end;
+
+         --  Build the call to the generated procedure
+
+         declare
+            Actual_List : constant List_Id := New_List;
+            Formal      : Entity_Id;
+
+         begin
+            Append_To (Actual_List,
+              New_Reference_To (Defining_Identifier (New_Obj), Loc));
+
+            Formal := First_Formal (Spec_Id);
+            while Present (Formal) loop
+               Append_To (Actual_List, New_Reference_To (Formal, Loc));
+
+               --  Avoid spurious warning on unreferenced formals
+
+               Set_Referenced (Formal);
+               Next_Formal (Formal);
+            end loop;
+
+            Proc_Call :=
+              Make_Procedure_Call_Statement (Loc,
+                Name => New_Reference_To (Proc_Id, Loc),
+                Parameter_Associations => Actual_List);
+         end;
+
+         --  Generate
+
+         --    declare
+         --       New_Obj : ...
+         --    begin
+         --       main_1__F1b (New_Obj, ...);
+         --       return Obj;
+         --    end B10b;
+
+         Blk_Stmt :=
+           Make_Block_Statement (Loc,
+             Declarations => New_List (New_Obj),
+             Handled_Statement_Sequence =>
+               Make_Handled_Sequence_Of_Statements (Loc,
+                 Statements => New_List (
+
+                   Proc_Call,
+
+                   Make_Simple_Return_Statement (Loc,
+                     Expression =>
+                       New_Reference_To
+                         (Defining_Identifier (New_Obj), Loc)))));
+
+         Rewrite (Ret_Node, Blk_Stmt);
+      end Split_Unconstrained_Function;
+
+   --  Start of processing for Check_And_Build_Body_To_Inline
+
+   begin
+      --  Do not inline any subprogram that contains nested subprograms, since
+      --  the backend inlining circuit seems to generate uninitialized
+      --  references in this case. We know this happens in the case of front
+      --  end ZCX support, but it also appears it can happen in other cases as
+      --  well. The backend often rejects attempts to inline in the case of
+      --  nested procedures anyway, so little if anything is lost by this.
+      --  Note that this is test is for the benefit of the back-end. There is
+      --  a separate test for front-end inlining that also rejects nested
+      --  subprograms.
+
+      --  Do not do this test if errors have been detected, because in some
+      --  error cases, this code blows up, and we don't need it anyway if
+      --  there have been errors, since we won't get to the linker anyway.
+
+      if Comes_From_Source (Body_Id)
+        and then (Has_Pragma_Inline_Always (Spec_Id)
+                    or else Optimization_Level > 0)
+        and then Serious_Errors_Detected = 0
+      then
+         declare
+            P_Ent : Node_Id;
+
+         begin
+            P_Ent := Body_Id;
+            loop
+               P_Ent := Scope (P_Ent);
+               exit when No (P_Ent) or else P_Ent = Standard_Standard;
+
+               if Is_Subprogram (P_Ent) then
+                  Set_Is_Inlined (P_Ent, False);
+
+                  if Comes_From_Source (P_Ent)
+                    and then Has_Pragma_Inline (P_Ent)
+                  then
+                     Cannot_Inline
+                       ("cannot inline& (nested subprogram)?", N, P_Ent,
+                        Is_Serious => True);
+                  end if;
+               end if;
+            end loop;
+         end;
+      end if;
+
+      --  Build the body to inline only if really needed!
+
+      if Check_Body_To_Inline (N, Spec_Id)
+        and then Serious_Errors_Detected = 0
+      then
+         if Returns_Unconstrained_Type (Spec_Id) then
+            if Can_Split_Unconstrained_Function (N) then
+               Split_Unconstrained_Function (N, Spec_Id);
+               Build_Body_To_Inline (N, Spec_Id);
+               Set_Is_Inlined (Spec_Id);
+            end if;
+         else
+            Build_Body_To_Inline (N, Spec_Id);
+            Set_Is_Inlined (Spec_Id);
+         end if;
+      end if;
+   end Check_And_Build_Body_To_Inline;
 
    -----------------------
    -- Check_Conformance --
@@ -4327,6 +5530,16 @@ package body Sem_Ch6 is
             end if;
          end if;
 
+         --  Ada 2012: Mode conformance also requires that formal parameters
+         --  be both aliased, or neither.
+
+         if Ctype >= Mode_Conformant and then Ada_Version >= Ada_2012 then
+            if Is_Aliased (Old_Formal) /= Is_Aliased (New_Formal) then
+               Conformance_Error
+                 ("\aliased parameter mismatch!", New_Formal);
+            end if;
+         end if;
+
          if Ctype = Fully_Conformant then
 
             --  Names must match. Error message is more accurate if we do
@@ -4543,14 +5756,31 @@ package body Sem_Ch6 is
 
                declare
                   TSS_Name : constant TSS_Name_Type := Get_TSS_Name (New_Id);
+
                begin
                   if TSS_Name /= TSS_Stream_Read
                     and then TSS_Name /= TSS_Stream_Write
                     and then TSS_Name /= TSS_Stream_Input
                     and then TSS_Name /= TSS_Stream_Output
                   then
-                     Conformance_Error
-                       ("\type of & does not match!", New_Formal);
+                     --  Here we have a definite conformance error. It is worth
+                     --  special casing the error message for the case of a
+                     --  controlling formal (which excludes null).
+
+                     if Is_Controlling_Formal (New_Formal) then
+                        Error_Msg_Node_2 := Scope (New_Formal);
+                        Conformance_Error
+                         ("\controlling formal& of& excludes null, "
+                           & "declaration must exclude null as well",
+                            New_Formal);
+
+                     --  Normal case (couldn't we give more detail here???)
+
+                     else
+                        Conformance_Error
+                          ("\type of & does not match!", New_Formal);
+                     end if;
+
                      return;
                   end if;
                end;
@@ -4896,7 +6126,6 @@ package body Sem_Ch6 is
 
    begin
       while Present (Old_Discr) and then Present (New_Discr) loop
-
          New_Discr_Id := Defining_Identifier (New_Discr);
 
          --  The subtype mark of the discriminant on the full type has not
@@ -5450,6 +6679,11 @@ package body Sem_Ch6 is
                 and then Exception_Junk (Last_Stm))
            or else Nkind (Last_Stm) in N_Push_xxx_Label
            or else Nkind (Last_Stm) in N_Pop_xxx_Label
+
+         --  Inserted code, such as finalization calls, is irrelevant: we only
+         --  need to check original source.
+
+           or else Is_Rewrite_Insertion (Last_Stm)
          loop
             Prev (Last_Stm);
          end loop;
@@ -5718,16 +6952,29 @@ package body Sem_Ch6 is
 --                      Inherited_Subprograms (Spec_Id);
 --        --  List of subprograms inherited by this subprogram
 
+      --  We ignore postconditions "True" or "False" and contract-cases which
+      --  have similar Ensures components, which we call "trivial", when
+      --  issuing warnings, since these postconditions and contract-cases
+      --  purposedly ignore the post-state.
+
       Last_Postcondition : Node_Id := Empty;
-      --  Last postcondition on the subprogram, or else Empty if either no
-      --  postcondition or only inherited postconditions.
+      --  Last non-trivial postcondition on the subprogram, or else Empty if
+      --  either no non-trivial postcondition or only inherited postconditions.
+
+      Last_Contract_Case : Node_Id := Empty;
+      --  Last non-trivial contract-case on the subprogram, or else Empty
 
       Attribute_Result_Mentioned : Boolean := False;
-      --  Whether attribute 'Result is mentioned in a postcondition
+      --  Whether attribute 'Result is mentioned in a non-trivial postcondition
+      --  or contract-case.
+
+      No_Warning_On_Some_Postcondition : Boolean := False;
+      --  Whether there exists a non-trivial postcondition or contract-case
+      --  without a corresponding warning.
 
       Post_State_Mentioned : Boolean := False;
-      --  Whether some expression mentioned in a postcondition can have a
-      --  different value in the post-state than in the pre-state.
+      --  Whether some expression mentioned in a postcondition or contract-case
+      --  can have a different value in the post-state than in the pre-state.
 
       function Check_Attr_Result (N : Node_Id) return Traverse_Result;
       --  Check if N is a reference to the attribute 'Result, and if so set
@@ -5740,9 +6987,20 @@ package body Sem_Ch6 is
       --  reference to attribute 'Old, in order to ignore its prefix, which
       --  is precisely evaluated in the pre-state. Otherwise return OK.
 
+      function Is_Trivial_Post_Or_Ensures (N : Node_Id) return Boolean;
+      --  Return True if node N is trivially "True" or "False", and it comes
+      --  from source. In particular, nodes that are statically known "True" or
+      --  "False" by the compiler but not written as such in source code are
+      --  not considered as trivial.
+
+      procedure Process_Contract_Cases (Spec : Node_Id);
+      --  This processes the Spec_CTC_List from Spec, processing any contract
+      --  case from the list. The caller has checked that Spec_CTC_List is
+      --  non-Empty.
+
       procedure Process_Post_Conditions (Spec : Node_Id; Class : Boolean);
       --  This processes the Spec_PPC_List from Spec, processing any
-      --  postconditions from the list. If Class is True, then only
+      --  postcondition from the list. If Class is True, then only
       --  postconditions marked with Class_Present are considered. The
       --  caller has checked that Spec_PPC_List is non-Empty.
 
@@ -5825,6 +7083,76 @@ package body Sem_Ch6 is
          end if;
       end Check_Post_State;
 
+      --------------------------------
+      -- Is_Trivial_Post_Or_Ensures --
+      --------------------------------
+
+      function Is_Trivial_Post_Or_Ensures (N : Node_Id) return Boolean is
+      begin
+         return Is_Entity_Name (N)
+           and then (Entity (N) = Standard_True
+                       or else
+                     Entity (N) = Standard_False)
+           and then Comes_From_Source (N);
+      end Is_Trivial_Post_Or_Ensures;
+
+      ----------------------------
+      -- Process_Contract_Cases --
+      ----------------------------
+
+      procedure Process_Contract_Cases (Spec : Node_Id) is
+         Prag : Node_Id;
+         Arg  : Node_Id;
+
+         Ignored : Traverse_Final_Result;
+         pragma Unreferenced (Ignored);
+
+      begin
+         Prag := Spec_CTC_List (Contract (Spec));
+         loop
+            --  Retrieve the Ensures component of the contract-case, if any
+
+            Arg := Get_Ensures_From_CTC_Pragma (Prag);
+
+            --  Ignore trivial contract-case when Ensures component is "True"
+            --  or "False".
+
+            if Pragma_Name (Prag) = Name_Contract_Case
+              and then not Is_Trivial_Post_Or_Ensures (Expression (Arg))
+            then
+               --  Since contract-cases are listed in reverse order, the first
+               --  contract-case in the list is the last in the source.
+
+               if No (Last_Contract_Case) then
+                  Last_Contract_Case := Prag;
+               end if;
+
+               --  For functions, look for presence of 'Result in Ensures
+
+               if Ekind_In (Spec_Id, E_Function, E_Generic_Function) then
+                  Ignored := Find_Attribute_Result (Arg);
+               end if;
+
+               --  For each individual contract-case, look for presence
+               --  of an expression that could be evaluated differently
+               --  in post-state.
+
+               Post_State_Mentioned := False;
+               Ignored := Find_Post_State (Arg);
+
+               if Post_State_Mentioned then
+                  No_Warning_On_Some_Postcondition := True;
+               else
+                  Error_Msg_N
+                    ("?`Ensures` component refers only to pre-state", Prag);
+               end if;
+            end if;
+
+            Prag := Next_Pragma (Prag);
+            exit when No (Prag);
+         end loop;
+      end Process_Contract_Cases;
+
       -----------------------------
       -- Process_Post_Conditions --
       -----------------------------
@@ -5840,39 +7168,41 @@ package body Sem_Ch6 is
 
       begin
          Prag := Spec_PPC_List (Contract (Spec));
-
          loop
             Arg := First (Pragma_Argument_Associations (Prag));
 
-            --  Since pre- and post-conditions are listed in reverse order, the
-            --  first postcondition in the list is the last in the source.
+            --  Ignore trivial postcondition of "True" or "False"
 
             if Pragma_Name (Prag) = Name_Postcondition
-              and then not Class
-              and then No (Last_Postcondition)
+              and then not Is_Trivial_Post_Or_Ensures (Expression (Arg))
             then
-               Last_Postcondition := Prag;
-            end if;
+               --  Since pre- and post-conditions are listed in reverse order,
+               --  the first postcondition in the list is last in the source.
 
-            --  For functions, look for presence of 'Result in postcondition
+               if not Class and then No (Last_Postcondition) then
+                  Last_Postcondition := Prag;
+               end if;
 
-            if Ekind_In (Spec_Id, E_Function, E_Generic_Function) then
-               Ignored := Find_Attribute_Result (Arg);
-            end if;
+               --  For functions, look for presence of 'Result in postcondition
 
-            --  For each individual non-inherited postcondition, look for
-            --  presence of an expression that could be evaluated differently
-            --  in post-state.
+               if Ekind_In (Spec_Id, E_Function, E_Generic_Function) then
+                  Ignored := Find_Attribute_Result (Arg);
+               end if;
 
-            if Pragma_Name (Prag) = Name_Postcondition
-              and then not Class
-            then
-               Post_State_Mentioned := False;
-               Ignored := Find_Post_State (Arg);
+               --  For each individual non-inherited postcondition, look
+               --  for presence of an expression that could be evaluated
+               --  differently in post-state.
 
-               if not Post_State_Mentioned then
-                  Error_Msg_N ("?postcondition refers only to pre-state",
-                               Prag);
+               if not Class then
+                  Post_State_Mentioned := False;
+                  Ignored := Find_Post_State (Arg);
+
+                  if Post_State_Mentioned then
+                     No_Warning_On_Some_Postcondition := True;
+                  else
+                     Error_Msg_N
+                       ("?postcondition refers only to pre-state", Prag);
+                  end if;
                end if;
             end if;
 
@@ -5887,6 +7217,8 @@ package body Sem_Ch6 is
       if not Warn_On_Suspicious_Contract then
          return;
       end if;
+
+      --  Process spec postconditions
 
       if Present (Spec_PPC_List (Contract (Spec_Id))) then
          Process_Post_Conditions (Spec_Id, Class => False);
@@ -5904,15 +7236,37 @@ package body Sem_Ch6 is
 --           end if;
 --        end loop;
 
+      --  Process contract cases
+
+      if Present (Spec_CTC_List (Contract (Spec_Id))) then
+         Process_Contract_Cases (Spec_Id);
+      end if;
+
       --  Issue warning for functions whose postcondition does not mention
-      --  'Result after all postconditions have been processed.
+      --  'Result after all postconditions have been processed, and provided
+      --  all postconditions do not already get a warning that they only refer
+      --  to pre-state.
 
       if Ekind_In (Spec_Id, E_Function, E_Generic_Function)
-        and then Present (Last_Postcondition)
+        and then (Present (Last_Postcondition)
+                   or else Present (Last_Contract_Case))
         and then not Attribute_Result_Mentioned
+        and then No_Warning_On_Some_Postcondition
       then
-         Error_Msg_N ("?function postcondition does not mention result",
-                      Last_Postcondition);
+         if Present (Last_Postcondition) then
+            if Present (Last_Contract_Case) then
+               Error_Msg_N ("?neither function postcondition nor " &
+                              "contract cases do mention result",
+                            Last_Postcondition);
+
+            else
+               Error_Msg_N ("?function postcondition does not mention result",
+                            Last_Postcondition);
+            end if;
+         else
+            Error_Msg_N ("?contract cases do not mention result",
+                         Last_Contract_Case);
+         end if;
       end if;
    end Check_Subprogram_Contract;
 
@@ -5935,7 +7289,9 @@ package body Sem_Ch6 is
          N1, N2 : Natural;
 
       begin
-         --  Remove trailing numeric parts
+         --  Deal with special case where names are identical except for a
+         --  numerical suffix. These are handled specially, taking the numeric
+         --  ordering from the suffix into account.
 
          L1 := S1'Last;
          while S1 (L1) in '0' .. '9' loop
@@ -5947,13 +7303,10 @@ package body Sem_Ch6 is
             L2 := L2 - 1;
          end loop;
 
-         --  If non-numeric parts non-equal, that's decisive
+         --  If non-numeric parts non-equal, do straight compare
 
-         if S1 (S1'First .. L1) < S2 (S2'First .. L2) then
-            return False;
-
-         elsif S1 (S1'First .. L1) > S2 (S2'First .. L2) then
-            return True;
+         if S1 (S1'First .. L1) /= S2 (S2'First .. L2) then
+            return S1 > S2;
 
          --  If non-numeric parts equal, compare suffixed numeric parts. Note
          --  that a missing suffix is treated as numeric zero in this test.
@@ -6020,14 +7373,16 @@ package body Sem_Ch6 is
      (New_Id                   : Entity_Id;
       Old_Id                   : Entity_Id;
       Err_Loc                  : Node_Id := Empty;
-      Skip_Controlling_Formals : Boolean := False)
+      Skip_Controlling_Formals : Boolean := False;
+      Get_Inst                 : Boolean := False)
    is
       Result : Boolean;
       pragma Warnings (Off, Result);
    begin
       Check_Conformance
         (New_Id, Old_Id, Subtype_Conformant, True, Result, Err_Loc,
-         Skip_Controlling_Formals => Skip_Controlling_Formals);
+         Skip_Controlling_Formals => Skip_Controlling_Formals,
+         Get_Inst                 => Get_Inst);
    end Check_Subtype_Conformant;
 
    ---------------------------
@@ -6052,6 +7407,7 @@ package body Sem_Ch6 is
 
    function Can_Override_Operator (Subp : Entity_Id) return Boolean is
       Typ : Entity_Id;
+
    begin
       if Nkind (Subp) /= N_Defining_Operator_Symbol then
          return False;
@@ -6059,7 +7415,10 @@ package body Sem_Ch6 is
       else
          Typ := Base_Type (Etype (First_Formal (Subp)));
 
+         --  Check explicitly that the operation is a primitive of the type
+
          return Operator_Matches_Spec (Subp, Subp)
+           and then not Is_Generic_Type (Typ)
            and then Scope (Subp) = Scope (Typ)
            and then not Is_Class_Wide_Type (Typ);
       end if;
@@ -6115,6 +7474,9 @@ package body Sem_Ch6 is
             --  The following is too permissive. A more precise test should
             --  check that the generic actual is an ancestor subtype of the
             --  other ???.
+
+            --  See code in Find_Corresponding_Spec that applies an additional
+            --  filter to handle accidental amiguities in instances.
 
             return not Is_Generic_Actual_Type (T1)
               or else not Is_Generic_Actual_Type (T2)
@@ -6701,7 +8063,12 @@ package body Sem_Ch6 is
 
       Set_Homonym (S, E);
 
-      Append_Entity (S, Current_Scope);
+      if Is_Inherited_Operation (S) then
+         Append_Inherited_Subprogram (S);
+      else
+         Append_Entity (S, Current_Scope);
+      end if;
+
       Set_Public_Status (S);
 
       if Debug_Flag_E then
@@ -6847,6 +8214,44 @@ package body Sem_Ch6 is
 
       E : Entity_Id;
 
+      function Different_Generic_Profile (E : Entity_Id) return Boolean;
+      --  Even if fully conformant, a body may depend on a generic actual when
+      --  the spec does not, or vice versa, in which case they were distinct
+      --  entities in the generic.
+
+      -------------------------------
+      -- Different_Generic_Profile --
+      -------------------------------
+
+      function Different_Generic_Profile (E : Entity_Id) return Boolean is
+         F1, F2 : Entity_Id;
+
+      begin
+         if Ekind (E) = E_Function
+           and then Is_Generic_Actual_Type (Etype (E)) /=
+                    Is_Generic_Actual_Type (Etype (Designator))
+         then
+            return True;
+         end if;
+
+         F1 := First_Formal (Designator);
+         F2 := First_Formal (E);
+         while Present (F1) loop
+            if Is_Generic_Actual_Type (Etype (F1)) /=
+               Is_Generic_Actual_Type (Etype (F2))
+            then
+               return True;
+            end if;
+
+            Next_Formal (F1);
+            Next_Formal (F2);
+         end loop;
+
+         return False;
+      end Different_Generic_Profile;
+
+   --  Start of processing for Find_Corresponding_Spec
+
    begin
       E := Current_Entity (Designator);
       while Present (E) loop
@@ -6859,16 +8264,15 @@ package body Sem_Ch6 is
          if Scope (E) = Current_Scope then
             if Current_Scope = Standard_Standard
               or else (Ekind (E) = Ekind (Designator)
-                         and then Type_Conformant (E, Designator))
+                        and then Type_Conformant (E, Designator))
             then
                --  Within an instantiation, we know that spec and body are
-               --  subtype conformant, because they were subtype conformant
-               --  in the generic. We choose the subtype-conformant entity
-               --  here as well, to resolve spurious ambiguities in the
-               --  instance that were not present in the generic (i.e. when
-               --  two different types are given the same actual). If we are
-               --  looking for a spec to match a body, full conformance is
-               --  expected.
+               --  subtype conformant, because they were subtype conformant in
+               --  the generic. We choose the subtype-conformant entity here as
+               --  well, to resolve spurious ambiguities in the instance that
+               --  were not present in the generic (i.e. when two different
+               --  types are given the same actual). If we are looking for a
+               --  spec to match a body, full conformance is expected.
 
                if In_Instance then
                   Set_Convention (Designator, Convention (E));
@@ -6886,6 +8290,9 @@ package body Sem_Ch6 is
                      goto Next_Entity;
 
                   elsif not Subtype_Conformant (Designator, E) then
+                     goto Next_Entity;
+
+                  elsif Different_Generic_Profile (E) then
                      goto Next_Entity;
                   end if;
                end if;
@@ -6917,12 +8324,12 @@ package body Sem_Ch6 is
 
                   return E;
 
-               --  If E is an internal function with a controlling result
-               --  that was created for an operation inherited by a null
-               --  extension, it may be overridden by a body without a previous
-               --  spec (one more reason why these should be shunned). In that
-               --  case remove the generated body if present, because the
-               --  current one is the explicit overriding.
+               --  If E is an internal function with a controlling result that
+               --  was created for an operation inherited by a null extension,
+               --  it may be overridden by a body without a previous spec (one
+               --  more reason why these should be shunned). In that case
+               --  remove the generated body if present, because the current
+               --  one is the explicit overriding.
 
                elsif Ekind (E) = E_Function
                  and then Ada_Version >= Ada_2005
@@ -7028,9 +8435,9 @@ package body Sem_Ch6 is
         renames Fully_Conformant_Expressions;
 
       function FCL (L1, L2 : List_Id) return Boolean;
-      --  Compare elements of two lists for conformance. Elements have to
-      --  be conformant, and actuals inserted as default parameters do not
-      --  match explicit actuals with the same value.
+      --  Compare elements of two lists for conformance. Elements have to be
+      --  conformant, and actuals inserted as default parameters do not match
+      --  explicit actuals with the same value.
 
       function FCO (Op_Node, Call_Node : Node_Id) return Boolean;
       --  Compare an operator node with a function call
@@ -7055,8 +8462,8 @@ package body Sem_Ch6 is
             N2 := First (L2);
          end if;
 
-         --  Compare two lists, skipping rewrite insertions (we want to
-         --  compare the original trees, not the expanded versions!)
+         --  Compare two lists, skipping rewrite insertions (we want to compare
+         --  the original trees, not the expanded versions!)
 
          loop
             if Is_Rewrite_Insertion (N1) then
@@ -7292,10 +8699,6 @@ package body Sem_Ch6 is
                    and then
                  FCE (Expression (E1), Expression (E2));
 
-            when N_Conditional_Expression =>
-               return
-                 FCL (Expressions (E1), Expressions (E2));
-
             when N_Explicit_Dereference =>
                return
                  FCE (Prefix (E1), Prefix (E2));
@@ -7314,6 +8717,10 @@ package body Sem_Ch6 is
                    and then
                  FCL (Parameter_Associations (E1),
                       Parameter_Associations (E2));
+
+            when N_If_Expression =>
+               return
+                 FCL (Expressions (E1), Expressions (E2));
 
             when N_Indexed_Component =>
                return
@@ -7371,7 +8778,9 @@ package body Sem_Ch6 is
                                 Discrete_Subtype_Definition (L2));
                   end;
 
-               else   --  quantified expression with an iterator
+               elsif Present (Iterator_Specification (E1))
+                 and then Present (Iterator_Specification (E2))
+               then
                   declare
                      I1 : constant Node_Id := Iterator_Specification (E1);
                      I2 : constant Node_Id := Iterator_Specification (E2);
@@ -7388,6 +8797,12 @@ package body Sem_Ch6 is
                        and then FCE (Subtype_Indication (I1),
                                       Subtype_Indication (I2));
                   end;
+
+               --  The quantified expressions used different specifications to
+               --  walk their respective ranges.
+
+               else
+                  return False;
                end if;
 
             when N_Range =>
@@ -7624,7 +9039,7 @@ package body Sem_Ch6 is
         or else not Is_Dispatching_Operation (Prim)
         or else Scope (Prim) /= Scope (Tagged_Type)
         or else No (Typ)
-        or else Base_Type (Typ) /= Tagged_Type
+        or else Base_Type (Typ) /= Base_Type (Tagged_Type)
         or else not Primitive_Names_Match (Iface_Prim, Prim)
       then
          return False;
@@ -9368,9 +10783,15 @@ package body Sem_Ch6 is
                --  Check is done on package exit. For access to subprograms,
                --  the use is legal for Taft-amendment types.
 
+               --  Ada 2012: tagged incomplete types are allowed as generic
+               --  formal types. They do not introduce dependencies and the
+               --  corresponding generic subprogram does not have a delayed
+               --  freeze, because it does not need a freeze node.
+
                if Is_Tagged_Type (Formal_Type) then
                   if Ekind (Scope (Current_Scope)) = E_Package
                     and then not From_With_Type (Formal_Type)
+                    and then not Is_Generic_Type (Formal_Type)
                     and then not Is_Class_Wide_Type (Formal_Type)
                   then
                      if not Nkind_In
@@ -9468,15 +10889,19 @@ package body Sem_Ch6 is
                        Related_Nod => Related_Nod,
                        Scope_Id    => Scope (Current_Scope));
 
-                  --  If the designated type of the itype is an itype we
-                  --  decorate it with the Has_Delayed_Freeze attribute to
-                  --  avoid problems with the backend.
+                  --  If the designated type of the itype is an itype that is
+                  --  not frozen yet, we set the Has_Delayed_Freeze attribute
+                  --  on the access subtype, to prevent order-of-elaboration
+                  --  issues in the backend.
 
                   --  Example:
                   --     type T is access procedure;
                   --     procedure Op (O : not null T);
 
-                  if Is_Itype (Directly_Designated_Type (Formal_Type)) then
+                  if Is_Itype (Directly_Designated_Type (Formal_Type))
+                    and then
+                      not Is_Frozen (Directly_Designated_Type (Formal_Type))
+                  then
                      Set_Has_Delayed_Freeze (Formal_Type);
                   end if;
                end if;
@@ -9693,6 +11118,17 @@ package body Sem_Ch6 is
       Plist : List_Id := No_List;
       --  List of generated postconditions
 
+      procedure Check_Access_Invariants (E : Entity_Id);
+      --  If the subprogram returns an access to a type with invariants, or
+      --  has access parameters whose designated type has an invariant, then
+      --  under the same visibility conditions as for other invariant checks,
+      --  the type invariant must be applied to the returned value.
+
+      function Grab_CC return Node_Id;
+      --  Prag contains an analyzed contract case pragma. This function copies
+      --  relevant components of the pragma, creates the corresponding Check
+      --  pragma and returns the Check pragma as the result.
+
       function Grab_PPC (Pspec : Entity_Id := Empty) return Node_Id;
       --  Prag contains an analyzed precondition or postcondition pragma. This
       --  function copies the pragma, changes it to the corresponding Check
@@ -9700,6 +11136,9 @@ package body Sem_Ch6 is
       --  empty, this is the case of inheriting a PPC, where we must change
       --  references to parameters of the inherited subprogram to point to the
       --  corresponding parameters of the current subprogram.
+
+      procedure Insert_After_Last_Declaration (Nod : Node_Id);
+      --  Insert node Nod after the last declaration of the context
 
       function Invariants_Or_Predicates_Present return Boolean;
       --  Determines if any invariants or predicates are present for any OUT
@@ -9714,6 +11153,126 @@ package body Sem_Ch6 is
       --  contains the declaration of the private type). A True value means
       --  that an invariant check is required (for an IN OUT parameter, or
       --  the returned value of a function.
+
+      -----------------------------
+      -- Check_Access_Invariants --
+      -----------------------------
+
+      procedure Check_Access_Invariants (E : Entity_Id) is
+         Call : Node_Id;
+         Obj  : Node_Id;
+         Typ  : Entity_Id;
+
+      begin
+         if Is_Access_Type (Etype (E))
+           and then not Is_Access_Constant (Etype (E))
+         then
+            Typ := Designated_Type (Etype (E));
+
+            if Has_Invariants (Typ)
+              and then Present (Invariant_Procedure (Typ))
+              and then Is_Public_Subprogram_For (Typ)
+            then
+               Obj :=
+                 Make_Explicit_Dereference (Loc,
+                   Prefix => New_Occurrence_Of (E, Loc));
+               Set_Etype (Obj, Typ);
+
+               Call := Make_Invariant_Call (Obj);
+
+               Append_To (Plist,
+                 Make_If_Statement (Loc,
+                   Condition =>
+                     Make_Op_Ne (Loc,
+                       Left_Opnd   => Make_Null (Loc),
+                       Right_Opnd  => New_Occurrence_Of (E, Loc)),
+                   Then_Statements => New_List (Call)));
+            end if;
+         end if;
+      end Check_Access_Invariants;
+
+      -------------
+      -- Grab_CC --
+      -------------
+
+      function Grab_CC return Node_Id is
+         Loc  : constant Source_Ptr := Sloc (Prag);
+         CP   : Node_Id;
+         Req  : Node_Id;
+         Ens  : Node_Id;
+         Post : Node_Id;
+
+         --  As with postcondition, the string is "failed xx from yy" where
+         --  xx is in all lower case. The reason for this different wording
+         --  compared to other Check cases is that the failure is not at the
+         --  point of occurrence of the pragma, unlike the other Check cases.
+
+         Msg  : constant String :=
+                  "failed contract case from " & Build_Location_String (Loc);
+
+      begin
+         --  Copy the Requires and Ensures expressions
+
+         Req  := New_Copy_Tree
+                   (Expression (Get_Requires_From_CTC_Pragma (Prag)),
+                    New_Scope => Current_Scope);
+
+         Ens  := New_Copy_Tree
+                   (Expression (Get_Ensures_From_CTC_Pragma (Prag)),
+                    New_Scope => Current_Scope);
+
+         --  Build the postcondition (not Requires'Old or else Ensures)
+
+         Post :=
+           Make_Or_Else (Loc,
+             Left_Opnd  =>
+               Make_Op_Not (Loc,
+                 Make_Attribute_Reference (Loc,
+                   Prefix         => Req,
+                   Attribute_Name => Name_Old)),
+             Right_Opnd => Ens);
+
+         --  For a contract case pragma within a generic, generate a
+         --  postcondition pragma for later expansion. This is also used
+         --  when an error was detected, thus setting Expander_Active to False.
+
+         if not Expander_Active then
+            CP :=
+              Make_Pragma (Loc,
+                Chars => Name_Postcondition,
+                Pragma_Argument_Associations => New_List (
+                  Make_Pragma_Argument_Association (Loc,
+                    Chars      => Name_Check,
+                    Expression => Post),
+
+                  Make_Pragma_Argument_Association (Loc,
+                    Chars      => Name_Message,
+                    Expression => Make_String_Literal (Loc, Msg))));
+
+         --  Otherwise, create the Check pragma
+
+         else
+            CP :=
+              Make_Pragma (Loc,
+                Chars                        => Name_Check,
+                Pragma_Argument_Associations => New_List (
+                  Make_Pragma_Argument_Association (Loc,
+                    Chars      => Name_Name,
+                    Expression => Make_Identifier (Loc, Name_Postcondition)),
+
+                  Make_Pragma_Argument_Association (Loc,
+                    Chars      => Name_Check,
+                    Expression => Post),
+
+                  Make_Pragma_Argument_Association (Loc,
+                    Chars      => Name_Message,
+                    Expression => Make_String_Literal (Loc, Msg))));
+         end if;
+
+         --  Return the Postcondition or Check pragma
+
+         return CP;
+      end Grab_CC;
 
       --------------
       -- Grab_PPC --
@@ -9766,7 +11325,8 @@ package body Sem_Ch6 is
          Set_Comes_From_Source (CP, False);
 
          --  For a postcondition pragma within a generic, preserve the pragma
-         --  for later expansion.
+         --  for later expansion. This is also used when an error was detected,
+         --  thus setting Expander_Active to False.
 
          if Nam = Name_Postcondition
            and then not Expander_Active
@@ -9808,6 +11368,21 @@ package body Sem_Ch6 is
          return CP;
       end Grab_PPC;
 
+      -----------------------------------
+      -- Insert_After_Last_Declaration --
+      -----------------------------------
+
+      procedure Insert_After_Last_Declaration (Nod : Node_Id) is
+         Decls : constant List_Id := Declarations (N);
+
+      begin
+         if No (Decls) then
+            Set_Declarations (N, New_List (Nod));
+         else
+            Append_To (Decls, Nod);
+         end if;
+      end Insert_After_Last_Declaration;
+
       --------------------------------------
       -- Invariants_Or_Predicates_Present --
       --------------------------------------
@@ -9816,10 +11391,17 @@ package body Sem_Ch6 is
          Formal : Entity_Id;
 
       begin
-         --  Check function return result
+         --  Check function return result. If result is an access type there
+         --  may be invariants on the designated type.
 
          if Ekind (Designator) /= E_Procedure
            and then Has_Invariants (Etype (Designator))
+         then
+            return True;
+
+         elsif Ekind (Designator) /= E_Procedure
+           and then Is_Access_Type (Etype (Designator))
+           and then Has_Invariants (Designated_Type (Etype (Designator)))
          then
             return True;
          end if;
@@ -9829,9 +11411,13 @@ package body Sem_Ch6 is
          Formal := First_Formal (Designator);
          while Present (Formal) loop
             if Ekind (Formal) /= E_In_Parameter
-              and then
-                (Has_Invariants (Etype (Formal))
-                  or else Present (Predicate_Function (Etype (Formal))))
+              and then (Has_Invariants (Etype (Formal))
+                         or else Present (Predicate_Function (Etype (Formal))))
+            then
+               return True;
+
+            elsif Is_Access_Type (Etype (Formal))
+              and then Has_Invariants (Designated_Type (Etype (Formal)))
             then
                return True;
             end if;
@@ -9869,9 +11455,13 @@ package body Sem_Ch6 is
          --  If the subprogram declaration is not a list member, it must be
          --  an Init_Proc, in which case we want to consider it to be a
          --  public subprogram, since we do get initializations to deal with.
+         --  Other internally generated subprograms are not public.
 
-         if not Is_List_Member (DD) then
+         if not Is_List_Member (DD) and then Is_Init_Proc (DD) then
             return True;
+
+         elsif not Comes_From_Source (DD) then
+            return False;
 
          --  Otherwise we test whether the subprogram is declared in the
          --  visible declarations of the package containing the type.
@@ -9890,6 +11480,13 @@ package body Sem_Ch6 is
          Designator := Spec_Id;
       else
          Designator := Body_Id;
+      end if;
+
+      --  Internally generated subprograms, such as type-specific functions,
+      --  don't get assertion checks.
+
+      if Get_TSS_Name (Designator) /= TSS_Null then
+         return;
       end if;
 
       --  Grab preconditions from spec
@@ -10082,6 +11679,11 @@ package body Sem_Ch6 is
 
       if Present (Spec_Id) then
          Spec_Postconditions : declare
+            procedure Process_Contract_Cases (Spec : Node_Id);
+            --  This processes the Spec_CTC_List from Spec, processing any
+            --  contract-case from the list. The caller has checked that
+            --  Spec_CTC_List is non-Empty.
+
             procedure Process_Post_Conditions
               (Spec  : Node_Id;
                Class : Boolean);
@@ -10089,6 +11691,33 @@ package body Sem_Ch6 is
             --  postconditions from the list. If Class is True, then only
             --  postconditions marked with Class_Present are considered.
             --  The caller has checked that Spec_PPC_List is non-Empty.
+
+            ----------------------------
+            -- Process_Contract_Cases --
+            ----------------------------
+
+            procedure Process_Contract_Cases (Spec : Node_Id) is
+            begin
+               --  Loop through Contract_Case pragmas from spec
+
+               Prag := Spec_CTC_List (Contract (Spec));
+               loop
+                  if Pragma_Name (Prag) = Name_Contract_Case then
+                     if Plist = No_List then
+                        Plist := Empty_List;
+                     end if;
+
+                     if not Expander_Active then
+                        Prepend (Grab_CC, Declarations (N));
+                     else
+                        Append (Grab_CC, Plist);
+                     end if;
+                  end if;
+
+                  Prag := Next_Pragma (Prag);
+                  exit when No (Prag);
+               end loop;
+            end Process_Contract_Cases;
 
             -----------------------------
             -- Process_Post_Conditions --
@@ -10134,6 +11763,14 @@ package body Sem_Ch6 is
          --  Start of processing for Spec_Postconditions
 
          begin
+            --  Process postconditions expressed as contract-cases
+
+            if Present (Spec_CTC_List (Contract (Spec_Id))) then
+               Process_Contract_Cases (Spec_Id);
+            end if;
+
+            --  Process spec postconditions
+
             if Present (Spec_PPC_List (Contract (Spec_Id))) then
                Process_Post_Conditions (Spec_Id, Class => False);
             end if;
@@ -10188,6 +11825,10 @@ package body Sem_Ch6 is
                   Append_To (Plist,
                     Make_Invariant_Call (New_Occurrence_Of (Rent, Loc)));
                end if;
+
+               --  Same if return value is an access to type with invariants.
+
+               Check_Access_Invariants (Rent);
             end;
 
          --  Procedure rather than a function
@@ -10207,7 +11848,9 @@ package body Sem_Ch6 is
          begin
             Formal := First_Formal (Designator);
             while Present (Formal) loop
-               if Ekind (Formal) /= E_In_Parameter then
+               if Ekind (Formal) /= E_In_Parameter
+                 or else Is_Access_Type (Etype (Formal))
+               then
                   Ftype := Etype (Formal);
 
                   if Has_Invariants (Ftype)
@@ -10218,6 +11861,8 @@ package body Sem_Ch6 is
                        Make_Invariant_Call
                          (New_Occurrence_Of (Formal, Loc)));
                   end if;
+
+                  Check_Access_Invariants (Formal);
 
                   if Present (Predicate_Function (Ftype)) then
                      Append_To (Plist,
@@ -10239,7 +11884,26 @@ package body Sem_Ch6 is
             --  The entity for the _Postconditions procedure
 
          begin
-            Prepend_To (Declarations (N),
+            --  Insert the corresponding body of a post condition pragma after
+            --  the last declaration of the context. This ensures that the body
+            --  will not cause any premature freezing as it may mention types:
+
+            --    procedure Proc (Obj : Array_Typ) is
+            --       procedure _postconditions is
+            --       begin
+            --          ... Obj ...
+            --       end _postconditions;
+
+            --       subtype T is Array_Typ (Obj'First (1) .. Obj'Last (1));
+            --    begin
+
+            --  In the example above, Obj is of type T but the incorrect
+            --  placement of _postconditions will cause a crash in gigi due to
+            --  an out of order reference. The body of _postconditions must be
+            --  placed after the declaration of Temp to preserve correct
+            --  visibility.
+
+            Insert_After_Last_Declaration (
               Make_Subprogram_Body (Loc,
                 Specification =>
                   Make_Procedure_Specification (Loc,

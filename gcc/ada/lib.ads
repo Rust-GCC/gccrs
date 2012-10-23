@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -661,7 +661,7 @@ package Lib is
    --  one with no code, but the ALI file has the normal form, and we need
    --  this ALI file so that the binder can work out a correct order of
    --  elaboration.
-
+   --
    --  However, ancient versions of GNAT used to not generate code or ALI
    --  files for generic units, and this would yield complex order of
    --  elaboration issues. These were fixed in GNAT 3.10. The support for not
@@ -672,6 +672,15 @@ package Lib is
    --  the stage1 compiler (and binder) also must deal with the case of
    --  that file not being compiled. The predicate Generic_May_Lack_ALI is
    --  True for those generic units for which missing ALI files are allowed.
+
+   procedure Write_Unit_Info
+     (Unit_Num : Unit_Number_Type;
+      Item     : Node_Id;
+      Prefix   : String := "";
+      Withs    : Boolean := False);
+   --  Print out debugging information about the unit. Prefix precedes the rest
+   --  of the printout. If Withs is True, we print out units with'ed by this
+   --  unit (not counting limited withs).
 
 private
    pragma Inline (Cunit);

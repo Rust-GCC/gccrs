@@ -1,5 +1,6 @@
 /* Exported functions from alias.c
-   Copyright (C) 2004, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
+   Copyright (C) 2004, 2007, 2008, 2009, 2010, 2012
+   Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -19,8 +20,6 @@ along with GCC; see the file COPYING3.  If not see
 
 #ifndef GCC_ALIAS_H
 #define GCC_ALIAS_H
-
-#include "coretypes.h"
 
 /* The type of an alias set.  Code currently assumes that variables of
    this type can take the values 0 (the alias set which aliases

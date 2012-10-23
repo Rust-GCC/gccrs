@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2001-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -33,6 +33,7 @@ with Osint;    use Osint;
 with Opt;      use Opt;
 with Validsw;  use Validsw;
 with Stylesw;  use Stylesw;
+with Ttypes;   use Ttypes;
 with Warnsw;   use Warnsw;
 
 with Ada.Unchecked_Deallocation;
@@ -49,6 +50,10 @@ package body Switch.C is
    procedure Free is
       new Ada.Unchecked_Deallocation (String_List, String_List_Access);
    --  Avoid using System.Strings.Free, which also frees the designated strings
+
+   function Get_Overflow_Mode (C : Character) return Overflow_Check_Type;
+   --  Given a digit in the range 0 .. 3, returns the corresponding value of
+   --  Overflow_Check_Type. Raises Program_Error if C is outside this range.
 
    function Switch_Subsequently_Cancelled
      (C        : String;
@@ -72,7 +77,6 @@ package body Switch.C is
          declare
             New_Symbol_Definitions : constant String_List_Access :=
               new String_List (1 .. 2 * Preprocessing_Symbol_Last);
-
          begin
             New_Symbol_Definitions (Preprocessing_Symbol_Defs'Range) :=
               Preprocessing_Symbol_Defs.all;
@@ -85,6 +89,37 @@ package body Switch.C is
       Preprocessing_Symbol_Defs (Preprocessing_Symbol_Last) :=
         new String'(Def);
    end Add_Symbol_Definition;
+
+   -----------------------
+   -- Get_Overflow_Mode --
+   -----------------------
+
+   function Get_Overflow_Mode (C : Character) return Overflow_Check_Type is
+   begin
+      case C is
+         when '0' =>
+            return Suppressed;
+
+         when '1' =>
+            return Checked;
+
+         when '2' =>
+            return Minimized;
+
+         --  Eliminated allowed only if Long_Long_Integer is 64 bits (since
+         --  the current implementation of System.Bignums assumes this).
+
+         when '3' =>
+            if Standard_Long_Long_Integer_Size /= 64 then
+               Bad_Switch ("-gnato3 not implemented for this configuration");
+            else
+               return Eliminated;
+            end if;
+
+         when others =>
+            raise Program_Error;
+      end case;
+   end Get_Overflow_Mode;
 
    -----------------------------
    -- Scan_Front_End_Switches --
@@ -128,9 +163,8 @@ package body Switch.C is
 
       --  Handle switches that do not start with -gnat
 
-      if Ptr + 3 > Max
-        or else Switch_Chars (Ptr .. Ptr + 3) /= "gnat"
-      then
+      if Ptr + 3 > Max or else Switch_Chars (Ptr .. Ptr + 3) /= "gnat" then
+
          --  There are two front-end switches that do not start with -gnat:
          --  -I, --RTS
 
@@ -381,6 +415,12 @@ package body Switch.C is
                      Enable_Switch_Storing;
                      Ptr := Ptr + 1;
 
+                  --  -gnateA (aliasing checks on parameters)
+
+                  when 'A' =>
+                     Ptr := Ptr + 1;
+                     Check_Aliasing_Of_Parameters := True;
+
                   --  -gnatec (configuration pragmas)
 
                   when 'c' =>
@@ -443,7 +483,8 @@ package body Switch.C is
                   --  -gnated switch (disable atomic synchronization)
 
                   when 'd' =>
-                     Suppress_Options (Atomic_Synchronization) := True;
+                     Suppress_Options.Suppress (Atomic_Synchronization) :=
+                       True;
 
                   --  -gnateD switch (preprocessing symbol definition)
 
@@ -482,6 +523,13 @@ package body Switch.C is
                      Generate_Processed_File := True;
                      Ptr := Ptr + 1;
 
+                  --  -gnatei (max number of instantiations)
+
+                  when 'i' =>
+                     Ptr := Ptr + 1;
+                     Scan_Pos
+                       (Switch_Chars, Max, Ptr, Maximum_Instantiations, C);
+
                   --  -gnateI (index of unit in multi-unit source)
 
                   when 'I' =>
@@ -507,6 +555,24 @@ package body Switch.C is
 
                      Mapping_File_Name :=
                        new String'(Switch_Chars (Ptr .. Max));
+                     return;
+
+                  --  -gnateO= (object path file)
+
+                  when 'O' =>
+                     Store_Switch := False;
+                     Ptr := Ptr + 1;
+
+                     --  Check for '='
+
+                     if Ptr >= Max or else Switch_Chars (Ptr) /= '=' then
+                        Bad_Switch ("-gnateO");
+
+                     else
+                        Object_Path_File_Name :=
+                          new String'(Switch_Chars (Ptr + 1 .. Max));
+                     end if;
+
                      return;
 
                   --  -gnatep (preprocessing data file)
@@ -541,6 +607,22 @@ package body Switch.C is
                   when 'P' =>
                      Treat_Categorization_Errors_As_Warnings := True;
 
+                  --  -gnateS (generate SCO information)
+
+                  --  Include Source Coverage Obligation information in ALI
+                  --  files for the benefit of source coverage analysis tools
+                  --  (xcov).
+
+                  when 'S' =>
+                     Generate_SCO := True;
+                     Ptr := Ptr + 1;
+
+                  --  -gnateV (validity checks on parameters)
+
+                  when 'V' =>
+                     Ptr := Ptr + 1;
+                     Check_Validity_Of_Parameters := True;
+
                   --  -gnatez (final delimiter of explicit switches)
 
                   --  All switches that come after -gnatez have been added by
@@ -550,16 +632,6 @@ package body Switch.C is
                   when 'z' =>
                      Store_Switch := False;
                      Disable_Switch_Storing;
-                     Ptr := Ptr + 1;
-
-                  --  -gnateS (generate SCO information)
-
-                  --  Include Source Coverage Obligation information in ALI
-                  --  files for the benefit of source coverage analysis tools
-                  --  (xcov).
-
-                  when 'S' =>
-                     Generate_SCO := True;
                      Ptr := Ptr + 1;
 
                   --  All other -gnate? switches are unassigned
@@ -626,12 +698,6 @@ package body Switch.C is
             when 'h' =>
                Ptr := Ptr + 1;
                Usage_Requested := True;
-
-            --  Processing for H switch
-
-            when 'H' =>
-               Ptr := Ptr + 1;
-               HLO_Active := True;
 
             --  Processing for i switch
 
@@ -713,6 +779,17 @@ package body Switch.C is
                Ptr := Ptr + 1;
                Inline_Active := True;
 
+               --  There may be a digit (1 or 2) appended to the switch
+
+               if Ptr <= Max then
+                  C := Switch_Chars (Ptr);
+
+                  if C in '1' .. '2' then
+                     Ptr := Ptr + 1;
+                     Inline_Level := Character'Pos (C) - Character'Pos ('0');
+                  end if;
+               end if;
+
             --  Processing for N switch
 
             when 'N' =>
@@ -724,8 +801,39 @@ package body Switch.C is
 
             when 'o' =>
                Ptr := Ptr + 1;
-               Suppress_Options (Overflow_Check) := False;
-               Opt.Enable_Overflow_Checks := True;
+
+               --  Case of no digits after the -gnato
+
+               if Ptr > Max or else Switch_Chars (Ptr) not in '0' .. '3' then
+                  Suppress_Options.Overflow_Checks_General    := Checked;
+                  Suppress_Options.Overflow_Checks_Assertions := Checked;
+
+               --  At least one digit after the -gnato
+
+               else
+                  --  Handle first digit after -gnato
+
+                  Suppress_Options.Overflow_Checks_General :=
+                    Get_Overflow_Mode (Switch_Chars (Ptr));
+                  Ptr := Ptr + 1;
+
+                  --  Only one digit after -gnato, set assertions mode to
+                  --  be the same as general mode.
+
+                  if Ptr > Max
+                    or else Switch_Chars (Ptr) not in '0' .. '3'
+                  then
+                     Suppress_Options.Overflow_Checks_Assertions :=
+                       Suppress_Options.Overflow_Checks_General;
+
+                  --  Process second digit after -gnato
+
+                  else
+                     Suppress_Options.Overflow_Checks_Assertions :=
+                       Get_Overflow_Mode (Switch_Chars (Ptr));
+                     Ptr := Ptr + 1;
+                  end if;
+               end if;
 
             --  Processing for O switch
 
@@ -752,17 +860,20 @@ package body Switch.C is
                   --  exclude Atomic_Synchronization, since this is not a real
                   --  check.
 
-                  for J in Suppress_Options'Range loop
+                  for J in Suppress_Options.Suppress'Range loop
                      if J /= Elaboration_Check
-                       and then J /= Atomic_Synchronization
+                          and then
+                        J /= Atomic_Synchronization
                      then
-                        Suppress_Options (J) := True;
+                        Suppress_Options.Suppress (J) := True;
                      end if;
                   end loop;
 
-                  Validity_Checks_On         := False;
-                  Opt.Suppress_Checks        := True;
-                  Opt.Enable_Overflow_Checks := False;
+                  Suppress_Options.Overflow_Checks_General    := Suppressed;
+                  Suppress_Options.Overflow_Checks_Assertions := Suppressed;
+
+                  Validity_Checks_On  := False;
+                  Opt.Suppress_Checks := True;
                end if;
 
             --  Processing for P switch

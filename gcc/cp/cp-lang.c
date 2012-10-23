@@ -92,11 +92,11 @@ struct lang_hooks lang_hooks = LANG_HOOKS_INITIALIZER;
 /* The following function does something real, but only in Objective-C++.  */
 
 tree
-objcp_tsubst_copy_and_build (tree t ATTRIBUTE_UNUSED,
-			     tree args ATTRIBUTE_UNUSED,
-			     tsubst_flags_t complain ATTRIBUTE_UNUSED,
-			     tree in_decl ATTRIBUTE_UNUSED,
-			     bool function_p ATTRIBUTE_UNUSED)
+objcp_tsubst_copy_and_build (tree /*t*/,
+			     tree /*args*/,
+			     tsubst_flags_t /*complain*/,
+			     tree /*in_decl*/,
+			     bool /*function_p*/)
 {
   return NULL_TREE;
 }
@@ -115,14 +115,14 @@ cxx_dwarf_name (tree t, int verbosity)
   gcc_assert (DECL_P (t));
 
   if (DECL_NAME (t)
-      && (ANON_AGGRNAME_P (DECL_NAME (t)) || LAMBDANAME_P (DECL_NAME (t))))
+      && (ANON_AGGRNAME_P (DECL_NAME (t)) || LAMBDA_TYPE_P (t)))
     return NULL;
   if (verbosity >= 2)
-    return decl_as_string (t,
-			   TFF_DECL_SPECIFIERS | TFF_UNQUALIFIED_NAME
-			   | TFF_NO_OMIT_DEFAULT_TEMPLATE_ARGUMENTS);
+    return decl_as_dwarf_string (t,
+                                 TFF_DECL_SPECIFIERS | TFF_UNQUALIFIED_NAME
+                                 | TFF_NO_OMIT_DEFAULT_TEMPLATE_ARGUMENTS);
 
-  return cxx_printable_name (t, verbosity);
+  return lang_decl_dwarf_name (t, verbosity, false);
 }
 
 static enum classify_record

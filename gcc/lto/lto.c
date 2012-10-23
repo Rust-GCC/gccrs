@@ -1,5 +1,5 @@
 /* Top-level LTO routines.
-   Copyright 2009, 2010, 2011 Free Software Foundation, Inc.
+   Copyright 2009, 2010, 2011, 2012 Free Software Foundation, Inc.
    Contributed by CodeSourcery, Inc.
 
 This file is part of GCC.
@@ -38,16 +38,13 @@ along with GCC; see the file COPYING3.  If not see
 #include "ipa-prop.h"
 #include "common.h"
 #include "debug.h"
-#include "timevar.h"
 #include "gimple.h"
 #include "lto.h"
 #include "lto-tree.h"
 #include "lto-streamer.h"
 #include "tree-streamer.h"
 #include "splay-tree.h"
-#include "params.h"
-#include "ipa-inline.h"
-#include "ipa-utils.h"
+#include "lto-partition.h"
 
 static GTY(()) tree first_personality_decl;
 
@@ -158,20 +155,6 @@ lto_splay_tree_new (void)
 			 NULL);
 }
 
-/* Read the constructors and inits.  */
-
-static void
-lto_materialize_constructors_and_inits (struct lto_file_decl_data * file_data)
-{
-  size_t len;
-  const char *data = lto_get_section_data (file_data, 
-					   LTO_section_static_initializer,
-					   NULL, &len);
-  lto_input_constructors_and_inits (file_data, data);
-  lto_free_section_data (file_data, LTO_section_static_initializer, NULL,
-			 data, len);
-}
-
 /* Return true when NODE has a clone that is analyzed (i.e. we need
    to load its body even if the node itself is not needed).  */
 
@@ -210,12 +193,12 @@ lto_materialize_function (struct cgraph_node *node)
   const char *data, *name;
   size_t len;
 
-  decl = node->decl;
+  decl = node->symbol.decl;
   /* Read in functions with body (analyzed nodes)
      and also functions that are needed to produce virtual clones.  */
   if (cgraph_function_with_gimple_body_p (node) || has_analyzed_clone_p (node))
     {
-      /* Clones and thunks don't need to be read.  */
+      /* Clones don't need to be read.  */
       if (node->clone_of)
 	return;
 
@@ -223,7 +206,7 @@ lto_materialize_function (struct cgraph_node *node)
 	 WPA mode, the body of the function is not needed.  */
       if (!flag_wpa)
 	{
-	  file_data = node->local.lto_file_data;
+	  file_data = node->symbol.lto_file_data;
 	  name = IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (decl));
 
 	  /* We may have renamed the declaration, e.g., a static function.  */
@@ -238,7 +221,7 @@ lto_materialize_function (struct cgraph_node *node)
 
 	  gcc_assert (DECL_STRUCT_FUNCTION (decl) == NULL);
 
-	  allocate_struct_function (decl, false);
+	  push_struct_function (decl);
 	  announce_function (decl);
 	  lto_input_function_body (file_data, decl, data);
 	  if (DECL_FUNCTION_PERSONALITY (decl) && !first_personality_decl)
@@ -246,6 +229,7 @@ lto_materialize_function (struct cgraph_node *node)
 	  lto_stats.num_function_bodies++;
 	  lto_free_section_data (file_data, LTO_section_function_body, name,
 				 data, len);
+	  pop_cfun ();
 	  ggc_collect ();
 	}
     }
@@ -293,6 +277,1130 @@ lto_read_in_decl_state (struct data_in *data_in, const uint32_t *data,
   return data;
 }
 
+
+
+/* Global type table.  FIXME, it should be possible to re-use some
+   of the type hashing routines in tree.c (type_hash_canon, type_hash_lookup,
+   etc), but those assume that types were built with the various
+   build_*_type routines which is not the case with the streamer.  */
+static GTY((if_marked ("ggc_marked_p"), param_is (union tree_node)))
+  htab_t gimple_types;
+static GTY((if_marked ("tree_int_map_marked_p"), param_is (struct tree_int_map)))
+  htab_t type_hash_cache;
+
+static hashval_t gimple_type_hash (const void *);
+
+/* Structure used to maintain a cache of some type pairs compared by
+   gimple_types_compatible_p when comparing aggregate types.  There are
+   three possible values for SAME_P:
+
+   	-2: The pair (T1, T2) has just been inserted in the table.
+	 0: T1 and T2 are different types.
+	 1: T1 and T2 are the same type.  */
+
+struct type_pair_d
+{
+  unsigned int uid1;
+  unsigned int uid2;
+  signed char same_p;
+};
+typedef struct type_pair_d *type_pair_t;
+DEF_VEC_P(type_pair_t);
+DEF_VEC_ALLOC_P(type_pair_t,heap);
+
+#define GIMPLE_TYPE_PAIR_SIZE 16381
+struct type_pair_d *type_pair_cache;
+
+
+/* Lookup the pair of types T1 and T2 in *VISITED_P.  Insert a new
+   entry if none existed.  */
+
+static inline type_pair_t
+lookup_type_pair (tree t1, tree t2)
+{
+  unsigned int index;
+  unsigned int uid1, uid2;
+
+  if (TYPE_UID (t1) < TYPE_UID (t2))
+    {
+      uid1 = TYPE_UID (t1);
+      uid2 = TYPE_UID (t2);
+    }
+  else
+    {
+      uid1 = TYPE_UID (t2);
+      uid2 = TYPE_UID (t1);
+    }
+  gcc_checking_assert (uid1 != uid2);
+
+  /* iterative_hash_hashval_t imply an function calls.
+     We know that UIDS are in limited range.  */
+  index = ((((unsigned HOST_WIDE_INT)uid1 << HOST_BITS_PER_WIDE_INT / 2) + uid2)
+	   % GIMPLE_TYPE_PAIR_SIZE);
+  if (type_pair_cache [index].uid1 == uid1
+      && type_pair_cache [index].uid2 == uid2)
+    return &type_pair_cache[index];
+
+  type_pair_cache [index].uid1 = uid1;
+  type_pair_cache [index].uid2 = uid2;
+  type_pair_cache [index].same_p = -2;
+
+  return &type_pair_cache[index];
+}
+
+/* Per pointer state for the SCC finding.  The on_sccstack flag
+   is not strictly required, it is true when there is no hash value
+   recorded for the type and false otherwise.  But querying that
+   is slower.  */
+
+struct sccs
+{
+  unsigned int dfsnum;
+  unsigned int low;
+  bool on_sccstack;
+  union {
+    hashval_t hash;
+    signed char same_p;
+  } u;
+};
+
+static unsigned int next_dfs_num;
+static unsigned int gtc_next_dfs_num;
+
+/* GIMPLE type merging cache.  A direct-mapped cache based on TYPE_UID.  */
+
+typedef struct GTY(()) gimple_type_leader_entry_s {
+  tree type;
+  tree leader;
+} gimple_type_leader_entry;
+
+#define GIMPLE_TYPE_LEADER_SIZE 16381
+static GTY((length("GIMPLE_TYPE_LEADER_SIZE")))
+  gimple_type_leader_entry *gimple_type_leader;
+
+/* Lookup an existing leader for T and return it or NULL_TREE, if
+   there is none in the cache.  */
+
+static inline tree
+gimple_lookup_type_leader (tree t)
+{
+  gimple_type_leader_entry *leader;
+
+  leader = &gimple_type_leader[TYPE_UID (t) % GIMPLE_TYPE_LEADER_SIZE];
+  if (leader->type != t)
+    return NULL_TREE;
+
+  return leader->leader;
+}
+
+
+/* Return true if T1 and T2 have the same name.  If FOR_COMPLETION_P is
+   true then if any type has no name return false, otherwise return
+   true if both types have no names.  */
+
+static bool
+compare_type_names_p (tree t1, tree t2)
+{
+  tree name1 = TYPE_NAME (t1);
+  tree name2 = TYPE_NAME (t2);
+
+  if ((name1 != NULL_TREE) != (name2 != NULL_TREE))
+    return false;
+
+  if (name1 == NULL_TREE)
+    return true;
+
+  /* Either both should be a TYPE_DECL or both an IDENTIFIER_NODE.  */
+  if (TREE_CODE (name1) != TREE_CODE (name2))
+    return false;
+
+  if (TREE_CODE (name1) == TYPE_DECL)
+    name1 = DECL_NAME (name1);
+  gcc_checking_assert (!name1 || TREE_CODE (name1) == IDENTIFIER_NODE);
+
+  if (TREE_CODE (name2) == TYPE_DECL)
+    name2 = DECL_NAME (name2);
+  gcc_checking_assert (!name2 || TREE_CODE (name2) == IDENTIFIER_NODE);
+
+  /* Identifiers can be compared with pointer equality rather
+     than a string comparison.  */
+  if (name1 == name2)
+    return true;
+
+  return false;
+}
+
+static bool
+gimple_types_compatible_p_1 (tree, tree, type_pair_t,
+			     VEC(type_pair_t, heap) **,
+			     struct pointer_map_t *, struct obstack *);
+
+/* DFS visit the edge from the callers type pair with state *STATE to
+   the pair T1, T2 while operating in FOR_MERGING_P mode.
+   Update the merging status if it is not part of the SCC containing the
+   callers pair and return it.
+   SCCSTACK, SCCSTATE and SCCSTATE_OBSTACK are state for the DFS walk done.  */
+
+static bool
+gtc_visit (tree t1, tree t2,
+	   struct sccs *state,
+	   VEC(type_pair_t, heap) **sccstack,
+	   struct pointer_map_t *sccstate,
+	   struct obstack *sccstate_obstack)
+{
+  struct sccs *cstate = NULL;
+  type_pair_t p;
+  void **slot;
+  tree leader1, leader2;
+
+  /* Check first for the obvious case of pointer identity.  */
+  if (t1 == t2)
+    return true;
+
+  /* Check that we have two types to compare.  */
+  if (t1 == NULL_TREE || t2 == NULL_TREE)
+    return false;
+
+  /* Can't be the same type if the types don't have the same code.  */
+  if (TREE_CODE (t1) != TREE_CODE (t2))
+    return false;
+
+  /* Can't be the same type if they have different CV qualifiers.  */
+  if (TYPE_QUALS (t1) != TYPE_QUALS (t2))
+    return false;
+
+  if (TREE_ADDRESSABLE (t1) != TREE_ADDRESSABLE (t2))
+    return false;
+
+  /* Void types and nullptr types are always the same.  */
+  if (TREE_CODE (t1) == VOID_TYPE
+      || TREE_CODE (t1) == NULLPTR_TYPE)
+    return true;
+
+  /* Can't be the same type if they have different alignment or mode.  */
+  if (TYPE_ALIGN (t1) != TYPE_ALIGN (t2)
+      || TYPE_MODE (t1) != TYPE_MODE (t2))
+    return false;
+
+  /* Do some simple checks before doing three hashtable queries.  */
+  if (INTEGRAL_TYPE_P (t1)
+      || SCALAR_FLOAT_TYPE_P (t1)
+      || FIXED_POINT_TYPE_P (t1)
+      || TREE_CODE (t1) == VECTOR_TYPE
+      || TREE_CODE (t1) == COMPLEX_TYPE
+      || TREE_CODE (t1) == OFFSET_TYPE
+      || POINTER_TYPE_P (t1))
+    {
+      /* Can't be the same type if they have different sign or precision.  */
+      if (TYPE_PRECISION (t1) != TYPE_PRECISION (t2)
+	  || TYPE_UNSIGNED (t1) != TYPE_UNSIGNED (t2))
+	return false;
+
+      if (TREE_CODE (t1) == INTEGER_TYPE
+	  && TYPE_STRING_FLAG (t1) != TYPE_STRING_FLAG (t2))
+	return false;
+
+      /* That's all we need to check for float and fixed-point types.  */
+      if (SCALAR_FLOAT_TYPE_P (t1)
+	  || FIXED_POINT_TYPE_P (t1))
+	return true;
+
+      /* For other types fall through to more complex checks.  */
+    }
+
+  /* If the types have been previously registered and found equal
+     they still are.  */
+  leader1 = gimple_lookup_type_leader (t1);
+  leader2 = gimple_lookup_type_leader (t2);
+  if (leader1 == t2
+      || t1 == leader2
+      || (leader1 && leader1 == leader2))
+    return true;
+
+  /* If the hash values of t1 and t2 are different the types can't
+     possibly be the same.  This helps keeping the type-pair hashtable
+     small, only tracking comparisons for hash collisions.  */
+  if (gimple_type_hash (t1) != gimple_type_hash (t2))
+    return false;
+
+  /* Allocate a new cache entry for this comparison.  */
+  p = lookup_type_pair (t1, t2);
+  if (p->same_p == 0 || p->same_p == 1)
+    {
+      /* We have already decided whether T1 and T2 are the
+	 same, return the cached result.  */
+      return p->same_p == 1;
+    }
+
+  if ((slot = pointer_map_contains (sccstate, p)) != NULL)
+    cstate = (struct sccs *)*slot;
+  /* Not yet visited.  DFS recurse.  */
+  if (!cstate)
+    {
+      gimple_types_compatible_p_1 (t1, t2, p,
+				   sccstack, sccstate, sccstate_obstack);
+      cstate = (struct sccs *)* pointer_map_contains (sccstate, p);
+      state->low = MIN (state->low, cstate->low);
+    }
+  /* If the type is still on the SCC stack adjust the parents low.  */
+  if (cstate->dfsnum < state->dfsnum
+      && cstate->on_sccstack)
+    state->low = MIN (cstate->dfsnum, state->low);
+
+  /* Return the current lattice value.  We start with an equality
+     assumption so types part of a SCC will be optimistically
+     treated equal unless proven otherwise.  */
+  return cstate->u.same_p;
+}
+
+/* Worker for gimple_types_compatible.
+   SCCSTACK, SCCSTATE and SCCSTATE_OBSTACK are state for the DFS walk done.  */
+
+static bool
+gimple_types_compatible_p_1 (tree t1, tree t2, type_pair_t p,
+			     VEC(type_pair_t, heap) **sccstack,
+			     struct pointer_map_t *sccstate,
+			     struct obstack *sccstate_obstack)
+{
+  struct sccs *state;
+
+  gcc_assert (p->same_p == -2);
+
+  state = XOBNEW (sccstate_obstack, struct sccs);
+  *pointer_map_insert (sccstate, p) = state;
+
+  VEC_safe_push (type_pair_t, heap, *sccstack, p);
+  state->dfsnum = gtc_next_dfs_num++;
+  state->low = state->dfsnum;
+  state->on_sccstack = true;
+  /* Start with an equality assumption.  As we DFS recurse into child
+     SCCs this assumption may get revisited.  */
+  state->u.same_p = 1;
+
+  /* The struct tags shall compare equal.  */
+  if (!compare_type_names_p (t1, t2))
+    goto different_types;
+
+  /* The main variant of both types should compare equal.  */
+  if (TYPE_MAIN_VARIANT (t1) != t1
+      || TYPE_MAIN_VARIANT (t2) != t2)
+    {
+      if (!gtc_visit (TYPE_MAIN_VARIANT (t1), TYPE_MAIN_VARIANT (t2),
+		      state, sccstack, sccstate, sccstate_obstack))
+	goto different_types;
+    }
+
+  /* We may not merge typedef types to the same type in different
+     contexts.  */
+  if (TYPE_NAME (t1)
+      && TREE_CODE (TYPE_NAME (t1)) == TYPE_DECL
+      && DECL_CONTEXT (TYPE_NAME (t1))
+      && TYPE_P (DECL_CONTEXT (TYPE_NAME (t1))))
+    {
+      if (!gtc_visit (DECL_CONTEXT (TYPE_NAME (t1)),
+		      DECL_CONTEXT (TYPE_NAME (t2)),
+		      state, sccstack, sccstate, sccstate_obstack))
+	goto different_types;
+    }
+
+  /* If their attributes are not the same they can't be the same type.  */
+  if (!attribute_list_equal (TYPE_ATTRIBUTES (t1), TYPE_ATTRIBUTES (t2)))
+    goto different_types;
+
+  /* Do type-specific comparisons.  */
+  switch (TREE_CODE (t1))
+    {
+    case VECTOR_TYPE:
+    case COMPLEX_TYPE:
+      if (!gtc_visit (TREE_TYPE (t1), TREE_TYPE (t2),
+		      state, sccstack, sccstate, sccstate_obstack))
+	goto different_types;
+      goto same_types;
+
+    case ARRAY_TYPE:
+      /* Array types are the same if the element types are the same and
+	 the number of elements are the same.  */
+      if (!gtc_visit (TREE_TYPE (t1), TREE_TYPE (t2),
+		      state, sccstack, sccstate, sccstate_obstack)
+	  || TYPE_STRING_FLAG (t1) != TYPE_STRING_FLAG (t2)
+	  || TYPE_NONALIASED_COMPONENT (t1) != TYPE_NONALIASED_COMPONENT (t2))
+	goto different_types;
+      else
+	{
+	  tree i1 = TYPE_DOMAIN (t1);
+	  tree i2 = TYPE_DOMAIN (t2);
+
+	  /* For an incomplete external array, the type domain can be
+ 	     NULL_TREE.  Check this condition also.  */
+	  if (i1 == NULL_TREE && i2 == NULL_TREE)
+	    goto same_types;
+	  else if (i1 == NULL_TREE || i2 == NULL_TREE)
+	    goto different_types;
+	  else
+	    {
+	      tree min1 = TYPE_MIN_VALUE (i1);
+	      tree min2 = TYPE_MIN_VALUE (i2);
+	      tree max1 = TYPE_MAX_VALUE (i1);
+	      tree max2 = TYPE_MAX_VALUE (i2);
+
+	      /* The minimum/maximum values have to be the same.  */
+	      if ((min1 == min2
+		   || (min1 && min2
+		       && ((TREE_CODE (min1) == PLACEHOLDER_EXPR
+			    && TREE_CODE (min2) == PLACEHOLDER_EXPR)
+		           || operand_equal_p (min1, min2, 0))))
+		  && (max1 == max2
+		      || (max1 && max2
+			  && ((TREE_CODE (max1) == PLACEHOLDER_EXPR
+			       && TREE_CODE (max2) == PLACEHOLDER_EXPR)
+			      || operand_equal_p (max1, max2, 0)))))
+		goto same_types;
+	      else
+		goto different_types;
+	    }
+	}
+
+    case METHOD_TYPE:
+      /* Method types should belong to the same class.  */
+      if (!gtc_visit (TYPE_METHOD_BASETYPE (t1), TYPE_METHOD_BASETYPE (t2),
+		      state, sccstack, sccstate, sccstate_obstack))
+	goto different_types;
+
+      /* Fallthru  */
+
+    case FUNCTION_TYPE:
+      /* Function types are the same if the return type and arguments types
+	 are the same.  */
+      if (!gtc_visit (TREE_TYPE (t1), TREE_TYPE (t2),
+		      state, sccstack, sccstate, sccstate_obstack))
+	goto different_types;
+
+      if (!comp_type_attributes (t1, t2))
+	goto different_types;
+
+      if (TYPE_ARG_TYPES (t1) == TYPE_ARG_TYPES (t2))
+	goto same_types;
+      else
+	{
+	  tree parms1, parms2;
+
+	  for (parms1 = TYPE_ARG_TYPES (t1), parms2 = TYPE_ARG_TYPES (t2);
+	       parms1 && parms2;
+	       parms1 = TREE_CHAIN (parms1), parms2 = TREE_CHAIN (parms2))
+	    {
+	      if (!gtc_visit (TREE_VALUE (parms1), TREE_VALUE (parms2),
+			      state, sccstack, sccstate, sccstate_obstack))
+		goto different_types;
+	    }
+
+	  if (parms1 || parms2)
+	    goto different_types;
+
+	  goto same_types;
+	}
+
+    case OFFSET_TYPE:
+      {
+	if (!gtc_visit (TREE_TYPE (t1), TREE_TYPE (t2),
+			state, sccstack, sccstate, sccstate_obstack)
+	    || !gtc_visit (TYPE_OFFSET_BASETYPE (t1),
+			   TYPE_OFFSET_BASETYPE (t2),
+			   state, sccstack, sccstate, sccstate_obstack))
+	  goto different_types;
+
+	goto same_types;
+      }
+
+    case POINTER_TYPE:
+    case REFERENCE_TYPE:
+      {
+	/* If the two pointers have different ref-all attributes,
+	   they can't be the same type.  */
+	if (TYPE_REF_CAN_ALIAS_ALL (t1) != TYPE_REF_CAN_ALIAS_ALL (t2))
+	  goto different_types;
+
+	/* Otherwise, pointer and reference types are the same if the
+	   pointed-to types are the same.  */
+	if (gtc_visit (TREE_TYPE (t1), TREE_TYPE (t2),
+		       state, sccstack, sccstate, sccstate_obstack))
+	  goto same_types;
+
+	goto different_types;
+      }
+
+    case INTEGER_TYPE:
+    case BOOLEAN_TYPE:
+      {
+	tree min1 = TYPE_MIN_VALUE (t1);
+	tree max1 = TYPE_MAX_VALUE (t1);
+	tree min2 = TYPE_MIN_VALUE (t2);
+	tree max2 = TYPE_MAX_VALUE (t2);
+	bool min_equal_p = false;
+	bool max_equal_p = false;
+
+	/* If either type has a minimum value, the other type must
+	   have the same.  */
+	if (min1 == NULL_TREE && min2 == NULL_TREE)
+	  min_equal_p = true;
+	else if (min1 && min2 && operand_equal_p (min1, min2, 0))
+	  min_equal_p = true;
+
+	/* Likewise, if either type has a maximum value, the other
+	   type must have the same.  */
+	if (max1 == NULL_TREE && max2 == NULL_TREE)
+	  max_equal_p = true;
+	else if (max1 && max2 && operand_equal_p (max1, max2, 0))
+	  max_equal_p = true;
+
+	if (!min_equal_p || !max_equal_p)
+	  goto different_types;
+
+	goto same_types;
+      }
+
+    case ENUMERAL_TYPE:
+      {
+	/* FIXME lto, we cannot check bounds on enumeral types because
+	   different front ends will produce different values.
+	   In C, enumeral types are integers, while in C++ each element
+	   will have its own symbolic value.  We should decide how enums
+	   are to be represented in GIMPLE and have each front end lower
+	   to that.  */
+	tree v1, v2;
+
+	/* For enumeral types, all the values must be the same.  */
+	if (TYPE_VALUES (t1) == TYPE_VALUES (t2))
+	  goto same_types;
+
+	for (v1 = TYPE_VALUES (t1), v2 = TYPE_VALUES (t2);
+	     v1 && v2;
+	     v1 = TREE_CHAIN (v1), v2 = TREE_CHAIN (v2))
+	  {
+	    tree c1 = TREE_VALUE (v1);
+	    tree c2 = TREE_VALUE (v2);
+
+	    if (TREE_CODE (c1) == CONST_DECL)
+	      c1 = DECL_INITIAL (c1);
+
+	    if (TREE_CODE (c2) == CONST_DECL)
+	      c2 = DECL_INITIAL (c2);
+
+	    if (tree_int_cst_equal (c1, c2) != 1)
+	      goto different_types;
+
+	    if (TREE_PURPOSE (v1) != TREE_PURPOSE (v2))
+	      goto different_types;
+	  }
+
+	/* If one enumeration has more values than the other, they
+	   are not the same.  */
+	if (v1 || v2)
+	  goto different_types;
+
+	goto same_types;
+      }
+
+    case RECORD_TYPE:
+    case UNION_TYPE:
+    case QUAL_UNION_TYPE:
+      {
+	tree f1, f2;
+
+	/* For aggregate types, all the fields must be the same.  */
+	for (f1 = TYPE_FIELDS (t1), f2 = TYPE_FIELDS (t2);
+	     f1 && f2;
+	     f1 = TREE_CHAIN (f1), f2 = TREE_CHAIN (f2))
+	  {
+	    /* Different field kinds are not compatible.  */
+	    if (TREE_CODE (f1) != TREE_CODE (f2))
+	      goto different_types;
+	    /* Field decls must have the same name and offset.  */
+	    if (TREE_CODE (f1) == FIELD_DECL
+		&& (DECL_NONADDRESSABLE_P (f1) != DECL_NONADDRESSABLE_P (f2)
+		    || !gimple_compare_field_offset (f1, f2)))
+	      goto different_types;
+	    /* All entities should have the same name and type.  */
+	    if (DECL_NAME (f1) != DECL_NAME (f2)
+		|| !gtc_visit (TREE_TYPE (f1), TREE_TYPE (f2),
+			       state, sccstack, sccstate, sccstate_obstack))
+	      goto different_types;
+	  }
+
+	/* If one aggregate has more fields than the other, they
+	   are not the same.  */
+	if (f1 || f2)
+	  goto different_types;
+
+	goto same_types;
+      }
+
+    default:
+      gcc_unreachable ();
+    }
+
+  /* Common exit path for types that are not compatible.  */
+different_types:
+  state->u.same_p = 0;
+  goto pop;
+
+  /* Common exit path for types that are compatible.  */
+same_types:
+  gcc_assert (state->u.same_p == 1);
+
+pop:
+  if (state->low == state->dfsnum)
+    {
+      type_pair_t x;
+
+      /* Pop off the SCC and set its cache values to the final
+         comparison result.  */
+      do
+	{
+	  struct sccs *cstate;
+	  x = VEC_pop (type_pair_t, *sccstack);
+	  cstate = (struct sccs *)*pointer_map_contains (sccstate, x);
+	  cstate->on_sccstack = false;
+	  x->same_p = state->u.same_p;
+	}
+      while (x != p);
+    }
+
+  return state->u.same_p;
+}
+
+/* Return true iff T1 and T2 are structurally identical.  When
+   FOR_MERGING_P is true the an incomplete type and a complete type
+   are considered different, otherwise they are considered compatible.  */
+
+static bool
+gimple_types_compatible_p (tree t1, tree t2)
+{
+  VEC(type_pair_t, heap) *sccstack = NULL;
+  struct pointer_map_t *sccstate;
+  struct obstack sccstate_obstack;
+  type_pair_t p = NULL;
+  bool res;
+  tree leader1, leader2;
+
+  /* Before starting to set up the SCC machinery handle simple cases.  */
+
+  /* Check first for the obvious case of pointer identity.  */
+  if (t1 == t2)
+    return true;
+
+  /* Check that we have two types to compare.  */
+  if (t1 == NULL_TREE || t2 == NULL_TREE)
+    return false;
+
+  /* Can't be the same type if the types don't have the same code.  */
+  if (TREE_CODE (t1) != TREE_CODE (t2))
+    return false;
+
+  /* Can't be the same type if they have different CV qualifiers.  */
+  if (TYPE_QUALS (t1) != TYPE_QUALS (t2))
+    return false;
+
+  if (TREE_ADDRESSABLE (t1) != TREE_ADDRESSABLE (t2))
+    return false;
+
+  /* Void types and nullptr types are always the same.  */
+  if (TREE_CODE (t1) == VOID_TYPE
+      || TREE_CODE (t1) == NULLPTR_TYPE)
+    return true;
+
+  /* Can't be the same type if they have different alignment or mode.  */
+  if (TYPE_ALIGN (t1) != TYPE_ALIGN (t2)
+      || TYPE_MODE (t1) != TYPE_MODE (t2))
+    return false;
+
+  /* Do some simple checks before doing three hashtable queries.  */
+  if (INTEGRAL_TYPE_P (t1)
+      || SCALAR_FLOAT_TYPE_P (t1)
+      || FIXED_POINT_TYPE_P (t1)
+      || TREE_CODE (t1) == VECTOR_TYPE
+      || TREE_CODE (t1) == COMPLEX_TYPE
+      || TREE_CODE (t1) == OFFSET_TYPE
+      || POINTER_TYPE_P (t1))
+    {
+      /* Can't be the same type if they have different sign or precision.  */
+      if (TYPE_PRECISION (t1) != TYPE_PRECISION (t2)
+	  || TYPE_UNSIGNED (t1) != TYPE_UNSIGNED (t2))
+	return false;
+
+      if (TREE_CODE (t1) == INTEGER_TYPE
+	  && TYPE_STRING_FLAG (t1) != TYPE_STRING_FLAG (t2))
+	return false;
+
+      /* That's all we need to check for float and fixed-point types.  */
+      if (SCALAR_FLOAT_TYPE_P (t1)
+	  || FIXED_POINT_TYPE_P (t1))
+	return true;
+
+      /* For other types fall through to more complex checks.  */
+    }
+
+  /* If the types have been previously registered and found equal
+     they still are.  */
+  leader1 = gimple_lookup_type_leader (t1);
+  leader2 = gimple_lookup_type_leader (t2);
+  if (leader1 == t2
+      || t1 == leader2
+      || (leader1 && leader1 == leader2))
+    return true;
+
+  /* If the hash values of t1 and t2 are different the types can't
+     possibly be the same.  This helps keeping the type-pair hashtable
+     small, only tracking comparisons for hash collisions.  */
+  if (gimple_type_hash (t1) != gimple_type_hash (t2))
+    return false;
+
+  /* If we've visited this type pair before (in the case of aggregates
+     with self-referential types), and we made a decision, return it.  */
+  p = lookup_type_pair (t1, t2);
+  if (p->same_p == 0 || p->same_p == 1)
+    {
+      /* We have already decided whether T1 and T2 are the
+	 same, return the cached result.  */
+      return p->same_p == 1;
+    }
+
+  /* Now set up the SCC machinery for the comparison.  */
+  gtc_next_dfs_num = 1;
+  sccstate = pointer_map_create ();
+  gcc_obstack_init (&sccstate_obstack);
+  res = gimple_types_compatible_p_1 (t1, t2, p,
+				     &sccstack, sccstate, &sccstate_obstack);
+  VEC_free (type_pair_t, heap, sccstack);
+  pointer_map_destroy (sccstate);
+  obstack_free (&sccstate_obstack, NULL);
+
+  return res;
+}
+
+static hashval_t
+iterative_hash_gimple_type (tree, hashval_t, VEC(tree, heap) **,
+			    struct pointer_map_t *, struct obstack *);
+
+/* DFS visit the edge from the callers type with state *STATE to T.
+   Update the callers type hash V with the hash for T if it is not part
+   of the SCC containing the callers type and return it.
+   SCCSTACK, SCCSTATE and SCCSTATE_OBSTACK are state for the DFS walk done.  */
+
+static hashval_t
+visit (tree t, struct sccs *state, hashval_t v,
+       VEC (tree, heap) **sccstack,
+       struct pointer_map_t *sccstate,
+       struct obstack *sccstate_obstack)
+{
+  struct sccs *cstate = NULL;
+  struct tree_int_map m;
+  void **slot;
+
+  /* If there is a hash value recorded for this type then it can't
+     possibly be part of our parent SCC.  Simply mix in its hash.  */
+  m.base.from = t;
+  if ((slot = htab_find_slot (type_hash_cache, &m, NO_INSERT))
+      && *slot)
+    return iterative_hash_hashval_t (((struct tree_int_map *) *slot)->to, v);
+
+  if ((slot = pointer_map_contains (sccstate, t)) != NULL)
+    cstate = (struct sccs *)*slot;
+  if (!cstate)
+    {
+      hashval_t tem;
+      /* Not yet visited.  DFS recurse.  */
+      tem = iterative_hash_gimple_type (t, v,
+					sccstack, sccstate, sccstate_obstack);
+      if (!cstate)
+	cstate = (struct sccs *)* pointer_map_contains (sccstate, t);
+      state->low = MIN (state->low, cstate->low);
+      /* If the type is no longer on the SCC stack and thus is not part
+         of the parents SCC mix in its hash value.  Otherwise we will
+	 ignore the type for hashing purposes and return the unaltered
+	 hash value.  */
+      if (!cstate->on_sccstack)
+	return tem;
+    }
+  if (cstate->dfsnum < state->dfsnum
+      && cstate->on_sccstack)
+    state->low = MIN (cstate->dfsnum, state->low);
+
+  /* We are part of our parents SCC, skip this type during hashing
+     and return the unaltered hash value.  */
+  return v;
+}
+
+/* Hash NAME with the previous hash value V and return it.  */
+
+static hashval_t
+iterative_hash_name (tree name, hashval_t v)
+{
+  if (!name)
+    return v;
+  v = iterative_hash_hashval_t (TREE_CODE (name), v);
+  if (TREE_CODE (name) == TYPE_DECL)
+    name = DECL_NAME (name);
+  if (!name)
+    return v;
+  gcc_assert (TREE_CODE (name) == IDENTIFIER_NODE);
+  return iterative_hash_object (IDENTIFIER_HASH_VALUE (name), v);
+}
+
+/* A type, hashvalue pair for sorting SCC members.  */
+
+struct type_hash_pair {
+  tree type;
+  hashval_t hash;
+};
+
+/* Compare two type, hashvalue pairs.  */
+
+static int
+type_hash_pair_compare (const void *p1_, const void *p2_)
+{
+  const struct type_hash_pair *p1 = (const struct type_hash_pair *) p1_;
+  const struct type_hash_pair *p2 = (const struct type_hash_pair *) p2_;
+  if (p1->hash < p2->hash)
+    return -1;
+  else if (p1->hash > p2->hash)
+    return 1;
+  return 0;
+}
+
+/* Returning a hash value for gimple type TYPE combined with VAL.
+   SCCSTACK, SCCSTATE and SCCSTATE_OBSTACK are state for the DFS walk done.
+
+   To hash a type we end up hashing in types that are reachable.
+   Through pointers we can end up with cycles which messes up the
+   required property that we need to compute the same hash value
+   for structurally equivalent types.  To avoid this we have to
+   hash all types in a cycle (the SCC) in a commutative way.  The
+   easiest way is to not mix in the hashes of the SCC members at
+   all.  To make this work we have to delay setting the hash
+   values of the SCC until it is complete.  */
+
+static hashval_t
+iterative_hash_gimple_type (tree type, hashval_t val,
+			    VEC(tree, heap) **sccstack,
+			    struct pointer_map_t *sccstate,
+			    struct obstack *sccstate_obstack)
+{
+  hashval_t v;
+  void **slot;
+  struct sccs *state;
+
+  /* Not visited during this DFS walk.  */
+  gcc_checking_assert (!pointer_map_contains (sccstate, type));
+  state = XOBNEW (sccstate_obstack, struct sccs);
+  *pointer_map_insert (sccstate, type) = state;
+
+  VEC_safe_push (tree, heap, *sccstack, type);
+  state->dfsnum = next_dfs_num++;
+  state->low = state->dfsnum;
+  state->on_sccstack = true;
+
+  /* Combine a few common features of types so that types are grouped into
+     smaller sets; when searching for existing matching types to merge,
+     only existing types having the same features as the new type will be
+     checked.  */
+  v = iterative_hash_name (TYPE_NAME (type), 0);
+  if (TYPE_NAME (type)
+      && TREE_CODE (TYPE_NAME (type)) == TYPE_DECL
+      && DECL_CONTEXT (TYPE_NAME (type))
+      && TYPE_P (DECL_CONTEXT (TYPE_NAME (type))))
+    v = visit (DECL_CONTEXT (TYPE_NAME (type)), state, v,
+	       sccstack, sccstate, sccstate_obstack);
+
+  /* Factor in the variant structure.  */
+  if (TYPE_MAIN_VARIANT (type) != type)
+    v = visit (TYPE_MAIN_VARIANT (type), state, v,
+	       sccstack, sccstate, sccstate_obstack);
+
+  v = iterative_hash_hashval_t (TREE_CODE (type), v);
+  v = iterative_hash_hashval_t (TYPE_QUALS (type), v);
+  v = iterative_hash_hashval_t (TREE_ADDRESSABLE (type), v);
+
+  /* Do not hash the types size as this will cause differences in
+     hash values for the complete vs. the incomplete type variant.  */
+
+  /* Incorporate common features of numerical types.  */
+  if (INTEGRAL_TYPE_P (type)
+      || SCALAR_FLOAT_TYPE_P (type)
+      || FIXED_POINT_TYPE_P (type))
+    {
+      v = iterative_hash_hashval_t (TYPE_PRECISION (type), v);
+      v = iterative_hash_hashval_t (TYPE_MODE (type), v);
+      v = iterative_hash_hashval_t (TYPE_UNSIGNED (type), v);
+    }
+
+  /* For pointer and reference types, fold in information about the type
+     pointed to.  */
+  if (POINTER_TYPE_P (type))
+    v = visit (TREE_TYPE (type), state, v,
+	       sccstack, sccstate, sccstate_obstack);
+
+  /* For integer types hash the types min/max values and the string flag.  */
+  if (TREE_CODE (type) == INTEGER_TYPE)
+    {
+      /* OMP lowering can introduce error_mark_node in place of
+	 random local decls in types.  */
+      if (TYPE_MIN_VALUE (type) != error_mark_node)
+	v = iterative_hash_expr (TYPE_MIN_VALUE (type), v);
+      if (TYPE_MAX_VALUE (type) != error_mark_node)
+	v = iterative_hash_expr (TYPE_MAX_VALUE (type), v);
+      v = iterative_hash_hashval_t (TYPE_STRING_FLAG (type), v);
+    }
+
+  /* For array types hash the domain and the string flag.  */
+  if (TREE_CODE (type) == ARRAY_TYPE && TYPE_DOMAIN (type))
+    {
+      v = iterative_hash_hashval_t (TYPE_STRING_FLAG (type), v);
+      v = visit (TYPE_DOMAIN (type), state, v,
+		 sccstack, sccstate, sccstate_obstack);
+    }
+
+  /* Recurse for aggregates with a single element type.  */
+  if (TREE_CODE (type) == ARRAY_TYPE
+      || TREE_CODE (type) == COMPLEX_TYPE
+      || TREE_CODE (type) == VECTOR_TYPE)
+    v = visit (TREE_TYPE (type), state, v,
+	       sccstack, sccstate, sccstate_obstack);
+
+  /* Incorporate function return and argument types.  */
+  if (TREE_CODE (type) == FUNCTION_TYPE || TREE_CODE (type) == METHOD_TYPE)
+    {
+      unsigned na;
+      tree p;
+
+      /* For method types also incorporate their parent class.  */
+      if (TREE_CODE (type) == METHOD_TYPE)
+	v = visit (TYPE_METHOD_BASETYPE (type), state, v,
+		   sccstack, sccstate, sccstate_obstack);
+
+      /* Check result and argument types.  */
+      v = visit (TREE_TYPE (type), state, v,
+		 sccstack, sccstate, sccstate_obstack);
+      for (p = TYPE_ARG_TYPES (type), na = 0; p; p = TREE_CHAIN (p))
+	{
+	  v = visit (TREE_VALUE (p), state, v,
+		     sccstack, sccstate, sccstate_obstack);
+	  na++;
+	}
+
+      v = iterative_hash_hashval_t (na, v);
+    }
+
+  if (RECORD_OR_UNION_TYPE_P (type))
+    {
+      unsigned nf;
+      tree f;
+
+      for (f = TYPE_FIELDS (type), nf = 0; f; f = TREE_CHAIN (f))
+	{
+	  v = iterative_hash_name (DECL_NAME (f), v);
+	  v = visit (TREE_TYPE (f), state, v,
+		     sccstack, sccstate, sccstate_obstack);
+	  nf++;
+	}
+
+      v = iterative_hash_hashval_t (nf, v);
+    }
+
+  /* Record hash for us.  */
+  state->u.hash = v;
+
+  /* See if we found an SCC.  */
+  if (state->low == state->dfsnum)
+    {
+      tree x;
+      struct tree_int_map *m;
+
+      /* Pop off the SCC and set its hash values.  */
+      x = VEC_pop (tree, *sccstack);
+      /* Optimize SCC size one.  */
+      if (x == type)
+	{
+	  state->on_sccstack = false;
+	  m = ggc_alloc_cleared_tree_int_map ();
+	  m->base.from = x;
+	  m->to = v;
+	  slot = htab_find_slot (type_hash_cache, m, INSERT);
+	  gcc_assert (!*slot);
+	  *slot = (void *) m;
+	}
+      else
+	{
+	  struct sccs *cstate;
+	  unsigned first, i, size, j;
+	  struct type_hash_pair *pairs;
+	  /* Pop off the SCC and build an array of type, hash pairs.  */
+	  first = VEC_length (tree, *sccstack) - 1;
+	  while (VEC_index (tree, *sccstack, first) != type)
+	    --first;
+	  size = VEC_length (tree, *sccstack) - first + 1;
+	  pairs = XALLOCAVEC (struct type_hash_pair, size);
+	  i = 0;
+	  cstate = (struct sccs *)*pointer_map_contains (sccstate, x);
+	  cstate->on_sccstack = false;
+	  pairs[i].type = x;
+	  pairs[i].hash = cstate->u.hash;
+	  do
+	    {
+	      x = VEC_pop (tree, *sccstack);
+	      cstate = (struct sccs *)*pointer_map_contains (sccstate, x);
+	      cstate->on_sccstack = false;
+	      ++i;
+	      pairs[i].type = x;
+	      pairs[i].hash = cstate->u.hash;
+	    }
+	  while (x != type);
+	  gcc_assert (i + 1 == size);
+	  /* Sort the arrays of type, hash pairs so that when we mix in
+	     all members of the SCC the hash value becomes independent on
+	     the order we visited the SCC.  Disregard hashes equal to
+	     the hash of the type we mix into because we cannot guarantee
+	     a stable sort for those across different TUs.  */
+	  qsort (pairs, size, sizeof (struct type_hash_pair),
+		 type_hash_pair_compare);
+	  for (i = 0; i < size; ++i)
+	    {
+	      hashval_t hash;
+	      m = ggc_alloc_cleared_tree_int_map ();
+	      m->base.from = pairs[i].type;
+	      hash = pairs[i].hash;
+	      /* Skip same hashes.  */
+	      for (j = i + 1; j < size && pairs[j].hash == pairs[i].hash; ++j)
+		;
+	      for (; j < size; ++j)
+		hash = iterative_hash_hashval_t (pairs[j].hash, hash);
+	      for (j = 0; pairs[j].hash != pairs[i].hash; ++j)
+		hash = iterative_hash_hashval_t (pairs[j].hash, hash);
+	      m->to = hash;
+	      if (pairs[i].type == type)
+		v = hash;
+	      slot = htab_find_slot (type_hash_cache, m, INSERT);
+	      gcc_assert (!*slot);
+	      *slot = (void *) m;
+	    }
+	}
+    }
+
+  return iterative_hash_hashval_t (v, val);
+}
+
+/* Returns a hash value for P (assumed to be a type).  The hash value
+   is computed using some distinguishing features of the type.  Note
+   that we cannot use pointer hashing here as we may be dealing with
+   two distinct instances of the same type.
+
+   This function should produce the same hash value for two compatible
+   types according to gimple_types_compatible_p.  */
+
+static hashval_t
+gimple_type_hash (const void *p)
+{
+  const_tree t = (const_tree) p;
+  VEC(tree, heap) *sccstack = NULL;
+  struct pointer_map_t *sccstate;
+  struct obstack sccstate_obstack;
+  hashval_t val;
+  void **slot;
+  struct tree_int_map m;
+
+  m.base.from = CONST_CAST_TREE (t);
+  if ((slot = htab_find_slot (type_hash_cache, &m, NO_INSERT))
+      && *slot)
+    return iterative_hash_hashval_t (((struct tree_int_map *) *slot)->to, 0);
+
+  /* Perform a DFS walk and pre-hash all reachable types.  */
+  next_dfs_num = 1;
+  sccstate = pointer_map_create ();
+  gcc_obstack_init (&sccstate_obstack);
+  val = iterative_hash_gimple_type (CONST_CAST_TREE (t), 0,
+				    &sccstack, sccstate, &sccstate_obstack);
+  VEC_free (tree, heap, sccstack);
+  pointer_map_destroy (sccstate);
+  obstack_free (&sccstate_obstack, NULL);
+
+  return val;
+}
+
+/* Returns nonzero if P1 and P2 are equal.  */
+
+static int
+gimple_type_eq (const void *p1, const void *p2)
+{
+  const_tree t1 = (const_tree) p1;
+  const_tree t2 = (const_tree) p2;
+  return gimple_types_compatible_p (CONST_CAST_TREE (t1),
+				    CONST_CAST_TREE (t2));
+}
+
+
+/* Worker for gimple_register_type.
+   Register type T in the global type table gimple_types.
+   When REGISTERING_MV is false first recurse for the main variant of T.  */
+
+static tree
+gimple_register_type_1 (tree t, bool registering_mv)
+{
+  void **slot;
+  gimple_type_leader_entry *leader;
+
+  /* If we registered this type before return the cached result.  */
+  leader = &gimple_type_leader[TYPE_UID (t) % GIMPLE_TYPE_LEADER_SIZE];
+  if (leader->type == t)
+    return leader->leader;
+
+  /* Always register the main variant first.  This is important so we
+     pick up the non-typedef variants as canonical, otherwise we'll end
+     up taking typedef ids for structure tags during comparison.
+     It also makes sure that main variants will be merged to main variants.
+     As we are operating on a possibly partially fixed up type graph
+     do not bother to recurse more than once, otherwise we may end up
+     walking in circles.
+     If we are registering a main variant it will either remain its
+     own main variant or it will be merged to something else in which
+     case we do not care for the main variant leader.  */
+  if (!registering_mv
+      && TYPE_MAIN_VARIANT (t) != t)
+    gimple_register_type_1 (TYPE_MAIN_VARIANT (t), true);
+
+  /* See if we already have an equivalent type registered.  */
+  slot = htab_find_slot (gimple_types, t, INSERT);
+  if (*slot
+      && *(tree *)slot != t)
+    {
+      tree new_type = (tree) *((tree *) slot);
+      leader->type = t;
+      leader->leader = new_type;
+      return new_type;
+    }
+
+  /* If not, insert it to the cache and the hash.  */
+  leader->type = t;
+  leader->leader = t;
+  *slot = (void *) t;
+  return t;
+}
+
+/* Register type T in the global type table gimple_types.
+   If another type T', compatible with T, already existed in
+   gimple_types then return T', otherwise return T.  This is used by
+   LTO to merge identical types read from different TUs.  */
+
+static tree
+gimple_register_type (tree t)
+{
+  gcc_assert (TYPE_P (t));
+  return gimple_register_type_1 (t, false);
+}
+
+#define GIMPLE_REGISTER_TYPE(tt) \
+   (TREE_VISITED (tt) ? gimple_register_type (tt) : tt)
+
+
+
 /* A hashtable of trees that potentially refer to variables or functions
    that must be replaced with their prevailing variant.  */
 static GTY((if_marked ("ggc_marked_p"), param_is (union tree_node))) htab_t
@@ -306,9 +1414,6 @@ remember_with_vars (tree t)
   *(tree *) htab_find_slot (tree_with_vars, t, INSERT) = t;
 }
 
-#define GIMPLE_REGISTER_TYPE(tt) \
-   (TREE_VISITED (tt) ? gimple_register_type (tt) : tt)
-
 #define LTO_FIXUP_TREE(tt) \
   do \
     { \
@@ -318,10 +1423,35 @@ remember_with_vars (tree t)
 	    (tt) = GIMPLE_REGISTER_TYPE (tt); \
 	  if (VAR_OR_FUNCTION_DECL_P (tt) && TREE_PUBLIC (tt)) \
 	    remember_with_vars (t); \
+	  if (TREE_CODE (tt) == INTEGER_CST) \
+	    (tt) = fixup_integer_cst (tt); \
 	} \
     } while (0)
 
 static void lto_fixup_types (tree);
+
+/* Return integer_cst T with updated type.  */
+
+static tree
+fixup_integer_cst (tree t)
+{
+  tree type = GIMPLE_REGISTER_TYPE (TREE_TYPE (t));
+
+  if (type == TREE_TYPE (t))
+    return t;
+
+  /* If overflow was set, streamer_read_integer_cst
+     produced local copy of T. */
+  if (TREE_OVERFLOW (t))
+    {
+      TREE_TYPE (t) = type;
+      return t;
+    }
+  else
+  /* Otherwise produce new shared node for the new type.  */
+    return build_int_cst_wide (type, TREE_INT_CST_LOW (t),
+			       TREE_INT_CST_HIGH (t));
+}
 
 /* Fix up fields of a tree_typed T.  */
 
@@ -602,6 +1732,19 @@ get_resolution (struct data_in *data_in, unsigned index)
     return LDPR_UNKNOWN;
 }
 
+/* Map assigning declarations their resolutions.  */
+static pointer_map_t *resolution_map;
+
+/* We need to record resolutions until symbol table is read.  */
+static void
+register_resolution (tree decl, enum ld_plugin_symbol_resolution resolution)
+{
+  if (resolution == LDPR_UNKNOWN)
+    return;
+  if (!resolution_map)
+    resolution_map = pointer_map_create ();
+  *pointer_map_insert (resolution_map, decl) = (void *)(size_t)resolution;
+}
 
 /* Register DECL with the global symbol table and change its
    name if necessary to avoid name clashes for static globals across
@@ -640,8 +1783,7 @@ lto_register_var_decl_in_symtab (struct data_in *data_in, tree decl)
       unsigned ix;
       if (!streamer_tree_cache_lookup (data_in->reader_cache, decl, &ix))
 	gcc_unreachable ();
-      lto_symtab_register_decl (decl, get_resolution (data_in, ix),
-				data_in->file_data);
+      register_resolution (decl, get_resolution (data_in, ix));
     }
 }
 
@@ -699,8 +1841,7 @@ lto_register_function_decl_in_symtab (struct data_in *data_in, tree decl)
       unsigned ix;
       if (!streamer_tree_cache_lookup (data_in->reader_cache, decl, &ix))
 	gcc_unreachable ();
-      lto_symtab_register_decl (decl, get_resolution (data_in, ix),
-				data_in->file_data);
+      register_resolution (decl, get_resolution (data_in, ix));
     }
 }
 
@@ -798,6 +1939,41 @@ uniquify_nodes (struct data_in *data_in, unsigned from)
 	      TYPE_NEXT_VARIANT (mv) = t;
 	      if (RECORD_OR_UNION_TYPE_P (t))
 		TYPE_BINFO (t) = TYPE_BINFO (mv);
+	      /* Preserve the invariant that type variants share their
+		 TYPE_FIELDS.  */
+	      if (RECORD_OR_UNION_TYPE_P (t)
+		  && TYPE_FIELDS (mv) != TYPE_FIELDS (t))
+		{
+		  tree f1, f2;
+		  for (f1 = TYPE_FIELDS (mv), f2 = TYPE_FIELDS (t);
+		       f1 && f2; f1 = TREE_CHAIN (f1), f2 = TREE_CHAIN (f2))
+		    {
+		      unsigned ix;
+		      gcc_assert (f1 != f2
+				  && DECL_NAME (f1) == DECL_NAME (f2));
+		      if (!streamer_tree_cache_lookup (cache, f2, &ix))
+			gcc_unreachable ();
+		      /* If we're going to replace an element which we'd
+			 still visit in the next iterations, we wouldn't
+			 handle it, so do it here.  We do have to handle it
+			 even though the field_decl itself will be removed,
+			 as it could refer to e.g. integer_cst which we
+			 wouldn't reach via any other way, hence they
+			 (and their type) would stay uncollected.  */
+		      /* ???  We should rather make sure to replace all
+			 references to f2 with f1.  That means handling
+			 COMPONENT_REFs and CONSTRUCTOR elements in
+			 lto_fixup_types and special-case the field-decl
+			 operand handling.  */
+		      /* ???  Not sure the above is all relevant in this
+		         path canonicalizing TYPE_FIELDS to that of the
+			 main variant.  */
+		      if (ix < i)
+			lto_fixup_types (f2);
+		      streamer_tree_cache_insert_at (cache, f1, ix);
+		    }
+		  TYPE_FIELDS (t) = TYPE_FIELDS (mv);
+		}
 	    }
 
 	  /* Finally adjust our main variant and fix it up.  */
@@ -1066,7 +2242,7 @@ lto_resolution_read (splay_tree file_ids, FILE *resolution, lto_file *file)
          format that is only unpacked later when the subfile is processed. */
       rp.res = r;
       rp.index = index;
-      VEC_safe_push (res_pair, heap, file_data->respairs, &rp);
+      VEC_safe_push (res_pair, heap, file_data->respairs, rp);
       if (file_data->max_index < index)
         file_data->max_index = index;
     }
@@ -1376,857 +2552,6 @@ free_section_data (struct lto_file_decl_data *file_data ATTRIBUTE_UNUSED,
 #endif
 }
 
-/* Structure describing ltrans partitions.  */
-
-struct ltrans_partition_def
-{
-  cgraph_node_set cgraph_set;
-  varpool_node_set varpool_set;
-  const char * name;
-  int insns;
-};
-
-typedef struct ltrans_partition_def *ltrans_partition;
-DEF_VEC_P(ltrans_partition);
-DEF_VEC_ALLOC_P(ltrans_partition,heap);
-
-static VEC(ltrans_partition, heap) *ltrans_partitions;
-
-static void add_cgraph_node_to_partition (ltrans_partition part, struct cgraph_node *node);
-static void add_varpool_node_to_partition (ltrans_partition part, struct varpool_node *vnode);
-
-/* Create new partition with name NAME.  */
-static ltrans_partition
-new_partition (const char *name)
-{
-  ltrans_partition part = XCNEW (struct ltrans_partition_def);
-  part->cgraph_set = cgraph_node_set_new ();
-  part->varpool_set = varpool_node_set_new ();
-  part->name = name;
-  part->insns = 0;
-  VEC_safe_push (ltrans_partition, heap, ltrans_partitions, part);
-  return part;
-}
-
-/* Free memory used by ltrans datastructures.  */
-static void
-free_ltrans_partitions (void)
-{
-  unsigned int idx;
-  ltrans_partition part;
-  for (idx = 0; VEC_iterate (ltrans_partition, ltrans_partitions, idx, part); idx++)
-    {
-      free_cgraph_node_set (part->cgraph_set);
-      free (part);
-    }
-  VEC_free (ltrans_partition, heap, ltrans_partitions);
-}
-
-/* See all references that go to comdat objects and bring them into partition too.  */
-static void
-add_references_to_partition (ltrans_partition part, struct ipa_ref_list *refs)
-{
-  int i;
-  struct ipa_ref *ref;
-  for (i = 0; ipa_ref_list_reference_iterate (refs, i, ref); i++)
-    {
-      if (ref->refered_type == IPA_REF_CGRAPH
-	  && DECL_COMDAT (cgraph_function_node (ipa_ref_node (ref), NULL)->decl)
-	  && !cgraph_node_in_set_p (ipa_ref_node (ref), part->cgraph_set))
-	add_cgraph_node_to_partition (part, ipa_ref_node (ref));
-      else
-	if (ref->refered_type == IPA_REF_VARPOOL
-	    && DECL_COMDAT (ipa_ref_varpool_node (ref)->decl)
-	    && !varpool_node_in_set_p (ipa_ref_varpool_node (ref), part->varpool_set))
-	  add_varpool_node_to_partition (part, ipa_ref_varpool_node (ref));
-    }
-}
-
-/* Worker for add_cgraph_node_to_partition.  */
-
-static bool
-add_cgraph_node_to_partition_1 (struct cgraph_node *node, void *data)
-{
-  ltrans_partition part = (ltrans_partition) data;
-
-  /* non-COMDAT aliases of COMDAT functions needs to be output just once.  */
-  if (!DECL_COMDAT (node->decl)
-      && !node->global.inlined_to
-      && node->aux)
-    {
-      gcc_assert (node->thunk.thunk_p || node->alias);
-      return false;
-    }
-
-  if (node->aux)
-    {
-      node->in_other_partition = 1;
-      if (cgraph_dump_file)
-        fprintf (cgraph_dump_file, "Node %s/%i now used in multiple partitions\n",
-		 cgraph_node_name (node), node->uid);
-    }
-  node->aux = (void *)((size_t)node->aux + 1);
-  cgraph_node_set_add (part->cgraph_set, node);
-  return false;
-}
-
-/* Add NODE to partition as well as the inline callees and referred comdats into partition PART. */
-
-static void
-add_cgraph_node_to_partition (ltrans_partition part, struct cgraph_node *node)
-{
-  struct cgraph_edge *e;
-  cgraph_node_set_iterator csi;
-  struct cgraph_node *n;
-
-  /* We always decide on functions, not associated thunks and aliases.  */
-  node = cgraph_function_node (node, NULL);
-
-  /* If NODE is already there, we have nothing to do.  */
-  csi = cgraph_node_set_find (part->cgraph_set, node);
-  if (!csi_end_p (csi))
-    return;
-
-  cgraph_for_node_thunks_and_aliases (node, add_cgraph_node_to_partition_1, part, true);
-
-  part->insns += inline_summary (node)->self_size;
-
-
-  cgraph_node_set_add (part->cgraph_set, node);
-
-  for (e = node->callees; e; e = e->next_callee)
-    if ((!e->inline_failed
-	 || DECL_COMDAT (cgraph_function_node (e->callee, NULL)->decl))
-	&& !cgraph_node_in_set_p (e->callee, part->cgraph_set))
-      add_cgraph_node_to_partition (part, e->callee);
-
-  add_references_to_partition (part, &node->ref_list);
-
-  if (node->same_comdat_group)
-    for (n = node->same_comdat_group; n != node; n = n->same_comdat_group)
-      add_cgraph_node_to_partition (part, n);
-}
-
-/* Add VNODE to partition as well as comdat references partition PART. */
-
-static void
-add_varpool_node_to_partition (ltrans_partition part, struct varpool_node *vnode)
-{
-  varpool_node_set_iterator vsi;
-
-  vnode = varpool_variable_node (vnode, NULL);
-
-  /* If NODE is already there, we have nothing to do.  */
-  vsi = varpool_node_set_find (part->varpool_set, vnode);
-  if (!vsi_end_p (vsi))
-    return;
-
-  varpool_node_set_add (part->varpool_set, vnode);
-
-  if (vnode->aux)
-    {
-      vnode->in_other_partition = 1;
-      if (cgraph_dump_file)
-        fprintf (cgraph_dump_file, "Varpool node %s now used in multiple partitions\n",
-		 varpool_node_name (vnode));
-    }
-  vnode->aux = (void *)((size_t)vnode->aux + 1);
-
-  add_references_to_partition (part, &vnode->ref_list);
-
-  if (vnode->same_comdat_group
-      && !varpool_node_in_set_p (vnode->same_comdat_group, part->varpool_set))
-    add_varpool_node_to_partition (part, vnode->same_comdat_group);
-}
-
-/* Undo all additions until number of cgraph nodes in PARITION is N_CGRAPH_NODES
-   and number of varpool nodes is N_VARPOOL_NODES.  */
-
-static void
-undo_partition (ltrans_partition partition, unsigned int n_cgraph_nodes,
-		unsigned int n_varpool_nodes)
-{
-  while (VEC_length (cgraph_node_ptr, partition->cgraph_set->nodes) >
-	 n_cgraph_nodes)
-    {
-      struct cgraph_node *node = VEC_index (cgraph_node_ptr,
-					    partition->cgraph_set->nodes,
-					    n_cgraph_nodes);
-      partition->insns -= inline_summary (node)->self_size;
-      cgraph_node_set_remove (partition->cgraph_set, node);
-      node->aux = (void *)((size_t)node->aux - 1);
-    }
-  while (VEC_length (varpool_node_ptr, partition->varpool_set->nodes) >
-	 n_varpool_nodes)
-    {
-      struct varpool_node *node = VEC_index (varpool_node_ptr,
-					     partition->varpool_set->nodes,
-					     n_varpool_nodes);
-      varpool_node_set_remove (partition->varpool_set, node);
-      node->aux = (void *)((size_t)node->aux - 1);
-    }
-}
-
-/* Return true if NODE should be partitioned.
-   This means that partitioning algorithm should put NODE into one of partitions.
-   This apply to most functions with bodies.  Functions that are not partitions
-   are put into every unit needing them.  This is the case of i.e. COMDATs.  */
-
-static bool
-partition_cgraph_node_p (struct cgraph_node *node)
-{
-  /* We will get proper partition based on function they are inlined to.  */
-  if (node->global.inlined_to)
-    return false;
-  /* Nodes without a body do not need partitioning.  */
-  if (!node->analyzed)
-    return false;
-  /* Extern inlines and comdat are always only in partitions they are needed.  */
-  if (DECL_EXTERNAL (node->decl)
-      || (DECL_COMDAT (node->decl)
-	  && !cgraph_used_from_object_file_p (node)))
-    return false;
-  if (lookup_attribute ("weakref", DECL_ATTRIBUTES (node->decl)))
-    return false;
-  return true;
-}
-
-/* Return true if VNODE should be partitioned. 
-   This means that partitioning algorithm should put VNODE into one of partitions. */
-
-static bool
-partition_varpool_node_p (struct varpool_node *vnode)
-{
-  if (vnode->alias || !vnode->needed)
-    return false;
-  /* Constant pool and comdat are always only in partitions they are needed.  */
-  if (DECL_IN_CONSTANT_POOL (vnode->decl)
-      || (DECL_COMDAT (vnode->decl)
-	  && !vnode->force_output
-	  && !varpool_used_from_object_file_p (vnode)))
-    return false;
-  if (lookup_attribute ("weakref", DECL_ATTRIBUTES (vnode->decl)))
-    return false;
-  return true;
-}
-
-/* Group cgrah nodes by input files.  This is used mainly for testing
-   right now.  */
-
-static void
-lto_1_to_1_map (void)
-{
-  struct cgraph_node *node;
-  struct varpool_node *vnode;
-  struct lto_file_decl_data *file_data;
-  struct pointer_map_t *pmap;
-  ltrans_partition partition;
-  void **slot;
-  int npartitions = 0;
-
-  timevar_push (TV_WHOPR_WPA);
-
-  pmap = pointer_map_create ();
-
-  for (node = cgraph_nodes; node; node = node->next)
-    {
-      if (!partition_cgraph_node_p (node)
-	  || node->aux)
-	continue;
-
-      file_data = node->local.lto_file_data;
-
-      if (file_data)
-	{
-          slot = pointer_map_contains (pmap, file_data);
-          if (slot)
-	    partition = (ltrans_partition) *slot;
-	  else
-	    {
-	      partition = new_partition (file_data->file_name);
-	      slot = pointer_map_insert (pmap, file_data);
-	      *slot = partition;
-	      npartitions++;
-	    }
-	}
-      else if (!file_data
-	       && VEC_length (ltrans_partition, ltrans_partitions))
-	partition = VEC_index (ltrans_partition, ltrans_partitions, 0);
-      else
-	{
-	  partition = new_partition ("");
-	  slot = pointer_map_insert (pmap, NULL);
-	  *slot = partition;
-	  npartitions++;
-	}
-
-      add_cgraph_node_to_partition (partition, node);
-    }
-
-  for (vnode = varpool_nodes; vnode; vnode = vnode->next)
-    {
-      if (!partition_varpool_node_p (vnode)
-	  || vnode->aux)
-	continue;
-      file_data = vnode->lto_file_data;
-      slot = pointer_map_contains (pmap, file_data);
-      if (slot)
-	partition = (ltrans_partition) *slot;
-      else
-	{
-	  partition = new_partition (file_data->file_name);
-	  slot = pointer_map_insert (pmap, file_data);
-	  *slot = partition;
-	  npartitions++;
-	}
-
-      add_varpool_node_to_partition (partition, vnode);
-    }
-  for (node = cgraph_nodes; node; node = node->next)
-    node->aux = NULL;
-  for (vnode = varpool_nodes; vnode; vnode = vnode->next)
-    vnode->aux = NULL;
-
-  /* If the cgraph is empty, create one cgraph node set so that there is still
-     an output file for any variables that need to be exported in a DSO.  */
-  if (!npartitions)
-    new_partition ("empty");
-
-  pointer_map_destroy (pmap);
-
-  timevar_pop (TV_WHOPR_WPA);
-
-  lto_stats.num_cgraph_partitions += VEC_length (ltrans_partition, 
-						 ltrans_partitions);
-}
-
-/* Helper function for qsort; sort nodes by order.  */
-static int
-node_cmp (const void *pa, const void *pb)
-{
-  const struct cgraph_node *a = *(const struct cgraph_node * const *) pa;
-  const struct cgraph_node *b = *(const struct cgraph_node * const *) pb;
-  return b->order - a->order;
-}
-
-/* Helper function for qsort; sort nodes by order.  */
-static int
-varpool_node_cmp (const void *pa, const void *pb)
-{
-  const struct varpool_node *a = *(const struct varpool_node * const *) pa;
-  const struct varpool_node *b = *(const struct varpool_node * const *) pb;
-  return b->order - a->order;
-}
-
-/* Group cgraph nodes into equally-sized partitions.
-
-   The partitioning algorithm is simple: nodes are taken in predefined order.
-   The order corresponds to the order we want functions to have in the final
-   output.  In the future this will be given by function reordering pass, but
-   at the moment we use the topological order, which is a good approximation.
-
-   The goal is to partition this linear order into intervals (partitions) so
-   that all the partitions have approximately the same size and the number of
-   callgraph or IPA reference edges crossing boundaries is minimal.
-
-   This is a lot faster (O(n) in size of callgraph) than algorithms doing
-   priority-based graph clustering that are generally O(n^2) and, since
-   WHOPR is designed to make things go well across partitions, it leads
-   to good results.
-
-   We compute the expected size of a partition as:
-
-     max (total_size / lto_partitions, min_partition_size)
-
-   We use dynamic expected size of partition so small programs are partitioned
-   into enough partitions to allow use of multiple CPUs, while large programs
-   are not partitioned too much.  Creating too many partitions significantly
-   increases the streaming overhead.
-
-   In the future, we would like to bound the maximal size of partitions so as
-   to prevent the LTRANS stage from consuming too much memory.  At the moment,
-   however, the WPA stage is the most memory intensive for large benchmarks,
-   since too many types and declarations are read into memory.
-
-   The function implements a simple greedy algorithm.  Nodes are being added
-   to the current partition until after 3/4 of the expected partition size is
-   reached.  Past this threshold, we keep track of boundary size (number of
-   edges going to other partitions) and continue adding functions until after
-   the current partition has grown to twice the expected partition size.  Then
-   the process is undone to the point where the minimal ratio of boundary size
-   and in-partition calls was reached.  */
-
-static void
-lto_balanced_map (void)
-{
-  int n_nodes = 0;
-  int n_varpool_nodes = 0, varpool_pos = 0;
-  struct cgraph_node **postorder =
-    XCNEWVEC (struct cgraph_node *, cgraph_n_nodes);
-  struct cgraph_node **order = XNEWVEC (struct cgraph_node *, cgraph_max_uid);
-  struct varpool_node **varpool_order = NULL;
-  int i, postorder_len;
-  struct cgraph_node *node;
-  int total_size = 0, best_total_size = 0;
-  int partition_size;
-  ltrans_partition partition;
-  unsigned int last_visited_cgraph_node = 0, last_visited_varpool_node = 0;
-  struct varpool_node *vnode;
-  int cost = 0, internal = 0;
-  int best_n_nodes = 0, best_n_varpool_nodes = 0, best_i = 0, best_cost =
-    INT_MAX, best_internal = 0;
-  int npartitions;
-  int current_order = -1;
-
-  for (vnode = varpool_nodes; vnode; vnode = vnode->next)
-    gcc_assert (!vnode->aux);
-  /* Until we have better ordering facility, use toplogical order.
-     Include only nodes we will partition and compute estimate of program
-     size.  Note that since nodes that are not partitioned might be put into
-     multiple partitions, this is just an estimate of real size.  This is why
-     we keep partition_size updated after every partition is finalized.  */
-  postorder_len = ipa_reverse_postorder (postorder);
-    
-  for (i = 0; i < postorder_len; i++)
-    {
-      node = postorder[i];
-      if (partition_cgraph_node_p (node))
-	{
-	  order[n_nodes++] = node;
-          total_size += inline_summary (node)->size;
-	}
-    }
-  free (postorder);
-
-  if (!flag_toplevel_reorder)
-    {
-      qsort (order, n_nodes, sizeof (struct cgraph_node *), node_cmp);
-
-      for (vnode = varpool_nodes; vnode; vnode = vnode->next)
-	if (partition_varpool_node_p (vnode))
-	  n_varpool_nodes++;
-      varpool_order = XNEWVEC (struct varpool_node *, n_varpool_nodes);
-
-      n_varpool_nodes = 0;
-      for (vnode = varpool_nodes; vnode; vnode = vnode->next)
-	if (partition_varpool_node_p (vnode))
-	  varpool_order[n_varpool_nodes++] = vnode;
-      qsort (varpool_order, n_varpool_nodes, sizeof (struct varpool_node *),
-	     varpool_node_cmp);
-    }
-
-  /* Compute partition size and create the first partition.  */
-  partition_size = total_size / PARAM_VALUE (PARAM_LTO_PARTITIONS);
-  if (partition_size < PARAM_VALUE (MIN_PARTITION_SIZE))
-    partition_size = PARAM_VALUE (MIN_PARTITION_SIZE);
-  npartitions = 1;
-  partition = new_partition ("");
-  if (cgraph_dump_file)
-    fprintf (cgraph_dump_file, "Total unit size: %i, partition size: %i\n",
-	     total_size, partition_size);
-
-  for (i = 0; i < n_nodes; i++)
-    {
-      if (order[i]->aux)
-	continue;
-
-      current_order = order[i]->order;
-
-      if (!flag_toplevel_reorder)
-	while (varpool_pos < n_varpool_nodes && varpool_order[varpool_pos]->order < current_order)
-	  {
-	    if (!varpool_order[varpool_pos]->aux)
-	      add_varpool_node_to_partition (partition, varpool_order[varpool_pos]);
-	    varpool_pos++;
-	  }
-
-      add_cgraph_node_to_partition (partition, order[i]);
-      total_size -= inline_summary (order[i])->size;
-	  
-
-      /* Once we added a new node to the partition, we also want to add
-         all referenced variables unless they was already added into some
-         earlier partition.
-	 add_cgraph_node_to_partition adds possibly multiple nodes and
-	 variables that are needed to satisfy needs of ORDER[i].
-         We remember last visited cgraph and varpool node from last iteration
-         of outer loop that allows us to process every new addition. 
-
-	 At the same time we compute size of the boundary into COST.  Every
-         callgraph or IPA reference edge leaving the partition contributes into
-         COST.  Every edge inside partition was earlier computed as one leaving
-	 it and thus we need to subtract it from COST.  */
-      while (last_visited_cgraph_node <
-	     VEC_length (cgraph_node_ptr, partition->cgraph_set->nodes)
-	     || last_visited_varpool_node < VEC_length (varpool_node_ptr,
-							partition->varpool_set->
-							nodes))
-	{
-	  struct ipa_ref_list *refs;
-	  int j;
-	  struct ipa_ref *ref;
-	  bool cgraph_p = false;
-
-	  if (last_visited_cgraph_node <
-	      VEC_length (cgraph_node_ptr, partition->cgraph_set->nodes))
-	    {
-	      struct cgraph_edge *edge;
-
-	      cgraph_p = true;
-	      node = VEC_index (cgraph_node_ptr, partition->cgraph_set->nodes,
-				last_visited_cgraph_node);
-	      refs = &node->ref_list;
-
-	      last_visited_cgraph_node++;
-
-	      gcc_assert (node->analyzed);
-
-	      /* Compute boundary cost of callgraph edges.  */
-	      for (edge = node->callees; edge; edge = edge->next_callee)
-		if (edge->callee->analyzed)
-		  {
-		    int edge_cost = edge->frequency;
-		    cgraph_node_set_iterator csi;
-
-		    if (!edge_cost)
-		      edge_cost = 1;
-		    gcc_assert (edge_cost > 0);
-		    csi = cgraph_node_set_find (partition->cgraph_set, edge->callee);
-		    if (!csi_end_p (csi)
-		        && csi.index < last_visited_cgraph_node - 1)
-		      cost -= edge_cost, internal+= edge_cost;
-		    else
-		      cost += edge_cost;
-		  }
-	      for (edge = node->callers; edge; edge = edge->next_caller)
-		{
-		  int edge_cost = edge->frequency;
-		  cgraph_node_set_iterator csi;
-
-		  gcc_assert (edge->caller->analyzed);
-		  if (!edge_cost)
-		    edge_cost = 1;
-		  gcc_assert (edge_cost > 0);
-		  csi = cgraph_node_set_find (partition->cgraph_set, edge->caller);
-		  if (!csi_end_p (csi)
-		      && csi.index < last_visited_cgraph_node)
-		    cost -= edge_cost;
-		  else
-		    cost += edge_cost;
-		}
-	    }
-	  else
-	    {
-	      refs =
-		&VEC_index (varpool_node_ptr, partition->varpool_set->nodes,
-			    last_visited_varpool_node)->ref_list;
-	      last_visited_varpool_node++;
-	    }
-
-	  /* Compute boundary cost of IPA REF edges and at the same time look into
-	     variables referenced from current partition and try to add them.  */
-	  for (j = 0; ipa_ref_list_reference_iterate (refs, j, ref); j++)
-	    if (ref->refered_type == IPA_REF_VARPOOL)
-	      {
-		varpool_node_set_iterator vsi;
-
-		vnode = ipa_ref_varpool_node (ref);
-		if (!vnode->finalized)
-		  continue;
-		if (!vnode->aux && flag_toplevel_reorder
-		    && partition_varpool_node_p (vnode))
-		  add_varpool_node_to_partition (partition, vnode);
-		vsi = varpool_node_set_find (partition->varpool_set, vnode);
-		if (!vsi_end_p (vsi)
-		    && vsi.index < last_visited_varpool_node - !cgraph_p)
-		  cost--, internal++;
-		else
-		  cost++;
-	      }
-	    else
-	      {
-		cgraph_node_set_iterator csi;
-
-		node = ipa_ref_node (ref);
-		if (!node->analyzed)
-		  continue;
-		csi = cgraph_node_set_find (partition->cgraph_set, node);
-		if (!csi_end_p (csi)
-		    && csi.index < last_visited_cgraph_node - cgraph_p)
-		  cost--, internal++;
-		else
-		  cost++;
-	      }
-	  for (j = 0; ipa_ref_list_refering_iterate (refs, j, ref); j++)
-	    if (ref->refering_type == IPA_REF_VARPOOL)
-	      {
-		varpool_node_set_iterator vsi;
-
-		vnode = ipa_ref_refering_varpool_node (ref);
-		gcc_assert (vnode->finalized);
-		if (!vnode->aux && flag_toplevel_reorder
-		    && partition_varpool_node_p (vnode))
-		  add_varpool_node_to_partition (partition, vnode);
-		vsi = varpool_node_set_find (partition->varpool_set, vnode);
-		if (!vsi_end_p (vsi)
-		    && vsi.index < last_visited_varpool_node)
-		  cost--;
-		else
-		  cost++;
-	      }
-	    else
-	      {
-		cgraph_node_set_iterator csi;
-
-		node = ipa_ref_refering_node (ref);
-		gcc_assert (node->analyzed);
-		csi = cgraph_node_set_find (partition->cgraph_set, node);
-		if (!csi_end_p (csi)
-		    && csi.index < last_visited_cgraph_node)
-		  cost--;
-		else
-		  cost++;
-	      }
-	}
-
-      /* If the partition is large enough, start looking for smallest boundary cost.  */
-      if (partition->insns < partition_size * 3 / 4
-	  || best_cost == INT_MAX
-	  || ((!cost 
-	       || (best_internal * (HOST_WIDE_INT) cost
-		   > (internal * (HOST_WIDE_INT)best_cost)))
-  	      && partition->insns < partition_size * 5 / 4))
-	{
-	  best_cost = cost;
-	  best_internal = internal;
-	  best_i = i;
-	  best_n_nodes = VEC_length (cgraph_node_ptr,
-				     partition->cgraph_set->nodes);
-	  best_n_varpool_nodes = VEC_length (varpool_node_ptr,
-					     partition->varpool_set->nodes);
-	  best_total_size = total_size;
-	}
-      if (cgraph_dump_file)
-	fprintf (cgraph_dump_file, "Step %i: added %s/%i, size %i, cost %i/%i best %i/%i, step %i\n", i,
-		 cgraph_node_name (order[i]), order[i]->uid, partition->insns, cost, internal,
-		 best_cost, best_internal, best_i);
-      /* Partition is too large, unwind into step when best cost was reached and
-	 start new partition.  */
-      if (partition->insns > 2 * partition_size)
-	{
-	  if (best_i != i)
-	    {
-	      if (cgraph_dump_file)
-		fprintf (cgraph_dump_file, "Unwinding %i insertions to step %i\n",
-			 i - best_i, best_i);
-	      undo_partition (partition, best_n_nodes, best_n_varpool_nodes);
-	    }
-	  i = best_i;
- 	  /* When we are finished, avoid creating empty partition.  */
-	  while (i < n_nodes - 1 && order[i + 1]->aux)
-	    i++;
-	  if (i == n_nodes - 1)
-	    break;
-	  partition = new_partition ("");
-	  last_visited_cgraph_node = 0;
-	  last_visited_varpool_node = 0;
-	  total_size = best_total_size;
-	  cost = 0;
-
-	  if (cgraph_dump_file)
-	    fprintf (cgraph_dump_file, "New partition\n");
-	  best_n_nodes = 0;
-	  best_n_varpool_nodes = 0;
-	  best_cost = INT_MAX;
-
-	  /* Since the size of partitions is just approximate, update the size after
-	     we finished current one.  */
-	  if (npartitions < PARAM_VALUE (PARAM_LTO_PARTITIONS))
-	    partition_size = total_size
-	      / (PARAM_VALUE (PARAM_LTO_PARTITIONS) - npartitions);
-	  else
-	    partition_size = INT_MAX;
-
-	  if (partition_size < PARAM_VALUE (MIN_PARTITION_SIZE))
-	    partition_size = PARAM_VALUE (MIN_PARTITION_SIZE);
-	  npartitions ++;
-	}
-    }
-
-  /* Varables that are not reachable from the code go into last partition.  */
-  if (flag_toplevel_reorder)
-    {
-      for (vnode = varpool_nodes; vnode; vnode = vnode->next)
-        if (partition_varpool_node_p (vnode) && !vnode->aux)
-	  add_varpool_node_to_partition (partition, vnode);
-    }
-  else
-    {
-      while (varpool_pos < n_varpool_nodes)
-	{
-	  if (!varpool_order[varpool_pos]->aux)
-	    add_varpool_node_to_partition (partition, varpool_order[varpool_pos]);
-	  varpool_pos++;
-	}
-      free (varpool_order);
-    }
-  free (order);
-}
-
-/* Promote variable VNODE to be static.  */
-
-static bool
-promote_var (struct varpool_node *vnode)
-{
-  if (TREE_PUBLIC (vnode->decl) || DECL_EXTERNAL (vnode->decl))
-    return false;
-  gcc_assert (flag_wpa);
-  TREE_PUBLIC (vnode->decl) = 1;
-  DECL_VISIBILITY (vnode->decl) = VISIBILITY_HIDDEN;
-  DECL_VISIBILITY_SPECIFIED (vnode->decl) = true;
-  if (cgraph_dump_file)
-    fprintf (cgraph_dump_file,
-	    "Promoting var as hidden: %s\n", varpool_node_name (vnode));
-  return true;
-}
-
-/* Promote function NODE to be static.  */
-
-static bool
-promote_fn (struct cgraph_node *node)
-{
-  gcc_assert (flag_wpa);
-  if (TREE_PUBLIC (node->decl) || DECL_EXTERNAL (node->decl))
-    return false;
-  TREE_PUBLIC (node->decl) = 1;
-  DECL_VISIBILITY (node->decl) = VISIBILITY_HIDDEN;
-  DECL_VISIBILITY_SPECIFIED (node->decl) = true;
-  if (cgraph_dump_file)
-    fprintf (cgraph_dump_file,
-	     "Promoting function as hidden: %s/%i\n",
-	     cgraph_node_name (node), node->uid);
-  return true;
-}
-
-/* Find out all static decls that need to be promoted to global because
-   of cross file sharing.  This function must be run in the WPA mode after
-   all inlinees are added.  */
-
-static void
-lto_promote_cross_file_statics (void)
-{
-  struct varpool_node *vnode;
-  unsigned i, n_sets;
-  cgraph_node_set set;
-  varpool_node_set vset;
-  cgraph_node_set_iterator csi;
-  varpool_node_set_iterator vsi;
-  VEC(varpool_node_ptr, heap) *promoted_initializers = NULL;
-  struct pointer_set_t *inserted = pointer_set_create ();
-
-  gcc_assert (flag_wpa);
-
-  n_sets = VEC_length (ltrans_partition, ltrans_partitions);
-  for (i = 0; i < n_sets; i++)
-    {
-      ltrans_partition part
-	= VEC_index (ltrans_partition, ltrans_partitions, i);
-      set = part->cgraph_set;
-      vset = part->varpool_set;
-
-      /* If node called or referred to from other partition, it needs to be
-	 globalized.  */
-      for (csi = csi_start (set); !csi_end_p (csi); csi_next (&csi))
-	{
-	  struct cgraph_node *node = csi_node (csi);
-	  if (node->local.externally_visible)
-	    continue;
-	  if (node->global.inlined_to)
-	    continue;
-	  if ((!DECL_EXTERNAL (node->decl) && !DECL_COMDAT (node->decl))
-	      && (referenced_from_other_partition_p (&node->ref_list, set, vset)
-		  || reachable_from_other_partition_p (node, set)))
-	    promote_fn (node);
-	}
-      for (vsi = vsi_start (vset); !vsi_end_p (vsi); vsi_next (&vsi))
-	{
-	  vnode = vsi_node (vsi);
-	  /* Constant pool references use internal labels and thus can not
-	     be made global.  It is sensible to keep those ltrans local to
-	     allow better optimization.  */
-	  if (!DECL_IN_CONSTANT_POOL (vnode->decl) && !DECL_COMDAT (vnode->decl)
-	      && !vnode->externally_visible && vnode->analyzed
-	      && referenced_from_other_partition_p (&vnode->ref_list,
-						    set, vset))
-	    promote_var (vnode);
-	}
-
-      /* We export the initializer of a read-only var into each partition
-	 referencing the var.  Folding might take declarations from the
-	 initializer and use them, so everything referenced from the
-	 initializer can be accessed from this partition after folding.
-
-	 This means that we need to promote all variables and functions
-	 referenced from all initializers of read-only vars referenced
-	 from this partition that are not in this partition.  This needs
-	 to be done recursively.  */
-      for (vnode = varpool_nodes; vnode; vnode = vnode->next)
-	if (const_value_known_p (vnode->decl)
-	    && DECL_INITIAL (vnode->decl)
-	    && !varpool_node_in_set_p (vnode, vset)
-	    && referenced_from_this_partition_p (&vnode->ref_list, set, vset)
-	    && !pointer_set_insert (inserted, vnode))
-	VEC_safe_push (varpool_node_ptr, heap, promoted_initializers, vnode);
-
-      while (!VEC_empty (varpool_node_ptr, promoted_initializers))
-	{
-	  int i;
-	  struct ipa_ref *ref;
-
-	  vnode = VEC_pop (varpool_node_ptr, promoted_initializers);
-	  for (i = 0;
-	       ipa_ref_list_reference_iterate (&vnode->ref_list, i, ref);
-	       i++)
-	    {
-	      if (ref->refered_type == IPA_REF_CGRAPH)
-		{
-		  struct cgraph_node *n = ipa_ref_node (ref);
-		  gcc_assert (!n->global.inlined_to);
-		  if (!n->local.externally_visible
-		      && !cgraph_node_in_set_p (n, set))
-		    promote_fn (n);
-		}
-	      else
-		{
-		  struct varpool_node *v = ipa_ref_varpool_node (ref);
-		  if (varpool_node_in_set_p (v, vset))
-		    continue;
-
-		  /* Constant pool references use internal labels and thus
-		     cannot be made global.  It is sensible to keep those
-		     ltrans local to allow better optimization.  */
-		  if (DECL_IN_CONSTANT_POOL (v->decl))
-		    {
-		      if (!pointer_set_insert (inserted, vnode))
-			VEC_safe_push (varpool_node_ptr, heap,
-				       promoted_initializers, v);
-		    }
-		  else if (!v->externally_visible && v->analyzed)
-		    {
-		      if (promote_var (v)
-			  && DECL_INITIAL (v->decl)
-			  && const_value_known_p (v->decl)
-			  && !pointer_set_insert (inserted, vnode))
-			VEC_safe_push (varpool_node_ptr, heap,
-				       promoted_initializers, v);
-		    }
-		}
-	    }
-	}
-    }
-  pointer_set_destroy (inserted);
-}
-
 static lto_file *current_lto_file;
 
 /* Helper for qsort; compare partitions and return one with smaller size.
@@ -2254,14 +2579,10 @@ cmp_partitions_order (const void *a, const void *b)
      = *(struct ltrans_partition_def *const *)b;
   int ordera = -1, orderb = -1;
 
-  if (VEC_length (cgraph_node_ptr, pa->cgraph_set->nodes))
-    ordera = VEC_index (cgraph_node_ptr, pa->cgraph_set->nodes, 0)->order;
-  else if (VEC_length (varpool_node_ptr, pa->varpool_set->nodes))
-    ordera = VEC_index (varpool_node_ptr, pa->varpool_set->nodes, 0)->order;
-  if (VEC_length (cgraph_node_ptr, pb->cgraph_set->nodes))
-    orderb = VEC_index (cgraph_node_ptr, pb->cgraph_set->nodes, 0)->order;
-  else if (VEC_length (varpool_node_ptr, pb->varpool_set->nodes))
-    orderb = VEC_index (varpool_node_ptr, pb->varpool_set->nodes, 0)->order;
+  if (lto_symtab_encoder_size (pa->encoder))
+    ordera = lto_symtab_encoder_deref (pa->encoder, 0)->symbol.order;
+  if (lto_symtab_encoder_size (pb->encoder))
+    orderb = lto_symtab_encoder_deref (pb->encoder, 0)->symbol.order;
   return orderb - ordera;
 }
 
@@ -2273,8 +2594,6 @@ lto_wpa_write_files (void)
 {
   unsigned i, n_sets;
   lto_file *file;
-  cgraph_node_set set;
-  varpool_node_set vset;
   ltrans_partition part;
   FILE *ltrans_output_list_stream;
   char *temp_filename;
@@ -2290,8 +2609,7 @@ lto_wpa_write_files (void)
   timevar_push (TV_WHOPR_WPA);
 
   FOR_EACH_VEC_ELT (ltrans_partition, ltrans_partitions, i, part)
-    lto_stats.num_output_cgraph_nodes += VEC_length (cgraph_node_ptr,
-						     part->cgraph_set->nodes);
+    lto_stats.num_output_symtab_nodes += lto_symtab_encoder_size (part->encoder);
 
   /* Find out statics that need to be promoted
      to globals with hidden visibility because they are accessed from multiple
@@ -2324,9 +2642,6 @@ lto_wpa_write_files (void)
       size_t len;
       ltrans_partition part = VEC_index (ltrans_partition, ltrans_partitions, i);
 
-      set = part->cgraph_set;
-      vset = part->varpool_set;
-
       /* Write all the nodes in SET.  */
       sprintf (temp_filename + blen, "%u.o", i);
       file = lto_obj_file_open (temp_filename, true);
@@ -2337,22 +2652,45 @@ lto_wpa_write_files (void)
 	fprintf (stderr, " %s (%s %i insns)", temp_filename, part->name, part->insns);
       if (cgraph_dump_file)
 	{
+          lto_symtab_encoder_iterator lsei;
+	  
 	  fprintf (cgraph_dump_file, "Writing partition %s to file %s, %i insns\n",
 		   part->name, temp_filename, part->insns);
-	  fprintf (cgraph_dump_file, "cgraph nodes:");
-	  dump_cgraph_node_set (cgraph_dump_file, set);
-	  fprintf (cgraph_dump_file, "varpool nodes:");
-	  dump_varpool_node_set (cgraph_dump_file, vset);
+	  fprintf (cgraph_dump_file, "  Symbols in partition: ");
+	  for (lsei = lsei_start_in_partition (part->encoder); !lsei_end_p (lsei);
+	       lsei_next_in_partition (&lsei))
+	    {
+	      symtab_node node = lsei_node (lsei);
+	      fprintf (cgraph_dump_file, "%s ", symtab_node_asm_name (node));
+	    }
+	  fprintf (cgraph_dump_file, "\n  Symbols in boundary: ");
+	  for (lsei = lsei_start (part->encoder); !lsei_end_p (lsei);
+	       lsei_next (&lsei))
+	    {
+	      symtab_node node = lsei_node (lsei);
+	      if (!lto_symtab_encoder_in_partition_p (part->encoder, node))
+		{
+	          fprintf (cgraph_dump_file, "%s ", symtab_node_asm_name (node));
+		  if (symtab_function_p (node)
+		      && lto_symtab_encoder_encode_body_p (part->encoder, cgraph (node)))
+		    fprintf (cgraph_dump_file, "(body included)");
+		  else if (symtab_variable_p (node)
+		           && lto_symtab_encoder_encode_initializer_p (part->encoder, varpool (node)))
+		    fprintf (cgraph_dump_file, "(initializer included)");
+		}
+	    }
+	  fprintf (cgraph_dump_file, "\n");
 	}
-      gcc_checking_assert (cgraph_node_set_nonempty_p (set)
-			   || varpool_node_set_nonempty_p (vset) || !i);
+      gcc_checking_assert (lto_symtab_encoder_size (part->encoder) || !i);
 
       lto_set_current_out_file (file);
 
-      ipa_write_optimization_summaries (set, vset);
+      ipa_write_optimization_summaries (part->encoder);
 
       lto_set_current_out_file (NULL);
       lto_obj_file_close (file);
+      free (file);
+      part->encoder = NULL;
 
       len = strlen (temp_filename);
       if (fwrite (temp_filename, 1, len, ltrans_output_list_stream) < len
@@ -2368,6 +2706,7 @@ lto_wpa_write_files (void)
     fatal_error ("closing LTRANS output list %s: %m", ltrans_output_list);
 
   free_ltrans_partitions();
+  free (temp_filename);
 
   timevar_pop (TV_WHOPR_WPA_IO);
 }
@@ -2449,7 +2788,6 @@ lto_fixup_prevailing_decls (tree t)
   else if (EXPR_P (t))
     {
       int i;
-      LTO_NO_PREVAIL (t->exp.block);
       for (i = TREE_OPERAND_LENGTH (t) - 1; i >= 0; --i)
 	LTO_SET_PREVAIL (TREE_OPERAND (t, i));
     }
@@ -2603,6 +2941,12 @@ read_cgraph_and_symbols (unsigned nfiles, const char **fnames)
 
   tree_with_vars = htab_create_ggc (101, htab_hash_pointer, htab_eq_pointer,
 				    NULL);
+  type_hash_cache = htab_create_ggc (512, tree_int_map_hash,
+				     tree_int_map_eq, NULL);
+  type_pair_cache = XCNEWVEC (struct type_pair_d, GIMPLE_TYPE_PAIR_SIZE);
+  gimple_type_leader = ggc_alloc_cleared_vec_gimple_type_leader_entry_s
+		        (GIMPLE_TYPE_LEADER_SIZE);
+  gimple_types = htab_create_ggc (16381, gimple_type_hash, gimple_type_eq, 0);
 
   if (!quiet_flag)
     fprintf (stderr, "Reading object files:");
@@ -2625,6 +2969,7 @@ read_cgraph_and_symbols (unsigned nfiles, const char **fnames)
       if (!file_data)
 	{
 	  lto_obj_file_close (current_lto_file);
+	  free (current_lto_file);
 	  current_lto_file = NULL;
 	  break;
 	}
@@ -2632,6 +2977,7 @@ read_cgraph_and_symbols (unsigned nfiles, const char **fnames)
       decl_data[last_file_ix++] = file_data;
 
       lto_obj_file_close (current_lto_file);
+      free (current_lto_file);
       current_lto_file = NULL;
       ggc_collect ();
     }
@@ -2644,6 +2990,17 @@ read_cgraph_and_symbols (unsigned nfiles, const char **fnames)
   if (resolution_file_name)
     fclose (resolution);
 
+  /* Free gimple type merging datastructures.  */
+  htab_delete (gimple_types);
+  gimple_types = NULL;
+  htab_delete (type_hash_cache);
+  type_hash_cache = NULL;
+  free (type_pair_cache);
+  type_pair_cache = NULL;
+  gimple_type_leader = NULL;
+  free_gimple_type_tables ();
+  ggc_collect ();
+
   /* Set the hooks so that all of the ipa passes can read in their data.  */
   lto_set_in_hooks (all_file_decl_data, get_section_data, free_section_data);
 
@@ -2653,8 +3010,26 @@ read_cgraph_and_symbols (unsigned nfiles, const char **fnames)
     fprintf (stderr, "\nReading the callgraph\n");
 
   timevar_push (TV_IPA_LTO_CGRAPH_IO);
-  /* Read the callgraph.  */
-  input_cgraph ();
+  /* Read the symtab.  */
+  input_symtab ();
+
+  /* Store resolutions into the symbol table.  */
+  if (resolution_map)
+    {
+      void **res;
+      symtab_node snode;
+
+      FOR_EACH_SYMBOL (snode)
+	if (symtab_real_symbol_p (snode)
+	    && (res = pointer_map_contains (resolution_map,
+				            snode->symbol.decl)))
+	  snode->symbol.resolution
+	    = (enum ld_plugin_symbol_resolution)(size_t)*res;
+
+      pointer_map_destroy (resolution_map);
+      resolution_map = NULL;
+    }
+  
   timevar_pop (TV_IPA_LTO_CGRAPH_IO);
 
   if (!quiet_flag)
@@ -2669,11 +3044,10 @@ read_cgraph_and_symbols (unsigned nfiles, const char **fnames)
   if (seen_error ())
     fatal_error ("errors during merging of translation units");
 
-  /* Fixup all decls and types and free the type hash tables.  */
+  /* Fixup all decls.  */
   lto_fixup_decls (all_file_decl_data);
   htab_delete (tree_with_vars);
   tree_with_vars = NULL;
-  free_gimple_type_tables ();
   ggc_collect ();
 
   timevar_pop (TV_IPA_LTO_DECL_MERGE);
@@ -2688,6 +3062,13 @@ read_cgraph_and_symbols (unsigned nfiles, const char **fnames)
   else
     ipa_read_summaries ();
 
+  for (i = 0; all_file_decl_data[i]; i++)
+    {
+      gcc_assert (all_file_decl_data[i]->symtab_node_encoder);
+      lto_symtab_encoder_delete (all_file_decl_data[i]->symtab_node_encoder);
+      all_file_decl_data[i]->symtab_node_encoder = NULL;
+    }
+
   /* Finally merge the cgraph according to the decl merging decisions.  */
   timevar_push (TV_IPA_LTO_CGRAPH_MERGE);
   if (cgraph_dump_file)
@@ -2699,32 +3080,19 @@ read_cgraph_and_symbols (unsigned nfiles, const char **fnames)
   lto_symtab_merge_cgraph_nodes ();
   ggc_collect ();
 
+  /* FIXME: ipa_transforms_to_apply holds list of passes that have optimization
+     summaries computed and needs to apply changes.  At the moment WHOPR only
+     supports inlining, so we can push it here by hand.  In future we need to stream
+     this field into ltrans compilation.  */
   if (flag_ltrans)
-    for (node = cgraph_nodes; node; node = node->next)
-      {
-	/* FIXME: ipa_transforms_to_apply holds list of passes that have optimization
-	   summaries computed and needs to apply changes.  At the moment WHOPR only
-	   supports inlining, so we can push it here by hand.  In future we need to stream
-	   this field into ltrans compilation.  */
-	if (node->analyzed)
-	  VEC_safe_push (ipa_opt_pass, heap,
-			 node->ipa_transforms_to_apply,
-			 (ipa_opt_pass)&pass_ipa_inline);
-      }
-  lto_symtab_free ();
+    FOR_EACH_DEFINED_FUNCTION (node)
+      VEC_safe_push (ipa_opt_pass, heap,
+		     node->ipa_transforms_to_apply,
+		     (ipa_opt_pass)&pass_ipa_inline);
 
   timevar_pop (TV_IPA_LTO_CGRAPH_MERGE);
 
   timevar_push (TV_IPA_LTO_DECL_INIT_IO);
-
-  /* FIXME lto. This loop needs to be changed to use the pass manager to
-     call the ipa passes directly.  */
-  if (!seen_error ())
-    for (i = 0; i < last_file_ix; i++)
-      {
-	struct lto_file_decl_data *file_data = all_file_decl_data [i];
-	lto_materialize_constructors_and_inits (file_data);
-      }
 
   /* Indicate that the cgraph is built and ready.  */
   cgraph_function_flags_ready = true;
@@ -2749,14 +3117,13 @@ materialize_cgraph (void)
     fprintf (stderr,
 	     flag_wpa ? "Materializing decls:" : "Reading function bodies:");
 
-
   /* Now that we have input the cgraph, we need to clear all of the aux
      nodes and read the functions if we are not running in WPA mode.  */
   timevar_push (TV_IPA_LTO_GIMPLE_IN);
 
-  for (node = cgraph_nodes; node; node = node->next)
+  FOR_EACH_FUNCTION (node)
     {
-      if (node->local.lto_file_data)
+      if (node->symbol.lto_file_data)
 	{
 	  lto_materialize_function (node);
 	  lto_stats.num_input_cgraph_nodes++;
@@ -2786,12 +3153,48 @@ materialize_cgraph (void)
 }
 
 
+/* Show various memory usage statistics related to LTO.  */
+static void
+print_lto_report_1 (void)
+{
+  const char *pfx = (flag_lto) ? "LTO" : (flag_wpa) ? "WPA" : "LTRANS";
+  fprintf (stderr, "%s statistics\n", pfx);
+
+  if (gimple_types)
+    fprintf (stderr, "[%s] GIMPLE type table: size %ld, %ld elements, "
+	     "%ld searches, %ld collisions (ratio: %f)\n", pfx,
+	     (long) htab_size (gimple_types),
+	     (long) htab_elements (gimple_types),
+	     (long) gimple_types->searches,
+	     (long) gimple_types->collisions,
+	     htab_collisions (gimple_types));
+  else
+    fprintf (stderr, "[%s] GIMPLE type table is empty\n", pfx);
+  if (type_hash_cache)
+    fprintf (stderr, "[%s] GIMPLE type hash table: size %ld, %ld elements, "
+	     "%ld searches, %ld collisions (ratio: %f)\n", pfx,
+	     (long) htab_size (type_hash_cache),
+	     (long) htab_elements (type_hash_cache),
+	     (long) type_hash_cache->searches,
+	     (long) type_hash_cache->collisions,
+	     htab_collisions (type_hash_cache));
+  else
+    fprintf (stderr, "[%s] GIMPLE type hash table is empty\n", pfx);
+
+  print_gimple_types_stats (pfx);
+  print_lto_report (pfx);
+}
+
 /* Perform whole program analysis (WPA) on the callgraph and write out the
    optimization plan.  */
 
 static void
 do_whole_program_analysis (void)
 {
+  symtab_node node;
+
+  timevar_start (TV_PHASE_OPT_GEN);
+
   /* Note that since we are in WPA mode, materialize_cgraph will not
      actually read in all the function bodies.  It only materializes
      the decls and cgraph nodes so that analysis can be performed.  */
@@ -2824,16 +3227,33 @@ do_whole_program_analysis (void)
       dump_cgraph (cgraph_dump_file);
       dump_varpool (cgraph_dump_file);
     }
+#ifdef ENABLE_CHECKING
   verify_cgraph ();
+#endif
   bitmap_obstack_release (NULL);
 
   /* We are about to launch the final LTRANS phase, stop the WPA timer.  */
   timevar_pop (TV_WHOPR_WPA);
 
+  timevar_push (TV_WHOPR_PARTITIONING);
   if (flag_lto_partition_1to1)
     lto_1_to_1_map ();
+  else if (flag_lto_partition_max)
+    lto_max_map ();
   else
     lto_balanced_map ();
+
+  /* AUX pointers are used by partitioning code to bookkeep number of
+     partitions symbol is in.  This is no longer needed.  */
+  FOR_EACH_SYMBOL (node)
+    node->symbol.aux = NULL;
+
+  lto_stats.num_cgraph_partitions += VEC_length (ltrans_partition, 
+						 ltrans_partitions);
+  timevar_pop (TV_WHOPR_PARTITIONING);
+
+  timevar_stop (TV_PHASE_OPT_GEN);
+  timevar_start (TV_PHASE_STREAM_OUT);
 
   if (!quiet_flag)
     {
@@ -2841,10 +3261,12 @@ do_whole_program_analysis (void)
       fflush (stderr);
     }
   lto_wpa_write_files ();
-  ggc_collect ();
   if (!quiet_flag)
     fprintf (stderr, "\n");
 
+  timevar_stop (TV_PHASE_STREAM_OUT);
+
+  ggc_collect ();
   if (post_ipa_mem_report)
     {
       fprintf (stderr, "Memory consumption after IPA\n");
@@ -2853,7 +3275,9 @@ do_whole_program_analysis (void)
 
   /* Show the LTO report before launching LTRANS.  */
   if (flag_lto_report)
-    print_lto_report ();
+    print_lto_report_1 ();
+  if (mem_report_wpa)
+    dump_memory_report (true);
 }
 
 
@@ -2930,12 +3354,27 @@ lto_init (void)
 void
 lto_main (void)
 {
+  /* LTO is called as a front end, even though it is not a front end.
+     Because it is called as a front end, TV_PHASE_PARSING and
+     TV_PARSE_GLOBAL are active, and we need to turn them off while
+     doing LTO.  Later we turn them back on so they are active up in
+     toplev.c.  */
+  timevar_pop (TV_PARSE_GLOBAL);
+  timevar_stop (TV_PHASE_PARSING);
+
+  timevar_start (TV_PHASE_SETUP);
+
   /* Initialize the LTO front end.  */
   lto_init ();
+
+  timevar_stop (TV_PHASE_SETUP);
+  timevar_start (TV_PHASE_STREAM_IN);
 
   /* Read all the symbols and call graph from all the files in the
      command line.  */
   read_cgraph_and_symbols (num_in_fnames, in_fnames);
+
+  timevar_stop (TV_PHASE_STREAM_IN);
 
   if (!seen_error ())
     {
@@ -2946,11 +3385,15 @@ lto_main (void)
 	do_whole_program_analysis ();
       else
 	{
+	  timevar_start (TV_PHASE_OPT_GEN);
+
 	  materialize_cgraph ();
 
 	  /* Let the middle end know that we have read and merged all of
 	     the input files.  */ 
-	  cgraph_optimize ();
+	  compile ();
+
+	  timevar_stop (TV_PHASE_OPT_GEN);
 
 	  /* FIXME lto, if the processes spawned by WPA fail, we miss
 	     the chance to print WPA's report, so WPA will call
@@ -2958,9 +3401,13 @@ lto_main (void)
 	     launched directly by the driver we would not need to do
 	     this.  */
 	  if (flag_lto_report)
-	    print_lto_report ();
+	    print_lto_report_1 ();
 	}
     }
+
+  /* Here we make LTO pretend to be a parser.  */
+  timevar_start (TV_PHASE_PARSING);
+  timevar_push (TV_PARSE_GLOBAL);
 }
 
 #include "gt-lto-lto.h"

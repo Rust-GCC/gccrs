@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -28,6 +28,7 @@
 --  handling of private and full declarations, and the construction of dispatch
 --  tables for tagged types.
 
+with Aspects;  use Aspects;
 with Atree;    use Atree;
 with Debug;    use Debug;
 with Einfo;    use Einfo;
@@ -533,7 +534,7 @@ package body Sem_Ch7 is
                begin
                   --  Check name of procedure or function calls
 
-                  if Nkind_In (N, N_Procedure_Call_Statement, N_Function_Call)
+                  if Nkind (N) in N_Subprogram_Call
                     and then Is_Entity_Name (Name (N))
                   then
                      return Abandon;
@@ -897,10 +898,8 @@ package body Sem_Ch7 is
       --  is a public child of Parent as defined in 10.1.1
 
       procedure Inspect_Unchecked_Union_Completion (Decls : List_Id);
-      --  Detects all incomplete or private type declarations having a known
-      --  discriminant part that are completed by an Unchecked_Union. Emits
-      --  the error message "Unchecked_Union may not complete discriminated
-      --  partial view".
+      --  Reject completion of an incomplete or private type declarations
+      --  having a known discriminant part by an unchecked union.
 
       procedure Install_Parent_Private_Declarations (Inst_Id : Entity_Id);
       --  Given the package entity of a generic package instantiation or
@@ -1091,7 +1090,7 @@ package body Sem_Ch7 is
             then
                Error_Msg_N
                  ("completion of discriminated partial view "
-                  & "cannot be an Unchecked_Union",
+                  & "cannot be an unchecked union",
                  Full_View (Defining_Identifier (Decl)));
             end if;
 
@@ -1389,7 +1388,23 @@ package body Sem_Ch7 is
            and then Nkind (Parent (E)) = N_Full_Type_Declaration
            and then Has_Aspects (Parent (E))
          then
-            Build_Invariant_Procedure (E, N);
+            declare
+               ASN : Node_Id;
+
+            begin
+               ASN := First (Aspect_Specifications (Parent (E)));
+               while Present (ASN) loop
+                  if Chars (Identifier (ASN)) = Name_Invariant
+                       or else
+                     Chars (Identifier (ASN)) = Name_Type_Invariant
+                  then
+                     Build_Invariant_Procedure (E, N);
+                     exit;
+                  end if;
+
+                  Next (ASN);
+               end loop;
+            end;
          end if;
 
          Next_Entity (E);
@@ -1397,7 +1412,7 @@ package body Sem_Ch7 is
 
       --  Ada 2005 (AI-216): The completion of an incomplete or private type
       --  declaration having a known_discriminant_part shall not be an
-      --  Unchecked_Union type.
+      --  unchecked union type.
 
       if Present (Vis_Decls) then
          Inspect_Unchecked_Union_Completion (Vis_Decls);
@@ -2144,6 +2159,14 @@ package body Sem_Ch7 is
          end if;
 
          Set_Freeze_Node (Priv, Freeze_Node (Full));
+
+         --  Propagate information of type invariants, which may be specified
+         --  for the full view.
+
+         if Has_Invariants (Full) and not Has_Invariants (Priv) then
+            Set_Has_Invariants (Priv);
+            Set_Subprograms_For_Type (Priv, Subprograms_For_Type (Full));
+         end if;
 
          if Is_Tagged_Type (Priv)
            and then Is_Tagged_Type (Full)

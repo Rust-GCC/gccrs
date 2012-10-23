@@ -42,16 +42,14 @@
 #include "rtl.h"
 #include "hard-reg-set.h"
 #include "basic-block.h"
-#include "output.h"
-#include "cfglayout.h"
 #include "fibheap.h"
 #include "flags.h"
-#include "timevar.h"
 #include "params.h"
 #include "coverage.h"
 #include "tree-pass.h"
 #include "tree-flow.h"
 #include "tree-inline.h"
+#include "cfgloop.h"
 
 static int count_insns (basic_block);
 static bool ignore_bb_p (const_basic_block);
@@ -59,7 +57,6 @@ static bool better_p (const_edge, const_edge);
 static edge find_best_successor (basic_block);
 static edge find_best_predecessor (basic_block);
 static int find_trace (basic_block, basic_block *);
-static void tail_duplicate (void);
 
 /* Minimal outgoing edge probability considered for superblock formation.  */
 static int probability_cutoff;
@@ -72,7 +69,7 @@ sbitmap bb_seen;
 static inline void
 mark_bb_seen (basic_block bb)
 {
-  unsigned int size = SBITMAP_SIZE_BYTES (bb_seen) * 8;
+  unsigned int size = SBITMAP_SIZE (bb_seen);
 
   if ((unsigned int)bb->index >= size)
     bb_seen = sbitmap_resize (bb_seen, size * 2, 0);
@@ -224,7 +221,7 @@ find_trace (basic_block bb, basic_block *trace)
 /* Look for basic blocks in frequency order, construct traces and tail duplicate
    if profitable.  */
 
-static void
+static bool
 tail_duplicate (void)
 {
   fibnode_t *blocks = XCNEWVEC (fibnode_t, last_basic_block);
@@ -236,6 +233,7 @@ tail_duplicate (void)
   gcov_type cover_insns;
   int max_dup_insns;
   basic_block bb;
+  bool changed = false;
 
   /* Create an oversized sbitmap to reduce the chance that we need to
      resize it.  */
@@ -307,7 +305,13 @@ tail_duplicate (void)
 	    }
 	  traced_insns += bb2->frequency * counts [bb2->index];
 	  if (EDGE_COUNT (bb2->preds) > 1
-	      && can_duplicate_block_p (bb2))
+	      && can_duplicate_block_p (bb2)
+	      /* We have the tendency to duplicate the loop header
+	         of all do { } while loops.  Do not do that - it is
+		 not profitable and it might create a loop with multiple
+		 entries or at least rotate the loop.  */
+	      && (!current_loops
+		  || bb2->loop_father->header != bb2))
 	    {
 	      edge e;
 	      basic_block copy;
@@ -332,6 +336,7 @@ tail_duplicate (void)
 			 bb2->index, copy->index, copy->frequency);
 
 	      bb2 = copy;
+	      changed = true;
 	    }
 	  mark_bb_seen (bb2);
 	  bb = bb2;
@@ -353,6 +358,8 @@ tail_duplicate (void)
   free (trace);
   free (counts);
   fibheap_delete (heap);
+
+  return changed;
 }
 
 /* Main entry point to this file.  */
@@ -360,25 +367,24 @@ tail_duplicate (void)
 static unsigned int
 tracer (void)
 {
-  gcc_assert (current_ir_type () == IR_GIMPLE);
+  bool changed;
 
   if (n_basic_blocks <= NUM_FIXED_BLOCKS + 1)
     return 0;
 
   mark_dfs_back_edges ();
   if (dump_file)
-    dump_flow_info (dump_file, dump_flags);
+    brief_dump_cfg (dump_file, dump_flags);
 
   /* Trace formation is done on the fly inside tail_duplicate */
-  tail_duplicate ();
+  changed = tail_duplicate ();
+  if (changed)
+    free_dominance_info (CDI_DOMINATORS);
 
-  /* FIXME: We really only need to do this when we know tail duplication
-            has altered the CFG. */
-  free_dominance_info (CDI_DOMINATORS);
   if (dump_file)
-    dump_flow_info (dump_file, dump_flags);
+    brief_dump_cfg (dump_file, dump_flags);
 
-  return 0;
+  return changed ? TODO_cleanup_cfg : 0;
 }
 
 static bool

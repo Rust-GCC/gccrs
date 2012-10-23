@@ -775,7 +775,7 @@ Read-only in this context means never modified during the lifetime of the
 program, not necessarily in ROM or in write-disabled pages.  A common
 example of the later is a shared library's global offset table.  This
 table is initialized by the runtime loader, so the memory is technically
-writable, but after control is transfered from the runtime loader to the
+writable, but after control is transferred from the runtime loader to the
 application, this memory will never be subsequently modified.
 
 Stored in the @code{unchanging} field and printed as @samp{/u}.
@@ -1479,8 +1479,13 @@ This type of expression represents the integer value @var{i}.  @var{i}
 is customarily accessed with the macro @code{INTVAL} as in
 @code{INTVAL (@var{exp})}, which is equivalent to @code{XWINT (@var{exp}, 0)}.
 
-Constants generated for modes with fewer bits than @code{HOST_WIDE_INT}
-must be sign extended to full width (e.g., with @code{gen_int_mode}).
+Constants generated for modes with fewer bits than in
+@code{HOST_WIDE_INT} must be sign extended to full width (e.g., with
+@code{gen_int_mode}).  For constants for modes with more bits than in
+@code{HOST_WIDE_INT} the implied high order bits of that constant are
+copies of the top bit.  Note however that values are neither
+inherently signed nor inherently unsigned; where necessary, signedness
+is determined by the rtl operation instead.
 
 @findex const0_rtx
 @findex const1_rtx
@@ -1510,7 +1515,13 @@ Represents either a floating-point constant of mode @var{m} or an
 integer constant too large to fit into @code{HOST_BITS_PER_WIDE_INT}
 bits but small enough to fit within twice that number of bits (GCC
 does not provide a mechanism to represent even larger constants).  In
-the latter case, @var{m} will be @code{VOIDmode}.
+the latter case, @var{m} will be @code{VOIDmode}.  For integral values
+constants for modes with more bits than twice the number in
+@code{HOST_WIDE_INT} the implied high order bits of that constant are
+copies of the top bit of @code{CONST_DOUBLE_HIGH}.  Note however that
+integral values are neither inherently signed nor inherently unsigned;
+where necessary, signedness is determined by the rtl operation
+instead.
 
 @findex CONST_DOUBLE_LOW
 If @var{m} is @code{VOIDmode}, the bits of the value are stored in
@@ -3444,20 +3455,26 @@ unpredictably.
 @code{call_insn} insns have the same extra fields as @code{insn} insns,
 accessed in the same way and in addition contain a field
 @code{CALL_INSN_FUNCTION_USAGE}, which contains a list (chain of
-@code{expr_list} expressions) containing @code{use} and @code{clobber}
-expressions that denote hard registers and @code{MEM}s used or
-clobbered by the called function.
+@code{expr_list} expressions) containing @code{use}, @code{clobber} and
+sometimes @code{set} expressions that denote hard registers and
+@code{mem}s used or clobbered by the called function.
 
-A @code{MEM} generally points to a stack slots in which arguments passed
+A @code{mem} generally points to a stack slot in which arguments passed
 to the libcall by reference (@pxref{Register Arguments,
 TARGET_PASS_BY_REFERENCE}) are stored.  If the argument is
 caller-copied (@pxref{Register Arguments, TARGET_CALLEE_COPIES}),
-the stack slot will be mentioned in @code{CLOBBER} and @code{USE}
-entries; if it's callee-copied, only a @code{USE} will appear, and the
-@code{MEM} may point to addresses that are not stack slots.
+the stack slot will be mentioned in @code{clobber} and @code{use}
+entries; if it's callee-copied, only a @code{use} will appear, and the
+@code{mem} may point to addresses that are not stack slots.
 
-@code{CLOBBER}ed registers in this list augment registers specified in
-@code{CALL_USED_REGISTERS} (@pxref{Register Basics}).
+Registers occurring inside a @code{clobber} in this list augment
+registers specified in @code{CALL_USED_REGISTERS} (@pxref{Register
+Basics}).
+
+If the list contains a @code{set} involving two registers, it indicates
+that the function returns one of its arguments.  Such a @code{set} may
+look like a no-op if the same register holds the argument and the return
+value.
 
 @findex code_label
 @findex CODE_LABEL_NUMBER

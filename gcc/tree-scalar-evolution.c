@@ -262,10 +262,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "cfgloop.h"
 #include "tree-chrec.h"
 #include "tree-scalar-evolution.h"
-#include "tree-pass.h"
+#include "dumpfile.h"
 #include "params.h"
 
 static tree analyze_scalar_evolution_1 (struct loop *, tree, tree);
+static tree analyze_scalar_evolution_for_address_of (struct loop *loop,
+						     tree var);
 
 /* The cached information about an SSA name VAR, claiming that below
    basic block INSTANTIATED_BELOW, the value of VAR can be expressed
@@ -1632,6 +1634,7 @@ interpret_rhs_expr (struct loop *loop, gimple at_stmt,
 		    tree type, tree rhs1, enum tree_code code, tree rhs2)
 {
   tree res, chrec1, chrec2;
+  gimple def;
 
   if (get_gimple_rhs_class (code) == GIMPLE_SINGLE_RHS)
     {
@@ -1653,16 +1656,59 @@ interpret_rhs_expr (struct loop *loop, gimple at_stmt,
   switch (code)
     {
     case ADDR_EXPR:
-      /* Handle &MEM[ptr + CST] which is equivalent to POINTER_PLUS_EXPR.  */
-      if (TREE_CODE (TREE_OPERAND (rhs1, 0)) != MEM_REF)
-	{
-	  res = chrec_dont_know;
-	  break;
-	}
+      if (TREE_CODE (TREE_OPERAND (rhs1, 0)) == MEM_REF
+	  || handled_component_p (TREE_OPERAND (rhs1, 0)))
+        {
+	  enum machine_mode mode;
+	  HOST_WIDE_INT bitsize, bitpos;
+	  int unsignedp;
+	  int volatilep = 0;
+	  tree base, offset;
+	  tree chrec3;
+	  tree unitpos;
 
-      rhs2 = TREE_OPERAND (TREE_OPERAND (rhs1, 0), 1);
-      rhs1 = TREE_OPERAND (TREE_OPERAND (rhs1, 0), 0);
-      /* Fall through.  */
+	  base = get_inner_reference (TREE_OPERAND (rhs1, 0),
+				      &bitsize, &bitpos, &offset,
+				      &mode, &unsignedp, &volatilep, false);
+
+	  if (TREE_CODE (base) == MEM_REF)
+	    {
+	      rhs2 = TREE_OPERAND (base, 1);
+	      rhs1 = TREE_OPERAND (base, 0);
+
+	      chrec1 = analyze_scalar_evolution (loop, rhs1);
+	      chrec2 = analyze_scalar_evolution (loop, rhs2);
+	      chrec1 = chrec_convert (type, chrec1, at_stmt);
+	      chrec2 = chrec_convert (TREE_TYPE (rhs2), chrec2, at_stmt);
+	      res = chrec_fold_plus (type, chrec1, chrec2);
+	    }
+	  else
+	    {
+	      chrec1 = analyze_scalar_evolution_for_address_of (loop, base);
+	      chrec1 = chrec_convert (type, chrec1, at_stmt);
+	      res = chrec1;
+	    }
+
+	  if (offset != NULL_TREE)
+	    {
+	      chrec2 = analyze_scalar_evolution (loop, offset);
+	      chrec2 = chrec_convert (TREE_TYPE (offset), chrec2, at_stmt);
+	      res = chrec_fold_plus (type, res, chrec2);
+	    }
+
+	  if (bitpos != 0)
+	    {
+	      gcc_assert ((bitpos % BITS_PER_UNIT) == 0);
+
+	      unitpos = size_int (bitpos / BITS_PER_UNIT);
+	      chrec3 = analyze_scalar_evolution (loop, unitpos);
+	      chrec3 = chrec_convert (TREE_TYPE (unitpos), chrec3, at_stmt);
+	      res = chrec_fold_plus (type, res, chrec3);
+	    }
+        }
+      else
+	res = chrec_dont_know;
+      break;
 
     case POINTER_PLUS_EXPR:
       chrec1 = analyze_scalar_evolution (loop, rhs1);
@@ -1714,7 +1760,29 @@ interpret_rhs_expr (struct loop *loop, gimple at_stmt,
       break;
 
     CASE_CONVERT:
-      chrec1 = analyze_scalar_evolution (loop, rhs1);
+      /* In case we have a truncation of a widened operation that in
+         the truncated type has undefined overflow behavior analyze
+	 the operation done in an unsigned type of the same precision
+	 as the final truncation.  We cannot derive a scalar evolution
+	 for the widened operation but for the truncated result.  */
+      if (TREE_CODE (type) == INTEGER_TYPE
+	  && TREE_CODE (TREE_TYPE (rhs1)) == INTEGER_TYPE
+	  && TYPE_PRECISION (type) < TYPE_PRECISION (TREE_TYPE (rhs1))
+	  && TYPE_OVERFLOW_UNDEFINED (type)
+	  && TREE_CODE (rhs1) == SSA_NAME
+	  && (def = SSA_NAME_DEF_STMT (rhs1))
+	  && is_gimple_assign (def)
+	  && TREE_CODE_CLASS (gimple_assign_rhs_code (def)) == tcc_binary
+	  && TREE_CODE (gimple_assign_rhs2 (def)) == INTEGER_CST)
+	{
+	  tree utype = unsigned_type_for (type);
+	  chrec1 = interpret_rhs_expr (loop, at_stmt, utype,
+				       gimple_assign_rhs1 (def),
+				       gimple_assign_rhs_code (def),
+				       gimple_assign_rhs2 (def));
+	}
+      else
+	chrec1 = analyze_scalar_evolution (loop, rhs1);
       res = chrec_convert (type, chrec1, at_stmt);
       break;
 
@@ -1900,6 +1968,14 @@ analyze_scalar_evolution (struct loop *loop, tree var)
     fprintf (dump_file, ")\n");
 
   return res;
+}
+
+/* Analyzes and returns the scalar evolution of VAR address in LOOP.  */
+
+static tree
+analyze_scalar_evolution_for_address_of (struct loop *loop, tree var)
+{
+  return analyze_scalar_evolution (loop, build_fold_addr_expr (var));
 }
 
 /* Analyze scalar evolution of use of VERSION in USE_LOOP with respect to
@@ -2963,7 +3039,7 @@ analyze_scalar_evolution_for_all_loop_phi_nodes (VEC(gimple,heap) **exit_conditi
       for (psi = gsi_start_phis (bb); !gsi_end_p (psi); gsi_next (&psi))
 	{
 	  phi = gsi_stmt (psi);
-	  if (is_gimple_reg (PHI_RESULT (phi)))
+	  if (!virtual_operand_p (PHI_RESULT (phi)))
 	    {
 	      chrec = instantiate_parameters
 		        (loop,
@@ -3046,6 +3122,14 @@ scev_initialize (void)
     {
       loop->nb_iterations = NULL_TREE;
     }
+}
+
+/* Return true if SCEV is initialized.  */
+
+bool
+scev_initialized_p (void)
+{
+  return scalar_evolution_info != NULL;
 }
 
 /* Cleans up the information cached by the scalar evolutions analysis
@@ -3252,7 +3336,7 @@ scev_const_prop (void)
 	  phi = gsi_stmt (psi);
 	  name = PHI_RESULT (phi);
 
-	  if (!is_gimple_reg (name))
+	  if (virtual_operand_p (name))
 	    continue;
 
 	  type = TREE_TYPE (name);
@@ -3328,7 +3412,7 @@ scev_const_prop (void)
 	  phi = gsi_stmt (psi);
 	  rslt = PHI_RESULT (phi);
 	  def = PHI_ARG_DEF_FROM_EDGE (phi, exit);
-	  if (!is_gimple_reg (def))
+	  if (virtual_operand_p (def))
 	    {
 	      gsi_next (&psi);
 	      continue;

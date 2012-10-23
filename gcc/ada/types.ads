@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -646,9 +646,9 @@ package Types is
       TS      : out Time_Stamp_Type);
    --  Given the components of a time stamp, initialize the value
 
-   -----------------------------------------------
-   -- Types used for Pragma Suppress Management --
-   -----------------------------------------------
+   -------------------------------------
+   -- Types used for Check Management --
+   -------------------------------------
 
    type Check_Id is new Nat;
    --  Type used to represent a check id
@@ -702,6 +702,68 @@ package Types is
    --    3.  Add a new function to Checks to handle the new check test
    --    4.  Add a new Do_xxx_Check flag to Sinfo (if required)
    --    5.  Add appropriate checks for the new test
+
+   --  The following provides precise details on the mode used to check
+   --  intermediate overflows in expressions for signed integer arithmetic.
+
+   type Overflow_Check_Type is (
+      Not_Set,
+      --  Dummy value used during initialization process to show that the
+      --  corresponding value has not yet been initialized.
+
+      Suppressed,
+      --  Overflow checking is suppressed. If an arithmetic operation creates
+      --  an overflow, no exception is raised, and the program is erroneous.
+
+      Checked,
+      --  All operations, including all intermediate operations are checked.
+      --  If the result of any arithmetic operation gives a result outside the
+      --  range of the base type, then a Constraint_Error exception is raised.
+
+      Minimized,
+      --  Where appropriate, arithmetic operations are performed with an
+      --  extended range, using Long_Long_Integer if necessary. As long as the
+      --  result fits in this extended range, then no exception is raised and
+      --  computation continues with the extended result. The final value of an
+      --  expression must fit in the base type of the whole expression. If an
+      --  intermediate result is outside the range of Long_Long_Integer then a
+      --  Constraint_Error exception is raised.
+
+      Eliminated);
+      --  In this mode arbitrary precision arithmetic is used as needed to
+      --  ensure that it is impossible for intermediate arithmetic to cause an
+      --  overflow. Again the final value of an expression must fit in the base
+      --  type of the whole expression.
+
+   subtype Minimized_Or_Eliminated is
+     Overflow_Check_Type range Minimized .. Eliminated;
+   subtype Suppressed_Or_Checked is
+     Overflow_Check_Type range Suppressed .. Checked;
+   --  Define subtypes so that clients don't need to know ordering. Note that
+   --  Overflow_Check_Type is not marked as an ordered enumeration type.
+
+   --  The following structure captures the state of check suppression or
+   --  activation at a particular point in the program execution.
+
+   type Suppress_Record is record
+      Suppress : Suppress_Array;
+      --  Indicates suppression status of each possible check. Note: there
+      --  is an entry for Overflow_Check in this array, but it is never used.
+      --  Instead we use the more detailed information in the two components
+      --  that follow this one (Overflow_Checks_General/Assertions).
+
+      Overflow_Checks_General : Overflow_Check_Type;
+      --  This field indicates the mode of overflow checking to be applied to
+      --  general expressions outside assertions.
+
+      Overflow_Checks_Assertions : Overflow_Check_Type;
+      --  This field indicates the mode of overflow checking to be applied to
+      --  any expression occuring inside assertions.
+   end record;
+
+   Suppress_All : constant Suppress_Record :=
+                    ((others => True), Suppressed, Suppressed);
+   --  Constant used to initialize Suppress_Record value to all suppressed.
 
    -----------------------------------
    -- Global Exception Declarations --
@@ -764,7 +826,9 @@ package Types is
    --    2. Modify the corresponding definitions in types.h, including the
    --       definition of last_reason_code.
 
-   --    3. Add a new routine in Ada.Exceptions with the appropriate call and
+   --    3. Add the name of the routines in exp_ch11.Get_RT_Exception_Name
+
+   --    4. Add a new routine in Ada.Exceptions with the appropriate call and
    --       static string constant. Note that there is more than one version
    --       of a-except.adb which must be modified.
 

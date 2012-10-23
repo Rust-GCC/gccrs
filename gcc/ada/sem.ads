@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -203,15 +203,10 @@
 
 with Alloc;
 with Einfo;  use Einfo;
-with Opt;    use Opt;
 with Table;
 with Types;  use Types;
 
 package Sem is
-
-   New_Nodes_OK : Int := 1;
-   --  Temporary flag for use in checking out HLO. Set non-zero if it is
-   --  OK to generate new nodes.
 
    -----------------------------
    -- Semantic Analysis Flags --
@@ -246,6 +241,15 @@ package Sem is
    --  is deleted after analysis. Itypes generated in deleted code must be
    --  frozen from start, because the tree on which they depend will not
    --  be available at the freeze point.
+
+   In_Assertion_Expr : Nat := 0;
+   --  This is set non-zero if we are within the expression of an assertion
+   --  pragma or aspect. It is a counter which is incremented at the start
+   --  of expanding such an expression, and decremented on completion of
+   --  expanding that expression. Probably a boolean would be good enough,
+   --  since we think that such expressions cannot nest, but that might not
+   --  be true in the future (e.g. if let expressions are added to Ada) so
+   --  we prepare for that future possibility by making it a counter.
 
    In_Inlined_Body : Boolean := False;
    --  Switch to indicate that we are analyzing and resolving an inlined body.
@@ -287,10 +291,10 @@ package Sem is
 
    --  Scope based suppress checks for the predefined checks (from initial
    --  command line arguments, or from Suppress pragmas not including an entity
-   --  entity name) are recorded in the Sem.Suppress variable, and all that is
-   --  necessary is to save the state of this variable on scope entry, and
-   --  restore it on scope exit. This mechanism allows for fast checking of
-   --  the scope suppress state without needing complex data structures.
+   --  name) are recorded in the Sem.Scope_Suppress variable, and all that
+   --  is necessary is to save the state of this variable on scope entry, and
+   --  restore it on scope exit. This mechanism allows for fast checking of the
+   --  scope suppress state without needing complex data structures.
 
    --  Entity based checks, from Suppress/Unsuppress pragmas giving an
    --  Entity_Id and scope based checks for non-predefined checks (introduced
@@ -314,15 +318,15 @@ package Sem is
    --  that are applicable to all entities. A similar search is needed for any
    --  non-predefined check even if no specific entity is involved.
 
-   Scope_Suppress : Suppress_Array := Suppress_Options;
-   --  This array contains the current scope based settings of the suppress
-   --  switches. It is initialized from the options as shown, and then modified
-   --  by pragma Suppress. On entry to each scope, the current setting is saved
-   --  the scope stack, and then restored on exit from the scope. This record
-   --  may be rapidly checked to determine the current status of a check if
-   --  no specific entity is involved or if the specific entity involved is
-   --  one for which no specific Suppress/Unsuppress pragma has been set (as
-   --  indicated by the Checks_May_Be_Suppressed flag being set).
+   Scope_Suppress : Suppress_Record;
+   --  This variable contains the current scope based settings of the suppress
+   --  switches. It is initialized from Suppress_Options in Gnat1drv, and then
+   --  modified by pragma Suppress. On entry to each scope, the current setting
+   --  is saved on the scope stack, and then restored on exit from the scope.
+   --  This record may be rapidly checked to determine the current status of
+   --  a check if no specific entity is involved or if the specific entity
+   --  involved is one for which no specific Suppress/Unsuppress pragma has
+   --  been set (as indicated by the Checks_May_Be_Suppressed flag being set).
 
    --  This scheme is a little complex, but serves the purpose of enabling
    --  a very rapid check in the common case where no entity specific pragma
@@ -453,7 +457,7 @@ package Sem is
       --  Pointer to name of last subprogram body in this scope. Used for
       --  testing proper alpha ordering of subprogram bodies in scope.
 
-      Save_Scope_Suppress  : Suppress_Array;
+      Save_Scope_Suppress : Suppress_Record;
       --  Save contents of Scope_Suppress on entry
 
       Save_Local_Suppress_Stack_Top : Suppress_Stack_Entry_Ptr;
@@ -637,12 +641,10 @@ package Sem is
    --  This function returns True if an explicit pragma Suppress for check C
    --  is present in the package defining E.
 
-   function Is_Check_Suppressed (E : Entity_Id; C : Check_Id) return Boolean;
-   --  This function is called if Checks_May_Be_Suppressed (E) is True to
-   --  determine whether check C is suppressed either on the entity E or
-   --  as the result of a scope suppress pragma. If Checks_May_Be_Suppressed
-   --  is False, then the status of the check can be determined simply by
-   --  examining Scope_Checks (C), so this routine is not called in that case.
+   procedure Preanalyze (N : Node_Id);
+   --  Performs a pre-analysis of node N. During pre-analysis no expansion is
+   --  carried out for N or its children. For more info on pre-analysis read
+   --  the spec of Sem.
 
    generic
       with procedure Action (Item : Node_Id);

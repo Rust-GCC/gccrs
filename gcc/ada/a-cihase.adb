@@ -185,6 +185,13 @@ package body Ada.Containers.Indefinite_Hashed_Sets is
 
    procedure Assign (Node : Node_Access; Item : Element_Type) is
       X : Element_Access := Node.Element;
+
+      --  The element allocator may need an accessibility check in the case the
+      --  actual type is class-wide or has access discriminants (RM 4.8(10.1)
+      --  and AI12-0035).
+
+      pragma Unsuppress (Accessibility_Check);
+
    begin
       Node.Element := new Element_Type'(Item);
       Free_Element (X);
@@ -194,10 +201,10 @@ package body Ada.Containers.Indefinite_Hashed_Sets is
    begin
       if Target'Address = Source'Address then
          return;
+      else
+         Target.Clear;
+         Target.Union (Source);
       end if;
-
-      Target.Clear;
-      Target.Union (Source);
    end Assign;
 
    --------------
@@ -248,9 +255,8 @@ package body Ada.Containers.Indefinite_Hashed_Sets is
          L : Natural renames HT.Lock;
       begin
          return R : constant Constant_Reference_Type :=
-                      (Element => Position.Node.Element.all'Access,
-                       Control =>
-                         (Controlled with Container'Unrestricted_Access))
+           (Element => Position.Node.Element.all'Access,
+            Control => (Controlled with Container'Unrestricted_Access))
          do
             B := B + 1;
             L := L + 1;
@@ -676,7 +682,7 @@ package body Ada.Containers.Indefinite_Hashed_Sets is
       L_Node : Node_Access) return Boolean
    is
       R_Index : constant Hash_Type :=
-                  Element_Keys.Index (R_HT, L_Node.Element.all);
+        Element_Keys.Index (R_HT, L_Node.Element.all);
 
       R_Node  : Node_Access := R_HT.Buckets (R_Index);
 
@@ -703,7 +709,7 @@ package body Ada.Containers.Indefinite_Hashed_Sets is
       L_Node : Node_Access) return Boolean
    is
       R_Index : constant Hash_Type :=
-                  Element_Keys.Index (R_HT, L_Node.Element.all);
+        Element_Keys.Index (R_HT, L_Node.Element.all);
 
       R_Node  : Node_Access := R_HT.Buckets (R_Index);
 
@@ -807,7 +813,16 @@ package body Ada.Containers.Indefinite_Hashed_Sets is
 
          X := Position.Node.Element;
 
-         Position.Node.Element := new Element_Type'(New_Item);
+         declare
+            --  The element allocator may need an accessibility check in the
+            --  case the actual type is class-wide or has access discriminants
+            --  (see RM 4.8(10.1) and AI12-0035).
+
+            pragma Unsuppress (Accessibility_Check);
+
+         begin
+            Position.Node.Element := new Element_Type'(New_Item);
+         end;
 
          Free_Element (X);
       end if;
@@ -863,9 +878,18 @@ package body Ada.Containers.Indefinite_Hashed_Sets is
       --------------
 
       function New_Node (Next : Node_Access) return Node_Access is
+
+         --  The element allocator may need an accessibility check in the case
+         --  the actual type is class-wide or has access discriminants (see
+         --  RM 4.8(10.1) and AI12-0035).
+
+         pragma Unsuppress (Accessibility_Check);
+
          Element : Element_Access := new Element_Type'(New_Item);
+
       begin
          return new Node_Type'(Element, Next);
+
       exception
          when others =>
             Free_Element (Element);
@@ -881,9 +905,7 @@ package body Ada.Containers.Indefinite_Hashed_Sets is
 
       Local_Insert (HT, New_Item, Node, Inserted);
 
-      if Inserted
-        and then HT.Length > HT_Ops.Capacity (HT)
-      then
+      if Inserted and then HT.Length > HT_Ops.Capacity (HT) then
          HT_Ops.Reserve_Capacity (HT, HT.Length);
       end if;
    end Insert;
@@ -1096,8 +1118,8 @@ package body Ada.Containers.Indefinite_Hashed_Sets is
       B : Natural renames Container'Unrestricted_Access.all.HT.Busy;
    begin
       return It : constant Iterator :=
-                    Iterator'(Limited_Controlled with
-                                Container => Container'Unrestricted_Access)
+        Iterator'(Limited_Controlled with
+                    Container => Container'Unrestricted_Access)
       do
          B := B + 1;
       end return;
@@ -1299,7 +1321,7 @@ package body Ada.Containers.Indefinite_Hashed_Sets is
       New_Item  : Element_Type)
    is
       Node : constant Node_Access :=
-               Element_Keys.Find (Container.HT, New_Item);
+        Element_Keys.Find (Container.HT, New_Item);
 
       X : Element_Access;
       pragma Warnings (Off, X);
@@ -1317,7 +1339,16 @@ package body Ada.Containers.Indefinite_Hashed_Sets is
 
       X := Node.Element;
 
-      Node.Element := new Element_Type'(New_Item);
+      declare
+         --  The element allocator may need an accessibility check in the case
+         --  the actual type is class-wide or has access discriminants (see
+         --  RM 4.8(10.1) and AI12-0035).
+
+         pragma Unsuppress (Accessibility_Check);
+
+      begin
+         Node.Element := new Element_Type'(New_Item);
+      end;
 
       Free_Element (X);
    end Replace;
@@ -1534,7 +1565,7 @@ package body Ada.Containers.Indefinite_Hashed_Sets is
 
       declare
          Size : constant Hash_Type :=
-                  Prime_Numbers.To_Prime (Left.Length + Right.Length);
+           Prime_Numbers.To_Prime (Left.Length + Right.Length);
       begin
          Buckets := HT_Ops.New_Buckets (Length => Size);
       end;
@@ -1736,7 +1767,7 @@ package body Ada.Containers.Indefinite_Hashed_Sets is
 
       declare
          Size : constant Hash_Type :=
-                  Prime_Numbers.To_Prime (Left.Length + Right.Length);
+           Prime_Numbers.To_Prime (Left.Length + Right.Length);
       begin
          Buckets := HT_Ops.New_Buckets (Length => Size);
       end;
@@ -1958,7 +1989,7 @@ package body Ada.Containers.Indefinite_Hashed_Sets is
          Key       : Key_Type) return Constant_Reference_Type
       is
          Node : constant Node_Access :=
-                  Key_Keys.Find (Container.HT, Key);
+           Key_Keys.Find (Container.HT, Key);
 
       begin
          if Node = null then
@@ -1975,9 +2006,8 @@ package body Ada.Containers.Indefinite_Hashed_Sets is
             L : Natural renames HT.Lock;
          begin
             return R : constant Constant_Reference_Type :=
-                         (Element => Node.Element.all'Access,
-                          Control =>
-                            (Controlled with Container'Unrestricted_Access))
+              (Element => Node.Element.all'Access,
+               Control => (Controlled with Container'Unrestricted_Access))
             do
                B := B + 1;
                L := L + 1;
@@ -2144,7 +2174,7 @@ package body Ada.Containers.Indefinite_Hashed_Sets is
          Key       : Key_Type) return Reference_Type
       is
          Node : constant Node_Access :=
-                  Key_Keys.Find (Container.HT, Key);
+           Key_Keys.Find (Container.HT, Key);
 
       begin
          if Node = null then
@@ -2172,7 +2202,7 @@ package body Ada.Containers.Indefinite_Hashed_Sets is
          New_Item  : Element_Type)
       is
          Node : constant Node_Access :=
-                  Key_Keys.Find (Container.HT, Key);
+           Key_Keys.Find (Container.HT, Key);
 
       begin
          if Node = null then

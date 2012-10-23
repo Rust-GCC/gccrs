@@ -26,7 +26,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "flags.h"
 #include "c-common.h"
-#include "output.h"
 #include "debug.h"
 #include "c-pragma.h"
 #include "ggc.h"
@@ -69,18 +68,10 @@ struct c_pch_validity
   size_t target_data_length;
 };
 
-struct c_pch_header
-{
-  unsigned long asm_size;
-};
-
 #define IDENT_LENGTH 8
 
 /* The file we'll be writing the PCH to.  */
 static FILE *pch_outfile;
-
-/* The position in the assembler output file when pch_init was called.  */
-static long asm_file_startpos;
 
 static const char *get_ident (void);
 
@@ -93,7 +84,7 @@ static const char *
 get_ident (void)
 {
   static char result[IDENT_LENGTH];
-  static const char templ[] = "gpch.013";
+  static const char templ[] = "gpch.014";
   static const char c_language_chars[] = "Co+O";
 
   memcpy (result, templ, IDENT_LENGTH);
@@ -103,9 +94,7 @@ get_ident (void)
 }
 
 /* Prepare to write a PCH file, if one is being written.  This is
-   called at the start of compilation.
-
-   Also, print out the executable checksum if -fverbose-asm is in effect.  */
+   called at the start of compilation.  */
 
 void
 pch_init (void)
@@ -114,15 +103,6 @@ pch_init (void)
   struct c_pch_validity v;
   void *target_validity;
   static const char partial_pch[] = "gpcWrite";
-
-#ifdef ASM_COMMENT_START
-  if (flag_verbose_asm)
-    {
-      fprintf (asm_out_file, "%s ", ASM_COMMENT_START);
-      c_common_print_pch_checksum (asm_out_file);
-      fputc ('\n', asm_out_file);
-    }
-#endif
 
   if (!pch_file)
     return;
@@ -153,14 +133,6 @@ pch_init (void)
       || fwrite (target_validity, v.target_data_length, 1, f) != 1)
     fatal_error ("can%'t write to %s: %m", pch_file);
 
-  /* We need to be able to re-read the output.  */
-  /* The driver always provides a valid -o option.  */
-  if (asm_file_name == NULL
-      || strcmp (asm_file_name, "-") == 0)
-    fatal_error ("%qs is not a valid output file", asm_file_name);
-
-  asm_file_startpos = ftell (asm_out_file);
-
   /* Let the debugging format deal with the PCHness.  */
   (*debug_hooks->handle_pch) (0);
 
@@ -173,11 +145,6 @@ pch_init (void)
 void
 c_common_write_pch (void)
 {
-  char *buf;
-  long asm_file_end;
-  long written;
-  struct c_pch_header h;
-
   timevar_push (TV_PCH_SAVE);
 
   targetm.prepare_pch_save ();
@@ -185,34 +152,6 @@ c_common_write_pch (void)
   (*debug_hooks->handle_pch) (1);
 
   cpp_write_pch_deps (parse_in, pch_outfile);
-
-  asm_file_end = ftell (asm_out_file);
-  h.asm_size = asm_file_end - asm_file_startpos;
-
-  if (fwrite (&h, sizeof (h), 1, pch_outfile) != 1)
-    fatal_error ("can%'t write %s: %m", pch_file);
-
-  buf = XNEWVEC (char, 16384);
-
-  if (fseek (asm_out_file, asm_file_startpos, SEEK_SET) != 0)
-    fatal_error ("can%'t seek in %s: %m", asm_file_name);
-
-  for (written = asm_file_startpos; written < asm_file_end; )
-    {
-      long size = asm_file_end - written;
-      if (size > 16384)
-	size = 16384;
-      if (fread (buf, size, 1, asm_out_file) != 1)
-	fatal_error ("can%'t read %s: %m", asm_file_name);
-      if (fwrite (buf, size, 1, pch_outfile) != 1)
-	fatal_error ("can%'t write %s: %m", pch_file);
-      written += size;
-    }
-  free (buf);
-  /* asm_out_file can be written afterwards, so fseek to clear
-     _IOREAD flag.  */
-  if (fseek (asm_out_file, 0, SEEK_END) != 0)
-    fatal_error ("can%'t seek in %s: %m", asm_file_name);
 
   gt_pch_save (pch_outfile);
 
@@ -375,7 +314,6 @@ c_common_read_pch (cpp_reader *pfile, const char *name,
 		   int fd, const char *orig_name ATTRIBUTE_UNUSED)
 {
   FILE *f;
-  struct c_pch_header h;
   struct save_macro_data *smd;
   expanded_location saved_loc;
   bool saved_trace_includes;
@@ -392,38 +330,6 @@ c_common_read_pch (cpp_reader *pfile, const char *name,
 
   cpp_get_callbacks (parse_in)->valid_pch = NULL;
 
-  if (fread (&h, sizeof (h), 1, f) != 1)
-    {
-      cpp_errno (pfile, CPP_DL_ERROR, "reading");
-      fclose (f);
-      goto end;
-    }
-
-  if (!flag_preprocess_only)
-    {
-      unsigned long written;
-      char * buf = XNEWVEC (char, 16384);
-
-      for (written = 0; written < h.asm_size; )
-	{
-	  long size = h.asm_size - written;
-	  if (size > 16384)
-	    size = 16384;
-	  if (fread (buf, size, 1, f) != 1
-	      || fwrite (buf, size, 1, asm_out_file) != 1)
-	    cpp_errno (pfile, CPP_DL_ERROR, "reading");
-	  written += size;
-	}
-      free (buf);
-    }
-  else
-    {
-      /* If we're preprocessing, don't write to a NULL
-	 asm_out_file.  */
-      if (fseek (f, h.asm_size, SEEK_CUR) != 0)
-	cpp_errno (pfile, CPP_DL_ERROR, "seeking");
-    }
-
   /* Save the location and then restore it after reading the PCH.  */
   saved_loc = expand_location (line_table->highest_line);
   saved_trace_includes = line_table->trace_includes;
@@ -434,6 +340,7 @@ c_common_read_pch (cpp_reader *pfile, const char *name,
 
   gt_pch_restore (f);
   cpp_set_line_map (pfile, line_table);
+  rebuild_location_adhoc_htab (line_table);
 
   timevar_push (TV_PCH_CPP_RESTORE);
   if (cpp_read_state (pfile, name, f, smd) != 0)
@@ -501,14 +408,3 @@ c_common_pch_pragma (cpp_reader *pfile, const char *name)
   close (fd);
 }
 
-/* Print out executable_checksum[].  */
-
-void
-c_common_print_pch_checksum (FILE *f)
-{
-  int i;
-  fputs ("Compiler executable checksum: ", f);
-  for (i = 0; i < 16; i++)
-    fprintf (f, "%02x", executable_checksum[i]);
-  putc ('\n', f);
-}

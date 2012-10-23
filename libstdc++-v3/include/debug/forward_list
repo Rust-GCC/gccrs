@@ -1,6 +1,6 @@
 // <forward_list> -*- C++ -*-
 
-// Copyright (C) 2010 Free Software Foundation, Inc.
+// Copyright (C) 2010, 2011, 2012 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -91,8 +91,9 @@ namespace __debug
       : _Base(__n, __value, __al)
       { }
 
-      template<typename _InputIterator>
-        forward_list(_InputIterator __first, _InputIterator __last,
+      template<typename _InputIterator,
+	       typename = std::_RequireInputIter<_InputIterator>>
+	forward_list(_InputIterator __first, _InputIterator __last,
                      const _Alloc& __al = _Alloc())
         : _Base(__gnu_debug::__base(__gnu_debug::__check_valid_range(__first,
 								     __last)),
@@ -130,6 +131,7 @@ namespace __debug
       {
 	// NB: DR 1204.
 	// NB: DR 675.
+	__glibcxx_check_self_move_assign(__list);
 	clear();
 	swap(__list);
 	return *this;
@@ -143,8 +145,9 @@ namespace __debug
         return *this;
       }
 
-      template<typename _InputIterator>
-        void
+      template<typename _InputIterator,
+	       typename = std::_RequireInputIter<_InputIterator>>
+	void
         assign(_InputIterator __first, _InputIterator __last)
         {
 	  __glibcxx_check_valid_range(__first, __last);
@@ -273,7 +276,8 @@ namespace __debug
 		       	this);
       }
 
-      template<typename _InputIterator>
+      template<typename _InputIterator,
+	       typename = std::_RequireInputIter<_InputIterator>>
         iterator
         insert_after(const_iterator __pos,
                      _InputIterator __first, _InputIterator __last)
@@ -405,6 +409,10 @@ namespace __debug
 	_GLIBCXX_DEBUG_VERIFY(&__list != this,
 			      _M_message(__gnu_debug::__msg_self_splice)
 			      ._M_sequence(*this, "this"));
+	_GLIBCXX_DEBUG_VERIFY(__list.get_allocator() == this->get_allocator(),
+			      _M_message(__gnu_debug::__msg_splice_alloc)
+			      ._M_sequence(*this)
+			      ._M_sequence(__list, "__list"));
 	this->_M_transfer_from_if(__list, [&__list](_Base_const_iterator __it)
 	  {
 	    return __it != __list._M_base().cbefore_begin()
@@ -428,6 +436,10 @@ namespace __debug
 	_GLIBCXX_DEBUG_VERIFY(__i._M_attached_to(&__list),
 			      _M_message(__gnu_debug::__msg_splice_other)
 			      ._M_iterator(__i, "__i")
+			      ._M_sequence(__list, "__list"));
+	_GLIBCXX_DEBUG_VERIFY(__list.get_allocator() == this->get_allocator(),
+			      _M_message(__gnu_debug::__msg_splice_alloc)
+			      ._M_sequence(*this)
 			      ._M_sequence(__list, "__list"));
 
 	// _GLIBCXX_RESOLVE_LIB_DEFECTS
@@ -465,6 +477,10 @@ namespace __debug
 			      ._M_sequence(__list, "list")
 			      ._M_iterator(__before, "before")
 			      ._M_iterator(__last, "last"));
+	_GLIBCXX_DEBUG_VERIFY(__list.get_allocator() == this->get_allocator(),
+			      _M_message(__gnu_debug::__msg_splice_alloc)
+			      ._M_sequence(*this)
+			      ._M_sequence(__list, "__list"));
 
 	for (_Base_const_iterator __tmp = std::next(__before.base());
 	     __tmp != __last.base(); ++__tmp)

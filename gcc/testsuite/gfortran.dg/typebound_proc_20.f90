@@ -1,5 +1,4 @@
-! { dg-do compile }
-! TODO: make runtime testcase once bug is fixed
+! { dg-do run }
 !
 ! PR fortran/47455
 !
@@ -64,5 +63,3 @@ use class_t
 type(t) :: x
 call x%calc()
 end
-
-! { dg-final { cleanup-modules "class_t" } }

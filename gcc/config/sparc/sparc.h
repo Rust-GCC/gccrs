@@ -475,7 +475,6 @@ extern enum cmodel sparc_cmodel;
 #endif
 
 /* Now define the sizes of the C data types.  */
-
 #define SHORT_TYPE_SIZE		16
 #define INT_TYPE_SIZE		32
 #define LONG_TYPE_SIZE		(TARGET_ARCH64 ? 64 : 32)
@@ -512,7 +511,6 @@ extern enum cmodel sparc_cmodel;
 #define SPARC_STACK_BOUNDARY_HACK (TARGET_ARCH64 && TARGET_STACK_BIAS)
 
 /* ALIGN FRAMES on double word boundaries */
-
 #define SPARC_STACK_ALIGN(LOC) \
   (TARGET_ARCH64 ? (((LOC)+15) & ~15) : (((LOC)+7) & ~7))
 
@@ -550,6 +548,10 @@ extern enum cmodel sparc_cmodel;
      ? MAX (MAX ((COMPUTED), (SPECIFIED)), BIGGEST_ALIGNMENT) \
      : MAX ((COMPUTED), (SPECIFIED)))			\
    :  MAX ((COMPUTED), (SPECIFIED)))
+
+/* An integer expression for the size in bits of the largest integer machine
+   mode that should actually be used.  We allow pairs of registers.  */
+#define MAX_FIXED_MODE_SIZE GET_MODE_BITSIZE (TARGET_ARCH64 ? TImode : DImode)
 
 /* We need 2 words, so we can save the stack pointer and the return register
    of the function containing a non-local goto target.  */
@@ -1104,15 +1106,12 @@ extern char leaf_reg_remap[];
   {{ FRAME_POINTER_REGNUM, STACK_POINTER_REGNUM}, \
    { FRAME_POINTER_REGNUM, HARD_FRAME_POINTER_REGNUM} }
 
-#define INITIAL_ELIMINATION_OFFSET(FROM, TO, OFFSET) 			\
-  do {									\
-    if ((TO) == STACK_POINTER_REGNUM)					\
-      (OFFSET) = sparc_compute_frame_size (get_frame_size (),		\
-					   current_function_is_leaf);	\
-    else								\
-      (OFFSET) = 0;							\
-    (OFFSET) += SPARC_STACK_BIAS;					\
-  } while (0)
+#define INITIAL_ELIMINATION_OFFSET(FROM, TO, OFFSET) 		\
+  do								\
+    {								\
+      (OFFSET) = sparc_initial_elimination_offset ((TO));	\
+    }								\
+  while (0)
 
 /* Keep the stack pointer constant throughout the function.
    This is both an optimization and a necessity: longjmp
@@ -1273,11 +1272,11 @@ do {									\
    return an rtx for the address of the word in the frame
    that holds the dynamic chain--the previous frame's address.  */
 #define DYNAMIC_CHAIN_ADDRESS(frame)	\
-  plus_constant (frame, 14 * UNITS_PER_WORD + SPARC_STACK_BIAS)
+  plus_constant (Pmode, frame, 14 * UNITS_PER_WORD + SPARC_STACK_BIAS)
 
 /* Given an rtx for the frame pointer,
    return an rtx for the address of the frame.  */
-#define FRAME_ADDR_RTX(frame) plus_constant (frame, SPARC_STACK_BIAS)
+#define FRAME_ADDR_RTX(frame) plus_constant (Pmode, frame, SPARC_STACK_BIAS)
 
 /* The return address isn't on the stack, it is in a register, so we can't
    access it from the current frame pointer.  We can access it from the
@@ -1299,7 +1298,7 @@ do {									\
   ((count == -1)				\
    ? gen_rtx_REG (Pmode, RETURN_ADDR_REGNUM)			\
    : gen_rtx_MEM (Pmode,			\
-		  memory_address (Pmode, plus_constant (frame, \
+		  memory_address (Pmode, plus_constant (Pmode, frame, \
 							15 * UNITS_PER_WORD \
 							+ SPARC_STACK_BIAS))))
 
@@ -1309,7 +1308,8 @@ do {									\
    is something you can return to.  */
 #define INCOMING_RETURN_ADDR_REGNUM 15
 #define INCOMING_RETURN_ADDR_RTX \
-  plus_constant (gen_rtx_REG (word_mode, INCOMING_RETURN_ADDR_REGNUM), 8)
+  plus_constant (word_mode, \
+		 gen_rtx_REG (word_mode, INCOMING_RETURN_ADDR_REGNUM), 8)
 #define DWARF_FRAME_RETURN_COLUMN \
   DWARF_FRAME_REGNUM (INCOMING_RETURN_ADDR_REGNUM)
 
@@ -1711,12 +1711,10 @@ do {									\
     ASM_OUTPUT_ALIGNED_LOCAL (FILE, NAME, SIZE, ALIGN);		\
   } while (0)
 
-#define IDENT_ASM_OP "\t.ident\t"
-
 /* Output #ident as a .ident.  */
 
-#define ASM_OUTPUT_IDENT(FILE, NAME) \
-  fprintf (FILE, "%s\"%s\"\n", IDENT_ASM_OP, NAME);
+#undef TARGET_ASM_OUTPUT_IDENT
+#define TARGET_ASM_OUTPUT_IDENT default_asm_output_ident_directive
 
 /* Prettify the assembly.  */
 
@@ -1747,9 +1745,6 @@ extern int sparc_indent_opcode;
 #else
 #define AS_NIAGARA3_FLAG "d"
 #endif
-
-/* The number of Pmode words for the setjmp buffer.  */
-#define JMP_BUF_SIZE 12
 
 /* We use gcc _mcount for profiling.  */
 #define NO_PROFILE_COUNTERS 0

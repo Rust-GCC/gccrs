@@ -23,13 +23,11 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "rtl.h"
-#include "hard-reg-set.h"
+#include "regs.h"
 #include "obstack.h"
 #include "basic-block.h"
 #include "cfgloop.h"
-#include "cfglayout.h"
 #include "tree-pass.h"
-#include "timevar.h"
 #include "flags.h"
 #include "df.h"
 #include "ggc.h"
@@ -42,15 +40,29 @@ along with GCC; see the file COPYING3.  If not see
 void
 loop_optimizer_init (unsigned flags)
 {
-  struct loops *loops;
+  timevar_push (TV_LOOP_INIT);
+  if (!current_loops)
+    {
+      struct loops *loops = ggc_alloc_cleared_loops ();
 
-  gcc_assert (!current_loops);
-  loops = ggc_alloc_cleared_loops ();
+      gcc_assert (!(cfun->curr_properties & PROP_loops));
 
-  /* Find the loops.  */
+      /* Find the loops.  */
 
-  flow_loops_find (loops);
-  current_loops = loops;
+      flow_loops_find (loops);
+      current_loops = loops;
+    }
+  else
+    {
+      gcc_assert (cfun->curr_properties & PROP_loops);
+
+      /* Ensure that the dominators are computed, like flow_loops_find does.  */
+      calculate_dominance_info (CDI_DOMINATORS);
+
+#ifdef ENABLE_CHECKING
+      verify_loop_structure ();
+#endif
+    }
 
   if (flags & LOOPS_MAY_HAVE_MULTIPLE_LATCHES)
     {
@@ -91,9 +103,10 @@ loop_optimizer_init (unsigned flags)
   flow_loops_dump (dump_file, NULL, 1);
 
 #ifdef ENABLE_CHECKING
-  verify_dominators (CDI_DOMINATORS);
   verify_loop_structure ();
 #endif
+
+  timevar_pop (TV_LOOP_INIT);
 }
 
 /* Finalize loop structures.  */
@@ -105,6 +118,24 @@ loop_optimizer_finalize (void)
   struct loop *loop;
   basic_block bb;
 
+  timevar_push (TV_LOOP_FINI);
+
+  if (loops_state_satisfies_p (LOOPS_HAVE_RECORDED_EXITS))
+    release_recorded_exits ();
+
+  /* If we should preserve loop structure, do not free it but clear
+     flags that advanced properties are there as we are not preserving
+     that in full.  */
+  if (cfun->curr_properties & PROP_loops)
+    {
+      loops_state_clear (LOOP_CLOSED_SSA
+			 | LOOPS_HAVE_MARKED_IRREDUCIBLE_REGIONS
+			 | LOOPS_HAVE_PREHEADERS
+			 | LOOPS_HAVE_SIMPLE_LATCHES
+			 | LOOPS_HAVE_FALLTHRU_PREHEADERS);
+      goto loop_fini_done;
+    }
+
   gcc_assert (current_loops != NULL);
 
   FOR_EACH_LOOP (li, loop, 0)
@@ -113,8 +144,6 @@ loop_optimizer_finalize (void)
     }
 
   /* Clean up.  */
-  if (loops_state_satisfies_p (LOOPS_HAVE_RECORDED_EXITS))
-    release_recorded_exits ();
   flow_loops_free (current_loops);
   ggc_free (current_loops);
   current_loops = NULL;
@@ -123,6 +152,9 @@ loop_optimizer_finalize (void)
     {
       bb->loop_father = NULL;
     }
+
+loop_fini_done:
+  timevar_pop (TV_LOOP_FINI);
 }
 
 
@@ -132,15 +164,24 @@ loop_optimizer_finalize (void)
 static bool
 gate_handle_loop2 (void)
 {
-  return (optimize > 0
-  	  && (flag_move_loop_invariants
-              || flag_unswitch_loops
-              || flag_peel_loops
-              || flag_unroll_loops
+  if (optimize > 0
+      && (flag_move_loop_invariants
+	  || flag_unswitch_loops
+	  || flag_peel_loops
+	  || flag_unroll_loops
 #ifdef HAVE_doloop_end
-	      || (flag_branch_on_count_reg && HAVE_doloop_end)
+	  || (flag_branch_on_count_reg && HAVE_doloop_end)
 #endif
-	      ));
+	 ))
+    return true;
+  else
+    {
+      /* No longer preserve loops, remove them now.  */
+      cfun->curr_properties &= ~PROP_loops;
+      if (current_loops)
+	loop_optimizer_finalize ();
+      return false;
+    } 
 }
 
 struct rtl_opt_pass pass_loop2 =
@@ -170,7 +211,10 @@ rtl_loop_init (void)
   gcc_assert (current_ir_type () == IR_RTL_CFGLAYOUT);
 
   if (dump_file)
-    dump_flow_info (dump_file, dump_flags);
+    {
+      dump_reg_info (dump_file);
+      dump_flow_info (dump_file, dump_flags);
+    }
 
   loop_optimizer_init (LOOPS_NORMAL);
   return 0;
@@ -201,12 +245,17 @@ struct rtl_opt_pass pass_rtl_loop_init =
 static unsigned int
 rtl_loop_done (void)
 {
+  /* No longer preserve loops, remove them now.  */
+  cfun->curr_properties &= ~PROP_loops;
   loop_optimizer_finalize ();
   free_dominance_info (CDI_DOMINATORS);
 
   cleanup_cfg (0);
   if (dump_file)
-    dump_flow_info (dump_file, dump_flags);
+    {
+      dump_reg_info (dump_file);
+      dump_flow_info (dump_file, dump_flags);
+    }
 
   return 0;
 }
@@ -224,7 +273,7 @@ struct rtl_opt_pass pass_rtl_loop_done =
   TV_LOOP,                              /* tv_id */
   0,                                    /* properties_required */
   0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
+  PROP_loops,                           /* properties_destroyed */
   0,                                    /* todo_flags_start */
   TODO_verify_flow
     | TODO_verify_rtl_sharing           /* todo_flags_finish */

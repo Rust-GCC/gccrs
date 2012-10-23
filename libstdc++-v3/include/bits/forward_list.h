@@ -266,10 +266,14 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
     struct _Fwd_list_base
     {
     protected:
-      typedef typename _Alloc::template rebind<_Tp>::other _Tp_alloc_type;
+      typedef typename __gnu_cxx::__alloc_traits<_Alloc> _Alloc_traits;
+      typedef typename _Alloc_traits::template rebind<_Tp>::other
+        _Tp_alloc_type;
 
-      typedef typename _Alloc::template 
+      typedef typename _Alloc_traits::template
         rebind<_Fwd_list_node<_Tp>>::other _Node_alloc_type;
+
+      typedef __gnu_cxx::__alloc_traits<_Node_alloc_type> _Node_alloc_traits;
 
       struct _Fwd_list_impl 
       : public _Node_alloc_type
@@ -312,12 +316,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
       _Fwd_list_base(const _Fwd_list_base& __lst, const _Node_alloc_type& __a);
 
-      _Fwd_list_base(_Fwd_list_base&& __lst, const _Node_alloc_type& __a)
-      : _M_impl(__a)
-      {
-	this->_M_impl._M_head._M_next = __lst._M_impl._M_head._M_next;
-	__lst._M_impl._M_head._M_next = 0;
-      }
+      _Fwd_list_base(_Fwd_list_base&& __lst, const _Node_alloc_type& __a);
 
       _Fwd_list_base(_Fwd_list_base&& __lst)
       : _M_impl(std::move(__lst._M_get_Node_allocator()))
@@ -333,7 +332,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
       _Node*
       _M_get_node()
-      { return _M_get_Node_allocator().allocate(1); }
+      { return _Node_alloc_traits::allocate(_M_get_Node_allocator(), 1); }
 
       template<typename... _Args>
         _Node*
@@ -342,8 +341,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
           _Node* __node = this->_M_get_node();
           __try
             {
-              _M_get_Node_allocator().construct(__node,
-                                              std::forward<_Args>(__args)...);
+              _Node_alloc_traits::construct(_M_get_Node_allocator(), __node,
+                                            std::forward<_Args>(__args)...);
               __node->_M_next = 0;
             }
           __catch(...)
@@ -360,7 +359,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
       void
       _M_put_node(_Node* __p)
-      { _M_get_Node_allocator().deallocate(__p, 1); }
+      { _Node_alloc_traits::deallocate(_M_get_Node_allocator(), __p, 1); }
 
       _Fwd_list_node_base*
       _M_erase_after(_Fwd_list_node_base* __pos);
@@ -375,6 +374,9 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
    *  and fixed time insertion/deletion at any point in the sequence.
    *
    *  @ingroup sequences
+   *
+   *  @tparam _Tp  Type of element.
+   *  @tparam _Alloc  Allocator type, defaults to allocator<_Tp>.
    *
    *  Meets the requirements of a <a href="tables.html#65">container</a>, a
    *  <a href="tables.html#67">sequence</a>, including the
@@ -410,14 +412,16 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       typedef _Fwd_list_node_base                          _Node_base;
       typedef typename _Base::_Tp_alloc_type               _Tp_alloc_type;
       typedef typename _Base::_Node_alloc_type             _Node_alloc_type;
+      typedef typename _Base::_Node_alloc_traits           _Node_alloc_traits;
+      typedef __gnu_cxx::__alloc_traits<_Tp_alloc_type>    _Alloc_traits;
 
     public:
       // types:
       typedef _Tp                                          value_type;
-      typedef typename _Tp_alloc_type::pointer             pointer;
-      typedef typename _Tp_alloc_type::const_pointer       const_pointer;
-      typedef typename _Tp_alloc_type::reference           reference;
-      typedef typename _Tp_alloc_type::const_reference     const_reference;
+      typedef typename _Alloc_traits::pointer              pointer;
+      typedef typename _Alloc_traits::const_pointer        const_pointer;
+      typedef typename _Alloc_traits::reference            reference;
+      typedef typename _Alloc_traits::const_reference      const_reference;
  
       typedef _Fwd_list_iterator<_Tp>                      iterator;
       typedef _Fwd_list_const_iterator<_Tp>                const_iterator;
@@ -490,27 +494,22 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  [@a __first,@a __last).  This is linear in N (where N is
        *  distance(@a __first,@a __last)).
        */
-      template<typename _InputIterator>
+      template<typename _InputIterator,
+	       typename = std::_RequireInputIter<_InputIterator>>
         forward_list(_InputIterator __first, _InputIterator __last,
                      const _Alloc& __al = _Alloc())
 	: _Base(_Node_alloc_type(__al))
-        {
-          // Check whether it's an integral type.  If so, it's not an iterator.
-          typedef typename std::__is_integer<_InputIterator>::__type _Integral;
-          _M_initialize_dispatch(__first, __last, _Integral());
-        }
+        { _M_range_initialize(__first, __last); }
 
       /**
        *  @brief  The %forward_list copy constructor.
        *  @param  __list  A %forward_list of identical element and allocator
        *                types.
-       *
-       *  The newly-created %forward_list uses a copy of the allocation
-       *  object used by @a __list.
        */
       forward_list(const forward_list& __list)
-      : _Base(__list._M_get_Node_allocator())
-      { _M_initialize_dispatch(__list.begin(), __list.end(), __false_type()); }
+      : _Base(_Node_alloc_traits::_S_select_on_copy(
+                __list._M_get_Node_allocator()))
+      { _M_range_initialize(__list.begin(), __list.end()); }
 
       /**
        *  @brief  The %forward_list move constructor.
@@ -535,7 +534,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       forward_list(std::initializer_list<_Tp> __il,
                    const _Alloc& __al = _Alloc())
       : _Base(_Node_alloc_type(__al))
-      { _M_initialize_dispatch(__il.begin(), __il.end(), __false_type()); }
+      { _M_range_initialize(__il.begin(), __il.end()); }
 
       /**
        *  @brief  The forward_list dtor.
@@ -560,16 +559,18 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *                types.
        *
        *  The contents of @a __list are moved into this %forward_list
-       *  (without copying). @a __list is a valid, but unspecified
-       *  %forward_list
+       *  (without copying, if the allocators permit it).
+       *  @a __list is a valid, but unspecified %forward_list
        */
       forward_list&
       operator=(forward_list&& __list)
+      noexcept(_Node_alloc_traits::_S_nothrow_move())
       {
-	// NB: DR 1204.
-	// NB: DR 675.
-	this->clear();
-	this->swap(__list);
+        constexpr bool __move_storage =
+          _Node_alloc_traits::_S_propagate_on_move_assign()
+          || _Node_alloc_traits::_S_always_equal();
+        _M_move_assign(std::move(__list),
+                       integral_constant<bool, __move_storage>());
 	return *this;
       }
 
@@ -600,8 +601,9 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  that the number of elements of the resulting %forward_list's is the
        *  same as the number of elements assigned.  Old data is lost.
        */
-      template<typename _InputIterator>
-        void
+      template<typename _InputIterator,
+	       typename = std::_RequireInputIter<_InputIterator>>
+	void
         assign(_InputIterator __first, _InputIterator __last)
         {
           clear();
@@ -739,7 +741,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        */
       size_type
       max_size() const noexcept
-      { return this->_M_get_Node_allocator().max_size(); }
+      { return _Node_alloc_traits::max_size(this->_M_get_Node_allocator()); }
 
       // 23.2.3.3 element access:
 
@@ -896,7 +898,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  This operation is linear in the number of elements inserted and
        *  does not invalidate iterators and references.
        */
-      template<typename _InputIterator>
+      template<typename _InputIterator,
+	       typename = std::_RequireInputIter<_InputIterator>>
         iterator
         insert_after(const_iterator __pos,
                      _InputIterator __first, _InputIterator __last);
@@ -979,8 +982,13 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        */
       void
       swap(forward_list& __list)
-      { std::swap(this->_M_impl._M_head._M_next,
-		  __list._M_impl._M_head._M_next); }
+      noexcept(_Node_alloc_traits::_S_nothrow_swap())
+      {
+        std::swap(this->_M_impl._M_head._M_next,
+		  __list._M_impl._M_head._M_next);
+	_Node_alloc_traits::_S_on_swap(this->_M_get_Node_allocator(),
+                                       __list._M_get_Node_allocator());
+      }
 
       /**
        *  @brief Resizes the %forward_list to the specified number of
@@ -1215,16 +1223,10 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       { this->_M_impl._M_head._M_reverse_after(); }
 
     private:
-      template<typename _Integer>
-        void
-        _M_initialize_dispatch(_Integer __n, _Integer __x, __true_type)
-        { _M_fill_initialize(static_cast<size_type>(__n), __x); }
-
       // Called by the range constructor to implement [23.1.1]/9
       template<typename _InputIterator>
         void
-        _M_initialize_dispatch(_InputIterator __first, _InputIterator __last,
-                               __false_type);
+        _M_range_initialize(_InputIterator __first, _InputIterator __last);
 
       // Called by forward_list(n,v,a), and the range constructor when it
       // turns out to be the same thing.
@@ -1243,6 +1245,33 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       // Called by resize(sz).
       void
       _M_default_insert_after(const_iterator __pos, size_type __n);
+
+      // Called by operator=(forward_list&&)
+      void
+      _M_move_assign(forward_list&& __list, std::true_type) noexcept
+      {
+        clear();
+        std::swap(this->_M_impl._M_head._M_next,
+                  __list._M_impl._M_head._M_next);
+        std::__alloc_on_move(this->_M_get_Node_allocator(),
+                             __list._M_get_Node_allocator());
+      }
+
+      // Called by operator=(forward_list&&)
+      void
+      _M_move_assign(forward_list&& __list, std::false_type)
+      {
+        if (__list._M_get_Node_allocator() == this->_M_get_Node_allocator())
+          _M_move_assign(std::move(__list), std::true_type());
+        else
+          {
+            // The rvalue's allocator cannot be moved, or is not equal,
+            // so we need to individually move each element.
+            this->assign(std::__make_move_if_noexcept_iterator(__list.begin()),
+                         std::__make_move_if_noexcept_iterator(__list.end()));
+            __list.clear();
+          }
+      }
     };
 
   /**

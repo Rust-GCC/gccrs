@@ -35,7 +35,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-iterator.h"
 #include "tree-flow.h"
 #include "tree-mudflap.h"
-#include "tree-dump.h"
 #include "tree-pass.h"
 #include "hashtab.h"
 #include "diagnostic.h"
@@ -44,6 +43,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "ggc.h"
 #include "cgraph.h"
 #include "gimple.h"
+
+extern void add_bb_to_loop (basic_block, struct loop *);
 
 /* Internal function decls */
 
@@ -425,10 +426,6 @@ execute_mudflap_function_ops (void)
 
   push_gimplify_context (&gctx);
 
-  add_referenced_var (mf_cache_array_decl);
-  add_referenced_var (mf_cache_shift_decl);
-  add_referenced_var (mf_cache_mask_decl);
-
   /* In multithreaded mode, don't cache the lookup cache parameters.  */
   if (! flag_mudflap_threads)
     mf_decl_cache_locals ();
@@ -470,15 +467,15 @@ static void
 mf_decl_cache_locals (void)
 {
   gimple g;
-  gimple_seq seq = gimple_seq_alloc ();
+  gimple_seq seq = NULL;
 
   /* Build the cache vars.  */
   mf_cache_shift_decl_l
-    = mf_mark (make_rename_temp (TREE_TYPE (mf_cache_shift_decl),
+    = mf_mark (create_tmp_reg (TREE_TYPE (mf_cache_shift_decl),
                                "__mf_lookup_shift_l"));
 
   mf_cache_mask_decl_l
-    = mf_mark (make_rename_temp (TREE_TYPE (mf_cache_mask_decl),
+    = mf_mark (create_tmp_reg (TREE_TYPE (mf_cache_mask_decl),
                                "__mf_lookup_mask_l"));
 
   /* Build initialization nodes for the cache vars.  We just load the
@@ -560,13 +557,17 @@ mf_build_check_statement_for (tree base, tree limit,
       set_immediate_dominator (CDI_DOMINATORS, join_bb, cond_bb);
     }
 
+  /* Update loop info.  */
+  if (current_loops)
+    add_bb_to_loop (then_bb, cond_bb->loop_father);
+
   /* Build our local variables.  */
-  mf_elem = make_rename_temp (mf_cache_structptr_type, "__mf_elem");
-  mf_base = make_rename_temp (mf_uintptr_type, "__mf_base");
-  mf_limit = make_rename_temp (mf_uintptr_type, "__mf_limit");
+  mf_elem = create_tmp_reg (mf_cache_structptr_type, "__mf_elem");
+  mf_base = create_tmp_reg (mf_uintptr_type, "__mf_base");
+  mf_limit = create_tmp_reg (mf_uintptr_type, "__mf_limit");
 
   /* Build: __mf_base = (uintptr_t) <base address expression>.  */
-  seq = gimple_seq_alloc ();
+  seq = NULL;
   t = fold_convert_loc (location, mf_uintptr_type,
 			unshare_expr (base));
   t = force_gimple_operand (t, &stmts, false, NULL_TREE);
@@ -644,7 +645,7 @@ mf_build_check_statement_for (tree base, tree limit,
   t = build2 (TRUTH_OR_EXPR, boolean_type_node, t, u);
   t = force_gimple_operand (t, &stmts, false, NULL_TREE);
   gimple_seq_add_seq (&seq, stmts);
-  cond = make_rename_temp (boolean_type_node, "__mf_unlikely_cond");
+  cond = create_tmp_reg (boolean_type_node, "__mf_unlikely_cond");
   g = gimple_build_assign  (cond, t);
   gimple_set_location (g, location);
   gimple_seq_add_stmt (&seq, g);
@@ -677,7 +678,7 @@ mf_build_check_statement_for (tree base, tree limit,
 
      This is the body of the conditional.  */
 
-  seq = gimple_seq_alloc ();
+  seq = NULL;
   /* u is a string, so it is already a gimple value.  */
   u = mf_file_function_line_tree (location);
   /* NB: we pass the overall [base..limit] range to mf_check.  */
@@ -698,7 +699,7 @@ mf_build_check_statement_for (tree base, tree limit,
 	  gsi_insert_seq_after (&gsi, seq, GSI_CONTINUE_LINKING);
 	  e = split_block (then_bb, g);
 	  then_bb = e->dest;
-	  seq = gimple_seq_alloc ();
+	  seq = NULL;
 	}
 
       g = gimple_build_assign (mf_cache_shift_decl_l, mf_cache_shift_decl);
@@ -1108,7 +1109,7 @@ mx_register_decls (tree decl, gimple_seq seq, location_t location)
   if (finally_stmts != NULL)
     {
       gimple stmt = gimple_build_try (seq, finally_stmts, GIMPLE_TRY_FINALLY);
-      gimple_seq new_seq = gimple_seq_alloc ();
+      gimple_seq new_seq = NULL;
 
       gimple_seq_add_stmt (&new_seq, stmt);
       return new_seq;

@@ -1,5 +1,5 @@
 /* Instruction scheduling pass.  Selective scheduler and pipeliner.
-   Copyright (C) 2006, 2007, 2008, 2009, 2010, 2011
+   Copyright (C) 2006, 2007, 2008, 2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -35,15 +35,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "params.h"
 #include "target.h"
 #include "output.h"
-#include "timevar.h"
-#include "tree-pass.h"
 #include "sched-int.h"
 #include "ggc.h"
 #include "tree.h"
 #include "vec.h"
 #include "langhooks.h"
 #include "rtlhooks-def.h"
-#include "output.h"
 #include "emit-rtl.h"
 
 #ifdef INSN_SCHEDULING
@@ -285,7 +282,7 @@ struct rtx_search_arg
   /* What we are searching for.  */
   rtx x;
 
-  /* The occurence counter.  */
+  /* The occurrence counter.  */
   int n;
 };
 
@@ -733,7 +730,7 @@ can_substitute_through_p (insn_t insn, ds_t ds)
   return false;
 }
 
-/* Substitute all occurences of INSN's destination in EXPR' vinsn with INSN's
+/* Substitute all occurrences of INSN's destination in EXPR' vinsn with INSN's
    source (if INSN is eligible for substitution).  Returns TRUE if
    substitution was actually performed, FALSE otherwise.  Substitution might
    be not performed because it's either EXPR' vinsn doesn't contain INSN's
@@ -1140,7 +1137,7 @@ init_regs_for_mode (enum machine_mode mode)
 #ifdef LEAF_REGISTERS
             /* We can't use a non-leaf register if we're in a
                leaf function.  */
-            || (current_function_is_leaf
+            || (crtl->is_leaf
                 && !LEAF_REGISTERS[cur_reg + i])
 #endif
             )
@@ -1941,9 +1938,9 @@ undo_transformations (av_set_t *av_ptr, rtx insn)
         {
           expr_history_def *phist;
 
-          phist = VEC_index (expr_history_def,
-                             EXPR_HISTORY_OF_CHANGES (expr),
-                             index);
+          phist = &VEC_index (expr_history_def,
+                              EXPR_HISTORY_OF_CHANGES (expr),
+                              index);
 
           switch (phist->type)
             {
@@ -3567,29 +3564,41 @@ process_use_exprs (av_set_t *av_ptr)
   return NULL;
 }
 
-/* Lookup EXPR in VINSN_VEC and return TRUE if found.  */
+/* Lookup EXPR in VINSN_VEC and return TRUE if found.  Also check patterns from
+   EXPR's history of changes.  */
 static bool
 vinsn_vec_has_expr_p (vinsn_vec_t vinsn_vec, expr_t expr)
 {
-  vinsn_t vinsn;
+  vinsn_t vinsn, expr_vinsn;
   int n;
+  unsigned i;
 
-  FOR_EACH_VEC_ELT (vinsn_t, vinsn_vec, n, vinsn)
-    if (VINSN_SEPARABLE_P (vinsn))
-      {
-        if (vinsn_equal_p (vinsn, EXPR_VINSN (expr)))
-          return true;
-      }
-    else
-      {
-        /* For non-separable instructions, the blocking insn can have
-           another pattern due to substitution, and we can't choose
-           different register as in the above case.  Check all registers
-           being written instead.  */
-        if (bitmap_intersect_p (VINSN_REG_SETS (vinsn),
-                                VINSN_REG_SETS (EXPR_VINSN (expr))))
-          return true;
-      }
+  /* Start with checking expr itself and then proceed with all the old forms
+     of expr taken from its history vector.  */
+  for (i = 0, expr_vinsn = EXPR_VINSN (expr);
+       expr_vinsn;
+       expr_vinsn = (i < VEC_length (expr_history_def,
+				     EXPR_HISTORY_OF_CHANGES (expr))
+		     ? VEC_index (expr_history_def,
+				  EXPR_HISTORY_OF_CHANGES (expr),
+				  i++).old_expr_vinsn
+		     : NULL))
+    FOR_EACH_VEC_ELT (vinsn_t, vinsn_vec, n, vinsn)
+      if (VINSN_SEPARABLE_P (vinsn))
+	{
+	  if (vinsn_equal_p (vinsn, expr_vinsn))
+	    return true;
+	}
+      else
+	{
+	  /* For non-separable instructions, the blocking insn can have
+	     another pattern due to substitution, and we can't choose
+	     different register as in the above case.  Check all registers
+	     being written instead.  */
+	  if (bitmap_intersect_p (VINSN_REG_SETS (vinsn),
+				  VINSN_REG_SETS (expr_vinsn)))
+	    return true;
+	}
 
   return false;
 }
@@ -4138,7 +4147,7 @@ invoke_reorder_hooks (fence_t fence)
   return issue_more;
 }
 
-/* Return an EXPR correponding to INDEX element of ready list, if
+/* Return an EXPR corresponding to INDEX element of ready list, if
    FOLLOW_READY_ELEMENT is true (i.e., an expr of
    ready_element (&ready, INDEX) will be returned), and to INDEX element of
    ready.vec otherwise.  */
@@ -5697,8 +5706,8 @@ update_and_record_unavailable_insns (basic_block book_block)
               || EXPR_TARGET_AVAILABLE (new_expr)
 		 != EXPR_TARGET_AVAILABLE (cur_expr))
 	    /* Unfortunately, the below code could be also fired up on
-	       separable insns.
-	       FIXME: add an example of how this could happen.  */
+	       separable insns, e.g. when moving insns through the new
+	       speculation check as in PR 53701.  */
             vinsn_vec_add (&vec_bookkeeping_blocked_vinsns, cur_expr);
         }
 
@@ -7124,8 +7133,15 @@ reset_sched_cycles_in_current_ebb (void)
 
       if (real_insn)
 	{
+	  static state_t temp = NULL;
+
+	  if (!temp)
+	    temp = xmalloc (dfa_state_size);
+	  memcpy (temp, curr_state, dfa_state_size);
+
 	  cost = state_transition (curr_state, insn);
-	  issued_insns++;
+	  if (memcmp (temp, curr_state, dfa_state_size))
+	    issued_insns++;
 
           if (sched_verbose >= 2)
 	    {

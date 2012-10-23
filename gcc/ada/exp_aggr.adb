@@ -238,6 +238,15 @@ package body Exp_Aggr is
    --  This is the top-level routine to perform array aggregate expansion.
    --  N is the N_Aggregate node to be expanded.
 
+   function Is_Two_Dim_Packed_Array (Typ : Entity_Id) return Boolean;
+   --  For two-dimensional packed aggregates with constant bounds and constant
+   --  components, it is preferable to pack the inner aggregates because the
+   --  whole matrix can then be presented to the back-end as a one-dimensional
+   --  list of literals. This is much more efficient than expanding into single
+   --  component assignments. This function determines if the type Typ is for
+   --  an array that is suitable for this optimization: it returns True if Typ
+   --  is a two dimensional bit packed array with component size 1, 2, or 4.
+
    function Late_Expansion
      (N      : Node_Id;
       Typ    : Entity_Id;
@@ -275,6 +284,13 @@ package body Exp_Aggr is
    --  the assignment can be done in place even if bounds are not static,
    --  by converting it into a loop over the discrete range of the slice.
 
+   function Two_Dim_Packed_Array_Handled (N : Node_Id) return Boolean;
+   --  If the type of the aggregate is a two-dimensional bit_packed array
+   --  it may be transformed into an array of bytes with constant values,
+   --  and presented to the back-end as a static value. The function returns
+   --  false if this transformation cannot be performed. THis is similar to,
+   --  and reuses part of the machinery in Packed_Array_Aggregate_Handled.
+
    ------------------
    -- Aggr_Size_OK --
    ------------------
@@ -294,15 +310,24 @@ package body Exp_Aggr is
 
       --  The normal limit is 5000, but we increase this limit to 2**24 (about
       --  16 million) if Restrictions (No_Elaboration_Code) or Restrictions
-      --  (No_Implicit_Loops) is specified, since in either case, we are at
-      --  risk of declaring the program illegal because of this limit.
+      --  (No_Implicit_Loops) is specified, since in either case we are at
+      --  risk of declaring the program illegal because of this limit. We also
+      --  increase the limit when Static_Elaboration_Desired, given that this
+      --  means that objects are intended to be placed in data memory.
+
+      --  We also increase the limit if the aggregate is for a packed two-
+      --  dimensional array, because if components are static it is much more
+      --  efficient to construct a one-dimensional equivalent array with static
+      --  components.
 
       Max_Aggr_Size : constant Nat :=
-                        5000 + (2 ** 24 - 5000) *
-                          Boolean'Pos
-                            (Restriction_Active (No_Elaboration_Code)
-                              or else
-                             Restriction_Active (No_Implicit_Loops));
+        5000 + (2 ** 24 - 5000) *
+          Boolean'Pos
+            (Restriction_Active (No_Elaboration_Code)
+             or else Restriction_Active (No_Implicit_Loops)
+             or else Is_Two_Dim_Packed_Array (Typ)
+             or else ((Ekind (Current_Scope) = E_Package
+                       and then Static_Elaboration_Desired (Current_Scope))));
 
       function Component_Count (T : Entity_Id) return Int;
       --  The limit is applied to the total number of components that the
@@ -334,9 +359,9 @@ package body Exp_Aggr is
          elsif Is_Array_Type (T) then
             declare
                Lo : constant Node_Id :=
-                      Type_Low_Bound (Etype (First_Index (T)));
+                 Type_Low_Bound (Etype (First_Index (T)));
                Hi : constant Node_Id :=
-                      Type_High_Bound (Etype (First_Index (T)));
+                 Type_High_Bound (Etype (First_Index (T)));
 
                Siz : constant Int := Component_Count (Component_Type (T));
 
@@ -394,9 +419,8 @@ package body Exp_Aggr is
          then
             declare
                Index_Type : constant Entity_Id :=
-                              Etype
-                                (First_Index
-                                   (Etype (Defining_Identifier (Parent (N)))));
+                 Etype
+                   (First_Index (Etype (Defining_Identifier (Parent (N)))));
                Indx       : Node_Id;
 
             begin
@@ -2497,8 +2521,7 @@ package body Exp_Aggr is
         and then CPP_Num_Prims (Typ) > 0
       then
          Invoke_Constructor : declare
-            CPP_Parent : constant Entity_Id :=
-                           Enclosing_CPP_Parent (Typ);
+            CPP_Parent : constant Entity_Id := Enclosing_CPP_Parent (Typ);
 
             procedure Invoke_IC_Proc (T : Entity_Id);
             --  Recursive routine used to climb to parents. Required because
@@ -2691,19 +2714,18 @@ package body Exp_Aggr is
                      SubE : constant Entity_Id := Make_Temporary (Loc, 'T');
 
                      SubD : constant Node_Id :=
-                              Make_Subtype_Declaration (Loc,
-                                Defining_Identifier => SubE,
-                                Subtype_Indication  =>
-                                  Make_Subtype_Indication (Loc,
-                                    Subtype_Mark =>
-                                      New_Reference_To
-                                        (Etype (Comp_Type), Loc),
-                                    Constraint =>
-                                      Make_Index_Or_Discriminant_Constraint
-                                        (Loc,
-                                         Constraints => New_List (
-                                          New_Copy_Tree
-                                            (Aggregate_Bounds (Expr_Q))))));
+                       Make_Subtype_Declaration (Loc,
+                         Defining_Identifier => SubE,
+                         Subtype_Indication  =>
+                           Make_Subtype_Indication (Loc,
+                             Subtype_Mark =>
+                               New_Reference_To (Etype (Comp_Type), Loc),
+                             Constraint =>
+                               Make_Index_Or_Discriminant_Constraint
+                                 (Loc,
+                                  Constraints => New_List (
+                                    New_Copy_Tree
+                                      (Aggregate_Bounds (Expr_Q))))));
 
                      --  Create a temporary array of the above subtype which
                      --  will be used to capture the aggregate assignments.
@@ -2711,10 +2733,9 @@ package body Exp_Aggr is
                      TmpE : constant Entity_Id := Make_Temporary (Loc, 'A', N);
 
                      TmpD : constant Node_Id :=
-                              Make_Object_Declaration (Loc,
-                                Defining_Identifier => TmpE,
-                                Object_Definition   =>
-                                  New_Reference_To (SubE, Loc));
+                       Make_Object_Declaration (Loc,
+                         Defining_Identifier => TmpE,
+                         Object_Definition   => New_Reference_To (SubE, Loc));
 
                   begin
                      Set_No_Initialization (TmpD);
@@ -2935,9 +2956,8 @@ package body Exp_Aggr is
       Temp : constant Entity_Id  := Defining_Identifier (Decl);
 
       Occ  : constant Node_Id :=
-               Unchecked_Convert_To (Typ,
-                 Make_Explicit_Dereference (Loc,
-                   New_Reference_To (Temp, Loc)));
+        Unchecked_Convert_To (Typ,
+          Make_Explicit_Dereference (Loc, New_Reference_To (Temp, Loc)));
 
    begin
       if Is_Array_Type (Typ) then
@@ -3511,15 +3531,16 @@ package body Exp_Aggr is
                            --  Check for maximum others replication. Note that
                            --  we skip this test if either of the restrictions
                            --  No_Elaboration_Code or No_Implicit_Loops is
-                           --  active, if this is a preelaborable unit or a
-                           --  predefined unit. This ensures that predefined
-                           --  units get the same level of constant folding in
-                           --  Ada 95 and Ada 2005, where their categorization
-                           --  has changed.
+                           --  active, if this is a preelaborable unit or
+                           --  a predefined unit, or if the unit must be
+                           --  placed in data memory. This also ensures that
+                           --  predefined units get the same level of constant
+                           --  folding in Ada 95 and Ada 2005, where their
+                           --  categorization has changed.
 
                            declare
                               P : constant Entity_Id :=
-                                    Cunit_Entity (Current_Sem_Unit);
+                                Cunit_Entity (Current_Sem_Unit);
 
                            begin
                               --  Check if duplication OK and if so continue
@@ -3527,6 +3548,11 @@ package body Exp_Aggr is
 
                               if Restriction_Active (No_Elaboration_Code)
                                 or else Restriction_Active (No_Implicit_Loops)
+                                or else
+                                  (Ekind (Current_Scope) = E_Package
+                                    and then
+                                      Static_Elaboration_Desired
+                                        (Current_Scope))
                                 or else Is_Preelaborated (P)
                                 or else (Ekind (P) = E_Package_Body
                                           and then
@@ -3717,6 +3743,43 @@ package body Exp_Aggr is
 
          Analyze_And_Resolve (N, Typ);
       end if;
+
+      --  Is Static_Eaboration_Desired has been specified, diagnose aggregates
+      --  that will still require initialization code.
+
+      if (Ekind (Current_Scope) = E_Package
+        and then Static_Elaboration_Desired (Current_Scope))
+        and then Nkind (Parent (N)) = N_Object_Declaration
+      then
+         declare
+            Expr : Node_Id;
+
+         begin
+            if Nkind (N) = N_Aggregate and then Present (Expressions (N)) then
+               Expr := First (Expressions (N));
+               while Present (Expr) loop
+                  if Nkind_In (Expr, N_Integer_Literal, N_Real_Literal)
+                    or else
+                      (Is_Entity_Name (Expr)
+                        and then Ekind (Entity (Expr)) = E_Enumeration_Literal)
+                  then
+                     null;
+
+                  else
+                     Error_Msg_N
+                       ("non-static object  requires elaboration code?", N);
+                     exit;
+                  end if;
+
+                  Next (Expr);
+               end loop;
+
+               if Present (Component_Associations (N)) then
+                  Error_Msg_N ("object requires elaboration code?", N);
+               end if;
+            end if;
+         end;
+      end if;
    end Convert_To_Positional;
 
    ----------------------------
@@ -3776,7 +3839,7 @@ package body Exp_Aggr is
       --  possible, provided other conditions are met on the LHS.
 
       Others_Present : array (1 .. Aggr_Dimension) of Boolean :=
-                         (others => False);
+        (others => False);
       --  If Others_Present (J) is True, then there is an others choice
       --  in one of the sub-aggregates of N at dimension J.
 
@@ -4735,8 +4798,9 @@ package body Exp_Aggr is
       if Nkind (N) /= N_Aggregate then
          return;
 
-      --  We are also done if the result is an analyzed aggregate
-      --  This case could use more comments ???
+      --  We are also done if the result is an analyzed aggregate, indicating
+      --  that Convert_To_Positional succeeded and reanalyzed the rewritten
+      --  aggregate.
 
       elsif Analyzed (N)
         and then N /= Original_Node (N)
@@ -5720,11 +5784,10 @@ package body Exp_Aggr is
             elsif Tagged_Type_Expansion then
                declare
                   Tag_Name  : constant Node_Id :=
-                                New_Occurrence_Of
-                                  (First_Tag_Component (Typ), Loc);
+                    New_Occurrence_Of (First_Tag_Component (Typ), Loc);
                   Typ_Tag   : constant Entity_Id := RTE (RE_Tag);
                   Conv_Node : constant Node_Id :=
-                                Unchecked_Convert_To (Typ_Tag, Tag_Value);
+                    Unchecked_Convert_To (Typ_Tag, Tag_Value);
 
                begin
                   Set_Etype (Conv_Node, Typ_Tag);
@@ -5843,6 +5906,18 @@ package body Exp_Aggr is
                      and then Typ = RTE (RE_Interface_Data_Element)));
    end Is_Static_Dispatch_Table_Aggregate;
 
+   -----------------------------
+   -- Is_Two_Dim_Packed_Array --
+   -----------------------------
+
+   function Is_Two_Dim_Packed_Array (Typ : Entity_Id) return Boolean is
+      C : constant Int := UI_To_Int (Component_Size (Typ));
+   begin
+      return Number_Dimensions (Typ) = 2
+        and then Is_Bit_Packed_Array (Typ)
+        and then (C = 1 or else C = 2 or else C = 4);
+   end Is_Two_Dim_Packed_Array;
+
    --------------------
    -- Late_Expansion --
    --------------------
@@ -5922,10 +5997,13 @@ package body Exp_Aggr is
    --  The current version of this procedure will handle at compile time
    --  any array aggregate that meets these conditions:
 
-   --    One dimensional, bit packed
+   --    One and two dimensional, bit packed
    --    Underlying packed type is modular type
    --    Bounds are within 32-bit Int range
    --    All bounds and values are static
+
+   --  Note: for now, in the 2-D case, we only handle component sizes of
+   --  1, 2, 4 (cases where an integral number of elements occupies a byte).
 
    function Packed_Array_Aggregate_Handled (N : Node_Id) return Boolean is
       Loc  : constant Source_Ptr := Sloc (N);
@@ -5936,12 +6014,23 @@ package body Exp_Aggr is
       --  Exception raised if this aggregate cannot be handled
 
    begin
-      --  For now, handle only one dimensional bit packed arrays
+      --  Handle one- or two dimensional bit packed array
 
       if not Is_Bit_Packed_Array (Typ)
-        or else Number_Dimensions (Typ) > 1
-        or else not Is_Modular_Integer_Type (Packed_Array_Type (Typ))
+        or else Number_Dimensions (Typ) > 2
       then
+         return False;
+      end if;
+
+      --  If two-dimensional, check whether it can be folded, and transformed
+      --  into a one-dimensional aggregate for the Packed_Array_Type of the
+      --  original type.
+
+      if Number_Dimensions (Typ) = 2 then
+         return Two_Dim_Packed_Array_Handled (N);
+      end if;
+
+      if not Is_Modular_Integer_Type (Packed_Array_Type (Typ)) then
          return False;
       end if;
 
@@ -6030,16 +6119,17 @@ package body Exp_Aggr is
          end if;
 
          --  At this stage we have a suitable aggregate for handling at compile
-         --  time (the only remaining checks are that the values of expressions
-         --  in the aggregate are compile time known (check is performed by
-         --  Get_Component_Val), and that any subtypes or ranges are statically
+         --  time. The only remaining checks are that the values of expressions
+         --  in the aggregate are compile-time known (checks are performed by
+         --  Get_Component_Val, and that any subtypes or ranges are statically
          --  known.
 
          --  If the aggregate is not fully positional at this stage, then
          --  convert it to positional form. Either this will fail, in which
          --  case we can do nothing, or it will succeed, in which case we have
-         --  succeeded in handling the aggregate, or it will stay an aggregate,
-         --  in which case we have failed to handle this case.
+         --  succeeded in handling the aggregate and transforming it into a
+         --  modular value, or it will stay an aggregate, in which case we
+         --  have failed to create a packed value for it.
 
          if Present (Component_Associations (N)) then
             Convert_To_Positional
@@ -6077,12 +6167,30 @@ package body Exp_Aggr is
             Expr : Node_Id;
             --  Next expression from positional parameters of aggregate
 
+            Left_Justified : Boolean;
+            --  Set True if we are filling the high order bits of the target
+            --  value (i.e. the value is left justified).
+
          begin
             --  For little endian, we fill up the low order bits of the target
             --  value. For big endian we fill up the high order bits of the
             --  target value (which is a left justified modular value).
 
-            if Bytes_Big_Endian xor Debug_Flag_8 then
+            Left_Justified := Bytes_Big_Endian;
+
+            --  Switch justification if using -gnatd8
+
+            if Debug_Flag_8 then
+               Left_Justified := not Left_Justified;
+            end if;
+
+            --  Switch justfification if reverse storage order
+
+            if Reverse_Storage_Order (Base_Type (Typ)) then
+               Left_Justified := not Left_Justified;
+            end if;
+
+            if Left_Justified then
                Shift := Csiz * (Len - 1);
                Incr  := -Csiz;
             else
@@ -6108,9 +6216,7 @@ package body Exp_Aggr is
 
             --  Now we can rewrite with the proper value
 
-            Lit :=
-              Make_Integer_Literal (Loc,
-                Intval => Aggregate_Val);
+            Lit := Make_Integer_Literal (Loc, Intval => Aggregate_Val);
             Set_Print_In_Hex (Lit);
 
             --  Construct the expression using this literal. Note that it is
@@ -6229,7 +6335,8 @@ package body Exp_Aggr is
             return False;
          else
             return Expr_Value (L1) /= Expr_Value (L2)
-              or else Expr_Value (H1) /= Expr_Value (H2);
+                     or else
+                   Expr_Value (H1) /= Expr_Value (H2);
          end if;
       end if;
    end Must_Slide;
@@ -6297,6 +6404,179 @@ package body Exp_Aggr is
          return False;
       end if;
    end Safe_Slice_Assignment;
+
+   ----------------------------------
+   -- Two_Dim_Packed_Array_Handled --
+   ----------------------------------
+
+   function Two_Dim_Packed_Array_Handled (N : Node_Id) return Boolean is
+      Loc          : constant Source_Ptr := Sloc (N);
+      Typ          : constant Entity_Id := Etype (N);
+      Ctyp         : constant Entity_Id := Component_Type (Typ);
+      Comp_Size    : constant Int := UI_To_Int (Component_Size (Typ));
+      Packed_Array : constant Entity_Id := Packed_Array_Type (Base_Type (Typ));
+
+      One_Comp  : Node_Id;
+      --  Expression in original aggregate
+
+      One_Dim   : Node_Id;
+      --  One-dimensional subaggregate
+
+   begin
+
+      --  For now, only deal with cases where an integral number of elements
+      --  fit in a single byte. This includes the most common boolean case.
+
+      if not (Comp_Size = 1 or else
+              Comp_Size = 2 or else
+              Comp_Size = 4)
+      then
+         return False;
+      end if;
+
+      Convert_To_Positional
+        (N, Max_Others_Replicate => 64, Handle_Bit_Packed => True);
+
+      --  Verify that all components are static
+
+      if Nkind (N) = N_Aggregate
+        and then Compile_Time_Known_Aggregate (N)
+      then
+         null;
+
+      --  The aggregate may have been re-analyzed and converted already
+
+      elsif Nkind (N) /= N_Aggregate then
+         return True;
+
+      --  If component associations remain, the aggregate is not static
+
+      elsif Present (Component_Associations (N)) then
+         return False;
+
+      else
+         One_Dim := First (Expressions (N));
+         while Present (One_Dim) loop
+            if Present (Component_Associations (One_Dim)) then
+               return False;
+            end if;
+
+            One_Comp := First (Expressions (One_Dim));
+            while Present (One_Comp) loop
+               if not Is_OK_Static_Expression (One_Comp) then
+                  return False;
+               end if;
+
+               Next (One_Comp);
+            end loop;
+
+            Next (One_Dim);
+         end loop;
+      end if;
+
+      --  Two-dimensional aggregate is now fully positional so pack one
+      --  dimension to create a static one-dimensional array, and rewrite
+      --  as an unchecked conversion to the original type.
+
+      declare
+         Byte_Size : constant Int := UI_To_Int (Component_Size (Packed_Array));
+         --  The packed array type is a byte array
+
+         Packed_Num : Int;
+         --  Number of components accumulated in current byte
+
+         Comps : List_Id;
+         --  Assembled list of packed values for equivalent aggregate
+
+         Comp_Val : Uint;
+         --  integer value of component
+
+         Incr : Int;
+         --  Step size for packing
+
+         Init_Shift : Int;
+         --  Endian-dependent start position for packing
+
+         Shift : Int;
+         --  Current insertion position
+
+         Val : Int;
+         --  Component of packed array being assembled.
+
+      begin
+         Comps := New_List;
+         Val   := 0;
+         Packed_Num := 0;
+
+         --  Account for endianness.  See corresponding comment in
+         --  Packed_Array_Aggregate_Handled concerning the following.
+
+         if Bytes_Big_Endian
+           xor Debug_Flag_8
+           xor Reverse_Storage_Order (Base_Type (Typ))
+         then
+            Init_Shift := Byte_Size - Comp_Size;
+            Incr := -Comp_Size;
+         else
+            Init_Shift := 0;
+            Incr := +Comp_Size;
+         end if;
+
+         Shift := Init_Shift;
+         One_Dim := First (Expressions (N));
+
+         --  Iterate over each subaggregate
+
+         while Present (One_Dim) loop
+            One_Comp := First (Expressions (One_Dim));
+
+            while Present (One_Comp) loop
+               if Packed_Num = Byte_Size / Comp_Size then
+
+                  --  Byte is complete, add to list of expressions
+
+                  Append (Make_Integer_Literal (Sloc (One_Dim), Val), Comps);
+                  Val := 0;
+                  Shift := Init_Shift;
+                  Packed_Num := 0;
+
+               else
+                  Comp_Val := Expr_Rep_Value (One_Comp);
+
+                  --  Adjust for bias, and strip proper number of bits
+
+                  if Has_Biased_Representation (Ctyp) then
+                     Comp_Val := Comp_Val - Expr_Value (Type_Low_Bound (Ctyp));
+                  end if;
+
+                  Comp_Val := Comp_Val mod Uint_2 ** Comp_Size;
+                  Val := UI_To_Int (Val + Comp_Val * Uint_2 ** Shift);
+                  Shift := Shift + Incr;
+                  One_Comp := Next (One_Comp);
+                  Packed_Num := Packed_Num + 1;
+               end if;
+            end loop;
+
+            One_Dim := Next (One_Dim);
+         end loop;
+
+         if Packed_Num > 0 then
+
+            --  Add final incomplete byte if present
+
+            Append (Make_Integer_Literal (Sloc (One_Dim), Val), Comps);
+         end if;
+
+         Rewrite (N,
+             Unchecked_Convert_To (Typ,
+               Make_Qualified_Expression (Loc,
+                 Subtype_Mark => New_Occurrence_Of (Packed_Array, Loc),
+                 Expression   =>
+                   Make_Aggregate (Loc,  Expressions => Comps))));
+         Analyze_And_Resolve (N);
+         return True;
+      end;
+   end Two_Dim_Packed_Array_Handled;
 
    ---------------------
    -- Sort_Case_Table --

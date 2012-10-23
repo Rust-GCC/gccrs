@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler, for IBM RS/6000.
    Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
-   2010, 2011
+   2010, 2011, 2012
    Free Software Foundation, Inc.
    Contributed by Richard Kenner (kenner@vlsi1.ultra.nyu.edu)
 
@@ -38,7 +38,8 @@ extern bool macho_lo_sum_memory_operand (rtx, enum machine_mode);
 extern int num_insns_constant (rtx, enum machine_mode);
 extern int num_insns_constant_wide (HOST_WIDE_INT);
 extern int small_data_operand (rtx, enum machine_mode);
-extern bool toc_relative_expr_p (rtx);
+extern bool mem_operand_gpr (rtx, enum machine_mode);
+extern bool toc_relative_expr_p (const_rtx, bool);
 extern bool invalid_e500_subreg (rtx, enum machine_mode);
 extern void validate_condition_mode (enum rtx_code, enum machine_mode);
 extern bool legitimate_constant_pool_address_p (const_rtx, enum machine_mode,
@@ -83,7 +84,7 @@ extern bool (*rs6000_cannot_change_mode_class_ptr) (enum machine_mode,
 						    enum machine_mode,
 						    enum reg_class);
 extern void rs6000_secondary_reload_inner (rtx, rtx, rtx, bool);
-extern void rs6000_secondary_reload_ppc64 (rtx, rtx, rtx, bool);
+extern void rs6000_secondary_reload_gpr (rtx, rtx, rtx, bool);
 extern int paired_emit_vector_cond_expr (rtx, rtx, rtx,
                                          rtx, rtx, rtx);
 extern void paired_expand_vector_move (rtx operands[]);
@@ -121,9 +122,9 @@ extern void rs6000_emit_move (rtx, rtx, enum machine_mode);
 extern rtx rs6000_secondary_memory_needed_rtx (enum machine_mode);
 extern rtx (*rs6000_legitimize_reload_address_ptr) (rtx, enum machine_mode,
 						    int, int, int, int *);
-extern bool rs6000_legitimate_offset_address_p (enum machine_mode, rtx, int);
+extern bool rs6000_legitimate_offset_address_p (enum machine_mode, rtx,
+						bool, bool);
 extern rtx rs6000_find_base_term (rtx);
-extern bool rs6000_offsettable_memref_p (rtx);
 extern rtx rs6000_return_addr (int, rtx);
 extern void rs6000_output_symbol_ref (FILE*, rtx);
 extern HOST_WIDE_INT rs6000_initial_elimination_offset (int, int);
@@ -175,7 +176,7 @@ extern void rs6000_call_indirect_aix (rtx, rtx, rtx);
 extern void rs6000_aix_asm_output_dwarf_table_ref (char *);
 extern void get_ppc476_thunk_name (char name[32]);
 extern bool rs6000_overloaded_builtin_p (enum rs6000_builtins);
-extern unsigned rs6000_builtin_mask_calculate (void);
+extern HOST_WIDE_INT rs6000_builtin_mask_calculate (void);
 
 /* Declare functions in rs6000-c.c */
 
@@ -184,8 +185,9 @@ extern void rs6000_cpu_cpp_builtins (struct cpp_reader *);
 #ifdef TREE_CODE
 extern bool rs6000_pragma_target_parse (tree, tree);
 #endif
-extern void rs6000_target_modify_macros (bool, int, unsigned);
-extern void (*rs6000_target_modify_macros_ptr) (bool, int, unsigned);
+extern void rs6000_target_modify_macros (bool, HOST_WIDE_INT, HOST_WIDE_INT);
+extern void (*rs6000_target_modify_macros_ptr) (bool, HOST_WIDE_INT,
+						HOST_WIDE_INT);
 
 #if TARGET_MACHO
 char *output_call (rtx, rtx *, int, int);

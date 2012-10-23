@@ -1,4 +1,4 @@
-@c Copyright (C) 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010, 2011
+@c Copyright (C) 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010, 2011, 2012
 @c Free Software Foundation, Inc.
 @c This is part of the GCC manual.
 @c For copying conditions, see the file gcc.texi.
@@ -66,6 +66,10 @@ include it in @code{libc}.
 @item libada
 The Ada runtime library.
 
+@item libatomic
+The runtime support library for atomic operations (e.g. for @code{__sync}
+and @code{__atomic}).
+
 @item libcpp
 The C preprocessor library.
 
@@ -94,6 +98,9 @@ generally useful data structures and algorithms.  @xref{Top, ,
 Introduction, libiberty, @sc{gnu} libiberty}, for more information
 about this library.
 
+@item libitm
+The runtime support library for transactional memory.
+
 @item libjava
 The Java runtime library.
 
@@ -103,6 +110,9 @@ dereferencing operations.
 
 @item libobjc
 The Objective-C and Objective-C++ runtime library.
+
+@item libquadmath
+The runtime support library for quad-precision math operations.
 
 @item libssp
 The Stack protector runtime library.
@@ -158,12 +168,19 @@ The @file{gcc} directory contains the following subdirectories:
 @item @var{language}
 Subdirectories for various languages.  Directories containing a file
 @file{config-lang.in} are language subdirectories.  The contents of
-the subdirectories @file{cp} (for C++), @file{lto} (for LTO),
-@file{objc} (for Objective-C) and @file{objcp} (for Objective-C++) are
-documented in this manual (@pxref{Passes, , Passes and Files of the
-Compiler}); those for other languages are not.  @xref{Front End, ,
+the subdirectories @file{c} (for C), @file{cp} (for C++),
+@file{objc} (for Objective-C), @file{objcp} (for Objective-C++),
+and @file{lto} (for LTO) are documented in this
+manual (@pxref{Passes, , Passes and Files of the Compiler});
+those for other languages are not.  @xref{Front End, ,
 Anatomy of a Language Front End}, for details of the files in these
 directories.
+
+@item common
+Source files shared between the compiler drivers (such as
+@command{gcc}) and the compilers proper (such as @file{cc1}).  If an
+architecture defines target hooks shared between those places, it also
+has a subdirectory in @file{common/config}.  @xref{Target Structure}.
 
 @item config
 Configuration files for supported architectures and operating
@@ -358,8 +375,7 @@ The GNU Free Documentation License.
 The section ``Funding Free Software''.
 @item gcc-common.texi
 Common definitions for manuals.
-@item gpl.texi
-@itemx gpl_v3.texi
+@item gpl_v3.texi
 The GNU General Public License.
 @item texinfo.tex
 A copy of @file{texinfo.tex} known to work with the GCC manuals.
@@ -474,7 +490,7 @@ why isn't this part of this manual or of the GCC Coding Conventions?
 @end table
 
 FIXME: document such files in subdirectories, at least @file{config},
-@file{cp}, @file{objc}, @file{testsuite}.
+@file{c}, @file{cp}, @file{objc}, @file{testsuite}.
 
 @node Front End
 @subsection Anatomy of a Language Front End
@@ -606,10 +622,9 @@ codes.
 @node Front End Config
 @subsubsection The Front End @file{config-lang.in} File
 
-Each language subdirectory contains a @file{config-lang.in} file.  In
-addition the main directory contains @file{c-config-lang.in}, which
-contains limited information for the C language.  This file is a shell
-script that may define some variables describing the language:
+Each language subdirectory contains a @file{config-lang.in} file.
+This file is a shell script that may define some variables describing
+the language:
 
 @table @code
 @item language
@@ -1223,15 +1238,18 @@ on particular targets.
 
 A selector is:
 @itemize @bullet
-@item one or more target triplets, possibly including wildcard characters
+@item one or more target triplets, possibly including wildcard characters;
+use @samp{*-*-*} to match any target
 @item a single effective-target keyword (@pxref{Effective-Target Keywords})
 @item a logical expression
 @end itemize
 
-Depending on the
-context, the selector specifies whether a test is skipped and reported
-as unsupported or is expected to fail.  Use @samp{*-*-*} to match any
-target.
+Depending on the context, the selector specifies whether a test is
+skipped and reported as unsupported or is expected to fail.  A context
+that allows either @samp{target} or @samp{xfail} also allows
+@samp{@{ target @var{selector1} xfail @var{selector2} @}}
+to skip the test for targets that don't match @var{selector1} and the
+test to fail for targets that match @var{selector2}.
 
 A selector expression appears within curly braces and uses a single
 logical operator: one of @samp{!}, @samp{&&}, or @samp{||}.  An
@@ -1287,6 +1305,9 @@ Target has @code{int} that is at 32 bits or longer.
 
 @item int16
 Target has @code{int} that is 16 bits or shorter.
+
+@item long_neq_int
+Target has @code{int} and @code{long} with different sizes.
 
 @item large_double
 Target supports @code{double} that is longer than @code{float}.
@@ -1488,6 +1509,11 @@ ARM target generates 32-bit code.
 @item arm_eabi
 ARM target adheres to the ABI for the ARM Architecture.
 
+@item arm_hf_eabi
+ARM target adheres to the VFP and Advanced SIMD Register Arguments
+variant of the ABI for the ARM Architecture (as selected with
+@code{-mfloat-abi=hard}).
+
 @item arm_hard_vfp_ok
 ARM target supports @code{-mfpu=vfp -mfloat-abi=hard}.
 Some multilibs may be incompatible with these options.
@@ -1502,9 +1528,17 @@ ARM target supports generating NEON instructions.
 @item arm_neon_hw
 Test system supports executing NEON instructions.
 
+@item arm_neonv2_hw
+Test system supports executing NEON v2 instructions.
+
 @item arm_neon_ok
 @anchor{arm_neon_ok}
 ARM Target supports @code{-mfpu=neon -mfloat-abi=softfp} or compatible
+options.  Some multilibs may be incompatible with these options.
+
+@item arm_neonv2_ok
+@anchor{arm_neonv2_ok}
+ARM Target supports @code{-mfpu=neon-vfpv4 -mfloat-abi=softfp} or compatible
 options.  Some multilibs may be incompatible with these options.
 
 @item arm_neon_fp16_ok
@@ -1521,6 +1555,11 @@ ARM target generates Thumb-2 code for @code{-mthumb}.
 @item arm_vfp_ok
 ARM target supports @code{-mfpu=vfp -mfloat-abi=softfp}.
 Some multilibs may be incompatible with these options.
+
+@item arm_prefer_ldrd_strd
+ARM target prefers @code{LDRD} and @code{STRD} instructions over
+@code{LDM} and @code{STM} instructions.
+
 @end table
 
 @subsubsection MIPS-specific attributes
@@ -1772,6 +1811,9 @@ Target keeps null pointer checks, either due to the use of
 
 @item lto
 Compiler has been configured to support link-time optimization (LTO).
+
+@item naked_functions
+Target supports the @code{naked} function attribute.
 
 @item named_sections
 Target supports named sections.
@@ -2107,8 +2149,39 @@ Removes coverage data files generated for this test.
 @item cleanup-ipa-dump @var{suffix}
 Removes IPA dump files generated for this test.
 
-@item cleanup-modules
-Removes Fortran module files generated for this test.
+@item cleanup-modules "@var{list-of-extra-modules}"
+Removes Fortran module files generated for this test, excluding the
+module names listed in keep-modules.
+Cleaning up module files is usually done automatically by the testsuite
+by looking at the source files and removing the modules after the test
+has been executed.
+@smallexample
+module MoD1
+end module MoD1
+module Mod2
+end module Mod2
+module moD3
+end module moD3
+module mod4
+end module mod4
+! @{ dg-final @{ cleanup-modules "mod1 mod2" @} @} ! redundant
+! @{ dg-final @{ keep-modules "mod3 mod4" @} @}
+@end smallexample
+
+@item keep-modules "@var{list-of-modules-not-to-delete}"
+Whitespace separated list of module names that should not be deleted by
+cleanup-modules.
+If the list of modules is empty, all modules defined in this file are kept.
+@smallexample
+module maybe_unneeded
+end module maybe_unneeded
+module keep1
+end module keep1
+module keep2
+end module keep2
+! @{ dg-final @{ keep-modules "keep1 keep2" @} @} ! just keep these two
+! @{ dg-final @{ keep-modules "" @} @} ! keep all
+@end smallexample
 
 @item cleanup-profile-file
 Removes profiling files generated for this test.

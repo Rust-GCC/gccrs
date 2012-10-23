@@ -277,9 +277,6 @@ EOF
 	  rm -f conftest conftest.c
 	fi
 	;;
-  alpha*-dec-osf*)
-	can_unwind_signal=yes
-	;;
   i[34567]86*-kfreebsd*-gnu | x86_64*-kfreebsd*-gnu)
         libgcj_ld_symbolic='-Wl,-Bsymbolic'
         slow_pthread_self=
@@ -291,10 +288,6 @@ EOF
   x86_64-*-solaris2.1[0-9]* )
 	sysdeps_dir=i386
 	DIVIDESPEC=-f%{m32:no-}use-divide-subroutine
-	;;
-  mips-sgi-irix6* )
-	can_unwind_signal=yes
-	sysdeps_dir=mips
 	;;
   arm*-linux* )
 	slow_pthread_self=no

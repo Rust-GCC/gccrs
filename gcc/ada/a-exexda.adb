@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -220,7 +220,7 @@ package body Exception_Data is
       N : Integer_Address;
 
       H : constant array (Integer range 0 .. 15) of Character :=
-                                                         "0123456789abcdef";
+        "0123456789abcdef";
    begin
       P := S'Last;
       N := To_Integer (A);
@@ -558,13 +558,13 @@ package body Exception_Data is
    -------------------------
 
    procedure Set_Exception_C_Msg
-     (Id     : Exception_Id;
+     (Excep  : EOA;
+      Id     : Exception_Id;
       Msg1   : System.Address;
       Line   : Integer        := 0;
       Column : Integer        := 0;
       Msg2   : System.Address := System.Null_Address)
    is
-      Excep  : constant EOA := Get_Current_Excep.all;
       Remind : Integer;
       Ptr    : Natural;
 
@@ -654,13 +654,13 @@ package body Exception_Data is
    -----------------------
 
    procedure Set_Exception_Msg
-     (Id      : Exception_Id;
+     (Excep   : EOA;
+      Id      : Exception_Id;
       Message : String)
    is
       Len   : constant Natural :=
-                Natural'Min (Message'Length, Exception_Msg_Max_Length);
+        Natural'Min (Message'Length, Exception_Msg_Max_Length);
       First : constant Integer := Message'First;
-      Excep : constant EOA     := Get_Current_Excep.all;
    begin
       Excep.Exception_Raised := False;
       Excep.Msg_Length       := Len;
@@ -689,7 +689,7 @@ package body Exception_Data is
       --  call become inoffensive.
 
       Wrapper : constant Traceback_Decorator_Wrapper_Call :=
-                  Traceback_Decorator_Wrapper;
+        Traceback_Decorator_Wrapper;
 
    begin
       if Wrapper = null then

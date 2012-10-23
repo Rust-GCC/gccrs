@@ -82,11 +82,22 @@ typedef struct GTY(()) CPool {
   /* The constant_pool_count. */
   int		count;
 
-  uint8* GTY((length ("%h.count")))	tags;
+  uint8 * GTY((atomic)) tags;
 
   union cpool_entry * GTY((length ("%h.count"),
 			   desc ("cpool_entry_is_tree (%1.tags%a)")))	data;
 } CPool;
+
+typedef struct GTY(()) bootstrap_method {
+  unsigned method_ref;
+  unsigned num_arguments;
+  unsigned * GTY((atomic)) bootstrap_arguments;
+} bootstrap_method;
+
+typedef struct GTY(()) BootstrapMethods {
+  unsigned count;
+  bootstrap_method* GTY((length ("%h.count"))) methods;
+} BootstrapMethods;
 
 struct ZipDirectory;
 
@@ -109,6 +120,7 @@ typedef struct GTY(()) JCF {
   JCF_u2 this_class;
   JCF_u2 super_class;
   CPool cpool;
+  BootstrapMethods bootstrap_methods;
 } JCF;
 /*typedef JCF*  JCF_FILE;*/
 
@@ -245,6 +257,10 @@ enum cpool_tag
   CONSTANT_NameAndType = 12,
   CONSTANT_Utf8 = 1,
   CONSTANT_Unicode = 2,
+  CONSTANT_MethodHandle = 15,
+  CONSTANT_MethodType = 16,
+  CONSTANT_InvokeDynamic = 18,
+
   CONSTANT_None = 0
 };
 

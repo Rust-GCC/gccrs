@@ -149,13 +149,15 @@ Free Documentation License}''.
 
 The latest version of this document is always available at
 @uref{http://gcc.gnu.org/install/,,http://gcc.gnu.org/install/}.
+It refers to the current development sources, instructions for
+specific released versions are included with the sources.
 
 This document describes the generic installation procedure for GCC as well
 as detailing some target specific installation instructions.
 
 GCC includes several components that previously were separate distributions
 with their own installation instructions.  This document supersedes all
-package specific installation instructions.
+package-specific installation instructions.
 
 @emph{Before} starting the build/install procedure please check the
 @ifnothtml
@@ -305,9 +307,9 @@ systems' @command{tar} programs will also work, only try GNU
 
 @item Perl version 5.6.1 (or later)
 
-Necessary when targetting Darwin, building @samp{libstdc++},
+Necessary when targeting Darwin, building @samp{libstdc++},
 and not using @option{--disable-symvers}.
-Necessary when targetting Solaris 2 with Sun @command{ld} and not using
+Necessary when targeting Solaris 2 with Sun @command{ld} and not using
 @option{--disable-symvers}.  The bundled @command{perl} in Solaris@tie{}8
 and up works.
 
@@ -362,31 +364,24 @@ installed but it is not in your default library search path, the
 @option{--with-mpc} configure option should be used.  See also
 @option{--with-mpc-lib} and @option{--with-mpc-include}.
 
-@item Parma Polyhedra Library (PPL) version 0.11
+@item ISL Library version 0.10
 
 Necessary to build GCC with the Graphite loop optimizations.
-It can be downloaded from @uref{http://www.cs.unipr.it/ppl/Download/}.
+It can be downloaded from @uref{ftp://gcc.gnu.org/pub/gcc/infrastructure/}.
 
-The @option{--with-ppl} configure option should be used if PPL is not
+The @option{--with-isl} configure option should be used if ISL is not
 installed in your default library search path.
 
-@item CLooG-PPL version 0.15 or CLooG 0.16
+@item CLooG 0.17.0
 
-Necessary to build GCC with the Graphite loop optimizations.  There
-are two versions available.  CLooG-PPL 0.15 as well as CLooG 0.16.
-The former is the default right now.  It can be downloaded from
-@uref{ftp://gcc.gnu.org/pub/gcc/infrastructure/} as
-@file{cloog-ppl-0.15.tar.gz}.
-
-CLooG 0.16 support is still in testing stage, but will be the
-default in future GCC releases.  It is also available at
-@uref{ftp://gcc.gnu.org/pub/gcc/infrastructure/} as
-@file{cloog-0.16.1.tar.gz}.  To use it add the additional configure
-option @option{--enable-cloog-backend=isl}.  Even if CLooG 0.16
-does not use PPL, PPL is still required for Graphite.
-
-In both cases @option{--with-cloog} configure option should be used
-if CLooG is not installed in your default library search path.
+Necessary to build GCC with the Graphite loop optimizations.  It can be
+downloaded from @uref{ftp://gcc.gnu.org/pub/gcc/infrastructure/} as
+@file{cloog-0.17.0.tar.gz}.  The @option{--with-cloog} configure option should
+be used if CLooG is not installed in your default library search path.
+CLooG needs to be built against ISL 0.10, not its included copy of ISL
+which is too old.  Use @option{--with-isl=system} to direct CLooG to pick
+up an already installed ISL.  CLooG needs to be configured to use GMP
+internally, use @option{--with-bits=gmp} to direct it to do that.
 
 @end table
 
@@ -1293,16 +1288,6 @@ opposite effect.  If neither option is specified, the configure script
 will try to guess whether the @code{.init_array} and
 @code{.fini_array} sections are supported and, if they are, use them.
 
-@item --enable-build-with-cxx
-Build GCC using a C++ compiler rather than a C compiler.  This is an
-experimental option which may become the default in a later release.
-
-@item --enable-build-poststage1-with-cxx
-When bootstrapping, build stages 2 and 3 of GCC using a C++ compiler
-rather than a C compiler.  Stage 1 is still built with a C compiler.
-This is enabled by default and may be disabled using
-@option{--disable-build-poststage1-with-cxx}.
-
 @item --enable-maintainer-mode
 The build rules that regenerate the Autoconf and Automake output files as
 well as the GCC master message catalog @file{gcc.pot} are normally
@@ -1641,14 +1626,14 @@ a cross compiler, they will not be used to configure target libraries.
 @itemx --with-cloog=@var{pathname}
 @itemx --with-cloog-include=@var{pathname}
 @itemx --with-cloog-lib=@var{pathname}
-If you do not have PPL (the Parma Polyhedra Library) and the CLooG
+If you do not have ISL and the CLooG
 libraries installed in a standard location and you want to build GCC,
 you can explicitly specify the directory where they are installed
-(@samp{--with-ppl=@/@var{pplinstalldir}},
+(@samp{--with-isl=@/@var{islinstalldir}},
 @samp{--with-cloog=@/@var{clooginstalldir}}). The
-@option{--with-ppl=@/@var{pplinstalldir}} option is shorthand for
-@option{--with-ppl-lib=@/@var{pplinstalldir}/lib} and
-@option{--with-ppl-include=@/@var{pplinstalldir}/include}.  Likewise the
+@option{--with-isl=@/@var{islinstalldir}} option is shorthand for
+@option{--with-isl-lib=@/@var{islinstalldir}/lib} and
+@option{--with-isl-include=@/@var{islinstalldir}/include}.  Likewise the
 @option{--with-cloog=@/@var{clooginstalldir}} option is shorthand for
 @option{--with-cloog-lib=@/@var{clooginstalldir}/lib} and
 @option{--with-cloog-include=@/@var{clooginstalldir}/include}.  If these
@@ -2582,14 +2567,14 @@ The following will run each testsuite eight times using the @samp{arm-sim}
 target, as if you had specified all possible combinations yourself:
 
 @smallexample
---target_board=arm-sim/-mhard-float/-O1
---target_board=arm-sim/-mhard-float/-O2
---target_board=arm-sim/-mhard-float/-O3
---target_board=arm-sim/-mhard-float
---target_board=arm-sim/-msoft-float/-O1
---target_board=arm-sim/-msoft-float/-O2
---target_board=arm-sim/-msoft-float/-O3
---target_board=arm-sim/-msoft-float
+--target_board='arm-sim/-mhard-float/-O1 \
+                arm-sim/-mhard-float/-O2 \
+                arm-sim/-mhard-float/-O3 \
+                arm-sim/-mhard-float \
+                arm-sim/-msoft-float/-O1 \
+                arm-sim/-msoft-float/-O2 \
+                arm-sim/-msoft-float/-O3 \
+                arm-sim/-msoft-float'
 @end smallexample
 
 They can be combined as many times as you wish, in arbitrary ways.  This
@@ -2926,16 +2911,6 @@ Solaris 2 (SPARC, Intel):
 @end itemize
 
 @item
-SGI IRIX:
-@itemize
-@item
-@uref{http://nekochan.net/,,Nekoware}
-
-@item
-@uref{http://jupiterrise.com/tgcware/,,TGCware}
-@end itemize
-
-@item
 Microsoft Windows:
 @itemize
 @item
@@ -2948,8 +2923,6 @@ The @uref{http://www.mingw.org/,,MinGW} project.
 @uref{ftp://ftp.thewrittenword.com/packages/by-name/,,The
 Written Word} offers binaries for
 AIX 4.3.3, 5.1 and 5.2,
-IRIX 6.5,
-Tru64 UNIX 4.0D and 5.1,
 GNU/Linux (i386),
 HP-UX 10.20, 11.00, and 11.11, and
 Solaris/SPARC 2.5.1, 2.6, 7, 8, 9 and 10.
@@ -2993,7 +2966,7 @@ GNU Compiler Collection on your machine.
 Note that this list of install notes is @emph{not} a list of supported
 hosts or targets.  Not all supported hosts and targets are listed
 here, only the ones that require host-specific or target-specific
-information are.
+information have to. 
 
 @ifhtml
 @itemize
@@ -3026,7 +2999,7 @@ information are.
 @item
 @uref{#ix86-x-linux,,i?86-*-linux*}
 @item
-@uref{#ix86-x-solaris289,,i?86-*-solaris2.[89]}
+@uref{#ix86-x-solaris289,,i?86-*-solaris2.9}
 @item
 @uref{#ix86-x-solaris210,,i?86-*-solaris2.10}
 @item
@@ -3160,54 +3133,10 @@ Systems using processors that implement the DEC Alpha architecture and
 are running the DEC/Compaq/HP Unix (DEC OSF/1, Digital UNIX, or Compaq/HP
 Tru64 UNIX) operating system, for example the DEC Alpha AXP systems.
 
-Support for Tru64 UNIX V5.1 has been obsoleted in GCC 4.7, but can still
-be enabled by configuring with @option{--enable-obsolete}.  Support will
-be removed in GCC 4.8.  As of GCC 4.6, support for Tru64 UNIX V4.0 and
-V5.0 has been removed.  As of GCC 3.2, versions before
-@code{alpha*-dec-osf4} are no longer supported.  (These are the versions
-which identify themselves as DEC OSF/1.)
-
-On Tru64 UNIX, virtual memory exhausted bootstrap failures
-may be fixed by reconfiguring Kernel Virtual Memory and Swap parameters
-per the @command{/usr/sbin/sys_check} Tuning Suggestions,
-or applying the patch in
-@uref{http://gcc.gnu.org/ml/gcc/2002-08/msg00822.html}.  Depending on
-the OS version used, you need a data segment size between 512 MB and
-1 GB, so simply use @command{ulimit -Sd unlimited}.
-
-As of GNU binutils 2.22, neither GNU @command{as} nor GNU @command{ld}
-are supported on Tru64 UNIX, so you must not configure GCC with
-@option{--with-gnu-as} or @option{--with-gnu-ld}.
-
-Cross-compilers for the Tru64 UNIX target currently do not work because
-the auxiliary programs @command{mips-tdump} and @command{mips-tfile} can't
-be compiled on anything but Tru64 UNIX.
-
-GCC writes a @samp{.verstamp} directive to the assembler output file
-unless it is built as a cross-compiler.  It gets the version to use from
-the system header file @file{/usr/include/stamp.h}.  If you install a
-new version of Tru64 UNIX, you should rebuild GCC to pick up the new version
-stamp.
-
-GCC now supports both the native (ECOFF) debugging format used by DBX
-and GDB and an encapsulated STABS format for use only with GDB@.  See the
-discussion of the @option{--with-stabs} option of @file{configure} above
-for more information on these formats and how to select them.
-@c FIXME: does this work at all?  If so, perhaps make default.
-
-There is a bug in DEC's assembler that produces incorrect line numbers
-for ECOFF format when the @samp{.align} directive is used.  To work
-around this problem, GCC will not emit such alignment directives
-while writing ECOFF format debugging information even if optimization is
-being performed.  Unfortunately, this has the very undesirable
-side-effect that code addresses when @option{-O} is specified are
-different depending on whether or not @option{-g} is also specified.
-
-To avoid this behavior, specify @option{-gstabs+} and use GDB instead of
-DBX@.  DEC is now aware of this problem with the assembler and hopes to
-provide a fix shortly.
-
-@c FIXME: still applicable?
+Support for Tru64 UNIX V5.1 has been removed in GCC 4.8.  As of GCC 4.6,
+support for Tru64 UNIX V4.0 and V5.0 has been removed.  As of GCC 3.2,
+versions before @code{alpha*-dec-osf4} are no longer supported.  (These
+are the versions which identify themselves as DEC OSF/1.)
 
 @html
 <hr />
@@ -3222,7 +3151,7 @@ This is a synonym for @samp{x86_64-*-solaris2.1[0-9]*}.
 @heading @anchor{arm-x-eabi}arm-*-eabi
 ARM-family processors.  Subtargets that use the ELF object format
 require GNU binutils 2.13 or newer.  Such subtargets include:
-@code{arm-*-netbsdelf}, @code{arm-*-*linux-gnueabi}
+@code{arm-*-netbsdelf}, @code{arm-*-*linux-*}
 and @code{arm-*-rtemseabi}.
 
 @html
@@ -3607,8 +3536,8 @@ found on @uref{http://www.bitwizard.nl/sig11/,,www.bitwizard.nl}.
 @html
 <hr />
 @end html
-@heading @anchor{ix86-x-solaris289}i?86-*-solaris2.[89]
-The Sun assembler in Solaris 8 and 9 has several bugs and limitations.
+@heading @anchor{ix86-x-solaris29}i?86-*-solaris2.9
+The Sun assembler in Solaris 9 has several bugs and limitations.
 While GCC works around them, several features are missing, so it is
 @c FIXME: which ones?
 recommended to use the GNU assembler instead.  There is no bundled
@@ -3618,9 +3547,9 @@ work.
 Solaris@tie{}2/x86 doesn't support the execution of SSE/SSE2 instructions
 before Solaris@tie{}9 4/04, even if the CPU supports them.  Programs will
 receive @code{SIGILL} if they try.  The fix is available both in
-Solaris@tie{}9 Update@tie{}6 and kernel patch 112234-12 or newer.  There is no
-corresponding patch for Solaris 8.  To avoid this problem,
-@option{-march} defaults to @samp{pentiumpro} on Solaris 8 and 9.  If
+Solaris@tie{}9 Update@tie{}6 and kernel patch 112234-12 or newer.  To
+avoid this problem,
+@option{-march} defaults to @samp{pentiumpro} on Solaris 9.  If
 you have the patch installed, you can configure GCC with an appropriate
 @option{--with-arch} option, but need GNU @command{as} for SSE2 support.
 
@@ -3741,19 +3670,20 @@ does not provide a definition that will confuse @command{configure}.
 If this error occurs during stage2 or later, then the problem most likely
 is the version of Make (see above).
 
-The native @command{as} and @command{ld} are recommended for bootstrapping
-on AIX@.  The GNU Assembler, GNU Linker, and GNU Binutils version 2.20
-is required to bootstrap on AIX 5@.  The native AIX tools do
-interoperate with GCC@.
+The native @command{as} and @command{ld} are recommended for
+bootstrapping on AIX@.  The GNU Assembler, GNU Linker, and GNU
+Binutils version 2.20 is the minimum level that supports bootstrap on
+AIX 5@.  The GNU Assembler has not been updated to support AIX 6@ or
+AIX 7.  The native AIX tools do interoperate with GCC@.
 
 AIX 5.3 TL10, AIX 6.1 TL05 and AIX 7.1 TL00 introduced an AIX
 assembler change that sometimes produces corrupt assembly files
 causing AIX linker errors.  The bug breaks GCC bootstrap on AIX and
 can cause compilation failures with existing GCC installations.  An
 AIX iFix for AIX 5.3 is available (APAR IZ98385 for AIX 5.3 TL10, APAR
-IZ98477 for AIX 5.3 TL11 and IZ98134 for AIX 5.3 TL12).  Fixes for AIX
-6.1 (APAR IZ98732 for AIX 6.1 TL05 and APAR IZ98861 for AIX 6.1 TL06)
-and AIX 7.1 are in verification and packaging phases.
+IZ98477 for AIX 5.3 TL11 and IZ98134 for AIX 5.3 TL12). AIX 5.3 TL11 SP8,
+AIX 5.3 TL12 SP5, AIX 6.1 TL04 SP11, AIX 6.1 TL05 SP7, AIX 6.1 TL06 SP6,
+AIX 6.1 TL07 and AIX 7.1 TL01 should include the fix.
 
 Building @file{libstdc++.a} requires a fix for an AIX Assembler bug
 APAR IY26685 (AIX 4.3) or APAR IY25528 (AIX 5.1).  It also requires a
@@ -3989,99 +3919,9 @@ Support for IRIX 5 has been removed in GCC 4.6.
 @end html
 @heading @anchor{mips-sgi-irix6}mips-sgi-irix6
 
-Support for IRIX 6.5 has been obsoleted in GCC 4.7, but can still be
-enabled by configuring with @option{--enable-obsolete}.  Support will be
-removed in GCC 4.8.  Support for IRIX 6 releases before 6.5 has been
-removed in GCC 4.6, as well as support for the O32 ABI.  It is
-@emph{strongly} recommended to upgrade to at least IRIX 6.5.18.  This
-release introduced full ISO C99 support, though for the N32 and N64 ABIs
-only.
-
-To build and use GCC on IRIX 6.5, you need the IRIX Development Foundation
-(IDF) and IRIX Development Libraries (IDL).  They are included with the
-IRIX 6.5 media.
-
-If you are using SGI's MIPSpro @command{cc} as your bootstrap compiler, you must
-ensure that the N32 ABI is in use.  To test this, compile a simple C
-file with @command{cc} and then run @command{file} on the
-resulting object file.  The output should look like:
-
-@smallexample
-test.o: ELF N32 MSB @dots{}
-@end smallexample
-
-@noindent
-If you see:
-
-@smallexample
-test.o: ELF 32-bit MSB @dots{}
-@end smallexample
-
-@noindent
-or
-
-@smallexample
-test.o: ELF 64-bit MSB @dots{}
-@end smallexample
-
-@noindent
-then your version of @command{cc} uses the O32 or N64 ABI by default.  You
-should set the environment variable @env{CC} to @samp{cc -n32}
-before configuring GCC@.
-
-If you want the resulting @command{gcc} to run on old 32-bit systems
-with the MIPS R4400 CPU, you need to ensure that only code for the @samp{mips3}
-instruction set architecture (ISA) is generated.  While GCC 3.x does
-this correctly, both GCC 2.95 and SGI's MIPSpro @command{cc} may change
-the ISA depending on the machine where GCC is built.  Using one of them
-as the bootstrap compiler may result in @samp{mips4} code, which won't run at
-all on @samp{mips3}-only systems.  For the test program above, you should see:
-
-@smallexample
-test.o: ELF N32 MSB mips-3 @dots{}
-@end smallexample
-
-@noindent
-If you get:
-
-@smallexample
-test.o: ELF N32 MSB mips-4 @dots{}
-@end smallexample
-
-@noindent
-instead, you should set the environment variable @env{CC} to @samp{cc
--n32 -mips3} or @samp{gcc -mips3} respectively before configuring GCC@.
-
-MIPSpro C 7.4 may cause bootstrap failures, due to a bug when inlining
-@code{memcmp}.  Either add @code{-U__INLINE_INTRINSICS} to the @env{CC}
-environment variable as a workaround or upgrade to MIPSpro C 7.4.1m.
-
-GCC on IRIX 6.5 is usually built to support the N32 and N64 ABIs.  If
-you build GCC on a system that doesn't have the N64 libraries installed
-or cannot run 64-bit binaries,
-you need to configure with @option{--disable-multilib} so GCC doesn't
-try to use them.
-Look for @file{/usr/lib64/libc.so.1} to see if you
-have the 64-bit libraries installed.
-
-GCC must be configured with GNU @command{as}.  The latest version, from GNU
-binutils 2.22, is known to work.  On the other hand, bootstrap fails
-with GNU @command{ld} at least since GNU binutils 2.17.
-
-The @option{--enable-libgcj}
-option is disabled by default: IRIX 6 uses a very low default limit
-(20480) for the command line length.  Although @command{libtool} contains a
-workaround for this problem, at least the N64 @samp{libgcj} is known not
-to build despite this, running into an internal error of the native
-@command{ld}.  A sure fix is to increase this limit (@samp{ncargs}) to
-its maximum of 262144 bytes.  If you have root access, you can use the
-@command{systune} command to do this.
-@c FIXME: does this work with current libtool?
-
-@code{wchar_t} support in @samp{libstdc++} is not available for old
-IRIX 6.5.x releases, @math{x < 19}.  The problem cannot be autodetected
-and in order to build GCC for such targets you need to configure with
-@option{--disable-wchar_t}.
+Support for IRIX 6.5 has been removed in GCC 4.8.  Support for IRIX 6
+releases before 6.5 has been removed in GCC 4.6, as well as support for
+the O32 ABI.
 
 @html
 <hr />
@@ -4212,9 +4052,8 @@ supported as cross-compilation target only.
 @c alone is too unspecific and must be avoided.
 @heading @anchor{x-x-solaris2}*-*-solaris2*
 
-Support for Solaris 8 has been obsoleted in GCC 4.7, but can still be
-enabled by configuring with @option{--enable-obsolete}.  Support will be
-removed in GCC 4.8.  Support for Solaris 7 has been removed in GCC 4.6.
+Support for Solaris 8 has removed in GCC 4.8.  Support for Solaris 7 has
+been removed in GCC 4.6.
 
 Sun does not ship a C compiler with Solaris 2 before Solaris 10, though
 you can download the Sun Studio compilers for free.  In Solaris 10 and
@@ -4287,13 +4126,6 @@ newer: @command{g++} will complain that types are missing.  These headers
 assume that omitting the type means @code{int}; this assumption worked for
 C90 but is wrong for C++, and is now wrong for C99 also.
 
-@command{g++} accepts such (invalid) constructs with the option
-@option{-fpermissive}; it will assume that any missing type is @code{int}
-(as defined by C90).
-
-There are patches for Solaris 8 (108652-24 or newer for SPARC,
-108653-22 for Intel) that fix this bug.
-
 Sun bug 4927647 sometimes causes random spurious testsuite failures
 related to missing diagnostic output.  This bug doesn't affect GCC
 itself, rather it is a kernel bug triggered by the @command{expect}
@@ -4301,27 +4133,19 @@ program which is used only by the GCC testsuite driver.  When the bug
 causes the @command{expect} program to miss anticipated output, extra
 testsuite failures appear.
 
-There are patches for Solaris 8 (117350-12 or newer for SPARC,
-117351-12 or newer for Intel) and Solaris 9 (117171-11 or newer for
+There are patches for Solaris 9 (117171-11 or newer for
 SPARC, 117172-11 or newer for Intel) that address this problem.
 
-Solaris@tie{}8 provides an alternate implementation of the thread
-library @samp{libthread}.  It is required for TLS support and has
-been made the default in Solaris@tie{}9, so it is always used on
-Solaris@tie{}8.
-
-Thread-local storage (TLS) is supported in Solaris@tie{}8 and 9, but requires
+Thread-local storage (TLS) is supported in Solaris@tie{}9, but requires
 some patches.  The @samp{libthread} patches provide the
 @code{__tls_get_addr} (SPARC, 64-bit x86) resp.@ @code{___tls_get_addr}
-(32-bit x86) functions.  On Solaris@tie{}8, you need 108993-26 or newer on
-SPARC, 108994-26 or newer on Intel.  On Solaris@tie{}9, the necessary support
+(32-bit x86) functions.  On Solaris@tie{}9, the necessary support
 on SPARC is present since FCS, while 114432-05 or newer is required on
-Intel.  Additionally, on Solaris@tie{}8, patch 109147-14 or newer on SPARC or
-109148-22 or newer on Intel are required for the Sun @command{ld} and
-runtime linker (@command{ld.so.1}) support.  Again, Solaris@tie{}9/SPARC
-works since FCS, while 113986-02 is required on Intel.  The linker
+Intel.  Additionally, on Solaris@tie{}9/x86, patch 113986-02 or newer is
+required for the Sun @command{ld} and runtime linker (@command{ld.so.1})
+support, while Solaris@tie{}9/SPARC works since FCS.  The linker
 patches must be installed even if GNU @command{ld} is used. Sun
-@command{as} in Solaris@tie{}8 and 9 doesn't support the necessary
+@command{as} in Solaris@tie{}9 doesn't support the necessary
 relocations, so GNU @command{as} must be used.  The @command{configure}
 script checks for those prerequisites and automatically enables TLS
 support if they are met.  Although those minimal patch versions should

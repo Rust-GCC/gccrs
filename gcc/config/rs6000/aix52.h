@@ -1,7 +1,6 @@
 /* Definitions of target machine for GNU compiler,
    for IBM RS/6000 POWER running AIX V5.2.
-   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
-   Free Software Foundation, Inc.
+   Copyright (C) 2002-2012 Free Software Foundation, Inc.
    Contributed by David Edelsohn (edelsohn@gnu.org).
 
    This file is part of GCC.
@@ -23,17 +22,11 @@
 /* The macro SUBTARGET_OVERRIDE_OPTIONS is provided for subtargets, to
    get control in TARGET_OPTION_OVERRIDE.  */
 
-#define NON_POWERPC_MASKS (MASK_POWER | MASK_POWER2)
 #define SUBTARGET_OVERRIDE_OPTIONS					\
 do {									\
-  if (TARGET_64BIT && (target_flags & NON_POWERPC_MASKS))		\
-    {									\
-      target_flags &= ~NON_POWERPC_MASKS;				\
-      warning (0, "-maix64 and POWER architecture are incompatible");	\
-    }									\
   if (TARGET_64BIT && ! TARGET_POWERPC64)				\
     {									\
-      target_flags |= MASK_POWERPC64;					\
+      rs6000_isa_flags |= OPTION_MASK_POWERPC64;			\
       warning (0, "-maix64 requires PowerPC64 architecture remain enabled"); \
     }									\
   if (TARGET_SOFT_FLOAT && TARGET_LONG_DOUBLE_128)			\
@@ -57,7 +50,7 @@ do {									\
 #define ASM_CPU_SPEC \
 "%{!mcpu*: %{!maix64: \
   %{mpowerpc64: -mppc64} \
-  %{!mpower64: %(asm_default)}}} \
+  %{!mpowerpc64: %(asm_default)}}} \
 %{mcpu=power3: -m620} \
 %{mcpu=power4: -m620} \
 %{mcpu=power5: -m620} \
@@ -106,21 +99,20 @@ do {									\
    %{pthread: -D_THREAD_SAFE}"
 
 #undef  TARGET_DEFAULT
-#define TARGET_DEFAULT (MASK_POWERPC | MASK_NEW_MNEMONICS)
+#define TARGET_DEFAULT 0
 
 #undef  PROCESSOR_DEFAULT
 #define PROCESSOR_DEFAULT PROCESSOR_POWER4
 #undef  PROCESSOR_DEFAULT64
 #define PROCESSOR_DEFAULT64 PROCESSOR_POWER4
 
-#undef  TARGET_POWER
-#define TARGET_POWER 0
-
 /* AIX does not support Altivec.  */
 #undef  TARGET_ALTIVEC
 #define TARGET_ALTIVEC 0
 #undef  TARGET_ALTIVEC_ABI
 #define TARGET_ALTIVEC_ABI 0
+#undef  TARGET_EXTRA_BUILTINS
+#define TARGET_EXTRA_BUILTINS 0
 
 /* Define this macro as a C expression for the initializer of an
    array of string to tell the driver program which options are
@@ -165,12 +157,6 @@ do {									\
 /* Width of wchar_t in bits.  */
 #undef  WCHAR_TYPE_SIZE
 #define WCHAR_TYPE_SIZE (!TARGET_64BIT ? 16 : 32)
-
-/* AIX V5 uses PowerPC nop (ori 0,0,0) instruction as call glue for PowerPC
-   and "cror 31,31,31" for POWER architecture.  */
-
-#undef RS6000_CALL_GLUE
-#define RS6000_CALL_GLUE "{cror 31,31,31|nop}"
 
 /* AIX 4.2 and above provides initialization and finalization function
    support from linker command line.  */

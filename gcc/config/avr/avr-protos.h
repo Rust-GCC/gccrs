@@ -75,9 +75,10 @@ extern const char *avr_out_ashlpsi3 (rtx, rtx*, int*);
 extern const char *avr_out_ashrpsi3 (rtx, rtx*, int*);
 extern const char *avr_out_lshrpsi3 (rtx, rtx*, int*);
 
-extern const char* avr_load_lpm (rtx, rtx*, int*);
-
 extern bool avr_rotate_bytes (rtx operands[]);
+
+extern const char* avr_out_fract (rtx, rtx[], bool, int*);
+extern rtx avr_to_int_mode (rtx);
 
 extern void expand_prologue (void);
 extern void expand_epilogue (bool);
@@ -88,9 +89,7 @@ extern int avr_starting_frame_offset (void);
 extern void avr_output_addr_vec_elt (FILE *stream, int value);
 extern const char *avr_out_sbxx_branch (rtx insn, rtx operands[]);
 extern const char* avr_out_bitop (rtx, rtx*, int*);
-extern const char* avr_out_plus (rtx*, int*, int*);
-extern const char* avr_out_plus_noclobber (rtx*, int*, int*);
-extern const char* avr_out_plus64 (rtx, int*);
+extern const char* avr_out_plus (rtx, rtx*, int* =NULL, int* =NULL);
 extern const char* avr_out_addto_sp (rtx*, int*);
 extern const char* avr_out_xload (rtx, rtx*, int*);
 extern const char* avr_out_movmem (rtx, rtx*, int*);
@@ -103,6 +102,7 @@ extern int adjust_insn_length (rtx insn, int len);
 extern const char* output_reload_inhi (rtx*, rtx, int*);
 extern const char* output_reload_insisf (rtx*, rtx, int*);
 extern const char* avr_out_reload_inpsi (rtx*, rtx, int*);
+extern const char* avr_out_lpm (rtx, rtx*, int*);
 extern void notice_update_cc (rtx body, rtx insn);
 extern int reg_unused_after (rtx insn, rtx reg);
 extern int _reg_unused_after (rtx insn, rtx reg);

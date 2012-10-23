@@ -23,7 +23,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
-#include "rtl.h"	/* FIXME: Only for ceil_log2, of all things...  */
 #include "ggc.h"
 #include "basic-block.h"
 #include "tree-flow.h"
@@ -43,10 +42,6 @@ along with GCC; see the file COPYING3.  If not see
    little.  This additionally helps reduce the amount of work done by the
    garbage collector.  Similar results have been seen on a wider variety
    of tests (such as the compiler itself).
-
-   Right now we maintain our free list on a per-function basis.  It may
-   or may not make sense to maintain the free list for the duration of
-   a compilation unit.
 
    We could also use a zone allocator for these objects since they have
    a very well defined lifetime.  If someone wants to experiment with that
@@ -82,45 +77,17 @@ static unsigned long free_phinode_count;
 
 static int ideal_phi_node_len (int);
 
-#ifdef GATHER_STATISTICS
 unsigned int phi_nodes_reused;
 unsigned int phi_nodes_created;
-#endif
-
-/* Initialize management of PHIs.  */
-
-void
-init_phinodes (void)
-{
-  int i;
-
-  for (i = 0; i < NUM_BUCKETS - 2; i++)
-    free_phinodes[i] = NULL;
-  free_phinode_count = 0;
-}
-
-/* Finalize management of PHIs.  */
-
-void
-fini_phinodes (void)
-{
-  int i;
-
-  for (i = 0; i < NUM_BUCKETS - 2; i++)
-    free_phinodes[i] = NULL;
-  free_phinode_count = 0;
-}
 
 /* Dump some simple statistics regarding the re-use of PHI nodes.  */
 
-#ifdef GATHER_STATISTICS
 void
 phinodes_print_statistics (void)
 {
   fprintf (stderr, "PHI nodes allocated: %u\n", phi_nodes_created);
   fprintf (stderr, "PHI nodes reused: %u\n", phi_nodes_reused);
 }
-#endif
 
 /* Allocate a PHI node with at least LEN arguments.  If the free list
    happens to contain a PHI node with LEN arguments or more, return
@@ -148,21 +115,19 @@ allocate_phi_node (size_t len)
       phi = VEC_pop (gimple, free_phinodes[bucket]);
       if (VEC_empty (gimple, free_phinodes[bucket]))
 	VEC_free (gimple, gc, free_phinodes[bucket]);
-#ifdef GATHER_STATISTICS
-      phi_nodes_reused++;
-#endif
+      if (GATHER_STATISTICS)
+	phi_nodes_reused++;
     }
   else
     {
       phi = ggc_alloc_gimple_statement_d (size);
-#ifdef GATHER_STATISTICS
-      phi_nodes_created++;
+      if (GATHER_STATISTICS)
 	{
 	  enum gimple_alloc_kind kind = gimple_alloc_kind (GIMPLE_PHI);
-          gimple_alloc_counts[(int) kind]++;
-          gimple_alloc_sizes[(int) kind] += size;
+	  phi_nodes_created++;
+	  gimple_alloc_counts[(int) kind]++;
+	  gimple_alloc_sizes[(int) kind] += size;
 	}
-#endif
     }
 
   return phi;
@@ -221,9 +186,12 @@ make_phi_node (tree var, int len)
 		   - sizeof (struct phi_arg_d)
 		   + sizeof (struct phi_arg_d) * len));
   phi->gsbase.code = GIMPLE_PHI;
+  gimple_init_singleton (phi);
   phi->gimple_phi.nargs = len;
   phi->gimple_phi.capacity = capacity;
-  if (TREE_CODE (var) == SSA_NAME)
+  if (!var)
+    ;
+  else if (TREE_CODE (var) == SSA_NAME)
     gimple_phi_set_result (phi, var);
   else
     gimple_phi_set_result (phi, make_ssa_name (var, phi));
@@ -269,29 +237,29 @@ release_phi_node (gimple phi)
 /* Resize an existing PHI node.  The only way is up.  Return the
    possibly relocated phi.  */
 
-static void
-resize_phi_node (gimple *phi, size_t len)
+static gimple
+resize_phi_node (gimple phi, size_t len)
 {
   size_t old_size, i;
   gimple new_phi;
 
-  gcc_assert (len > gimple_phi_capacity (*phi));
+  gcc_assert (len > gimple_phi_capacity (phi));
 
   /* The garbage collector will not look at the PHI node beyond the
      first PHI_NUM_ARGS elements.  Therefore, all we have to copy is a
      portion of the PHI node currently in use.  */
   old_size = sizeof (struct gimple_statement_phi)
-	     + (gimple_phi_num_args (*phi) - 1) * sizeof (struct phi_arg_d);
+	     + (gimple_phi_num_args (phi) - 1) * sizeof (struct phi_arg_d);
 
   new_phi = allocate_phi_node (len);
 
-  memcpy (new_phi, *phi, old_size);
+  memcpy (new_phi, phi, old_size);
 
   for (i = 0; i < gimple_phi_num_args (new_phi); i++)
     {
       use_operand_p imm, old_imm;
       imm = gimple_phi_arg_imm_use_ptr (new_phi, i);
-      old_imm = gimple_phi_arg_imm_use_ptr (*phi, i);
+      old_imm = gimple_phi_arg_imm_use_ptr (phi, i);
       imm->use = gimple_phi_arg_def_ptr (new_phi, i);
       relink_imm_use_stmt (imm, old_imm, new_phi);
     }
@@ -310,7 +278,7 @@ resize_phi_node (gimple *phi, size_t len)
       imm->loc.stmt = new_phi;
     }
 
-  *phi = new_phi;
+  return new_phi;
 }
 
 /* Reserve PHI arguments for a new edge to basic block BB.  */
@@ -324,18 +292,18 @@ reserve_phi_args_for_new_edge (basic_block bb)
 
   for (gsi = gsi_start_phis (bb); !gsi_end_p (gsi); gsi_next (&gsi))
     {
-      gimple *loc = gsi_stmt_ptr (&gsi);
+      gimple stmt = gsi_stmt (gsi);
 
-      if (len > gimple_phi_capacity (*loc))
+      if (len > gimple_phi_capacity (stmt))
 	{
-	  gimple old_phi = *loc;
-
-	  resize_phi_node (loc, cap);
+	  gimple new_phi = resize_phi_node (stmt, cap);
 
 	  /* The result of the PHI is defined by this PHI node.  */
-	  SSA_NAME_DEF_STMT (gimple_phi_result (*loc)) = *loc;
+	  SSA_NAME_DEF_STMT (gimple_phi_result (new_phi)) = new_phi;
+	  gsi_set_stmt (&gsi, new_phi);
 
-	  release_phi_node (old_phi);
+	  release_phi_node (stmt);
+	  stmt = new_phi;
 	}
 
       /* We represent a "missing PHI argument" by placing NULL_TREE in
@@ -345,9 +313,9 @@ reserve_phi_args_for_new_edge (basic_block bb)
 	 example, the loop optimizer duplicates several basic blocks,
 	 redirects edges, and then fixes up PHI arguments later in
 	 batch.  */
-      SET_PHI_ARG_DEF (*loc, len - 1, NULL_TREE);
+      SET_PHI_ARG_DEF (stmt, len - 1, NULL_TREE);
 
-      (*loc)->gimple_phi.nargs++;
+      stmt->gimple_phi.nargs++;
     }
 }
 
@@ -356,13 +324,15 @@ reserve_phi_args_for_new_edge (basic_block bb)
 void
 add_phi_node_to_bb (gimple phi, basic_block bb)
 {
-  gimple_stmt_iterator gsi;
+  gimple_seq seq = phi_nodes (bb);
   /* Add the new PHI node to the list of PHI nodes for block BB.  */
-  if (phi_nodes (bb) == NULL)
-    set_phi_nodes (bb, gimple_seq_alloc ());
-
-  gsi = gsi_last (phi_nodes (bb));
-  gsi_insert_after (&gsi, phi, GSI_NEW_STMT);
+  if (seq == NULL)
+    set_phi_nodes (bb, gimple_seq_alloc_with_stmt (phi));
+  else
+    {
+      gimple_seq_add_stmt (&seq, phi);
+      gcc_assert (seq == phi_nodes (bb));
+    }
 
   /* Associate BB to the PHI node.  */
   gimple_set_bb (phi, bb);

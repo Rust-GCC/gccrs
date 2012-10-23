@@ -1,5 +1,5 @@
 /* SCC value numbering for trees
-   Copyright (C) 2006, 2007, 2008, 2009, 2010
+   Copyright (C) 2006, 2007, 2008, 2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
    Contributed by Daniel Berlin <dan@dberlin.org>
 
@@ -25,21 +25,15 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm.h"
 #include "tree.h"
 #include "basic-block.h"
-#include "tree-pretty-print.h"
 #include "gimple-pretty-print.h"
 #include "tree-inline.h"
 #include "tree-flow.h"
 #include "gimple.h"
-#include "tree-dump.h"
-#include "timevar.h"
-#include "fibheap.h"
+#include "dumpfile.h"
 #include "hashtab.h"
-#include "tree-iterator.h"
 #include "alloc-pool.h"
-#include "tree-pass.h"
 #include "flags.h"
 #include "bitmap.h"
-#include "langhooks.h"
 #include "cfgloop.h"
 #include "params.h"
 #include "tree-ssa-propagate.h"
@@ -293,6 +287,63 @@ vn_get_expr_for (tree name)
   return expr;
 }
 
+/* Return the vn_kind the expression computed by the stmt should be
+   associated with.  */
+
+enum vn_kind
+vn_get_stmt_kind (gimple stmt)
+{
+  switch (gimple_code (stmt))
+    {
+    case GIMPLE_CALL:
+      return VN_REFERENCE;
+    case GIMPLE_PHI:
+      return VN_PHI;
+    case GIMPLE_ASSIGN:
+      {
+	enum tree_code code = gimple_assign_rhs_code (stmt);
+	tree rhs1 = gimple_assign_rhs1 (stmt);
+	switch (get_gimple_rhs_class (code))
+	  {
+	  case GIMPLE_UNARY_RHS:
+	  case GIMPLE_BINARY_RHS:
+	  case GIMPLE_TERNARY_RHS:
+	    return VN_NARY;
+	  case GIMPLE_SINGLE_RHS:
+	    switch (TREE_CODE_CLASS (code))
+	      {
+	      case tcc_reference:
+		/* VOP-less references can go through unary case.  */
+		if ((code == REALPART_EXPR
+		     || code == IMAGPART_EXPR
+		     || code == VIEW_CONVERT_EXPR
+		     || code == BIT_FIELD_REF)
+		    && TREE_CODE (TREE_OPERAND (rhs1, 0)) == SSA_NAME)
+		  return VN_NARY;
+
+		/* Fallthrough.  */
+	      case tcc_declaration:
+		return VN_REFERENCE;
+
+	      case tcc_constant:
+		return VN_CONSTANT;
+
+	      default:
+		if (code == ADDR_EXPR)
+		  return (is_gimple_min_invariant (rhs1)
+			  ? VN_CONSTANT : VN_REFERENCE);
+		else if (code == CONSTRUCTOR)
+		  return VN_NARY;
+		return VN_NONE;
+	      }
+	  default:
+	    return VN_NONE;
+	  }
+      }
+    default:
+      return VN_NONE;
+    }
+}
 
 /* Free a phi operation structure VP.  */
 
@@ -597,21 +648,21 @@ copy_reference_ops_from_ref (tree ref, VEC(vn_reference_op_s, heap) **result)
       temp.op1 = TMR_STEP (ref);
       temp.op2 = TMR_OFFSET (ref);
       temp.off = -1;
-      VEC_safe_push (vn_reference_op_s, heap, *result, &temp);
+      VEC_safe_push (vn_reference_op_s, heap, *result, temp);
 
       memset (&temp, 0, sizeof (temp));
       temp.type = NULL_TREE;
       temp.opcode = ERROR_MARK;
       temp.op0 = TMR_INDEX2 (ref);
       temp.off = -1;
-      VEC_safe_push (vn_reference_op_s, heap, *result, &temp);
+      VEC_safe_push (vn_reference_op_s, heap, *result, temp);
 
       memset (&temp, 0, sizeof (temp));
       temp.type = NULL_TREE;
       temp.opcode = TREE_CODE (TMR_BASE (ref));
       temp.op0 = TMR_BASE (ref);
       temp.off = -1;
-      VEC_safe_push (vn_reference_op_s, heap, *result, &temp);
+      VEC_safe_push (vn_reference_op_s, heap, *result, temp);
       return;
     }
 
@@ -628,6 +679,9 @@ copy_reference_ops_from_ref (tree ref, VEC(vn_reference_op_s, heap) **result)
 
       switch (temp.opcode)
 	{
+	case MODIFY_EXPR:
+	  temp.op0 = TREE_OPERAND (ref, 1);
+	  break;
 	case WITH_SIZE_EXPR:
 	  temp.op0 = TREE_OPERAND (ref, 1);
 	  temp.off = 0;
@@ -659,13 +713,12 @@ copy_reference_ops_from_ref (tree ref, VEC(vn_reference_op_s, heap) **result)
 		if (TREE_INT_CST_LOW (bit_offset) % BITS_PER_UNIT == 0)
 		  {
 		    double_int off
-		      = double_int_add (tree_to_double_int (this_offset),
-					double_int_rshift
-					  (tree_to_double_int (bit_offset),
-					   BITS_PER_UNIT == 8
-					   ? 3 : exact_log2 (BITS_PER_UNIT),
-					   HOST_BITS_PER_DOUBLE_INT, true));
-		    if (double_int_fits_in_shwi_p (off))
+		      = tree_to_double_int (this_offset)
+			+ tree_to_double_int (bit_offset)
+			  .arshift (BITS_PER_UNIT == 8
+				    ? 3 : exact_log2 (BITS_PER_UNIT),
+				    HOST_BITS_PER_DOUBLE_INT);
+		    if (off.fits_shwi ())
 		      temp.off = off.low;
 		  }
 	      }
@@ -683,11 +736,9 @@ copy_reference_ops_from_ref (tree ref, VEC(vn_reference_op_s, heap) **result)
 	      && TREE_CODE (temp.op2) == INTEGER_CST)
 	    {
 	      double_int off = tree_to_double_int (temp.op0);
-	      off = double_int_add (off,
-				    double_int_neg
-				      (tree_to_double_int (temp.op1)));
-	      off = double_int_mul (off, tree_to_double_int (temp.op2));
-	      if (double_int_fits_in_shwi_p (off))
+	      off += -tree_to_double_int (temp.op1);
+	      off *= tree_to_double_int (temp.op2);
+	      if (off.fits_shwi ())
 		temp.off = off.low;
 	    }
 	  break;
@@ -706,7 +757,7 @@ copy_reference_ops_from_ref (tree ref, VEC(vn_reference_op_s, heap) **result)
 	  temp.opcode = MEM_REF;
 	  temp.op0 = build_int_cst (build_pointer_type (TREE_TYPE (ref)), 0);
 	  temp.off = 0;
-	  VEC_safe_push (vn_reference_op_s, heap, *result, &temp);
+	  VEC_safe_push (vn_reference_op_s, heap, *result, temp);
 	  temp.opcode = ADDR_EXPR;
 	  temp.op0 = build_fold_addr_expr (ref);
 	  temp.type = TREE_TYPE (temp.op0);
@@ -745,9 +796,10 @@ copy_reference_ops_from_ref (tree ref, VEC(vn_reference_op_s, heap) **result)
 	default:
 	  gcc_unreachable ();
 	}
-      VEC_safe_push (vn_reference_op_s, heap, *result, &temp);
+      VEC_safe_push (vn_reference_op_s, heap, *result, temp);
 
       if (REFERENCE_CLASS_P (ref)
+	  || TREE_CODE (ref) == MODIFY_EXPR
 	  || TREE_CODE (ref) == WITH_SIZE_EXPR
 	  || (TREE_CODE (ref) == ADDR_EXPR
 	      && !is_gimple_min_invariant (ref)))
@@ -777,7 +829,7 @@ ao_ref_init_from_vn_reference (ao_ref *ref,
   alias_set_type base_alias_set = -1;
 
   /* First get the final access size from just the outermost expression.  */
-  op = VEC_index (vn_reference_op_s, ops, 0);
+  op = &VEC_index (vn_reference_op_s, ops, 0);
   if (op->opcode == COMPONENT_REF)
     size_tree = DECL_SIZE (op->op0);
   else if (op->opcode == BIT_FIELD_REF)
@@ -817,7 +869,7 @@ ao_ref_init_from_vn_reference (ao_ref *ref,
 	      && op->op0
 	      && DECL_P (TREE_OPERAND (op->op0, 0)))
 	    {
-	      vn_reference_op_t pop = VEC_index (vn_reference_op_s, ops, i-1);
+	      vn_reference_op_t pop = &VEC_index (vn_reference_op_s, ops, i-1);
 	      base = TREE_OPERAND (op->op0, 0);
 	      if (pop->off == -1)
 		{
@@ -942,6 +994,20 @@ copy_reference_ops_from_call (gimple call,
 {
   vn_reference_op_s temp;
   unsigned i;
+  tree lhs = gimple_call_lhs (call);
+
+  /* If 2 calls have a different non-ssa lhs, vdef value numbers should be
+     different.  By adding the lhs here in the vector, we ensure that the
+     hashcode is different, guaranteeing a different value number.  */
+  if (lhs && TREE_CODE (lhs) != SSA_NAME)
+    {
+      memset (&temp, 0, sizeof (temp));
+      temp.opcode = MODIFY_EXPR;
+      temp.type = TREE_TYPE (lhs);
+      temp.op0 = lhs;
+      temp.off = -1;
+      VEC_safe_push (vn_reference_op_s, heap, *result, temp);
+    }
 
   /* Copy the type, opcode, function being called and static chain.  */
   memset (&temp, 0, sizeof (temp));
@@ -950,7 +1016,7 @@ copy_reference_ops_from_call (gimple call,
   temp.op0 = gimple_call_fn (call);
   temp.op1 = gimple_call_chain (call);
   temp.off = -1;
-  VEC_safe_push (vn_reference_op_s, heap, *result, &temp);
+  VEC_safe_push (vn_reference_op_s, heap, *result, temp);
 
   /* Copy the call arguments.  As they can be references as well,
      just chain them together.  */
@@ -992,13 +1058,13 @@ vn_reference_fold_indirect (VEC (vn_reference_op_s, heap) **ops,
 			    unsigned int *i_p)
 {
   unsigned int i = *i_p;
-  vn_reference_op_t op = VEC_index (vn_reference_op_s, *ops, i);
-  vn_reference_op_t mem_op = VEC_index (vn_reference_op_s, *ops, i - 1);
+  vn_reference_op_t op = &VEC_index (vn_reference_op_s, *ops, i);
+  vn_reference_op_t mem_op = &VEC_index (vn_reference_op_s, *ops, i - 1);
   tree addr_base;
-  HOST_WIDE_INT addr_offset;
+  HOST_WIDE_INT addr_offset = 0;
 
   /* The only thing we have to do is from &OBJ.foo.bar add the offset
-     from .foo.bar to the preceeding MEM_REF offset and replace the
+     from .foo.bar to the preceding MEM_REF offset and replace the
      address with &OBJ.  */
   addr_base = get_addr_base_and_unit_offset (TREE_OPERAND (op->op0, 0),
 					     &addr_offset);
@@ -1006,8 +1072,8 @@ vn_reference_fold_indirect (VEC (vn_reference_op_s, heap) **ops,
   if (addr_base != op->op0)
     {
       double_int off = tree_to_double_int (mem_op->op0);
-      off = double_int_sext (off, TYPE_PRECISION (TREE_TYPE (mem_op->op0)));
-      off = double_int_add (off, shwi_to_double_int (addr_offset));
+      off = off.sext (TYPE_PRECISION (TREE_TYPE (mem_op->op0)));
+      off += double_int::from_shwi (addr_offset);
       mem_op->op0 = double_int_to_tree (TREE_TYPE (mem_op->op0), off);
       op->op0 = build_fold_addr_expr (addr_base);
       if (host_integerp (mem_op->op0, 0))
@@ -1024,8 +1090,8 @@ vn_reference_maybe_forwprop_address (VEC (vn_reference_op_s, heap) **ops,
 				     unsigned int *i_p)
 {
   unsigned int i = *i_p;
-  vn_reference_op_t op = VEC_index (vn_reference_op_s, *ops, i);
-  vn_reference_op_t mem_op = VEC_index (vn_reference_op_s, *ops, i - 1);
+  vn_reference_op_t op = &VEC_index (vn_reference_op_s, *ops, i);
+  vn_reference_op_t mem_op = &VEC_index (vn_reference_op_s, *ops, i - 1);
   gimple def_stmt;
   enum tree_code code;
   double_int off;
@@ -1040,10 +1106,10 @@ vn_reference_maybe_forwprop_address (VEC (vn_reference_op_s, heap) **ops,
     return;
 
   off = tree_to_double_int (mem_op->op0);
-  off = double_int_sext (off, TYPE_PRECISION (TREE_TYPE (mem_op->op0)));
+  off = off.sext (TYPE_PRECISION (TREE_TYPE (mem_op->op0)));
 
   /* The only thing we have to do is from &OBJ.foo.bar add the offset
-     from .foo.bar to the preceeding MEM_REF offset and replace the
+     from .foo.bar to the preceding MEM_REF offset and replace the
      address with &OBJ.  */
   if (code == ADDR_EXPR)
     {
@@ -1057,8 +1123,8 @@ vn_reference_maybe_forwprop_address (VEC (vn_reference_op_s, heap) **ops,
 	  || TREE_CODE (addr_base) != MEM_REF)
 	return;
 
-      off = double_int_add (off, shwi_to_double_int (addr_offset));
-      off = double_int_add (off, mem_ref_offset (addr_base));
+      off += double_int::from_shwi (addr_offset);
+      off += mem_ref_offset (addr_base);
       op->op0 = TREE_OPERAND (addr_base, 0);
     }
   else
@@ -1070,7 +1136,7 @@ vn_reference_maybe_forwprop_address (VEC (vn_reference_op_s, heap) **ops,
 	  || TREE_CODE (ptroff) != INTEGER_CST)
 	return;
 
-      off = double_int_add (off, tree_to_double_int (ptroff));
+      off += tree_to_double_int (ptroff);
       op->op0 = ptr;
     }
 
@@ -1102,7 +1168,7 @@ fully_constant_vn_reference_p (vn_reference_t ref)
 
   /* Try to simplify the translated expression if it is
      a call to a builtin function with at most two arguments.  */
-  op = VEC_index (vn_reference_op_s, operands, 0);
+  op = &VEC_index (vn_reference_op_s, operands, 0);
   if (op->opcode == CALL_EXPR
       && TREE_CODE (op->op0) == ADDR_EXPR
       && TREE_CODE (TREE_OPERAND (op->op0, 0)) == FUNCTION_DECL
@@ -1112,9 +1178,9 @@ fully_constant_vn_reference_p (vn_reference_t ref)
     {
       vn_reference_op_t arg0, arg1 = NULL;
       bool anyconst = false;
-      arg0 = VEC_index (vn_reference_op_s, operands, 1);
+      arg0 = &VEC_index (vn_reference_op_s, operands, 1);
       if (VEC_length (vn_reference_op_s, operands) > 2)
-	arg1 = VEC_index (vn_reference_op_s, operands, 2);
+	arg1 = &VEC_index (vn_reference_op_s, operands, 2);
       if (TREE_CODE_CLASS (arg0->opcode) == tcc_constant
 	  || (arg0->opcode == ADDR_EXPR
 	      && is_gimple_min_invariant (arg0->op0)))
@@ -1146,7 +1212,7 @@ fully_constant_vn_reference_p (vn_reference_t ref)
 	   && VEC_length (vn_reference_op_s, operands) == 2)
     {
       vn_reference_op_t arg0;
-      arg0 = VEC_index (vn_reference_op_s, operands, 1);
+      arg0 = &VEC_index (vn_reference_op_s, operands, 1);
       if (arg0->opcode == STRING_CST
 	  && (TYPE_MODE (op->type)
 	      == TYPE_MODE (TREE_TYPE (TREE_TYPE (arg0->op0))))
@@ -1214,12 +1280,12 @@ valueize_refs_1 (VEC (vn_reference_op_s, heap) *orig, bool *valueized_anything)
 	  && vro->op0
 	  && TREE_CODE (vro->op0) == ADDR_EXPR
 	  && VEC_index (vn_reference_op_s,
-			orig, i - 1)->opcode == MEM_REF)
+			orig, i - 1).opcode == MEM_REF)
 	vn_reference_fold_indirect (&orig, &i);
       else if (i > 0
 	       && vro->opcode == SSA_NAME
 	       && VEC_index (vn_reference_op_s,
-			     orig, i - 1)->opcode == MEM_REF)
+			     orig, i - 1).opcode == MEM_REF)
 	vn_reference_maybe_forwprop_address (&orig, &i);
       /* If it transforms a non-constant ARRAY_REF into a constant
 	 one, adjust the constant offset.  */
@@ -1230,11 +1296,9 @@ valueize_refs_1 (VEC (vn_reference_op_s, heap) *orig, bool *valueized_anything)
 	       && TREE_CODE (vro->op2) == INTEGER_CST)
 	{
 	  double_int off = tree_to_double_int (vro->op0);
-	  off = double_int_add (off,
-				double_int_neg
-				  (tree_to_double_int (vro->op1)));
-	  off = double_int_mul (off, tree_to_double_int (vro->op2));
-	  if (double_int_fits_in_shwi_p (off))
+	  off += -tree_to_double_int (vro->op1);
+	  off *= tree_to_double_int (vro->op2);
+	  if (off.fits_shwi ())
 	    vro->off = off.low;
 	}
     }
@@ -1318,11 +1382,18 @@ static vn_lookup_kind default_vn_walk_kind;
    with the current VUSE and performs the expression lookup.  */
 
 static void *
-vn_reference_lookup_2 (ao_ref *op ATTRIBUTE_UNUSED, tree vuse, void *vr_)
+vn_reference_lookup_2 (ao_ref *op ATTRIBUTE_UNUSED, tree vuse,
+		       unsigned int cnt, void *vr_)
 {
   vn_reference_t vr = (vn_reference_t)vr_;
   void **slot;
   hashval_t hash;
+
+  /* This bounds the stmt walks we perform on reference lookups
+     to O(1) instead of O(N) where N is the number of dominating
+     stores.  */
+  if (cnt > (unsigned) PARAM_VALUE (PARAM_SCCVN_MAX_ALIAS_QUERIES_PER_ACCESS))
+    return (void *)-1;
 
   if (last_vuse_ptr)
     *last_vuse_ptr = vuse;
@@ -1379,7 +1450,7 @@ vn_reference_lookup_or_insert_for_pieces (tree vuse,
 
 /* Callback for walk_non_aliased_vuses.  Tries to perform a lookup
    from the statement defining VUSE and if not successful tries to
-   translate *REFP and VR_ through an aggregate copy at the defintion
+   translate *REFP and VR_ through an aggregate copy at the definition
    of VUSE.  */
 
 static void *
@@ -1484,7 +1555,8 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *vr_)
 
   /* 3) Assignment from a constant.  We can use folds native encode/interpret
      routines to extract the assigned bits.  */
-  else if (CHAR_BIT == 8 && BITS_PER_UNIT == 8
+  else if (vn_walk_kind == VN_WALKREWRITE
+	   && CHAR_BIT == 8 && BITS_PER_UNIT == 8
 	   && ref->size == maxsize
 	   && maxsize % BITS_PER_UNIT == 0
 	   && offset % BITS_PER_UNIT == 0
@@ -1567,8 +1639,12 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *vr_)
 		  if (i < CONSTRUCTOR_NELTS (ctor))
 		    {
 		      constructor_elt *elt = CONSTRUCTOR_ELT (ctor, i);
-		      if (compare_tree_int (elt->index, i) == 0)
-			val = elt->value;
+		      if (TREE_CODE (TREE_TYPE (rhs1)) == VECTOR_TYPE)
+			{
+			  if (TREE_CODE (TREE_TYPE (elt->value))
+			      != VECTOR_TYPE)
+			    val = elt->value;
+			}
 		    }
 		}
 	      if (val)
@@ -1612,9 +1688,9 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *vr_)
       i = VEC_length (vn_reference_op_s, vr->operands) - 1;
       j = VEC_length (vn_reference_op_s, lhs_ops) - 1;
       while (j >= 0 && i >= 0
-	     && vn_reference_op_eq (VEC_index (vn_reference_op_s,
-					       vr->operands, i),
-				    VEC_index (vn_reference_op_s, lhs_ops, j)))
+	     && vn_reference_op_eq (&VEC_index (vn_reference_op_s,
+					        vr->operands, i),
+				    &VEC_index (vn_reference_op_s, lhs_ops, j)))
 	{
 	  i--;
 	  j--;
@@ -1627,10 +1703,10 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *vr_)
 	 don't care here - further lookups with the rewritten operands
 	 will simply fail if we messed up types too badly.  */
       if (j == 0 && i >= 0
-	  && VEC_index (vn_reference_op_s, lhs_ops, 0)->opcode == MEM_REF
-	  && VEC_index (vn_reference_op_s, lhs_ops, 0)->off != -1
-	  && (VEC_index (vn_reference_op_s, lhs_ops, 0)->off
-	      == VEC_index (vn_reference_op_s, vr->operands, i)->off))
+	  && VEC_index (vn_reference_op_s, lhs_ops, 0).opcode == MEM_REF
+	  && VEC_index (vn_reference_op_s, lhs_ops, 0).off != -1
+	  && (VEC_index (vn_reference_op_s, lhs_ops, 0).off
+	      == VEC_index (vn_reference_op_s, vr->operands, i).off))
 	i--, j--;
 
       /* i now points to the first additional op.
@@ -1657,7 +1733,7 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *vr_)
 	VEC_truncate (vn_reference_op_s, vr->operands,
 		      i + 1 + VEC_length (vn_reference_op_s, rhs));
       FOR_EACH_VEC_ELT (vn_reference_op_s, rhs, j, vro)
-	VEC_replace (vn_reference_op_s, vr->operands, i + 1 + j, vro);
+	VEC_replace (vn_reference_op_s, vr->operands, i + 1 + j, *vro);
       VEC_free (vn_reference_op_s, heap, rhs);
       vr->operands = valueize_refs (vr->operands);
       vr->hashcode = vn_reference_compute_hash (vr);
@@ -1795,12 +1871,12 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *vr_)
       op.opcode = MEM_REF;
       op.op0 = build_int_cst (ptr_type_node, at - rhs_offset);
       op.off = at - lhs_offset + rhs_offset;
-      VEC_replace (vn_reference_op_s, vr->operands, 0, &op);
+      VEC_replace (vn_reference_op_s, vr->operands, 0, op);
       op.type = TREE_TYPE (rhs);
       op.opcode = TREE_CODE (rhs);
       op.op0 = rhs;
       op.off = -1;
-      VEC_replace (vn_reference_op_s, vr->operands, 1, &op);
+      VEC_replace (vn_reference_op_s, vr->operands, 1, op);
       vr->hashcode = vn_reference_compute_hash (vr);
 
       /* Adjust *ref from the new operands.  */
@@ -1941,7 +2017,7 @@ vn_reference_lookup (tree op, tree vuse, vn_lookup_kind kind,
    RESULT, and return the resulting reference structure we created.  */
 
 vn_reference_t
-vn_reference_insert (tree op, tree result, tree vuse)
+vn_reference_insert (tree op, tree result, tree vuse, tree vdef)
 {
   void **slot;
   vn_reference_t vr1;
@@ -1957,6 +2033,7 @@ vn_reference_insert (tree op, tree result, tree vuse)
   vr1->set = get_alias_set (op);
   vr1->hashcode = vn_reference_compute_hash (vr1);
   vr1->result = TREE_CODE (result) == SSA_NAME ? SSA_VAL (result) : result;
+  vr1->result_vdef = vdef;
 
   slot = htab_find_slot_with_hash (current_info->references, vr1, vr1->hashcode,
 				   INSERT);
@@ -2117,6 +2194,9 @@ vn_nary_length_from_stmt (gimple stmt)
     case VIEW_CONVERT_EXPR:
       return 1;
 
+    case BIT_FIELD_REF:
+      return 3;
+
     case CONSTRUCTOR:
       return CONSTRUCTOR_NELTS (gimple_assign_rhs1 (stmt));
 
@@ -2143,6 +2223,13 @@ init_vn_nary_op_from_stmt (vn_nary_op_t vno, gimple stmt)
       vno->op[0] = TREE_OPERAND (gimple_assign_rhs1 (stmt), 0);
       break;
 
+    case BIT_FIELD_REF:
+      vno->length = 3;
+      vno->op[0] = TREE_OPERAND (gimple_assign_rhs1 (stmt), 0);
+      vno->op[1] = TREE_OPERAND (gimple_assign_rhs1 (stmt), 1);
+      vno->op[2] = TREE_OPERAND (gimple_assign_rhs1 (stmt), 2);
+      break;
+
     case CONSTRUCTOR:
       vno->length = CONSTRUCTOR_NELTS (gimple_assign_rhs1 (stmt));
       for (i = 0; i < vno->length; ++i)
@@ -2150,6 +2237,7 @@ init_vn_nary_op_from_stmt (vn_nary_op_t vno, gimple stmt)
       break;
 
     default:
+      gcc_checking_assert (!gimple_assign_single_p (stmt));
       vno->length = gimple_num_ops (stmt) - 1;
       for (i = 0; i < vno->length; ++i)
 	vno->op[i] = gimple_op (stmt, i + 1);
@@ -2529,6 +2617,30 @@ set_ssa_val_to (tree from, tree to)
   return false;
 }
 
+/* Mark as processed all the definitions in the defining stmt of USE, or
+   the USE itself.  */
+
+static void
+mark_use_processed (tree use)
+{
+  ssa_op_iter iter;
+  def_operand_p defp;
+  gimple stmt = SSA_NAME_DEF_STMT (use);
+
+  if (SSA_NAME_IS_DEFAULT_DEF (use) || gimple_code (stmt) == GIMPLE_PHI)
+    {
+      VN_INFO (use)->use_processed = true;
+      return;
+    }
+
+  FOR_EACH_SSA_DEF_OPERAND (defp, stmt, iter, SSA_OP_ALL_DEFS)
+    {
+      tree def = DEF_FROM_PTR (defp);
+
+      VN_INFO (def)->use_processed = true;
+    }
+}
+
 /* Set all definitions in STMT to value number to themselves.
    Return true if a value number changed. */
 
@@ -2542,8 +2654,6 @@ defs_to_varying (gimple stmt)
   FOR_EACH_SSA_DEF_OPERAND (defp, stmt, iter, SSA_OP_ALL_DEFS)
     {
       tree def = DEF_FROM_PTR (defp);
-
-      VN_INFO (def)->use_processed = true;
       changed |= set_ssa_val_to (def, def);
     }
   return changed;
@@ -2602,27 +2712,45 @@ visit_reference_op_call (tree lhs, gimple stmt)
 {
   bool changed = false;
   struct vn_reference_s vr1;
-  tree result;
+  vn_reference_t vnresult = NULL;
   tree vuse = gimple_vuse (stmt);
+  tree vdef = gimple_vdef (stmt);
+
+  /* Non-ssa lhs is handled in copy_reference_ops_from_call.  */
+  if (lhs && TREE_CODE (lhs) != SSA_NAME)
+    lhs = NULL_TREE;
 
   vr1.vuse = vuse ? SSA_VAL (vuse) : NULL_TREE;
   vr1.operands = valueize_shared_reference_ops_from_call (stmt);
   vr1.type = gimple_expr_type (stmt);
   vr1.set = 0;
   vr1.hashcode = vn_reference_compute_hash (&vr1);
-  result = vn_reference_lookup_1 (&vr1, NULL);
-  if (result)
+  vn_reference_lookup_1 (&vr1, &vnresult);
+
+  if (vnresult)
     {
-      changed = set_ssa_val_to (lhs, result);
-      if (TREE_CODE (result) == SSA_NAME
-	  && VN_INFO (result)->has_constants)
-	VN_INFO (lhs)->has_constants = true;
+      if (vnresult->result_vdef)
+	changed |= set_ssa_val_to (vdef, vnresult->result_vdef);
+
+      if (!vnresult->result && lhs)
+	vnresult->result = lhs;
+
+      if (vnresult->result && lhs)
+	{
+	  changed |= set_ssa_val_to (lhs, vnresult->result);
+
+	  if (VN_INFO (vnresult->result)->has_constants)
+	    VN_INFO (lhs)->has_constants = true;
+	}
     }
   else
     {
       void **slot;
       vn_reference_t vr2;
-      changed = set_ssa_val_to (lhs, lhs);
+      if (vdef)
+	changed |= set_ssa_val_to (vdef, vdef);
+      if (lhs)
+	changed |= set_ssa_val_to (lhs, lhs);
       vr2 = (vn_reference_t) pool_alloc (current_info->references_pool);
       vr2->vuse = vr1.vuse;
       vr2->operands = valueize_refs (create_reference_ops_from_call (stmt));
@@ -2630,6 +2758,7 @@ visit_reference_op_call (tree lhs, gimple stmt)
       vr2->set = vr1.set;
       vr2->hashcode = vr1.hashcode;
       vr2->result = lhs;
+      vr2->result_vdef = vdef;
       slot = htab_find_slot_with_hash (current_info->references,
 				       vr2, vr2->hashcode, INSERT);
       if (*slot)
@@ -2692,7 +2821,8 @@ visit_reference_op_load (tree lhs, tree op, gimple stmt)
 	 a new SSA_NAME we create.  */
       if (!result)
         {
-	  result = make_ssa_name (SSA_NAME_VAR (lhs), gimple_build_nop ());
+	  result = make_temp_ssa_name (TREE_TYPE (lhs), gimple_build_nop (),
+				       "vntemp");
 	  /* Initialize value-number information properly.  */
 	  VN_INFO_GET (result)->valnum = result;
 	  VN_INFO (result)->value_id = get_next_value_id ();
@@ -2738,7 +2868,7 @@ visit_reference_op_load (tree lhs, tree op, gimple stmt)
   else
     {
       changed = set_ssa_val_to (lhs, lhs);
-      vn_reference_insert (op, lhs, last_vuse);
+      vn_reference_insert (op, lhs, last_vuse, NULL_TREE);
     }
 
   return changed;
@@ -2752,8 +2882,11 @@ static bool
 visit_reference_op_store (tree lhs, tree op, gimple stmt)
 {
   bool changed = false;
-  tree result;
+  vn_reference_t vnresult = NULL;
+  tree result, assign;
   bool resultsame = false;
+  tree vuse = gimple_vuse (stmt);
+  tree vdef = gimple_vdef (stmt);
 
   /* First we want to lookup using the *vuses* from the store and see
      if there the last store to this location with the same address
@@ -2771,7 +2904,7 @@ visit_reference_op_store (tree lhs, tree op, gimple stmt)
      Otherwise, the vdefs for the store are used when inserting into
      the table, since the store generates a new memory state.  */
 
-  result = vn_reference_lookup (lhs, gimple_vuse (stmt), VN_NOWALK, NULL);
+  result = vn_reference_lookup (lhs, vuse, VN_NOWALK, NULL);
 
   if (result)
     {
@@ -2784,8 +2917,17 @@ visit_reference_op_store (tree lhs, tree op, gimple stmt)
 
   if (!result || !resultsame)
     {
-      tree vdef;
+      assign = build2 (MODIFY_EXPR, TREE_TYPE (lhs), lhs, op);
+      vn_reference_lookup (assign, vuse, VN_NOWALK, &vnresult);
+      if (vnresult)
+	{
+	  VN_INFO (vdef)->use_processed = true;
+	  return set_ssa_val_to (vdef, vnresult->result_vdef);
+	}
+    }
 
+  if (!result || !resultsame)
+    {
       if (dump_file && (dump_flags & TDF_DETAILS))
 	{
 	  fprintf (dump_file, "No store match\n");
@@ -2797,32 +2939,29 @@ visit_reference_op_store (tree lhs, tree op, gimple stmt)
 	}
       /* Have to set value numbers before insert, since insert is
 	 going to valueize the references in-place.  */
-      if ((vdef = gimple_vdef (stmt)))
+      if (vdef)
 	{
-	  VN_INFO (vdef)->use_processed = true;
 	  changed |= set_ssa_val_to (vdef, vdef);
 	}
 
       /* Do not insert structure copies into the tables.  */
       if (is_gimple_min_invariant (op)
 	  || is_gimple_reg (op))
-        vn_reference_insert (lhs, op, vdef);
+        vn_reference_insert (lhs, op, vdef, NULL);
+
+      assign = build2 (MODIFY_EXPR, TREE_TYPE (lhs), lhs, op);
+      vn_reference_insert (assign, lhs, vuse, vdef);
     }
   else
     {
       /* We had a match, so value number the vdef to have the value
 	 number of the vuse it came from.  */
-      tree def, use;
 
       if (dump_file && (dump_flags & TDF_DETAILS))
 	fprintf (dump_file, "Store matched earlier value,"
 		 "value numbering store vdefs to matching vuses.\n");
 
-      def = gimple_vdef (stmt);
-      use = gimple_vuse (stmt);
-
-      VN_INFO (def)->use_processed = true;
-      changed |= set_ssa_val_to (def, SSA_VAL (use));
+      changed |= set_ssa_val_to (vdef, SSA_VAL (vuse));
     }
 
   return changed;
@@ -3171,7 +3310,7 @@ visit_use (tree use)
   bool changed = false;
   gimple stmt = SSA_NAME_DEF_STMT (use);
 
-  VN_INFO (use)->use_processed = true;
+  mark_use_processed (use);
 
   gcc_assert (!SSA_NAME_IN_FREE_LIST (use));
   if (dump_file && (dump_flags & TDF_DETAILS)
@@ -3190,8 +3329,7 @@ visit_use (tree use)
     {
       if (gimple_code (stmt) == GIMPLE_PHI)
 	changed = visit_phi (stmt);
-      else if (!gimple_has_lhs (stmt)
-	       || gimple_has_volatile_ops (stmt))
+      else if (gimple_has_volatile_ops (stmt))
 	changed = defs_to_varying (stmt);
       else if (is_gimple_assign (stmt))
 	{
@@ -3299,44 +3437,13 @@ visit_use (tree use)
 		}
 	      else
 		{
-		  switch (get_gimple_rhs_class (code))
+		  switch (vn_get_stmt_kind (stmt))
 		    {
-		    case GIMPLE_UNARY_RHS:
-		    case GIMPLE_BINARY_RHS:
-		    case GIMPLE_TERNARY_RHS:
+		    case VN_NARY:
 		      changed = visit_nary_op (lhs, stmt);
 		      break;
-		    case GIMPLE_SINGLE_RHS:
-		      switch (TREE_CODE_CLASS (code))
-			{
-			case tcc_reference:
-			  /* VOP-less references can go through unary case.  */
-			  if ((code == REALPART_EXPR
-			       || code == IMAGPART_EXPR
-			       || code == VIEW_CONVERT_EXPR
-			       || code == BIT_FIELD_REF)
-			      && TREE_CODE (TREE_OPERAND (rhs1, 0)) == SSA_NAME)
-			    {
-			      changed = visit_nary_op (lhs, stmt);
-			      break;
-			    }
-			  /* Fallthrough.  */
-			case tcc_declaration:
-			  changed = visit_reference_op_load (lhs, rhs1, stmt);
-			  break;
-			default:
-			  if (code == ADDR_EXPR)
-			    {
-			      changed = visit_nary_op (lhs, stmt);
-			      break;
-			    }
-			  else if (code == CONSTRUCTOR)
-			    {
-			      changed = visit_nary_op (lhs, stmt);
-			      break;
-			    }
-			  changed = defs_to_varying (stmt);
-			}
+		    case VN_REFERENCE:
+		      changed = visit_reference_op_load (lhs, rhs1, stmt);
 		      break;
 		    default:
 		      changed = defs_to_varying (stmt);
@@ -3353,34 +3460,46 @@ visit_use (tree use)
 
 	  /* ???  We could try to simplify calls.  */
 
-	  if (stmt_has_constants (stmt)
-	      && TREE_CODE (lhs) == SSA_NAME)
-	    VN_INFO (lhs)->has_constants = true;
-	  else if (TREE_CODE (lhs) == SSA_NAME)
+	  if (lhs && TREE_CODE (lhs) == SSA_NAME)
 	    {
-	      /* We reset expr and constantness here because we may
-		 have been value numbering optimistically, and
-		 iterating. They may become non-constant in this case,
-		 even if they were optimistically constant. */
-	      VN_INFO (lhs)->has_constants = false;
-	      VN_INFO (lhs)->expr = NULL_TREE;
+	      if (stmt_has_constants (stmt))
+		VN_INFO (lhs)->has_constants = true;
+	      else
+		{
+		  /* We reset expr and constantness here because we may
+		     have been value numbering optimistically, and
+		     iterating.  They may become non-constant in this case,
+		     even if they were optimistically constant.  */
+		  VN_INFO (lhs)->has_constants = false;
+		  VN_INFO (lhs)->expr = NULL_TREE;
+		}
+
+	      if (SSA_NAME_OCCURS_IN_ABNORMAL_PHI (lhs))
+		{
+		  changed = defs_to_varying (stmt);
+		  goto done;
+		}
 	    }
 
-	  if (TREE_CODE (lhs) == SSA_NAME
-	      && SSA_NAME_OCCURS_IN_ABNORMAL_PHI (lhs))
-	    changed = defs_to_varying (stmt);
-	  /* ???  We should handle stores from calls.  */
-	  else if (TREE_CODE (lhs) == SSA_NAME)
-	    {
-	      if (!gimple_call_internal_p (stmt)
-		  && gimple_call_flags (stmt) & (ECF_PURE | ECF_CONST))
-		changed = visit_reference_op_call (lhs, stmt);
-	      else
-		changed = defs_to_varying (stmt);
-	    }
+	  if (!gimple_call_internal_p (stmt)
+	      && (/* Calls to the same function with the same vuse
+		     and the same operands do not necessarily return the same
+		     value, unless they're pure or const.  */
+		  gimple_call_flags (stmt) & (ECF_PURE | ECF_CONST)
+		  /* If calls have a vdef, subsequent calls won't have
+		     the same incoming vuse.  So, if 2 calls with vdef have the
+		     same vuse, we know they're not subsequent.
+		     We can value number 2 calls to the same function with the
+		     same vuse and the same operands which are not subsequent
+		     the same, because there is no code in the program that can
+		     compare the 2 values.  */
+		  || gimple_vdef (stmt)))
+	    changed = visit_reference_op_call (lhs, stmt);
 	  else
 	    changed = defs_to_varying (stmt);
 	}
+      else
+	changed = defs_to_varying (stmt);
     }
  done:
   return changed;
@@ -3673,7 +3792,7 @@ start_over:
 	  /* Restore the last use walker and continue walking there.  */
 	  use = name;
 	  name = VEC_pop (tree, namevec);
-	  memcpy (&iter, VEC_last (ssa_op_iter, itervec),
+	  memcpy (&iter, &VEC_last (ssa_op_iter, itervec),
 		  sizeof (ssa_op_iter));
 	  VEC_pop (ssa_op_iter, itervec);
 	  goto continue_walking;
@@ -3689,7 +3808,7 @@ start_over:
 	    {
 	      /* Recurse by pushing the current use walking state on
 		 the stack and starting over.  */
-	      VEC_safe_push(ssa_op_iter, heap, itervec, &iter);
+	      VEC_safe_push(ssa_op_iter, heap, itervec, iter);
 	      VEC_safe_push(tree, heap, namevec, name);
 	      name = use;
 	      goto start_over;
@@ -3762,13 +3881,14 @@ init_scc_vn (void)
   vn_ssa_aux_table = VEC_alloc (vn_ssa_aux_t, heap, num_ssa_names + 1);
   /* VEC_alloc doesn't actually grow it to the right size, it just
      preallocates the space to do so.  */
-  VEC_safe_grow_cleared (vn_ssa_aux_t, heap, vn_ssa_aux_table, num_ssa_names + 1);
+  VEC_safe_grow_cleared (vn_ssa_aux_t, heap, vn_ssa_aux_table,
+			 num_ssa_names + 1);
   gcc_obstack_init (&vn_ssa_aux_obstack);
 
   shared_lookup_phiargs = NULL;
   shared_lookup_references = NULL;
-  rpo_numbers = XCNEWVEC (int, last_basic_block + NUM_FIXED_BLOCKS);
-  rpo_numbers_temp = XCNEWVEC (int, last_basic_block + NUM_FIXED_BLOCKS);
+  rpo_numbers = XNEWVEC (int, last_basic_block);
+  rpo_numbers_temp = XNEWVEC (int, n_basic_blocks - NUM_FIXED_BLOCKS);
   pre_and_rev_post_order_compute (NULL, rpo_numbers_temp, false);
 
   /* RPO numbers is an array of rpo ordering, rpo[i] = bb means that
@@ -3891,11 +4011,9 @@ run_scc_vn (vn_lookup_kind default_vn_walk_kind_)
        param;
        param = DECL_CHAIN (param))
     {
-      if (gimple_default_def (cfun, param) != NULL)
-	{
-	  tree def = gimple_default_def (cfun, param);
-	  VN_INFO (def)->valnum = def;
-	}
+      tree def = ssa_default_def (cfun, param);
+      if (def)
+	VN_INFO (def)->valnum = def;
     }
 
   for (i = 1; i < num_ssa_names; ++i)

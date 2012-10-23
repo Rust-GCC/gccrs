@@ -1,7 +1,7 @@
 // Vector implementation -*- C++ -*-
 
 // Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
-// 2011 Free Software Foundation, Inc.
+// 2011, 2012 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -191,6 +191,9 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
    *  individual elements in any order.
    *
    *  @ingroup sequences
+   *
+   *  @tparam _Tp  Type of element.
+   *  @tparam _Alloc  Allocator type, defaults to allocator<_Tp>.
    *
    *  Meets the requirements of a <a href="tables.html#65">container</a>, a
    *  <a href="tables.html#66">reversible container</a>, and a
@@ -383,6 +386,14 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  used, then this will do at most 2N calls to the copy
        *  constructor, and logN memory reallocations.
        */
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      template<typename _InputIterator,
+	       typename = std::_RequireInputIter<_InputIterator>>
+        vector(_InputIterator __first, _InputIterator __last,
+	       const allocator_type& __a = allocator_type())
+	: _Base(__a)
+        { _M_initialize_dispatch(__first, __last, __false_type()); }
+#else
       template<typename _InputIterator>
         vector(_InputIterator __first, _InputIterator __last,
 	       const allocator_type& __a = allocator_type())
@@ -392,6 +403,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	  typedef typename std::__is_integer<_InputIterator>::__type _Integral;
 	  _M_initialize_dispatch(__first, __last, _Integral());
 	}
+#endif
 
       /**
        *  The dtor only erases the elements, and note that if the
@@ -479,6 +491,13 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  that the resulting %vector's size is the same as the number
        *  of elements assigned.  Old data may be lost.
        */
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      template<typename _InputIterator,
+	       typename = std::_RequireInputIter<_InputIterator>>
+        void
+        assign(_InputIterator __first, _InputIterator __last)
+        { _M_assign_dispatch(__first, __last, __false_type()); }
+#else
       template<typename _InputIterator>
         void
         assign(_InputIterator __first, _InputIterator __last)
@@ -487,6 +506,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	  typedef typename std::__is_integer<_InputIterator>::__type _Integral;
 	  _M_assign_dispatch(__first, __last, _Integral());
 	}
+#endif
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
       /**
@@ -1017,6 +1037,14 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  %vector and if it is frequently used the user should
        *  consider using std::list.
        */
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      template<typename _InputIterator,
+	       typename = std::_RequireInputIter<_InputIterator>>
+        void
+        insert(iterator __position, _InputIterator __first,
+	       _InputIterator __last)
+        { _M_insert_dispatch(__position, __first, __last, __false_type()); }
+#else
       template<typename _InputIterator>
         void
         insert(iterator __position, _InputIterator __first,
@@ -1026,6 +1054,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	  typedef typename std::__is_integer<_InputIterator>::__type _Integral;
 	  _M_insert_dispatch(__position, __first, __last, _Integral());
 	}
+#endif
 
       /**
        *  @brief  Remove element at given position.

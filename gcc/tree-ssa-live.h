@@ -31,13 +31,7 @@ along with GCC; see the file COPYING3.  If not see
 /* Used to create the variable mapping when we go out of SSA form.
 
    Mapping from an ssa_name to a partition number is maintained, as well as
-   partition number to back to ssa_name. A partition can also be represented
-   by a non-ssa_name variable.  This allows ssa_names and their partition to
-   be coalesced with live on entry compiler variables, as well as eventually
-   having real compiler variables assigned to each partition as part of the
-   final stage of going of of ssa.
-
-   Non-ssa_names maintain their partition index in the variable annotation.
+   partition number back to ssa_name.
 
    This data structure also supports "views", which work on a subset of all
    partitions.  This allows the coalescer to decide what partitions are
@@ -72,14 +66,7 @@ typedef struct _var_map
 
   /* Map of partitions numbers to base variable table indexes.  */
   int *partition_to_base_index;
-
-  /* Table of base variable's.  */
-  VEC (tree, heap) *basevars;
 } *var_map;
-
-
-/* Index to the basevar table of a non ssa-name variable.  */
-#define VAR_ANN_BASE_INDEX(ann) (ann->base_index)
 
 
 /* Value used to represent no partition number.  */
@@ -239,8 +226,11 @@ typedef struct tree_live_info_d
   /* Bitmap indicating which partitions are global.  */
   bitmap global;
 
-  /* Bitmap of live on entry blocks for partition elements.  */
-  bitmap *livein;
+  /* Bitmaps of live on entry blocks for partition elements.  */
+  bitmap_head *livein;
+
+  /* Bitmaps of what variables are live on exit for a basic blocks.  */
+  bitmap_head *liveout;
 
   /* Number of basic blocks when live on exit calculated.  */
   int num_blocks;
@@ -250,9 +240,6 @@ typedef struct tree_live_info_d
 
   /* Top of workstack.  */
   int *stack_top;
-
-  /* Bitmap of what variables are live on exit for a basic blocks.  */
-  bitmap *liveout;
 } *tree_live_info_p;
 
 
@@ -286,7 +273,7 @@ live_on_entry (tree_live_info_p live, basic_block bb)
 		       && bb != ENTRY_BLOCK_PTR
 		       && bb != EXIT_BLOCK_PTR);
 
-  return live->livein[bb->index];
+  return &live->livein[bb->index];
 }
 
 
@@ -300,7 +287,7 @@ live_on_exit (tree_live_info_p live, basic_block bb)
 		       && bb != ENTRY_BLOCK_PTR
 		       && bb != EXIT_BLOCK_PTR);
 
-  return live->liveout[bb->index];
+  return &live->liveout[bb->index];
 }
 
 
@@ -319,9 +306,9 @@ live_var_map (tree_live_info_p live)
 static inline void
 live_merge_and_clear (tree_live_info_p live, int p1, int p2)
 {
-  gcc_checking_assert (live->livein[p1] && live->livein[p2]);
-  bitmap_ior_into (live->livein[p1], live->livein[p2]);
-  bitmap_zero (live->livein[p2]);
+  gcc_checking_assert (&live->livein[p1] && &live->livein[p2]);
+  bitmap_ior_into (&live->livein[p1], &live->livein[p2]);
+  bitmap_zero (&live->livein[p2]);
 }
 
 
@@ -330,7 +317,7 @@ live_merge_and_clear (tree_live_info_p live, int p1, int p2)
 static inline void
 make_live_on_entry (tree_live_info_p live, basic_block bb , int p)
 {
-  bitmap_set_bit (live->livein[bb->index], p);
+  bitmap_set_bit (&live->livein[bb->index], p);
   bitmap_set_bit (live->global, p);
 }
 

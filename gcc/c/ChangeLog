@@ -1,0 +1,135 @@
+2012-10-12  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/54381
+	* c-parser.c (struct c_tree_loc_pair): Removed.
+	(c_parser_expr_list): Remove struct c_tree_loc_pair * argument,
+	add location_t * and tree * arguments, fill in array of 3
+	sizeof_arg trees and corresponding locs.
+	(c_parser_attributes, c_parser_objc_keywordexpr): Adjust
+	c_parser_expr_list callers.
+	(c_parser_postfix_expression_after_primary): Likewise.  Pass
+	array of 3 sizeof_arg trees and locs (corresponding to first
+	3 arguments) to sizeof_pointer_memaccess_warning.
+
+2012-10-09  Lawrence Crowl  <crowl@google.com>
+
+	* Make-lang.in (c-decl.o): Add dependence on hash-table.h.
+	* c-decl.c (detect_field_duplicates_hash): Change to new type-safe
+	hash table.
+
+2012-10-09  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/54194
+	* c-typeck.c (parser_build_binary_op): Update warn_about_parentheses
+	call.
+
+2012-10-09  Marc Glisse  <marc.glisse@inria.fr>
+
+	PR c++/54427
+	* c-typeck.c: Include c-common.h.
+	(enum stv_conv): Moved to c-common.h.
+	(scalar_to_vector): Moved to c-common.c.
+	(build_binary_op): Adapt to scalar_to_vector's new prototype.
+	* Make-lang.in: c-typeck.c depends on c-common.h.
+
+2012-10-04  Arnaud Charlet  <charlet@adacore.com>
+
+	* c-decl.c (c_write_global_declarations): Fix handling of
+	-fdump-ada-spec*.
+
+2012-09-30  Sharad Singhai  <singhai@google.com>
+
+	* c-decl.c (c_write_global_declarations): Use a different method
+	to determine if the dump has ben initialized.
+
+2012-09-14  Joseph Myers  <joseph@codesourcery.com>
+
+	PR c/54552
+	* c-typeck.c (c_cast_expr): When casting to a type requiring
+	C_MAYBE_CONST_EXPR to be created, pass the inner expression to
+	c_fully_fold first.
+
+2012-09-14  Joseph Myers  <joseph@codesourcery.com>
+
+	PR c/54103
+	* c-typeck.c (build_unary_op): Pass original argument of
+	TRUTH_NOT_EXPR to c_objc_common_truthvalue_conversion, then remove
+	any C_MAYBE_CONST_EXPR, if it has integer operands.
+	(build_binary_op): Pass original arguments of TRUTH_ANDIF_EXPR,
+	TRUTH_ORIF_EXPR, TRUTH_AND_EXPR, TRUTH_OR_EXPR and TRUTH_XOR_EXPR
+	to c_objc_common_truthvalue_conversion, then remove any
+	C_MAYBE_CONST_EXPR, if they have integer operands.  Use
+	c_objc_common_truthvalue_conversion not
+	c_common_truthvalue_conversion.
+	(c_objc_common_truthvalue_conversion): Build NE_EXPR directly and
+	call note_integer_operands for arguments with integer operands
+	that are not integer constants.
+
+2012-09-13  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/54559
+	* c-typeck.c (c_finish_return): Do convert to BOOLEAN_TYPE or
+	COMPLEX_TYPE with in_late_binary_op set temporarily to true.
+
+2012-08-31  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/54428
+	* c-convert.c (convert): Don't call fold_convert_loc if
+	TYPE_MAIN_VARIANT of a COMPLEX_TYPE is the same, unless e
+	is a COMPLEX_EXPR.  Remove TYPE_MAIN_VARIANT check from
+	COMPLEX_TYPE -> COMPLEX_TYPE conversion.
+
+2012-08-24  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/54355
+	* c-decl.c (c_parser_label): Pass true as nested and fix up comments
+	for nested and empty_ok arguments in the call to
+	c_parser_declaration_or_fndef.
+
+2012-08-17  Jakub Jelinek  <jakub@redhat.com>
+
+	* c-tree.h (c_last_sizeof_arg): Declare.
+	* c-parser.c (struct c_tree_loc_pair): New type.
+	(c_parser_expr_list): Add sizeof_arg argument.  Fill it in if
+	non-NULL.
+	(c_parser_attributes, c_parser_objc_keywordexpr): Adjust callers.
+	(c_parser_postfix_expression_after_primary): Likewise.  Call
+	sizeof_pointer_memaccess_warning if needed.
+	(sizeof_ptr_memacc_comptypes): New function.
+	* c-typeck.c (c_last_sizeof_arg): New global variable.
+	(c_expr_sizeof_expr, c_expr_sizeof_type): Initialize it.
+
+2012-07-24  Uros Bizjak  <ubizjak@gmail.com>
+
+	* c-lang.h (lang_decl): Add variable_size GTY option.
+
+2012-07-16  Steven Bosscher  <steven@gcc.gnu.org>
+
+	* c-decl.c: Include dumpfile.h instead of tree-dump.h.
+	* Make-lang.in: Fix dependencies.
+
+2012-06-29  Steven Bosscher  <steven@gcc.gnu.org>
+
+	* Make-lang.in: New file, rules migrated from gcc/Makefile.in
+	and add language Makefile hooks.
+	* config-lang.in: New file.
+	* c-config-lang.in: Moved from gcc/config-lang.in to here, and
+	add the required "normal" config-lang.in rules.
+	* c-lang.h: Moved from gcc/ to here.
+	* c-tree.h: Likewise.
+	* c-objc-common.c: Likewise.
+	* c-objc-common.h: Likewise.
+	* c-typeck.c: Likewise.
+	* c-convert.c: Likewise.
+	* c-lang.c: Likewise.
+	* c-aux-info.c: Likewise.
+	* c-errors.c: Likewise.
+	* gccspec.c: Likewise.
+	* c-decl.c: Likewise.  Include gt-c-c-decl.h, not gt-c-decl.h.
+	* c-parser.c: Likewise.  Include gt-c-c-parser.h, not gt-c-parser.h.
+
+Copyright (C) 2012 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.

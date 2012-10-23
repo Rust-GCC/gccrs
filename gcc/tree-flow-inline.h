@@ -35,15 +35,6 @@ gimple_in_ssa_p (const struct function *fun)
   return fun && fun->gimple_df && fun->gimple_df->in_ssa_p;
 }
 
-/* Array of all variables referenced in the function.  */
-static inline htab_t
-gimple_referenced_vars (const struct function *fun)
-{
-  if (!fun->gimple_df)
-    return NULL;
-  return fun->gimple_df->referenced_vars;
-}
-
 /* Artificial variable used for the virtual operand FUD chain.  */
 static inline tree
 gimple_vop (const struct function *fun)
@@ -96,53 +87,6 @@ next_htab_element (htab_iterator *hti)
 	return x;
     };
   return NULL;
-}
-
-/* Get the variable with uid UID from the list of referenced vars.  */
-
-static inline tree
-referenced_var (unsigned int uid)
-{
-  tree var = referenced_var_lookup (cfun, uid);
-  gcc_assert (var || uid == 0);
-  return var;
-}
-
-/* Initialize ITER to point to the first referenced variable in the
-   referenced_vars hashtable, and return that variable.  */
-
-static inline tree
-first_referenced_var (struct function *fn, referenced_var_iterator *iter)
-{
-  return (tree) first_htab_element (&iter->hti,
-				    gimple_referenced_vars (fn));
-}
-
-/* Return true if we have hit the end of the referenced variables ITER is
-   iterating through.  */
-
-static inline bool
-end_referenced_vars_p (const referenced_var_iterator *iter)
-{
-  return end_htab_p (&iter->hti);
-}
-
-/* Make ITER point to the next referenced_var in the referenced_var hashtable,
-   and return that variable.  */
-
-static inline tree
-next_referenced_var (referenced_var_iterator *iter)
-{
-  return (tree) next_htab_element (&iter->hti);
-}
-
-/* Return the variable annotation for T, which must be a _DECL node.
-   Return NULL if the variable annotation doesn't already exist.  */
-static inline var_ann_t
-var_ann (const_tree t)
-{
-  const var_ann_t *p = DECL_VAR_ANN_PTR (t);
-  return p ? *p : NULL;
 }
 
 /* Get the number of the next statement uid to be allocated.  */
@@ -506,9 +450,14 @@ static inline gimple_seq
 phi_nodes (const_basic_block bb)
 {
   gcc_checking_assert (!(bb->flags & BB_RTL));
-  if (!bb->il.gimple)
-    return NULL;
-  return bb->il.gimple->phi_nodes;
+  return bb->il.gimple.phi_nodes;
+}
+
+static inline gimple_seq *
+phi_nodes_ptr (basic_block bb)
+{
+  gcc_checking_assert (!(bb->flags & BB_RTL));
+  return &bb->il.gimple.phi_nodes;
 }
 
 /* Set PHI nodes of a basic block BB to SEQ.  */
@@ -519,7 +468,7 @@ set_phi_nodes (basic_block bb, gimple_seq seq)
   gimple_stmt_iterator i;
 
   gcc_checking_assert (!(bb->flags & BB_RTL));
-  bb->il.gimple->phi_nodes = seq;
+  bb->il.gimple.phi_nodes = seq;
   if (seq)
     for (i = gsi_start (seq); !gsi_end_p (i); gsi_next (&i))
       gimple_set_bb (gsi_stmt (i), bb);
@@ -551,33 +500,6 @@ phi_arg_index_from_use (use_operand_p use)
 		       && index < gimple_phi_capacity (phi));
 
  return index;
-}
-
-/* Mark VAR as used, so that it'll be preserved during rtl expansion.  */
-
-static inline void
-set_is_used (tree var)
-{
-  var_ann_t ann = var_ann (var);
-  ann->used = true;
-}
-
-/* Clear VAR's used flag.  */
-
-static inline void
-clear_is_used (tree var)
-{
-  var_ann_t ann = var_ann (var);
-  ann->used = false;
-}
-
-/* Return true if VAR is marked as used.  */
-
-static inline bool
-is_used_p (tree var)
-{
-  var_ann_t ann = var_ann (var);
-  return ann->used;
 }
 
 /* Return true if T (assumed to be a DECL) is a global variable.
@@ -876,7 +798,7 @@ delink_stmt_imm_use (gimple stmt)
    ssa_op_iter iter;
    use_operand_p use_p;
 
-   if (ssa_operands_active ())
+   if (ssa_operands_active (cfun))
      FOR_EACH_PHI_OR_STMT_USE (use_p, stmt, iter, SSA_OP_ALL_USES)
        delink_imm_use (use_p);
 }
@@ -1222,12 +1144,46 @@ make_ssa_name (tree var, gimple stmt)
   return make_ssa_name_fn (cfun, var, stmt);
 }
 
+/* Return an SSA_NAME node using the template SSA name NAME defined in
+   statement STMT in function cfun.  */
+
+static inline tree
+copy_ssa_name (tree var, gimple stmt)
+{
+  return copy_ssa_name_fn (cfun, var, stmt);
+}
+
+/*  Creates a duplicate of a SSA name NAME tobe defined by statement STMT
+    in function cfun.  */
+
+static inline tree
+duplicate_ssa_name (tree var, gimple stmt)
+{
+  return duplicate_ssa_name_fn (cfun, var, stmt);
+}
+
+/* Return an anonymous SSA_NAME node for type TYPE defined in statement STMT
+   in function cfun.  Arrange so that it uses NAME in dumps.  */
+
+static inline tree
+make_temp_ssa_name (tree type, gimple stmt, const char *name)
+{
+  tree ssa_name;
+  gcc_checking_assert (TYPE_P (type));
+  ssa_name = make_ssa_name_fn (cfun, type, stmt);
+  SET_SSA_NAME_VAR_OR_IDENTIFIER (ssa_name, get_identifier (name));
+  return ssa_name;
+}
+
 /* Returns the base object and a constant BITS_PER_UNIT offset in *POFFSET that
    denotes the starting address of the memory access EXP.
    Returns NULL_TREE if the offset is not constant or any component
    is not BITS_PER_UNIT-aligned.
    VALUEIZE if non-NULL is used to valueize SSA names.  It should return
    its argument or a constant if the argument is known to be constant.  */
+/* ??? This is a static inline here to avoid the overhead of the indirect calls
+   to VALUEIZE.  But is this overhead really that significant?  And should we
+   perhaps just rely on WHOPR to specialize the function?  */
 
 static inline tree
 get_addr_base_and_unit_offset_1 (tree exp, HOST_WIDE_INT *poffset,
@@ -1315,7 +1271,7 @@ get_addr_base_and_unit_offset_1 (tree exp, HOST_WIDE_INT *poffset,
 		  {
 		    double_int off = mem_ref_offset (exp);
 		    gcc_assert (off.high == -1 || off.high == 0);
-		    byte_offset += double_int_to_shwi (off);
+		    byte_offset += off.to_shwi ();
 		  }
 		exp = TREE_OPERAND (base, 0);
 	      }
@@ -1338,7 +1294,7 @@ get_addr_base_and_unit_offset_1 (tree exp, HOST_WIDE_INT *poffset,
 		  {
 		    double_int off = mem_ref_offset (exp);
 		    gcc_assert (off.high == -1 || off.high == 0);
-		    byte_offset += double_int_to_shwi (off);
+		    byte_offset += off.to_shwi ();
 		  }
 		exp = TREE_OPERAND (base, 0);
 	      }

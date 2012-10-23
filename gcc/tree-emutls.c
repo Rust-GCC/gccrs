@@ -149,29 +149,29 @@ tree
 default_emutls_var_init (tree to, tree decl, tree proxy)
 {
   VEC(constructor_elt,gc) *v = VEC_alloc (constructor_elt, gc, 4);
-  constructor_elt *elt;
+  constructor_elt elt;
   tree type = TREE_TYPE (to);
   tree field = TYPE_FIELDS (type);
 
-  elt = VEC_quick_push (constructor_elt, v, NULL);
-  elt->index = field;
-  elt->value = fold_convert (TREE_TYPE (field), DECL_SIZE_UNIT (decl));
+  elt.index = field;
+  elt.value = fold_convert (TREE_TYPE (field), DECL_SIZE_UNIT (decl));
+  VEC_quick_push (constructor_elt, v, elt);
 
-  elt = VEC_quick_push (constructor_elt, v, NULL);
   field = DECL_CHAIN (field);
-  elt->index = field;
-  elt->value = build_int_cst (TREE_TYPE (field),
-			      DECL_ALIGN_UNIT (decl));
+  elt.index = field;
+  elt.value = build_int_cst (TREE_TYPE (field),
+			     DECL_ALIGN_UNIT (decl));
+  VEC_quick_push (constructor_elt, v, elt);
 
-  elt = VEC_quick_push (constructor_elt, v, NULL);
   field = DECL_CHAIN (field);
-  elt->index = field;
-  elt->value = null_pointer_node;
+  elt.index = field;
+  elt.value = null_pointer_node;
+  VEC_quick_push (constructor_elt, v, elt);
 
-  elt = VEC_quick_push (constructor_elt, v, NULL);
   field = DECL_CHAIN (field);
-  elt->index = field;
-  elt->value = proxy;
+  elt.index = field;
+  elt.value = proxy;
+  VEC_quick_push (constructor_elt, v, elt);
 
   return build_constructor (type, v);
 }
@@ -312,8 +312,8 @@ new_emutls_decl (tree decl, tree alias_of)
   if (!DECL_COMMON (to) && targetm.emutls.var_section)
     {
       DECL_SECTION_NAME (to)
-        = build_string (strlen (targetm.emutls.tmpl_section),
-			targetm.emutls.tmpl_section);
+        = build_string (strlen (targetm.emutls.var_section),
+			targetm.emutls.var_section);
     }
 
   /* If this variable is defined locally, then we need to initialize the
@@ -338,7 +338,7 @@ new_emutls_decl (tree decl, tree alias_of)
   else 
     varpool_create_variable_alias (to,
 				   varpool_node_for_asm
-				    (DECL_ASSEMBLER_NAME (alias_of))->decl);
+				    (DECL_ASSEMBLER_NAME (DECL_VALUE_EXPR (alias_of)))->symbol.decl);
   return to;
 }
 
@@ -366,7 +366,7 @@ emutls_decl (tree decl)
 
   i = emutls_index (decl);
   var = VEC_index (varpool_node_ptr, control_vars, i);
-  return var->decl;
+  return var->symbol.decl;
 }
 
 /* Generate a call statement to initialize CONTROL_DECL for TLS_DECL.
@@ -428,13 +428,12 @@ gen_emutls_addr (tree decl, struct lower_emutls_data *d)
       gimple x;
 
       cvar = VEC_index (varpool_node_ptr, control_vars, index);
-      cdecl = cvar->decl;
+      cdecl = cvar->symbol.decl;
       TREE_ADDRESSABLE (cdecl) = 1;
 
       addr = create_tmp_var (build_pointer_type (TREE_TYPE (decl)), NULL);
       x = gimple_build_call (d->builtin_decl, 1, build_fold_addr_expr (cdecl));
       gimple_set_location (x, d->loc);
-      add_referenced_var (cdecl);
 
       addr = make_ssa_name (addr, x);
       gimple_call_set_lhs (x, addr);
@@ -446,7 +445,7 @@ gen_emutls_addr (tree decl, struct lower_emutls_data *d)
 
       /* We may be adding a new reference to a new variable to the function.
          This means we have to play with the ipa-reference web.  */
-      ipa_record_reference (d->cfun_node, NULL, NULL, cvar, IPA_REF_ADDR, x);
+      ipa_record_reference ((symtab_node)d->cfun_node, (symtab_node)cvar, IPA_REF_ADDR, x);
 
       /* Record this ssa_name for possible use later in the basic block.  */
       VEC_replace (tree, access_vars, index, addr);
@@ -619,8 +618,7 @@ lower_emutls_function_body (struct cgraph_node *node)
   struct lower_emutls_data d;
   bool any_edge_inserts = false;
 
-  current_function_decl = node->decl;
-  push_cfun (DECL_STRUCT_FUNCTION (node->decl));
+  push_cfun (DECL_STRUCT_FUNCTION (node->symbol.decl));
 
   d.cfun_node = node;
   d.builtin_decl = builtin_decl_explicit (BUILT_IN_EMUTLS_GET_ADDRESS);
@@ -690,7 +688,6 @@ lower_emutls_function_body (struct cgraph_node *node)
     gsi_commit_edge_inserts ();
 
   pop_cfun ();
-  current_function_decl = NULL;
 }
 
 /* Create emutls variable for VAR, DATA is pointer to static
@@ -703,7 +700,7 @@ create_emultls_var (struct varpool_node *var, void *data)
   tree cdecl;
   struct varpool_node *cvar;
 
-  cdecl = new_emutls_decl (var->decl, var->alias_of);
+  cdecl = new_emutls_decl (var->symbol.decl, var->alias_of);
 
   cvar = varpool_get_node (cdecl);
   VEC_quick_push (varpool_node_ptr, control_vars, cvar);
@@ -713,7 +710,7 @@ create_emultls_var (struct varpool_node *var, void *data)
       /* Make sure the COMMON block control variable gets initialized.
 	 Note that there's no point in doing this for aliases; we only
 	 need to do this once for the main variable.  */
-      emutls_common_1 (var->decl, cdecl, (tree *)data);
+      emutls_common_1 (var->symbol.decl, cdecl, (tree *)data);
     }
   if (var->alias && !var->alias_of)
     cvar->alias = true;
@@ -722,8 +719,8 @@ create_emultls_var (struct varpool_node *var, void *data)
      preventing the variable from re-appearing in the GIMPLE.  We cheat
      and use the control variable here (rather than a full call_expr),
      which is special-cased inside the DWARF2 output routines.  */
-  SET_DECL_VALUE_EXPR (var->decl, cdecl);
-  DECL_HAS_VALUE_EXPR_P (var->decl) = 1;
+  SET_DECL_VALUE_EXPR (var->symbol.decl, cdecl);
+  DECL_HAS_VALUE_EXPR_P (var->symbol.decl) = 1;
   return false;
 }
 
@@ -741,11 +738,11 @@ ipa_lower_emutls (void)
   tls_vars = varpool_node_set_new ();
 
   /* Examine all global variables for TLS variables.  */
-  for (var = varpool_nodes; var ; var = var->next)
-    if (DECL_THREAD_LOCAL_P (var->decl))
+  FOR_EACH_VARIABLE (var)
+    if (DECL_THREAD_LOCAL_P (var->symbol.decl))
       {
-	gcc_checking_assert (TREE_STATIC (var->decl)
-			     || DECL_EXTERNAL (var->decl));
+	gcc_checking_assert (TREE_STATIC (var->symbol.decl)
+			     || DECL_EXTERNAL (var->symbol.decl));
 	varpool_node_set_add (tls_vars, var);
 	if (var->alias && var->analyzed)
 	  varpool_node_set_add (tls_vars, varpool_variable_node (var, NULL));
@@ -790,8 +787,8 @@ ipa_lower_emutls (void)
     }
 
   /* Adjust all uses of TLS variables within the function bodies.  */
-  for (func = cgraph_nodes; func; func = func->next)
-    if (func->reachable && func->lowered)
+  FOR_EACH_DEFINED_FUNCTION (func)
+    if (func->lowered)
       lower_emutls_function_body (func);
 
   /* Generate the constructor for any COMMON control variables created.  */

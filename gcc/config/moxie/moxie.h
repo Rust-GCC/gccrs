@@ -1,5 +1,5 @@
 /* Target Definitions for moxie.
-   Copyright (C) 2008, 2009, 2010  Free Software Foundation, Inc.
+   Copyright (C) 2008, 2009, 2010, 2012  Free Software Foundation, Inc.
    Contributed by Anthony Green.
 
    This file is part of GCC.
@@ -22,7 +22,7 @@
 #define GCC_MOXIE_H
 
 #undef  STARTFILE_SPEC
-#define STARTFILE_SPEC "crt0%O%s crti.o%s crtbegin.o%s"
+#define STARTFILE_SPEC "%{!mno-crt0:crt0%O%s} crti.o%s crtbegin.o%s"
 
 /* Provide an ENDFILE_SPEC appropriate for svr4.  Here we tack on our own
    magical crtend.o file (see crtstuff.c) which provides part of the
@@ -41,8 +41,12 @@
 #define LIB_SPEC "%{!shared:%{!symbolic:-lc}}"
 
 #undef  LINK_SPEC
-#define LINK_SPEC "%{h*} %{v:-V} \
+#define LINK_SPEC "%{h*} %{v:-V} %{!mel:-EB} %{mel:-EL}\
 		   %{static:-Bstatic} %{shared:-shared} %{symbolic:-Bsymbolic}"
+
+#ifndef MULTILIB_DEFAULTS
+#define MULTILIB_DEFAULTS { "meb" }
+#endif
 
 /* Layout of Source Language Data Types */
 
@@ -192,6 +196,7 @@ enum reg_class
 /* The Overall Framework of an Assembler File */
 
 #undef  ASM_SPEC
+#define ASM_SPEC "%{!mel:-EB} %{mel:-EL}"
 #define ASM_COMMENT_START "#"
 #define ASM_APP_ON ""
 #define ASM_APP_OFF ""
@@ -278,7 +283,7 @@ enum reg_class
    the prologue.  */
 #define INCOMING_RETURN_ADDR_RTX					\
   gen_frame_mem (Pmode,							\
-		 plus_constant (stack_pointer_rtx, UNITS_PER_WORD))
+		 plus_constant (Pmode, stack_pointer_rtx, UNITS_PER_WORD))
 
 /* Describe how we implement __builtin_eh_return.  */
 #define EH_RETURN_DATA_REGNO(N)	((N) < 4 ? (N+2) : INVALID_REGNUM)
@@ -286,13 +291,13 @@ enum reg_class
 /* Store the return handler into the call frame.  */
 #define EH_RETURN_HANDLER_RTX						\
   gen_frame_mem (Pmode,							\
-		 plus_constant (frame_pointer_rtx, UNITS_PER_WORD))
+		 plus_constant (Pmode, frame_pointer_rtx, UNITS_PER_WORD))
 
 /* Storage Layout */
 
 #define BITS_BIG_ENDIAN 0
-#define BYTES_BIG_ENDIAN 1
-#define WORDS_BIG_ENDIAN 1
+#define BYTES_BIG_ENDIAN ( ! TARGET_LITTLE_ENDIAN )
+#define WORDS_BIG_ENDIAN ( ! TARGET_LITTLE_ENDIAN )
 
 /* Alignment required for a function entry point, in bits.  */
 #define FUNCTION_BOUNDARY 16
@@ -473,8 +478,12 @@ enum reg_class
 
 #define TARGET_CPU_CPP_BUILTINS() \
   { \
-    builtin_define_std ("moxie");		\
-    builtin_define_std ("MOXIE");		\
+    builtin_define_std ("moxie");			\
+    builtin_define_std ("MOXIE");			\
+    if (TARGET_LITTLE_ENDIAN)				\
+      builtin_define ("__MOXIE_LITTLE_ENDIAN__");	\
+    else						\
+      builtin_define ("__MOXIE_BIG_ENDIAN__");		\
   }
 
 #define HAS_LONG_UNCOND_BRANCH true

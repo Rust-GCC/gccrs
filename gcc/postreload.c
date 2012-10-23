@@ -38,13 +38,11 @@ along with GCC; see the file COPYING3.  If not see
 #include "basic-block.h"
 #include "reload.h"
 #include "recog.h"
-#include "output.h"
 #include "cselib.h"
 #include "diagnostic-core.h"
 #include "except.h"
 #include "tree.h"
 #include "target.h"
-#include "timevar.h"
 #include "tree-pass.h"
 #include "df.h"
 #include "dbgcnt.h"
@@ -64,7 +62,8 @@ static void move2add_note_store (rtx, const_rtx, void *);
 
 /* Call cse / combine like post-reload optimization phases.
    FIRST is the first instruction.  */
-void
+
+static void
 reload_cse_regs (rtx first ATTRIBUTE_UNUSED)
 {
   bool moves_converted;
@@ -682,7 +681,7 @@ struct reg_use
   /* Points to the memory reference enclosing the use, if any, NULL_RTX
      otherwise.  */
   rtx containing_mem;
-  /* Location of the register withing INSN.  */
+  /* Location of the register within INSN.  */
   rtx *usep;
   /* The reverse uid of the insn.  */
   int ruid;
@@ -1357,8 +1356,10 @@ reload_combine (void)
 	  for (link = CALL_INSN_FUNCTION_USAGE (insn); link;
 	       link = XEXP (link, 1))
 	    {
-	      rtx usage_rtx = XEXP (XEXP (link, 0), 0);
-	      if (REG_P (usage_rtx))
+	      rtx setuse = XEXP (link, 0);
+	      rtx usage_rtx = XEXP (setuse, 0);
+	      if ((GET_CODE (setuse) == USE || GET_CODE (setuse) == CLOBBER)
+		  && REG_P (usage_rtx))
 	        {
 		  unsigned int i;
 		  unsigned int start_reg = REGNO (usage_rtx);

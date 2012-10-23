@@ -1,5 +1,5 @@
 /* ARM CPU Cores
-   Copyright (C) 2003, 2005, 2006, 2007, 2008, 2009, 2010
+   Copyright (C) 2003, 2005, 2006, 2007, 2008, 2009, 2010, 2012
    Free Software Foundation, Inc.
    Written by CodeSourcery, LLC
 
@@ -89,7 +89,7 @@ ARM_CORE("arm920",        arm920,	4T,	                         FL_LDSCHED, fastm
 ARM_CORE("arm920t",       arm920t,	4T,	                         FL_LDSCHED, fastmul)
 ARM_CORE("arm922t",       arm922t,	4T,	                         FL_LDSCHED, fastmul)
 ARM_CORE("arm940t",       arm940t,	4T,	                         FL_LDSCHED, fastmul)
-ARM_CORE("ep9312",        ep9312,	4T,	                         FL_LDSCHED |             FL_CIRRUS, fastmul)
+ARM_CORE("ep9312",        ep9312,	4T,	                         FL_LDSCHED, fastmul)
 
 /* V5T Architecture Processors */
 ARM_CORE("arm10tdmi",     arm10tdmi,	5T,	                         FL_LDSCHED, fastmul)
@@ -105,7 +105,7 @@ ARM_CORE("arm1020e",      arm1020e,	5TE,				 FL_LDSCHED, fastmul)
 ARM_CORE("arm1022e",      arm1022e,	5TE,				 FL_LDSCHED, fastmul)
 ARM_CORE("xscale",        xscale,	5TE,	                         FL_LDSCHED | FL_STRONG | FL_XSCALE, xscale)
 ARM_CORE("iwmmxt",        iwmmxt,	5TE,	                         FL_LDSCHED | FL_STRONG | FL_XSCALE | FL_IWMMXT, xscale)
-ARM_CORE("iwmmxt2",       iwmmxt2,	5TE,	                         FL_LDSCHED | FL_STRONG | FL_XSCALE | FL_IWMMXT, xscale)
+ARM_CORE("iwmmxt2",       iwmmxt2,	5TE,	                         FL_LDSCHED | FL_STRONG | FL_XSCALE | FL_IWMMXT | FL_IWMMXT2, xscale)
 ARM_CORE("fa606te",       fa606te,      5TE,                             FL_LDSCHED, 9e)
 ARM_CORE("fa626te",       fa626te,      5TE,                             FL_LDSCHED, 9e)
 ARM_CORE("fmp626",        fmp626,       5TE,                             FL_LDSCHED, 9e)
@@ -129,7 +129,7 @@ ARM_CORE("cortex-a5",	  cortexa5,	7A,				 FL_LDSCHED, cortex_a5)
 ARM_CORE("cortex-a7",	  cortexa7,	7A,				 FL_LDSCHED | FL_THUMB_DIV | FL_ARM_DIV, cortex)
 ARM_CORE("cortex-a8",	  cortexa8,	7A,				 FL_LDSCHED, cortex)
 ARM_CORE("cortex-a9",	  cortexa9,	7A,				 FL_LDSCHED, cortex_a9)
-ARM_CORE("cortex-a15",	  cortexa15,	7A,				 FL_LDSCHED | FL_THUMB_DIV | FL_ARM_DIV, cortex)
+ARM_CORE("cortex-a15",	  cortexa15,	7A,				 FL_LDSCHED | FL_THUMB_DIV | FL_ARM_DIV, cortex_a15)
 ARM_CORE("cortex-r4",	  cortexr4,	7R,				 FL_LDSCHED, cortex)
 ARM_CORE("cortex-r4f",	  cortexr4f,	7R,				 FL_LDSCHED, cortex)
 ARM_CORE("cortex-r5",	  cortexr5,	7R,				 FL_LDSCHED | FL_ARM_DIV, cortex)
@@ -137,4 +137,4 @@ ARM_CORE("cortex-m4",	  cortexm4,	7EM,				 FL_LDSCHED, cortex)
 ARM_CORE("cortex-m3",	  cortexm3,	7M,				 FL_LDSCHED, cortex)
 ARM_CORE("cortex-m1",	  cortexm1,	6M,				 FL_LDSCHED, cortex)
 ARM_CORE("cortex-m0",	  cortexm0,	6M,				 FL_LDSCHED, cortex)
-
+ARM_CORE("cortex-m0plus", cortexm0plus,	6M,				 FL_LDSCHED, cortex)

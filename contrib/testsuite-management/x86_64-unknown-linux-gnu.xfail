@@ -1,0 +1,54 @@
+XPASS: gcc.dg/Wstrict-overflow-18.c (test for bogus messages, line 20)
+UNRESOLVED: gcc.dg/attr-weakref-1.c compilation failed to produce executable
+FAIL: gcc.dg/attr-weakref-1.c (test for excess errors)
+FAIL: gcc.dg/builtin-object-size-8.c execution test
+XPASS: gcc.dg/guality/example.c -O2 -flto -fno-use-linker-plugin -flto-partition=none  execution test
+XPASS: gcc.dg/guality/example.c -O2  execution test
+XPASS: gcc.dg/guality/example.c -O0  execution test
+XPASS: gcc.dg/guality/guality.c -O2  execution test
+XPASS: gcc.dg/guality/guality.c -O3 -g  execution test
+XPASS: gcc.dg/guality/guality.c -O2 -flto -fno-use-linker-plugin -flto-partition=none  execution test
+XPASS: gcc.dg/guality/guality.c -O1  execution test
+XPASS: gcc.dg/guality/guality.c -O3 -fomit-frame-pointer  execution test
+XPASS: gcc.dg/guality/guality.c -O2 -flto -fuse-linker-plugin -fno-fat-lto-objects  execution test
+XPASS: gcc.dg/guality/guality.c -O0  execution test
+XPASS: gcc.dg/guality/guality.c -Os  execution test
+XPASS: gcc.dg/guality/inline-params.c -O2  execution test
+XPASS: gcc.dg/guality/inline-params.c -O3 -g  execution test
+XPASS: gcc.dg/guality/inline-params.c -O2 -flto -fno-use-linker-plugin -flto-partition=none  execution test
+XPASS: gcc.dg/guality/inline-params.c -O3 -fomit-frame-pointer  execution test
+XPASS: gcc.dg/guality/inline-params.c -Os  execution test
+XPASS: gcc.dg/guality/pr41447-1.c -O2  execution test
+XPASS: gcc.dg/guality/pr41447-1.c -O1  execution test
+XPASS: gcc.dg/guality/pr41447-1.c -O3 -fomit-frame-pointer  execution test
+XPASS: gcc.dg/guality/pr41447-1.c -O2 -flto -fuse-linker-plugin -fno-fat-lto-objects  execution test
+XPASS: gcc.dg/guality/pr41447-1.c -O0  execution test
+XPASS: gcc.dg/guality/pr41447-1.c -O3 -g  execution test
+XPASS: gcc.dg/guality/pr41447-1.c -Os  execution test
+XPASS: gcc.dg/guality/pr41616-1.c -O3 -fomit-frame-pointer  execution test
+XPASS: gcc.dg/guality/pr41616-1.c -O1  execution test
+XPASS: gcc.dg/guality/pr41616-1.c -O2  execution test
+XPASS: gcc.dg/guality/pr41616-1.c -O0  execution test
+XPASS: gcc.dg/guality/pr41616-1.c -Os  execution test
+XPASS: gcc.dg/guality/pr41616-1.c -O2 -flto -fno-use-linker-plugin -flto-partition=none  execution test
+XPASS: gcc.dg/guality/pr41616-1.c -O3 -g  execution test
+XPASS: gcc.dg/inline_3.c (test for excess errors)
+XPASS: gcc.dg/inline_4.c (test for excess errors)
+FAIL: gcc.dg/torture/pr51106-2.c -O2 -flto -fno-use-linker-plugin -flto-partition=none  (test for excess errors)
+FAIL: gcc.dg/torture/pr51106-2.c -O3 -g  (test for excess errors)
+FAIL: gcc.dg/torture/pr51106-2.c -O0  (test for excess errors)
+FAIL: gcc.dg/torture/pr51106-2.c -O1  (test for excess errors)
+FAIL: gcc.dg/torture/pr51106-2.c -Os  (test for excess errors)
+FAIL: gcc.dg/torture/pr51106-2.c -O3 -fomit-frame-pointer  (test for excess errors)
+FAIL: gcc.dg/torture/pr51106-2.c -O2  (test for excess errors)
+XPASS: gcc.dg/unroll_2.c (test for excess errors)
+XPASS: gcc.dg/unroll_3.c (test for excess errors)
+XPASS: gcc.dg/unroll_4.c (test for excess errors)
+FAIL: gnat.dg/array11.adb (test for warnings, line 12)
+FAIL: gnat.dg/object_overflow.adb (test for warnings, line 8)
+FAIL: libmudflap.c++/pass55-frag.cxx (-O2) execution test
+FAIL: libmudflap.c++/pass55-frag.cxx ( -O) execution test
+FAIL: libmudflap.c++/pass55-frag.cxx (-O3) execution test
+FAIL: sourcelocation output - source compiled test
+FAIL: sourcelocation -findirect-dispatch output - source compiled test
+FAIL: sourcelocation -O3 output - source compiled test

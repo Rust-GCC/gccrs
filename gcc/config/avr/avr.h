@@ -21,125 +21,6 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-/* Names to predefine in the preprocessor for this target machine.  */
-
-struct base_arch_s
-{
-  /* Assembler only.  */
-  int asm_only;
-
-  /* Core have 'MUL*' instructions.  */
-  int have_mul;
-
-  /* Core have 'CALL' and 'JMP' instructions.  */
-  int have_jmp_call;
-
-  /* Core have 'MOVW' and 'LPM Rx,Z' instructions.  */
-  int have_movw_lpmx;
-
-  /* Core have 'ELPM' instructions.  */
-  int have_elpm;
-
-  /* Core have 'ELPM Rx,Z' instructions.  */
-  int have_elpmx;
-
-  /* Core have 'EICALL' and 'EIJMP' instructions.  */
-  int have_eijmp_eicall;
-
-  /* This is an XMEGA core.  */
-  int xmega_p;
-
-  /* This core has the RAMPD special function register
-     and thus also the RAMPX, RAMPY and RAMPZ registers.  */
-  int have_rampd;
-  
-  /* Default start of data section address for architecture.  */
-  int default_data_section_start;
-
-  /* Offset between SFR address and RAM address:
-     SFR-address = RAM-address - sfr_offset  */
-  int sfr_offset;
-
-  /* Architecture id to built-in define __AVR_ARCH__ (NULL -> no macro) */
-  const char *const macro;
-  
-  /* Architecture name.  */
-  const char *const arch_name;  
-};
-
-/* These names are used as the index into the avr_arch_types[] table 
-   above.  */
-
-enum avr_arch
-{
-  ARCH_UNKNOWN,
-  ARCH_AVR1,
-  ARCH_AVR2,
-  ARCH_AVR25,
-  ARCH_AVR3,
-  ARCH_AVR31,
-  ARCH_AVR35,
-  ARCH_AVR4,
-  ARCH_AVR5,
-  ARCH_AVR51,
-  ARCH_AVR6,
-  ARCH_AVRXMEGA2,
-  ARCH_AVRXMEGA4,
-  ARCH_AVRXMEGA5,
-  ARCH_AVRXMEGA6,
-  ARCH_AVRXMEGA7
-};
-
-struct mcu_type_s {
-  /* Device name.  */
-  const char *const name;
-  
-  /* Index in avr_arch_types[].  */
-  int arch; 
-  
-  /* Must lie outside user's namespace.  NULL == no macro.  */
-  const char *const macro;
-  
-  /* Stack pointer have 8 bits width.  */
-  int short_sp;
-  
-  /* Some AVR devices have a core erratum when skipping a 2-word instruction.
-     Skip instructions are:  SBRC, SBRS, SBIC, SBIS, CPSE.
-     Problems will occur with return address is IRQ executes during the
-     skip sequence.
-
-     A support ticket from Atmel returned the following information:
-
-         Subject: (ATTicket:644469) On AVR skip-bug core Erratum
-         From: avr@atmel.com                    Date: 2011-07-27
-         (Please keep the subject when replying to this mail)
-
-         This errata exists only in AT90S8515 and ATmega103 devices.
-
-         For information please refer the following respective errata links
-            http://www.atmel.com/dyn/resources/prod_documents/doc2494.pdf
-            http://www.atmel.com/dyn/resources/prod_documents/doc1436.pdf  */
-
-  /* Core Erratum:  Must not skip 2-word instruction.  */
-  int errata_skip;
-  
-  /* Start of data section.  */
-  int data_section_start;
-  
-  /* Number of 64k segments in the flash.  */
-  int n_flash;
-
-  /* Name of device library.  */
-  const char *const library_name; 
-};
-
-/* Preprocessor macros to define depending on MCU type.  */
-extern const char *avr_extra_arch_macro;
-extern const struct base_arch_s *avr_current_arch;
-extern const struct mcu_type_s *avr_current_device;
-extern const struct mcu_type_s avr_mcu_types[];
-extern const struct base_arch_s avr_arch_types[];
-
 typedef struct
 {
   /* Id of the address space as used in c_register_addr_space */
@@ -176,7 +57,7 @@ enum
 
 #define TARGET_CPU_CPP_BUILTINS()	avr_cpu_cpp_builtins (pfile)
 
-#define AVR_HAVE_JMP_CALL (avr_current_arch->have_jmp_call && !TARGET_SHORT_CALLS)
+#define AVR_HAVE_JMP_CALL (avr_current_arch->have_jmp_call)
 #define AVR_HAVE_MUL (avr_current_arch->have_mul)
 #define AVR_HAVE_MOVW (avr_current_arch->have_movw_lpmx)
 #define AVR_HAVE_LPMX (avr_current_arch->have_movw_lpmx)
@@ -253,6 +134,7 @@ enum
 #define FLOAT_TYPE_SIZE 32
 #define DOUBLE_TYPE_SIZE 32
 #define LONG_DOUBLE_TYPE_SIZE 32
+#define LONG_LONG_ACCUM_TYPE_SIZE 64
 
 #define DEFAULT_SIGNED_CHAR 1
 
@@ -703,7 +585,7 @@ struct GTY(()) machine_function
   int attributes_checked_p;
 };
 
-/* AVR does not round pushes, but the existance of this macro is
+/* AVR does not round pushes, but the existence of this macro is
    required in order for pushes to be generated.  */
 #define PUSH_ROUNDING(X)	(X)
 

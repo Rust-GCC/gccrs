@@ -79,7 +79,7 @@ extern int asm_operand_ok (rtx, const char *, const char **);
 extern bool validate_change (rtx, rtx *, rtx, bool);
 extern bool validate_unshare_change (rtx, rtx *, rtx, bool);
 extern bool canonicalize_change_group (rtx insn, rtx x);
-extern int insn_invalid_p (rtx);
+extern int insn_invalid_p (rtx, bool);
 extern int verify_changes (int);
 extern void confirm_change_group (void);
 extern int apply_change_group (void);
@@ -114,7 +114,7 @@ extern int offsettable_address_addr_space_p (int, enum machine_mode, rtx,
 #define offsettable_address_p(strict,mode,addr) \
 	offsettable_address_addr_space_p ((strict), (mode), (addr), \
 					  ADDR_SPACE_GENERIC)
-extern bool mode_dependent_address_p (rtx);
+extern bool mode_dependent_address_p (rtx, addr_space_t);
 
 extern int recog (rtx, rtx, int *);
 #ifndef GENERATOR_FILE

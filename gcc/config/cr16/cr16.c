@@ -61,7 +61,7 @@
 #define FUNC_IS_NORETURN_P(decl) (TREE_THIS_VOLATILE (decl))
 
 /* Predicate that holds when we need to save registers even for 'noreturn'
-   functions, to accomodate for unwinding.  */
+   functions, to accommodate for unwinding.  */
 #define MUST_SAVE_REGS_P() \
   (flag_unwind_tables || (flag_exceptions && !UI_SJLJ))
 
@@ -354,7 +354,7 @@ cr16_compute_save_regs (void)
       /* If this reg is used and not call-used (except RA), save it.  */
       if (cr16_interrupt_function_p ())
 	{
-	  if (!current_function_is_leaf && call_used_regs[regno])
+	  if (!crtl->is_leaf && call_used_regs[regno])
 	    /* This is a volatile reg in a non-leaf interrupt routine - save 
 	       it for the sake of its sons.  */
 	    current_frame_info.save_regs[regno] = 1;
@@ -1286,7 +1286,9 @@ cr16_legitimate_address_p (enum machine_mode mode ATTRIBUTE_UNUSED,
 
 /* Return cost of the memory address x.  */
 static int
-cr16_address_cost (rtx addr, bool speed ATTRIBUTE_UNUSED)
+cr16_address_cost (rtx addr, enum machine_mode mode ATTRIBUTE_UNUSED,
+		   addr_space_t as ATTRIBUTE_UNUSED,
+		   bool speed ATTRIBUTE_UNUSED)
 {
   enum cr16_addrtype addrtype;
   struct cr16_address address;
@@ -1851,7 +1853,7 @@ cr16_create_dwarf_for_multi_push (rtx insn)
 	      tmp = gen_rtx_SET (VOIDmode,
 				 gen_frame_mem (mode,
 						plus_constant
-						(stack_pointer_rtx,
+						(Pmode, stack_pointer_rtx,
 						 total_push_bytes - offset)),
 				 reg);
 	      RTX_FRAME_RELATED_P (tmp) = 1;

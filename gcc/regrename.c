@@ -35,7 +35,6 @@
 #include "recog.h"
 #include "flags.h"
 #include "obstack.h"
-#include "timevar.h"
 #include "tree-pass.h"
 #include "df.h"
 #include "target.h"
@@ -323,7 +322,7 @@ check_new_reg_p (int reg ATTRIBUTE_UNUSED, int new_reg,
 #ifdef LEAF_REGISTERS
 	/* We can't use a non-leaf register if we're in a
 	   leaf function.  */
-	|| (current_function_is_leaf
+	|| (crtl->is_leaf
 	    && !LEAF_REGISTERS[new_reg + i])
 #endif
 #ifdef HARD_REGNO_RENAME_OK
@@ -729,8 +728,8 @@ regrename_analyze (bitmap bb_mask)
 	      rtx insn;
 	      FOR_BB_INSNS (bb1, insn)
 		{
-		  insn_rr_info *p = VEC_index (insn_rr_info, insn_rr,
-					       INSN_UID (insn));
+		  insn_rr_info *p = &VEC_index (insn_rr_info, insn_rr,
+					        INSN_UID (insn));
 		  p->op_info = NULL;
 		}
 	    }
@@ -1343,10 +1342,7 @@ scan_rtx (rtx insn, rtx *loc, enum reg_class cl, enum scan_actions action,
   switch (code)
     {
     case CONST:
-    case CONST_INT:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
-    case CONST_VECTOR:
+    CASE_CONST_ANY:
     case SYMBOL_REF:
     case LABEL_REF:
     case CC0:
@@ -1584,7 +1580,7 @@ build_def_use (basic_block bb)
 
 	  if (insn_rr != NULL)
 	    {
-	      insn_info = VEC_index (insn_rr_info, insn_rr, INSN_UID (insn));
+	      insn_info = &VEC_index (insn_rr_info, insn_rr, INSN_UID (insn));
 	      insn_info->op_info = XOBNEWVEC (&rename_obstack, operand_rr_info,
 					      recog_data.n_operands);
 	      memset (insn_info->op_info, 0,

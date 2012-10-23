@@ -19,8 +19,7 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-#ifndef GCC_CFGHOOKS_H
-#define GCC_CFGHOOKS_H
+/* Only basic-block.h includes this.  */
 
 struct cfg_hooks
 {
@@ -29,7 +28,7 @@ struct cfg_hooks
 
   /* Debugging.  */
   int (*verify_flow_info) (void);
-  void (*dump_bb) (basic_block, FILE *, int, int);
+  void (*dump_bb) (FILE *, basic_block, int, int);
 
   /* Basic CFG manipulation.  */
 
@@ -139,10 +138,20 @@ struct cfg_hooks
   /* Add PHI arguments queued in PENDINT_STMT list on edge E to edge
      E->dest (only in tree-ssa loop versioning.  */
   void (*flush_pending_stmts) (edge);
+  
+  /* True if a block contains no executable instructions.  */
+  bool (*empty_block_p) (basic_block);
+
+  /* Split a basic block if it ends with a conditional branch and if
+     the other part of the block is not empty.  */
+  basic_block (*split_block_before_cond_jump) (basic_block);
+
+  /* Do book-keeping of a basic block for the profile consistency checker.  */
+  void (*account_profile_record) (basic_block, int, struct profile_record *);
 };
 
 extern void verify_flow_info (void);
-extern void dump_bb (basic_block, FILE *, int);
+extern void dump_bb (FILE *, basic_block, int, int);
 extern edge redirect_edge_and_branch (edge, basic_block);
 extern basic_block redirect_edge_and_branch_force (edge, basic_block);
 extern bool can_remove_branch_p (const_edge);
@@ -167,6 +176,8 @@ extern bool predicted_by_p (const_basic_block bb, enum br_predictor predictor);
 extern bool can_duplicate_block_p (const_basic_block);
 extern basic_block duplicate_block (basic_block, edge, basic_block);
 extern bool block_ends_with_call_p (basic_block bb);
+extern bool empty_block_p (basic_block);
+extern basic_block split_block_before_cond_jump (basic_block);
 extern bool block_ends_with_condjump_p (const_basic_block bb);
 extern int flow_call_edges_add (sbitmap);
 extern void execute_on_growing_pred (edge);
@@ -185,6 +196,16 @@ extern void lv_adjust_loop_header_phi (basic_block, basic_block, basic_block,
 extern void lv_add_condition_to_bb (basic_block, basic_block, basic_block,
 				    void *);
 
+extern bool can_copy_bbs_p (basic_block *, unsigned);
+extern void copy_bbs (basic_block *, unsigned, basic_block *,
+		      edge *, unsigned, edge *, struct loop *,
+		      basic_block);
+
+void account_profile_record (struct profile_record *, int);
+
+extern void cfg_layout_initialize (unsigned int);
+extern void cfg_layout_finalize (void);
+
 /* Hooks containers.  */
 extern struct cfg_hooks gimple_cfg_hooks;
 extern struct cfg_hooks rtl_cfg_hooks;
@@ -198,4 +219,3 @@ extern void gimple_register_cfg_hooks (void);
 extern struct cfg_hooks get_cfg_hooks (void);
 extern void set_cfg_hooks (struct cfg_hooks);
 
-#endif  /* GCC_CFGHOOKS_H */

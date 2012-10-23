@@ -1,0 +1,49 @@
+2012-09-20  Jakub Jelinek  <jakub@redhat.com>
+
+	PR other/43620
+	* configure.ac (AM_INIT_AUTOMAKE): Add no-dist.
+	* configure: Regenerate.
+	* Makefile.in: Regenerate.
+
+2012-09-14  David Edelsohn  <dje.gcc@gmail.com>
+
+	* configure: Regenerated.
+
+2012-05-22  John David Anglin  <dave.anglin@nrc-cnrc.gc.ca>
+
+	PR other/53231
+	* tas_n.c (libat_test_and_set): Correct return.  Remove unused variable.
+
+2012-05-16  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* configure: Regenerated.
+
+2012-05-10  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR other/53284
+	* acinclude.m4 (LIBAT_TEST_ATOMIC_BUILTIN): Add -O0 -S to CFLAGS
+	instead of overriding.
+	* configure: Regenerate.
+
+2012-05-07  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* Makefile.am (libatomic.map-sun): Handle objects in
+	libatomic_la_LIBADD.
+	* aclocal.m4: Regenerate.
+	* Makefile.in: Regenerate.
+
+2012-05-07  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac: Add $XPCFLAGS to CFLAGS, not $XCFLAGS.
+	* configure: Regenerate.
+
+2012-05-03  Richard Henderson  <rth@redhat.com>
+
+	* configure.ac (AM_MAINTAINER_MODE): New.
+	* acinclude.m4 (LIBAT_TEST_ATOMIC_BUILTIN): Handle compilation
+	failure in gcc_no_link path.
+	* configure, aclocal.m4, Makefile.in: Rebuild.
+
+2012-05-01  Richard Henderson  <rth@redhat.com>
+
+	* Initial commit.

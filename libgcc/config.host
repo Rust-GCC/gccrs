@@ -255,7 +255,7 @@ case ${host} in
   ;;
 *-*-*vms*)
   tmake_file="vms/t-vms"
-  extra_parts="vcrt0.o pcrt0.o crtbegin.o crtbeginS.o crtend.o crtendS.o"
+  extra_parts="crt0.o crtbegin.o crtbeginS.o crtend.o crtendS.o"
   ;;
 *-*-vxworks*)
   tmake_file=t-vxworks
@@ -266,8 +266,7 @@ case ${host} in
 esac
 
 case ${host} in
-*-*-darwin* | *-*-freebsd* | *-*-netbsd* | *-*-openbsd* | *-*-solaris2* | \
-  alpha*-dec-osf5.1*)
+*-*-darwin* | *-*-freebsd* | *-*-netbsd* | *-*-openbsd* | *-*-solaris2*)
   enable_execute_stack=enable-execute-stack-mprotect.c
   ;;
 i[34567]86-*-mingw* | x86_64-*-mingw*)
@@ -294,16 +293,6 @@ alpha*-*-netbsd*)
 alpha*-*-openbsd*)
 	tmake_file="${tmake_file} alpha/t-alpha alpha/t-ieee"
 	;;
-alpha*-dec-osf5.1*)
-	tmake_file="${tmake_file} alpha/t-alpha alpha/t-ieee t-crtfm t-slibgcc alpha/t-slibgcc-osf"
-	case ${target_thread_file} in
-	  posix)
-	    tmake_file="${tmake_file} alpha/t-osf-pthread"
-	    ;;
-	esac
-	extra_parts="${extra_parts} crtfastmath.o"
-	md_unwind_header=alpha/osf5-unwind.h
-	;;
 alpha64-dec-*vms*)
 	tmake_file="$tmake_file alpha/t-alpha alpha/t-ieee alpha/t-vms t-slibgcc-vms"
 	extra_parts="$extra_parts vms-dwarf2.o vms-dwarf2eh.o"
@@ -327,7 +316,7 @@ arm*-*-netbsdelf*)
 arm*-*-linux*)			# ARM GNU/Linux with ELF
 	tmake_file="${tmake_file} arm/t-arm t-fixedpoint-gnu-prefix"
 	case ${host} in
-	arm*-*-linux-*eabi)
+	arm*-*-linux-*)
 	  tmake_file="${tmake_file} arm/t-elf arm/t-bpabi arm/t-linux-eabi t-slibgcc-libgcc"
 	  tm_file="$tm_file arm/bpabi-lib.h"
 	  unwind_header=config/arm/unwind-arm.h
@@ -354,11 +343,11 @@ arm*-*-ecos-elf)
 	tmake_file="$tmake_file arm/t-arm arm/t-elf t-softfp-sfdf t-softfp-excl arm/t-softfp t-softfp"
 	extra_parts="$extra_parts crti.o crtn.o"
 	;;
-arm*-*-eabi* | arm*-*-symbianelf* | arm*-*-rtemseabi*)
+arm*-*-eabi* | arm*-*-symbianelf* | arm*-*-rtems*)
 	tmake_file="${tmake_file} arm/t-arm arm/t-elf t-fixedpoint-gnu-prefix"
 	tm_file="$tm_file arm/bpabi-lib.h"
 	case ${host} in
-	arm*-*-eabi* | arm*-*-rtemseabi*)
+	arm*-*-eabi* | arm*-*-rtems*)
 	  tmake_file="${tmake_file} arm/t-bpabi"
 	  extra_parts="crtbegin.o crtend.o crti.o crtn.o"
 	  ;;
@@ -370,10 +359,6 @@ arm*-*-eabi* | arm*-*-symbianelf* | arm*-*-rtemseabi*)
 	esac
 	tmake_file="$tmake_file t-softfp-sfdf t-softfp-excl arm/t-softfp t-softfp"
 	unwind_header=config/arm/unwind-arm.h
-	;;
-arm*-*-rtems*)
-	tmake_file="$tmake_file arm/t-arm arm/t-elf t-softfp-sfdf t-softfp-excl arm/t-softfp t-softfp"
-	extra_parts="$extra_parts crti.o crtn.o"
 	;;
 arm*-*-elf)
 	tmake_file="$tmake_file arm/t-arm arm/t-elf t-softfp-sfdf t-softfp-excl arm/t-softfp t-softfp"
@@ -391,7 +376,7 @@ avr-*-rtems*)
 avr-*-*)
 	# Make HImode functions for AVR
 	tmake_file="${cpu_type}/t-avr t-fpbit"
-	if test x${with_avrlibc} = xyes; then
+	if test x${with_avrlibc} != xno; then
 	    tmake_file="$tmake_file ${cpu_type}/t-avrlibc"
 	fi
 	tm_file="$tm_file avr/avr-lib.h"
@@ -510,6 +495,9 @@ hppa[12]*-*-hpux11*)
 	extra_parts="libgcc_stub.a"
 	md_unwind_header=pa/hpux-unwind.h
 	;;
+hppa*-*-openbsd*)
+	tmake_file="$tmake_file pa/t-openbsd"
+	;;
 i[34567]86-*-darwin*)
 	tmake_file="$tmake_file i386/t-crtpc i386/t-crtfm"
 	tm_file="$tm_file i386/darwin-lib.h"
@@ -540,6 +528,8 @@ x86_64-*-netbsd*)
 i[34567]86-*-openbsd2.*|i[34567]86-*openbsd3.[0123])
 	;;
 i[34567]86-*-openbsd*)
+	;;
+x86_64-*-openbsd*)
 	;;
 i[34567]86-*-linux*)
 	extra_parts="$extra_parts crtprec32.o crtprec64.o crtprec80.o crtfastmath.o"
@@ -632,7 +622,7 @@ x86_64-*-mingw*)
 	if test x$enable_sjlj_exceptions = xyes; then
 		tmake_eh_file="i386/t-sjlj-eh"
 	else
-		tmake_eh_file="i386/t-dw2-eh"
+		tmake_eh_file="i386/t-seh-eh"
 	fi
 	# Shared libgcc DLL install dir depends on cross/native build.
 	if test x${build} = x${host} ; then
@@ -740,11 +730,6 @@ microblaze*-*-*)
         tmake_file="microblaze/t-microblaze t-fdpbit"
 	extra_parts="crtbegin.o crtend.o crti.o crtn.o"
 	;;
-mips-sgi-irix6.5*)
-	tmake_file="$tmake_file mips/t-irix6 t-crtfm mips/t-tpbit t-slibgcc mips/t-slibgcc-irix"
-	extra_parts="crtbegin.o crtend.o crtfastmath.o irix-crti.o irix-crtn.o"
-	md_unwind_header=mips/irix6-unwind.h
-	;;
 mips*-*-netbsd*)			# NetBSD/mips, either endian.
 	;;
 mips*-*-linux*)				# Linux MIPS, either endian.
@@ -754,8 +739,6 @@ mips*-*-linux*)				# Linux MIPS, either endian.
 	if test "${ac_cv_sizeof_long_double}" = 16; then
 		tmake_file="${tmake_file} mips/t-tpbit"
 	fi
-	;;
-mips*-*-openbsd*)
 	;;
 mips*-sde-elf*)
 	tmake_file="$tmake_file mips/t-crtstuff mips/t-mips16"
@@ -1145,6 +1128,12 @@ mep*-*-*)
 esac
 
 case ${host} in
+i[34567]86-*-* | x86_64-*-*)
+	tmake_file="${tmake_file} i386/t-cpuinfo"
+	;;
+esac
+
+case ${host} in
 i[34567]86-*-linux* | x86_64-*-linux* | \
   i[34567]86-*-kfreebsd*-gnu | x86_64-*-kfreebsd*-gnu | \
   i[34567]86-*-knetbsd*-gnu | \
@@ -1168,7 +1157,7 @@ i[34567]86-*-darwin* | x86_64-*-darwin* | \
 	if test "${host_address}" = 32; then
 		tmake_file="${tmake_file} i386/${host_address}/t-softfp"
 	fi
-	tmake_file="${tmake_file} t-softfp"
+	tmake_file="${tmake_file} i386/t-softfp t-softfp"
 	;;
 esac
 

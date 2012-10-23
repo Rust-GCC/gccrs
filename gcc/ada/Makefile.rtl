@@ -479,9 +479,12 @@ GNATRTL_NONTASKING_OBJS= \
   s-assert$(objext) \
   s-atacco$(objext) \
   s-atocou$(objext) \
+  s-atopri$(objext) \
   s-auxdec$(objext) \
+  s-bignum$(objext) \
   s-bitops$(objext) \
   s-boarop$(objext) \
+  s-bytswa$(objext) \
   s-carsi8$(objext) \
   s-carun8$(objext) \
   s-casi16$(objext) \

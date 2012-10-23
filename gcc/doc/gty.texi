@@ -13,17 +13,17 @@ involve determining information about GCC's data structures from GCC's
 source code and using this information to perform garbage collection and
 implement precompiled headers.
 
-A full C parser would be too complicated for this task, so a limited
-subset of C is interpreted and special markers are used to determine
-what parts of the source to look at.  All @code{struct} and
-@code{union} declarations that define data structures that are
-allocated under control of the garbage collector must be marked.  All
-global variables that hold pointers to garbage-collected memory must
-also be marked.  Finally, all global variables that need to be saved
-and restored by a precompiled header must be marked.  (The precompiled
-header mechanism can only save static variables if they're scalar.
-Complex data structures must be allocated in garbage-collected memory
-to be saved in a precompiled header.)
+A full C++ parser would be too complicated for this task, so a limited
+subset of C++ is interpreted and special markers are used to determine
+what parts of the source to look at.  All @code{struct}, @code{union}
+and @code{template} structure declarations that define data structures
+that are allocated under control of the garbage collector must be
+marked.  All global variables that hold pointers to garbage-collected
+memory must also be marked.  Finally, all global variables that need
+to be saved and restored by a precompiled header must be marked.  (The
+precompiled header mechanism can only save static variables if they're
+scalar. Complex data structures must be allocated in garbage-collected
+memory to be saved in a precompiled header.)
 
 The full format of a marker is
 @smallexample
@@ -65,9 +65,31 @@ The parser understands simple typedefs such as
 @code{typedef int @var{name};}.
 These don't need to be marked.
 
+Since @code{gengtype}'s understanding of C++ is limited, there are
+several constructs and declarations that are not supported inside
+classes/structures marked for automatic GC code generation.  The
+following C++ constructs produce a @code{gengtype} error on
+structures/classes marked for automatic GC code generation:
+
+@itemize @bullet
+@item
+Type definitions inside classes/structures are not supported.
+@item
+Enumerations inside classes/structures are not supported.
+@end itemize
+
+If you have a class or structure using any of the above constructs,
+you need to mark that class as @code{GTY ((user))} and provide your
+own marking routines (see section @ref{User GC} for details).
+
+It is always valid to include function definitions inside classes.
+Those are always ignored by @code{gengtype}, as it only cares about
+data members.
+
 @menu
 * GTY Options::         What goes inside a @code{GTY(())}.
 * GGC Roots::           Making global variables GGC roots.
+* User GC::		Adding user-provided GC marking routines.
 * Files::               How the generated files work.
 * Invoking the garbage collector::   How to invoke the garbage collector.
 * Troubleshooting::     When something does not work as expected.
@@ -134,8 +156,8 @@ The available options are:
 @item length ("@var{expression}")
 
 There are two places the type machinery will need to be explicitly told
-the length of an array.  The first case is when a structure ends in a
-variable-length array, like this:
+the length of an array of non-atomic objects.  The first case is when a
+structure ends in a variable-length array, like this:
 @smallexample
 struct GTY(()) rtvec_def @{
   int num_elem;         /* @r{number of elements} */
@@ -162,6 +184,11 @@ This second use of @code{length} also works on global variables, like:
 @verbatim
 static GTY((length("reg_known_value_size"))) rtx *reg_known_value;
 @end verbatim
+
+Note that the @code{length} option is only meant for use with arrays of
+non-atomic objects, that is, objects that contain pointers pointing to
+other GTY-managed objects.  For other GC-allocated arrays and strings
+you should use @code{atomic}.
 
 @findex skip
 @item skip
@@ -411,7 +438,7 @@ Here is an example of how to use it:
 @smallexample
 struct GTY(()) my_struct @{
   int number_of_elements;
-  unsigned int GTY ((atomic)) * elements;
+  unsigned int * GTY ((atomic)) elements;
 @};
 @end smallexample
 In this case, @code{elements} is a pointer under GC, and the memory it
@@ -435,7 +462,127 @@ The @code{special} option is used to mark types that have to be dealt
 with by special case machinery.  The parameter is the name of the
 special case.  See @file{gengtype.c} for further details.  Avoid
 adding new special cases unless there is no other alternative.
+
+@findex user
+@item user
+
+The @code{user} option indicates that the code to mark structure
+fields is completely handled by user-provided routines.  See section
+@ref{User GC} for details on what functions need to be provided.
 @end table
+
+@node User GC
+@section Support for user-provided GC marking routines
+@cindex user gc
+The garbage collector supports types for which no automatic marking
+code is generated.  For these types, the user is required to provide
+three functions: one to act as a marker for garbage collection, and
+two functions to act as marker and pointer walker for pre-compiled
+headers.
+
+Given a structure @code{struct GTY((user)) my_struct}, the following functions
+should be defined to mark @code{my_struct}:
+
+@smallexample
+void gt_ggc_mx (my_struct *p)
+@{
+  /* This marks field 'fld'.  */
+  gt_ggc_mx (p->fld);
+@}
+
+void gt_pch_nx (my_struct *p)
+@{
+  /* This marks field 'fld'.  */
+  gt_pch_nx (tp->fld);
+@}
+
+void gt_pch_nx (my_struct *p, gt_pointer_operator op, void *cookie)
+@{
+  /* For every field 'fld', call the given pointer operator.  */
+  op (&(tp->fld), cookie);
+@}
+@end smallexample
+
+In general, each marker @code{M} should call @code{M} for every
+pointer field in the structure.  Fields that are not allocated in GC
+or are not pointers must be ignored.
+
+For embedded lists (e.g., structures with a @code{next} or @code{prev}
+pointer), the marker must follow the chain and mark every element in
+it.
+
+Note that the rules for the pointer walker @code{gt_pch_nx (my_struct
+*, gt_pointer_operator, void *)} are slightly different.  In this
+case, the operation @code{op} must be applied to the @emph{address} of
+every pointer field.
+
+@section User-provided marking routines for template types
+When a template type @code{TP} is marked with @code{GTY}, all
+instances of that type are considered user-provided types.  This means
+that the individual instances of @code{TP} do not need to be marked
+with @code{GTY}.  The user needs to provide template functions to mark
+all the fields of the type.
+
+The following code snippets represent all the functions that need to
+be provided. Note that type @code{TP} may reference to more than one
+type. In these snippets, there is only one type @code{T}, but there
+could be more.
+
+@smallexample
+template<typename T>
+void gt_ggc_mx (TP<T> *tp)
+@{
+  extern void gt_ggc_mx (T&);
+
+  /* This marks field 'fld' of type 'T'.  */
+  gt_ggc_mx (tp->fld);
+@}
+
+template<typename T>
+void gt_pch_nx (TP<T> *tp)
+@{
+  extern void gt_pch_nx (T&);
+
+  /* This marks field 'fld' of type 'T'.  */
+  gt_pch_nx (tp->fld);
+@}
+
+template<typename T>
+void gt_pch_nx (TP<T *> *tp, gt_pointer_operator op, void *cookie)
+@{
+  /* For every field 'fld' of 'tp' with type 'T *', call the given
+     pointer operator.  */
+  op (&(tp->fld), cookie);
+@}
+
+template<typename T>
+void gt_pch_nx (TP<T> *tp, gt_pointer_operator, void *cookie)
+@{
+  extern void gt_pch_nx (T *, gt_pointer_operator, void *);
+
+  /* For every field 'fld' of 'tp' with type 'T', call the pointer
+     walker for all the fields of T.  */
+  gt_pch_nx (&(tp->fld), op, cookie);
+@}
+@end smallexample
+
+Support for user-defined types is currently limited. The following
+restrictions apply:
+
+@enumerate
+@item Type @code{TP} and all the argument types @code{T} must be
+marked with @code{GTY}.
+
+@item Type @code{TP} can only have type names in its argument list.
+
+@item The pointer walker functions are different for @code{TP<T>} and
+@code{TP<T *>}. In the case of @code{TP<T>}, references to
+@code{T} must be handled by calling @code{gt_pch_nx} (which
+will, in turn, walk all the pointers inside fields of @code{T}).
+In the case of @code{TP<T *>}, references to @code{T *} must be
+handled by calling the @code{op} function on the address of the
+pointer (see the code snippets above).
+@end enumerate
 
 @node GGC Roots
 @section Marking Roots for the Garbage Collector
@@ -491,7 +638,7 @@ For files shared by all front ends, add the filename to the
 @item
 For files that are part of one front end, add the filename to the
 @code{gtfiles} variable defined in the appropriate
-@file{config-lang.in}.  For C, the file is @file{c-config-lang.in}.
+@file{config-lang.in}.
 Headers should appear before non-headers in this list.
 
 @item
@@ -540,7 +687,7 @@ The GCC build tree is needed to be present in that mode.
 The GCC garbage collector GGC is only invoked explicitly. In contrast
 with many other garbage collectors, it is not implicitly invoked by
 allocation routines when a lot of memory has been consumed. So the
-only way to have GGC reclaim storage it to call the @code{ggc_collect}
+only way to have GGC reclaim storage is to call the @code{ggc_collect}
 function explicitly.  This call is an expensive operation, as it may
 have to scan the entire heap.  Beware that local variables (on the GCC
 call stack) are not followed by such an invocation (as many other

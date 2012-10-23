@@ -37,12 +37,10 @@ CONTAINS
     END INTERFACE
     INTEGER, EXTERNAL :: UserOp 
 
-    res = UserFunction( a,b, UserOp ) ! { dg-error "Type/rank mismatch in return value" }
+    res = UserFunction( a,b, UserOp ) ! { dg-error "Type/rank mismatch in function result" }
 
     if( res .lt. 10 ) then
        res = recSum( a, res, UserFunction, UserOp ) 
     end if
   END FUNCTION recSum
 END PROGRAM test
-
-! { dg-final { cleanup-modules "funcs" } }

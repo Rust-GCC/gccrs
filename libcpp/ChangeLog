@@ -1,14 +1,255 @@
-2012-09-20  Release Manager
+2012-10-15  Tobias Burnus  <burnus@net-b.de>
 
-	* GCC 4.7.2 released.
+	* files.c (read_file_guts, _cpp_save_file_entries): Free memory
+	before returning.
+	* lex.c (warn_about_normalization): Ditto.
+	* mkdeps.c (deps_save): Ditto.
+	* pch.c (cpp_valid_state): Ditto.
 
-2012-06-14  Release Manager
+2012-10-04  Florian Weimer  <fweimer@redhat.com>
 
-	* GCC 4.7.1 released.
+	* directives.c (do_pragma_warning_or_error): New.
+	(do_pragma_warning): New.
+	(do_pragma_error): New.
+	(_cpp_init_internal_pragmas): Register new pragmas.
 
-2012-03-22  Release Manager
+2012-09-25  Dehao Chen  <dehao@google.com>
 
-	* GCC 4.7.0 released.
+	PR middle-end/54704
+	* line-map.c (location_adhoc_data_hash): Fix the hash function.
+
+2012-09-25  Dehao Chen  <dehao@google.com>
+
+	PR middle-end/54645
+	* include/line-map.h (location_adhoc_data): Move location_adhoc_data
+	into GC.
+	(location_adhoc_data_map): Likewise.
+	(line_maps): Likewise.
+	(rebuild_location_adhoc_htab): New Function.
+	* line-map.c (+rebuild_location_adhoc_htab): new Funcion.
+	(get_combined_adhoc_loc): Move location_adhoc_data into GC.
+	(location_adhoc_data_fini): Likewise.
+	(linemap_init): Likewise.
+	(location_adhoc_data_init): Remove Function.
+
+2012-09-19  Dehao Chen  <dehao@google.com>
+
+	* include/line-map.h (MAX_SOURCE_LOCATION): New value.
+	(location_adhoc_data_fini): New.
+	(get_combined_adhoc_loc): New.
+	(get_data_from_adhoc_loc): New.
+	(get_location_from_adhoc_loc): New.
+	(location_adhoc_data_map): New.
+	(COMBINE_LOCATION_DATA): New.
+	(IS_ADHOC_LOC): New.
+	(expanded_location): New field.
+	(line_maps): New field.
+	* line-map.c (location_adhoc_data): New.
+	(location_adhoc_data_hash): New.
+	(location_adhoc_data_eq): New.
+	(location_adhoc_data_update): New.
+	(get_combined_adhoc_loc): New.
+	(get_data_from_adhoc_loc): New.
+	(get_location_from_adhoc_loc): New.
+	(location_adhoc_data_init): New.
+	(location_adhoc_data_fini): New.
+	(linemap_init): Initialize location_adhoc_data.
+	(linemap_lookup): Change to use new location.
+	(linemap_ordinary_map_lookup): Likewise.
+	(linemap_macro_map_lookup): Likewise.
+	(linemap_macro_map_loc_to_def_point): Likewise.
+	(linemap_macro_map_loc_unwind_toward_spel): Likewise.
+	(linemap_get_expansion_line): Likewise.
+	(linemap_get_expansion_filename): Likewise.
+	(linemap_location_in_system_header_p): Likewise.
+	(linemap_location_from_macro_expansion_p): Likewise.
+	(linemap_macro_loc_to_spelling_point): Likewise.
+	(linemap_macro_loc_to_def_point): Likewise.
+	(linemap_macro_loc_to_exp_point): Likewise.
+	(linemap_resolve_location): Likewise.
+	(linemap_unwind_toward_expansion): Likewise.
+	(linemap_unwind_to_first_non_reserved_loc): Likewise.
+	(linemap_expand_location): Likewise.
+	(linemap_dump_location): Likewise.
+	(linemap_line_start): Likewise.
+
+2012-05-25  Dodji Seketeli  <dodji@redhat.com>
+
+	PR preprocessor/53469
+	* directives.c (do_pragma): Use the virtual location for the
+	pragma token, instead of its spelling location.
+
+2012-08-14   Diego Novillo  <dnovillo@google.com>
+
+	Merge from cxx-conversion branch.  Configury.
+
+	* Makefile.in: Remove all handlers of ENABLE_BUILD_WITH_CXX.
+	* configure.ac: Likewise.
+	* configure: Regenerate.
+
+2012-08-14   Lawrence Crowl  <crowl@google.com>
+
+	Merge from cxx-conversion branch.  New C++ hash table.
+
+	* include/symtab.h (typedef struct ht hash_table): Change the typedef
+	name to cpp_hash_table.  Update all users of the typedef.
+
+2012-07-30  Laurynas Biveinis  <laurynas.biveinis@gmail.com>
+
+	* include/line-map.h (line_map_macro): Use the "atomic" GTY option
+	for the macro_locations field.
+
+2011-06-19  Uros Bizjak  <ubizjak@gmail.com>
+
+	* lex.c (search_line_sse42): Use __builtin_ia32_loaddqu and
+	__builtin_ia32_pcmpestri128 instead of asm.
+
+2012-06-04  Dimitrios Apostolou <jimis@gmx.net>
+
+	* line-map.c (linemap_enter_macro): Don't zero max_column_hint in
+	every macro. This improves performance by reducing the number of
+	reallocations when track-macro-expansion is on.
+
+2012-06-04  Dodji Seketeli  <dodji@redhat.com>
+
+	PR preprocessor/53463
+	* line-map.c (linemap_location_in_system_header_p): For built-in
+	macro tokens, check the first expansion point location that is not
+	for a token coming from a built-in macro.
+
+2012-05-29  Joseph Myers  <joseph@codesourcery.com>
+
+	* directives.c: Fix typos.
+	* include/line-map.h: Fix typos.
+	* line-map.c: Fix typos.
+	* macro.c: Fix typos.
+
+2012-05-25  Dodji Seketeli  <dodji@redhat.com>
+
+	PR bootstrap/53459
+	* lex.c (search_line_fast): Avoid unused local typedefs to simulate
+	a static assertion.
+
+2012-05-29  Dodji Seketeli  <dodji@redhat.com>
+
+	PR preprocessor/53229
+	* internal.h (cpp_reader::set_invocation_location): Remove.
+	(cpp_reader::about_to_expand_macro_p): New member flag.
+	* directives.c (do_pragma):  Remove Kludge as
+	pfile->set_invocation_location is no more.
+	* macro.c (cpp_get_token_1): Do away with the use of
+	cpp_reader::set_invocation_location.  Just collect the macro
+	expansion point when we are about to expand the top-most macro.
+	Do not override cpp_reader::about_to_expand_macro_p.
+	This fixes gcc.dg/cpp/paste12.c by making get_token_no_padding
+	properly handle locations of expansion points.
+	(cpp_get_token_with_location): Adjust, as
+	cpp_reader::set_invocation_location is no more.
+	(paste_tokens): Take a virtual location parameter for
+	the LHS of the pasting operator.  Use it in diagnostics.  Update
+	comments.
+	(paste_all_tokens): Tighten the assert.  Propagate the location of
+	the expansion point when no virtual locations are available.
+	Pass the virtual location to paste_tokens.
+	(in_macro_expansion_p): New static function.
+	(enter_macro_context): Set the cpp_reader::about_to_expand_macro_p
+	flag until we really start expanding the macro.
+
+2012-05-16  Dodji Seketeli  <dodji@redhat.com>
+
+	PR preprocessor/7263
+	* include/cpplib.h (cpp_classify_number): Take a location
+	parameter.
+	* expr.c (SYNTAX_ERROR_AT, SYNTAX_ERROR2_AT): New diagnostic
+	macros that take a location parameter.
+	(cpp_classify_number): Take a (virtual) location parameter.  Use
+	it for diagnostics.  Adjust comments.
+	(eval_token): Take a location parameter.  Pass it to
+	cpp_classify_number and to diagnostic routines.
+	(_cpp_parse_expr): Use virtual locations of tokens when parsing
+	expressions.  Pass a virtual location to eval_token and to
+	diagnostic routines.
+
+2012-05-10  Tristan Gingold  <gingold@adacore.com>
+
+	* expr.c (interpret_float_suffix): Add a guard.
+
+2012-05-02  Dodji Seketeli  <dodji@redhat.com>
+
+	Properly initialize cpp_context in destringize_and_run
+	* directives.c (destringize_and_run): Properly initialize the new
+	context.
+	* macro.c (_cpp_pop_context): Assert that we shouldn't try to pop
+	the initial base context, which has the same life time as the
+	current instance of cpp_file.
+
+2012-04-30  Manuel López-Ibáñez  <manu@gcc.gnu.org>
+	    Dodji Seketeli  <dodji@seketeli.org>
+
+	PR c++/52974
+	* libcpp/files.c (maybe_shorter_path): New.
+	(find_file_in_dir): Use it.
+
+2012-04-30  Dodji Seketeli  <dodji@redhat.com>
+
+	Switch -ftrack-macro-expansion=2 on by default.
+	* init.c (cpp_create_reader): Switch -ftrack-macro-expansion=2 on
+	by default.  Add comments.
+
+	Strip "<built-in>" loc from displayed expansion context
+	* include/line-map.h (linemap_unwind_toward_expansion): Fix typo
+	in comment.
+	(linemap_unwind_to_first_non_reserved_loc): Declare new function.
+	* line-map.c (linemap_unwind_to_first_non_reserved_loc): Define
+	new function.
+
+	Fix expansion point loc for macro-like tokens
+	* macro.c (macro_of_context): New static function.
+	(_cpp_push_token_context, push_extended_tokens_context): If the
+	macro argument is NULL, it means we are continuing the expansion
+	of the current macro, if any.  Update comments.
+	(_cpp_pop_context): Re-enable expansion of the macro only when we
+	are really out of the context of the current expansion.
+
+	Fix token pasting with -ftrack-macro-expansion
+	* macro.c (paste_all_tokens): Put the token resulting from pasting
+	into an extended token context with -ftrack-macro-location is in
+	effect.
+
+	Fix cpp_sys_macro_p with -ftrack-macro-expansion
+	* macro.c (cpp_sys_macro_p):  Support -ftrack-macro-expansion.
+
+2012-04-29  Dodji Seketeli  <dodji@redhat.com>
+
+	* lex.c (lex_raw_string): Change C++ style comments into C style
+	comments.
+    	(lex_string): Likewise.
+
+2012-04-27   Ollie Wild  <aaw@google.com>
+
+	* include/cpplib.h (struct cpp_options): Add new field,
+	warn_literal_suffix.
+	(CPP_W_LITERAL_SUFFIX): New enum.
+	* init.c (cpp_create_reader): Default initialization of
+	warn_literal_suffix.
+	* lex.c (lex_raw_string): Treat user-defined literals which don't
+	begin with '_' as separate tokens and produce a warning.
+	(lex_string): Ditto.
+
+2012-04-26  Manuel López-Ibáñez  <manu@gcc.gnu.org>
+
+	* line-map.c (linemap_resolve_location): Synchronize comments with
+	those in line-map.h.
+	* include/line-map.h (linemap_resolve_location): Fix spelling in
+	comment.
+
+2012-03-22  Richard Earnshaw  <rearnsha@arm.com>
+
+	* lex.c (search_line_fast): Provide Neon-optimized version for ARM.
+
+2012-03-14  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* lex.c: Remove Solaris 8 reference.
 
 2012-02-14  Walter Lee  <walt@tilera.com>
 

@@ -86,6 +86,14 @@ m96bit-long-double
 Target RejectNegative Report InverseMask(128BIT_LONG_DOUBLE) Save
 sizeof(long double) is 12
 
+mlong-double-80
+Target Report RejectNegative InverseMask(LONG_DOUBLE_64) Save
+Use 80-bit long double
+
+mlong-double-64
+Target Report RejectNegative Mask(LONG_DOUBLE_64) Save
+Use 64-bit long double
+
 maccumulate-outgoing-args
 Target Report Mask(ACCUMULATE_OUTGOING_ARGS) Save
 Reserve space for outgoing arguments in the function prologue
@@ -159,6 +167,20 @@ Enum(cmodel) String(32) Value(CM_32)
 EnumValue
 Enum(cmodel) String(kernel) Value(CM_KERNEL)
 
+maddress-mode=
+Target RejectNegative Joined Enum(pmode) Var(ix86_pmode) Init(PMODE_SI)
+Use given address mode
+
+Enum
+Name(pmode) Type(enum pmode)
+Known address mode (for use with the -maddress-mode= option):
+
+EnumValue
+Enum(pmode) String(short) Value(PMODE_SI)
+
+EnumValue
+Enum(pmode) String(long) Value(PMODE_DI)
+
 mcpu=
 Target RejectNegative Joined Undocumented Alias(mtune=) Warn(%<-mcpu=%> is deprecated; use %<-mtune=%> or %<-march=%> instead)
 
@@ -204,7 +226,7 @@ EnumValue
 Enum(fpmath_unit) String(both) Value({(enum fpmath_unit) (FPMATH_SSE | FPMATH_387)})
 
 mhard-float
-Target RejectNegative Mask(80387) MaskExists Save
+Target RejectNegative Mask(80387) Save
 Use hardware fp
 
 mieee-fp
@@ -411,11 +433,11 @@ Target RejectNegative Negative(m64) Report InverseMask(ISA_64BIT) Var(ix86_isa_f
 Generate 32bit i386 code
 
 m64
-Target RejectNegative Negative(mx32) Report Mask(ISA_64BIT) Var(ix86_isa_flags) Save
+Target RejectNegative Negative(mx32) Report Mask(ABI_64) Var(ix86_isa_flags) Save
 Generate 64bit x86-64 code
 
 mx32
-Target RejectNegative Negative(m32) Report Mask(ISA_X32) Var(ix86_isa_flags) Save
+Target RejectNegative Negative(m32) Report Mask(ABI_X32) Var(ix86_isa_flags) Save
 Generate 32bit x86-64 code
 
 mmmx
@@ -455,11 +477,11 @@ Target Report Mask(ISA_SSE4_2) Var(ix86_isa_flags) Save
 Support MMX, SSE, SSE2, SSE3, SSSE3, SSE4.1 and SSE4.2 built-in functions and code generation
 
 msse4
-Target RejectNegative Report Mask(ISA_SSE4_2) MaskExists Var(ix86_isa_flags) Save
+Target RejectNegative Report Mask(ISA_SSE4_2) Var(ix86_isa_flags) Save
 Support MMX, SSE, SSE2, SSE3, SSSE3, SSE4.1 and SSE4.2 built-in functions and code generation
 
 mno-sse4
-Target RejectNegative Report InverseMask(ISA_SSE4_1) MaskExists Var(ix86_isa_flags) Save
+Target RejectNegative Report InverseMask(ISA_SSE4_1) Var(ix86_isa_flags) Save
 Do not support SSE4.1 and SSE4.2 built-in functions and code generation
 
 msse5
@@ -513,6 +535,22 @@ Support BMI2 built-in functions and code generation
 mlzcnt
 Target Report Mask(ISA_LZCNT) Var(ix86_isa_flags) Save
 Support LZCNT built-in function and code generation
+
+mhle
+Target Report Mask(ISA_HLE) Var(ix86_isa_flags) Save
+Support Hardware Lock Elision prefixes
+
+mrdseed
+Target Report Mask(ISA_RDSEED) Var(ix86_isa_flags) Save
+Support RDSEED instruction
+
+mprfchw
+Target Report Mask(ISA_PRFCHW) Var(ix86_isa_flags) Save
+Support PREFETCHW instruction
+
+madx
+Target Report Mask(ISA_ADX) Var(ix86_isa_flags) Save
+Support flag-preserving add-carry instructions
 
 mtbm
 Target Report Mask(ISA_TBM) Var(ix86_isa_flags) Save
@@ -573,3 +611,7 @@ Split 32-byte AVX unaligned load
 mavx256-split-unaligned-store
 Target Report Mask(AVX256_SPLIT_UNALIGNED_STORE) Save
 Split 32-byte AVX unaligned store
+
+mrtm
+Target Report Mask(ISA_RTM) Var(ix86_isa_flags) Save
+Support RTM built-in functions and code generation

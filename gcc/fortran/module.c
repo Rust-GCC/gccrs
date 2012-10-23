@@ -68,6 +68,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #include "system.h"
+#include "coretypes.h"
 #include "gfortran.h"
 #include "arith.h"
 #include "match.h"
@@ -552,7 +553,7 @@ gfc_match_use (void)
     {
       if ((m = gfc_match (" %n ::", module_nature)) == MATCH_YES)
 	{
-	  if (gfc_notify_std (GFC_STD_F2003, "Fortran 2003: module "
+	  if (gfc_notify_std (GFC_STD_F2003, "module "
 			      "nature in USE statement at %C") == FAILURE)
 	    goto cleanup;
 
@@ -587,7 +588,7 @@ gfc_match_use (void)
     {
       m = gfc_match (" ::");
       if (m == MATCH_YES &&
-	  gfc_notify_std (GFC_STD_F2003, "Fortran 2003: "
+	  gfc_notify_std (GFC_STD_F2003,
 			  "\"USE :: module\" at %C") == FAILURE)
 	goto cleanup;
 
@@ -655,7 +656,7 @@ gfc_match_use (void)
 	  m = gfc_match (" =>");
 
 	  if (type == INTERFACE_USER_OP && m == MATCH_YES
-	      && (gfc_notify_std (GFC_STD_F2003, "Fortran 2003: Renaming "
+	      && (gfc_notify_std (GFC_STD_F2003, "Renaming "
 				  "operators in USE statements at %C")
 		 == FAILURE))
 	    goto cleanup;
@@ -1843,13 +1844,14 @@ typedef enum
   AB_IS_BIND_C, AB_IS_C_INTEROP, AB_IS_ISO_C, AB_ABSTRACT, AB_ZERO_COMP,
   AB_IS_CLASS, AB_PROCEDURE, AB_PROC_POINTER, AB_ASYNCHRONOUS, AB_CODIMENSION,
   AB_COARRAY_COMP, AB_VTYPE, AB_VTAB, AB_CONTIGUOUS, AB_CLASS_POINTER,
-  AB_IMPLICIT_PURE
+  AB_IMPLICIT_PURE, AB_ARTIFICIAL
 }
 ab_attribute;
 
 static const mstring attr_bits[] =
 {
     minit ("ALLOCATABLE", AB_ALLOCATABLE),
+    minit ("ARTIFICIAL", AB_ARTIFICIAL),
     minit ("ASYNCHRONOUS", AB_ASYNCHRONOUS),
     minit ("DIMENSION", AB_DIMENSION),
     minit ("CODIMENSION", AB_CODIMENSION),
@@ -1974,6 +1976,8 @@ mio_symbol_attribute (symbol_attribute *attr)
     {
       if (attr->allocatable)
 	MIO_NAME (ab_attribute) (AB_ALLOCATABLE, attr_bits);
+      if (attr->artificial)
+	MIO_NAME (ab_attribute) (AB_ARTIFICIAL, attr_bits);
       if (attr->asynchronous)
 	MIO_NAME (ab_attribute) (AB_ASYNCHRONOUS, attr_bits);
       if (attr->dimension)
@@ -2088,6 +2092,9 @@ mio_symbol_attribute (symbol_attribute *attr)
 	    {
 	    case AB_ALLOCATABLE:
 	      attr->allocatable = 1;
+	      break;
+	    case AB_ARTIFICIAL:
+	      attr->artificial = 1;
 	      break;
 	    case AB_ASYNCHRONOUS:
 	      attr->asynchronous = 1;
@@ -2244,6 +2251,7 @@ static const mstring bt_types[] = {
     minit ("PROCEDURE", BT_PROCEDURE),
     minit ("UNKNOWN", BT_UNKNOWN),
     minit ("VOID", BT_VOID),
+    minit ("ASSUMED", BT_ASSUMED),
     minit (NULL, -1)
 };
 
@@ -2339,6 +2347,7 @@ mio_typespec (gfc_typespec *ts)
 
 static const mstring array_spec_types[] = {
     minit ("EXPLICIT", AS_EXPLICIT),
+    minit ("ASSUMED_RANK", AS_ASSUMED_RANK),
     minit ("ASSUMED_SHAPE", AS_ASSUMED_SHAPE),
     minit ("DEFERRED", AS_DEFERRED),
     minit ("ASSUMED_SIZE", AS_ASSUMED_SIZE),
@@ -2356,9 +2365,15 @@ mio_array_spec (gfc_array_spec **asp)
 
   if (iomode == IO_OUTPUT)
     {
+      int rank;
+
       if (*asp == NULL)
 	goto done;
       as = *asp;
+
+      /* mio_integer expects nonnegative values.  */
+      rank = as->rank > 0 ? as->rank : 0;
+      mio_integer (&rank);
     }
   else
     {
@@ -2369,20 +2384,23 @@ mio_array_spec (gfc_array_spec **asp)
 	}
 
       *asp = as = gfc_get_array_spec ();
+      mio_integer (&as->rank);
     }
 
-  mio_integer (&as->rank);
   mio_integer (&as->corank);
   as->type = MIO_NAME (array_type) (as->type, array_spec_types);
 
+  if (iomode == IO_INPUT && as->type == AS_ASSUMED_RANK)
+    as->rank = -1;
   if (iomode == IO_INPUT && as->corank)
     as->cotype = (as->type == AS_DEFERRED) ? AS_DEFERRED : AS_EXPLICIT;
 
-  for (i = 0; i < as->rank + as->corank; i++)
-    {
-      mio_expr (&as->lower[i]);
-      mio_expr (&as->upper[i]);
-    }
+  if (as->rank > 0)
+    for (i = 0; i < as->rank + as->corank; i++)
+      {
+	mio_expr (&as->lower[i]);
+	mio_expr (&as->upper[i]);
+      }
 
 done:
   mio_rparen ();
@@ -3795,10 +3813,7 @@ mio_symbol (gfc_symbol *sym)
     {
       mio_namespace_ref (&sym->formal_ns);
       if (sym->formal_ns)
-	{
-	  sym->formal_ns->proc_name = sym;
-	  sym->refs++;
-	}
+	sym->formal_ns->proc_name = sym;
     }
 
   /* Save/restore common block links.  */
@@ -6049,7 +6064,7 @@ gfc_use_module (gfc_use_list *module)
   if (module_fp == NULL && !module->non_intrinsic)
     {
       if (strcmp (module_name, "iso_fortran_env") == 0
-	  && gfc_notify_std (GFC_STD_F2003, "Fortran 2003: ISO_FORTRAN_ENV "
+	  && gfc_notify_std (GFC_STD_F2003, "ISO_FORTRAN_ENV "
 			     "intrinsic module at %C") != FAILURE)
        {
 	 use_iso_fortran_env_module ();
@@ -6059,7 +6074,7 @@ gfc_use_module (gfc_use_list *module)
        }
 
       if (strcmp (module_name, "iso_c_binding") == 0
-	  && gfc_notify_std (GFC_STD_F2003, "Fortran 2003: "
+	  && gfc_notify_std (GFC_STD_F2003,
 			     "ISO_C_BINDING module at %C") != FAILURE)
 	{
 	  import_iso_c_binding_module();
@@ -6104,22 +6119,17 @@ gfc_use_module (gfc_use_list *module)
 	parse_name (c);
       if ((start == 1 && strcmp (atom_name, "GFORTRAN") != 0)
 	  || (start == 2 && strcmp (atom_name, " module") != 0))
-	gfc_fatal_error ("File '%s' opened at %C is not a GFORTRAN module "
-			 "file", filename);
+	gfc_fatal_error ("File '%s' opened at %C is not a GNU Fortran"
+			 " module file", filename);
       if (start == 3)
 	{
 	  if (strcmp (atom_name, " version") != 0
 	      || module_char () != ' '
-	      || parse_atom () != ATOM_STRING)
-	    gfc_fatal_error ("Parse error when checking module version"
-		    	     " for file '%s' opened at %C", filename);
-
-	  if (strcmp (atom_string, MOD_VERSION))
-	    {
-	      gfc_fatal_error ("Wrong module version '%s' (expected '%s') "
-			       "for file '%s' opened at %C", atom_string,
-			       MOD_VERSION, filename);
-	    }
+	      || parse_atom () != ATOM_STRING
+	      || strcmp (atom_string, MOD_VERSION))
+	    gfc_fatal_error ("Cannot read module file '%s' opened at %C,"
+			     " because it was created by a different"
+			     " version of GNU Fortran", filename);
 
 	  free (atom_string);
 	}

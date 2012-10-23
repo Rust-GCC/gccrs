@@ -46,7 +46,7 @@
 
 (define_insn_reservation "us3_ialuX" 5
   (and (eq_attr "cpu" "ultrasparc3")
-    (eq_attr "type" "ialu,shift,compare"))
+    (eq_attr "type" "ialuX"))
   "us3_single_issue*4, nothing")
 
 (define_insn_reservation "us3_cmove" 2
@@ -176,19 +176,19 @@
 (define_insn_reservation "us3_fga"
   3
   (and (eq_attr "cpu" "ultrasparc3")
-       (eq_attr "type" "fga"))
+       (eq_attr "type" "fga,visl,vismv"))
   "us3_fpa + us3_slotany, nothing*2")
 
 (define_insn_reservation "us3_fgm"
   4
   (and (eq_attr "cpu" "ultrasparc3")
-       (eq_attr "type" "fgm_pack,fgm_mul,fgm_cmp"))
+       (eq_attr "type" "fgm_pack,fgm_mul"))
   "us3_fpm + us3_slotany, nothing*3")
 
 (define_insn_reservation "us3_pdist"
   4
   (and (eq_attr "cpu" "ultrasparc3")
-       (eq_attr "type" "fgm_pdist"))
+       (eq_attr "type" "pdist"))
   "us3_fpm + us3_slotany, nothing*3")
 
 (define_bypass 1 "us3_pdist" "us3_pdist")

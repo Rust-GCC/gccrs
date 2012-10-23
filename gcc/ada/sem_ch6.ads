@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -28,7 +28,8 @@ package Sem_Ch6 is
 
    type Conformance_Type is
      (Type_Conformant, Mode_Conformant, Subtype_Conformant, Fully_Conformant);
-   pragma Ordered (Conformance_Type);
+   --  pragma Ordered (Conformance_Type);
+   --  Why is above line commented out ???
    --  Conformance type used in conformance checks between specs and bodies,
    --  and for overriding. The literals match the RM definitions of the
    --  corresponding terms. This is an ordered type, since each conformance
@@ -50,13 +51,33 @@ package Sem_Ch6 is
    --  and body declarations. Returns the defining entity for the
    --  specification N.
 
-   procedure Cannot_Inline (Msg : String; N : Node_Id; Subp : Entity_Id);
+   procedure Cannot_Inline
+     (Msg        : String;
+      N          : Node_Id;
+      Subp       : Entity_Id;
+      Is_Serious : Boolean := False);
    --  This procedure is called if the node N, an instance of a call to
    --  subprogram Subp, cannot be inlined. Msg is the message to be issued,
-   --  and has a ? as the last character. If Subp has a pragma Always_Inlined,
-   --  then an error message is issued (by removing the last character of Msg).
-   --  If Subp is not Always_Inlined, then a warning is issued if the flag
-   --  Ineffective_Inline_Warnings is set, and if not, the call has no effect.
+   --  and has a ? as the last character. Temporarily the behavior of this
+   --  routine depends on the value of -gnatd.k:
+   --    * If -gnatd.k is not set (ie. old inlining model) then if Subp has
+   --      a pragma Always_Inlined, then an error message is issued (by
+   --      removing the last character of Msg). If Subp is not Always_Inlined,
+   --      then a warning is issued if the flag Ineffective_Inline_Warnings
+   --      is set, and if not, the call has no effect.
+   --    * If -gnatd.k is set (ie. new inlining model) then:
+   --      - If Is_Serious is true, then an error is reported (by removing the
+   --        last character of Msg);
+   --      - otherwise:
+   --        * Compiling without optimizations if Subp has a pragma
+   --          Always_Inlined, then an error message is issued; if Subp is
+   --          not Always_Inlined, then a warning is issued if the flag
+   --          Ineffective_Inline_Warnings is set, and if not, the call
+   --          has no effect.
+   --        * Compiling with optimizations then a warning is issued if
+   --          the flag Ineffective_Inline_Warnings is set; otherwise the
+   --          call has no effect since inlining may be performed by the
+   --          backend.
 
    procedure Check_Conventions (Typ : Entity_Id);
    --  Ada 2005 (AI-430): Check that the conventions of all inherited and
@@ -121,14 +142,18 @@ package Sem_Ch6 is
      (New_Id                   : Entity_Id;
       Old_Id                   : Entity_Id;
       Err_Loc                  : Node_Id := Empty;
-      Skip_Controlling_Formals : Boolean := False);
+      Skip_Controlling_Formals : Boolean := False;
+      Get_Inst                 : Boolean := False);
    --  Check that two callable entities (subprograms, entries, literals)
    --  are subtype conformant, post error message if not (RM 6.3.1(16)),
    --  the flag being placed on the Err_Loc node if it is specified, and
    --  on the appropriate component of the New_Id construct if not.
    --  Skip_Controlling_Formals is True when checking the conformance of
    --  a subprogram that implements an interface operation. In that case,
-   --  only the non-controlling formals can (and must) be examined.
+   --  only the non-controlling formals can (and must) be examined. The
+   --  argument Get_Inst is set to True when this is a check against a
+   --  formal access-to-subprogram type, indicating that mapping of types
+   --  is needed.
 
    procedure Check_Type_Conformant
      (New_Id  : Entity_Id;
@@ -146,8 +171,10 @@ package Sem_Ch6 is
       Get_Inst : Boolean := False) return Boolean;
    --  Check that the types of two formal parameters are conforming. In most
    --  cases this is just a name comparison, but within an instance it involves
-   --  generic actual types, and in the presence of anonymous access types it
-   --  must examine the designated types.
+   --  generic actual types, and in the presence of anonymous access types
+   --  it must examine the designated types. The argument Get_Inst is set to
+   --  True when this is a check against a formal access-to-subprogram type,
+   --  indicating that mapping of types is needed.
 
    procedure Create_Extra_Formals (E : Entity_Id);
    --  For each parameter of a subprogram or entry that requires an additional

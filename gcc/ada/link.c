@@ -6,7 +6,7 @@
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *          Copyright (C) 1992-2011, Free Software Foundation, Inc.         *
+ *          Copyright (C) 1992-2012, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -81,37 +81,7 @@ extern "C" {
 #define SHARED 'H'
 #define STATIC 'T'
 
-#if defined (__osf__)
-const char *__gnat_object_file_option = "-Wl,-input,";
-const char *__gnat_run_path_option = "-Wl,-rpath,";
-int __gnat_link_max = 10000;
-unsigned char __gnat_objlist_file_supported = 1;
-char __gnat_shared_libgnat_default = STATIC;
-char __gnat_shared_libgcc_default = STATIC;
-const char *__gnat_object_library_extension = ".a";
-unsigned char __gnat_separate_run_path_options = 0;
-const char *__gnat_default_libgcc_subdir = "lib";
-
-#elif defined (sgi)
-const char *__gnat_object_file_option = "-Wl,-objectlist,";
-const char *__gnat_run_path_option = "-Wl,-rpath,";
-int __gnat_link_max = 5000;
-unsigned char __gnat_objlist_file_supported = 1;
-char __gnat_shared_libgnat_default = STATIC;
-char __gnat_shared_libgcc_default = STATIC;
-const char *__gnat_object_library_extension = ".a";
-unsigned char __gnat_separate_run_path_options = 0;
-
-/* The libgcc_s locations have changed in GCC 4.  The n32 version used
-   to be in "lib", it moved to "lib32" and "lib" became the home of
-   the o32 version.  We are targetting n32 by default, so ... */
-#if __GNUC__ < 4
-const char *__gnat_default_libgcc_subdir = "lib";
-#else
-const char *__gnat_default_libgcc_subdir = "lib32";
-#endif
-
-#elif defined (__WIN32)
+#if defined (__WIN32)
 const char *__gnat_object_file_option = "-Wl,@";
 const char *__gnat_run_path_option = "";
 int __gnat_link_max = 30000;
@@ -165,7 +135,11 @@ unsigned char __gnat_objlist_file_supported = 1;
 const char *__gnat_object_library_extension = ".a";
 unsigned char __gnat_separate_run_path_options = 0;
 #if defined (__x86_64)
+# if defined (__LP64__)
 const char *__gnat_default_libgcc_subdir = "lib64";
+# else
+const char *__gnat_default_libgcc_subdir = "libx32";
+# endif
 #else
 const char *__gnat_default_libgcc_subdir = "lib";
 #endif

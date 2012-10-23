@@ -1,4 +1,4 @@
-/* Copyright (C) 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010, 2011
+/* Copyright (C) 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
    Contributed by Andy Vaught
    Namelist input contributed by Paul Thomas
@@ -75,9 +75,8 @@ push_char (st_parameter_dt *dtp, char c)
 
   if (dtp->u.p.saved_string == NULL)
     {
-      dtp->u.p.saved_string = get_mem (SCRATCH_SIZE);
-      // memset below should be commented out.
-      memset (dtp->u.p.saved_string, 0, SCRATCH_SIZE);
+      // Plain malloc should suffice here, zeroing not needed?
+      dtp->u.p.saved_string = xcalloc (SCRATCH_SIZE, 1);
       dtp->u.p.saved_length = SCRATCH_SIZE;
       dtp->u.p.saved_used = 0;
     }
@@ -200,9 +199,16 @@ next_char (st_parameter_dt *dtp)
 
   if (is_internal_unit (dtp))
     {
-      char cc;
-      length = sread (dtp->u.p.current_unit->s, &cc, 1);
-      c = cc;
+      /* Check for kind=4 internal unit.  */
+      if (dtp->common.unit)
+       length = sread (dtp->u.p.current_unit->s, &c, sizeof (gfc_char4_t));
+      else
+       {
+         char cc;
+         length = sread (dtp->u.p.current_unit->s, &cc, 1);
+         c = cc;
+       }
+
       if (length < 0)
 	{
 	  generate_error (&dtp->common, LIBERROR_OS, NULL);
@@ -462,12 +468,20 @@ convert_integer (st_parameter_dt *dtp, int length, int negative)
 {
   char c, *buffer, message[MSGLEN];
   int m;
-  GFC_INTEGER_LARGEST v, max, max10;
+  GFC_UINTEGER_LARGEST v, max, max10;
+  GFC_INTEGER_LARGEST value;
 
   buffer = dtp->u.p.saved_string;
   v = 0;
 
-  max = (length == -1) ? MAX_REPEAT : max_value (length, 1);
+  if (length == -1)
+    max = MAX_REPEAT;
+  else
+    {
+      max = si_max (length);
+      if (negative)
+	max++;
+    }
   max10 = max / 10;
 
   for (;;)
@@ -491,8 +505,10 @@ convert_integer (st_parameter_dt *dtp, int length, int negative)
   if (length != -1)
     {
       if (negative)
-	v = -v;
-      set_integer (dtp->u.p.value, v, length);
+	value = -v;
+      else
+	value = v;
+      set_integer (dtp->u.p.value, value, length);
     }
   else
     {
@@ -622,10 +638,7 @@ static void
 l_push_char (st_parameter_dt *dtp, char c)
 {
   if (dtp->u.p.line_buffer == NULL)
-    {
-      dtp->u.p.line_buffer = get_mem (SCRATCH_SIZE);
-      memset (dtp->u.p.line_buffer, 0, SCRATCH_SIZE);
-    }
+    dtp->u.p.line_buffer = xcalloc (SCRATCH_SIZE, 1);
 
   dtp->u.p.line_buffer[dtp->u.p.item_count++] = c;
 }
@@ -1140,6 +1153,8 @@ parse_real (st_parameter_dt *dtp, void *buffer, int length)
 	case 'E':
 	case 'd':
 	case 'D':
+	case 'q':
+	case 'Q':
 	  push_char (dtp, 'e');
 	  goto exp1;
 
@@ -1453,6 +1468,8 @@ read_real (st_parameter_dt *dtp, void * dest, int length)
 	case 'e':
 	case 'D':
 	case 'd':
+	case 'Q':
+	case 'q':
 	  goto exp1;
 
 	case '+':
@@ -1550,6 +1567,8 @@ read_real (st_parameter_dt *dtp, void * dest, int length)
 	case 'e':
 	case 'D':
 	case 'd':
+	case 'Q':
+	case 'q':
 	  goto exp1;
 
 	case '+':
@@ -1876,7 +1895,7 @@ list_formatted_read_scalar (st_parameter_dt *dtp, bt type, void *p,
       read_real (dtp, p, kind);
       /* Copy value back to temporary if needed.  */
       if (dtp->u.p.repeat_count > 0)
-	memcpy (dtp->u.p.value, p, kind);
+	memcpy (dtp->u.p.value, p, size);
       break;
     case BT_COMPLEX:
       read_complex (dtp, p, kind, size);
@@ -2286,7 +2305,7 @@ nml_touch_nodes (namelist_info * nl)
 {
   index_type len = strlen (nl->var_name) + 1;
   int dim;
-  char * ext_name = (char*)get_mem (len + 1);
+  char * ext_name = (char*)xmalloc (len + 1);
   memcpy (ext_name, nl->var_name, len-1);
   memcpy (ext_name + len - 1, "%", 2);
   for (nl = nl->next; nl; nl = nl->next)
@@ -2544,7 +2563,7 @@ nml_read_obj (st_parameter_dt *dtp, namelist_info * nl, index_type offset,
 
 	  case BT_DERIVED:
 	    obj_name_len = strlen (nl->var_name) + 1;
-	    obj_name = get_mem (obj_name_len+1);
+	    obj_name = xmalloc (obj_name_len+1);
 	    memcpy (obj_name, nl->var_name, obj_name_len-1);
 	    memcpy (obj_name + obj_name_len - 1, "%", 2);
 
@@ -3062,7 +3081,7 @@ find_nml_name:
   if (dtp->u.p.nml_read_error)
     goto find_nml_name;
 
-  /* A trailing space is required, we give a little lattitude here, 10.9.1.  */ 
+  /* A trailing space is required, we give a little latitude here, 10.9.1.  */ 
   c = next_char (dtp);
   if (!is_separator(c) && c != '!')
     {

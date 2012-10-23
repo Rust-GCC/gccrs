@@ -2390,7 +2390,7 @@ add_presence_absence (unit_set_el_t dest_list,
 
 /* The function inserts BYPASS in the list of bypasses of the
    corresponding output insn.  The order of bypasses in the list is
-   decribed in a comment for member `bypass_list' (see above).  If
+   described in a comment for member `bypass_list' (see above).  If
    there is already the same bypass in the list the function reports
    this and does nothing.  */
 static void
@@ -5076,7 +5076,8 @@ store_alt_unit_usage (regexp_t regexp, regexp_t unit, int cycle,
 
   length = (cycle + 1) * REGEXP_ONEOF (regexp)->regexps_num;
   while (VEC_length (unit_usage_t, cycle_alt_unit_usages) < length)
-    VEC_safe_push (unit_usage_t, heap, cycle_alt_unit_usages, 0);
+    VEC_safe_push (unit_usage_t, heap, cycle_alt_unit_usages,
+		   (unit_usage_t) NULL);
 
   index = cycle * REGEXP_ONEOF (regexp)->regexps_num + alt_num;
   prev = NULL;
@@ -7673,7 +7674,8 @@ output_min_issue_delay_table (automaton_t automaton)
 
 	      if (VEC_index (vect_el_t, min_issue_delay_vect, asn))
 		{
-		  VEC_replace (vect_el_t, min_issue_delay_vect, asn, 0);
+		  VEC_replace (vect_el_t, min_issue_delay_vect, asn,
+			       (vect_el_t) 0);
 		  changed = 1;
 		}
 
@@ -7723,7 +7725,8 @@ output_min_issue_delay_table (automaton_t automaton)
 	    if (automaton->max_min_delay < x)
 	      automaton->max_min_delay = x;
 	    if (x == -1)
-	      VEC_replace (vect_el_t, min_issue_delay_vect, np, 0);
+	      VEC_replace (vect_el_t, min_issue_delay_vect, np,
+			   (vect_el_t) 0);
 	  }
       }
 
@@ -7798,7 +7801,8 @@ output_dead_lock_vect (automaton_t automaton)
 	  automaton->locked_states++;
 	}
       else
-	VEC_replace (vect_el_t, dead_lock_vect, s->order_state_num, 0);
+	VEC_replace (vect_el_t, dead_lock_vect, s->order_state_num,
+		     (vect_el_t) 0);
     }
   if (automaton->locked_states == 0)
     return;
@@ -9285,46 +9289,45 @@ base_file_name (const char *file_name)
   return file_name + directory_name_length + 1;
 }
 
+/* A function passed as argument to init_rtx_reader_args_cb.  It parses the
+   options available for genautomata.  Returns true if the option was
+   recognized.  */
+static bool
+parse_automata_opt (const char *str)
+{
+  if (strcmp (str, NO_MINIMIZATION_OPTION) == 0)
+    no_minimization_flag = 1;
+  else if (strcmp (str, TIME_OPTION) == 0)
+    time_flag = 1;
+  else if (strcmp (str, STATS_OPTION) == 0)
+    stats_flag = 1;
+  else if (strcmp (str, V_OPTION) == 0)
+    v_flag = 1;
+  else if (strcmp (str, W_OPTION) == 0)
+    w_flag = 1;
+  else if (strcmp (str, NDFA_OPTION) == 0)
+    ndfa_flag = 1;
+  else if (strcmp (str, COLLAPSE_OPTION) == 0)
+    collapse_flag = 1;
+  else if (strcmp (str, PROGRESS_OPTION) == 0)
+    progress_flag = 1;
+  else if (strcmp (str, "-split") == 0)
+    {
+      fatal ("option `-split' has not been implemented yet\n");
+      /* split_argument = atoi (argument_vect [i + 1]); */
+    }
+  else
+    return false;
+
+  return true;
+}
+
 /* The following is top level function to initialize the work of
    pipeline hazards description translator.  */
 static void
-initiate_automaton_gen (int argc, char **argv)
+initiate_automaton_gen (char **argv)
 {
   const char *base_name;
-  int i;
-
-  ndfa_flag = 0;
-  split_argument = 0;  /* default value */
-  no_minimization_flag = 0;
-  time_flag = 0;
-  stats_flag = 0;
-  v_flag = 0;
-  w_flag = 0;
-  progress_flag = 0;
-  for (i = 2; i < argc; i++)
-    if (strcmp (argv [i], NO_MINIMIZATION_OPTION) == 0)
-      no_minimization_flag = 1;
-    else if (strcmp (argv [i], TIME_OPTION) == 0)
-      time_flag = 1;
-    else if (strcmp (argv [i], STATS_OPTION) == 0)
-      stats_flag = 1;
-    else if (strcmp (argv [i], V_OPTION) == 0)
-      v_flag = 1;
-    else if (strcmp (argv [i], W_OPTION) == 0)
-      w_flag = 1;
-    else if (strcmp (argv [i], NDFA_OPTION) == 0)
-      ndfa_flag = 1;
-    else if (strcmp (argv [i], COLLAPSE_OPTION) == 0)
-      collapse_flag = 1;
-    else if (strcmp (argv [i], PROGRESS_OPTION) == 0)
-      progress_flag = 1;
-    else if (strcmp (argv [i], "-split") == 0)
-      {
-	if (i + 1 >= argc)
-	  fatal ("-split has no argument.");
-	fatal ("option `-split' has not been implemented yet\n");
-	/* split_argument = atoi (argument_vect [i + 1]); */
-      }
 
   /* Initialize IR storage.  */
   obstack_init (&irp);
@@ -9620,10 +9623,10 @@ main (int argc, char **argv)
 
   progname = "genautomata";
 
-  if (!init_rtx_reader_args (argc, argv))
+  if (!init_rtx_reader_args_cb (argc, argv, parse_automata_opt))
     return (FATAL_EXIT_CODE);
 
-  initiate_automaton_gen (argc, argv);
+  initiate_automaton_gen (argv);
   while (1)
     {
       int lineno;

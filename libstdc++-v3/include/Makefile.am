@@ -173,7 +173,11 @@ bits_headers = \
 	${bits_srcdir}/valarray_array.tcc \
 	${bits_srcdir}/valarray_before.h \
 	${bits_srcdir}/valarray_after.h \
-	${bits_srcdir}/vector.tcc
+	${bits_srcdir}/vector.tcc \
+	${bits_host_headers}
+
+bits_host_headers = \
+	${glibcxx_srcdir}/${CPU_OPT_BITS_RANDOM}
 
 bits_sup_srcdir = ${glibcxx_srcdir}/libsupc++
 bits_sup_headers = \
@@ -518,6 +522,8 @@ ext_headers = \
 	${ext_srcdir}/pointer.h \
 	${ext_srcdir}/pool_allocator.h \
 	${ext_srcdir}/rb_tree \
+	${ext_srcdir}/random \
+	${ext_srcdir}/random.tcc \
 	${ext_srcdir}/rope \
 	${ext_srcdir}/ropeimpl.h \
 	${ext_srcdir}/slist \
@@ -531,11 +537,15 @@ ext_headers = \
 	${ext_srcdir}/vstring.tcc \
 	${ext_srcdir}/vstring_fwd.h \
 	${ext_srcdir}/vstring_util.h \
-	${ext_compat_headers}
+	${ext_compat_headers} \
+	${ext_host_headers}
 
 ext_compat_headers = \
 	${backward_srcdir}/hash_set \
 	${backward_srcdir}/hash_map
+
+ext_host_headers = \
+	${glibcxx_srcdir}/${CPU_OPT_EXT_RANDOM}
 
 tr1_srcdir = ${glibcxx_srcdir}/include/tr1
 tr1_builddir = ./tr1
@@ -727,7 +737,6 @@ debug_headers = \
 # Parallel mode headers
 parallel_srcdir = ${glibcxx_srcdir}/include/parallel
 parallel_builddir = ./parallel
-if ENABLE_PARALLEL
 parallel_headers = \
 	${parallel_srcdir}/algo.h \
 	${parallel_srcdir}/algobase.h \
@@ -772,9 +781,6 @@ parallel_headers = \
 	${parallel_srcdir}/types.h \
 	${parallel_srcdir}/unique_copy.h \
 	${parallel_srcdir}/workstealing.h
-else
-parallel_headers =
-endif
 
 # Profile mode headers
 profile_srcdir = ${glibcxx_srcdir}/include/profile
@@ -1142,7 +1148,7 @@ ${host_builddir}/gthr-posix.h: ${toplevel_srcdir}/libgcc/gthr-posix.h \
 	    -e 's/\(${uppercase}*USE_WEAK\)/_GLIBCXX_\1/g' \
 	    < $< > $@
 
-${host_builddir}/gthr-default.h: ${toplevel_srcdir}/libgcc/${glibcxx_thread_h} \
+${host_builddir}/gthr-default.h: ${toplevel_srcdir}/libgcc/${thread_header} \
 				   stamp-${host_alias}
 	sed -e 's/\(UNUSED\)/_GLIBCXX_\1/g' \
 	    -e 's/\(GCC${uppercase}*_H\)/_GLIBCXX_\1/g' \
@@ -1273,10 +1279,8 @@ install-headers:
 	$(mkinstalldirs) $(DESTDIR)${gxx_include_dir}/${debug_builddir}
 	for file in ${debug_headers}; do \
 	  $(INSTALL_DATA) $${file} $(DESTDIR)${gxx_include_dir}/${debug_builddir}; done
-	parallel_headers_install='${parallel_headers}';\
-	test -z "$$parallel_headers_install" || \
-	  $(mkinstalldirs) $(DESTDIR)${gxx_include_dir}/${parallel_builddir};\
-	for file in $$parallel_headers_install; do \
+	$(mkinstalldirs) $(DESTDIR)${gxx_include_dir}/${parallel_builddir}
+	for file in ${parallel_headers}; do \
 	  $(INSTALL_DATA) $${file} $(DESTDIR)${gxx_include_dir}/${parallel_builddir}; done
 	$(mkinstalldirs) $(DESTDIR)${gxx_include_dir}/${profile_builddir}
 	for file in ${profile_headers}; do \

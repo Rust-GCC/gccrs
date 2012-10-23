@@ -1,6 +1,5 @@
 /* Definitions of target machine for GNU compiler.  Vxworks PowerPC version.
-   Copyright (C) 1996, 2000, 2002, 2003, 2004, 2005, 2007, 2009, 2010, 2011
-   Free Software Foundation, Inc.
+   Copyright (C) 1996-2012 Free Software Foundation, Inc.
    Contributed by CodeSourcery, LLC.
 
 This file is part of GCC.
@@ -99,8 +98,7 @@ VXWORKS_ADDITIONAL_CPP_SPEC
 #undef MULTILIB_DEFAULTS
 
 #undef TARGET_DEFAULT
-#define TARGET_DEFAULT \
-  (MASK_POWERPC | MASK_NEW_MNEMONICS | MASK_EABI | MASK_STRICT_ALIGN)
+#define TARGET_DEFAULT (MASK_EABI | MASK_STRICT_ALIGN)
 
 #undef PROCESSOR_DEFAULT
 #define PROCESSOR_DEFAULT PROCESSOR_PPC604
@@ -122,19 +120,9 @@ VXWORKS_ADDITIONAL_CPP_SPEC
 
 #undef  ABI_STACK_BOUNDARY
 
-/* Make -mcpu=8540 imply SPE.  ISEL is automatically enabled, the
-   others must be done by hand.  Handle -mrtp.  Disable -fPIC
-   for -mrtp - the VxWorks PIC model is not compatible with it.  */
 #undef SUBSUBTARGET_OVERRIDE_OPTIONS
 #define SUBSUBTARGET_OVERRIDE_OPTIONS		\
   do {						\
-    if (TARGET_E500)				\
-      {						\
-	rs6000_spe = 1;				\
-	rs6000_spe_abi = 1;			\
-	rs6000_float_gprs = 1;			\
-      }						\
-						\
   if (!global_options_set.x_g_switch_value)	\
     g_switch_value = SDATA_DEFAULT_SIZE;	\
   VXWORKS_OVERRIDE_OPTIONS;			\

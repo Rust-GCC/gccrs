@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -45,6 +45,14 @@ package Sem_Ch13 is
    --  Called from Freeze where R is a record entity for which reverse bit
    --  order is specified and there is at least one component clause. Adjusts
    --  component positions according to either Ada 95 or Ada 2005 (AI-133).
+
+   function Build_Invariant_Procedure_Declaration
+     (Typ : Entity_Id) return Node_Id;
+   --  If a type declaration has a specified invariant aspect, build the
+   --  declaration for the procedure at once, so that calls to it can be
+   --  generated before the body of the invariant procedure is built. This
+   --  is needed in the presence of public expression functions that return
+   --  the type in question.
 
    procedure Build_Invariant_Procedure (Typ : Entity_Id; N : Node_Id);
    --  Typ is a private type with invariants (indicated by Has_Invariants being
@@ -237,7 +245,7 @@ package Sem_Ch13 is
    --  The visibility of aspects is tricky. First, the visibility is delayed
    --  to the freeze point. This is not too complicated, what we do is simply
    --  to leave the aspect "laying in wait" for the freeze point, and at that
-   --  point materialize and analye the corresponding attribute definition
+   --  point materialize and analyze the corresponding attribute definition
    --  clause or pragma. There is some special processing for preconditions
    --  and postonditions, where the pragmas themselves deal with the required
    --  delay, but basically the approach is the same, delay analysis of the
@@ -299,6 +307,9 @@ package Sem_Ch13 is
 
    --  Quite an awkward procedure, but this is an awkard requirement!
 
+   procedure Analyze_Aspects_At_Freeze_Point (E : Entity_Id);
+   --  Analyze all the delayed aspects for entity E at freezing point
+
    procedure Check_Aspect_At_Freeze_Point (ASN : Node_Id);
    --  Performs the processing described above at the freeze point, ASN is the
    --  N_Aspect_Specification node for the aspect.
@@ -307,4 +318,8 @@ package Sem_Ch13 is
    --  Performs the processing described above at the freeze all point, and
    --  issues appropriate error messages if the visibility has indeed changed.
    --  Again, ASN is the N_Aspect_Specification node for the aspect.
+
+   procedure Inherit_Aspects_At_Freeze_Point (Typ : Entity_Id);
+   --  Given an entity Typ that denotes a derived type or a subtype, this
+   --  routine performs the inheritance of aspects at the freeze point.
 end Sem_Ch13;

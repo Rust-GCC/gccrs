@@ -27,10 +27,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "obstack.h"
 #include "basic-block.h"
 #include "cfgloop.h"
-#include "cfglayout.h"
 #include "params.h"
-#include "output.h"
 #include "expr.h"
+#include "dumpfile.h"
 
 /* This pass moves constant conditions out of loops, duplicating the loop
    in progress, i.e. this code:
@@ -149,7 +148,6 @@ unswitch_loops (void)
     {
       unswitch_single_loop (loop, NULL_RTX, 0);
 #ifdef ENABLE_CHECKING
-      verify_dominators (CDI_DOMINATORS);
       verify_loop_structure ();
 #endif
     }
@@ -259,6 +257,7 @@ unswitch_single_loop (struct loop *loop, rtx cond_checked, int num)
   rtx cond, rcond = NULL_RTX, conds, rconds, acond, cinsn;
   int repeat;
   edge e;
+  HOST_WIDE_INT iterations;
 
   /* Do not unswitch too much.  */
   if (num > PARAM_VALUE (PARAM_MAX_UNSWITCH_LEVEL))
@@ -301,7 +300,8 @@ unswitch_single_loop (struct loop *loop, rtx cond_checked, int num)
     }
 
   /* Nor if the loop usually does not roll.  */
-  if (expected_loop_iterations (loop) < 1)
+  iterations = estimated_loop_iterations_int (loop);
+  if (iterations >= 0 && iterations <= 1)
     {
       if (dump_file)
 	fprintf (dump_file, ";; Not unswitching, loop iterations < 1\n");
@@ -454,6 +454,7 @@ unswitch_loop (struct loop *loop, basic_block unswitch_on, rtx cond, rtx cinsn)
 		   BRANCH_EDGE (switch_bb), FALLTHRU_EDGE (switch_bb), true,
 		   prob, REG_BR_PROB_BASE - prob);
 
+  copy_loop_info (loop, nloop);
   /* Remove branches that are now unreachable in new loops.  */
   remove_path (true_edge);
   remove_path (false_edge);

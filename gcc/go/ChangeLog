@@ -1,14 +1,22 @@
-2012-09-20  Ian Lance Taylor  <iant@google.com>
+2012-09-17  Ian Lance Taylor  <iant@google.com>
+
+	* config-lang.in (target_libs): Add target-libbacktrace.
+
+2012-09-16  Ian Lance Taylor  <iant@google.com>
 
 	* Make-lang.in (go/gogo.o): Depend on filenames.h.
 
-2012-09-20  Release Manager
+2012-08-14   Diego Novillo  <dnovillo@google.com>
 
-	* GCC 4.7.2 released.
+	Merge from cxx-conversion branch.  Configury.
 
-2012-06-14  Release Manager
+	* go-c.h: Remove all handlers of ENABLE_BUILD_WITH_CXX.
+	* go-gcc.cc: Likewise.
+	* go-system.h: Likewise.
 
-	* GCC 4.7.1 released.
+2012-07-24  Uros Bizjak  <ubizjak@gmail.com>
+
+	* go-lang.c (lang_decl): Add variable_size GTY option.
 
 2012-05-09  Ian Lance Taylor  <iant@google.com>
 
@@ -36,9 +44,10 @@
 	-fgo-check-divide-overflow.
 	* gccgo.texi (Invoking gccgo): Document new options.
 
-2012-03-22  Release Manager
+2012-04-18  Steven Bosscher  <steven@gcc.gnu.org>
 
-	* GCC 4.7.0 released.
+	* go-gcc.cc (Gcc_backend::switch_statement): Build SWITCH_EXPR
+	with NULL_TREE type instead of void_type_node.
 
 2012-03-09  Ian Lance Taylor  <iant@google.com>
 

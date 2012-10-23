@@ -19,20 +19,20 @@
 
 driver-avr.o: $(srcdir)/config/avr/driver-avr.c \
   $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H)
-	$(CC) -c $(ALL_CFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $<
+	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $<
 
 avr-devices.o: $(srcdir)/config/avr/avr-devices.c \
   $(srcdir)/config/avr/avr-mcus.def \
   $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H)
-	$(CC) -c $(ALL_CFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $<
+	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $<
 
 avr-c.o: $(srcdir)/config/avr/avr-c.c \
   $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(TREE_H) $(C_COMMON_H)
-	$(CC) -c $(ALL_CFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $<
+	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $<
 
 avr-log.o: $(srcdir)/config/avr/avr-log.c \
-  $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(TREE_H) $(INPUT_H)
-	$(CC) -c $(ALL_CFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $<
+  $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(TREE_H) $(INPUT_H) dumpfile.h
+	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $<
 
 avr.o avr-c.o: $(srcdir)/config/avr/builtins.def
 
@@ -42,6 +42,35 @@ AVR_MCUS = $(srcdir)/config/avr/avr-mcus.def
 
 $(srcdir)/config/avr/avr-tables.opt: $(srcdir)/config/avr/genopt.sh $(AVR_MCUS)
 	$(SHELL) $< $(AVR_MCUS) > $@
+
+gen-avr-mmcu-texi$(build_exeext): $(srcdir)/config/avr/gen-avr-mmcu-texi.c \
+  $(AVR_MCUS) $(srcdir)/config/avr/avr-devices.c \
+  $(srcdir)/config/avr/avr-arch.h
+	$(CC_FOR_BUILD) $(CFLAGS_FOR_BUILD) $< -o $@
+
+# Make sure that the -mmcu= documentation is in sync with the compiler.
+$(srcdir)/doc/avr-mmcu.texi: s-avr-mmcu-texi; @true
+
+# invoke.texi @includes avr-mmcu.texi.  Put this dependency here instead
+# of in the global Makefile so that developers of other backends are not
+# bothered with AVR stuff. 
+$(srcdir)/doc/invoke.texi: $(srcdir)/doc/avr-mmcu.texi
+
+# Ensure that device support is in sync with -mmcu= documentation.
+s-avr-mmcu-texi: gen-avr-mmcu-texi$(build_exeext)
+	$(RUN_GEN) ./$< > tmp-avr-mmcu.texi
+	$(SHELL) $(srcdir)/../move-if-change tmp-avr-mmcu.texi avr-mmcu.texi
+	@if cmp -s $(srcdir)/doc/avr-mmcu.texi avr-mmcu.texi; then \
+	  $(STAMP) $@;		\
+	else			\
+	  echo >&2 ;		\
+	  echo "***" >&2 ;	\
+	  echo "*** Verify that you have permission to grant a" >&2 ;	\
+	  echo "*** GFDL license for all new text in" >&2 ; 		\
+	  echo "*** avr-mmcu.texi, then copy it to $(srcdir)/doc/avr-mmcu.texi" >&2 ; \
+	  echo "***" >&2 ;	\
+	  false; 		\
+	fi
 
 # MULTILIB_OPTIONS
 # MULTILIB_DIRNAMES

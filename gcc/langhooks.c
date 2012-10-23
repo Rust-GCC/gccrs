@@ -30,7 +30,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple.h"
 #include "rtl.h"
 #include "insn-config.h"
-#include "integrate.h"
 #include "flags.h"
 #include "langhooks.h"
 #include "target.h"
@@ -39,6 +38,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "diagnostic.h"
 #include "tree-diagnostic.h"
 #include "cgraph.h"
+#include "timevar.h"
 #include "output.h"
 
 /* Do nothing; in many cases the default hook.  */
@@ -298,10 +298,7 @@ write_global_declarations (void)
   tree globals, decl, *vec;
   int len, i;
 
-  /* This lang hook is dual-purposed, and also finalizes the
-     compilation unit.  */
-  cgraph_finalize_compilation_unit ();
-
+  timevar_start (TV_PHASE_DEFERRED);
   /* Really define vars that have had only a tentative definition.
      Really output inline functions that must actually be callable
      and have not been output so far.  */
@@ -318,7 +315,17 @@ write_global_declarations (void)
 
   wrapup_global_declarations (vec, len);
   check_global_declarations (vec, len);
+  timevar_stop (TV_PHASE_DEFERRED);
+
+  timevar_start (TV_PHASE_OPT_GEN);
+  /* This lang hook is dual-purposed, and also finalizes the
+     compilation unit.  */
+  finalize_compilation_unit ();
+  timevar_stop (TV_PHASE_OPT_GEN);
+
+  timevar_start (TV_PHASE_DBGINFO);
   emit_debug_global_declarations (vec, len);
+  timevar_stop (TV_PHASE_DBGINFO);
 
   /* Clean up.  */
   free (vec);
@@ -465,17 +472,10 @@ lhd_print_error_function (diagnostic_context *context, const char *file,
 	}
 
       diagnostic_set_last_function (context, diagnostic);
-      pp_flush (context->printer);
+      pp_newline_and_flush (context->printer);
       context->printer->prefix = old_prefix;
       free ((char*) new_prefix);
     }
-}
-
-tree
-lhd_callgraph_analyze_expr (tree *tp ATTRIBUTE_UNUSED,
-			    int *walk_subtrees ATTRIBUTE_UNUSED)
-{
-  return NULL;
 }
 
 tree
@@ -603,6 +603,16 @@ lhd_builtin_function (tree decl)
 {
   lang_hooks.decls.pushdecl (decl);
   return decl;
+}
+
+/* Create a builtin type.  */
+
+tree
+add_builtin_type (const char *name, tree type)
+{
+  tree   id = get_identifier (name);
+  tree decl = build_decl (BUILTINS_LOCATION, TYPE_DECL, id, type);
+  return lang_hooks.decls.pushdecl (decl);
 }
 
 /* LTO hooks.  */

@@ -1,7 +1,7 @@
 /* Implements exception handling.
    Copyright (C) 1989, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
-   Free Software Foundation, Inc.
+   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
+   2011, 2012 Free Software Foundation, Inc.
    Contributed by Mike Stump <mrs@cygnus.com>.
 
 This file is part of GCC.
@@ -81,7 +81,7 @@ along with GCC; see the file COPYING3.  If not see
    gimple to eh_region mapping that had been recorded in the
    THROW_STMT_TABLE.
 
-   During pass_rtl_eh (except.c), we generate the real landing pads
+   Then, via finish_eh_generation, we generate the real landing pads
    to which the runtime will actually transfer control.  These new
    landing pads perform whatever bookkeeping is needed by the target
    backend in order to resume execution within the current function.
@@ -123,7 +123,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "libfuncs.h"
 #include "insn-config.h"
 #include "except.h"
-#include "integrate.h"
 #include "hard-reg-set.h"
 #include "basic-block.h"
 #include "output.h"
@@ -142,8 +141,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "diagnostic.h"
 #include "tree-pretty-print.h"
 #include "tree-pass.h"
-#include "timevar.h"
 #include "tree-flow.h"
+#include "cfgloop.h"
 
 /* Provide defaults for stuff that may not be defined when using
    sjlj exceptions.  */
@@ -527,7 +526,10 @@ duplicate_eh_regions_1 (struct duplicate_eh_regions_data *data,
       break;
 
     case ERT_MUST_NOT_THROW:
-      new_r->u.must_not_throw = old_r->u.must_not_throw;
+      new_r->u.must_not_throw.failure_loc =
+	LOCATION_LOCUS (old_r->u.must_not_throw.failure_loc);
+      new_r->u.must_not_throw.failure_decl =
+	old_r->u.must_not_throw.failure_decl;
       break;
     }
 
@@ -898,7 +900,7 @@ static basic_block
 emit_to_new_bb_before (rtx seq, rtx insn)
 {
   rtx last;
-  basic_block bb;
+  basic_block bb, prev_bb;
   edge e;
   edge_iterator ei;
 
@@ -913,7 +915,8 @@ emit_to_new_bb_before (rtx seq, rtx insn)
   last = emit_insn_before (seq, insn);
   if (BARRIER_P (last))
     last = PREV_INSN (last);
-  bb = create_basic_block (seq, last, BLOCK_FOR_INSN (insn)->prev_bb);
+  prev_bb = BLOCK_FOR_INSN (insn)->prev_bb;
+  bb = create_basic_block (seq, last, prev_bb);
   update_bb_for_insn (bb);
   bb->flags |= BB_SUPERBLOCK;
   return bb;
@@ -987,6 +990,16 @@ dw2_build_landing_pads (void)
       e = make_edge (bb, bb->next_bb, e_flags);
       e->count = bb->count;
       e->probability = REG_BR_PROB_BASE;
+      if (current_loops)
+	{
+	  struct loop *loop = bb->next_bb->loop_father;
+	  /* If we created a pre-header block, add the new block to the
+	     outer loop, otherwise to the loop itself.  */
+	  if (bb->next_bb == loop->header)
+	    add_bb_to_loop (bb, loop_outer (loop));
+	  else
+	    add_bb_to_loop (bb, loop);
+	}
     }
 }
 
@@ -1140,23 +1153,17 @@ sjlj_emit_function_enter (rtx dispatch_label)
   if (dispatch_label)
     {
 #ifdef DONT_USE_BUILTIN_SETJMP
-      rtx x, last;
+      rtx x;
       x = emit_library_call_value (setjmp_libfunc, NULL_RTX, LCT_RETURNS_TWICE,
 				   TYPE_MODE (integer_type_node), 1,
-				   plus_constant (XEXP (fc, 0),
+				   plus_constant (Pmode, XEXP (fc, 0),
 						  sjlj_fc_jbuf_ofs), Pmode);
 
       emit_cmp_and_jump_insns (x, const0_rtx, NE, 0,
 			       TYPE_MODE (integer_type_node), 0,
-			       dispatch_label);
-      last = get_last_insn ();
-      if (JUMP_P (last) && any_condjump_p (last))
-	{
-	  gcc_assert (!find_reg_note (last, REG_BR_PROB, 0));
-	  add_reg_note (last, REG_BR_PROB, GEN_INT (REG_BR_PROB_BASE / 100));
-	}
+			       dispatch_label, REG_BR_PROB_BASE / 100);
 #else
-      expand_builtin_setjmp_setup (plus_constant (XEXP (fc, 0),
+      expand_builtin_setjmp_setup (plus_constant (Pmode, XEXP (fc, 0),
 						  sjlj_fc_jbuf_ofs),
 				   dispatch_label);
 #endif
@@ -1233,7 +1240,7 @@ sjlj_emit_dispatch_table (rtx dispatch_label, int num_dispatch)
   eh_region r;
   edge e;
   int i, disp_index;
-  gimple switch_stmt;
+  VEC(tree, heap) *dispatch_labels = NULL;
 
   fc = crtl->eh.sjlj_fc;
 
@@ -1279,17 +1286,8 @@ sjlj_emit_dispatch_table (rtx dispatch_label, int num_dispatch)
 
   /* If there's exactly one call site in the function, don't bother
      generating a switch statement.  */
-  switch_stmt = NULL;
   if (num_dispatch > 1)
-    {
-      tree disp;
-
-      mem = adjust_address (fc, TYPE_MODE (integer_type_node),
-			    sjlj_fc_call_site_ofs);
-      disp = make_tree (integer_type_node, mem);
-
-      switch_stmt = gimple_build_switch_nlabels (num_dispatch, disp, NULL);
-    }
+    dispatch_labels = VEC_alloc (tree, heap, num_dispatch);
 
   for (i = 1; VEC_iterate (eh_landing_pad, cfun->eh->lp_array, i, lp); ++i)
     if (lp && lp->post_landing_pad)
@@ -1307,8 +1305,7 @@ sjlj_emit_dispatch_table (rtx dispatch_label, int num_dispatch)
 	    t_label = create_artificial_label (UNKNOWN_LOCATION);
 	    t = build_int_cst (integer_type_node, disp_index);
 	    case_elt = build_case_label (t, NULL, t_label);
-	    gimple_switch_set_label (switch_stmt, disp_index, case_elt);
-
+	    VEC_quick_push (tree, dispatch_labels, case_elt);
 	    label = label_rtx (t_label);
 	  }
 	else
@@ -1332,6 +1329,28 @@ sjlj_emit_dispatch_table (rtx dispatch_label, int num_dispatch)
 	e = make_edge (bb, bb->next_bb, EDGE_FALLTHRU);
 	e->count = bb->count;
 	e->probability = REG_BR_PROB_BASE;
+	if (current_loops)
+	  {
+	    struct loop *loop = bb->next_bb->loop_father;
+	    /* If we created a pre-header block, add the new block to the
+	       outer loop, otherwise to the loop itself.  */
+	    if (bb->next_bb == loop->header)
+	      add_bb_to_loop (bb, loop_outer (loop));
+	    else
+	      add_bb_to_loop (bb, loop);
+	    /* ???  For multiple dispatches we will end up with edges
+	       from the loop tree root into this loop, making it a
+	       multiple-entry loop.  Discard all affected loops.  */
+	    if (num_dispatch > 1)
+	      {
+		for (loop = bb->loop_father;
+		     loop_outer (loop); loop = loop_outer (loop))
+		  {
+		    loop->header = NULL;
+		    loop->latch = NULL;
+		  }
+	      }
+	  }
 
 	disp_index++;
       }
@@ -1339,8 +1358,9 @@ sjlj_emit_dispatch_table (rtx dispatch_label, int num_dispatch)
 
   if (num_dispatch > 1)
     {
-      expand_case (switch_stmt);
-      expand_builtin_trap ();
+      rtx disp = adjust_address (fc, TYPE_MODE (integer_type_node),
+				 sjlj_fc_call_site_ofs);
+      expand_sjlj_dispatch_table (disp, dispatch_labels);
     }
 
   seq = get_insns ();
@@ -1352,6 +1372,24 @@ sjlj_emit_dispatch_table (rtx dispatch_label, int num_dispatch)
       e = make_edge (bb, bb->next_bb, EDGE_FALLTHRU);
       e->count = bb->count;
       e->probability = REG_BR_PROB_BASE;
+      if (current_loops)
+	{
+	  struct loop *loop = bb->next_bb->loop_father;
+	  /* If we created a pre-header block, add the new block to the
+	     outer loop, otherwise to the loop itself.  */
+	  if (bb->next_bb == loop->header)
+	    add_bb_to_loop (bb, loop_outer (loop));
+	  else
+	    add_bb_to_loop (bb, loop);
+	}
+    }
+  else
+    {
+      /* We are not wiring up edges here, but as the dispatcher call
+         is at function begin simply associate the block with the
+	 outermost (non-)loop.  */
+      if (current_loops)
+	add_bb_to_loop (bb, current_loops->tree_root);
     }
 }
 
@@ -1406,7 +1444,7 @@ sjlj_build_landing_pads (void)
 /* After initial rtl generation, call back to finish generating
    exception support code.  */
 
-static void
+void
 finish_eh_generation (void)
 {
   basic_block bb;
@@ -1419,7 +1457,7 @@ finish_eh_generation (void)
   break_superblocks ();
 
   if (targetm_common.except_unwind_info (&global_options) == UI_SJLJ
-      /* Kludge for Alpha/Tru64 (see alpha_gp_save_rtx).  */
+      /* Kludge for Alpha (see alpha_gp_save_rtx).  */
       || single_succ_edge (ENTRY_BLOCK_PTR)->insns.r)
     commit_edge_insertions ();
 
@@ -1453,41 +1491,6 @@ finish_eh_generation (void)
 	}
     }
 }
-
-static bool
-gate_handle_eh (void)
-{
-  /* Nothing to do if no regions created.  */
-  return cfun->eh->region_tree != NULL;
-}
-
-/* Complete generation of exception handling code.  */
-static unsigned int
-rest_of_handle_eh (void)
-{
-  finish_eh_generation ();
-  cleanup_cfg (CLEANUP_NO_INSN_DEL);
-  return 0;
-}
-
-struct rtl_opt_pass pass_rtl_eh =
-{
- {
-  RTL_PASS,
-  "rtl_eh",                             /* name */
-  gate_handle_eh,                       /* gate */
-  rest_of_handle_eh,			/* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_JUMP,                              /* tv_id */
-  0,                                    /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  0                                     /* todo_flags_finish */
- }
-};
 
 /* This section handles removing dead code for flow.  */
 
@@ -2077,7 +2080,7 @@ expand_builtin_extract_return_addr (tree addr_tree)
 
   /* Then adjust to find the real return address.  */
 #if defined (RETURN_ADDR_OFFSET)
-  addr = plus_constant (addr, RETURN_ADDR_OFFSET);
+  addr = plus_constant (Pmode, addr, RETURN_ADDR_OFFSET);
 #endif
 
   return addr;
@@ -2096,7 +2099,7 @@ expand_builtin_frob_return_addr (tree addr_tree)
 
 #ifdef RETURN_ADDR_OFFSET
   addr = force_reg (Pmode, addr);
-  addr = plus_constant (addr, -RETURN_ADDR_OFFSET);
+  addr = plus_constant (Pmode, addr, -RETURN_ADDR_OFFSET);
 #endif
 
   return addr;
@@ -2380,10 +2383,10 @@ add_call_site (rtx landing_pad, int action, int section)
   record->action = action;
 
   VEC_safe_push (call_site_record, gc,
-		 crtl->eh.call_site_record[section], record);
+		 crtl->eh.call_site_record_v[section], record);
 
   return call_site_base + VEC_length (call_site_record,
-				      crtl->eh.call_site_record[section]) - 1;
+				      crtl->eh.call_site_record_v[section]) - 1;
 }
 
 /* Turn REG_EH_REGION notes back into NOTE_INSN_EH_REGION notes.
@@ -2531,10 +2534,10 @@ convert_to_eh_region_ranges (void)
 	else if (last_action != -3)
 	  last_landing_pad = pc_rtx;
 	call_site_base += VEC_length (call_site_record,
-				      crtl->eh.call_site_record[cur_sec]);
+				      crtl->eh.call_site_record_v[cur_sec]);
 	cur_sec++;
-	gcc_assert (crtl->eh.call_site_record[cur_sec] == NULL);
-	crtl->eh.call_site_record[cur_sec]
+	gcc_assert (crtl->eh.call_site_record_v[cur_sec] == NULL);
+	crtl->eh.call_site_record_v[cur_sec]
 	  = VEC_alloc (call_site_record, gc, 10);
       }
 
@@ -2618,14 +2621,14 @@ push_sleb128 (VEC (uchar, gc) **data_area, int value)
 static int
 dw2_size_of_call_site_table (int section)
 {
-  int n = VEC_length (call_site_record, crtl->eh.call_site_record[section]);
+  int n = VEC_length (call_site_record, crtl->eh.call_site_record_v[section]);
   int size = n * (4 + 4 + 4);
   int i;
 
   for (i = 0; i < n; ++i)
     {
       struct call_site_record_d *cs =
-	VEC_index (call_site_record, crtl->eh.call_site_record[section], i);
+	VEC_index (call_site_record, crtl->eh.call_site_record_v[section], i);
       size += size_of_uleb128 (cs->action);
     }
 
@@ -2635,14 +2638,14 @@ dw2_size_of_call_site_table (int section)
 static int
 sjlj_size_of_call_site_table (void)
 {
-  int n = VEC_length (call_site_record, crtl->eh.call_site_record[0]);
+  int n = VEC_length (call_site_record, crtl->eh.call_site_record_v[0]);
   int size = 0;
   int i;
 
   for (i = 0; i < n; ++i)
     {
       struct call_site_record_d *cs =
-	VEC_index (call_site_record, crtl->eh.call_site_record[0], i);
+	VEC_index (call_site_record, crtl->eh.call_site_record_v[0], i);
       size += size_of_uleb128 (INTVAL (cs->landing_pad));
       size += size_of_uleb128 (cs->action);
     }
@@ -2654,7 +2657,7 @@ sjlj_size_of_call_site_table (void)
 static void
 dw2_output_call_site_table (int cs_format, int section)
 {
-  int n = VEC_length (call_site_record, crtl->eh.call_site_record[section]);
+  int n = VEC_length (call_site_record, crtl->eh.call_site_record_v[section]);
   int i;
   const char *begin;
 
@@ -2668,7 +2671,7 @@ dw2_output_call_site_table (int cs_format, int section)
   for (i = 0; i < n; ++i)
     {
       struct call_site_record_d *cs =
-	VEC_index (call_site_record, crtl->eh.call_site_record[section], i);
+	VEC_index (call_site_record, crtl->eh.call_site_record_v[section], i);
       char reg_start_lab[32];
       char reg_end_lab[32];
       char landing_pad_lab[32];
@@ -2716,13 +2719,13 @@ dw2_output_call_site_table (int cs_format, int section)
 static void
 sjlj_output_call_site_table (void)
 {
-  int n = VEC_length (call_site_record, crtl->eh.call_site_record[0]);
+  int n = VEC_length (call_site_record, crtl->eh.call_site_record_v[0]);
   int i;
 
   for (i = 0; i < n; ++i)
     {
       struct call_site_record_d *cs =
-	VEC_index (call_site_record, crtl->eh.call_site_record[0], i);
+	VEC_index (call_site_record, crtl->eh.call_site_record_v[0], i);
 
       dw2_asm_output_data_uleb128 (INTVAL (cs->landing_pad),
 				   "region %d landing pad", i);
@@ -2762,11 +2765,16 @@ switch_to_exception_section (const char * ARG_UNUSED (fnname))
 	    flags = SECTION_WRITE;
 
 #ifdef HAVE_LD_EH_GC_SECTIONS
-	  if (flag_function_sections)
+	  if (flag_function_sections
+	      || (DECL_ONE_ONLY (current_function_decl) && HAVE_COMDAT_GROUP))
 	    {
 	      char *section_name = XNEWVEC (char, strlen (fnname) + 32);
+	      /* The EH table must match the code section, so only mark
+		 it linkonce if we have COMDAT groups to tie them together.  */
+	      if (DECL_ONE_ONLY (current_function_decl) && HAVE_COMDAT_GROUP)
+		flags |= SECTION_LINKONCE;
 	      sprintf (section_name, ".gcc_except_table.%s", fnname);
-	      s = get_section (section_name, flags, NULL);
+	      s = get_section (section_name, flags, current_function_decl);
 	      free (section_name);
 	    }
 	  else
@@ -2797,8 +2805,6 @@ output_ttype (tree type, int tt_format, int tt_format_size)
     value = const0_rtx;
   else
     {
-      struct varpool_node *node;
-
       /* FIXME lto.  pass_ipa_free_lang_data changes all types to
 	 runtime types so TYPE should already be a runtime type
 	 reference.  When pass_ipa_free_lang data is made a default
@@ -2817,12 +2823,7 @@ output_ttype (tree type, int tt_format, int tt_format_size)
 	{
 	  type = TREE_OPERAND (type, 0);
 	  if (TREE_CODE (type) == VAR_DECL)
-	    {
-	      node = varpool_node (type);
-	      if (node)
-		varpool_mark_needed_node (node);
-	      is_public = TREE_PUBLIC (type);
-	    }
+	    is_public = TREE_PUBLIC (type);
 	}
       else
 	gcc_assert (TREE_CODE (type) == INTEGER_CST);
@@ -3038,7 +3039,7 @@ output_function_exception_table (const char *fnname)
   targetm.asm_out.emit_except_table_label (asm_out_file);
 
   output_one_function_exception_table (0);
-  if (crtl->eh.call_site_record[1] != NULL)
+  if (crtl->eh.call_site_record_v[1] != NULL)
     output_one_function_exception_table (1);
 
   switch_to_section (current_function_section ());

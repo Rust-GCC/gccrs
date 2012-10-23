@@ -25,10 +25,11 @@ along with GCC; see the file COPYING3.  If not see
 
 #if GCC_VERSION < 3004
 
-/* The functions clz_hwi, ctz_hwi, ffs_hwi, floor_log2 and exact_log2
-   are defined as inline functions in hwint.h if GCC_VERSION >= 3004.
-   The definitions here are used for older versions of GCC and non-GCC
-   bootstrap compilers.  */
+/* The functions clz_hwi, ctz_hwi, ffs_hwi, floor_log2, ceil_log2,
+   and exact_log2 are defined as inline functions in hwint.h
+   if GCC_VERSION >= 3004.
+   The definitions here are used for older versions of GCC and
+   non-GCC bootstrap compilers.  */
 
 /* Given X, an unsigned number, return the largest int Y such that 2**Y <= X.
    If X is 0, return -1.  */
@@ -59,6 +60,14 @@ floor_log2 (unsigned HOST_WIDE_INT x)
     t += 1;
 
   return t;
+}
+
+/* Given X, an unsigned number, return the largest Y such that 2**Y >= X.  */
+
+int
+ceil_log2 (unsigned HOST_WIDE_INT x)
+{
+  return floor_log2 (x - 1) + 1;
 }
 
 /* Return the logarithm of X, base 2, considering X unsigned,
@@ -96,6 +105,23 @@ int
 ffs_hwi (unsigned HOST_WIDE_INT x)
 {
   return 1 + floor_log2 (x & -x);
+}
+
+/* Return the number of set bits in X.  */
+
+int
+popcount_hwi (unsigned HOST_WIDE_INT x)
+{
+  int i, ret = 0;
+  size_t bits = sizeof (x) * CHAR_BIT;
+
+  for (i = 0; i < bits; i += 1)
+    {
+      ret += x & 1;
+      x >>= 1;
+    }
+
+  return ret;
 }
 
 #endif /* GCC_VERSION < 3004 */

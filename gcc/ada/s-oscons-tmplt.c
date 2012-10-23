@@ -7,7 +7,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2000-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 2000-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -84,21 +84,6 @@ pragma Style_Checks ("M32766");
 /** For Linux _XOPEN_SOURCE must be defined, otherwise IOV_MAX is not defined
  **/
 #define _XOPEN_SOURCE 500
-
-#elif defined (__alpha__) && defined (__osf__)
-/** For Tru64 UNIX, _XOPEN_SOURCE must be defined, otherwise CLOCK_REALTIME
- ** is not defined.
- **/
-#define _XOPEN_SOURCE 500
-
-#elif defined (__mips) && defined (__sgi)
-/** For IRIX 6, _XOPEN5 must be defined and _XOPEN_IOV_MAX must be used as
- ** IOV_MAX, otherwise IOV_MAX is not defined.  IRIX 5 has neither.
- **/
-#ifdef _XOPEN_IOV_MAX
-#define _XOPEN5
-#define IOV_MAX _XOPEN_IOV_MAX
-#endif
 #endif
 
 /* Include gsocket.h before any system header so it can redefine FD_SETSIZE */
@@ -110,14 +95,6 @@ pragma Style_Checks ("M32766");
 #include <limits.h>
 #include <fcntl.h>
 #include <time.h>
-
-#if defined (__alpha__) && defined (__osf__)
-/** Tru64 is unable to do vector IO operations with default value of IOV_MAX,
- ** so its value is redefined to a small one which is known to work properly.
- **/
-#undef IOV_MAX
-#define IOV_MAX 16
-#endif
 
 #if defined (__VMS)
 /** VMS is unable to do vector IO operations with default value of IOV_MAX,
@@ -179,6 +156,10 @@ pragma Style_Checks ("M32766");
 # include <signal.h>
 #endif
 
+#ifdef __MINGW32__
+# include <winbase.h>
+#endif
+
 #ifdef NATIVE
 #include <stdio.h>
 
@@ -191,6 +172,9 @@ int counter = 0;
 
 #define CND(name,comment) \
   printf ("\n->CND:$%d:" #name ":$%d:" comment, __LINE__, ((int) _VAL (name)));
+
+#define CNU(name,comment) \
+  printf ("\n->CNU:$%d:" #name ":$%u:" comment, __LINE__, ((unsigned int) _VAL (name)));
 
 #define CNS(name,comment) \
   printf ("\n->CNS:$%d:" #name ":" name ":" comment, __LINE__);
@@ -207,6 +191,13 @@ int counter = 0;
   asm volatile("\n->CND:%0:" #name ":%1:" comment \
   : : "i" (__LINE__), "i" ((int) name));
 /* Decimal constant in the range of type "int" */
+
+#define CNU(name, comment) \
+  asm volatile("\n->CNU:%0:" #name ":%1:" comment \
+  : : "i" (__LINE__), "i" ((int) name));
+/* Decimal constant in the range of type "unsigned int" (note, assembler
+ * always wants a signed int, we convert back in xoscons).
+ */
 
 #define CNS(name, comment) \
   asm volatile("\n->CNS:%0:" #name ":" name ":" comment \
@@ -273,9 +264,9 @@ package System.OS_Constants is
 
 /*
 
-   -----------------------------
-   -- Platform identification --
-   -----------------------------
+   ---------------------------------
+   -- General platform parameters --
+   ---------------------------------
 
    type OS_Type is (Windows, VMS, Other_OS);
 */
@@ -287,8 +278,23 @@ package System.OS_Constants is
 # define TARGET_OS "Other_OS"
 #endif
 C("Target_OS", OS_Type, TARGET_OS, "")
+/*
+   pragma Warnings (Off, Target_OS);
+   --  Suppress warnings on Target_OS since it is in general tested for
+   --  equality with a constant value to implement conditional compilation,
+   --  which normally generates a constant condition warning.
+
+*/
 #define Target_Name TARGET
 CST(Target_Name, "")
+
+/**
+ ** Note: the name of the following constant is recognized specially by
+ **  xoscons (case sensitive).
+ **/
+#define SIZEOF_unsigned_int sizeof (unsigned int)
+CND(SIZEOF_unsigned_int, "Size of unsigned int")
+
 /*
 
    -------------------
@@ -612,12 +618,21 @@ CND(ETOOMANYREFS, "Too many references")
 #endif
 CND(EWOULDBLOCK, "Operation would block")
 
+#ifndef E2BIG
+# define E2BIG -1
+#endif
+CND(E2BIG, "Argument list too long")
+
+#ifndef EILSEQ
+# define EILSEQ -1
+#endif
+CND(EILSEQ, "Illegal byte sequence")
+
 /**
- **  Terminal I/O constants
+ **  Terminal/serial I/O constants
  **/
 
-#ifdef HAVE_TERMIOS
-
+#if defined(HAVE_TERMIOS) || defined(__MINGW32__)
 /*
 
    ----------------------
@@ -625,6 +640,9 @@ CND(EWOULDBLOCK, "Operation would block")
    ----------------------
 
 */
+#endif
+
+#ifdef HAVE_TERMIOS
 
 #ifndef TCSANOW
 # define TCSANOW -1
@@ -636,210 +654,215 @@ CND(TCSANOW, "Immediate")
 #endif
 CND(TCIFLUSH, "Flush input")
 
+#ifndef IXON
+# define IXON -1
+#endif
+CNU(IXON, "Output sw flow control")
+
 #ifndef CLOCAL
 # define CLOCAL -1
 #endif
-CND(CLOCAL, "Local")
+CNU(CLOCAL, "Local")
 
 #ifndef CRTSCTS
 # define CRTSCTS -1
 #endif
-CND(CRTSCTS, "Hardware flow control")
+CNU(CRTSCTS, "Output hw flow control")
 
 #ifndef CREAD
 # define CREAD -1
 #endif
-CND(CREAD, "Read")
+CNU(CREAD, "Read")
 
 #ifndef CS5
 # define CS5 -1
 #endif
-CND(CS5, "5 data bits")
+CNU(CS5, "5 data bits")
 
 #ifndef CS6
 # define CS6 -1
 #endif
-CND(CS6, "6 data bits")
+CNU(CS6, "6 data bits")
 
 #ifndef CS7
 # define CS7 -1
 #endif
-CND(CS7, "7 data bits")
+CNU(CS7, "7 data bits")
 
 #ifndef CS8
 # define CS8 -1
 #endif
-CND(CS8, "8 data bits")
+CNU(CS8, "8 data bits")
 
 #ifndef CSTOPB
 # define CSTOPB -1
 #endif
-CND(CSTOPB, "2 stop bits")
+CNU(CSTOPB, "2 stop bits")
 
 #ifndef PARENB
 # define PARENB -1
 #endif
-CND(PARENB, "Parity enable")
+CNU(PARENB, "Parity enable")
 
 #ifndef PARODD
 # define PARODD -1
 #endif
-CND(PARODD, "Parity odd")
+CNU(PARODD, "Parity odd")
 
 #ifndef B0
 # define B0 -1
 #endif
-CND(B0, "0 bps")
+CNU(B0, "0 bps")
 
 #ifndef B50
 # define B50 -1
 #endif
-CND(B50, "50 bps")
+CNU(B50, "50 bps")
 
 #ifndef B75
 # define B75 -1
 #endif
-CND(B75, "75 bps")
+CNU(B75, "75 bps")
 
 #ifndef B110
 # define B110 -1
 #endif
-CND(B110, "110 bps")
+CNU(B110, "110 bps")
 
 #ifndef B134
 # define B134 -1
 #endif
-CND(B134, "134 bps")
+CNU(B134, "134 bps")
 
 #ifndef B150
 # define B150 -1
 #endif
-CND(B150, "150 bps")
+CNU(B150, "150 bps")
 
 #ifndef B200
 # define B200 -1
 #endif
-CND(B200, "200 bps")
+CNU(B200, "200 bps")
 
 #ifndef B300
 # define B300 -1
 #endif
-CND(B300, "300 bps")
+CNU(B300, "300 bps")
 
 #ifndef B600
 # define B600 -1
 #endif
-CND(B600, "600 bps")
+CNU(B600, "600 bps")
 
 #ifndef B1200
 # define B1200 -1
 #endif
-CND(B1200, "1200 bps")
+CNU(B1200, "1200 bps")
 
 #ifndef B1800
 # define B1800 -1
 #endif
-CND(B1800, "1800 bps")
+CNU(B1800, "1800 bps")
 
 #ifndef B2400
 # define B2400 -1
 #endif
-CND(B2400, "2400 bps")
+CNU(B2400, "2400 bps")
 
 #ifndef B4800
 # define B4800 -1
 #endif
-CND(B4800, "4800 bps")
+CNU(B4800, "4800 bps")
 
 #ifndef B9600
 # define B9600 -1
 #endif
-CND(B9600, "9600 bps")
+CNU(B9600, "9600 bps")
 
 #ifndef B19200
 # define B19200 -1
 #endif
-CND(B19200, "19200 bps")
+CNU(B19200, "19200 bps")
 
 #ifndef B38400
 # define B38400 -1
 #endif
-CND(B38400, "38400 bps")
+CNU(B38400, "38400 bps")
 
 #ifndef B57600
 # define B57600 -1
 #endif
-CND(B57600, "57600 bps")
+CNU(B57600, "57600 bps")
 
 #ifndef B115200
 # define B115200 -1
 #endif
-CND(B115200, "115200 bps")
+CNU(B115200, "115200 bps")
 
 #ifndef B230400
 # define B230400 -1
 #endif
-CND(B230400, "230400 bps")
+CNU(B230400, "230400 bps")
 
 #ifndef B460800
 # define B460800 -1
 #endif
-CND(B460800, "460800 bps")
+CNU(B460800, "460800 bps")
 
 #ifndef B500000
 # define B500000 -1
 #endif
-CND(B500000, "500000 bps")
+CNU(B500000, "500000 bps")
 
 #ifndef B576000
 # define B576000 -1
 #endif
-CND(B576000, "576000 bps")
+CNU(B576000, "576000 bps")
 
 #ifndef B921600
 # define B921600 -1
 #endif
-CND(B921600, "921600 bps")
+CNU(B921600, "921600 bps")
 
 #ifndef B1000000
 # define B1000000 -1
 #endif
-CND(B1000000, "1000000 bps")
+CNU(B1000000, "1000000 bps")
 
 #ifndef B1152000
 # define B1152000 -1
 #endif
-CND(B1152000, "1152000 bps")
+CNU(B1152000, "1152000 bps")
 
 #ifndef B1500000
 # define B1500000 -1
 #endif
-CND(B1500000, "1500000 bps")
+CNU(B1500000, "1500000 bps")
 
 #ifndef B2000000
 # define B2000000 -1
 #endif
-CND(B2000000, "2000000 bps")
+CNU(B2000000, "2000000 bps")
 
 #ifndef B2500000
 # define B2500000 -1
 #endif
-CND(B2500000, "2500000 bps")
+CNU(B2500000, "2500000 bps")
 
 #ifndef B3000000
 # define B3000000 -1
 #endif
-CND(B3000000, "3000000 bps")
+CNU(B3000000, "3000000 bps")
 
 #ifndef B3500000
 # define B3500000 -1
 #endif
-CND(B3500000, "3500000 bps")
+CNU(B3500000, "3500000 bps")
 
 #ifndef B4000000
 # define B4000000 -1
 #endif
-CND(B4000000, "4000000 bps")
+CNU(B4000000, "4000000 bps")
 
 /*
 
@@ -936,6 +959,11 @@ CND(VEOL2, "Alternative EOL")
 
 #endif /* HAVE_TERMIOS */
 
+#ifdef __MINGW32__
+CNU(DTR_CONTROL_ENABLE, "Enable DTR flow ctrl")
+CNU(RTS_CONTROL_ENABLE, "Enable RTS flow ctrl")
+#endif
+
 /*
 
    -----------------------------
@@ -975,15 +1003,6 @@ CND(AF_INET, "IPv4 address family")
  ** Its TCP/IP stack is in transition.  It has newer .h files but no IPV6 yet.
  **/
 #if defined(__rtems__)
-# undef AF_INET6
-#endif
-
-/**
- ** Tru64 UNIX V4.0F defines AF_INET6 without IPv6 support, specifically
- ** without struct sockaddr_in6.  We use _SS_MAXSIZE (used for the definition
- ** of struct sockaddr_storage on Tru64 UNIX V5.1) to detect this.
- **/
-#if defined(__osf__) && !defined(_SS_MAXSIZE)
 # undef AF_INET6
 #endif
 
@@ -1256,11 +1275,11 @@ CND(SIZEOF_tv_usec, "tv_usec")
 */
 
 /**
- ** On Solaris and IRIX, field tv_sec in struct timeval has an undocumented
+ ** On Solaris, field tv_sec in struct timeval has an undocumented
  ** hard-wired limit of 100 million.
  ** On IA64 HP-UX the limit is 2**31 - 1.
  **/
-#if defined (sun) || (defined (__mips) && defined (__sgi))
+#if defined (sun)
 # define MAX_tv_sec "100_000_000"
 
 #elif defined (__hpux__)
@@ -1369,11 +1388,6 @@ CND(CLOCK_MONOTONIC, "System monotonic clock")
 
 #ifdef CLOCK_FASTEST
 CND(CLOCK_FASTEST, "Fastest clock")
-#endif
-
-#if defined (__sgi)
-CND(CLOCK_SGI_FAST,  "SGI fast clock")
-CND(CLOCK_SGI_CYCLE, "SGI CPU clock")
 #endif
 
 #ifndef CLOCK_THREAD_CPUTIME_ID

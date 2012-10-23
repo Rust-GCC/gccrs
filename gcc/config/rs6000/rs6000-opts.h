@@ -1,7 +1,6 @@
 /* Definitions of target machine needed for option handling for GNU compiler,
    for IBM RS/6000.
-   Copyright (C) 2010, 2011
-   Free Software Foundation, Inc.
+   Copyright (C) 2010-2012 Free Software Foundation, Inc.
    Contributed by Michael Meissner (meissner@linux.vnet.ibm.com)
 
    This file is part of GCC.
@@ -31,8 +30,6 @@
 /* Processor type.  Order must match cpu attribute in MD file.  */
 enum processor_type
  {
-   PROCESSOR_RIOS1,
-   PROCESSOR_RIOS2,
    PROCESSOR_RS64A,
    PROCESSOR_MPCCORE,
    PROCESSOR_PPC403,
@@ -49,10 +46,13 @@ enum processor_type
    PROCESSOR_PPC7400,
    PROCESSOR_PPC7450,
    PROCESSOR_PPC8540,
+   PROCESSOR_PPC8548,
    PROCESSOR_PPCE300C2,
    PROCESSOR_PPCE300C3,
    PROCESSOR_PPCE500MC,
    PROCESSOR_PPCE500MC64,
+   PROCESSOR_PPCE5500,
+   PROCESSOR_PPCE6500,
    PROCESSOR_POWER4,
    PROCESSOR_POWER5,
    PROCESSOR_POWER6,

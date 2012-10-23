@@ -115,9 +115,6 @@ do {							\
 #define TARGET_DEFAULT \
   (MASK_DWARF2_ASM | MASK_BIG_ENDIAN | MASK_ILP32)
 
-/* ??? Might not be needed anymore.  */
-#define MEMBER_TYPE_FORCES_BLK(FIELD, MODE) ((MODE) == TFmode)
-
 /* ASM_OUTPUT_EXTERNAL_LIBCALL defaults to just a globalize_label call,
    but that doesn't put out the @function type information which causes
    shared library problems.  */
@@ -228,3 +225,10 @@ do {								\
 #define TARGET_ASM_FUNCTION_SECTION ia64_hpux_function_section
 
 #define TARGET_POSIX_IO
+
+/* Define this to be nonzero if static stack checking is supported.  */
+#define STACK_CHECK_STATIC_BUILTIN 1
+
+/* Minimum amount of stack required to recover from an anticipated stack
+   overflow detection.  */
+#define STACK_CHECK_PROTECT (24 * 1024)

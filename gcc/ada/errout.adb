@@ -198,6 +198,21 @@ package body Errout is
    --  spec for precise definition of the conversion that is performed by this
    --  routine in OpenVMS mode.
 
+   --------------------
+   -- Cascaded_Error --
+   --------------------
+
+   procedure Cascaded_Error is
+   begin
+      --  An anomaly has been detected which is assumed to be a consequence of
+      --  a previous error. Raise an exception if no serious error has been
+      --  found so far.
+
+      if Serious_Errors_Detected = 0 then
+         raise Program_Error;
+      end if;
+   end Cascaded_Error;
+
    -----------------------
    -- Change_Error_Text --
    -----------------------
@@ -2445,7 +2460,7 @@ package body Errout is
          if Sloc (Error_Msg_Node_1) > Standard_Location then
             declare
                Iloc : constant Source_Ptr :=
-                        Instantiation_Location (Sloc (Error_Msg_Node_1));
+                 Instantiation_Location (Sloc (Error_Msg_Node_1));
 
             begin
                if Iloc /= No_Location
@@ -2938,7 +2953,7 @@ package body Errout is
                   if Is_Itype (Ent) then
                      declare
                         Assoc : constant Node_Id :=
-                                  Associated_Node_For_Itype (Ent);
+                          Associated_Node_For_Itype (Ent);
 
                      begin
                         if Nkind (Assoc) in N_Subprogram_Specification then

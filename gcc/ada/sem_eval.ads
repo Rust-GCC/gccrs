@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -196,7 +196,15 @@ package Sem_Eval is
 
    function Is_Static_Subtype (Typ : Entity_Id) return Boolean;
    --  Determines whether a subtype fits the definition of an Ada static
-   --  subtype as given in (RM 4.9(26)).
+   --  subtype as given in (RM 4.9(26)). Important note: This check does not
+   --  include the Ada 2012 case of a non-static predicate which results in an
+   --  otherwise static subtype being non-static. Such a subtype will return
+   --  True for this test, so if the distinction is important, the caller must
+   --  deal with this.
+   --
+   --  Implementation note: an attempt to include this Ada 2012 case failed,
+   --  since it appears that this routine is called in some cases before the
+   --  Static_Predicate field is set ???
 
    function Is_OK_Static_Subtype (Typ : Entity_Id) return Boolean;
    --  Like Is_Static_Subtype but also makes sure that the bounds of the
@@ -217,7 +225,7 @@ package Sem_Eval is
    --  are statically matching subtypes (RM 4.9.1(1-2)).
 
    function Compile_Time_Known_Value (Op : Node_Id) return Boolean;
-   --  Returns true if Op is an expression not raising constraint error whose
+   --  Returns true if Op is an expression not raising Constraint_Error whose
    --  value is known at compile time. This is true if Op is a static
    --  expression, but can also be true for expressions which are technically
    --  non-static but which are in fact known at compile time, such as the
@@ -228,9 +236,12 @@ package Sem_Eval is
 
    function Compile_Time_Known_Value_Or_Aggr (Op : Node_Id) return Boolean;
    --  Similar to Compile_Time_Known_Value, but also returns True if the value
-   --  is a compile time known aggregate, i.e. an aggregate all of whose
-   --  constituent expressions are either compile time known values or compile
-   --  time known aggregates.
+   --  is a compile-time-known aggregate, i.e. an aggregate all of whose
+   --  constituent expressions are either compile-time-known values (based on
+   --  calling Compile_Time_Known_Value) or compile-time-known aggregates.
+   --  Note that the aggregate could still involve run-time checks that might
+   --  fail (such as for subtype checks in component associations), but the
+   --  evaluation of the expressions themselves will not raise an exception.
 
    function Compile_Time_Known_Bounds (T : Entity_Id) return Boolean;
    --  If T is an array whose index bounds are all known at compile time, then
@@ -285,8 +296,8 @@ package Sem_Eval is
    procedure Eval_Case_Expression        (N : Node_Id);
    procedure Eval_Character_Literal      (N : Node_Id);
    procedure Eval_Concatenation          (N : Node_Id);
-   procedure Eval_Conditional_Expression (N : Node_Id);
    procedure Eval_Entity_Name            (N : Node_Id);
+   procedure Eval_If_Expression          (N : Node_Id);
    procedure Eval_Indexed_Component      (N : Node_Id);
    procedure Eval_Integer_Literal        (N : Node_Id);
    procedure Eval_Logical_Op             (N : Node_Id);
@@ -305,6 +316,11 @@ package Sem_Eval is
    procedure Eval_Type_Conversion        (N : Node_Id);
    procedure Eval_Unary_Op               (N : Node_Id);
    procedure Eval_Unchecked_Conversion   (N : Node_Id);
+
+   function Eval_Static_Predicate_Check
+     (N  : Node_Id;
+     Typ : Entity_Id) return Boolean;
+   --  Evaluate a static predicate check applied to a scalar literal
 
    procedure Fold_Str (N : Node_Id; Val : String_Id; Static : Boolean);
    --  Rewrite N with a new N_String_Literal node as the result of the compile
@@ -423,7 +439,7 @@ private
    pragma Inline (Eval_Actual);
    pragma Inline (Eval_Allocator);
    pragma Inline (Eval_Character_Literal);
-   pragma Inline (Eval_Conditional_Expression);
+   pragma Inline (Eval_If_Expression);
    pragma Inline (Eval_Indexed_Component);
    pragma Inline (Eval_Named_Integer);
    pragma Inline (Eval_Named_Real);

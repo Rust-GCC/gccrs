@@ -22,11 +22,14 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_FUNCTION_H
 #define GCC_FUNCTION_H
 
-#include "tree.h"
 #include "hashtab.h"
+#include "vec.h"
 #include "vecprim.h"
-#include "tm.h"		/* For CUMULATIVE_ARGS.  */
-#include "hard-reg-set.h"
+#include "vecir.h"
+#include "machmode.h"
+#include "tm.h"			/* For CUMULATIVE_ARGS.  */
+#include "hard-reg-set.h"	/* For HARD_REG_SET in struct rtl_data. */
+#include "input.h"		/* For location_t.  */
 
 /* Stack of pending (incomplete) sequences saved by `start_sequence'.
    Each element describes one pending sequence.
@@ -69,10 +72,6 @@ struct GTY(()) emit_status {
   /* INSN_UID for next debug insn emitted.  Only used if
      --param min-nondebug-insn-uid=<value> is given with nonzero value.  */
   int x_cur_debug_insn_uid;
-
-  /* Location the last line-number NOTE emitted.
-     This is used to avoid generating duplicates.  */
-  location_t x_last_location;
 
   /* The length of the regno_pointer_align, regno_decl, and x_regno_reg_rtx
      vectors.  Since these vectors are needed during the expansion phase when
@@ -158,7 +157,7 @@ struct GTY(()) rtl_eh {
 
   VEC(uchar,gc) *action_record_data;
 
-  VEC(call_site_record,gc) *call_site_record[2];
+  VEC(call_site_record,gc) *call_site_record_v[2];
 };
 
 #define pending_stack_adjust (crtl->expr.x_pending_stack_adjust)
@@ -264,8 +263,11 @@ struct GTY(()) rtl_data {
      the hard register containing the result.  */
   rtx return_rtx;
 
-  /* Opaque pointer used by get_hard_reg_initial_val and
-     has_hard_reg_initial_val (see integrate.[hc]).  */
+  /* Vector of initial-value pairs.  Each pair consists of a pseudo
+     register of approprite mode that stores the initial value a hard
+     register REGNO, and that hard register itself.  */
+  /* ??? This could be a VEC but there is currently no way to define an
+	 opaque VEC type.  */
   struct initial_value_struct *hard_reg_initial_vals;
 
   /* A variable living at the top of the frame that holds a known value.
@@ -441,6 +443,22 @@ struct GTY(()) rtl_data {
   /* True if we performed shrink-wrapping for the current function.  */
   bool shrink_wrapped;
 
+  /* Nonzero if function being compiled doesn't modify the stack pointer
+     (ignoring the prologue and epilogue).  This is only valid after
+     pass_stack_ptr_mod has run.  */
+  bool sp_is_unchanging;
+
+  /* Nonzero if function being compiled doesn't contain any calls
+     (ignoring the prologue and epilogue).  This is set prior to
+     local register allocation and is valid for the remaining
+     compiler passes.  */
+  bool is_leaf;
+
+  /* Nonzero if the function being compiled is a leaf function which only
+     uses leaf registers.  This is valid after reload (specifically after
+     sched2) and is useful only if the port defines LEAF_REGISTERS.  */
+  bool uses_only_leaf_regs;
+
   /* Like regs_ever_live, but 1 if a reg is set or clobbered from an
      asm.  Unlike regs_ever_live, elements of this array corresponding
      to eliminable regs (like the frame pointer) are set if an asm
@@ -507,7 +525,7 @@ struct GTY(()) function {
   struct control_flow_graph *cfg;
 
   /* GIMPLE body for this function.  */
-  struct gimple_seq_d *gimple_body;
+  gimple_seq gimple_body;
 
   /* SSA and dataflow information.  */
   struct gimple_df *gimple_df;
@@ -612,6 +630,10 @@ struct GTY(()) function {
      exceptions.  */
   unsigned int can_throw_non_call_exceptions : 1;
 
+  /* Nonzero if instructions that may throw exceptions but don't otherwise
+     contribute to the execution of the program can be deleted.  */
+  unsigned int can_delete_dead_exceptions : 1;
+
   /* Fields below this point are not set for abstract functions; see
      allocate_struct_function.  */
 
@@ -622,9 +644,6 @@ struct GTY(()) function {
   /* Nonzero if function being compiled needs to
      return the address of where it has put a structure value.  */
   unsigned int returns_pcc_struct : 1;
-
-  /* Nonzero if pass_tree_profile was run on this function.  */
-  unsigned int after_tree_profile : 1;
 
   /* Nonzero if this function has local DECL_HARD_REGISTER variables.
      In this case code motion has to be done more carefully.  */
@@ -688,7 +707,6 @@ void types_used_by_var_decl_insert (tree type, tree var_decl);
    referenced by the global variable.  */
 extern GTY(()) VEC(tree,gc) *types_used_by_cur_var_decl;
 
-
 /* cfun shouldn't be set directly; use one of these functions instead.  */
 extern void set_cfun (struct function *new_cfun);
 extern void push_cfun (struct function *new_cfun);
@@ -742,6 +760,8 @@ extern void clobber_return_register (void);
 extern rtx get_arg_pointer_save_area (void);
 
 /* Returns the name of the current function.  */
+extern const char *fndecl_name (tree);
+extern const char *function_name (struct function *);
 extern const char *current_function_name (void);
 
 extern void do_warn_unused_parameter (tree);
@@ -759,6 +779,14 @@ extern int get_last_funcdef_no (void);
 #ifdef HAVE_simple_return
 extern bool requires_stack_frame_p (rtx, HARD_REG_SET, HARD_REG_SET);
 #endif                        
+
+extern rtx get_hard_reg_initial_val (enum machine_mode, unsigned int);
+extern rtx has_hard_reg_initial_val (enum machine_mode, unsigned int);
+extern rtx get_hard_reg_initial_reg (rtx);
+extern bool initial_value_entry (int i, rtx *, rtx *);
+
+/* Called from gimple_expand_cfg.  */
+extern unsigned int emit_initial_value_sets (void);
 
 /* In predict.c */
 extern bool optimize_function_for_size_p (struct function *);

@@ -1,5 +1,5 @@
 /* RTL-level loop invariant motion.
-   Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2012
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -47,7 +47,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "cfgloop.h"
 #include "expr.h"
 #include "recog.h"
-#include "output.h"
+#include "target.h"
 #include "function.h"
 #include "flags.h"
 #include "df.h"
@@ -56,6 +56,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "params.h"
 #include "regs.h"
 #include "ira.h"
+#include "dumpfile.h"
 
 /* The data stored for the loop.  */
 
@@ -203,9 +204,7 @@ check_maybe_invariant (rtx x)
 
   switch (code)
     {
-    case CONST_INT:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
+    CASE_CONST_ANY:
     case SYMBOL_REF:
     case CONST:
     case LABEL_REF:
@@ -302,9 +301,7 @@ hash_invariant_expr_1 (rtx insn, rtx x)
 
   switch (code)
     {
-    case CONST_INT:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
+    CASE_CONST_ANY:
     case SYMBOL_REF:
     case CONST:
     case LABEL_REF:
@@ -363,9 +360,7 @@ invariant_expr_equal_p (rtx insn1, rtx e1, rtx insn2, rtx e2)
 
   switch (code)
     {
-    case CONST_INT:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
+    CASE_CONST_ANY:
     case SYMBOL_REF:
     case CONST:
     case LABEL_REF:
@@ -665,20 +660,28 @@ find_defs (struct loop *loop, basic_block *body)
   for (i = 0; i < loop->num_nodes; i++)
     bitmap_set_bit (blocks, body[i]->index);
 
+  if (dump_file)
+    {
+      fprintf (dump_file,
+	       "*****starting processing of loop %d ******\n",
+	       loop->num);
+    }
+
   df_remove_problem (df_chain);
   df_process_deferred_rescans ();
   df_chain_add_problem (DF_UD_CHAIN);
   df_set_blocks (blocks);
+  df_set_flags (DF_RD_PRUNE_DEAD_DEFS);
   df_analyze ();
+  check_invariant_table_size ();
 
   if (dump_file)
     {
       df_dump_region (dump_file);
-      fprintf (dump_file, "*****starting processing of loop  ******\n");
-      print_rtl_with_bb (dump_file, get_insns ());
-      fprintf (dump_file, "*****ending processing of loop  ******\n");
+      fprintf (dump_file,
+	       "*****ending processing of loop %d ******\n",
+	       loop->num);
     }
-  check_invariant_table_size ();
 
   BITMAP_FREE (blocks);
 }
@@ -782,7 +785,22 @@ check_dependency (basic_block bb, df_ref use, bitmap depends_on)
 
   defs = DF_REF_CHAIN (use);
   if (!defs)
-    return true;
+    {
+      unsigned int regno = DF_REF_REGNO (use);
+
+      /* If this is the use of an uninitialized argument register that is
+	 likely to be spilled, do not move it lest this might extend its
+	 lifetime and cause reload to die.  This can occur for a call to
+	 a function taking complex number arguments and moving the insns
+	 preparing the arguments without moving the call itself wouldn't
+	 gain much in practice.  */
+      if ((DF_REF_FLAGS (use) & DF_HARD_REG_LIVE)
+	  && FUNCTION_ARG_REGNO_P (regno)
+	  && targetm.class_likely_spilled_p (REGNO_REG_CLASS (regno)))
+	return false;
+
+      return true;
+    }
 
   if (defs->next)
     return false;
@@ -1210,7 +1228,7 @@ gain_for_invariant (struct invariant *inv, unsigned *regs_needed,
 	      + (int) regs_needed[pressure_class]
 	      + LOOP_DATA (curr_loop)->max_reg_pressure[pressure_class]
 	      + IRA_LOOP_RESERVED_REGS
-	      > ira_available_class_regs[pressure_class])
+	      > ira_class_hard_regs_num[pressure_class])
 	    break;
 	}
       if (i < ira_pressure_classes_num)
@@ -1921,7 +1939,7 @@ move_loop_invariants (void)
     {
       df_analyze ();
       regstat_init_n_sets_and_refs ();
-      ira_set_pseudo_classes (dump_file);
+      ira_set_pseudo_classes (true, dump_file);
       calculate_loop_reg_pressure ();
       regstat_free_n_sets_and_refs ();
     }

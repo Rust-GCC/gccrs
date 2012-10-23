@@ -35,9 +35,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "expr.h"
 #include "diagnostic-core.h"
 #include "toplev.h"
-#include "output.h"
 #include "ggc.h"
-#include "timevar.h"
 #include "except.h"
 #include "target.h"
 #include "params.h"
@@ -45,6 +43,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-pass.h"
 #include "df.h"
 #include "dbgcnt.h"
+#include "pointer-set.h"
 
 /* The basic idea of common subexpression elimination is to go
    through the code, keeping a record of expressions that would
@@ -597,9 +596,9 @@ static void record_jump_cond (enum rtx_code, enum machine_mode, rtx, rtx,
 static void cse_insn (rtx);
 static void cse_prescan_path (struct cse_basic_block_data *);
 static void invalidate_from_clobbers (rtx);
+static void invalidate_from_sets_and_clobbers (rtx);
 static rtx cse_process_notes (rtx, rtx, bool *);
 static void cse_extended_basic_block (struct cse_basic_block_data *);
-static void count_reg_usage (rtx, int *, rtx, int);
 static int check_for_label_ref (rtx *, void *);
 extern void dump_class (struct table_elt*);
 static void get_cse_reg_info_1 (unsigned int regno);
@@ -621,9 +620,7 @@ static enum machine_mode cse_cc_succs (basic_block, basic_block, rtx, rtx,
 
 static const struct rtl_hooks cse_rtl_hooks = RTL_HOOKS_INITIALIZER;
 
-/* Nonzero if X has the form (PLUS frame-pointer integer).  We check for
-   virtual regs here because the simplify_*_operation routines are called
-   by integrate.c, which is called before virtual register instantiation.  */
+/* Nonzero if X has the form (PLUS frame-pointer integer).  */
 
 static bool
 fixed_base_plus_p (rtx x)
@@ -634,9 +631,6 @@ fixed_base_plus_p (rtx x)
       if (x == frame_pointer_rtx || x == hard_frame_pointer_rtx)
 	return true;
       if (x == arg_pointer_rtx && fixed_regs[ARG_POINTER_REGNUM])
-	return true;
-      if (REGNO (x) >= FIRST_VIRTUAL_REGISTER
-	  && REGNO (x) <= LAST_VIRTUAL_REGISTER)
 	return true;
       return false;
 
@@ -652,7 +646,7 @@ fixed_base_plus_p (rtx x)
 
 /* Dump the expressions in the equivalence class indicated by CLASSP.
    This function is used only for debugging.  */
-void
+DEBUG_FUNCTION void
 dump_class (struct table_elt *classp)
 {
   struct table_elt *elt;
@@ -1257,7 +1251,7 @@ insert_const_anchor (HOST_WIDE_INT anchor, rtx reg, HOST_WIDE_INT offs,
   if (!elt)
     elt = insert (anchor_exp, NULL, hash, mode);
 
-  exp = plus_constant (reg, offs);
+  exp = plus_constant (mode, reg, offs);
   /* REG has just been inserted and the hash codes recomputed.  */
   mention_regs (exp);
   hash = HASH (exp, mode);
@@ -1332,7 +1326,7 @@ find_reg_offset_for_const (struct table_elt *anchor_elt, HOST_WIDE_INT offs,
 	  if (!REG_P (elt->exp) && !exp_equiv_p (elt->exp, elt->exp, 1, false))
 	    continue;
 
-	  x = plus_constant (elt->exp, offs);
+	  x = plus_constant (GET_MODE (elt->exp), elt->exp, offs);
 	  if (REG_P (x)
 	      || (GET_CODE (x) == PLUS
 		  && IN_RANGE (INTVAL (XEXP (x, 1)),
@@ -2102,24 +2096,22 @@ invalidate_for_call (void)
   unsigned hash;
   struct table_elt *p, *next;
   int in_table = 0;
+  hard_reg_set_iterator hrsi;
 
   /* Go through all the hard registers.  For each that is clobbered in
      a CALL_INSN, remove the register from quantity chains and update
      reg_tick if defined.  Also see if any of these registers is currently
      in the table.  */
-
-  for (regno = 0; regno < FIRST_PSEUDO_REGISTER; regno++)
-    if (TEST_HARD_REG_BIT (regs_invalidated_by_call, regno))
-      {
-	delete_reg_equiv (regno);
-	if (REG_TICK (regno) >= 0)
-	  {
-	    REG_TICK (regno)++;
-	    SUBREG_TICKED (regno) = -1;
-	  }
-
-	in_table |= (TEST_HARD_REG_BIT (hard_regs_in_table, regno) != 0);
-      }
+  EXECUTE_IF_SET_IN_HARD_REG_SET (regs_invalidated_by_call, 0, regno, hrsi)
+    {
+      delete_reg_equiv (regno);
+      if (REG_TICK (regno) >= 0)
+	{
+	  REG_TICK (regno)++;
+	  SUBREG_TICKED (regno) = -1;
+	}
+      in_table |= (TEST_HARD_REG_BIT (hard_regs_in_table, regno) != 0);
+    }
 
   /* In the case where we have no call-clobbered hard registers in the
      table, we are done.  Otherwise, scan the table and remove any
@@ -2217,7 +2209,7 @@ use_related_value (rtx x, struct table_elt *elt)
 
   offset = (get_integer_term (x) - get_integer_term (p->exp));
   /* Note: OFFSET may be 0 if P->xexp and X are related by commutativity.  */
-  return plus_constant (q->exp, offset);
+  return plus_constant (q->mode, q->exp, offset);
 }
 
 
@@ -2621,7 +2613,7 @@ exp_equiv_p (const_rtx x, const_rtx y, int validate, bool for_gcse)
   if (GET_MODE (x) != GET_MODE (y))
     return 0;
 
-  /* MEMs refering to different address space are not equivalent.  */
+  /* MEMs referring to different address space are not equivalent.  */
   if (code == MEM && MEM_ADDR_SPACE (x) != MEM_ADDR_SPACE (y))
     return 0;
 
@@ -2629,9 +2621,7 @@ exp_equiv_p (const_rtx x, const_rtx y, int validate, bool for_gcse)
     {
     case PC:
     case CC0:
-    case CONST_INT:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
+    CASE_CONST_UNIQUE:
       return x == y;
 
     case LABEL_REF:
@@ -2835,10 +2825,7 @@ canon_reg (rtx x, rtx insn)
     case PC:
     case CC0:
     case CONST:
-    case CONST_INT:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
-    case CONST_VECTOR:
+    CASE_CONST_ANY:
     case SYMBOL_REF:
     case LABEL_REF:
     case ADDR_VEC:
@@ -2904,6 +2891,9 @@ find_comparison_args (enum rtx_code code, rtx *parg1, rtx *parg2,
 		      enum machine_mode *pmode1, enum machine_mode *pmode2)
 {
   rtx arg1, arg2;
+  struct pointer_set_t *visited = NULL;
+  /* Set nonzero when we find something of interest.  */
+  rtx x = NULL;
 
   arg1 = *parg1, arg2 = *parg2;
 
@@ -2911,10 +2901,17 @@ find_comparison_args (enum rtx_code code, rtx *parg1, rtx *parg2,
 
   while (arg2 == CONST0_RTX (GET_MODE (arg1)))
     {
-      /* Set nonzero when we find something of interest.  */
-      rtx x = 0;
       int reverse_code = 0;
       struct table_elt *p = 0;
+
+      /* Remember state from previous iteration.  */
+      if (x)
+	{
+	  if (!visited)
+	    visited = pointer_set_create ();
+	  pointer_set_insert (visited, x);
+	  x = 0;
+	}
 
       /* If arg1 is a COMPARE, extract the comparison arguments from it.
 	 On machines with CC0, this is the only case that can occur, since
@@ -2992,10 +2989,8 @@ find_comparison_args (enum rtx_code code, rtx *parg1, rtx *parg2,
 	  if (! exp_equiv_p (p->exp, p->exp, 1, false))
 	    continue;
 
-	  /* If it's the same comparison we're already looking at, skip it.  */
-	  if (COMPARISON_P (p->exp)
-	      && XEXP (p->exp, 0) == arg1
-	      && XEXP (p->exp, 1) == arg2)
+	  /* If it's a comparison we've used before, skip it.  */
+	  if (visited && pointer_set_contains (visited, p->exp))
 	    continue;
 
 	  if (GET_CODE (p->exp) == COMPARE
@@ -3076,6 +3071,8 @@ find_comparison_args (enum rtx_code code, rtx *parg1, rtx *parg2,
   *pmode1 = GET_MODE (arg1), *pmode2 = GET_MODE (arg2);
   *parg1 = fold_rtx (arg1, 0), *parg2 = fold_rtx (arg2, 0);
 
+  if (visited)
+    pointer_set_destroy (visited);
   return code;
 }
 
@@ -3129,10 +3126,7 @@ fold_rtx (rtx x, rtx insn)
       return x;
 
     case CONST:
-    case CONST_INT:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
-    case CONST_VECTOR:
+    CASE_CONST_ANY:
     case SYMBOL_REF:
     case LABEL_REF:
     case REG:
@@ -3194,12 +3188,9 @@ fold_rtx (rtx x, rtx insn)
 	    break;
 
 	  case CONST:
-	  case CONST_INT:
+	  CASE_CONST_ANY:
 	  case SYMBOL_REF:
 	  case LABEL_REF:
-	  case CONST_DOUBLE:
-	  case CONST_FIXED:
-	  case CONST_VECTOR:
 	    const_arg = folded_arg;
 	    break;
 
@@ -3566,7 +3557,7 @@ fold_rtx (rtx x, rtx insn)
 	    {
 	      rtx y = lookup_as_function (XEXP (x, 0), PLUS);
 	      if (y && CONST_INT_P (XEXP (y, 1)))
-		return fold_rtx (plus_constant (copy_rtx (y),
+		return fold_rtx (plus_constant (mode, copy_rtx (y),
 						-INTVAL (const_arg1)),
 				 NULL_RTX);
 	    }
@@ -3785,8 +3776,12 @@ equiv_constant (rtx x)
 	    }
 	}
 
-      /* Otherwise see if we already have a constant for the inner REG.  */
+      /* Otherwise see if we already have a constant for the inner REG,
+	 and if that is enough to calculate an equivalent constant for
+	 the subreg.  Note that the upper bits of paradoxical subregs
+	 are undefined, so they cannot be said to equal anything.  */
       if (REG_P (SUBREG_REG (x))
+	  && GET_MODE_SIZE (mode) <= GET_MODE_SIZE (imode)
 	  && (new_rtx = equiv_constant (SUBREG_REG (x))) != 0)
         return simplify_subreg (mode, new_rtx, imode, SUBREG_BYTE (x));
 
@@ -4089,10 +4084,22 @@ record_jump_cond (enum rtx_code code, enum machine_mode mode, rtx op0,
 }
 
 /* CSE processing for one instruction.
-   First simplify sources and addresses of all assignments
-   in the instruction, using previously-computed equivalents values.
-   Then install the new sources and destinations in the table
-   of available values.  */
+
+   Most "true" common subexpressions are mostly optimized away in GIMPLE,
+   but the few that "leak through" are cleaned up by cse_insn, and complex
+   addressing modes are often formed here.
+
+   The main function is cse_insn, and between here and that function
+   a couple of helper functions is defined to keep the size of cse_insn
+   within reasonable proportions.
+   
+   Data is shared between the main and helper functions via STRUCT SET,
+   that contains all data related for every set in the instruction that
+   is being processed.
+   
+   Note that cse_main processes all sets in the instruction.  Most
+   passes in GCC only process simple SET insns or single_set insns, but
+   CSE processes insns with multiple sets as well.  */
 
 /* Data on one SET contained in the instruction.  */
 
@@ -4128,50 +4135,93 @@ struct set
   /* Table entry for the destination address.  */
   struct table_elt *dest_addr_elt;
 };
+
+/* Special handling for (set REG0 REG1) where REG0 is the
+   "cheapest", cheaper than REG1.  After cse, REG1 will probably not
+   be used in the sequel, so (if easily done) change this insn to
+   (set REG1 REG0) and replace REG1 with REG0 in the previous insn
+   that computed their value.  Then REG1 will become a dead store
+   and won't cloud the situation for later optimizations.
+
+   Do not make this change if REG1 is a hard register, because it will
+   then be used in the sequel and we may be changing a two-operand insn
+   into a three-operand insn.
+   
+   This is the last transformation that cse_insn will try to do.  */
 
 static void
-cse_insn (rtx insn)
+try_back_substitute_reg (rtx set, rtx insn)
 {
-  rtx x = PATTERN (insn);
-  int i;
-  rtx tem;
-  int n_sets = 0;
+  rtx dest = SET_DEST (set);
+  rtx src = SET_SRC (set);
 
-  rtx src_eqv = 0;
-  struct table_elt *src_eqv_elt = 0;
-  int src_eqv_volatile = 0;
-  int src_eqv_in_memory = 0;
-  unsigned src_eqv_hash = 0;
-
-  struct set *sets = (struct set *) 0;
-
-  this_insn = insn;
-#ifdef HAVE_cc0
-  /* Records what this insn does to set CC0.  */
-  this_insn_cc0 = 0;
-  this_insn_cc0_mode = VOIDmode;
-#endif
-
-  /* Find all the SETs and CLOBBERs in this instruction.
-     Record all the SETs in the array `set' and count them.
-     Also determine whether there is a CLOBBER that invalidates
-     all memory references, or all references at varying addresses.  */
-
-  if (CALL_P (insn))
+  if (REG_P (dest)
+      && REG_P (src) && ! HARD_REGISTER_P (src)
+      && REGNO_QTY_VALID_P (REGNO (src)))
     {
-      for (tem = CALL_INSN_FUNCTION_USAGE (insn); tem; tem = XEXP (tem, 1))
+      int src_q = REG_QTY (REGNO (src));
+      struct qty_table_elem *src_ent = &qty_table[src_q];
+
+      if (src_ent->first_reg == REGNO (dest))
 	{
-	  if (GET_CODE (XEXP (tem, 0)) == CLOBBER)
-	    invalidate (SET_DEST (XEXP (tem, 0)), VOIDmode);
-	  XEXP (tem, 0) = canon_reg (XEXP (tem, 0), insn);
+	  /* Scan for the previous nonnote insn, but stop at a basic
+	     block boundary.  */
+	  rtx prev = insn;
+	  rtx bb_head = BB_HEAD (BLOCK_FOR_INSN (insn));
+	  do
+	    {
+	      prev = PREV_INSN (prev);
+	    }
+	  while (prev != bb_head && (NOTE_P (prev) || DEBUG_INSN_P (prev)));
+
+	  /* Do not swap the registers around if the previous instruction
+	     attaches a REG_EQUIV note to REG1.
+
+	     ??? It's not entirely clear whether we can transfer a REG_EQUIV
+	     from the pseudo that originally shadowed an incoming argument
+	     to another register.  Some uses of REG_EQUIV might rely on it
+	     being attached to REG1 rather than REG2.
+
+	     This section previously turned the REG_EQUIV into a REG_EQUAL
+	     note.  We cannot do that because REG_EQUIV may provide an
+	     uninitialized stack slot when REG_PARM_STACK_SPACE is used.  */
+	  if (NONJUMP_INSN_P (prev)
+	      && GET_CODE (PATTERN (prev)) == SET
+	      && SET_DEST (PATTERN (prev)) == src
+	      && ! find_reg_note (prev, REG_EQUIV, NULL_RTX))
+	    {
+	      rtx note;
+
+	      validate_change (prev, &SET_DEST (PATTERN (prev)), dest, 1);
+	      validate_change (insn, &SET_DEST (set), src, 1);
+	      validate_change (insn, &SET_SRC (set), dest, 1);
+	      apply_change_group ();
+
+	      /* If INSN has a REG_EQUAL note, and this note mentions
+		 REG0, then we must delete it, because the value in
+		 REG0 has changed.  If the note's value is REG1, we must
+		 also delete it because that is now this insn's dest.  */
+	      note = find_reg_note (insn, REG_EQUAL, NULL_RTX);
+	      if (note != 0
+		  && (reg_mentioned_p (dest, XEXP (note, 0))
+		      || rtx_equal_p (src, XEXP (note, 0))))
+		remove_note (insn, note);
+	    }
 	}
     }
+}
+
+/* Record all the SETs in this instruction into SETS_PTR,
+   and return the number of recorded sets.  */
+static int
+find_sets_in_insn (rtx insn, struct set **psets)
+{
+  struct set *sets = *psets;
+  int n_sets = 0;
+  rtx x = PATTERN (insn);
 
   if (GET_CODE (x) == SET)
     {
-      sets = XALLOCA (struct set);
-      sets[0].rtl = x;
-
       /* Ignore SETs that are unconditional jumps.
 	 They never need cse processing, so this does not hurt.
 	 The reason is not efficiency but rather
@@ -4182,57 +4232,20 @@ cse_insn (rtx insn)
       if (SET_DEST (x) == pc_rtx
 	  && GET_CODE (SET_SRC (x)) == LABEL_REF)
 	;
-
       /* Don't count call-insns, (set (reg 0) (call ...)), as a set.
 	 The hard function value register is used only once, to copy to
-	 someplace else, so it isn't worth cse'ing (and on 80386 is unsafe)!
-	 Ensure we invalidate the destination register.  On the 80386 no
-	 other code would invalidate it since it is a fixed_reg.
-	 We need not check the return of apply_change_group; see canon_reg.  */
-
+	 someplace else, so it isn't worth cse'ing.  */
       else if (GET_CODE (SET_SRC (x)) == CALL)
-	{
-	  canon_reg (SET_SRC (x), insn);
-	  apply_change_group ();
-	  fold_rtx (SET_SRC (x), insn);
-	  invalidate (SET_DEST (x), VOIDmode);
-	}
+	;
       else
-	n_sets = 1;
+	sets[n_sets++].rtl = x;
     }
   else if (GET_CODE (x) == PARALLEL)
     {
-      int lim = XVECLEN (x, 0);
+      int i, lim = XVECLEN (x, 0);
 
-      sets = XALLOCAVEC (struct set, lim);
-
-      /* Find all regs explicitly clobbered in this insn,
-	 and ensure they are not replaced with any other regs
-	 elsewhere in this insn.
-	 When a reg that is clobbered is also used for input,
-	 we should presume that that is for a reason,
-	 and we should not substitute some other register
-	 which is not supposed to be clobbered.
-	 Therefore, this loop cannot be merged into the one below
-	 because a CALL may precede a CLOBBER and refer to the
-	 value clobbered.  We must not let a canonicalization do
-	 anything in that case.  */
-      for (i = 0; i < lim; i++)
-	{
-	  rtx y = XVECEXP (x, 0, i);
-	  if (GET_CODE (y) == CLOBBER)
-	    {
-	      rtx clobbered = XEXP (y, 0);
-
-	      if (REG_P (clobbered)
-		  || GET_CODE (clobbered) == SUBREG)
-		invalidate (clobbered, VOIDmode);
-	      else if (GET_CODE (clobbered) == STRICT_LOW_PART
-		       || GET_CODE (clobbered) == ZERO_EXTRACT)
-		invalidate (XEXP (clobbered, 0), GET_MODE (clobbered));
-	    }
-	}
-
+      /* Go over the epressions of the PARALLEL in forward order, to
+	 put them in the same order in the SETS array.  */
       for (i = 0; i < lim; i++)
 	{
 	  rtx y = XVECEXP (x, 0, i);
@@ -4240,50 +4253,81 @@ cse_insn (rtx insn)
 	    {
 	      /* As above, we ignore unconditional jumps and call-insns and
 		 ignore the result of apply_change_group.  */
-	      if (GET_CODE (SET_SRC (y)) == CALL)
-		{
-		  canon_reg (SET_SRC (y), insn);
-		  apply_change_group ();
-		  fold_rtx (SET_SRC (y), insn);
-		  invalidate (SET_DEST (y), VOIDmode);
-		}
-	      else if (SET_DEST (y) == pc_rtx
-		       && GET_CODE (SET_SRC (y)) == LABEL_REF)
+	      if (SET_DEST (y) == pc_rtx
+		  && GET_CODE (SET_SRC (y)) == LABEL_REF)
+		;
+	      else if (GET_CODE (SET_SRC (y)) == CALL)
 		;
 	      else
 		sets[n_sets++].rtl = y;
 	    }
-	  else if (GET_CODE (y) == CLOBBER)
-	    {
-	      /* If we clobber memory, canon the address.
-		 This does nothing when a register is clobbered
-		 because we have already invalidated the reg.  */
-	      if (MEM_P (XEXP (y, 0)))
-		canon_reg (XEXP (y, 0), insn);
-	    }
-	  else if (GET_CODE (y) == USE
-		   && ! (REG_P (XEXP (y, 0))
-			 && REGNO (XEXP (y, 0)) < FIRST_PSEUDO_REGISTER))
-	    canon_reg (y, insn);
-	  else if (GET_CODE (y) == CALL)
-	    {
-	      /* The result of apply_change_group can be ignored; see
-		 canon_reg.  */
-	      canon_reg (y, insn);
-	      apply_change_group ();
-	      fold_rtx (y, insn);
-	    }
 	}
+    }
+
+  return n_sets;
+}
+
+/* Where possible, substitute every register reference in the N_SETS
+   number of SETS in INSN with the the canonical register.
+
+   Register canonicalization propagatest the earliest register (i.e.
+   one that is set before INSN) with the same value.  This is a very
+   useful, simple form of CSE, to clean up warts from expanding GIMPLE
+   to RTL.  For instance, a CONST for an address is usually expanded
+   multiple times to loads into different registers, thus creating many
+   subexpressions of the form:
+
+   (set (reg1) (some_const))
+   (set (mem (... reg1 ...) (thing)))
+   (set (reg2) (some_const))
+   (set (mem (... reg2 ...) (thing)))
+
+   After canonicalizing, the code takes the following form:
+
+   (set (reg1) (some_const))
+   (set (mem (... reg1 ...) (thing)))
+   (set (reg2) (some_const))
+   (set (mem (... reg1 ...) (thing)))
+
+   The set to reg2 is now trivially dead, and the memory reference (or
+   address, or whatever) may be a candidate for further CSEing.
+
+   In this function, the result of apply_change_group can be ignored;
+   see canon_reg.  */
+
+static void
+canonicalize_insn (rtx insn, struct set **psets, int n_sets)
+{
+  struct set *sets = *psets;
+  rtx tem;
+  rtx x = PATTERN (insn);
+  int i;
+
+  if (CALL_P (insn))
+    {
+      for (tem = CALL_INSN_FUNCTION_USAGE (insn); tem; tem = XEXP (tem, 1))
+	if (GET_CODE (XEXP (tem, 0)) != SET)
+	  XEXP (tem, 0) = canon_reg (XEXP (tem, 0), insn);
+    }
+
+  if (GET_CODE (x) == SET && GET_CODE (SET_SRC (x)) == CALL)
+    {
+      canon_reg (SET_SRC (x), insn);
+      apply_change_group ();
+      fold_rtx (SET_SRC (x), insn);
     }
   else if (GET_CODE (x) == CLOBBER)
     {
+      /* If we clobber memory, canon the address.
+	 This does nothing when a register is clobbered
+	 because we have already invalidated the reg.  */
       if (MEM_P (XEXP (x, 0)))
 	canon_reg (XEXP (x, 0), insn);
     }
-  /* Canonicalize a USE of a pseudo register or memory location.  */
   else if (GET_CODE (x) == USE
 	   && ! (REG_P (XEXP (x, 0))
 		 && REGNO (XEXP (x, 0)) < FIRST_PSEUDO_REGISTER))
+    /* Canonicalize a USE of a pseudo register or memory location.  */
     canon_reg (x, insn);
   else if (GET_CODE (x) == ASM_OPERANDS)
     {
@@ -4299,29 +4343,60 @@ cse_insn (rtx insn)
     }
   else if (GET_CODE (x) == CALL)
     {
-      /* The result of apply_change_group can be ignored; see canon_reg.  */
       canon_reg (x, insn);
       apply_change_group ();
       fold_rtx (x, insn);
     }
   else if (DEBUG_INSN_P (insn))
     canon_reg (PATTERN (insn), insn);
-
-  /* Store the equivalent value in SRC_EQV, if different, or if the DEST
-     is a STRICT_LOW_PART.  The latter condition is necessary because SRC_EQV
-     is handled specially for this case, and if it isn't set, then there will
-     be no equivalence for the destination.  */
-  if (n_sets == 1 && REG_NOTES (insn) != 0
-      && (tem = find_reg_note (insn, REG_EQUAL, NULL_RTX)) != 0
-      && (! rtx_equal_p (XEXP (tem, 0), SET_SRC (sets[0].rtl))
-	  || GET_CODE (SET_DEST (sets[0].rtl)) == STRICT_LOW_PART))
+  else if (GET_CODE (x) == PARALLEL)
     {
-      /* The result of apply_change_group can be ignored; see canon_reg.  */
-      canon_reg (XEXP (tem, 0), insn);
-      apply_change_group ();
-      src_eqv = fold_rtx (XEXP (tem, 0), insn);
-      XEXP (tem, 0) = copy_rtx (src_eqv);
-      df_notes_rescan (insn);
+      for (i = XVECLEN (x, 0) - 1; i >= 0; i--)
+	{
+	  rtx y = XVECEXP (x, 0, i);
+	  if (GET_CODE (y) == SET && GET_CODE (SET_SRC (y)) == CALL)
+	    {
+	      canon_reg (SET_SRC (y), insn);
+	      apply_change_group ();
+	      fold_rtx (SET_SRC (y), insn);
+	    }
+	  else if (GET_CODE (y) == CLOBBER)
+	    {
+	      if (MEM_P (XEXP (y, 0)))
+		canon_reg (XEXP (y, 0), insn);
+	    }
+	  else if (GET_CODE (y) == USE
+		   && ! (REG_P (XEXP (y, 0))
+			 && REGNO (XEXP (y, 0)) < FIRST_PSEUDO_REGISTER))
+	    canon_reg (y, insn);
+	  else if (GET_CODE (y) == CALL)
+	    {
+	      canon_reg (y, insn);
+	      apply_change_group ();
+	      fold_rtx (y, insn);
+	    }
+	}
+    }
+
+  if (n_sets == 1 && REG_NOTES (insn) != 0
+      && (tem = find_reg_note (insn, REG_EQUAL, NULL_RTX)) != 0)
+    {
+      /* We potentially will process this insn many times.  Therefore,
+	 drop the REG_EQUAL note if it is equal to the SET_SRC of the
+	 unique set in INSN.
+
+	 Do not do so if the REG_EQUAL note is for a STRICT_LOW_PART,
+	 because cse_insn handles those specially.  */
+      if (GET_CODE (SET_DEST (sets[0].rtl)) != STRICT_LOW_PART
+	  && rtx_equal_p (XEXP (tem, 0), SET_SRC (sets[0].rtl)))
+	remove_note (insn, tem);
+      else
+	{
+	  canon_reg (XEXP (tem, 0), insn);
+	  apply_change_group ();
+	  XEXP (tem, 0) = fold_rtx (XEXP (tem, 0), insn);
+	  df_notes_rescan (insn);
+	}
     }
 
   /* Canonicalize sources and addresses of destinations.
@@ -4368,6 +4443,62 @@ cse_insn (rtx insn)
      The result of apply_change_group can be ignored; see canon_reg.  */
 
   apply_change_group ();
+}
+
+/* Main function of CSE.
+   First simplify sources and addresses of all assignments
+   in the instruction, using previously-computed equivalents values.
+   Then install the new sources and destinations in the table
+   of available values.  */
+
+static void
+cse_insn (rtx insn)
+{
+  rtx x = PATTERN (insn);
+  int i;
+  rtx tem;
+  int n_sets = 0;
+
+  rtx src_eqv = 0;
+  struct table_elt *src_eqv_elt = 0;
+  int src_eqv_volatile = 0;
+  int src_eqv_in_memory = 0;
+  unsigned src_eqv_hash = 0;
+
+  struct set *sets = (struct set *) 0;
+
+  if (GET_CODE (x) == SET)
+    sets = XALLOCA (struct set);
+  else if (GET_CODE (x) == PARALLEL)
+    sets = XALLOCAVEC (struct set, XVECLEN (x, 0));
+
+  this_insn = insn;
+#ifdef HAVE_cc0
+  /* Records what this insn does to set CC0.  */
+  this_insn_cc0 = 0;
+  this_insn_cc0_mode = VOIDmode;
+#endif
+
+  /* Find all regs explicitly clobbered in this insn,
+     to ensure they are not replaced with any other regs
+     elsewhere in this insn.  */
+  invalidate_from_sets_and_clobbers (insn);
+
+  /* Record all the SETs in this instruction.  */
+  n_sets = find_sets_in_insn (insn, &sets);
+
+  /* Substitute the canonical register where possible.  */
+  canonicalize_insn (insn, &sets, n_sets);
+
+  /* If this insn has a REG_EQUAL note, store the equivalent value in SRC_EQV,
+     if different, or if the DEST is a STRICT_LOW_PART.  The latter condition
+     is necessary because SRC_EQV is handled specially for this case, and if
+     it isn't set, then there will be no equivalence for the destination.  */
+  if (n_sets == 1 && REG_NOTES (insn) != 0
+      && (tem = find_reg_note (insn, REG_EQUAL, NULL_RTX)) != 0
+      && (! rtx_equal_p (XEXP (tem, 0), SET_SRC (sets[0].rtl))
+	  || GET_CODE (SET_DEST (sets[0].rtl)) == STRICT_LOW_PART))
+    src_eqv = copy_rtx (XEXP (tem, 0));
 
   /* Set sets[i].src_elt to the class each source belongs to.
      Detect assignments from or to volatile things
@@ -5492,7 +5623,7 @@ cse_insn (rtx insn)
 	}
     }
 
-  invalidate_from_clobbers (x);
+  invalidate_from_clobbers (insn);
 
   /* Some registers are invalidated by subroutine calls.  Memory is
      invalidated by non-constant calls.  */
@@ -5788,64 +5919,8 @@ cse_insn (rtx insn)
 
      Also do not do this if we are operating on a copy of INSN.  */
 
-  if (n_sets == 1 && sets[0].rtl && REG_P (SET_DEST (sets[0].rtl))
-      && NEXT_INSN (PREV_INSN (insn)) == insn
-      && REG_P (SET_SRC (sets[0].rtl))
-      && REGNO (SET_SRC (sets[0].rtl)) >= FIRST_PSEUDO_REGISTER
-      && REGNO_QTY_VALID_P (REGNO (SET_SRC (sets[0].rtl))))
-    {
-      int src_q = REG_QTY (REGNO (SET_SRC (sets[0].rtl)));
-      struct qty_table_elem *src_ent = &qty_table[src_q];
-
-      if (src_ent->first_reg == REGNO (SET_DEST (sets[0].rtl)))
-	{
-	  /* Scan for the previous nonnote insn, but stop at a basic
-	     block boundary.  */
-	  rtx prev = insn;
-	  rtx bb_head = BB_HEAD (BLOCK_FOR_INSN (insn));
-	  do
-	    {
-	      prev = PREV_INSN (prev);
-	    }
-	  while (prev != bb_head && (NOTE_P (prev) || DEBUG_INSN_P (prev)));
-
-	  /* Do not swap the registers around if the previous instruction
-	     attaches a REG_EQUIV note to REG1.
-
-	     ??? It's not entirely clear whether we can transfer a REG_EQUIV
-	     from the pseudo that originally shadowed an incoming argument
-	     to another register.  Some uses of REG_EQUIV might rely on it
-	     being attached to REG1 rather than REG2.
-
-	     This section previously turned the REG_EQUIV into a REG_EQUAL
-	     note.  We cannot do that because REG_EQUIV may provide an
-	     uninitialized stack slot when REG_PARM_STACK_SPACE is used.  */
-	  if (NONJUMP_INSN_P (prev)
-	      && GET_CODE (PATTERN (prev)) == SET
-	      && SET_DEST (PATTERN (prev)) == SET_SRC (sets[0].rtl)
-	      && ! find_reg_note (prev, REG_EQUIV, NULL_RTX))
-	    {
-	      rtx dest = SET_DEST (sets[0].rtl);
-	      rtx src = SET_SRC (sets[0].rtl);
-	      rtx note;
-
-	      validate_change (prev, &SET_DEST (PATTERN (prev)), dest, 1);
-	      validate_change (insn, &SET_DEST (sets[0].rtl), src, 1);
-	      validate_change (insn, &SET_SRC (sets[0].rtl), dest, 1);
-	      apply_change_group ();
-
-	      /* If INSN has a REG_EQUAL note, and this note mentions
-		 REG0, then we must delete it, because the value in
-		 REG0 has changed.  If the note's value is REG1, we must
-		 also delete it because that is now this insn's dest.  */
-	      note = find_reg_note (insn, REG_EQUAL, NULL_RTX);
-	      if (note != 0
-		  && (reg_mentioned_p (dest, XEXP (note, 0))
-		      || rtx_equal_p (src, XEXP (note, 0))))
-		remove_note (insn, note);
-	    }
-	}
-    }
+  if (n_sets == 1 && sets[0].rtl)
+    try_back_substitute_reg (sets[0].rtl, insn);
 
 done:;
 }
@@ -5867,16 +5942,16 @@ invalidate_memory (void)
       }
 }
 
-/* Perform invalidation on the basis of everything about an insn
+/* Perform invalidation on the basis of everything about INSN,
    except for invalidating the actual places that are SET in it.
    This includes the places CLOBBERed, and anything that might
-   alias with something that is SET or CLOBBERed.
-
-   X is the pattern of the insn.  */
+   alias with something that is SET or CLOBBERed.  */
 
 static void
-invalidate_from_clobbers (rtx x)
+invalidate_from_clobbers (rtx insn)
 {
+  rtx x = PATTERN (insn);
+
   if (GET_CODE (x) == CLOBBER)
     {
       rtx ref = XEXP (x, 0);
@@ -5910,6 +5985,53 @@ invalidate_from_clobbers (rtx x)
     }
 }
 
+/* Perform invalidation on the basis of everything about INSN.
+   This includes the places CLOBBERed, and anything that might
+   alias with something that is SET or CLOBBERed.  */
+
+static void
+invalidate_from_sets_and_clobbers (rtx insn)
+{
+  rtx tem;
+  rtx x = PATTERN (insn);
+
+  if (CALL_P (insn))
+    {
+      for (tem = CALL_INSN_FUNCTION_USAGE (insn); tem; tem = XEXP (tem, 1))
+	if (GET_CODE (XEXP (tem, 0)) == CLOBBER)
+	  invalidate (SET_DEST (XEXP (tem, 0)), VOIDmode);
+    }
+
+  /* Ensure we invalidate the destination register of a CALL insn.
+     This is necessary for machines where this register is a fixed_reg,
+     because no other code would invalidate it.  */
+  if (GET_CODE (x) == SET && GET_CODE (SET_SRC (x)) == CALL)
+    invalidate (SET_DEST (x), VOIDmode);
+
+  else if (GET_CODE (x) == PARALLEL)
+    {
+      int i;
+
+      for (i = XVECLEN (x, 0) - 1; i >= 0; i--)
+	{
+	  rtx y = XVECEXP (x, 0, i);
+	  if (GET_CODE (y) == CLOBBER)
+	    {
+	      rtx clobbered = XEXP (y, 0);
+
+	      if (REG_P (clobbered)
+		  || GET_CODE (clobbered) == SUBREG)
+		invalidate (clobbered, VOIDmode);
+	      else if (GET_CODE (clobbered) == STRICT_LOW_PART
+		       || GET_CODE (clobbered) == ZERO_EXTRACT)
+		invalidate (XEXP (clobbered, 0), GET_MODE (clobbered));
+	    }
+	  else if (GET_CODE (y) == SET && GET_CODE (SET_SRC (y)) == CALL)
+	    invalidate (SET_DEST (y), VOIDmode);
+	}
+    }
+}
+
 /* Process X, part of the REG_NOTES of an insn.  Look at any REG_EQUAL notes
    and replace any registers in them with either an equivalent constant
    or the canonical form of the register.  If we are inside an address,
@@ -5928,13 +6050,10 @@ cse_process_notes_1 (rtx x, rtx object, bool *changed)
 
   switch (code)
     {
-    case CONST_INT:
     case CONST:
     case SYMBOL_REF:
     case LABEL_REF:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
-    case CONST_VECTOR:
+    CASE_CONST_ANY:
     case PC:
     case CC0:
     case LO_SUM:
@@ -6392,7 +6511,7 @@ cse_extended_basic_block (struct cse_basic_block_data *ebb_data)
    Return 1 if the CFG should be cleaned up because it has been modified.
    Return 0 otherwise.  */
 
-int
+static int
 cse_main (rtx f ATTRIBUTE_UNUSED, int nregs)
 {
   struct cse_basic_block_data ebb_data;
@@ -6536,10 +6655,7 @@ count_reg_usage (rtx x, int *counts, rtx dest, int incr)
     case PC:
     case CC0:
     case CONST:
-    case CONST_INT:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
-    case CONST_VECTOR:
+    CASE_CONST_ANY:
     case SYMBOL_REF:
     case LABEL_REF:
       return;
@@ -6566,10 +6682,11 @@ count_reg_usage (rtx x, int *counts, rtx dest, int incr)
     case CALL_INSN:
     case INSN:
     case JUMP_INSN:
-      /* We expect dest to be NULL_RTX here.  If the insn may trap,
+      /* We expect dest to be NULL_RTX here.  If the insn may throw,
 	 or if it cannot be deleted due to side-effects, mark this fact
 	 by setting DEST to pc_rtx.  */
-      if (insn_could_throw_p (x) || side_effects_p (PATTERN (x)))
+      if ((!cfun->can_delete_dead_exceptions && !insn_nothrow_p (x))
+	  || side_effects_p (PATTERN (x)))
 	dest = pc_rtx;
       if (code == CALL_INSN)
 	count_reg_usage (CALL_INSN_FUNCTION_USAGE (x), counts, dest, incr);
@@ -6674,7 +6791,7 @@ static bool
 insn_live_p (rtx insn, int *counts)
 {
   int i;
-  if (insn_could_throw_p (insn))
+  if (!cfun->can_delete_dead_exceptions && !insn_nothrow_p (insn))
     return true;
   else if (GET_CODE (PATTERN (insn)) == SET)
     return set_live_p (PATTERN (insn), insn, counts);
@@ -7324,7 +7441,7 @@ rest_of_handle_cse (void)
     {
       timevar_push (TV_JUMP);
       rebuild_jump_labels (get_insns ());
-      cleanup_cfg (0);
+      cleanup_cfg (CLEANUP_CFG_CHANGED);
       timevar_pop (TV_JUMP);
     }
   else if (tem == 1 || optimize > 1)
@@ -7384,7 +7501,7 @@ rest_of_handle_cse2 (void)
     {
       timevar_push (TV_JUMP);
       rebuild_jump_labels (get_insns ());
-      cleanup_cfg (0);
+      cleanup_cfg (CLEANUP_CFG_CHANGED);
       timevar_pop (TV_JUMP);
     }
   else if (tem == 1)
@@ -7445,7 +7562,7 @@ rest_of_handle_cse_after_global_opts (void)
     {
       timevar_push (TV_JUMP);
       rebuild_jump_labels (get_insns ());
-      cleanup_cfg (0);
+      cleanup_cfg (CLEANUP_CFG_CHANGED);
       timevar_pop (TV_JUMP);
     }
   else if (tem == 1)

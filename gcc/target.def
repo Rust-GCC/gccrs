@@ -427,6 +427,15 @@ DEFHOOK
  void, (rtx x),
  default_asm_output_anchor)
 
+DEFHOOK
+(output_ident,
+ "Output a string based on @var{name}, suitable for the @samp{#ident} \
+ directive, or the equivalent directive or pragma in non-C-family languages. \
+ If this hook is not defined, nothing is output for the @samp{#ident} \
+ directive.",
+ void, (const char *name),
+ hook_void_constcharptr)
+
 /* Output a DTP-relative reference to a TLS symbol.  */
 DEFHOOK
 (output_dwarf_dtprel,
@@ -678,11 +687,11 @@ DEFHOOK
    of INSN on CPU that are not described in DFA.
    READY_TRY and N_READY represent the current state of search in the
    optimization space.  The target can filter out instructions that
-   should not be tried after issueing INSN by setting corresponding
+   should not be tried after issuing INSN by setting corresponding
    elements in READY_TRY to non-zero.
    INSN is the instruction being evaluated.
    PREV_DATA is a pointer to target-specific data corresponding
-   to a state before issueing INSN.  */
+   to a state before issuing INSN.  */
 DEFHOOK
 (first_cycle_multipass_issue,
  "",
@@ -696,7 +705,7 @@ DEFHOOK
    described in DFA.
    READY_TRY and N_READY represent the current state of search in the
    optimization space.  The target can filter out instructions that
-   should not be tried after issueing INSN by setting corresponding
+   should not be tried after issuing INSN by setting corresponding
    elements in READY_TRY to non-zero.  */
 DEFHOOK
 (first_cycle_multipass_backtrack,
@@ -961,20 +970,6 @@ DEFHOOK
  tree, (unsigned code, tree dest_type, tree src_type),
  default_builtin_vectorized_conversion)
 
-/* Target builtin that implements vector widening multiplication.
-   builtin_mul_widen_eve computes the element-by-element products
-   for the even elements, and builtin_mul_widen_odd computes the
-   element-by-element products for the odd elements.  */
-DEFHOOK
-(builtin_mul_widen_even,
- "",
- tree, (tree x), NULL)
-
-DEFHOOK
-(builtin_mul_widen_odd,
- "",
- tree, (tree x), NULL)
-
 /* Cost of different vector/scalar statements in vectorization cost
    model. In case of misaligned vector loads and stores the cost depends
    on the data type and misalignment value.  */
@@ -1053,6 +1048,60 @@ DEFHOOK
  tree,
  (const_tree mem_vectype, const_tree index_type, int scale),
  NULL)
+
+/* Target function to initialize the cost model for a loop or block.  */
+DEFHOOK
+(init_cost,
+ "This hook should initialize target-specific data structures in preparation "
+ "for modeling the costs of vectorizing a loop or basic block.  The default "
+ "allocates three unsigned integers for accumulating costs for the prologue, "
+ "body, and epilogue of the loop or basic block.  If @var{loop_info} is "
+ "non-NULL, it identifies the loop being vectorized; otherwise a single block "
+ "is being vectorized.",
+ void *,
+ (struct loop *loop_info),
+ default_init_cost)
+
+/* Target function to record N statements of the given kind using the
+   given vector type within the cost model data for the current loop or
+    block.  */
+DEFHOOK
+(add_stmt_cost,
+ "This hook should update the target-specific @var{data} in response to "
+ "adding @var{count} copies of the given @var{kind} of statement to a "
+ "loop or basic block.  The default adds the builtin vectorizer cost for "
+ "the copies of the statement to the accumulator specified by @var{where}, "
+ "(the prologue, body, or epilogue) and returns the amount added.  The "
+ "return value should be viewed as a tentative cost that may later be "
+ "revised.",
+ unsigned,
+ (void *data, int count, enum vect_cost_for_stmt kind,
+  struct _stmt_vec_info *stmt_info, int misalign,
+  enum vect_cost_model_location where),
+ default_add_stmt_cost)
+
+/* Target function to calculate the total cost of the current vectorized
+   loop or block.  */
+DEFHOOK
+(finish_cost,
+ "This hook should complete calculations of the cost of vectorizing a loop "
+ "or basic block based on @var{data}, and return the prologue, body, and "
+ "epilogue costs as unsigned integers.  The default returns the value of "
+ "the three accumulators.",
+ void,
+ (void *data, unsigned *prologue_cost, unsigned *body_cost,
+  unsigned *epilogue_cost),
+ default_finish_cost)
+
+/* Function to delete target-specific cost modeling data.  */
+DEFHOOK
+(destroy_cost_data,
+ "This hook should release @var{data} and any related data structures "
+ "allocated by TARGET_VECTORIZE_INIT_COST.  The default releases the "
+ "accumulator.",
+ void,
+ (void *data),
+ default_destroy_cost_data)
 
 HOOK_VECTOR_END (vectorize)
 
@@ -1301,6 +1350,17 @@ DEFHOOK
  bool, (void),
  hook_bool_void_false)
 
+/* True if FOLLOWER may be modified to follow FOLLOWEE.  */
+DEFHOOK
+(can_follow_jump,
+ "FOLLOWER and FOLLOWEE are JUMP_INSN instructions;\
+  return true if FOLLOWER may be modified to follow FOLLOWEE;\
+  false, if it can't.\
+  For example, on some targets, certain kinds of branches can't be made to\
+  follow through a hot/cold partitioning.",
+ bool, (const_rtx follower, const_rtx followee),
+ hook_bool_const_rtx_const_rtx_true)
+
 /* Return a register class for which branch target register
    optimizations should be applied.  */
 DEFHOOK
@@ -1364,7 +1424,7 @@ DEFHOOK
 DEFHOOK
 (mode_dependent_address_p,
  "",
- bool, (const_rtx addr),
+ bool, (const_rtx addr, addr_space_t addrspace),
  default_mode_dependent_address_p)
 
 /* Given an invalid address X for a given machine mode, try machine-specific
@@ -1709,7 +1769,7 @@ DEFHOOK
 DEFHOOK
 (address_cost,
  "",
- int, (rtx address, bool speed),
+ int, (rtx address, enum machine_mode mode, addr_space_t as, bool speed),
  default_address_cost)
 
 /* Return where to allocate pseudo for a given hard register initial value.  */
@@ -1935,6 +1995,15 @@ DEFHOOK
  const char *, (const_rtx insn),
  default_invalid_within_doloop)
 
+/* Returns true for a legitimate combined insn.  */
+DEFHOOK
+(legitimate_combined_insn,
+"Take an instruction in @var{insn} and return @code{false} if the instruction\
+ is not appropriate as a combination of two or more instructions.  The\
+ default is to accept all instructions.",
+ bool, (rtx insn),
+ hook_bool_rtx_true)
+
 DEFHOOK
 (valid_dllimport_attribute_p,
 "@var{decl} is a variable or function with @code{__attribute__((dllimport))}\
@@ -1949,6 +2018,12 @@ DEFHOOKPOD
 (const_anchor,
  "",
  unsigned HOST_WIDE_INT, 0)
+
+/* Defines, which target-dependent bits (upper 16) are used by port  */
+DEFHOOK
+(memmodel_check,
+ "",
+ unsigned HOST_WIDE_INT, (unsigned HOST_WIDE_INT val), NULL)
 
 /* Functions relating to calls - argument passing, returns, etc.  */
 /* Members of struct call have no special macro prefix.  */
@@ -2276,6 +2351,14 @@ DEFHOOK
  "",
  tree, (tree type, tree expr),
  hook_tree_tree_tree_null)
+
+/* True if a structure, union or array with MODE containing FIELD should
+   be accessed using BLKmode.  */
+DEFHOOK
+(member_type_forces_blk,
+ "",
+ bool, (const_tree field, enum machine_mode mode),
+ default_member_type_forces_blk)
 
 /* Return the class for a secondary reload, and fill in extra information.  */
 DEFHOOK
@@ -2670,6 +2753,15 @@ DEFHOOK
  void, (struct hard_reg_set_container *),
  NULL)
 
+/* For targets that have attributes that can affect whether a
+   function's return statements need checking.  For instance a 'naked'
+   function attribute.  */
+DEFHOOK
+(warn_func_return,
+ "True if a function's return statements should be checked for matching the function's return type.  This includes checking for falling off the end of a non-void function.  Return false if no such check should be made.",
+ bool, (tree),
+ hook_bool_tree_true)
+
 /* Determine the type of unwind info to emit for debugging.  */
 DEFHOOK
 (debug_unwind_info,
@@ -2731,11 +2823,6 @@ DEFHOOKPOD
  "",
  bool, false)
 
-DEFHOOKPOD
-(handle_pragma_extern_prefix,
-"True if @code{#pragma extern_prefix} is to be supported.",
- bool, 0)
-
 /* True if the target is allowed to reorder memory accesses unless
    synchronization is explicitly requested.  */
 DEFHOOKPOD
@@ -2755,6 +2842,13 @@ DEFHOOKPOD
  "True if the @code{.debug_pubtypes} and @code{.debug_pubnames} sections\
  should be emitted.  These sections are not used on most platforms, and\
  in particular GDB does not use them.",
+ bool, false)
+
+DEFHOOKPOD
+(force_at_comp_dir,
+ "True if the @code{DW_AT_comp_dir} attribute should be emitted for each \
+ compilation unit.  This attribute is required for the darwin linker \
+ to emit debug information.",
  bool, false)
 
 DEFHOOKPOD

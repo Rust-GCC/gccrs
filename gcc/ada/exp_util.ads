@@ -72,8 +72,8 @@ package Exp_Util is
    --    For actions appearing in the then or else expression of a conditional
    --    expression, these actions are similarly placed in the node, using the
    --    Then_Actions or Else_Actions field as appropriate. Once again the
-   --    expansion of the N_Conditional_Expression node rewrites the node so
-   --    that the actions can be normally positioned.
+   --    expansion of the N_If_Expression node rewrites the node so that the
+   --    actions can be positioned normally.
 
    --  Basically what we do is to climb up to the tree looking for the
    --  proper insertion point, as described by one of the above cases,
@@ -521,11 +521,12 @@ package Exp_Util is
    --  False otherwise. True for an empty list. It is an error to call this
    --  routine with No_List as the argument.
 
-   function Is_Displacement_Of_Ctrl_Function_Result
+   function Is_Displacement_Of_Object_Or_Function_Result
      (Obj_Id : Entity_Id) return Boolean;
-   --  Determine whether Obj_Id is a source object that has been initialized by
-   --  a controlled function call later rewritten as a class-wide conversion of
-   --  Ada.Tags.Displace.
+   --  Determine whether Obj_Id is a source entity that has been initialized by
+   --  either a controlled function call or the assignment of another source
+   --  object. In both cases the initialization expression is rewritten as a
+   --  class-wide conversion of Ada.Tags.Displace.
 
    function Is_Finalizable_Transient
      (Decl     : Node_Id;
@@ -548,12 +549,19 @@ package Exp_Util is
    --  Return True if Typ is a library level tagged type. Currently we use
    --  this information to build statically allocated dispatch tables.
 
-   function Is_Null_Access_BIP_Func_Call (Expr : Node_Id) return Boolean;
-   --  Determine whether node Expr denotes a build-in-place function call with
-   --  a value of "null" for extra formal BIPaccess.
-
    function Is_Non_BIP_Func_Call (Expr : Node_Id) return Boolean;
    --  Determine whether node Expr denotes a non build-in-place function call
+
+   function Is_Possibly_Unaligned_Object (N : Node_Id) return Boolean;
+   --  Node N is an object reference. This function returns True if it is
+   --  possible that the object may not be aligned according to the normal
+   --  default alignment requirement for its type (e.g. if it appears in a
+   --  packed record, or as part of a component that has a component clause.)
+
+   function Is_Possibly_Unaligned_Slice (N : Node_Id) return Boolean;
+   --  Determine whether the node P is a slice of an array where the slice
+   --  result may cause alignment problems because it has an alignment that
+   --  is not compatible with the type. Return True if so.
 
    function Is_Ref_To_Bit_Packed_Array (N : Node_Id) return Boolean;
    --  Determine whether the node P is a reference to a bit packed array, i.e.
@@ -571,17 +579,6 @@ package Exp_Util is
    --  Determine whether object Id is related to an expanded return statement.
    --  The case concerned is "return Id.all;".
 
-   function Is_Possibly_Unaligned_Slice (N : Node_Id) return Boolean;
-   --  Determine whether the node P is a slice of an array where the slice
-   --  result may cause alignment problems because it has an alignment that
-   --  is not compatible with the type. Return True if so.
-
-   function Is_Possibly_Unaligned_Object (N : Node_Id) return Boolean;
-   --  Node N is an object reference. This function returns True if it is
-   --  possible that the object may not be aligned according to the normal
-   --  default alignment requirement for its type (e.g. if it appears in a
-   --  packed record, or as part of a component that has a component clause.)
-
    function Is_Renamed_Object (N : Node_Id) return Boolean;
    --  Returns True if the node N is a renamed object. An expression is
    --  considered to be a renamed object if either it is the Name of an object
@@ -592,6 +589,10 @@ package Exp_Util is
    --
    --  We consider that a (1 .. 2) is a renamed object since it is the prefix
    --  of the name in the renaming declaration.
+
+   function Is_Secondary_Stack_BIP_Func_Call (Expr : Node_Id) return Boolean;
+   --  Determine whether Expr denotes a build-in-place function which returns
+   --  its result on the secondary stack.
 
    function Is_Tag_To_Class_Wide_Conversion
      (Obj_Id : Entity_Id) return Boolean;
@@ -743,14 +744,17 @@ package Exp_Util is
    --  terms is scalar. This is true for scalars in the Ada sense, and for
    --  packed arrays which are represented by a scalar (modular) type.
 
-   function Requires_Cleanup_Actions (N : Node_Id) return Boolean;
+   function Requires_Cleanup_Actions
+     (N         : Node_Id;
+      Lib_Level : Boolean) return Boolean;
    --  Given a node N, determine whether its declarative and/or statement list
    --  contains one of the following:
    --
    --    1) controlled objects
    --    2) library-level tagged types
    --
-   --  The above cases require special actions on scope exit.
+   --  These cases require special actions on scope exit. The flag Lib_Level
+   --  is set True if the construct is at library level, and False otherwise.
 
    function Safe_Unchecked_Type_Conversion (Exp : Node_Id) return Boolean;
    --  Given the node for an N_Unchecked_Type_Conversion, return True if this

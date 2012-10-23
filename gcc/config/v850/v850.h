@@ -786,8 +786,14 @@ typedef enum
 #define DEFAULT_GDB_EXTENSIONS 1
 
 /* Use stabs debugging info by default.  */
-#undef PREFERRED_DEBUGGING_TYPE
-#define PREFERRED_DEBUGGING_TYPE DBX_DEBUG
+#undef  PREFERRED_DEBUGGING_TYPE
+#define PREFERRED_DEBUGGING_TYPE  DBX_DEBUG
+#define DBX_DEBUGGING_INFO        1
+
+#ifndef ASM_GENERATE_INTERNAL_LABEL
+#define ASM_GENERATE_INTERNAL_LABEL(STRING, PREFIX, NUM)  \
+  sprintf (STRING, "*.%s%u", PREFIX, (unsigned int)(NUM))
+#endif
 
 /* Specify the machine mode that this machine uses
    for the index in the tablejump instruction.  */
@@ -811,10 +817,6 @@ typedef enum
 
 /* Byte and short loads sign extend the value to a word.  */
 #define LOAD_EXTEND_OP(MODE) SIGN_EXTEND
-
-/* This flag, if defined, says the same insns that convert to a signed fixnum
-   also convert validly to an unsigned one.  */
-#define FIXUNS_TRUNC_LIKE_FIX_TRUNC
 
 /* Max number of bytes we can move from memory to memory
    in one reasonably fast instruction.  */

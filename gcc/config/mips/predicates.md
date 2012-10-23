@@ -139,9 +139,6 @@
 		(match_operand 0 "hilo_operand")
 		(match_operand 0 "register_operand")))
 
-(define_special_predicate "pc_or_label_operand"
-  (match_code "pc,label_ref"))
-
 (define_predicate "const_call_insn_operand"
   (match_code "const,symbol_ref,label_ref")
 {
@@ -370,3 +367,7 @@
 (define_predicate "small_data_pattern"
   (and (match_code "set,parallel,unspec,unspec_volatile,prefetch")
        (match_test "mips_small_data_pattern_p (op)")))
+
+(define_predicate "mem_noofs_operand"
+  (and (match_code "mem")
+       (match_code "reg" "0")))

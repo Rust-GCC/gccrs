@@ -36,11 +36,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "insn-attr.h"
 #include "except.h"
 #include "recog.h"
-#include "cfglayout.h"
 #include "params.h"
 #include "sched-int.h"
 #include "target.h"
-#include "output.h"
 
 
 #ifdef INSN_SCHEDULING
@@ -546,7 +544,7 @@ schedule_ebb (rtx head, rtx tail, bool modulo_scheduling)
 
   /* Make ready list big enough to hold all the instructions from the ebb.  */
   sched_extend_ready_list (rgn_n_insns);
-  success = schedule_block (&target_bb);
+  success = schedule_block (&target_bb, NULL);
   gcc_assert (success || modulo_scheduling);
 
   /* Free ready list.  */

@@ -28,15 +28,15 @@
 #include "input.h"
 #include "function.h"
 #include "tm_p.h"
-#include "tree-pass.h"
+#include "tree-pass.h"	/* for current_pass */
 
 /* This file supplies some functions for AVR back-end developers
    with a printf-like interface.  The functions are called through
    macros avr_edump or avr_fdump from avr-protos.h:
 
-      avr_edump (const char * fmt, ...);
+      avr_edump (const char *fmt, ...);
 
-      avr_fdump (FILE * stream, const char * fmt, ...);
+      avr_fdump (FILE *stream, const char *fmt, ...);
 
    avr_edump (fmt, ...) is a shortcut for avr_fdump (stderr, fmt, ...)
 
@@ -144,15 +144,12 @@ avr_log_set_caller_f (const char *caller)
 static unsigned
 avr_double_int_pop_digit (double_int *cst, unsigned base)
 {
-  unsigned HOST_WIDE_INT resl, reml;
-  HOST_WIDE_INT resh, remh;
+  double_int drem;
 
-  div_and_round_double (FLOOR_DIV_EXPR, true, cst->low, cst->high, base, 0,
-			&resl, &resh, &reml, &remh);
-  cst->high = resh;
-  cst->low = resl;
+  *cst = cst->udivmod (double_int::from_uhwi (base), (int) FLOOR_DIV_EXPR,
+                       &drem);
 
-  return reml;
+  return (unsigned) drem.to_uhwi();
 }
 
 
@@ -284,15 +281,15 @@ avr_log_vadump (FILE *file, const char *fmt, va_list ap)
               break;
                         
             case 'm':
-              fputs (GET_MODE_NAME (va_arg (ap, enum machine_mode)), file);
+              fputs (GET_MODE_NAME ((enum machine_mode) va_arg (ap, int)), file);
               break;
               
             case 'C':
-              fputs (rtx_name[va_arg (ap, enum rtx_code)], file);
+              fputs (rtx_name[va_arg (ap, int)], file);
               break;
               
             case 'R':
-              fputs (reg_class_names[va_arg (ap, enum reg_class)], file);
+              fputs (reg_class_names[va_arg (ap, int)], file);
               break;
               
             case 'F':

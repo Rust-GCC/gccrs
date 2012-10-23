@@ -49,14 +49,11 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm.h"
 
 #include "tree.h"
-#include "tree-pretty-print.h"
 #include "gimple-pretty-print.h"
 #include "basic-block.h"
 #include "tree-flow.h"
 #include "gimple.h"
-#include "tree-dump.h"
 #include "tree-pass.h"
-#include "timevar.h"
 #include "flags.h"
 #include "cfgloop.h"
 #include "tree-scalar-evolution.h"
@@ -272,8 +269,10 @@ static void
 mark_stmt_if_obviously_necessary (gimple stmt, bool aggressive)
 {
   /* With non-call exceptions, we have to assume that all statements could
-     throw.  If a statement may throw, it is inherently necessary.  */
-  if (cfun->can_throw_non_call_exceptions && stmt_could_throw_p (stmt))
+     throw.  If a statement could throw, it can be deemed necessary.  */
+  if (cfun->can_throw_non_call_exceptions
+      && !cfun->can_delete_dead_exceptions
+      && stmt_could_throw_p (stmt))
     {
       mark_stmt_necessary (stmt, true);
       return;
@@ -370,7 +369,7 @@ mark_stmt_if_obviously_necessary (gimple stmt, bool aggressive)
       return;
     }
 
-  if (is_hidden_global_store (stmt))
+  if (stmt_may_clobber_global_p (stmt))
     {
       mark_stmt_necessary (stmt, true);
       return;
@@ -721,7 +720,7 @@ propagate_necessity (struct edge_list *el)
       if (gimple_code (stmt) == GIMPLE_PHI
 	  /* We do not process virtual PHI nodes nor do we track their
 	     necessity.  */
-	  && is_gimple_reg (gimple_phi_result (stmt)))
+	  && !virtual_operand_p (gimple_phi_result (stmt)))
 	{
 	  /* PHI nodes are somewhat special in that each PHI alternative has
 	     data and control dependencies.  All the statements feeding the
@@ -996,31 +995,32 @@ propagate_necessity (struct edge_list *el)
 }
 
 /* Replace all uses of NAME by underlying variable and mark it
-   for renaming.  */
+   for renaming.  This assumes the defining statement of NAME is
+   going to be removed.  */
 
 void
 mark_virtual_operand_for_renaming (tree name)
 {
+  tree name_var = SSA_NAME_VAR (name);
   bool used = false;
   imm_use_iterator iter;
   use_operand_p use_p;
   gimple stmt;
-  tree name_var;
 
-  name_var = SSA_NAME_VAR (name);
+  gcc_assert (VAR_DECL_IS_VIRTUAL_OPERAND (name_var));
   FOR_EACH_IMM_USE_STMT (stmt, iter, name)
     {
       FOR_EACH_IMM_USE_ON_STMT (use_p, iter)
         SET_USE (use_p, name_var);
-      update_stmt (stmt);
       used = true;
     }
   if (used)
-    mark_sym_for_renaming (name_var);
+    mark_virtual_operands_for_renaming (cfun);
 }
 
-/* Replace all uses of result of PHI by underlying variable and mark it
-   for renaming.  */
+/* Replace all uses of the virtual PHI result by its underlying variable
+   and mark it for renaming.  This assumes the PHI node is going to be
+   removed.  */
 
 void
 mark_virtual_phi_result_for_renaming (gimple phi)
@@ -1042,19 +1042,17 @@ static bool
 remove_dead_phis (basic_block bb)
 {
   bool something_changed = false;
-  gimple_seq phis;
   gimple phi;
   gimple_stmt_iterator gsi;
-  phis = phi_nodes (bb);
 
-  for (gsi = gsi_start (phis); !gsi_end_p (gsi);)
+  for (gsi = gsi_start_phis (bb); !gsi_end_p (gsi);)
     {
       stats.total_phis++;
       phi = gsi_stmt (gsi);
 
       /* We do not track necessity of virtual PHI nodes.  Instead do
          very simple dead PHI removal here.  */
-      if (!is_gimple_reg (gimple_phi_result (phi)))
+      if (virtual_operand_p (gimple_phi_result (phi)))
 	{
 	  /* Virtual PHI nodes with one or identical arguments
 	     can be removed.  */
@@ -1132,7 +1130,7 @@ forward_edge_to_pdom (edge e, basic_block post_dom_bb)
 
 	  /* PHIs for virtuals have no control dependency relation on them.
 	     We are lost here and must force renaming of the symbol.  */
-	  if (!is_gimple_reg (gimple_phi_result (phi)))
+	  if (virtual_operand_p (gimple_phi_result (phi)))
 	    {
 	      mark_virtual_phi_result_for_renaming (phi);
 	      remove_phi_node (&gsi, true);
@@ -1393,7 +1391,7 @@ eliminate_unnecessary_stmts (void)
 	      || !(bb->flags & BB_REACHABLE))
 	    {
 	      for (gsi = gsi_start_phis (bb); !gsi_end_p (gsi); gsi_next (&gsi))
-		if (!is_gimple_reg (gimple_phi_result (gsi_stmt (gsi))))
+		if (virtual_operand_p (gimple_phi_result (gsi_stmt (gsi))))
 		  {
 		    bool found = false;
 		    imm_use_iterator iter;

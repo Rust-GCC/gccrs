@@ -1,14 +1,14 @@
-2012-09-20  Release Manager
+2012-09-14  David Edelsohn  <dje.gcc@gmail.com>
 
-	* GCC 4.7.2 released.
+	* configure: Regenerated.
 
-2012-06-14  Release Manager
+2012-05-29  Joseph Myers  <joseph@codesourcery.com>
 
-	* GCC 4.7.1 released.
+	* lto-plugin.c: Fix typo.
 
-2012-03-22  Release Manager
+2012-05-16  H.J. Lu  <hongjiu.lu@intel.com>
 
-	* GCC 4.7.0 released.
+	* configure: Regenerated.
 
 2012-02-22  Kai Tietz  <ktietz@redhat.com>
 

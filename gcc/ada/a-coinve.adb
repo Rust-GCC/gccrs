@@ -90,8 +90,7 @@ package body Ada.Containers.Indefinite_Vectors is
             RE : Elements_Array renames
                    Right.Elements.EA (Index_Type'First .. Right.Last);
 
-            Elements : Elements_Access :=
-                         new Elements_Type (Right.Last);
+            Elements : Elements_Access := new Elements_Type (Right.Last);
 
          begin
             --  Elements of an indefinite vector are allocated, so we cannot
@@ -126,8 +125,7 @@ package body Ada.Containers.Indefinite_Vectors is
             LE : Elements_Array renames
                    Left.Elements.EA (Index_Type'First .. Left.Last);
 
-            Elements : Elements_Access :=
-                         new Elements_Type (Left.Last);
+            Elements : Elements_Access := new Elements_Type (Left.Last);
 
          begin
             --  Elements of an indefinite vector are allocated, so we cannot
@@ -348,8 +346,7 @@ package body Ada.Containers.Indefinite_Vectors is
          LE : Elements_Array renames
                  Left.Elements.EA (Index_Type'First .. Left.Last);
 
-         Elements : Elements_Access :=
-                       new Elements_Type (Last);
+         Elements : Elements_Access := new Elements_Type (Last);
 
       begin
          for I in LE'Range loop
@@ -433,8 +430,7 @@ package body Ada.Containers.Indefinite_Vectors is
          RE : Elements_Array renames
                 Right.Elements.EA (Index_Type'First .. Right.Last);
 
-         Elements : Elements_Access :=
-                      new Elements_Type (Last);
+         Elements : Elements_Access := new Elements_Type (Last);
 
          I : Index_Type'Base := Index_Type'First;
 
@@ -717,9 +713,8 @@ package body Ada.Containers.Indefinite_Vectors is
          L : Natural renames C.Lock;
       begin
          return R : constant Constant_Reference_Type :=
-                      (Element => E.all'Access,
-                       Control =>
-                         (Controlled with Container'Unrestricted_Access))
+           (Element => E.all'Access,
+            Control => (Controlled with Container'Unrestricted_Access))
          do
             B := B + 1;
             L := L + 1;
@@ -750,9 +745,8 @@ package body Ada.Containers.Indefinite_Vectors is
          L : Natural renames C.Lock;
       begin
          return R : constant Constant_Reference_Type :=
-                      (Element => E.all'Access,
-                       Control =>
-                         (Controlled with Container'Unrestricted_Access))
+           (Element => E.all'Access,
+            Control => (Controlled with Container'Unrestricted_Access))
          do
             B := B + 1;
             L := L + 1;
@@ -1138,7 +1132,7 @@ package body Ada.Containers.Indefinite_Vectors is
 
       declare
          EA : constant Element_Access :=
-                Position.Container.Elements.EA (Position.Index);
+           Position.Container.Elements.EA (Position.Index);
 
       begin
          if EA = null then
@@ -1287,7 +1281,7 @@ package body Ada.Containers.Indefinite_Vectors is
 
       declare
          EA : constant Element_Access :=
-                Container.Elements.EA (Index_Type'First);
+           Container.Elements.EA (Index_Type'First);
 
       begin
          if EA = null then
@@ -1698,7 +1692,16 @@ package body Ada.Containers.Indefinite_Vectors is
             --  value, in case the allocation fails (either because there is no
             --  storage available, or because element initialization fails).
 
-            Container.Elements.EA (Idx) := new Element_Type'(New_Item);
+            declare
+               --  The element allocator may need an accessibility check in the
+               --  case actual type is class-wide or has access discriminants
+               --  (see RM 4.8(10.1) and AI12-0035).
+
+               pragma Unsuppress (Accessibility_Check);
+
+            begin
+               Container.Elements.EA (Idx) := new Element_Type'(New_Item);
+            end;
 
             --  The allocation of the element succeeded, so it is now safe to
             --  update the Last index, restoring container invariants.
@@ -1744,7 +1747,16 @@ package body Ada.Containers.Indefinite_Vectors is
                   --  because there is no storage available, or because element
                   --  initialization fails).
 
-                  E (Idx) := new Element_Type'(New_Item);
+                  declare
+                     --  The element allocator may need an accessibility check
+                     --  in case the actual type is class-wide or has access
+                     --  discriminants (see RM 4.8(10.1) and AI12-0035).
+
+                     pragma Unsuppress (Accessibility_Check);
+
+                  begin
+                     E (Idx) := new Element_Type'(New_Item);
+                  end;
 
                   --  The allocation of the element succeeded, so it is now
                   --  safe to update the Last index, restoring container
@@ -1780,6 +1792,14 @@ package body Ada.Containers.Indefinite_Vectors is
                --  K always has a value if the exception handler triggers.
 
                K := Before;
+
+               declare
+                  --  The element allocator may need an accessibility check in
+                  --  the case the actual type is class-wide or has access
+                  --  discriminants (see RM 4.8(10.1) and AI12-0035).
+
+                  pragma Unsuppress (Accessibility_Check);
+
                begin
                   while K < Index loop
                      E (K) := new Element_Type'(New_Item);
@@ -1885,7 +1905,16 @@ package body Ada.Containers.Indefinite_Vectors is
                --  because there is no storage available, or because element
                --  initialization fails).
 
-               Dst.EA (Idx) := new Element_Type'(New_Item);
+               declare
+                  --  The element allocator may need an accessibility check in
+                  --  the case the actual type is class-wide or has access
+                  --  discriminants (see RM 4.8(10.1) and AI12-0035).
+
+                  pragma Unsuppress (Accessibility_Check);
+
+               begin
+                  Dst.EA (Idx) := new Element_Type'(New_Item);
+               end;
 
                --  The allocation of the element succeeded, so it is now safe
                --  to update the Last index, restoring container invariants.
@@ -1925,7 +1954,16 @@ package body Ada.Containers.Indefinite_Vectors is
                --  already been updated), so if this allocation fails we simply
                --  let it propagate.
 
-               Dst.EA (Idx) := new Element_Type'(New_Item);
+               declare
+                  --  The element allocator may need an accessibility check in
+                  --  the case the actual type is class-wide or has access
+                  --  discriminants (see RM 4.8(10.1) and AI12-0035).
+
+                  pragma Unsuppress (Accessibility_Check);
+
+               begin
+                  Dst.EA (Idx) := new Element_Type'(New_Item);
+               end;
             end loop;
          end if;
       end;
@@ -2664,9 +2702,9 @@ package body Ada.Containers.Indefinite_Vectors is
       --  for a reverse iterator, Container.Last is the beginning.
 
       return It : constant Iterator :=
-                    (Limited_Controlled with
-                       Container => V,
-                       Index     => No_Index)
+        (Limited_Controlled with
+           Container => V,
+           Index     => No_Index)
       do
          B := B + 1;
       end return;
@@ -2717,9 +2755,9 @@ package body Ada.Containers.Indefinite_Vectors is
       --  is a forward or reverse iteration.
 
       return It : constant Iterator :=
-                    (Limited_Controlled with
-                       Container => V,
-                       Index     => Start.Index)
+        (Limited_Controlled with
+           Container => V,
+           Index     => Start.Index)
       do
          B := B + 1;
       end return;
@@ -2772,7 +2810,7 @@ package body Ada.Containers.Indefinite_Vectors is
 
       declare
          EA : constant Element_Access :=
-                Container.Elements.EA (Container.Last);
+           Container.Elements.EA (Container.Last);
 
       begin
          if EA = null then
@@ -3111,8 +3149,8 @@ package body Ada.Containers.Indefinite_Vectors is
          L : Natural renames C.Lock;
       begin
          return R : constant Reference_Type :=
-                      (Element => E.all'Access,
-                       Control => (Controlled with Position.Container))
+           (Element => E.all'Access,
+            Control => (Controlled with Position.Container))
          do
             B := B + 1;
             L := L + 1;
@@ -3143,9 +3181,8 @@ package body Ada.Containers.Indefinite_Vectors is
          L : Natural renames C.Lock;
       begin
          return R : constant Reference_Type :=
-                      (Element => E.all'Access,
-                       Control =>
-                         (Controlled with Container'Unrestricted_Access))
+           (Element => E.all'Access,
+            Control => (Controlled with Container'Unrestricted_Access))
          do
             B := B + 1;
             L := L + 1;
@@ -3174,6 +3211,13 @@ package body Ada.Containers.Indefinite_Vectors is
 
       declare
          X : Element_Access := Container.Elements.EA (Index);
+
+         --  The element allocator may need an accessibility check in the case
+         --  where the actual type is class-wide or has access discriminants
+         --  (see RM 4.8(10.1) and AI12-0035).
+
+         pragma Unsuppress (Accessibility_Check);
+
       begin
          Container.Elements.EA (Index) := new Element_Type'(New_Item);
          Free (X);
@@ -3205,6 +3249,13 @@ package body Ada.Containers.Indefinite_Vectors is
 
       declare
          X : Element_Access := Container.Elements.EA (Position.Index);
+
+         --  The element allocator may need an accessibility check in the case
+         --  where the actual type is class-wide or has access discriminants
+         --  (see RM 4.8(10.1) and AI12-0035).
+
+         pragma Unsuppress (Accessibility_Check);
+
       begin
          Container.Elements.EA (Position.Index) := new Element_Type'(New_Item);
          Free (X);
@@ -3594,7 +3645,7 @@ package body Ada.Containers.Indefinite_Vectors is
       Index     : Index_Type := Index_Type'Last) return Extended_Index
    is
       Last : constant Index_Type'Base :=
-               (if Index > Container.Last then Container.Last else Index);
+        (if Index > Container.Last then Container.Last else Index);
    begin
       for Indx in reverse Index_Type'First .. Last loop
          if Container.Elements.EA (Indx) /= null
@@ -3948,6 +3999,13 @@ package body Ada.Containers.Indefinite_Vectors is
       --  is no ambiguity.
 
       Last := Index_Type'First;
+
+      declare
+         --  The element allocator may need an accessibility check in the case
+         --  where the actual type is class-wide or has access discriminants
+         --  (see RM 4.8(10.1) and AI12-0035).
+
+         pragma Unsuppress (Accessibility_Check);
 
       begin
          loop

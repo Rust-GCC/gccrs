@@ -152,7 +152,8 @@ static void iq2000_setup_incoming_varargs (cumulative_args_t,
 					   enum machine_mode, tree, int *,
 					   int);
 static bool iq2000_rtx_costs          (rtx, int, int, int, int *, bool);
-static int  iq2000_address_cost       (rtx, bool);
+static int  iq2000_address_cost       (rtx, enum machine_mode, addr_space_t,
+				       bool);
 static section *iq2000_select_section (tree, int, unsigned HOST_WIDE_INT);
 static rtx  iq2000_legitimize_address (rtx, rtx, enum machine_mode);
 static bool iq2000_pass_by_reference  (cumulative_args_t, enum machine_mode,
@@ -779,7 +780,8 @@ iq2000_move_1word (rtx operands[], rtx insn, int unsignedp)
 /* Provide the costs of an addressing mode that contains ADDR.  */
 
 static int
-iq2000_address_cost (rtx addr, bool speed)
+iq2000_address_cost (rtx addr, enum machine_mode mode, addr_space_t as,
+		     bool speed)
 {
   switch (GET_CODE (addr))
     {
@@ -830,7 +832,7 @@ iq2000_address_cost (rtx addr, bool speed)
 	  case LABEL_REF:
 	  case HIGH:
 	  case LO_SUM:
-	    return iq2000_address_cost (plus1, speed) + 1;
+	    return iq2000_address_cost (plus1, mode, as, speed) + 1;
 
 	  default:
 	    break;
@@ -1076,7 +1078,7 @@ gen_conditional_branch (rtx operands[], enum machine_mode mode)
   emit_jump_insn (gen_rtx_SET (VOIDmode, pc_rtx,
 			       gen_rtx_IF_THEN_ELSE (VOIDmode,
 						     gen_rtx_fmt_ee (test_code,
-								     mode,
+								     VOIDmode,
 								     cmp0, cmp1),
 						     label1, label2)));
 }
@@ -1140,7 +1142,7 @@ iq2000_function_arg_advance (cumulative_args_t cum_v, enum machine_mode mode,
 	       "function_adv({gp reg found = %d, arg # = %2d, words = %2d}, %4s, ",
 	       cum->gp_reg_found, cum->arg_number, cum->arg_words,
 	       GET_MODE_NAME (mode));
-      fprintf (stderr, "%p", CONST_CAST2 (void *, const_tree,  type));
+      fprintf (stderr, "%p", type);
       fprintf (stderr, ", %d )\n\n", named);
     }
 
@@ -1412,7 +1414,7 @@ iq2000_va_start (tree valist, rtx nextarg)
 
   /* Everything is in the GPR save area, or in the overflow
      area which is contiguous with it.  */
-  nextarg = plus_constant (nextarg, - gpr_save_area_size);
+  nextarg = plus_constant (Pmode, nextarg, - gpr_save_area_size);
   std_expand_builtin_va_start (valist, nextarg);
 }
 
@@ -1783,7 +1785,7 @@ iq2000_annotate_frame_insn (rtx insn, rtx dwarf_pattern)
 static void
 iq2000_emit_frame_related_store (rtx mem, rtx reg, HOST_WIDE_INT offset)
 {
-  rtx dwarf_address = plus_constant (stack_pointer_rtx, offset);
+  rtx dwarf_address = plus_constant (Pmode, stack_pointer_rtx, offset);
   rtx dwarf_mem = gen_rtx_MEM (GET_MODE (reg), dwarf_address);
 
   iq2000_annotate_frame_insn (emit_move_insn (mem, reg),
@@ -2031,7 +2033,8 @@ iq2000_expand_prologue (void)
 				    adjustment_rtx));
 
       dwarf_pattern = gen_rtx_SET (Pmode, stack_pointer_rtx,
-				   plus_constant (stack_pointer_rtx, -tsize));
+				   plus_constant (Pmode, stack_pointer_rtx,
+						  -tsize));
 
       iq2000_annotate_frame_insn (insn, dwarf_pattern);
 
@@ -2120,7 +2123,7 @@ iq2000_expand_eh_return (rtx address)
   HOST_WIDE_INT gp_offset = cfun->machine->gp_sp_offset;
   rtx scratch;
 
-  scratch = plus_constant (stack_pointer_rtx, gp_offset);
+  scratch = plus_constant (Pmode, stack_pointer_rtx, gp_offset);
   emit_move_insn (gen_rtx_MEM (GET_MODE (address), scratch), address);
 }
 
@@ -2873,9 +2876,9 @@ iq2000_setup_incoming_varargs (cumulative_args_t cum_v,
 	  if (cum->arg_words < MAX_ARGS_IN_REGISTERS - iq2000_off) 
 	    {
 	      rtx ptr, mem; 
-	      ptr = plus_constant (virtual_incoming_args_rtx, 
-				   - (iq2000_save_gp_regs 
-				      * UNITS_PER_WORD)); 
+	      ptr = plus_constant (Pmode, virtual_incoming_args_rtx,
+				   - (iq2000_save_gp_regs
+				      * UNITS_PER_WORD));
 	      mem = gen_rtx_MEM (BLKmode, ptr); 
 	      move_block_from_reg 
 		(cum->arg_words + GP_ARG_FIRST + iq2000_off, 
@@ -3165,7 +3168,7 @@ iq2000_print_operand (FILE *file, rtx op, int letter)
   else if (code == MEM)
     {
       if (letter == 'D')
-	output_address (plus_constant (XEXP (op, 0), 4));
+	output_address (plus_constant (Pmode, XEXP (op, 0), 4));
       else
 	output_address (XEXP (op, 0));
     }
@@ -3273,7 +3276,7 @@ iq2000_legitimize_address (rtx xinsn, rtx old_x ATTRIBUTE_UNUSED,
                                   ptr_reg,
                                   gen_rtx_PLUS (Pmode, xplus0, int_reg)));
 
-          return plus_constant (ptr_reg, INTVAL (xplus1) & 0x7fff);
+          return plus_constant (Pmode, ptr_reg, INTVAL (xplus1) & 0x7fff);
         }
     }
 

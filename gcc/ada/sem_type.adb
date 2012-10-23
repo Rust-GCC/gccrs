@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -481,7 +481,7 @@ package body Sem_Type is
          then
             Add_Entry (Entity (N), Etype (N));
 
-         elsif Nkind_In (N, N_Function_Call, N_Procedure_Call_Statement)
+         elsif Nkind (N) in N_Subprogram_Call
            and then Is_Entity_Name (Name (N))
          then
             Add_Entry (Entity (Name (N)), Etype (N));
@@ -741,7 +741,6 @@ package body Sem_Type is
    ------------
 
    function Covers (T1, T2 : Entity_Id) return Boolean is
-
       BT1 : Entity_Id;
       BT2 : Entity_Id;
 
@@ -1467,9 +1466,7 @@ package body Sem_Type is
                return It1;
 
             else
-               if Nkind (N) = N_Function_Call
-                 or else Nkind (N) = N_Procedure_Call_Statement
-               then
+               if Nkind (N) in N_Subprogram_Call then
                   Act1 := First_Actual (N);
 
                   if Present (Act1) then
@@ -1867,8 +1864,7 @@ package body Sem_Type is
          elsif In_Instance
            and then not In_Generic_Actual (N)
          then
-            if Nkind (N) = N_Function_Call
-              or else Nkind (N) = N_Procedure_Call_Statement
+            if Nkind (N) in N_Subprogram_Call
               or else
                 (Nkind (N) in N_Has_Entity
                   and then

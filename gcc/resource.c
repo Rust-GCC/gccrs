@@ -215,10 +215,7 @@ mark_referenced_resources (rtx x, struct resources *res,
   switch (code)
     {
     case CONST:
-    case CONST_INT:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
-    case CONST_VECTOR:
+    CASE_CONST_ANY:
     case PC:
     case SYMBOL_REF:
     case LABEL_REF:
@@ -632,10 +629,7 @@ mark_set_resources (rtx x, struct resources *res, int in_dest,
     case BARRIER:
     case CODE_LABEL:
     case USE:
-    case CONST_INT:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
-    case CONST_VECTOR:
+    CASE_CONST_ANY:
     case LABEL_REF:
     case SYMBOL_REF:
     case CONST:
@@ -1166,7 +1160,7 @@ init_resource_info (rtx epilogue_insn)
   if (!(frame_pointer_needed
 	&& EXIT_IGNORE_STACK
 	&& epilogue_insn
-	&& !current_function_sp_is_unchanging))
+	&& !crtl->sp_is_unchanging))
     SET_HARD_REG_BIT (end_of_function_needs.regs, STACK_POINTER_REGNUM);
 
   if (crtl->return_rtx != 0)

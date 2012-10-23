@@ -1,0 +1,34 @@
+# Top level configure fragment for GNU C - C language.
+# Copyright (C) 1994, 1995, 1997, 1998, 2000, 2001, 2002, 2005, 2007,
+# 2010, 2012
+# Free Software Foundation, Inc.
+
+#This file is part of GCC.
+
+#GCC is free software; you can redistribute it and/or modify
+#it under the terms of the GNU General Public License as published by
+#the Free Software Foundation; either version 3, or (at your option)
+#any later version.
+
+#GCC is distributed in the hope that it will be useful,
+#but WITHOUT ANY WARRANTY; without even the implied warranty of
+#MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#GNU General Public License for more details.
+
+#You should have received a copy of the GNU General Public License
+#along with GCC; see the file COPYING3.  If not see
+#<http://www.gnu.org/licenses/>.
+
+# Configure looks for the existence of this file to auto-config each language.
+# We define several parameters used by configure:
+#
+# language	- name of language as it would appear in $(LANGUAGES)
+# compilers	- value to add to $(COMPILERS)
+
+language="c"
+
+compilers="cc1\$(exeext)"
+
+target_libs=
+
+gtfiles="\$(srcdir)/c/c-lang.c \$(srcdir)/c/c-tree.h \$(srcdir)/c/c-decl.c \$(srcdir)/c-family/c-common.c \$(srcdir)/c-family/c-common.h \$(srcdir)/c-family/c-objc.h \$(srcdir)/c-family/c-cppbuiltin.c \$(srcdir)/c-family/c-pragma.h \$(srcdir)/c-family/c-pragma.c \$(srcdir)/c/c-objc-common.c \$(srcdir)/c/c-parser.c \$(srcdir)/c/c-lang.h"

@@ -1,7 +1,7 @@
 ! { dg-do run }
 ! { dg-additional-sources enum_10.c }
 ! { dg-options "-fshort-enums -w" }
-! { dg-options "-fshort-enums -w -Wl,--no-enum-size-warning" { target arm*-*-linux*eabi } }
+! { dg-options "-fshort-enums -w -Wl,--no-enum-size-warning" { target arm*-*-linux* } }
 ! Make sure short enums are indeed interoperable with the
 ! corresponding C type.
 
@@ -60,5 +60,3 @@ call f4 (one4, 1)
 call f4 (two4, 2)
 call f4 (max4, huge(1_4)+0)
 end
-
-! { dg-final { cleanup-modules "enum_10" } }

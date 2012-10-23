@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -76,6 +76,7 @@ package body Back_End is
 
       type File_Info_Type is record
          File_Name        : File_Name_Type;
+         Instance         : Instance_Id;
          Num_Source_Lines : Nat;
       end record;
 
@@ -119,6 +120,7 @@ package body Back_End is
 
       for J in 1 .. Last_Source_File loop
          File_Info_Array (J).File_Name        := Full_Debug_Name (J);
+         File_Info_Array (J).Instance         := Instance (J);
          File_Info_Array (J).Num_Source_Lines :=
            Nat (Physical_To_Logical (Last_Source_Line (J), J));
       end loop;
@@ -219,23 +221,36 @@ package body Back_End is
          elsif Switch_Chars (First .. Last) = "quiet" then
             null;
 
-         --  Store any other GCC switches
+         --  Store any other GCC switches. Also do special processing for some
+         --  specific switches that the Ada front-end knows about.
 
          else
             Store_Compilation_Switch (Switch_Chars);
 
-            --  Special check, the back end switch -fno-inline also sets the
+            --  Back end switch -fno-inline also sets the Suppress_All_Inlining
             --  front end flag to entirely inhibit all inlining.
 
             if Switch_Chars (First .. Last) = "fno-inline" then
                Opt.Suppress_All_Inlining := True;
 
-            --  Another special check, the switch -fpreserve-control-flow
-            --  which is also a back end switch sets the front end flag
-            --  that inhibits improper control flow transformations.
+            --  Back end switch -fpreserve-control-flow also sets the front end
+            --  flag that inhibits improper control flow transformations.
 
             elsif Switch_Chars (First .. Last) = "fpreserve-control-flow" then
                Opt.Suppress_Control_Flow_Optimizations := True;
+
+            --  Back end switch -fdump-scos, which exists primarily for C, is
+            --  also accepted for Ada as a synonym of -gnateS.
+
+            elsif Switch_Chars (First .. Last) = "fdump-scos" then
+               Opt.Generate_SCO := True;
+
+            --  Back end switch -fdebug-instances also enables instance table
+            --  SCO generation.
+
+            elsif Switch_Chars (First .. Last) = "fdebug-instances" then
+               Opt.Generate_SCO_Instance_Table := True;
+
             end if;
          end if;
       end Scan_Back_End_Switches;
@@ -259,7 +274,7 @@ package body Back_End is
             Argv_Ptr : constant Big_String_Ptr := save_argv (Arg);
             Argv_Len : constant Nat            := Len_Arg (Arg);
             Argv     : constant String         :=
-                         Argv_Ptr (1 .. Natural (Argv_Len));
+              Argv_Ptr (1 .. Natural (Argv_Len));
          begin
             Args (Positive (Arg)) := new String'(Argv);
          end;

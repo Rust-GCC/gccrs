@@ -1,5 +1,5 @@
 /* Definitions for MIPS systems using GNU userspace and n32/64 abi.
-   Copyright 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2010, 2011
+   Copyright 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2010, 2011, 2012
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -20,22 +20,19 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Force the default endianness and ABI flags onto the command line
    in order to make the other specs easier to write.  */
-#undef DRIVER_SELF_SPECS
-#define DRIVER_SELF_SPECS \
-  BASE_DRIVER_SELF_SPECS, \
+
+#define LINUX64_DRIVER_SELF_SPECS \
   LINUX_DRIVER_SELF_SPECS \
   " %{!EB:%{!EL:%(endian_spec)}}" \
   " %{!mabi=*: -" MULTILIB_ABI_DEFAULT "}"
 
-#undef LIB_SPEC
-#define LIB_SPEC "\
-%{pthread:-lpthread} \
-%{shared:-lc} \
-%{!shared: \
-  %{profile:-lc_p} %{!profile:-lc}}"
+#undef DRIVER_SELF_SPECS
+#define DRIVER_SELF_SPECS \
+  BASE_DRIVER_SELF_SPECS, \
+  LINUX64_DRIVER_SELF_SPECS
 
-#undef LINK_SPEC
-#define LINK_SPEC "\
+#undef GNU_USER_TARGET_LINK_SPEC
+#define GNU_USER_TARGET_LINK_SPEC "\
 %{G*} %{EB} %{EL} %{mips1} %{mips2} %{mips3} %{mips4} \
 %{shared} \
  %(endian_spec) \
@@ -49,12 +46,8 @@ along with GCC; see the file COPYING3.  If not see
 %{mabi=n32:-m" GNU_USER_LINK_EMULATIONN32 "} \
 %{mabi=64:-m" GNU_USER_LINK_EMULATION64 "} \
 %{mabi=32:-m" GNU_USER_LINK_EMULATION32 "}"
+#undef LINK_SPEC
+#define LINK_SPEC GNU_USER_TARGET_LINK_SPEC
 
 #undef LOCAL_LABEL_PREFIX
 #define LOCAL_LABEL_PREFIX (TARGET_OLDABI ? "$" : ".")
-
-/* GNU/Linux doesn't use the same floating-point format that IRIX uses
-   for long double.  There's no need to override this here, since
-   ieee_quad_format is the default, but let's put this here to make
-   sure nobody thinks we just forgot to set it to something else.  */
-#define MIPS_TFMODE_FORMAT mips_quad_format

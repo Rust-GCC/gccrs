@@ -29,6 +29,7 @@ load_lib prune.exp
 load_lib libgloss.exp
 load_lib target-libpath.exp
 load_lib torture-options.exp
+load_lib fortran-modules.exp
 
 # We set LC_ALL and LANG to C so that we get the same error messages as expected.
 setenv LC_ALL C
@@ -502,6 +503,19 @@ proc cleanup-stack-usage { } {
     }
 }
 
+# Remove an Ada spec file for the current test.
+proc cleanup-ada-spec { } {
+    set testcase [testname-for-summary]
+    remove-build-file "[get_ada_spec_filename $testcase]"
+
+    # Clean up files for additional source files.
+    if [info exists additional_sources] {
+	foreach srcfile $additional_sources {
+	    remove-build-file "[get_ada_spec_filename $srcfile]"
+	}
+    }
+}
+
 # Remove all dump files with the provided suffix.
 proc cleanup-dump { suffix } {
     set testcase [testname-for-summary]
@@ -559,13 +573,6 @@ proc cleanup-saved-temps { args } {
 		remove-build-file "[file rootname [file tail $srcfile]].gk$suffix"
 	    }
 	}
-    }
-}
-
-# Remove files for specified Fortran modules.
-proc cleanup-modules { modlist } {
-    foreach modname $modlist {
-	remove-build-file [string tolower $modname].mod
     }
 }
 
@@ -676,7 +683,6 @@ if { [info procs saved-dg-test] == [list] } {
 	    set additional_files ""
 	    set additional_sources ""
 	    set additional_prunes ""
-	    set dg_runtest_extra_prunes ""
 	    set shouldfail 0
 	    if [info exists compiler_conditional_xfail_data] {
 		unset compiler_conditional_xfail_data

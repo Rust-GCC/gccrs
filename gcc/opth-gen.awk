@@ -1,4 +1,4 @@
-#  Copyright (C) 2003,2004,2005,2006,2007,2008, 2010, 2011
+#  Copyright (C) 2003,2004,2005,2006,2007,2008, 2010, 2011, 2012
 #  Free Software Foundation, Inc.
 #  Contributed by Kelley Cook, June 2004.
 #  Original code from Neil Booth, May 2003.
@@ -293,24 +293,59 @@ print "extern void cl_target_option_restore (struct gcc_options *, struct cl_tar
 print "";
 print "/* Print target option variables from a structure.  */";
 print "extern void cl_target_option_print (FILE *, int, struct cl_target_option *);";
+print "";
+print "/* Anything that includes tm.h, does not necessarily need this.  */"
+print "#if !defined(GCC_TM_H)"
+print "#include \"input.h\" /* for location_t */"
+print "bool                                                                  "
+print "common_handle_option_auto (struct gcc_options *opts,                  "
+print "                           struct gcc_options *opts_set,              "
+print "                           const struct cl_decoded_option *decoded,   "
+print "                           unsigned int lang_mask, int kind,          "
+print "                           location_t loc,                            "
+print "                           const struct cl_option_handlers *handlers, "
+print "                           diagnostic_context *dc);                   "
+for (i = 0; i < n_langs; i++) {
+    lang_name = lang_sanitized_name(langs[i]);
+    print "bool                                                                  "
+    print lang_name "_handle_option_auto (struct gcc_options *opts,              "
+    print "                           struct gcc_options *opts_set,              "
+    print "                           size_t scode, const char *arg, int value,  "
+    print "                           unsigned int lang_mask, int kind,          "
+    print "                           location_t loc,                            "
+    print "                           const struct cl_option_handlers *handlers, "
+    print "                           diagnostic_context *dc);                   "
+}
+print "#endif";
 print "#endif";
 print "";
 
 for (i = 0; i < n_opts; i++) {
 	name = opt_args("Mask", flags[i])
-	vname = var_name(flags[i])
-	mask = "MASK_"
-	mask_1 = "1"
-	if (vname != "") {
-		mask = "OPTION_MASK_"
-		if (host_wide_int[vname] == "yes")
-			mask_1 = "HOST_WIDE_INT_1"
+	if (name == "") {
+		opt = opt_args("InverseMask", flags[i])
+		if (opt ~ ",")
+			name = nth_arg(0, opt)
+		else
+			name = opt
 	}
-	if (name != "" && !flag_set_p("MaskExists", flags[i]))
+	if (name != "" && mask_bits[name] == 0) {
+		mask_bits[name] = 1
+		vname = var_name(flags[i])
+		mask = "MASK_"
+		mask_1 = "1"
+		if (vname != "") {
+			mask = "OPTION_MASK_"
+			if (host_wide_int[vname] == "yes")
+				mask_1 = "HOST_WIDE_INT_1"
+		} else
+			extra_mask_bits[name] = 1
 		print "#define " mask name " (" mask_1 " << " masknum[vname]++ ")"
+	}
 }
 for (i = 0; i < n_extra_masks; i++) {
-	print "#define MASK_" extra_masks[i] " (1 << " masknum[""]++ ")"
+	if (extra_mask_bits[extra_masks[i]] == 0)
+		print "#define MASK_" extra_masks[i] " (1 << " masknum[""]++ ")"
 }
 
 for (var in masknum) {
@@ -330,21 +365,30 @@ print ""
 
 for (i = 0; i < n_opts; i++) {
 	name = opt_args("Mask", flags[i])
-	vname = var_name(flags[i])
-	macro = "OPTION_"
-	mask = "OPTION_MASK_"
-	if (vname == "") {
-		vname = "target_flags"
-		macro = "TARGET_"
-		mask = "MASK_"
+	if (name == "") {
+		opt = opt_args("InverseMask", flags[i])
+		if (opt ~ ",")
+			name = nth_arg(0, opt)
+		else
+			name = opt
 	}
-	if (name != "" && !flag_set_p("MaskExists", flags[i]))
-		print "#define " macro name \
+	if (name != "" && mask_macros[name] == 0) {
+		mask_macros[name] = 1
+		vname = var_name(flags[i])
+		mask = "OPTION_MASK_"
+		if (vname == "") {
+			vname = "target_flags"
+			mask = "MASK_"
+			extra_mask_macros[name] = 1
+		}
+		print "#define TARGET_" name \
 		      " ((" vname " & " mask name ") != 0)"
+	}
 }
 for (i = 0; i < n_extra_masks; i++) {
-	print "#define TARGET_" extra_masks[i] \
-	      " ((target_flags & MASK_" extra_masks[i] ") != 0)"
+	if (extra_mask_macros[extra_masks[i]] == 0)
+		print "#define TARGET_" extra_masks[i] \
+		      " ((target_flags & MASK_" extra_masks[i] ") != 0)"
 }
 print ""
 
@@ -352,22 +396,19 @@ for (i = 0; i < n_opts; i++) {
 	opt = opt_args("InverseMask", flags[i])
 	if (opt ~ ",") {
 		vname = var_name(flags[i])
-		macro = "OPTION_"
 		mask = "OPTION_MASK_"
 		if (vname == "") {
 			vname = "target_flags"
-			macro = "TARGET_"
 			mask = "MASK_"
 		}
-		print "#define " macro nth_arg(1, opt) \
+		print "#define TARGET_" nth_arg(1, opt) \
 		      " ((" vname " & " mask nth_arg(0, opt) ") == 0)"
 	}
 }
 print ""
 
 for (i = 0; i < n_langs; i++) {
-	macros[i] = "CL_" langs[i]
-	gsub( "[^" alnum "_]", "X", macros[i] )
+        macros[i] = "CL_" lang_sanitized_name(langs[i])
 	s = substr("            ", length (macros[i]))
 	print "#define " macros[i] s " (1U << " i ")"
     }

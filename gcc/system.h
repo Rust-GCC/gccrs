@@ -1,7 +1,7 @@
 /* Get common system includes and various definitions and declarations based
    on autoconf macros.
    Copyright (C) 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008,
-   2009, 2010, 2011
+   2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -638,6 +638,11 @@ extern int vsnprintf(char *, size_t, const char *, va_list);
 /* Get libiberty declarations.  */
 #include "libiberty.h"
 
+#undef FFS  /* Some systems predefine this symbol; don't let it interfere.  */
+#undef FLOAT /* Likewise.  */
+#undef ABS /* Likewise.  */
+#undef PC /* Likewise.  */
+
 /* Provide a default for the HOST_BIT_BUCKET.
    This suffices for POSIX-like hosts.  */
 
@@ -807,7 +812,8 @@ extern void fancy_abort (const char *, int, const char *) ATTRIBUTE_NORETURN;
 	LABEL_ALIGN_AFTER_BARRIER_MAX_SKIP JUMP_ALIGN_MAX_SKIP 		\
 	CAN_DEBUG_WITHOUT_FP UNLIKELY_EXECUTED_TEXT_SECTION_NAME	\
 	HOT_TEXT_SECTION_NAME LEGITIMATE_CONSTANT_P ALWAYS_STRIP_DOTDOT	\
-	OUTPUT_ADDR_CONST_EXTRA SMALL_REGISTER_CLASSES
+	OUTPUT_ADDR_CONST_EXTRA SMALL_REGISTER_CLASSES ASM_OUTPUT_IDENT	\
+	ASM_BYTE_OP MEMBER_TYPE_FORCES_BLK
 
 /* Target macros only used for code built for the target, that have
    moved to libgcc-tm.h or have never been present elsewhere.  */
@@ -878,7 +884,17 @@ extern void fancy_abort (const char *, int, const char *) ATTRIBUTE_NORETURN;
 	MACHINE_TYPE TARGET_HAS_TARGETCM ASM_OUTPUT_BSS			   \
 	SETJMP_VIA_SAVE_AREA FORBIDDEN_INC_DEC_CLASSES			   \
 	PREFERRED_OUTPUT_RELOAD_CLASS SYSTEM_INCLUDE_DIR		   \
-	STANDARD_INCLUDE_DIR STANDARD_INCLUDE_COMPONENT
+	STANDARD_INCLUDE_DIR STANDARD_INCLUDE_COMPONENT			   \
+	LINK_ELIMINATE_DUPLICATE_LDIRECTORIES MIPS_DEBUGGING_INFO	   \
+	IDENT_ASM_OP ALL_COP_ADDITIONAL_REGISTER_NAMES DBX_OUTPUT_LBRAC	   \
+	DBX_OUTPUT_NFUN DBX_OUTPUT_RBRAC RANGE_TEST_NON_SHORT_CIRCUIT	   \
+	REAL_VALUE_TRUNCATE REVERSE_CONDEXEC_PREDICATES_P		   \
+	TARGET_ALIGN_ANON_BITFIELDS TARGET_NARROW_VOLATILE_BITFIELDS	   \
+	IDENT_ASM_OP UNALIGNED_SHORT_ASM_OP UNALIGNED_INT_ASM_OP	   \
+	UNALIGNED_LONG_ASM_OP UNALIGNED_DOUBLE_INT_ASM_OP		   \
+	USE_COMMON_FOR_ONE_ONLY IFCVT_EXTRA_FIELDS IFCVT_INIT_EXTRA_FIELDS \
+	CASE_USE_BIT_TESTS FIXUNS_TRUNC_LIKE_FIX_TRUNC                     \
+        GO_IF_MODE_DEPENDENT_ADDRESS
 
 /* Hooks that are no longer used.  */
  #pragma GCC poison LANG_HOOKS_FUNCTION_MARK LANG_HOOKS_FUNCTION_FREE	\
@@ -890,7 +906,10 @@ extern void fancy_abort (const char *, int, const char *) ATTRIBUTE_NORETURN;
 	TARGET_PROMOTE_FUNCTION_ARGS TARGET_PROMOTE_FUNCTION_RETURN \
 	LANG_HOOKS_MISSING_ARGUMENT LANG_HOOKS_HASH_TYPES \
 	TARGET_HANDLE_OFAST TARGET_OPTION_OPTIMIZATION \
-        TARGET_IRA_COVER_CLASSES TARGET_HELP
+	TARGET_IRA_COVER_CLASSES TARGET_HELP \
+	TARGET_HANDLE_PRAGMA_EXTERN_PREFIX \
+	TARGET_VECTORIZE_BUILTIN_MUL_WIDEN_EVEN \
+	TARGET_VECTORIZE_BUILTIN_MUL_WIDEN_ODD \
 
 /* Arrays that were deleted in favor of a functional interface.  */
  #pragma GCC poison built_in_decls implicit_built_in_decls

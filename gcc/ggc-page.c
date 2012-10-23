@@ -121,14 +121,14 @@ along with GCC; see the file COPYING3.  If not see
 
 #define PAGE_L1_BITS	(8)
 #define PAGE_L2_BITS	(32 - PAGE_L1_BITS - G.lg_pagesize)
-#define PAGE_L1_SIZE	((size_t) 1 << PAGE_L1_BITS)
-#define PAGE_L2_SIZE	((size_t) 1 << PAGE_L2_BITS)
+#define PAGE_L1_SIZE	((uintptr_t) 1 << PAGE_L1_BITS)
+#define PAGE_L2_SIZE	((uintptr_t) 1 << PAGE_L2_BITS)
 
 #define LOOKUP_L1(p) \
-  (((size_t) (p) >> (32 - PAGE_L1_BITS)) & ((1 << PAGE_L1_BITS) - 1))
+  (((uintptr_t) (p) >> (32 - PAGE_L1_BITS)) & ((1 << PAGE_L1_BITS) - 1))
 
 #define LOOKUP_L2(p) \
-  (((size_t) (p) >> G.lg_pagesize) & ((1 << PAGE_L2_BITS) - 1))
+  (((uintptr_t) (p) >> G.lg_pagesize) & ((1 << PAGE_L2_BITS) - 1))
 
 /* The number of objects per allocation page, for objects on a page of
    the indicated ORDER.  */
@@ -432,7 +432,6 @@ static struct globals
   struct free_object *free_object_list;
 #endif
 
-#ifdef GATHER_STATISTICS
   struct
   {
     /* Total GC-allocated memory.  */
@@ -459,7 +458,6 @@ static struct globals
     /* The overhead for each of the allocation orders.  */
     unsigned long long total_overhead_per_order[NUM_ORDERS];
   } stats;
-#endif
 } G;
 
 /* The size in bytes required to maintain a bitmap for the objects
@@ -560,7 +558,7 @@ ggc_allocated_p (const void *p)
   base = &G.lookup[0];
 #else
   page_table table = G.lookup;
-  size_t high_bits = (size_t) p & ~ (size_t) 0xffffffff;
+  uintptr_t high_bits = (uintptr_t) p & ~ (uintptr_t) 0xffffffff;
   while (1)
     {
       if (table == NULL)
@@ -592,7 +590,7 @@ lookup_page_table_entry (const void *p)
   base = &G.lookup[0];
 #else
   page_table table = G.lookup;
-  size_t high_bits = (size_t) p & ~ (size_t) 0xffffffff;
+  uintptr_t high_bits = (uintptr_t) p & ~ (uintptr_t) 0xffffffff;
   while (table->high_bits != high_bits)
     table = table->next;
   base = &table->table[0];
@@ -617,7 +615,7 @@ set_page_table_entry (void *p, page_entry *entry)
   base = &G.lookup[0];
 #else
   page_table table;
-  size_t high_bits = (size_t) p & ~ (size_t) 0xffffffff;
+  uintptr_t high_bits = (uintptr_t) p & ~ (uintptr_t) 0xffffffff;
   for (table = G.lookup; table; table = table->next)
     if (table->high_bits == high_bits)
       goto found;
@@ -826,7 +824,7 @@ alloc_page (unsigned order)
 	alloc_size = entry_size + G.pagesize - 1;
       allocation = XNEWVEC (char, alloc_size);
 
-      page = (char *) (((size_t) allocation + G.pagesize - 1) & -G.pagesize);
+      page = (char *) (((uintptr_t) allocation + G.pagesize - 1) & -G.pagesize);
       head_slop = page - allocation;
       if (multiple_pages)
 	tail_slop = ((size_t) allocation + alloc_size) & (G.pagesize - 1);
@@ -1324,10 +1322,9 @@ ggc_internal_alloc_stat (size_t size MEM_STAT_DECL)
 
   /* Calculate the object's address.  */
   result = entry->page + object_offset;
-#ifdef GATHER_STATISTICS
-  ggc_record_overhead (OBJECT_SIZE (order), OBJECT_SIZE (order) - size,
-		       result PASS_MEM_STAT);
-#endif
+  if (GATHER_STATISTICS)
+    ggc_record_overhead (OBJECT_SIZE (order), OBJECT_SIZE (order) - size,
+			 result FINAL_PASS_MEM_STAT);
 
 #ifdef ENABLE_GC_CHECKING
   /* Keep poisoning-by-writing-0xaf the object, in an attempt to keep the
@@ -1358,32 +1355,31 @@ ggc_internal_alloc_stat (size_t size MEM_STAT_DECL)
   /* For timevar statistics.  */
   timevar_ggc_mem_total += object_size;
 
-#ifdef GATHER_STATISTICS
-  {
-    size_t overhead = object_size - size;
+  if (GATHER_STATISTICS)
+    {
+      size_t overhead = object_size - size;
 
-    G.stats.total_overhead += overhead;
-    G.stats.total_allocated += object_size;
-    G.stats.total_overhead_per_order[order] += overhead;
-    G.stats.total_allocated_per_order[order] += object_size;
+      G.stats.total_overhead += overhead;
+      G.stats.total_allocated += object_size;
+      G.stats.total_overhead_per_order[order] += overhead;
+      G.stats.total_allocated_per_order[order] += object_size;
 
-    if (size <= 32)
-      {
-	G.stats.total_overhead_under32 += overhead;
-	G.stats.total_allocated_under32 += object_size;
-      }
-    if (size <= 64)
-      {
-	G.stats.total_overhead_under64 += overhead;
-	G.stats.total_allocated_under64 += object_size;
-      }
-    if (size <= 128)
-      {
-	G.stats.total_overhead_under128 += overhead;
-	G.stats.total_allocated_under128 += object_size;
-      }
-  }
-#endif
+      if (size <= 32)
+	{
+	  G.stats.total_overhead_under32 += overhead;
+	  G.stats.total_allocated_under32 += object_size;
+	}
+      if (size <= 64)
+	{
+	  G.stats.total_overhead_under64 += overhead;
+	  G.stats.total_allocated_under64 += object_size;
+	}
+      if (size <= 128)
+	{
+	  G.stats.total_overhead_under128 += overhead;
+	  G.stats.total_allocated_under128 += object_size;
+	}
+    }
 
   if (GGC_DEBUG_LEVEL >= 3)
     fprintf (G.debug_file,
@@ -1443,6 +1439,26 @@ gt_ggc_m_S (const void *p)
     fprintf (G.debug_file, "Marking %p\n", p);
 
   return;
+}
+
+
+/* User-callable entry points for marking string X.  */
+
+void
+gt_ggc_mx (const char *& x)
+{
+  gt_ggc_m_S (x);
+}
+
+void
+gt_ggc_mx (unsigned char *& x)
+{
+  gt_ggc_m_S (x);
+}
+
+void
+gt_ggc_mx (unsigned char& x ATTRIBUTE_UNUSED)
+{
 }
 
 /* If P is not marked, marks it and return false.  Otherwise return true.
@@ -1524,9 +1540,8 @@ ggc_free (void *p)
   size_t order = pe->order;
   size_t size = OBJECT_SIZE (order);
 
-#ifdef GATHER_STATISTICS
-  ggc_free_overhead (p);
-#endif
+  if (GATHER_STATISTICS)
+    ggc_free_overhead (p);
 
   if (GGC_DEBUG_LEVEL >= 3)
     fprintf (G.debug_file,
@@ -1662,13 +1677,13 @@ init_ggc (void)
   {
     char *p = alloc_anon (NULL, G.pagesize, true);
     struct page_entry *e;
-    if ((size_t)p & (G.pagesize - 1))
+    if ((uintptr_t)p & (G.pagesize - 1))
       {
 	/* How losing.  Discard this one and try another.  If we still
 	   can't get something useful, give up.  */
 
 	p = alloc_anon (NULL, G.pagesize, true);
-	gcc_assert (!((size_t)p & (G.pagesize - 1)));
+	gcc_assert (!((uintptr_t)p & (G.pagesize - 1)));
       }
 
     /* We have a good page, might as well hold onto it...  */
@@ -1782,7 +1797,7 @@ clear_marks (void)
 	  size_t bitmap_size = BITMAP_SIZE (num_objects + 1);
 
 	  /* The data should be page-aligned.  */
-	  gcc_assert (!((size_t) p->page & (G.pagesize - 1)));
+	  gcc_assert (!((uintptr_t) p->page & (G.pagesize - 1)));
 
 	  /* Pages that aren't in the topmost context are not collected;
 	     nevertheless, we need their in-use bit vectors to store GC
@@ -2070,9 +2085,10 @@ ggc_collect (void)
 
   clear_marks ();
   ggc_mark_roots ();
-#ifdef GATHER_STATISTICS
-  ggc_prune_overhead_list ();
-#endif
+
+  if (GATHER_STATISTICS)
+    ggc_prune_overhead_list ();
+
   poison_pages ();
   validate_free_objects ();
   sweep_pages ();
@@ -2160,40 +2176,39 @@ ggc_print_statistics (void)
 	   SCALE (G.allocated), STAT_LABEL(G.allocated),
 	   SCALE (total_overhead), STAT_LABEL (total_overhead));
 
-#ifdef GATHER_STATISTICS
-  {
-    fprintf (stderr, "\nTotal allocations and overheads during the compilation process\n");
+  if (GATHER_STATISTICS)
+    {
+      fprintf (stderr, "\nTotal allocations and overheads during the compilation process\n");
 
-    fprintf (stderr, "Total Overhead:                        %10lld\n",
-             G.stats.total_overhead);
-    fprintf (stderr, "Total Allocated:                       %10lld\n",
-             G.stats.total_allocated);
+      fprintf (stderr, "Total Overhead:                        %10lld\n",
+	       G.stats.total_overhead);
+      fprintf (stderr, "Total Allocated:                       %10lld\n",
+	       G.stats.total_allocated);
 
-    fprintf (stderr, "Total Overhead  under  32B:            %10lld\n",
-             G.stats.total_overhead_under32);
-    fprintf (stderr, "Total Allocated under  32B:            %10lld\n",
-             G.stats.total_allocated_under32);
-    fprintf (stderr, "Total Overhead  under  64B:            %10lld\n",
-             G.stats.total_overhead_under64);
-    fprintf (stderr, "Total Allocated under  64B:            %10lld\n",
-             G.stats.total_allocated_under64);
-    fprintf (stderr, "Total Overhead  under 128B:            %10lld\n",
-             G.stats.total_overhead_under128);
-    fprintf (stderr, "Total Allocated under 128B:            %10lld\n",
-             G.stats.total_allocated_under128);
+      fprintf (stderr, "Total Overhead  under  32B:            %10lld\n",
+	       G.stats.total_overhead_under32);
+      fprintf (stderr, "Total Allocated under  32B:            %10lld\n",
+	       G.stats.total_allocated_under32);
+      fprintf (stderr, "Total Overhead  under  64B:            %10lld\n",
+	       G.stats.total_overhead_under64);
+      fprintf (stderr, "Total Allocated under  64B:            %10lld\n",
+	       G.stats.total_allocated_under64);
+      fprintf (stderr, "Total Overhead  under 128B:            %10lld\n",
+	       G.stats.total_overhead_under128);
+      fprintf (stderr, "Total Allocated under 128B:            %10lld\n",
+	       G.stats.total_allocated_under128);
 
-    for (i = 0; i < NUM_ORDERS; i++)
-      if (G.stats.total_allocated_per_order[i])
-        {
-          fprintf (stderr, "Total Overhead  page size %7lu:     %10lld\n",
-                   (unsigned long) OBJECT_SIZE (i),
-		   G.stats.total_overhead_per_order[i]);
-          fprintf (stderr, "Total Allocated page size %7lu:     %10lld\n",
-                   (unsigned long) OBJECT_SIZE (i),
-		   G.stats.total_allocated_per_order[i]);
-        }
+      for (i = 0; i < NUM_ORDERS; i++)
+	if (G.stats.total_allocated_per_order[i])
+	  {
+	    fprintf (stderr, "Total Overhead  page size %7lu:     %10lld\n",
+		     (unsigned long) OBJECT_SIZE (i),
+		     G.stats.total_overhead_per_order[i]);
+	    fprintf (stderr, "Total Allocated page size %7lu:     %10lld\n",
+		     (unsigned long) OBJECT_SIZE (i),
+		     G.stats.total_allocated_per_order[i]);
+	  }
   }
-#endif
 }
 
 struct ggc_pch_ondisk
@@ -2204,7 +2219,7 @@ struct ggc_pch_ondisk
 struct ggc_pch_data
 {
   struct ggc_pch_ondisk d;
-  size_t base[NUM_ORDERS];
+  uintptr_t base[NUM_ORDERS];
   size_t written[NUM_ORDERS];
 };
 
@@ -2247,7 +2262,7 @@ ggc_pch_total_size (struct ggc_pch_data *d)
 void
 ggc_pch_this_base (struct ggc_pch_data *d, void *base)
 {
-  size_t a = (size_t) base;
+  uintptr_t a = (uintptr_t) base;
   unsigned i;
 
   for (i = 0; i < NUM_ORDERS; i++)

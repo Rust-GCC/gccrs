@@ -1,6 +1,6 @@
 /* Implementation of subroutines for the GNU C++ pretty-printer.
    Copyright (C) 2003, 2004, 2005, 2007, 2008,
-   2009, 2010, 2011 Free Software Foundation, Inc.
+   2009, 2010, 2011, 2012 Free Software Foundation, Inc.
    Contributed by Gabriel Dos Reis <gdr@integrable-solutions.net>
 
 This file is part of GCC.
@@ -798,7 +798,13 @@ pp_cxx_unary_expression (cxx_pretty_printer *pp, tree t)
     case ALIGNOF_EXPR:
       pp_cxx_ws_string (pp, code == SIZEOF_EXPR ? "sizeof" : "__alignof__");
       pp_cxx_whitespace (pp);
-      if (TYPE_P (TREE_OPERAND (t, 0)))
+      if (TREE_CODE (t) == SIZEOF_EXPR && SIZEOF_EXPR_TYPE_P (t))
+	{
+	  pp_cxx_left_paren (pp);
+	  pp_cxx_type_id (pp, TREE_TYPE (TREE_OPERAND (t, 0)));
+	  pp_cxx_right_paren (pp);
+	}
+      else if (TYPE_P (TREE_OPERAND (t, 0)))
 	{
 	  pp_cxx_left_paren (pp);
 	  pp_cxx_type_id (pp, TREE_OPERAND (t, 0));
@@ -1261,6 +1267,7 @@ pp_cxx_simple_type_specifier (cxx_pretty_printer *pp, tree t)
     case TEMPLATE_TYPE_PARM:
     case TEMPLATE_TEMPLATE_PARM:
     case TEMPLATE_PARM_INDEX:
+    case BOUND_TEMPLATE_TEMPLATE_PARM:
       pp_cxx_unqualified_id (pp, t);
       break;
 
@@ -1344,8 +1351,7 @@ pp_cxx_ptr_operator (cxx_pretty_printer *pp, tree t)
     {
     case REFERENCE_TYPE:
     case POINTER_TYPE:
-      if (TREE_CODE (TREE_TYPE (t)) == POINTER_TYPE
-	  || TYPE_PTR_TO_MEMBER_P (TREE_TYPE (t)))
+      if (TYPE_PTR_OR_PTRMEM_P (TREE_TYPE (t)))
 	pp_cxx_ptr_operator (pp, TREE_TYPE (t));
       pp_c_attributes_display (pp_c_base (pp),
 			       TYPE_ATTRIBUTES (TREE_TYPE (t)));
@@ -1367,7 +1373,7 @@ pp_cxx_ptr_operator (cxx_pretty_printer *pp, tree t)
 	  break;
 	}
     case OFFSET_TYPE:
-      if (TYPE_PTR_TO_MEMBER_P (t))
+      if (TYPE_PTRMEM_P (t))
 	{
 	  if (TREE_CODE (TREE_TYPE (t)) == ARRAY_TYPE)
 	    pp_cxx_left_paren (pp);
@@ -1625,11 +1631,8 @@ pp_cxx_function_definition (cxx_pretty_printer *pp, tree t)
   if (DECL_SAVED_TREE (t))
     pp_cxx_statement (pp, DECL_SAVED_TREE (t));
   else
-    {
-      pp_cxx_semicolon (pp);
-      pp_needs_newline (pp) = true;
-    }
-  pp_flush (pp);
+    pp_cxx_semicolon (pp);
+  pp_newline_and_flush (pp);
   pp->enclosing_scope = saved_scope;
 }
 
@@ -1640,7 +1643,7 @@ pp_cxx_function_definition (cxx_pretty_printer *pp, tree t)
 static void
 pp_cxx_abstract_declarator (cxx_pretty_printer *pp, tree t)
 {
-  if (TYPE_PTRMEM_P (t) || TYPE_PTRMEMFUNC_P (t))
+  if (TYPE_PTRMEM_P (t))
     pp_cxx_right_paren (pp);
   else if (POINTER_TYPE_P (t))
     {

@@ -47,11 +47,11 @@ static struct object *seen_objects;
 
 #ifdef __GTHREAD_MUTEX_INIT
 static __gthread_mutex_t object_mutex = __GTHREAD_MUTEX_INIT;
+#define init_object_mutex_once()
 #else
-static __gthread_mutex_t object_mutex;
-#endif
-
 #ifdef __GTHREAD_MUTEX_INIT_FUNCTION
+static __gthread_mutex_t object_mutex;
+
 static void
 init_object_mutex (void)
 {
@@ -65,7 +65,11 @@ init_object_mutex_once (void)
   __gthread_once (&once, init_object_mutex);
 }
 #else
+/* ???  Several targets include this file with stubbing parts of gthr.h
+   and expect no locking to be done.  */
 #define init_object_mutex_once()
+static __gthread_mutex_t object_mutex;
+#endif
 #endif
 
 /* Called from crtbegin.o to register the unwind info for an object.  */

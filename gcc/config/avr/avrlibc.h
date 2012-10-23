@@ -1,5 +1,5 @@
 /* Definitions of target machine for the GNU compiler collection
-   for Atmel AVR micro controller.
+   for Atmel AVR micro controller if configured for AVR-Libc.
    Copyright (C) 2012
    Free Software Foundation, Inc.
    Contributed by Georg-Johann Lay (avr@gjlay.de)

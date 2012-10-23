@@ -233,14 +233,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "recog.h"
 #include "diagnostic-core.h"
 #include "target.h"
-#include "timevar.h"
 #include "optabs.h"
 #include "insn-codes.h"
 #include "rtlhooks-def.h"
-/* Include output.h for dump_file.  */
-#include "output.h"
 #include "params.h"
-#include "timevar.h"
 #include "tree-pass.h"
 #include "df.h"
 #include "cgraph.h"
@@ -806,7 +802,7 @@ add_removable_extension (const_rtx expr, rtx insn,
 	 different extension.  FIXME: this obviously can be improved.  */
       for (def = defs; def; def = def->next)
 	if ((idx = def_map[INSN_UID(DF_REF_INSN (def->ref))])
-	    && (cand = VEC_index (ext_cand, *insn_list, idx - 1))
+	    && (cand = &VEC_index (ext_cand, *insn_list, idx - 1))
 	    && (cand->code != code || cand->mode != mode))
 	  {
 	    if (dump_file)
@@ -820,11 +816,8 @@ add_removable_extension (const_rtx expr, rtx insn,
 
       /* Then add the candidate to the list and insert the reaching definitions
          into the definition map.  */
-      cand = VEC_safe_push (ext_cand, heap, *insn_list, NULL);
-      cand->expr = expr;
-      cand->code = code;
-      cand->mode = mode;
-      cand->insn = insn;
+      ext_cand e = {expr, code, mode, insn};
+      VEC_safe_push (ext_cand, heap, *insn_list, e);
       idx = VEC_length (ext_cand, *insn_list);
 
       for (def = defs; def; def = def->next)
@@ -875,6 +868,7 @@ find_and_remove_re (void)
 
   /* Construct DU chain to get all reaching definitions of each
      extension instruction.  */
+  df_set_flags (DF_RD_PRUNE_DEAD_DEFS);
   df_chain_add_problem (DF_UD_CHAIN + DF_DU_CHAIN);
   df_analyze ();
   df_set_flags (DF_DEFER_INSN_RESCAN);

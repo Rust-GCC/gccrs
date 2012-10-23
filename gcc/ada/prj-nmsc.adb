@@ -165,6 +165,7 @@ package body Prj.Nmsc is
    type Lib_Data is record
       Name : Name_Id;
       Proj : Project_Id;
+      Tree : Project_Tree_Ref;
    end record;
 
    package Lib_Data_Table is new GNAT.Table
@@ -664,116 +665,141 @@ package body Prj.Nmsc is
          end if;
       end if;
 
-      --  Duplication of file/unit in same project is allowed if order of
-      --  source directories is known, or if there is no compiler for the
-      --  language.
+      --  Always add the source if it is locally removed, to avoid incorrect
+      --  duplicate checks.
 
-      if Add_Src = False then
+      if Locally_Removed then
          Add_Src := True;
 
-         if Project = Source.Project then
-            if Prev_Unit = No_Unit_Index then
-               if Data.Flags.Allow_Duplicate_Basenames then
-                  Add_Src := True;
+         --  A locally removed source may first replace a source in a project
+         --  being extended.
 
-               elsif Lang_Id.Config.Compiler_Driver = Empty_File then
-                  Add_Src := True;
+         if Source /= No_Source
+           and then Is_Extending (Project, Source.Project)
+           and then Naming_Exception /= Inherited
+         then
+            Source_To_Replace := Source;
+         end if;
 
-               elsif Source_Dir_Rank /= Source.Source_Dir_Rank then
-                  Add_Src := False;
+      else
+         --  Duplication of file/unit in same project is allowed if order of
+         --  source directories is known, or if there is no compiler for the
+         --  language.
 
-               else
-                  Error_Msg_File_1 := File_Name;
-                  Error_Msg
-                    (Data.Flags, "duplicate source file name {",
-                     Location, Project);
-                  Add_Src := False;
-               end if;
+         if Add_Src = False then
+            Add_Src := True;
 
-            else
-               if Source_Dir_Rank /= Source.Source_Dir_Rank then
-                  Add_Src := False;
+            if Project = Source.Project then
+               if Prev_Unit = No_Unit_Index then
+                  if Data.Flags.Allow_Duplicate_Basenames then
+                     Add_Src := True;
 
-               --  We might be seeing the same file through a different path
-               --  (for instance because of symbolic links).
+                  elsif Lang_Id.Config.Compiler_Driver = Empty_File then
+                     Add_Src := True;
 
-               elsif Source.Path.Name /= Path.Name then
-                  if not Source.Duplicate_Unit then
-                     Error_Msg_Name_1 := Unit;
+                  elsif Source_Dir_Rank /= Source.Source_Dir_Rank then
+                     Add_Src := False;
+
+                  else
+                     Error_Msg_File_1 := File_Name;
                      Error_Msg
-                       (Data.Flags, "\duplicate unit %%", Location, Project);
-                     Source.Duplicate_Unit := True;
+                       (Data.Flags, "duplicate source file name {",
+                        Location, Project);
+                     Add_Src := False;
                   end if;
 
-                  Add_Src := False;
+               else
+                  if Source_Dir_Rank /= Source.Source_Dir_Rank then
+                     Add_Src := False;
+
+                     --  We might be seeing the same file through a different
+                     --  path (for instance because of symbolic links).
+
+                  elsif Source.Path.Name /= Path.Name then
+                     if not Source.Duplicate_Unit then
+                        Error_Msg_Name_1 := Unit;
+                        Error_Msg
+                          (Data.Flags,
+                           "\duplicate unit %%",
+                           Location,
+                           Project);
+                        Source.Duplicate_Unit := True;
+                     end if;
+
+                     Add_Src := False;
+                  end if;
                end if;
-            end if;
 
-            --  Do not allow the same unit name in different projects, except
-            --  if one is extending the other.
+               --  Do not allow the same unit name in different projects,
+               --  except if one is extending the other.
 
-            --  For a file based language, the same file name replaces a file
-            --  in a project being extended, but it is allowed to have the same
-            --  file name in unrelated projects.
+               --  For a file based language, the same file name replaces a
+               --  file in a project being extended, but it is allowed to have
+               --  the same file name in unrelated projects.
 
-         elsif Is_Extending (Project, Source.Project) then
-            if not Locally_Removed and then Naming_Exception /= Inherited then
-               Source_To_Replace := Source;
-            end if;
+            elsif Is_Extending (Project, Source.Project) then
+               if not Locally_Removed
+                 and then Naming_Exception /= Inherited
+               then
+                  Source_To_Replace := Source;
+               end if;
 
-         elsif Prev_Unit /= No_Unit_Index
-           and then Prev_Unit.File_Names (Kind) /= null
-           and then not Source.Locally_Removed
-           and then not Data.In_Aggregate_Lib
-         then
-            --  Path is set if this is a source we found on the disk, in which
-            --  case we can provide more explicit error message. Path is unset
-            --  when the source is added from one of the naming exceptions in
-            --  the project.
+            elsif Prev_Unit /= No_Unit_Index
+              and then Prev_Unit.File_Names (Kind) /= null
+              and then not Source.Locally_Removed
+              and then Source.Replaced_By = No_Source
+              and then not Data.In_Aggregate_Lib
+            then
+               --  Path is set if this is a source we found on the disk, in
+               --  which case we can provide more explicit error message. Path
+               --  is unset when the source is added from one of the naming
+               --  exceptions in the project.
 
-            if Path /= No_Path_Information then
-               Error_Msg_Name_1 := Unit;
+               if Path /= No_Path_Information then
+                  Error_Msg_Name_1 := Unit;
+                  Error_Msg
+                    (Data.Flags,
+                     "unit %% cannot belong to several projects",
+                     Location, Project);
+
+                  Error_Msg_Name_1 := Project.Name;
+                  Error_Msg_Name_2 := Name_Id (Path.Display_Name);
+                  Error_Msg
+                    (Data.Flags, "\  project %%, %%", Location, Project);
+
+                  Error_Msg_Name_1 := Source.Project.Name;
+                  Error_Msg_Name_2 := Name_Id (Source.Path.Display_Name);
+                  Error_Msg
+                    (Data.Flags, "\  project %%, %%", Location, Project);
+
+               else
+                  Error_Msg_Name_1 := Unit;
+                  Error_Msg_Name_2 := Source.Project.Name;
+                  Error_Msg
+                    (Data.Flags, "unit %% already belongs to project %%",
+                     Location, Project);
+               end if;
+
+               Add_Src := False;
+
+            elsif not Source.Locally_Removed
+              and then Source.Replaced_By /= No_Source
+              and then not Data.Flags.Allow_Duplicate_Basenames
+              and then Lang_Id.Config.Kind = Unit_Based
+              and then Source.Language.Config.Kind = Unit_Based
+              and then not Data.In_Aggregate_Lib
+            then
+               Error_Msg_File_1 := File_Name;
+               Error_Msg_File_2 := File_Name_Type (Source.Project.Name);
                Error_Msg
                  (Data.Flags,
-                  "unit %% cannot belong to several projects",
-                  Location, Project);
+                  "{ is already a source of project {", Location, Project);
 
-               Error_Msg_Name_1 := Project.Name;
-               Error_Msg_Name_2 := Name_Id (Path.Display_Name);
-               Error_Msg
-                 (Data.Flags, "\  project %%, %%", Location, Project);
+               --  Add the file anyway, to avoid further warnings like
+               --  "language unknown".
 
-               Error_Msg_Name_1 := Source.Project.Name;
-               Error_Msg_Name_2 := Name_Id (Source.Path.Display_Name);
-               Error_Msg
-                 (Data.Flags, "\  project %%, %%", Location, Project);
-
-            else
-               Error_Msg_Name_1 := Unit;
-               Error_Msg_Name_2 := Source.Project.Name;
-               Error_Msg
-                 (Data.Flags, "unit %% already belongs to project %%",
-                  Location, Project);
+               Add_Src := True;
             end if;
-
-            Add_Src := False;
-
-         elsif not Source.Locally_Removed
-           and then not Data.Flags.Allow_Duplicate_Basenames
-           and then Lang_Id.Config.Kind = Unit_Based
-           and then Source.Language.Config.Kind = Unit_Based
-           and then not Data.In_Aggregate_Lib
-         then
-            Error_Msg_File_1 := File_Name;
-            Error_Msg_File_2 := File_Name_Type (Source.Project.Name);
-            Error_Msg
-              (Data.Flags,
-               "{ is already a source of project {", Location, Project);
-
-            --  Add the file anyway, to avoid further warnings like "language
-            --  unknown".
-
-            Add_Src := True;
          end if;
       end if;
 
@@ -858,7 +884,7 @@ package body Prj.Nmsc is
 
          --  Note that this updates Unit information as well
 
-         if Naming_Exception /= Inherited then
+         if Naming_Exception /= Inherited and then not Locally_Removed then
             Override_Kind (Id, Kind);
          end if;
       end if;
@@ -1096,19 +1122,22 @@ package body Prj.Nmsc is
          Element  : Package_Element;
 
          procedure Process_Binder (Arrays : Array_Id);
-         --  Process the associate array attributes of package Binder
+         --  Process the associated array attributes of package Binder
 
          procedure Process_Builder (Attributes : Variable_Id);
          --  Process the simple attributes of package Builder
 
+         procedure Process_Clean  (Arrays : Array_Id);
+         --  Process the associated array attributes of package Clean
+
          procedure Process_Compiler (Arrays : Array_Id);
-         --  Process the associate array attributes of package Compiler
+         --  Process the associated array attributes of package Compiler
 
          procedure Process_Naming (Attributes : Variable_Id);
          --  Process the simple attributes of package Naming
 
          procedure Process_Naming (Arrays : Array_Id);
-         --  Process the associate array attributes of package Naming
+         --  Process the associated array attributes of package Naming
 
          procedure Process_Linker (Attributes : Variable_Id);
          --  Process the simple attributes of package Linker of a
@@ -1222,6 +1251,73 @@ package body Prj.Nmsc is
                Attribute_Id := Attribute.Next;
             end loop;
          end Process_Builder;
+
+         -------------------
+         -- Process_Clean --
+         -------------------
+
+         procedure Process_Clean  (Arrays : Array_Id) is
+            Current_Array_Id : Array_Id;
+            Current_Array    : Array_Data;
+            Element_Id       : Array_Element_Id;
+            Element          : Array_Element;
+            List             : String_List_Id;
+
+         begin
+            --  Process the associated array attributes of package Clean
+
+            Current_Array_Id := Arrays;
+            while Current_Array_Id /= No_Array loop
+               Current_Array := Shared.Arrays.Table (Current_Array_Id);
+
+               Element_Id := Current_Array.Value;
+               while Element_Id /= No_Array_Element loop
+                  Element := Shared.Array_Elements.Table (Element_Id);
+
+                  --  Get the name of the language
+
+                  Lang_Index :=
+                    Get_Language_From_Name
+                      (Project, Get_Name_String (Element.Index));
+
+                  if Lang_Index /= No_Language_Index then
+                     case Current_Array.Name is
+
+                        --  Attribute Object_Artifact_Extensions (<language>)
+
+                        when Name_Object_Artifact_Extensions =>
+                           List := Element.Value.Values;
+
+                           if List /= Nil_String then
+                              Put (Into_List =>
+                                     Lang_Index.Config.Clean_Object_Artifacts,
+                                   From_List => List,
+                                   In_Tree   => Data.Tree);
+                           end if;
+
+                        --  Attribute Source_Artifact_Extensions (<language>)
+
+                        when Name_Source_Artifact_Extensions =>
+                           List := Element.Value.Values;
+
+                           if List /= Nil_String then
+                              Put (Into_List =>
+                                     Lang_Index.Config.Clean_Source_Artifacts,
+                                   From_List => List,
+                                   In_Tree   => Data.Tree);
+                           end if;
+
+                        when others =>
+                           null;
+                     end case;
+                  end if;
+
+                  Element_Id := Element.Next;
+               end loop;
+
+               Current_Array_Id := Current_Array.Next;
+            end loop;
+         end Process_Clean;
 
          ----------------------
          -- Process_Compiler --
@@ -1437,6 +1533,12 @@ package body Prj.Nmsc is
                         when Name_Object_File_Switches =>
                            Put (Into_List =>
                                   Lang_Index.Config.Object_File_Switches,
+                                From_List => Element.Value.Values,
+                                In_Tree   => Data.Tree);
+
+                        when Name_Object_Path_Switches =>
+                           Put (Into_List =>
+                                  Lang_Index.Config.Object_Path_Switches,
                                 From_List => Element.Value.Values,
                                 In_Tree   => Data.Tree);
 
@@ -1825,6 +1927,12 @@ package body Prj.Nmsc is
                   --  Process attributes of package Builder
 
                   Process_Builder (Element.Decl.Attributes);
+
+               when Name_Clean =>
+
+                  --  Process attributes of package Clean
+
+                  Process_Clean (Element.Decl.Arrays);
 
                when Name_Compiler =>
 
@@ -3211,7 +3319,9 @@ package body Prj.Nmsc is
       if Project.Library then
          Support_For_Libraries := Project.Config.Lib_Support;
 
-         if Support_For_Libraries = Prj.None then
+         if not Project.Externally_Built
+           and then Support_For_Libraries = Prj.None
+         then
             Error_Msg
               (Data.Flags,
                "?libraries are not supported on this platform",
@@ -3399,7 +3509,9 @@ package body Prj.Nmsc is
                   end if;
 
                   if Project.Library_Kind /= Static then
-                     if Support_For_Libraries = Prj.Static_Only then
+                     if not Project.Externally_Built
+                       and then Support_For_Libraries = Prj.Static_Only
+                     then
                         Error_Msg
                           (Data.Flags,
                            "only static libraries are supported " &
@@ -3528,7 +3640,9 @@ package body Prj.Nmsc is
          --  Check if the same library name is used in an other library project
 
          for J in 1 .. Lib_Data_Table.Last loop
-            if Lib_Data_Table.Table (J).Name = Project.Library_Name then
+            if Lib_Data_Table.Table (J).Name = Project.Library_Name
+              and then Lib_Data_Table.Table (J).Tree = Data.Tree
+            then
                Error_Msg_Name_1 := Lib_Data_Table.Table (J).Proj.Name;
                Error_Msg
                  (Data.Flags,
@@ -3545,7 +3659,9 @@ package body Prj.Nmsc is
          --  Record the library name
 
          Lib_Data_Table.Append
-           ((Name => Project.Library_Name, Proj => Project));
+           ((Name => Project.Library_Name,
+             Proj => Project,
+             Tree => Data.Tree));
       end if;
    end Check_Library_Attributes;
 
@@ -4093,22 +4209,25 @@ package body Prj.Nmsc is
             Lang_Id := Lang_Id.Next;
          end loop;
 
-         --  Get the naming exceptions for all languages
+         --  Get the naming exceptions for all languages, but not for virtual
+         --  projects.
 
-         for Kind in Spec_Or_Body loop
-            Lang_Id := Project.Languages;
-            while Lang_Id /= No_Language_Index loop
-               case Lang_Id.Config.Kind is
+         if not Project.Virtual then
+            for Kind in Spec_Or_Body loop
+               Lang_Id := Project.Languages;
+               while Lang_Id /= No_Language_Index loop
+                  case Lang_Id.Config.Kind is
                   when File_Based =>
                      Process_Exceptions_File_Based (Lang_Id, Kind);
 
                   when Unit_Based =>
                      Process_Exceptions_Unit_Based (Lang_Id, Kind);
-               end case;
+                  end case;
 
-               Lang_Id := Lang_Id.Next;
+                  Lang_Id := Lang_Id.Next;
+               end loop;
             end loop;
-         end loop;
+         end if;
       end Check_Naming;
 
       ----------------------------
@@ -7703,8 +7822,12 @@ package body Prj.Nmsc is
                     (Project.Excluded, Source.File);
 
                   if Excluded /= No_File_Found then
-                     Source.Locally_Removed := True;
                      Source.In_Interfaces   := False;
+                     Source.Locally_Removed := True;
+
+                     if Proj = Project.Project then
+                        Source.Suppressed := True;
+                     end if;
 
                      if Current_Verbosity = High then
                         Debug_Indent;

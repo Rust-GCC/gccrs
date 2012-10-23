@@ -7286,7 +7286,14 @@ s390*-*linux*|s390*-*tpf*|sparc*-*linux*)
 	    LD="${LD-ld} -m elf_i386_fbsd"
 	    ;;
 	  x86_64-*linux*)
-	    LD="${LD-ld} -m elf_i386"
+	    case `/usr/bin/file conftest.o` in
+	      *x86-64*)
+		LD="${LD-ld} -m elf32_x86_64"
+		;;
+	      *)
+		LD="${LD-ld} -m elf_i386"
+		;;
+	    esac
 	    ;;
 	  ppc64-*linux*|powerpc64-*linux*)
 	    LD="${LD-ld} -m elf32ppclinux"
@@ -8825,6 +8832,7 @@ $as_echo_n "checking for $compiler option to produce PIC... " >&6; }
 	# AIX 5 now supports IA64 processor
 	lt_prog_compiler_static='-Bstatic'
       fi
+      lt_prog_compiler_pic='-fPIC'
       ;;
 
     amigaos*)
@@ -11771,7 +11779,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11774 "configure"
+#line 11782 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11877,7 +11885,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11880 "configure"
+#line 11888 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -13674,6 +13682,7 @@ $as_echo_n "checking for $compiler option to produce PIC... " >&6; }
 	# AIX 5 now supports IA64 processor
 	lt_prog_compiler_static_CXX='-Bstatic'
       fi
+      lt_prog_compiler_pic_CXX='-fPIC'
       ;;
 
     amigaos*)
@@ -15795,7 +15804,7 @@ else
    # read() to the same fd.  The only system known to have a problem here
    # is VMS, where text files have record structure.
    case "$host_os" in
-     vms* | ultrix*)
+     *vms* | ultrix*)
         gcc_cv_func_mmap_file=no ;;
      *)
         gcc_cv_func_mmap_file=yes;;
@@ -15819,7 +15828,7 @@ else
    # Systems known to be in this category are Windows (all variants),
    # VMS, and Darwin.
    case "$host_os" in
-     vms* | cygwin* | pe | mingw* | darwin* | ultrix* | hpux10* | hpux11.00)
+     *vms* | cygwin* | pe | mingw* | darwin* | ultrix* | hpux10* | hpux11.00)
         gcc_cv_func_mmap_dev_zero=no ;;
      *)
         gcc_cv_func_mmap_dev_zero=yes;;
@@ -15876,7 +15885,7 @@ else
    # above for use of /dev/zero.
    # Systems known to be in this category are Windows, VMS, and SCO Unix.
    case "$host_os" in
-     vms* | cygwin* | pe | mingw* | sco* | udk* )
+     *vms* | cygwin* | pe | mingw* | sco* | udk* )
         gcc_cv_func_mmap_anon=no ;;
      *)
         gcc_cv_func_mmap_anon=yes;;
@@ -17333,7 +17342,6 @@ else
   if test "$cross_compiling" = yes; then :
 
 case "${host}" in
-  alpha*-dec-osf*) ac_cv_have_elf_style_weakref=no ;;
   *-apple-darwin[89]*) ac_cv_have_elf_style_weakref=no ;;
   *) ac_cv_have_elf_style_weakref=yes;;
 esac

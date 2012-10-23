@@ -25,15 +25,11 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "tm_p.h"
 #include "basic-block.h"
-#include "output.h"
 #include "tree-pretty-print.h"
 #include "tree-flow.h"
-#include "tree-dump.h"
-#include "timevar.h"
 #include "cfgloop.h"
 #include "tree-pass.h"
 #include "insn-config.h"
-#include "recog.h"
 #include "hashtab.h"
 #include "tree-chrec.h"
 #include "tree-scalar-evolution.h"
@@ -48,6 +44,7 @@ along with GCC; see the file COPYING3.  If not see
    between the GIMPLE and RTL worlds.  */
 #include "expr.h"
 #include "optabs.h"
+#include "recog.h"
 
 /* This pass inserts prefetch instructions to optimize cache usage during
    accesses to arrays in loops.  It processes loops sequentially and:
@@ -281,6 +278,26 @@ struct mem_ref
 				   nontemporal one.  */
 };
 
+/* Dumps information about memory reference */
+static void
+dump_mem_details (FILE *file, tree base, tree step,
+	    HOST_WIDE_INT delta, bool write_p) 
+{
+  fprintf (file, "(base ");
+  print_generic_expr (file, base, TDF_SLIM);
+  fprintf (file, ", step ");
+  if (cst_and_fits_in_hwi (step))
+    fprintf (file, HOST_WIDE_INT_PRINT_DEC, int_cst_value (step));
+  else
+    print_generic_expr (file, step, TDF_TREE);
+  fprintf (file, ")\n");
+  fprintf (file, "  delta ");
+  fprintf (file, HOST_WIDE_INT_PRINT_DEC, delta);
+  fprintf (file, "\n");
+  fprintf (file, "  %s\n", write_p ? "write" : "read");
+  fprintf (file, "\n");
+}
+
 /* Dumps information about reference REF to FILE.  */
 
 static void
@@ -288,22 +305,10 @@ dump_mem_ref (FILE *file, struct mem_ref *ref)
 {
   fprintf (file, "Reference %p:\n", (void *) ref);
 
-  fprintf (file, "  group %p (base ", (void *) ref->group);
-  print_generic_expr (file, ref->group->base, TDF_SLIM);
-  fprintf (file, ", step ");
-  if (cst_and_fits_in_hwi (ref->group->step))
-    fprintf (file, HOST_WIDE_INT_PRINT_DEC, int_cst_value (ref->group->step));
-  else
-    print_generic_expr (file, ref->group->step, TDF_TREE);
-  fprintf (file, ")\n");
+  fprintf (file, "  group %p ", (void *) ref->group);
 
-  fprintf (file, "  delta ");
-  fprintf (file, HOST_WIDE_INT_PRINT_DEC, ref->delta);
-  fprintf (file, "\n");
-
-  fprintf (file, "  %s\n", ref->write_p ? "write" : "read");
-
-  fprintf (file, "\n");
+  dump_mem_details (file, ref->group->base, ref->group->step, ref->delta,
+                   ref->write_p);
 }
 
 /* Finds a group with BASE and STEP in GROUPS, or creates one if it does not
@@ -540,9 +545,44 @@ gather_memory_references_ref (struct loop *loop, struct mem_ref_group **refs,
   if (may_be_nonaddressable_p (base))
     return false;
 
-  /* Limit non-constant step prefetching only to the innermost loops.  */
-  if (!cst_and_fits_in_hwi (step) && loop->inner != NULL)
-    return false;
+  /* Limit non-constant step prefetching only to the innermost loops and 
+     only when the step is loop invariant in the entire loop nest. */
+  if (!cst_and_fits_in_hwi (step))
+    {
+      if (loop->inner != NULL)
+        {
+          if (dump_file && (dump_flags & TDF_DETAILS))
+            {
+              fprintf (dump_file, "Memory expression %p\n",(void *) ref ); 
+              print_generic_expr (dump_file, ref, TDF_TREE); 
+              fprintf (dump_file,":");
+              dump_mem_details( dump_file, base, step, delta, write_p);              
+              fprintf (dump_file, 
+                       "Ignoring %p, non-constant step prefetching is "
+                       "limited to inner most loops \n", 
+                       (void *) ref);
+            }
+            return false;    
+         }
+      else
+        {
+          if (!expr_invariant_in_loop_p (loop_outermost (loop), step))
+          {
+            if (dump_file && (dump_flags & TDF_DETAILS))
+              {
+                fprintf (dump_file, "Memory expression %p\n",(void *) ref );
+                print_generic_expr (dump_file, ref, TDF_TREE);
+                fprintf (dump_file,":");
+                dump_mem_details(dump_file, base, step, delta, write_p);
+                fprintf (dump_file, 
+                         "Not prefetching, ignoring %p due to "
+                         "loop variant step\n",
+                         (void *) ref);
+              }
+              return false;                 
+            }
+        }
+    }
 
   /* Now we know that REF = &BASE + STEP * iter + DELTA, where DELTA and STEP
      are integer constants.  */
@@ -1207,7 +1247,6 @@ emit_mfence_after_loop (struct loop *loop)
       bsi = gsi_after_labels (exit->dest);
 
       gsi_insert_before (&bsi, call, GSI_NEW_STMT);
-      mark_virtual_ops_for_renaming (call);
     }
 
   VEC_free (edge, heap, exits);
@@ -1495,9 +1534,9 @@ self_reuse_distance (data_reference_p dr, unsigned *loop_sizes, unsigned n,
 
 /* Determines the distance till the first reuse of each reference in REFS
    in the loop nest of LOOP.  NO_OTHER_REFS is true if there are no other
-   memory references in the loop.  */
+   memory references in the loop.  Return false if the analysis fails.  */
 
-static void
+static bool
 determine_loop_nest_reuse (struct loop *loop, struct mem_ref_group *refs,
 			   bool no_other_refs)
 {
@@ -1515,7 +1554,7 @@ determine_loop_nest_reuse (struct loop *loop, struct mem_ref_group *refs,
   ddr_p dep;
 
   if (loop->inner)
-    return;
+    return true;
 
   /* Find the outermost loop of the loop nest of loop (we require that
      there are no sibling loops inside the nest).  */
@@ -1548,8 +1587,8 @@ determine_loop_nest_reuse (struct loop *loop, struct mem_ref_group *refs,
 	continue;
 
       aloop = VEC_index (loop_p, vloops, i);
-      vol = max_stmt_executions_int (aloop, false);
-      if (vol < 0)
+      vol = estimated_stmt_executions_int (aloop);
+      if (vol == -1)
 	vol = expected_loop_iterations (aloop);
       volume *= vol;
     }
@@ -1585,7 +1624,8 @@ determine_loop_nest_reuse (struct loop *loop, struct mem_ref_group *refs,
 	ref->independent_p = true;
     }
 
-  compute_all_dependences (datarefs, &dependences, vloops, true);
+  if (!compute_all_dependences (datarefs, &dependences, vloops, true))
+    return false;
 
   FOR_EACH_VEC_ELT (ddr_p, dependences, i, dep)
     {
@@ -1664,6 +1704,8 @@ determine_loop_nest_reuse (struct loop *loop, struct mem_ref_group *refs,
 	  fprintf (dump_file, " ref %p distance %u\n",
 		   (void *) ref, ref->reuse_distance);
     }
+
+  return true;
 }
 
 /* Determine whether or not the trip count to ahead ratio is too small based
@@ -1800,7 +1842,9 @@ loop_prefetch_arrays (struct loop *loop)
     return false;
 
   ahead = (PREFETCH_LATENCY + time - 1) / time;
-  est_niter = max_stmt_executions_int (loop, false);
+  est_niter = estimated_stmt_executions_int (loop);
+  if (est_niter == -1)
+    est_niter = max_stmt_executions_int (loop);
 
   /* Prefetching is not likely to be profitable if the trip count to ahead
      ratio is too small.  */
@@ -1824,7 +1868,8 @@ loop_prefetch_arrays (struct loop *loop)
   if (nothing_to_prefetch_p (refs))
     goto fail;
 
-  determine_loop_nest_reuse (loop, refs, no_other_refs);
+  if (!determine_loop_nest_reuse (loop, refs, no_other_refs))
+    goto fail;
 
   /* Step 3: determine unroll factor.  */
   unroll_factor = determine_unroll_factor (loop, refs, ninsns, &desc,

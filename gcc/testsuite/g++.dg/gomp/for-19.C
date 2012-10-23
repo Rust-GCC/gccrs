@@ -8,7 +8,7 @@ template <typename T>
 void
 f1 (void)
 {
-#pragma omp for		// { dg-error "forbids incrementing a pointer of type" }
+#pragma omp for
   for (void *q = (void *)p; q < (void *) (p + 4); q++)	// { dg-error "forbids incrementing a pointer of type" }
     ;
 }
@@ -26,8 +26,8 @@ template <typename T>
 void
 f3 (void)
 {
-#pragma omp for		// { dg-error "forbids incrementing a pointer of type" }
-  for (T q = T (p); q < T (p + 4); q++)
+#pragma omp for
+  for (T q = T (p); q < T (p + 4); q++)	// { dg-error "forbids incrementing a pointer of type" }
     ;
 }
 

@@ -1,20 +1,16 @@
-2012-09-20  Release Manager
+2012-09-14  David Edelsohn  <dje.gcc@gmail.com>
 
-	* GCC 4.7.2 released.
+	* configure: Regenerated.
 
-2012-06-14  Release Manager
+2012-05-29  Benjamin Kosnik  <bkoz@redhat.com>
 
-	* GCC 4.7.1 released.
-
-2012-05-31  Benjamin Kosnik  <bkoz@redhat.com>
-
-        PR libstdc++/52007
+        PR libstdc++/51007
         * configure.ac: Allow gnu, gnu* variants for --enable-symvers argument.
         * configure: Regenerated.
 
-2012-03-22  Release Manager
+2012-05-16  H.J. Lu  <hongjiu.lu@intel.com>
 
-	* GCC 4.7.0 released.
+	* configure: Regenerated.
 
 2011-11-21  Andreas Tobler  <andreast@fgznet.ch>
 

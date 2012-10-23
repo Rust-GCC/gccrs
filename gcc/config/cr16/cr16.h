@@ -238,7 +238,7 @@ while (0)
 #define EH_RETURN_STACKADJ_RTX 		gen_rtx_REG (Pmode, 4)
 
 #define EH_RETURN_HANDLER_RTX \
-  gen_rtx_MEM (Pmode, plus_constant (arg_pointer_rtx, -4))
+  gen_rtx_MEM (Pmode, plus_constant (Pmode, arg_pointer_rtx, -4))
 
 #define INCOMING_RETURN_ADDR_RTX	gen_rtx_RA
 
@@ -459,10 +459,6 @@ struct cumulative_args
 #define REG_MODE_OK_FOR_BASE_P(X, MODE)	1
 #define REG_OK_FOR_INDEX_P(X)   1
 #endif /* not REG_OK_STRICT.  */
-
-/* Go to LABEL if ADDR (a legitimate address expression) has 
-   an effect that depends on the machine mode it is used for.  */
-#define GO_IF_MODE_DEPENDENT_ADDRESS(ADDR, LABEL)
 
 /* Assume best case (branch predicted).  */
 #define BRANCH_COST(speed_p, predictable_p)       2

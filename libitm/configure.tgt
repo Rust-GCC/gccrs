@@ -53,7 +53,7 @@ case "${target_cpu}" in
 
   i[3456]86)
 	case " ${CC} ${CFLAGS} " in
-	  *" -m64 "*)
+	  *" -m64 "*|*" -mx32 "*)
 	    ;;
 	  *)
 	    if test -z "$with_arch"; then
@@ -130,7 +130,7 @@ case "${target}" in
 
   *-*-gnu* | *-*-k*bsd*-gnu \
   | *-*-netbsd* | *-*-freebsd* | *-*-openbsd* \
-  | *-*-solaris2* | *-*-sysv4* | *-*-irix6* | *-*-osf* | *-*-hpux11* \
+  | *-*-solaris2* | *-*-sysv4* | *-*-hpux11* \
   | *-*-darwin* | *-*-aix*)
 	# POSIX system.  The OS is supported.
 	;;

@@ -1,7 +1,6 @@
 /* Definitions of target machine for GNU compiler,
    for IBM RS/6000 POWER running AIX V5.
-   Copyright (C) 2001, 2003, 2004, 2005, 2007, 2008, 2009, 2010
-   Free Software Foundation, Inc.
+   Copyright (C) 2001-2012 Free Software Foundation, Inc.
    Contributed by David Edelsohn (edelsohn@gnu.org).
 
    This file is part of GCC.
@@ -23,17 +22,11 @@
 /* The macro SUBTARGET_OVERRIDE_OPTIONS is provided for subtargets, to
    get control in TARGET_OPTION_OVERRIDE.  */
 
-#define NON_POWERPC_MASKS (MASK_POWER | MASK_POWER2)
 #define SUBTARGET_OVERRIDE_OPTIONS					\
 do {									\
-  if (TARGET_64BIT && (target_flags & NON_POWERPC_MASKS))		\
-    {									\
-      target_flags &= ~NON_POWERPC_MASKS;				\
-      warning (0, "-maix64 and POWER architecture are incompatible");	\
-    }									\
   if (TARGET_64BIT && ! TARGET_POWERPC64)				\
     {									\
-      target_flags |= MASK_POWERPC64;					\
+      rs6000_isa_flags |= OPTION_MASK_POWERPC64;			\
       warning (0, "-maix64 requires PowerPC64 architecture remain enabled"); \
     }									\
   if (TARGET_POWERPC64 && ! TARGET_64BIT)				\
@@ -50,22 +43,11 @@ do {									\
 #undef ASM_CPU_SPEC
 #define ASM_CPU_SPEC \
 "%{!mcpu*: %{!maix64: \
-  %{mpower: %{!mpower2: -mpwr}} \
-  %{mpower2: -mpwr2} \
-  %{mpowerpc*: %{!mpowerpc64: -mppc}} \
-  %{mpowerpc64: -mppc64} \
-  %{!mpower*: %{!mpowerpc*: %(asm_default)}}}} \
-%{mcpu=common: -mcom} \
-%{mcpu=power: -mpwr} \
-%{mcpu=power2: -mpwr2} \
+  %{!mpowerpc64: %(asm_default)} \
+  %{mpowerpc64: -mppc64}}} \
 %{mcpu=power3: -m620} \
 %{mcpu=power4: -m620} \
 %{mcpu=powerpc: -mppc} \
-%{mcpu=rios: -mpwr} \
-%{mcpu=rios1: -mpwr} \
-%{mcpu=rios2: -mpwr2} \
-%{mcpu=rsc: -mpwr} \
-%{mcpu=rsc1: -mpwr} \
 %{mcpu=rs64a: -mppc} \
 %{mcpu=601: -m601} \
 %{mcpu=602: -mppc} \
@@ -79,7 +61,7 @@ do {									\
 %{mcpu=G5: -m620}"
 
 #undef	ASM_DEFAULT_SPEC
-#define ASM_DEFAULT_SPEC "-mcom"
+#define ASM_DEFAULT_SPEC "-mppc"
 
 #undef TARGET_OS_CPP_BUILTINS
 #define TARGET_OS_CPP_BUILTINS()     \
@@ -108,7 +90,7 @@ do {									\
    %{pthread: -D_THREAD_SAFE}"
 
 #undef TARGET_DEFAULT
-#define TARGET_DEFAULT MASK_NEW_MNEMONICS
+#define TARGET_DEFAULT 0
 
 #undef PROCESSOR_DEFAULT
 #define PROCESSOR_DEFAULT PROCESSOR_PPC604e
@@ -163,12 +145,6 @@ do {									\
 /* Width of wchar_t in bits.  */
 #undef  WCHAR_TYPE_SIZE
 #define WCHAR_TYPE_SIZE (!TARGET_64BIT ? 16 : 32)
-
-/* AIX V5 uses PowerPC nop (ori 0,0,0) instruction as call glue for PowerPC
-   and "cror 31,31,31" for POWER architecture.  */
-
-#undef RS6000_CALL_GLUE
-#define RS6000_CALL_GLUE "{cror 31,31,31|nop}"
 
 /* AIX 4.2 and above provides initialization and finalization function
    support from linker command line.  */

@@ -1,6 +1,6 @@
 /* Definitions for c-common.c.
-   Copyright (C) 1987, 1993, 1994, 1995, 1997, 1998,
-   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010, 2011
+   Copyright (C) 1987, 1993, 1994, 1995, 1997, 1998, 1999, 2000, 2001, 2002,
+   2003, 2004, 2005, 2007, 2008, 2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -25,6 +25,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "splay-tree.h"
 #include "cpplib.h"
 #include "ggc.h"
+#include "tree.h"
 
 /* In order for the format checking to accept the C frontend
    diagnostic framework extensions, you must include this file before
@@ -44,7 +45,6 @@ never after.
 
 /* Usage of TREE_LANG_FLAG_?:
    0: IDENTIFIER_MARKED (used by search routines).
-      DECL_PRETTY_FUNCTION_P (in VAR_DECL)
       C_MAYBE_CONST_EXPR_INT_OPERANDS (in C_MAYBE_CONST_EXPR, for C)
    1: C_DECLARED_LABEL_FLAG (in LABEL_DECL)
       STATEMENT_LIST_STMT_EXPR (in STATEMENT_LIST)
@@ -390,7 +390,7 @@ extern const unsigned int num_c_common_reswords;
 #define int32_type_node			c_global_trees[CTI_INT32_TYPE]
 #define int64_type_node			c_global_trees[CTI_INT64_TYPE]
 #define uint8_type_node			c_global_trees[CTI_UINT8_TYPE]
-#define uint16_type_node		c_global_trees[CTI_UINT16_TYPE]
+#define c_uint16_type_node		c_global_trees[CTI_UINT16_TYPE]
 #define c_uint32_type_node		c_global_trees[CTI_UINT32_TYPE]
 #define c_uint64_type_node		c_global_trees[CTI_UINT64_TYPE]
 #define int_least8_type_node		c_global_trees[CTI_INT_LEAST8_TYPE]
@@ -477,7 +477,9 @@ typedef enum ref_operator {
   /* -> */
   RO_ARROW,
   /* implicit conversion */
-  RO_IMPLICIT_CONVERSION
+  RO_IMPLICIT_CONVERSION,
+  /* ->* */
+  RO_ARROW_STAR
 } ref_operator;
 
 /* Information about a statement tree.  */
@@ -543,8 +545,6 @@ extern tree pushdecl (tree);
 extern tree build_modify_expr (location_t, tree, tree, enum tree_code,
 			       location_t, tree, tree);
 extern tree build_indirect_ref (location_t, tree, ref_operator);
-
-extern int c_expand_decl (tree);
 
 extern int field_decl_cmp (const void *, const void *);
 extern void resort_sorted_fields (void *, void *, gt_pointer_operator,
@@ -649,7 +649,9 @@ enum cxx_dialect {
   cxx03 = cxx98,
   /* C++11  */
   cxx0x,
-  cxx11 = cxx0x
+  cxx11 = cxx0x,
+  /* C++1y (C++17?) */
+  cxx1y
 };
 
 /* The C++ dialect being used. C++98 is the default.  */
@@ -767,9 +769,13 @@ extern tree fix_string_type (tree);
 extern void constant_expression_warning (tree);
 extern void constant_expression_error (tree);
 extern bool strict_aliasing_warning (tree, tree, tree);
+extern void sizeof_pointer_memaccess_warning (location_t *, tree,
+					      VEC(tree, gc) *, tree *,
+					      bool (*) (tree, tree));
 extern void warnings_for_convert_and_check (tree, tree, tree);
 extern tree convert_and_check (tree, tree);
 extern void overflow_warning (location_t, tree);
+extern bool warn_if_unused_value (const_tree, location_t);
 extern void warn_logical_operator (location_t, enum tree_code, tree,
 				   enum tree_code, tree, enum tree_code, tree);
 extern void check_main_parameter_types (tree decl);
@@ -785,6 +791,7 @@ extern bool keyword_begins_type_specifier (enum rid);
 extern bool keyword_is_storage_class_specifier (enum rid);
 extern bool keyword_is_type_qualifier (enum rid);
 extern bool keyword_is_decl_specifier (enum rid);
+extern bool cxx_fundamental_alignment_p (unsigned);
 
 #define c_sizeof(LOC, T)  c_sizeof_or_alignof_type (LOC, T, true, 1)
 #define c_alignof(LOC, T) c_sizeof_or_alignof_type (LOC, T, false, 1)
@@ -918,6 +925,7 @@ extern bool lvalue_p (const_tree);
 
 extern bool vector_targets_convertible_p (const_tree t1, const_tree t2);
 extern bool vector_types_convertible_p (const_tree t1, const_tree t2, bool emit_lax_note);
+extern tree c_build_vec_perm_expr (location_t, tree, tree, tree);
 
 extern rtx c_expand_expr (tree, rtx, enum machine_mode, int, rtx *);
 
@@ -983,7 +991,8 @@ extern tree builtin_type_for_size (int, bool);
 extern void c_common_mark_addressable_vec (tree);
 
 extern void warn_array_subscript_with_type_char (tree);
-extern void warn_about_parentheses (enum tree_code,
+extern void warn_about_parentheses (location_t,
+				    enum tree_code,
 				    enum tree_code, tree,
 				    enum tree_code, tree);
 extern void warn_for_unused_label (tree label);
@@ -1018,7 +1027,6 @@ extern void c_common_read_pch (cpp_reader *pfile, const char *name, int fd,
 extern void c_common_write_pch (void);
 extern void c_common_no_more_pch (void);
 extern void c_common_pch_pragma (cpp_reader *pfile, const char *);
-extern void c_common_print_pch_checksum (FILE *f);
 
 /* In *-checksum.c */
 extern const unsigned char executable_checksum[16];
@@ -1115,5 +1123,18 @@ struct GTY(()) tree_userdef_literal {
   (TREE_TYPE (USERDEF_LITERAL_VALUE (NODE)))
 
 extern tree build_userdef_literal (tree suffix_id, tree value, tree num_string);
+
+extern void convert_vector_to_pointer_for_subscript (location_t, tree*, tree);
+
+/* Possibe cases of scalar_to_vector conversion.  */
+enum stv_conv {
+  stv_error,        /* Error occured.  */
+  stv_nothing,      /* Nothing happened.  */
+  stv_firstarg,     /* First argument must be expanded.  */
+  stv_secondarg     /* Second argument must be expanded.  */
+};
+
+extern enum stv_conv scalar_to_vector (location_t loc, enum tree_code code,
+				       tree op0, tree op1, bool);
 
 #endif /* ! GCC_C_COMMON_H */

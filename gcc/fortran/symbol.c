@@ -23,6 +23,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #include "system.h"
+#include "coretypes.h"
 #include "flags.h"
 #include "gfortran.h"
 #include "parse.h"
@@ -274,7 +275,7 @@ gfc_set_default_type (gfc_symbol *sym, int error_flag, gfc_namespace *ns)
   if (ts->type == BT_CHARACTER && ts->u.cl)
     sym->ts.u.cl = gfc_new_charlen (sym->ns, ts->u.cl);
 
-  if (sym->attr.is_bind_c == 1)
+  if (sym->attr.is_bind_c == 1 && gfc_option.warn_c_binding_type)
     {
       /* BIND(C) variables should not be implicitly declared.  */
       gfc_warning_now ("Implicitly declared BIND(C) variable '%s' at %L may "
@@ -287,7 +288,8 @@ gfc_set_default_type (gfc_symbol *sym, int error_flag, gfc_namespace *ns)
       if (sym->ns->proc_name != NULL
 	  && (sym->ns->proc_name->attr.subroutine != 0
 	      || sym->ns->proc_name->attr.function != 0)
-	  && sym->ns->proc_name->attr.is_bind_c != 0)
+	  && sym->ns->proc_name->attr.is_bind_c != 0
+	  && gfc_option.warn_c_binding_type)
         {
           /* Dummy args to a BIND(C) routine may not be interoperable if
              they are implicitly typed.  */
@@ -479,7 +481,7 @@ check_conflict (symbol_attribute *attr, const char *name, locus *where)
     conf (external, subroutine);
 
   if (attr->proc_pointer && gfc_notify_std (GFC_STD_F2003,
-			    "Fortran 2003: Procedure pointer at %C") == FAILURE)
+			    "Procedure pointer at %C") == FAILURE)
     return FAILURE;
 
   conf (allocatable, pointer);
@@ -770,13 +772,13 @@ conflict:
 conflict_std:
   if (name == NULL)
     {
-      return gfc_notify_std (standard, "Fortran 2003: %s attribute "
+      return gfc_notify_std (standard, "%s attribute "
                              "with %s attribute at %L", a1, a2,
                              where);
     }
   else
     {
-      return gfc_notify_std (standard, "Fortran 2003: %s attribute "
+      return gfc_notify_std (standard, "%s attribute "
 			     "with %s attribute in '%s' at %L",
                              a1, a2, name, where);
     }
@@ -1595,7 +1597,7 @@ gfc_add_is_bind_c (symbol_attribute *attr, const char *name, locus *where,
   if (where == NULL)
     where = &gfc_current_locus;
    
-  if (gfc_notify_std (GFC_STD_F2003, "Fortran 2003: BIND(C) at %L", where)
+  if (gfc_notify_std (GFC_STD_F2003, "BIND(C) at %L", where)
       == FAILURE)
     return FAILURE;
 
@@ -1616,7 +1618,7 @@ gfc_add_extension (symbol_attribute *attr, locus *where)
   else
     attr->extension = 1;
 
-  if (gfc_notify_std (GFC_STD_F2003, "Fortran 2003: EXTENDS at %L", where)
+  if (gfc_notify_std (GFC_STD_F2003, "EXTENDS at %L", where)
 	== FAILURE)
     return FAILURE;
 
@@ -2202,7 +2204,8 @@ gfc_define_st_label (gfc_st_label *lp, gfc_sl_type type, locus *label_locus)
       switch (type)
 	{
 	case ST_LABEL_FORMAT:
-	  if (lp->referenced == ST_LABEL_TARGET)
+	  if (lp->referenced == ST_LABEL_TARGET
+	      || lp->referenced == ST_LABEL_DO_TARGET)
 	    gfc_error ("Label %d at %C already referenced as branch target",
 		       labelno);
 	  else
@@ -2211,12 +2214,18 @@ gfc_define_st_label (gfc_st_label *lp, gfc_sl_type type, locus *label_locus)
 	  break;
 
 	case ST_LABEL_TARGET:
+	case ST_LABEL_DO_TARGET:
 	  if (lp->referenced == ST_LABEL_FORMAT)
 	    gfc_error ("Label %d at %C already referenced as a format label",
 		       labelno);
 	  else
-	    lp->defined = ST_LABEL_TARGET;
+	    lp->defined = type;
 
+	  if (lp->referenced == ST_LABEL_DO_TARGET && type != ST_LABEL_DO_TARGET
+      	      && gfc_notify_std (GFC_STD_F95_OBS, "DO termination statement "
+				 "which is not END DO or CONTINUE with label "
+				 "%d at %C", labelno) == FAILURE)
+	    return;
 	  break;
 
 	default:
@@ -2252,14 +2261,16 @@ gfc_reference_st_label (gfc_st_label *lp, gfc_sl_type type)
       lp->where = gfc_current_locus;
     }
 
-  if (label_type == ST_LABEL_FORMAT && type == ST_LABEL_TARGET)
+  if (label_type == ST_LABEL_FORMAT
+      && (type == ST_LABEL_TARGET || type == ST_LABEL_DO_TARGET))
     {
       gfc_error ("Label %d at %C previously used as a FORMAT label", labelno);
       rc = FAILURE;
       goto done;
     }
 
-  if ((label_type == ST_LABEL_TARGET || label_type == ST_LABEL_BAD_TARGET)
+  if ((label_type == ST_LABEL_TARGET || label_type == ST_LABEL_DO_TARGET
+       || label_type == ST_LABEL_BAD_TARGET)
       && type == ST_LABEL_FORMAT)
     {
       gfc_error ("Label %d at %C previously used as branch target", labelno);
@@ -2267,7 +2278,13 @@ gfc_reference_st_label (gfc_st_label *lp, gfc_sl_type type)
       goto done;
     }
 
-  lp->referenced = type;
+  if (lp->referenced == ST_LABEL_DO_TARGET && type == ST_LABEL_DO_TARGET
+      && gfc_notify_std (GFC_STD_F95_OBS, "Shared DO termination label %d "
+			 "at %C", labelno) == FAILURE)
+    return FAILURE;
+
+  if (lp->referenced != ST_LABEL_DO_TARGET)
+    lp->referenced = type;
   rc = SUCCESS;
 
 done:
@@ -2494,7 +2511,8 @@ gfc_free_symbol (gfc_symbol *sym)
 
   gfc_free_namelist (sym->namelist);
 
-  gfc_free_namespace (sym->formal_ns);
+  if (sym->ns != sym->formal_ns)
+    gfc_free_namespace (sym->formal_ns);
 
   if (!sym->attr.generic_copy)
     gfc_free_interface (sym->generic);
@@ -2502,6 +2520,13 @@ gfc_free_symbol (gfc_symbol *sym)
   gfc_free_formal_arglist (sym->formal);
 
   gfc_free_namespace (sym->f2k_derived);
+
+  if (sym->common_block && sym->common_block->name[0] != '\0')
+    { 
+      sym->common_block->refs--; 
+      if (sym->common_block->refs == 0)
+	free (sym->common_block);
+    }
 
   free (sym);
 }
@@ -2515,7 +2540,8 @@ gfc_release_symbol (gfc_symbol *sym)
   if (sym == NULL)
     return;
 
-  if (sym->formal_ns != NULL && sym->refs == 2)
+  if (sym->formal_ns != NULL && sym->refs == 2 && sym->formal_ns != sym->ns
+      && (!sym->attr.entry || !sym->module))
     {
       /* As formal_ns contains a reference to sym, delete formal_ns just
 	 before the deletion of sym.  */
@@ -2841,6 +2867,30 @@ gfc_get_ha_symbol (const char *name, gfc_symbol **result)
   return i;
 }
 
+
+/* Search for the symtree belonging to a gfc_common_head; we cannot use
+   head->name as the common_root symtree's name might be mangled.  */
+
+static gfc_symtree *
+find_common_symtree (gfc_symtree *st, gfc_common_head *head)
+{
+
+  gfc_symtree *result;
+
+  if (st == NULL)
+    return NULL;
+
+  if (st->n.common == head)
+    return st;
+
+  result = find_common_symtree (st->left, head);
+  if (!result)  
+    result = find_common_symtree (st->right, head);
+
+  return result;
+}
+
+
 /* Undoes all the changes made to symbols in the current statement.
    This subroutine is made simpler due to the fact that attributes are
    never removed once added.  */
@@ -2863,6 +2913,19 @@ gfc_undo_symbols (void)
 	      /* If the symbol was added to any common block, it
 		 needs to be removed to stop the resolver looking
 		 for a (possibly) dead symbol.  */
+
+	      if (p->common_block->head == p && !p->common_next)
+		{
+		  gfc_symtree st, *st0;
+		  st0 = find_common_symtree (p->ns->common_root,
+					     p->common_block);
+		  if (st0)
+		    {
+		      st.name = st0->name;
+		      gfc_delete_bbt (&p->ns->common_root, &st, compare_symtree);
+		      free (st0);
+		    }
+		}
 
 	      if (p->common_block->head == p)
 	        p->common_block->head = p->common_next;
@@ -2933,7 +2996,7 @@ gfc_undo_symbols (void)
 	{
 	  if (p->namelist_tail != old->namelist_tail)
 	    {
-	      gfc_free_namelist (old->namelist_tail);
+	      gfc_free_namelist (old->namelist_tail->next);
 	      old->namelist_tail->next = NULL;
 	    }
 	}
@@ -3694,7 +3757,8 @@ verify_bind_c_derived_type (gfc_symbol *derived_sym)
 		 recompiles with different flags (e.g., -m32 and -m64 on
 		 x86_64 and using integer(4) to claim interop with a
 		 C_LONG).  */
-	      if (derived_sym->attr.is_bind_c == 1)
+	      if (derived_sym->attr.is_bind_c == 1
+		  && gfc_option.warn_c_binding_type)
 		/* If the derived type is bind(c), all fields must be
 		   interop.  */
 		gfc_warning ("Component '%s' in derived type '%s' at %L "
@@ -3702,7 +3766,7 @@ verify_bind_c_derived_type (gfc_symbol *derived_sym)
                              "derived type '%s' is BIND(C)",
                              curr_comp->name, derived_sym->name,
                              &(curr_comp->loc), derived_sym->name);
-	      else
+	      else if (gfc_option.warn_c_binding_type)
 		/* If derived type is param to bind(c) routine, or to one
 		   of the iso_c_binding procs, it must be interoperable, so
 		   all fields must interop too.	 */
@@ -4046,8 +4110,7 @@ gen_shape_param (gfc_formal_arglist **head,
    reference to the list of formal arguments).  */
 
 static void
-add_proc_interface (gfc_symbol *sym, ifsrc source,
-                    gfc_formal_arglist *formal)
+add_proc_interface (gfc_symbol *sym, ifsrc source, gfc_formal_arglist *formal)
 {
 
   sym->formal = formal;
@@ -4063,7 +4126,7 @@ add_proc_interface (gfc_symbol *sym, ifsrc source,
    args based on the args of a given named interface.  */
 
 void
-gfc_copy_formal_args (gfc_symbol *dest, gfc_symbol *src)
+gfc_copy_formal_args (gfc_symbol *dest, gfc_symbol *src, ifsrc if_src)
 {
   gfc_formal_arglist *head = NULL;
   gfc_formal_arglist *tail = NULL;
@@ -4077,6 +4140,7 @@ gfc_copy_formal_args (gfc_symbol *dest, gfc_symbol *src)
      of the formal args).  */
   gfc_current_ns = gfc_get_namespace (parent_ns, 0);
   gfc_current_ns->proc_name = dest;
+  dest->formal_ns = gfc_current_ns;
 
   for (curr_arg = src->formal; curr_arg; curr_arg = curr_arg->next)
     {
@@ -4087,7 +4151,8 @@ gfc_copy_formal_args (gfc_symbol *dest, gfc_symbol *src)
       formal_arg->sym->attr = curr_arg->sym->attr;
       formal_arg->sym->ts = curr_arg->sym->ts;
       formal_arg->sym->as = gfc_copy_array_spec (curr_arg->sym->as);
-      gfc_copy_formal_args (formal_arg->sym, curr_arg->sym);
+      gfc_copy_formal_args (formal_arg->sym, curr_arg->sym,
+			    curr_arg->sym->attr.if_source);
 
       /* If this isn't the first arg, set up the next ptr.  For the
         last arg built, the formal_arg->next will never get set to
@@ -4107,7 +4172,7 @@ gfc_copy_formal_args (gfc_symbol *dest, gfc_symbol *src)
     }
 
   /* Add the interface to the symbol.  */
-  add_proc_interface (dest, IFSRC_DECL, head);
+  add_proc_interface (dest, if_src, head);
 
   /* Store the formal namespace information.  */
   if (dest->formal != NULL)
@@ -4180,7 +4245,7 @@ gfc_copy_formal_args_intr (gfc_symbol *dest, gfc_intrinsic_sym *src)
 
 
 void
-gfc_copy_formal_args_ppc (gfc_component *dest, gfc_symbol *src)
+gfc_copy_formal_args_ppc (gfc_component *dest, gfc_symbol *src, ifsrc if_src)
 {
   gfc_formal_arglist *head = NULL;
   gfc_formal_arglist *tail = NULL;
@@ -4204,7 +4269,8 @@ gfc_copy_formal_args_ppc (gfc_component *dest, gfc_symbol *src)
       formal_arg->sym->attr = curr_arg->sym->attr;
       formal_arg->sym->ts = curr_arg->sym->ts;
       formal_arg->sym->as = gfc_copy_array_spec (curr_arg->sym->as);
-      gfc_copy_formal_args (formal_arg->sym, curr_arg->sym);
+      gfc_copy_formal_args (formal_arg->sym, curr_arg->sym,
+			    curr_arg->sym->attr.if_source);
 
       /* If this isn't the first arg, set up the next ptr.  For the
         last arg built, the formal_arg->next will never get set to
@@ -4226,7 +4292,7 @@ gfc_copy_formal_args_ppc (gfc_component *dest, gfc_symbol *src)
   /* Add the interface to the symbol.  */
   gfc_free_formal_arglist (dest->formal);
   dest->formal = head;
-  dest->attr.if_source = IFSRC_DECL;
+  dest->attr.if_source = if_src;
 
   /* Store the formal namespace information.  */
   if (dest->formal != NULL)
@@ -4742,7 +4808,7 @@ gfc_check_symbol_typed (gfc_symbol* sym, gfc_namespace* ns,
 	}
 
       if (gfc_notify_std (GFC_STD_GNU,
-			  "Extension: Symbol '%s' is used before"
+			  "Symbol '%s' is used before"
 			  " it is typed at %L", sym->name, &where) == FAILURE)
 	return FAILURE;
     }
@@ -4780,7 +4846,9 @@ gfc_get_typebound_proc (gfc_typebound_proc *tb0)
 gfc_symbol*
 gfc_get_derived_super_type (gfc_symbol* derived)
 {
-  if (derived && derived->attr.generic)
+  gcc_assert (derived);
+
+  if (derived->attr.generic)
     derived = gfc_find_dt_in_generic (derived);
 
   if (!derived->attr.extension)
@@ -4880,6 +4948,9 @@ gfc_is_associate_pointer (gfc_symbol* sym)
   if (!sym->assoc)
     return false;
 
+  if (sym->ts.type == BT_CLASS)
+    return true;
+
   if (!sym->assoc->variable)
     return false;
 
@@ -4899,7 +4970,7 @@ gfc_find_dt_in_generic (gfc_symbol *sym)
     return sym;
 
   if (sym->attr.generic)
-    for (intr = (sym ? sym->generic : NULL); intr; intr = intr->next)
+    for (intr = sym->generic; intr; intr = intr->next)
       if (intr->sym->attr.flavor == FL_DERIVED)
         break;
   return intr ? intr->sym : NULL;

@@ -29,7 +29,6 @@ extern unsigned int save_decoded_options_count;
 extern int toplev_main (int, char **);
 extern void rest_of_decl_compilation (tree, int, int);
 extern void rest_of_type_compilation (tree, int);
-extern void tree_rest_of_compilation (tree);
 extern void init_optimization_passes (void);
 extern void finish_optimization_passes (void);
 extern bool enable_rtl_dump_file (void);
@@ -50,6 +49,7 @@ extern void emit_debug_global_declarations (tree *, int);
 extern void write_global_declarations (void);
 
 extern void dump_memory_report (bool);
+extern void dump_profile_report (void);
 
 extern void target_reinit (void);
 

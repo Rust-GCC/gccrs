@@ -5,7 +5,7 @@
 
 # Contributed by Diego Novillo <dnovillo@google.com>
 #
-# Copyright (C) 2011 Free Software Foundation, Inc.
+# Copyright (C) 2011, 2012 Free Software Foundation, Inc.
 #
 # This file is part of GCC.
 #
@@ -46,6 +46,7 @@ executed it will:
    with exit code 0.  Otherwise, it exits with error code 1.
 """
 
+import datetime
 import optparse
 import os
 import re
@@ -97,10 +98,14 @@ class TestResult(object):
       self.attrs = ''
       if '|' in summary_line:
         (self.attrs, summary_line) = summary_line.split('|', 1)
-      (self.state,
-       self.name,
-       self.description) = re.match(r' *([A-Z]+): ([^ ]+) (.*)',
-                                    summary_line).groups()
+      try:
+        (self.state,
+         self.name,
+         self.description) = re.match(r' *([A-Z]+): (\S+)\s(.*)',
+                                      summary_line).groups()
+      except:
+        print 'Failed to parse summary line: "%s"' % summary_line
+        raise
       self.attrs = self.attrs.strip()
       self.state = self.state.strip()
       self.description = self.description.strip()
@@ -131,15 +136,37 @@ class TestResult(object):
       attrs = '%s | ' % self.attrs
     return '%s%s: %s %s' % (attrs, self.state, self.name, self.description)
 
+  def ExpirationDate(self):
+    # Return a datetime.date object with the expiration date for this
+    # test result.  Return None, if no expiration has been set.
+    if re.search(r'expire=', self.attrs):
+      expiration = re.search(r'expire=(\d\d\d\d)(\d\d)(\d\d)', self.attrs)
+      if not expiration:
+        Error('Invalid expire= format in "%s".  Must be of the form '
+              '"expire=YYYYMMDD"' % self)
+      return datetime.date(int(expiration.group(1)),
+                           int(expiration.group(2)),
+                           int(expiration.group(3)))
+    return None
+
+  def HasExpired(self):
+    # Return True if the expiration date of this result has passed.
+    expiration_date = self.ExpirationDate()
+    if expiration_date:
+      now = datetime.date.today()
+      return now > expiration_date
+
 
 def GetMakefileValue(makefile_name, value_name):
   if os.path.exists(makefile_name):
-    with open(makefile_name) as makefile:
-      for line in makefile:
-        if line.startswith(value_name):
-          (_, value) = line.split('=', 1)
-          value = value.strip()
-          return value
+    makefile = open(makefile_name)
+    for line in makefile:
+      if line.startswith(value_name):
+        (_, value) = line.split('=', 1)
+        value = value.strip()
+        makefile.close()
+        return value
+    makefile.close()
   return None
 
 
@@ -169,10 +196,18 @@ def IsInterestingResult(line):
 def ParseSummary(sum_fname):
   """Create a set of TestResult instances from the given summary file."""
   result_set = set()
-  with open(sum_fname) as sum_file:
-    for line in sum_file:
-      if IsInterestingResult(line):
-        result_set.add(TestResult(line))
+  sum_file = open(sum_fname)
+  for line in sum_file:
+    if IsInterestingResult(line):
+      result = TestResult(line)
+      if result.HasExpired():
+        # Tests that have expired are not added to the set of expected
+        # results. If they are still present in the set of actual results,
+        # they will cause an error to be reported.
+        print 'WARNING: Expected failure "%s" has expired.' % line.strip()
+        continue
+      result_set.add(result)
+  sum_file.close()
   return result_set
 
 
@@ -191,7 +226,7 @@ def GetManifest(manifest_name):
     return set()
 
 
-def GetSumFiles(builddir):
+def CollectSumFiles(builddir):
   sum_files = []
   for root, dirs, files in os.walk(builddir):
     if '.svn' in dirs:
@@ -202,10 +237,8 @@ def GetSumFiles(builddir):
   return sum_files
 
 
-def GetResults(builddir):
-  """Collect all the test results from .sum files under the given build
-  directory."""
-  sum_files = GetSumFiles(builddir)
+def GetResults(sum_files):
+  """Collect all the test results from the given .sum files."""
   build_results = set()
   for sum_fname in sum_files:
     print '\t%s' % sum_fname
@@ -215,16 +248,20 @@ def GetResults(builddir):
 
 def CompareResults(manifest, actual):
   """Compare sets of results and return two lists:
-     - List of results present in MANIFEST but missing from ACTUAL.
      - List of results present in ACTUAL but missing from MANIFEST.
+     - List of results present in MANIFEST but missing from ACTUAL.
   """
-  # Report all the actual results not present in the manifest.
+  # Collect all the actual results not present in the manifest.
+  # Results in this set will be reported as errors.
   actual_vs_manifest = set()
   for actual_result in actual:
     if actual_result not in manifest:
       actual_vs_manifest.add(actual_result)
 
-  # Simlarly for all the tests in the manifest.
+  # Collect all the tests in the manifest that were not found
+  # in the actual results.
+  # Results in this set will be reported as warnings (since
+  # they are expected failures that are not failing anymore).
   manifest_vs_actual = set()
   for expected_result in manifest:
     # Ignore tests marked flaky.
@@ -237,7 +274,7 @@ def CompareResults(manifest, actual):
 
 
 def GetBuildData(options):
-  target = GetMakefileValue('%s/Makefile' % options.build_dir, 'target=')
+  target = GetMakefileValue('%s/Makefile' % options.build_dir, 'target_alias=')
   srcdir = GetMakefileValue('%s/Makefile' % options.build_dir, 'srcdir =')
   if not ValidBuildDirectory(options.build_dir, target):
     Error('%s is not a valid GCC top level build directory.' %
@@ -253,17 +290,31 @@ def PrintSummary(msg, summary):
     print result
 
 
-def CheckExpectedResults(options):
-  (srcdir, target, valid_build) = GetBuildData(options)
-  if not valid_build:
-    return False
+def GetSumFiles(results, build_dir):
+  if not results:
+    print 'Getting actual results from build'
+    sum_files = CollectSumFiles(build_dir)
+  else:
+    print 'Getting actual results from user-provided results'
+    sum_files = results.split()
+  return sum_files
 
-  manifest_name = _MANIFEST_PATH_PATTERN % (srcdir, target)
+
+def CheckExpectedResults(options):
+  if not options.manifest:
+    (srcdir, target, valid_build) = GetBuildData(options)
+    if not valid_build:
+      return False
+    manifest_name = _MANIFEST_PATH_PATTERN % (srcdir, target)
+  else:
+    manifest_name = options.manifest
+    if not os.path.exists(manifest_name):
+      Error('Manifest file %s does not exist.' % manifest_name)
+
   print 'Manifest:         %s' % manifest_name
   manifest = GetManifest(manifest_name)
-
-  print 'Getting actual results from build'
-  actual = GetResults(options.build_dir)
+  sum_files = GetSumFiles(options.results, options.build_dir)
+  actual = GetResults(sum_files)
 
   if options.verbosity >= 1:
     PrintSummary('Tests expected to fail', manifest)
@@ -276,7 +327,7 @@ def CheckExpectedResults(options):
     PrintSummary('Build results not in the manifest', actual_vs_manifest)
     tests_ok = False
 
-  if len(manifest_vs_actual) > 0:
+  if not options.ignore_missing_failures and len(manifest_vs_actual) > 0:
     PrintSummary('Manifest results not present in the build'
                  '\n\nNOTE: This is not a failure.  It just means that the '
                  'manifest expected\nthese tests to fail, '
@@ -299,31 +350,55 @@ def ProduceManifest(options):
     Error('Manifest file %s already exists.\nUse --force to overwrite.' %
           manifest_name)
 
-  actual = GetResults(options.build_dir)
-  with open(manifest_name, 'w') as manifest_file:
-    for result in sorted(actual):
-      print result
-      manifest_file.write('%s\n' % result)
+  sum_files = GetSumFiles(options.results, options.build_dir)
+  actual = GetResults(sum_files)
+  manifest_file = open(manifest_name, 'w')
+  for result in sorted(actual):
+    print result
+    manifest_file.write('%s\n' % result)
+  manifest_file.close()
 
   return True
 
 
 def Main(argv):
   parser = optparse.OptionParser(usage=__doc__)
+
+  # Keep the following list sorted by option name.
   parser.add_option('--build_dir', action='store', type='string',
                     dest='build_dir', default='.',
                     help='Build directory to check (default = .)')
-  parser.add_option('--manifest', action='store_true', dest='manifest',
-                    default=False, help='Produce the manifest for the current '
-                    'build (default = False)')
   parser.add_option('--force', action='store_true', dest='force',
-                    default=False, help='When used with --manifest, it will '
-                    'overwrite an existing manifest file (default = False)')
+                    default=False, help='When used with --produce_manifest, '
+                    'it will overwrite an existing manifest file '
+                    '(default = False)')
+  parser.add_option('--ignore_missing_failures', action='store_true',
+                    dest='ignore_missing_failures', default=False,
+                    help='When a failure is expected in the manifest but '
+                    'it is not found in the actual results, the script '
+                    'produces a note alerting to this fact. This means '
+                    'that the expected failure has been fixed, or '
+                    'it did not run, or it may simply be flaky '
+                    '(default = False)')
+  parser.add_option('--manifest', action='store', type='string',
+                    dest='manifest', default=None,
+                    help='Name of the manifest file to use (default = '
+                    'taken from contrib/testsuite-managment/<target>.xfail)')
+  parser.add_option('--produce_manifest', action='store_true',
+                    dest='produce_manifest', default=False,
+                    help='Produce the manifest for the current '
+                    'build (default = False)')
+  parser.add_option('--results', action='store', type='string',
+                    dest='results', default=None, help='Space-separated list '
+                    'of .sum files with the testing results to check. The '
+                    'only content needed from these files are the lines '
+                    'starting with FAIL, XPASS or UNRESOLVED (default = '
+                    '.sum files collected from the build directory).')
   parser.add_option('--verbosity', action='store', dest='verbosity',
                     type='int', default=0, help='Verbosity level (default = 0)')
   (options, _) = parser.parse_args(argv[1:])
 
-  if options.manifest:
+  if options.produce_manifest:
     retval = ProduceManifest(options)
   else:
     retval = CheckExpectedResults(options)

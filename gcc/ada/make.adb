@@ -410,7 +410,7 @@ package body Make is
    --  Delete all temp files created by Gnatmake and call Osint.Fail, with the
    --  parameter S (see osint.ads). This is called from the Prj hierarchy and
    --  the MLib hierarchy. This subprogram also prints current error messages
-   --  on stdout (ie finalizes errout)
+   --  (i.e. finalizes Errutil).
 
    --------------------------
    -- Obsolete Executables --
@@ -2366,7 +2366,7 @@ package body Make is
                                  Last_New := Last_New + 1;
                                  New_Args (Last_New) :=
                                    new String'(Name_Buffer (1 .. Name_Len));
-                                 Test_If_Relative_Path
+                                 Ensure_Absolute_Path
                                    (New_Args (Last_New),
                                     Do_Fail              => Make_Failed'Access,
                                     Parent               => Dir_Path,
@@ -2399,7 +2399,7 @@ package body Make is
                                         Directory.Display_Name);
 
                      begin
-                        Test_If_Relative_Path
+                        Ensure_Absolute_Path
                           (New_Args (1),
                            Do_Fail              => Make_Failed'Access,
                            Parent               => Dir_Path,
@@ -3790,44 +3790,6 @@ package body Make is
       Result : Argument_List (1 .. 3);
       Last   : Natural := 0;
 
-      function Absolute_Path
-        (Path    : Path_Name_Type;
-         Project : Project_Id) return String;
-      --  Returns an absolute path for a configuration pragmas file
-
-      -------------------
-      -- Absolute_Path --
-      -------------------
-
-      function Absolute_Path
-        (Path    : Path_Name_Type;
-         Project : Project_Id) return String
-      is
-      begin
-         Get_Name_String (Path);
-
-         declare
-            Path_Name : constant String := Name_Buffer (1 .. Name_Len);
-
-         begin
-            if Is_Absolute_Path (Path_Name) then
-               return Path_Name;
-
-            else
-               declare
-                  Parent_Directory : constant String :=
-                                       Get_Name_String
-                                         (Project.Directory.Display_Name);
-
-               begin
-                  return Parent_Directory & Path_Name;
-               end;
-            end if;
-         end;
-      end Absolute_Path;
-
-   --  Start of processing for Configuration_Pragmas_Switch
-
    begin
       Prj.Env.Create_Config_Pragmas_File
         (For_Project, Project_Tree);
@@ -4435,6 +4397,13 @@ package body Make is
          declare
             Success : Boolean := False;
          begin
+            --  If gnatmake was invoked with --subdirs and no project file,
+            --  put the executable in the subdirectory specified.
+
+            if Prj.Subdirs /= null and then Main_Project = No_Project then
+               Change_Dir (Object_Directory_Path.all);
+            end if;
+
             Link (Main_ALI_File,
                   Link_With_Shared_Libgcc.all &
                   Args (Args'First .. Last_Arg),
@@ -4569,6 +4538,13 @@ package body Make is
                  new String'("-F=" & Get_Name_String (Mapping_Path));
             end if;
          end if;
+      end if;
+
+      --  If gnatmake was invoked with --subdirs and no project file, put the
+      --  binder generated files in the subdirectory specified.
+
+      if Main_Project = No_Project and then Prj.Subdirs /= null then
+         Change_Dir (Object_Directory_Path.all);
       end if;
 
       begin
@@ -4807,10 +4783,13 @@ package body Make is
          return;
       end if;
 
-      --  Regenerate libraries, if there are any and if object files
-      --  have been regenerated.
+      --  Regenerate libraries, if there are any and if object files have been
+      --  regenerated. Note that we skip this in CodePeer mode because we don't
+      --  need libraries in this case, and more importantly, the object files
+      --  may not be present.
 
       if Main_Project /= No_Project
+        and then not CodePeer_Mode
         and then MLib.Tgt.Support_For_Libraries /= Prj.None
         and then (Do_Bind_Step
                    or Unique_Compile_All_Projects
@@ -5011,36 +4990,36 @@ package body Make is
                       Get_Name_String (Main_Project.Directory.Display_Name);
       begin
          for J in 1 .. Binder_Switches.Last loop
-            Test_If_Relative_Path
+            Ensure_Absolute_Path
               (Binder_Switches.Table (J),
                Do_Fail => Make_Failed'Access,
-               Parent => Dir_Path, Including_L_Switch => False);
+               Parent => Dir_Path, For_Gnatbind => True);
          end loop;
 
          for J in 1 .. Saved_Binder_Switches.Last loop
-            Test_If_Relative_Path
+            Ensure_Absolute_Path
               (Saved_Binder_Switches.Table (J),
-               Do_Fail            => Make_Failed'Access,
-               Parent             => Current_Work_Dir,
-               Including_L_Switch => False);
+               Do_Fail             => Make_Failed'Access,
+               Parent              => Current_Work_Dir,
+               For_Gnatbind        => True);
          end loop;
 
          for J in 1 .. Linker_Switches.Last loop
-            Test_If_Relative_Path
+            Ensure_Absolute_Path
               (Linker_Switches.Table (J),
                Parent  => Dir_Path,
                Do_Fail => Make_Failed'Access);
          end loop;
 
          for J in 1 .. Saved_Linker_Switches.Last loop
-            Test_If_Relative_Path
+            Ensure_Absolute_Path
               (Saved_Linker_Switches.Table (J),
                Do_Fail => Make_Failed'Access,
                Parent  => Current_Work_Dir);
          end loop;
 
          for J in 1 .. Gcc_Switches.Last loop
-            Test_If_Relative_Path
+            Ensure_Absolute_Path
               (Gcc_Switches.Table (J),
                Do_Fail              => Make_Failed'Access,
                Parent               => Dir_Path,
@@ -5048,7 +5027,7 @@ package body Make is
          end loop;
 
          for J in 1 .. Saved_Gcc_Switches.Last loop
-            Test_If_Relative_Path
+            Ensure_Absolute_Path
               (Saved_Gcc_Switches.Table (J),
                Parent               => Current_Work_Dir,
                Do_Fail              => Make_Failed'Access,
@@ -5370,14 +5349,14 @@ package body Make is
                  Get_Name_String (Main_Project.Directory.Display_Name);
             begin
                for J in Last_Binder_Switch + 1 .. Binder_Switches.Last loop
-                  Test_If_Relative_Path
+                  Ensure_Absolute_Path
                     (Binder_Switches.Table (J),
                      Do_Fail => Make_Failed'Access,
-                     Parent  => Dir_Path, Including_L_Switch => False);
+                     Parent  => Dir_Path, For_Gnatbind => True);
                end loop;
 
                for J in Last_Linker_Switch + 1 .. Linker_Switches.Last loop
-                  Test_If_Relative_Path
+                  Ensure_Absolute_Path
                     (Linker_Switches.Table (J),
                      Parent  => Dir_Path,
                      Do_Fail => Make_Failed'Access);
@@ -7423,6 +7402,16 @@ package body Make is
 
          Add_Switch (Argv, Program_Args, And_Save => And_Save);
 
+         --  Make sure that all significant switches -m on the command line
+         --  are counted.
+
+         if Argv'Length > 2
+           and then Argv (1 .. 2) = "-m"
+           and then Argv /= "-mieee"
+         then
+            N_M_Switch := N_M_Switch + 1;
+         end if;
+
       --  Handle non-default compiler, binder, linker, and handle --RTS switch
 
       elsif Argv'Length > 2 and then Argv (1 .. 2) = "--" then
@@ -7798,11 +7787,12 @@ package body Make is
 
          --  -vPx  (verbosity of the parsing of the project files)
 
-         elsif Argv'Last = 4
-           and then Argv (2 .. 3) = "vP"
-           and then Argv (4) in '0' .. '2'
-         then
-            if And_Save then
+         elsif Argv'Length >= 3 and then Argv (2 .. 3) = "vP" then
+            if Argv'Last /= 4 or else Argv (4) not in '0' .. '2' then
+               Make_Failed
+                 ("invalid verbosity level " & Argv (4 .. Argv'Last));
+
+            elsif And_Save then
                case Argv (4) is
                   when '0' =>
                      Current_Verbosity := Prj.Default;

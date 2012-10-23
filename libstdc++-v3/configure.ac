@@ -88,6 +88,7 @@ CXXFLAGS="$save_CXXFLAGS"
 # up critical shell variables.
 GLIBCXX_CONFIGURE
 
+# Libtool setup.
 if test "x${with_newlib}" != "xyes"; then
   AC_LIBTOOL_DLOPEN
 fi
@@ -96,6 +97,38 @@ ACX_LT_HOST_FLAGS
 AC_SUBST(enable_shared)
 AC_SUBST(enable_static)
 
+# libtool variables for C++ shared and position-independent compiles.
+#
+# Use glibcxx_lt_pic_flag to designate the automake variable
+# used to encapsulate the default libtool approach to creating objects
+# with position-independent code. Default: -prefer-pic.
+#
+# Use glibcxx_compiler_shared_flag to designate a compile-time flags for
+# creating shared objects. Default: -D_GLIBCXX_SHARED.
+#
+# Use glibcxx_compiler_pic_flag to designate a compile-time flags for
+# creating position-independent objects. This varies with the target
+# hardware and operating system, but is often: -DPIC -fPIC.
+if test "$enable_shared" = yes; then
+  glibcxx_lt_pic_flag="-prefer-pic"
+  glibcxx_compiler_pic_flag="$lt_prog_compiler_pic_CXX"
+  glibcxx_compiler_shared_flag="-D_GLIBCXX_SHARED"
+
+else
+  glibcxx_lt_pic_flag=
+  glibcxx_compiler_pic_flag=
+  glibcxx_compiler_shared_flag=
+fi
+AC_SUBST(glibcxx_lt_pic_flag)
+AC_SUBST(glibcxx_compiler_pic_flag)
+AC_SUBST(glibcxx_compiler_shared_flag)
+
+# Override the libtool's pic_flag and pic_mode.
+# Do this step after AM_PROG_LIBTOOL, but before AC_OUTPUT.
+# NB: this impacts --with-pic and --without-pic.
+lt_prog_compiler_pic_CXX="$glibcxx_compiler_pic_flag $glibcxx_compiler_shared_flag"
+pic_mode='default'
+
 # Eliminate -lstdc++ addition to postdeps for cross compiles.
 postdeps_CXX=`echo " $postdeps_CXX " | sed 's, -lstdc++ ,,g'`
 
@@ -103,6 +136,9 @@ postdeps_CXX=`echo " $postdeps_CXX " | sed 's, -lstdc++ ,,g'`
 ## TODO: Consider skipping unncessary tests altogether in this case, rather
 ## than just ignoring the results.  Faster /and/ more correct, win win.
 GLIBCXX_ENABLE_HOSTED
+
+# Enable descriptive messages to standard output on termination.
+GLIBCXX_ENABLE_VERBOSE
 
 # Enable compiler support that doesn't require linking.
 GLIBCXX_ENABLE_SJLJ_EXCEPTIONS
@@ -134,8 +170,6 @@ GLIBCXX_ENABLE_PYTHON
 GLIBCXX_ENABLE_WERROR([yes])
 
 # Checks for operating systems support that doesn't require linking.
-GLIBCXX_CHECK_MATH_PROTO
-GLIBCXX_CHECK_STDLIB_PROTO
 GLIBCXX_CHECK_STDIO_PROTO
 GLIBCXX_CHECK_SYSTEM_ERROR
 
@@ -332,6 +366,12 @@ case "$target" in
 esac
 GLIBCXX_CONDITIONAL(GLIBCXX_LDBL_COMPAT, test $ac_ldbl_compat = yes)
 
+# Check if assembler supports disabling hardware capability support.
+GLIBCXX_CHECK_ASSEMBLER_HWCAP
+
+# Check if assembler supports rdrand opcode.
+GLIBCXX_CHECK_X86_RDRAND
+
 # This depends on GLIBCXX_ENABLE_SYMVERS and GLIBCXX_IS_NATIVE.
 GLIBCXX_CONFIGURE_TESTSUITE
 
@@ -392,6 +432,8 @@ CPU_DEFINES_SRCDIR=config/${cpu_defines_dir}
 OS_INC_SRCDIR=config/${os_include_dir}
 ERROR_CONSTANTS_SRCDIR=config/${error_constants_dir}
 ABI_TWEAKS_SRCDIR=config/${abi_tweaks_dir}
+CPU_OPT_EXT_RANDOM=config/${cpu_opt_ext_random}
+CPU_OPT_BITS_RANDOM=config/${cpu_opt_bits_random}
 AC_SUBST(ATOMICITY_SRCDIR)
 AC_SUBST(ATOMIC_WORD_SRCDIR)
 AC_SUBST(ATOMIC_FLAGS)
@@ -399,6 +441,8 @@ AC_SUBST(CPU_DEFINES_SRCDIR)
 AC_SUBST(ABI_TWEAKS_SRCDIR)
 AC_SUBST(OS_INC_SRCDIR)
 AC_SUBST(ERROR_CONSTANTS_SRCDIR)
+AC_SUBST(CPU_OPT_EXT_RANDOM)
+AC_SUBST(CPU_OPT_BITS_RANDOM)
 
 
 # Determine cross-compile flags and AM_CONDITIONALs.
@@ -420,13 +464,6 @@ GLIBCXX_EXPORT_INSTALL_INFO
 # Export all the include and flag information to Makefiles.
 GLIBCXX_EXPORT_INCLUDES
 GLIBCXX_EXPORT_FLAGS
-
-if test "$enable_shared" = yes; then
-  PIC_CXXFLAGS="-prefer-pic"
-else
-  PIC_CXXFLAGS=
-fi
-AC_SUBST(PIC_CXXFLAGS)
 
 dnl In autoconf 2.5x, AC_OUTPUT is replaced by four AC_CONFIG_* macros,
 dnl which can all be called multiple times as needed, plus one (different)

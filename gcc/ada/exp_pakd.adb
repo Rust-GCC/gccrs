@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -509,7 +509,7 @@ package body Exp_Pakd is
       Shift  : out Node_Id);
    --  This procedure performs common processing on the N_Indexed_Component
    --  parameter given as N, whose prefix is a reference to a packed array.
-   --  This is used for the get and set when the component size is 1,2,4
+   --  This is used for the get and set when the component size is 1, 2, 4,
    --  or for other component sizes when the packed array type is a modular
    --  type (i.e. the cases that are handled with inline code).
    --
@@ -542,6 +542,41 @@ package body Exp_Pakd is
    --  (for handling multi-use references and the generation of the packed
    --  array type on the fly). Such actions are inserted into the tree
    --  directly using Insert_Action.
+
+   function Byte_Swap (N : Node_Id) return Node_Id;
+   --  Wrap N in a call to a byte swapping function, with appropriate type
+   --  conversions.
+
+   ---------------
+   -- Byte_Swap --
+   ---------------
+
+   function Byte_Swap (N : Node_Id) return Node_Id is
+      Loc     : constant Source_Ptr := Sloc (N);
+      T       : constant Entity_Id := Etype (N);
+      Swap_RE : RE_Id;
+      Swap_F  : Entity_Id;
+
+   begin
+      pragma Assert (Esize (T) > 8);
+
+      if Esize (T) <= 16 then
+         Swap_RE := RE_Bswap_16;
+      elsif Esize (T) <= 32 then
+         Swap_RE := RE_Bswap_32;
+      else pragma Assert (Esize (T) <= 64);
+         Swap_RE := RE_Bswap_64;
+      end if;
+
+      Swap_F := RTE (Swap_RE);
+
+      return
+        Unchecked_Convert_To (T,
+          Make_Function_Call (Loc,
+            Name                   => New_Occurrence_Of (Swap_F, Loc),
+            Parameter_Associations =>
+              New_List (Unchecked_Convert_To (Etype (Swap_F), N))));
+   end Byte_Swap;
 
    ------------------------------
    -- Compute_Linear_Subscript --
@@ -1280,12 +1315,12 @@ package body Exp_Pakd is
       --  Initially Rhs is the right hand side value, it will be replaced
       --  later by an appropriate unchecked conversion for the assignment.
 
-      Obj    : Node_Id;
-      Atyp   : Entity_Id;
-      PAT    : Entity_Id;
-      Ctyp   : Entity_Id;
-      Csiz   : Int;
-      Cmask  : Uint;
+      Obj   : Node_Id;
+      Atyp  : Entity_Id;
+      PAT   : Entity_Id;
+      Ctyp  : Entity_Id;
+      Csiz  : Int;
+      Cmask : Uint;
 
       Shift : Node_Id;
       --  The expression for the shift value that is required
@@ -1303,6 +1338,12 @@ package body Exp_Pakd is
       --  known at compile time, Rhs_Val_Known is set True, and Rhs_Val
       --  contains the value. Otherwise Rhs_Val_Known is set False, and
       --  the Rhs_Val is undefined.
+
+      Require_Byte_Swapping : Boolean := False;
+      --  True if byte swapping required, for the Reverse_Storage_Order case
+      --  when the packed array is a free-standing object. (If it is part
+      --  of a composite type, and therefore potentially not aligned on a byte
+      --  boundary, the swapping is done by the back-end).
 
       function Get_Shift return Node_Id;
       --  Function used to get the value of Shift, making sure that it
@@ -1415,6 +1456,11 @@ package body Exp_Pakd is
 
          --    Obj := atyp!((Obj and Mask1) or (shift_left (rhs, Shift)))
 
+         --  or in the case of a freestanding Reverse_Storage_Order object,
+
+         --    Obj := Swap (atyp!((Swap (Obj) and Mask1)
+         --                         or (shift_left (rhs, Shift))))
+
          --      where Mask1 is obtained by shifting Cmask left Shift bits
          --      and then complementing the result.
 
@@ -1433,9 +1479,9 @@ package body Exp_Pakd is
             Rhs_Val       := Expr_Rep_Value (Rhs);
             Rhs_Val_Known := True;
 
-         --  The following test catches the case of an unchecked conversion
-         --  of an integer literal. This results from optimizing aggregates
-         --  of packed types.
+         --  The following test catches the case of an unchecked conversion of
+         --  an integer literal. This results from optimizing aggregates of
+         --  packed types.
 
          elsif Nkind (Rhs) = N_Unchecked_Type_Conversion
            and then Compile_Time_Known_Value (Expression (Rhs))
@@ -1472,10 +1518,10 @@ package body Exp_Pakd is
             end if;
          end if;
 
-         --  Now create copies removing side effects. Note that in some
-         --  complex cases, this may cause the fact that we have already
-         --  set a packed array type on Obj to get lost. So we save the
-         --  type of Obj, and make sure it is reset properly.
+         --  Now create copies removing side effects. Note that in some complex
+         --  cases, this may cause the fact that we have already set a packed
+         --  array type on Obj to get lost. So we save the type of Obj, and
+         --  make sure it is reset properly.
 
          declare
             T : constant Entity_Id := Etype (Obj);
@@ -1485,6 +1531,14 @@ package body Exp_Pakd is
             Set_Etype (Obj, T);
             Set_Etype (New_Lhs, T);
             Set_Etype (New_Rhs, T);
+
+            if Reverse_Storage_Order (Base_Type (Atyp))
+              and then Esize (T) > 8
+              and then not In_Reverse_Storage_Order_Object (Obj)
+            then
+               Require_Byte_Swapping := True;
+               New_Rhs := Byte_Swap (New_Rhs);
+            end if;
          end;
 
          --  First we deal with the "and"
@@ -1593,8 +1647,7 @@ package body Exp_Pakd is
                      --  Note that Rhs_Val has already been normalized to
                      --  be an unsigned value with the proper number of bits.
 
-                     Rhs :=
-                       Make_Integer_Literal (Loc, Rhs_Val);
+                     Rhs := Make_Integer_Literal (Loc, Rhs_Val);
 
                   --  Otherwise we need an unchecked conversion
 
@@ -1614,6 +1667,11 @@ package body Exp_Pakd is
                    Left_Opnd  => New_Rhs,
                    Right_Opnd => Or_Rhs);
             end;
+         end if;
+
+         if Require_Byte_Swapping then
+            Set_Etype (New_Rhs, Etype (Obj));
+            New_Rhs := Byte_Swap (New_Rhs);
          end if;
 
          --  Now do the rewrite
@@ -1977,6 +2035,17 @@ package body Exp_Pakd is
          Setup_Inline_Packed_Array_Reference (N, Atyp, Obj, Cmask, Shift);
          Lit := Make_Integer_Literal (Loc, Cmask);
          Set_Print_In_Hex (Lit);
+
+         --  Byte swapping required for the Reverse_Storage_Order case, but
+         --  only for a free-standing object (see note on Require_Byte_Swapping
+         --  in Expand_Bit_Packed_Element_Set).
+
+         if Reverse_Storage_Order (Atyp)
+           and then Esize (Atyp) > 8
+           and then not In_Reverse_Storage_Order_Object (Obj)
+         then
+            Obj := Byte_Swap (Obj);
+         end if;
 
          --  We generate a shift right to position the field, followed by a
          --  masking operation to extract the bit field, and we finally do an
@@ -2619,11 +2688,11 @@ package body Exp_Pakd is
       Cmask  : out Uint;
       Shift  : out Node_Id)
    is
-      Loc    : constant Source_Ptr := Sloc (N);
-      PAT    : Entity_Id;
-      Otyp   : Entity_Id;
-      Csiz   : Uint;
-      Osiz   : Uint;
+      Loc  : constant Source_Ptr := Sloc (N);
+      PAT  : Entity_Id;
+      Otyp : Entity_Id;
+      Csiz : Uint;
+      Osiz : Uint;
 
    begin
       Csiz := Component_Size (Atyp);
@@ -2658,7 +2727,7 @@ package body Exp_Pakd is
       if Csiz /= 1 then
          Shift :=
            Make_Op_Multiply (Loc,
-             Left_Opnd => Make_Integer_Literal (Loc, Csiz),
+             Left_Opnd  => Make_Integer_Literal (Loc, Csiz),
              Right_Opnd => Shift);
       end if;
 
@@ -2693,7 +2762,7 @@ package body Exp_Pakd is
                 Prefix => Obj,
                 Expressions => New_List (
                   Make_Op_Divide (Loc,
-                    Left_Opnd => Duplicate_Subexpr (Shift),
+                    Left_Opnd  => Duplicate_Subexpr (Shift),
                     Right_Opnd => Make_Integer_Literal (Loc, Osiz))));
 
             Shift := New_Shift;
@@ -2725,7 +2794,9 @@ package body Exp_Pakd is
       --  the array used to implement the packed array, F is the number of bits
       --  in a source array element, and Shift is the count so far computed.
 
-      if Bytes_Big_Endian then
+      --  We also have to adjust if the storage order is reversed
+
+      if Bytes_Big_Endian xor Reverse_Storage_Order (Base_Type (Atyp)) then
          Shift :=
            Make_Op_Subtract (Loc,
              Left_Opnd  => Make_Integer_Literal (Loc, Osiz - Csiz),

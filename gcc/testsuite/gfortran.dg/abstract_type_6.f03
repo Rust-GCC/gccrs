@@ -10,7 +10,7 @@
 module m
 TYPE, ABSTRACT :: top
 CONTAINS
-   PROCEDURE(xxx), DEFERRED :: proc_a ! { dg-error "must be a module procedure" }
+   PROCEDURE(xxx), DEFERRED :: proc_a ! { dg-error "must be explicit" }
    ! some useful default behaviour
    PROCEDURE :: proc_c => top_c ! { dg-error "must be a module procedure" }
 END TYPE top
@@ -50,4 +50,3 @@ SUBROUTINE bottom_c(obj)
    ! other stuff
 END SUBROUTINE bottom_c 
 end module
-! { dg-final { cleanup-modules "m" } }

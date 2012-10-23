@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1996-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 1996-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -159,6 +159,13 @@ package body Sem_Case is
          Msg_Sloc : constant Source_Ptr := Sloc (Case_Node);
 
       begin
+         --  AI05-0188 : within an instance the non-others choices do not
+         --  have to belong to the actual subtype.
+
+         if Ada_Version >= Ada_2012 and then In_Instance then
+            return;
+         end if;
+
          --  In some situations, we call this with a null range, and
          --  obviously we don't want to complain in this case!
 
@@ -530,8 +537,8 @@ package body Sem_Case is
    begin
       if Case_Table'Last = 0 then
 
-         --  Special case: only an others case is present.
-         --  The others case covers the full range of the type.
+         --  Special case: only an others case is present. The others case
+         --  covers the full range of the type.
 
          if Is_Static_Subtype (Choice_Type) then
             Choice := New_Occurrence_Of (Choice_Type, Loc);
@@ -543,8 +550,8 @@ package body Sem_Case is
          return;
       end if;
 
-      --  Establish the bound values for the choice depending upon whether
-      --  the type of the case statement is static or not.
+      --  Establish the bound values for the choice depending upon whether the
+      --  type of the case statement is static or not.
 
       if Is_OK_Static_Subtype (Choice_Type) then
          Exp_Lo := Type_Low_Bound (Choice_Type);
@@ -705,7 +712,8 @@ package body Sem_Case is
             --  Do not insert non static choices in the table to be sorted
 
             elsif not Is_Static_Expression (Lo)
-              or else not Is_Static_Expression (Hi)
+                    or else
+                  not Is_Static_Expression (Hi)
             then
                Process_Non_Static_Choice (Choice);
                return;
@@ -716,6 +724,12 @@ package body Sem_Case is
               or else Raises_Constraint_Error (Hi)
             then
                Raises_CE := True;
+               return;
+
+            --  AI05-0188 : Within an instance the non-others choices do not
+            --  have to belong to the actual subtype.
+
+            elsif Ada_Version >= Ada_2012 and then In_Instance then
                return;
 
             --  Otherwise we have an OK static choice
@@ -803,8 +817,18 @@ package body Sem_Case is
          --  bounds of its base type to determine the values covered by the
          --  discrete choices.
 
+         --  In Ada 2012, if the subtype has a non-static predicate the full
+         --  range of the base type must be covered as well.
+
          if Is_OK_Static_Subtype (Subtyp) then
-            Bounds_Type := Subtyp;
+            if not Has_Predicates (Subtyp)
+              or else Present (Static_Predicate (Subtyp))
+            then
+               Bounds_Type := Subtyp;
+            else
+               Bounds_Type := Choice_Type;
+            end if;
+
          else
             Bounds_Type := Choice_Type;
          end if;

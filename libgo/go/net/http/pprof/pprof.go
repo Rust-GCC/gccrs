@@ -30,6 +30,10 @@
 //
 //	go tool pprof http://localhost:6060/debug/pprof/profile
 //
+// Or to look at the goroutine blocking profile:
+//
+//	go tool pprof http://localhost:6060/debug/pprof/block
+//
 // Or to view all available profiles:
 //
 //	go tool pprof http://localhost:6060/debug/pprof/
@@ -43,7 +47,6 @@ package pprof
 import (
 	"bufio"
 	"bytes"
-	_ "debug/elf"
 	"fmt"
 	"html/template"
 	"io"

@@ -1,5 +1,5 @@
 /* { dg-do compile { target { ! { ia32 } } } } */
-/* { dg-options "-O2 -mx32 -ftree-vectorize" } */
+/* { dg-options "-O2 -mx32 -maddress-mode=long -ftree-vectorize" } */
 
 struct s2{
   int n[24 -1][24 -1][24 -1];

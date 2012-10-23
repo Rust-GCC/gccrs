@@ -54,6 +54,10 @@ along with GCC; see the file COPYING3.  If not see
   (OPTION_MASK_ISA_FMA | OPTION_MASK_ISA_AVX_SET)
 #define OPTION_MASK_ISA_AVX2_SET \
   (OPTION_MASK_ISA_AVX2 | OPTION_MASK_ISA_AVX_SET)
+#define OPTION_MASK_ISA_RTM_SET OPTION_MASK_ISA_RTM
+#define OPTION_MASK_ISA_PRFCHW_SET OPTION_MASK_ISA_PRFCHW
+#define OPTION_MASK_ISA_RDSEED_SET OPTION_MASK_ISA_RDSEED
+#define OPTION_MASK_ISA_ADX_SET OPTION_MASK_ISA_ADX
 
 /* SSE4 includes both SSE4.1 and SSE4.2. -msse4 should be the same
    as -msse4.2.  */
@@ -121,6 +125,10 @@ along with GCC; see the file COPYING3.  If not see
    | OPTION_MASK_ISA_AVX2_UNSET)
 #define OPTION_MASK_ISA_FMA_UNSET OPTION_MASK_ISA_FMA
 #define OPTION_MASK_ISA_AVX2_UNSET OPTION_MASK_ISA_AVX2
+#define OPTION_MASK_ISA_RTM_UNSET OPTION_MASK_ISA_RTM
+#define OPTION_MASK_ISA_PRFCHW_UNSET OPTION_MASK_ISA_PRFCHW
+#define OPTION_MASK_ISA_RDSEED_UNSET OPTION_MASK_ISA_RDSEED
+#define OPTION_MASK_ISA_ADX_UNSET OPTION_MASK_ISA_ADX
 
 /* SSE4 includes both SSE4.1 and SSE4.2.  -mno-sse4 should the same
    as -mno-sse4.1. */
@@ -306,6 +314,19 @@ ix86_handle_option (struct gcc_options *opts,
 	{
 	  opts->x_ix86_isa_flags &= ~OPTION_MASK_ISA_FMA_UNSET;
 	  opts->x_ix86_isa_flags_explicit |= OPTION_MASK_ISA_FMA_UNSET;
+	}
+      return true;
+
+    case OPT_mrtm:
+      if (value)
+	{
+	  opts->x_ix86_isa_flags |= OPTION_MASK_ISA_RTM_SET;
+	  opts->x_ix86_isa_flags_explicit |= OPTION_MASK_ISA_RTM_SET;
+	}
+      else
+	{
+	  opts->x_ix86_isa_flags &= ~OPTION_MASK_ISA_RTM_UNSET;
+	  opts->x_ix86_isa_flags_explicit |= OPTION_MASK_ISA_RTM_UNSET;
 	}
       return true;
 
@@ -553,6 +574,45 @@ ix86_handle_option (struct gcc_options *opts,
 	}
       return true;
 
+    case OPT_mrdseed:
+      if (value)
+	{
+	  opts->x_ix86_isa_flags |= OPTION_MASK_ISA_RDSEED_SET;
+	  opts->x_ix86_isa_flags_explicit |= OPTION_MASK_ISA_RDSEED_SET;
+	}
+      else
+	{
+	  opts->x_ix86_isa_flags &= ~OPTION_MASK_ISA_RDSEED_UNSET;
+	  opts->x_ix86_isa_flags_explicit |= OPTION_MASK_ISA_RDSEED_UNSET;
+	}
+      return true;
+
+    case OPT_mprfchw:
+      if (value)
+	{
+	  opts->x_ix86_isa_flags |= OPTION_MASK_ISA_PRFCHW_SET;
+	  opts->x_ix86_isa_flags_explicit |= OPTION_MASK_ISA_PRFCHW_SET;
+	}
+      else
+	{
+	  opts->x_ix86_isa_flags &= ~OPTION_MASK_ISA_PRFCHW_UNSET;
+	  opts->x_ix86_isa_flags_explicit |= OPTION_MASK_ISA_PRFCHW_UNSET;
+	}
+      return true;
+
+    case OPT_madx:
+      if (value)
+	{
+	  opts->x_ix86_isa_flags |= OPTION_MASK_ISA_ADX_SET;
+	  opts->x_ix86_isa_flags_explicit |= OPTION_MASK_ISA_ADX_SET;
+	}
+      else
+	{
+	  opts->x_ix86_isa_flags &= ~OPTION_MASK_ISA_ADX_UNSET;
+	  opts->x_ix86_isa_flags_explicit |= OPTION_MASK_ISA_ADX_UNSET;
+	}
+      return true;
+
   /* Comes from final.c -- no real reason to change it.  */
 #define MAX_CODE_ALIGN 16
 
@@ -651,6 +711,30 @@ ix86_supports_split_stack (bool report ATTRIBUTE_UNUSED,
 
   return ret;
 }
+
+/* Implement TARGET_EXCEPT_UNWIND_INFO.  */
+
+static enum unwind_info_type
+i386_except_unwind_info (struct gcc_options *opts)
+{
+  /* Honor the --enable-sjlj-exceptions configure switch.  */
+#ifdef CONFIG_SJLJ_EXCEPTIONS
+  if (CONFIG_SJLJ_EXCEPTIONS)
+    return UI_SJLJ;
+#endif
+
+  /* On windows 64, prefer SEH exceptions over anything else.  */
+  if (TARGET_64BIT && DEFAULT_ABI == MS_ABI && opts->x_flag_unwind_tables)
+    return UI_SEH;
+
+  if (DWARF2_UNWIND_INFO)
+    return UI_DWARF2;
+
+  return UI_SJLJ;
+}
+
+#undef  TARGET_EXCEPT_UNWIND_INFO
+#define TARGET_EXCEPT_UNWIND_INFO  i386_except_unwind_info
 
 #undef TARGET_DEFAULT_TARGET_FLAGS
 #define TARGET_DEFAULT_TARGET_FLAGS	\

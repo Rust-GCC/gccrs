@@ -1,28 +1,275 @@
-2012-09-20  Richard Guenther  <rguenther@suse.de>
+2012-10-12  Richard Biener  <rguenther@suse.de>
 
-	Backport from mainline
-	2012-09-11  Jan Hubicka  <jh@suse.cz>
+	PR lto/54898
+	* lto.c (gimple_types_compatible_p_1): Also compare
+	TYPE_MAIN_VARIANT.
+	(iterative_hash_gimple_type): Also hash TYPE_MAIN_VARIANT.
+
+2012-10-09  Tobias Burnus  <burnus@net-b.de>
+
+	* lto-lang.c (lto_register_builtin_type): Avoid useless
+	decl creation.
+	* lto-object.c (lto_obj_file_open, lto_obj_file_open): Free memory.
+
+2012-10-08  Tobias Burnus  <burnus@net-b.de>
+
+	* lto.c (lto_wpa_write_files, read_cgraph_and_symbols):
+	Free lto_file struct after closing the file.
+
+2012-10-08  Jan Hubicka  <jh@suse.cz>
+
+	* lto/lto.c (remember_with_vars): Also fixup INTEGER_CST.
+	(fixup_integer_cst): New functoin.
+	(lto_ft_type): Fixup BASETYPE of methods and offsets.
+
+2012-10-07  Jan Hubicka  <jh@suse.cz>
+
+	* lto.c (read_cgraph_and_symbols): Release type merging hash early;
+	release input encoders.
+	* lto-partition.c (new_partition): Update for new lto_symtab_encoder_new.
+
+2012-10-06  Jan Hubicka  <jh@suse.cz>
+
+	PR lto/54790 
+	* lto.c (resolution_map): New static var.
+	(register_resolution): New function.
+	(lto_register_var_decl_in_symtab): Use it.
+	(read_cgraph_and_symbols): Copy resolutions into the symtab.
+
+2012-09-20  Martin Jambor  <mjambor@suse.cz>
+
+	* lto.c (lto_materialize_function): Call push_struct_function and
+	pop_cfun.
+
+2012-09-19  Dehao Chen  <dehao@google.com>
+
+	* lto/lto.c (lto_fixup_prevailing_decls): Remove tree.exp.block field.
+
+2012-09-19  Jan Hubicka  <jh@suse.cz>
+
+	* lto.c (lto_materialize_function): Update confused comment.
+	(read_cgraph_and_symbols): Do not free symtab.
+
+2012-09-12  Jan Hubicka  <jh@suse.cz>
+
+	* lto.c (do_whole_program_analysis): Care timevars, statistics and
+	AUX pointer cleaning. Add max partitioning.
+	* lto-partition.c (enum symbol_class): New.
+	(get_symbol_class): New function.
+	(symbol_partitioned_p): New function.
+	(add_references_to_partition): Remove.
+	(add_aliases_to_partition): Remove.
+	(add_cgraph_node_to_partition_1): Remove.
+	(add_cgraph_node_to_partition): Remove.
+	(add_symbol_to_partition): New function.
+	(add_symbol_to_partition_1): New function.
+	(contained_in_symbol): New function.
+	(partition_cgraph_node_p): Remove.
+	(partition_varpool_node_p): Remove.
+	(partition_symbol_p): Remove.
+	(lto_1_to_1_map): Cleanup.
+	(lto_max_map): New.
+	(lto_balanced_map): Update.
+	(lto_promote_cross_file_statics): Update.
+	* lto-partition.h (lto_max_map): Declare.
+	* timevar.def (TV_WHOPR_PARTITIONING): New timevar.
+
+2012-09-11  Jan Hubicka  <jh@suse.cz>
 
 	PR lto/54312
 	* lto.c (uniquify_nodes): Remove quadratic loop checking if the
 	type is variant leader.
 
-2012-09-20  Release Manager
+2012-09-11  Richard Guenther  <rguenther@suse.de>
 
-	* GCC 4.7.2 released.
+	* lto.c (enum gtc_mode): Remove.
+	(struct type_pair_d): Adjust.
+	(lookup_type_pair): Likewise.
+	(gimple_type_leader): Do not mark as deletable.
+	(gimple_lookup_type_leader): Adjust.
+	(gtc_visit): Likewise.
+	(gimple_types_compatible_p_1): Likewise.
+	(gimple_types_compatible_p): Likewise.
+	(gimple_type_hash): Likewise.
+	(gimple_register_type): Likewise.
+	(read_cgraph_and_symbols): Manage lifetime of tables
+	here.
 
-2012-06-14  Release Manager
+2012-09-11  Richard Guenther  <rguenther@suse.de>
 
-	* GCC 4.7.1 released.
+	* lto.c (gimple_types, type_hash_cache, enum gtc_mode,
+	struct type_pair_d, lookup_type_pair, struct sccs,
+	next_dfs_num, gtc_next_dfs_num, struct gimple_type_leader_entry_s,
+	gimple_type_leader, gimple_lookup_type_leader, compare_type_names_p,
+	gtc_visit, gimple_types_compatible_p_1, gimple_types_compatible_p,
+	visit, iterative_hash_name, struct type_hash_pair,
+	type_hash_pair_compare, iterative_hash_gimple_type, gimple_type_hash,
+	gimple_type_eq, gimple_register_type_1, gimple_register_type):
+	Move here from gimple.c
+	(read_cgraph_and_symbols): Free hash tables here.
+	(print_lto_report_1): New function wrapping print_lto_report.
+	(do_whole_program_analysis): Call it.
+	(lto_main): Likewise.
+
+2012-09-10  Jan Hubicka  <jh@suse.cz>
+
+	* lto-partition.c (partition_symbol_p): Forward declare.
+	(add_references_to_partition): Reimplement using partition_symbol_p.
+	(add_aliases_to_partition): Break out from add_references_to_partition;
+	reimplement using partition_symbol_p.
+	(add_cgraph_node_to_partition_1): Handle callees using partition_symbol_p;
+	add sanity checks.
+	(add_varpool_node_to_partition): Use add_aliases_to_partition.
+	(partition_varpool_node_p): Do not special case aliases.
+
+2012-08-12  Jan Hubicka  <jh@suse.cz>
+
+	* lto.c (lto_wpa_write_files): Do not delete partition encoder;
+	it is deleted after streaming.
+	* lto-partition.c (partition_symbol_p): New function.
+	(promote_var, promote_fn): Remove.
+	(promote_symbol): New function.
+	(lto_promote_cross_file_statics): First compute boundaries; rewrite
+	to lookup the actual boundaries instead of computing them ad-hoc.
+
+2012-08-12  Jan Hubicka  <jh@suse.cz>
+
+	Replace cgraph_node_set and varpool_node_set by symtab_node_encoder
+	in partitioning.
+	* lto-partition.h (ltrans_partition_def): Replace cgraph_set and varpool_set
+	by encoder.
+	* lto-partition.c (new_partition): Update.
+	* lto.c (cmp_partitions_order): Update.
+	(lto_wpa_write_files): Update.
+	(free_ltrans_partitions): Update.
+	(add_references_to_partition): Update.
+	(add_cgraph_node_to_partition_1): Update.
+	(add_cgraph_node_to_partition): Update.
+	(add_varpool_node_to_partition): Update.
+	(undo_partition): Update.
+	(lto_balanced_map): Update.
+	(set_referenced_from_other_partition_p, set_reachable_from_other_partition_p,
+	set_referenced_from_this_partition_p): Update.
+	(lto_promote_cross_file_statics): Update.
+
+2012-08-12  Jan Hubicka  <jh@suse.cz>
+
+	* lto-partition.c (set_referenced_from_other_partition_p,
+	set_reachable_from_other_partition_p, set_referenced_from_this_partition_p):
+	New functions.
+	(lto_promote_cross_file_statics): Use them.
+
+2012-07-24  Jan Hubicka  <jh@suse.cz>
+
+	* lto.c (read_cgraph_and_symbols): Use input_symtab.
+
+2012-07-24  Uros Bizjak  <ubizjak@gmail.com>
+
+	* lto-tree.h (lang_decl): Add variable_size GTY option.
+
+2012-07-16  Steven Bosscher  <steven@gcc.gnu.org>
+
+	* lto.c: Do not include timevar.h.
+	* Make-lang.in: Fix dependencies.
+
+2012-06-18  Lawrence Crowl  <crowl@google.com>
+
+        * lto.c (do_whole_program_analysis):  Rename use of TV_PHASE_CGRAPH to
+	TV_PHASE_OPT_GEN.  Use new timevar TV_PHASE_STREAM_OUT around the call
+	to lto_wpa_write_files.
+	(lto_main):  Rename use of TV_PHASE_CGRAPH to TV_PHASE_OPT_GEN.  Move
+	start of TV_PHASE_OPT_GEN to include call to materialize_cgraph.  Use
+	TV_PHASE_SETUP for the call to lto_init.  Use new timevar
+	TV_PHASE_STREAM_IN around the call to read_cgraph_and_symbols.
+	Turn TV_PHASE_PARSING off then back on again, because LTO is pretending
+	to be a front end, but is not one.
+
+2012-05-18  Jan Hubicka  <jh@suse.cz>
+
+	* lto.c (lto_materialize_constructors_and_inits): Remove.
+	(read_cgraph_and_symbols): Remove handling of alias pairs.
+
+2012-05-17  Jan Hubicka  <jh@suse.cz>
+
+	* lto-partition.c (add_references_to_partition): Handle external vars.
+	(partition_varpool_node_p): Likewise.
+	(lto_promote_cross_file_statics): Do not promote externals.
+
+2012-05-14  Bernd Schmidt  <bernds@codesourcery.com>
+
+	* lto-lang.c (handle_fnspec_attribute): New static function.
+	(lto_attribute_table): Add "fn spec".
+	(DEF_ATTR_STRING): Define and undefine along with the other macros.
+
+2012-05-04  Jan Hubicka  <jh@suse.cz>
+
+	* lto.c (do_whole_program_analysis): Set timevars correctly.
+	(lto_main): Likewise.
 
 2012-05-04  Richard Guenther  <rguenther@suse.de>
 
 	* lang.opt (fwpa): Do not mark as Optimization.
 	(fltrans): Likewise.
 
-2012-03-22  Release Manager
+2012-04-30  Jan Hubicka  <jh@suse.cz>
 
-	* GCC 4.7.0 released.
+	* lto.c (lto_main): Use compile ().
+	* lto-partition.c (partition_cgraph_node_p): Use
+	symtab_used_from_object_file_p.
+	(partition_varpool_node_p): Likewise.
+
+2012-04-20  Jan Hubicka  <jh@suse.cz>
+
+	* lto-partition.c (partition_cgraph_node_p): Use force_output.
+
+2012-04-18  Jan Hubicka  <jh@suse.cz>
+
+	* lto-partition.c (add_references_to_partition, lto_balanced_map):
+	Update for new ipa-ref API.
+
+2012-04-16  Jan Hubicka  <jh@suse.cz>
+
+	* lto.c (read_cgraph_and_symbols): Use FOR_EACH
+        walkers to walk cgraph and varpool.
+	(materialize_cgraph): Likewise.
+	* lto-partition.c (lto_1_to_1_map): Likewise.
+	(lto_balanced_map): Likewise.
+	(lto_promote_cross_file_statics): Likewise.
+
+2012-04-14  Jan Hubicka  <jh@suse.cz>
+
+	* lto.c: Update field referenced for new cgraph/varpool layout.
+	* lto-partition.c: Likewise.
+
+2012-04-11  Jan Hubicka  <jh@suse.cz>
+
+	* lto.c: Update copyright; remove params.h, ipa-inline.h
+	and ipa-utils.h inlines; inline lto-partition.h
+	(ltrans_partition_def, ltrans_partition, add_cgraph_node_to_partition,
+	add_varpool_node_to_partition, new_partition, free_ltrans_partitions,
+	add_references_to_partition, add_cgraph_node_to_partition_1,
+	add_cgraph_node_to_partition, add_varpool_node_to_partition,
+	undo_partition, partition_cgraph_node_p, partition_varpool_node_p,
+	lto_1_to_1_map, node_cmp, varpool_node_cmp, lto_balanced_map,
+	promote_var, promote_fn, lto_promote_cross_file_statics): move to...
+	* lto-partition.c: ... here; new file.
+	* lto-partition.h: New file.
+	* Make-lang.in (lto.o): Update dependencies.
+	(lto-partition.o): New.
+
+2012-04-05  Richard Guenther  <rguenther@suse.de>
+
+	* lto-lang.c (LANG_HOOKS_CALLGRAPH_EXPAND_FUNCTION): Remove
+	definition.
+
+2012-03-12  Richard Guenther  <rguenther@suse.de>
+
+	* lto-lang.c (builtin_type_for_size): Use lto_type_for_size.
+
+2012-03-06  Richard Guenther  <rguenther@suse.de>
+
+	PR lto/52097
+	* lto.c (uniquify_nodes): Merge TYPE_FIELDS of variant types.
 
 2012-02-28  Richard Guenther  <rguenther@suse.de>
 

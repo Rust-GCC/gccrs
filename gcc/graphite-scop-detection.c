@@ -1,5 +1,5 @@
 /* Detection of Static Control Parts (SCoP) for Graphite.
-   Copyright (C) 2009, 2010 Free Software Foundation, Inc.
+   Copyright (C) 2009, 2010, 2011 Free Software Foundation, Inc.
    Contributed by Sebastian Pop <sebastian.pop@amd.com> and
    Tobias Grosser <grosser@fim.uni-passau.de>.
 
@@ -20,6 +20,15 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
+
+#ifdef HAVE_cloog
+#include <isl/set.h>
+#include <isl/map.h>
+#include <isl/union_map.h>
+#include <cloog/cloog.h>
+#include <cloog/isl/domain.h>
+#endif
+
 #include "system.h"
 #include "coretypes.h"
 #include "tree-flow.h"
@@ -31,8 +40,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "sese.h"
 
 #ifdef HAVE_cloog
-#include "ppl_c.h"
-#include "graphite-ppl.h"
 #include "graphite-poly.h"
 #include "graphite-scop-detection.h"
 
@@ -60,7 +67,7 @@ static gbb_type
 get_bb_type (basic_block bb, struct loop *last_loop)
 {
   VEC (basic_block, heap) *dom;
-  int nb_dom, nb_suc;
+  int nb_dom;
   struct loop *loop = bb->loop_father;
 
   /* Check, if we entry into a new loop. */
@@ -81,9 +88,7 @@ get_bb_type (basic_block bb, struct loop *last_loop)
   if (nb_dom == 0)
     return GBB_LAST;
 
-  nb_suc = VEC_length (edge, bb->succs);
-
-  if (nb_dom == 1 && nb_suc == 1)
+  if (nb_dom == 1 && single_succ_p (bb))
     return GBB_SIMPLE;
 
   return GBB_COND_HEADER;
@@ -138,7 +143,7 @@ move_sd_regions (VEC (sd_region, heap) **source,
   int i;
 
   FOR_EACH_VEC_ELT (sd_region, *source, i, s)
-    VEC_safe_push (sd_region, heap, *target, s);
+    VEC_safe_push (sd_region, heap, *target, *s);
 
   VEC_free (sd_region, heap, *source);
 }
@@ -495,7 +500,7 @@ scopdet_basic_block_info (basic_block bb, loop_p outermost_loop,
 		sd_region open_scop;
 		open_scop.entry = bb;
 		open_scop.exit = exit_e->dest;
-		VEC_safe_push (sd_region, heap, *scops, &open_scop);
+		VEC_safe_push (sd_region, heap, *scops, open_scop);
 		VEC_free (sd_region, heap, regions);
 	      }
 	  }
@@ -751,7 +756,7 @@ build_scops_1 (basic_block current, loop_p outermost_loop,
       else if (in_scop && (sinfo.exits || sinfo.difficult))
         {
 	  open_scop.exit = current;
-          VEC_safe_push (sd_region, heap, *scops, &open_scop);
+          VEC_safe_push (sd_region, heap, *scops, open_scop);
           in_scop = false;
         }
 
@@ -766,7 +771,7 @@ build_scops_1 (basic_block current, loop_p outermost_loop,
     {
       open_scop.exit = sinfo.exit;
       gcc_assert (open_scop.exit);
-      VEC_safe_push (sd_region, heap, *scops, &open_scop);
+      VEC_safe_push (sd_region, heap, *scops, open_scop);
     }
 
   result.exit = sinfo.exit;
@@ -1022,11 +1027,11 @@ create_sese_edges (VEC (sd_region, heap) *regions)
 
   unmark_exit_edges (regions);
 
+  calculate_dominance_info (CDI_DOMINATORS);
   fix_loop_structure (NULL);
 
 #ifdef ENABLE_CHECKING
   verify_loop_structure ();
-  verify_dominators (CDI_DOMINATORS);
   verify_ssa (false);
 #endif
 }
@@ -1107,7 +1112,7 @@ print_graphite_scop_statistics (FILE* file, scop_p scop)
       n_bbs++;
       n_p_bbs += bb->count;
 
-      if (VEC_length (edge, bb->succs) > 1)
+      if (EDGE_COUNT (bb->succs) > 1)
 	{
 	  n_conditions++;
 	  n_p_conditions += bb->count;
@@ -1200,7 +1205,7 @@ limit_scops (VEC (scop_p, heap) **scops)
 		&& contains_only_close_phi_nodes (open_scop.exit))
 	      open_scop.exit = single_succ_edge (open_scop.exit)->dest;
 
-	    VEC_safe_push (sd_region, heap, regions, &open_scop);
+	    VEC_safe_push (sd_region, heap, regions, open_scop);
 	  }
     }
 
@@ -1292,7 +1297,7 @@ canonicalize_loop_closed_ssa (loop_p loop)
 
   bb = e->dest;
 
-  if (VEC_length (edge, bb->preds) == 1)
+  if (single_pred_p (bb))
     {
       e = split_block_after_labels (bb);
       make_close_phi_nodes_unique (e->src);
@@ -1319,9 +1324,8 @@ canonicalize_loop_closed_ssa (loop_p loop)
 		if (TREE_CODE (arg) != SSA_NAME)
 		  continue;
 
-		close_phi = create_phi_node (arg, close);
-		res = create_new_def_for (gimple_phi_result (close_phi),
-					  close_phi,
+		close_phi = create_phi_node (NULL_TREE, close);
+		res = create_new_def_for (arg, close_phi,
 					  gimple_phi_result_ptr (close_phi));
 		add_phi_arg (close_phi, arg,
 			     gimple_phi_arg_edge (close_phi, 0),

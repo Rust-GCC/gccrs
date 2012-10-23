@@ -27,6 +27,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #include "system.h"
+#include "coretypes.h"
 #include "flags.h"
 #include "gfortran.h"
 #include "arith.h"
@@ -902,10 +903,13 @@ arith_power (gfc_expr *op1, gfc_expr *op2, gfc_expr **resultp)
 
       if (gfc_init_expr_flag)
 	{
-	  if (gfc_notify_std (GFC_STD_F2003,"Fortran 2003: Noninteger "
+	  if (gfc_notify_std (GFC_STD_F2003, "Noninteger "
 			      "exponent in an initialization "
 			      "expression at %L", &op2->where) == FAILURE)
-	    return ARITH_PROHIBIT;
+	    {
+	      gfc_free_expr (result);
+	      return ARITH_PROHIBIT;
+	    }
 	}
 
       if (mpfr_cmp_si (op1->value.real, 0) < 0)
@@ -924,10 +928,13 @@ arith_power (gfc_expr *op1, gfc_expr *op2, gfc_expr **resultp)
       {
 	if (gfc_init_expr_flag)
 	  {
-	    if (gfc_notify_std (GFC_STD_F2003,"Fortran 2003: Noninteger "
+	    if (gfc_notify_std (GFC_STD_F2003, "Noninteger "
 				"exponent in an initialization "
 				"expression at %L", &op2->where) == FAILURE)
-	      return ARITH_PROHIBIT;
+	      {
+		gfc_free_expr (result);
+		return ARITH_PROHIBIT;
+	      }
 	  }
 
 	mpc_pow (result->value.complex, op1->value.complex,

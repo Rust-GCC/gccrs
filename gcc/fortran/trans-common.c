@@ -86,7 +86,7 @@ along with GCC; see the file COPYING3.  If not see
    Each segment is described by a chain of segment_info structures.  Each
    segment_info structure describes the extents of a single variable within
    the segment.  This list is maintained in the order the elements are
-   positioned withing the segment.  If two elements have the same starting
+   positioned within the segment.  If two elements have the same starting
    offset the smaller will come first.  If they also have the same size their
    ordering is undefined. 
    
@@ -99,7 +99,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
-#include "output.h"	/* For decl_default_tls_model.  */
 #include "gfortran.h"
 #include "trans.h"
 #include "trans-types.h"
@@ -697,8 +696,6 @@ create_common (gfc_common_head *com, segment_info *head, bool saw_equiv)
 	DECL_IGNORED_P (var_decl) = 1;
       if (s->sym->attr.target)
 	TREE_ADDRESSABLE (var_decl) = 1;
-      /* This is a fake variable just for debugging purposes.  */
-      TREE_ASM_WRITTEN (var_decl) = 1;
       /* Fake variables are not visible from other translation units. */
       TREE_PUBLIC (var_decl) = 0;
 

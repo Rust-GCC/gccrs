@@ -52,6 +52,7 @@
 #include "target-def.h"
 #include "langhooks.h"
 #include "opts.h"
+#include "cgraph.h"
 
 static unsigned int rx_gp_base_regnum_val = INVALID_REGNUM;
 static unsigned int rx_pid_base_regnum_val = INVALID_REGNUM;
@@ -317,7 +318,7 @@ rx_is_restricted_memory_address (rtx mem, enum machine_mode mode)
 /* Implement TARGET_MODE_DEPENDENT_ADDRESS_P.  */
 
 static bool
-rx_mode_dependent_address_p (const_rtx addr)
+rx_mode_dependent_address_p (const_rtx addr, addr_space_t as ATTRIBUTE_UNUSED)
 {
   if (GET_CODE (addr) == CONST)
     addr = XEXP (addr, 0);
@@ -1255,6 +1256,41 @@ rx_conditional_register_usage (void)
     }
 }
 
+struct decl_chain
+{
+  tree fndecl;
+  struct decl_chain * next;
+};
+
+/* Stack of decls for which we have issued warnings.  */
+static struct decl_chain * warned_decls = NULL;
+
+static void
+add_warned_decl (tree fndecl)
+{
+  struct decl_chain * warned = (struct decl_chain *) xmalloc (sizeof * warned);
+
+  warned->fndecl = fndecl;
+  warned->next = warned_decls;
+  warned_decls = warned;
+}
+
+/* Returns TRUE if FNDECL is on our list of warned about decls.  */
+
+static bool
+already_warned (tree fndecl)
+{
+  struct decl_chain * warned;
+
+  for (warned = warned_decls;
+       warned != NULL;
+       warned = warned->next)
+    if (warned->fndecl == fndecl)
+      return true;
+
+  return false;
+}
+
 /* Perform any actions necessary before starting to compile FNDECL.
    For the RX we use this to make sure that we have the correct
    set of register masks selected.  If FNDECL is NULL then we are
@@ -1285,6 +1321,24 @@ rx_set_current_function (tree fndecl)
     {
       use_fixed_regs = current_is_fast_interrupt;
       target_reinit ();
+    }
+
+  if (current_is_fast_interrupt && rx_warn_multiple_fast_interrupts)
+    {
+      /* We do not warn about the first fast interrupt routine that
+	 we see.  Instead we just push it onto the stack.  */
+      if (warned_decls == NULL)
+	add_warned_decl (fndecl);
+
+      /* Otherwise if this fast interrupt is one for which we have
+	 not already issued a warning, generate one and then push
+	 it onto the stack as well.  */
+      else if (! already_warned (fndecl))
+	{
+	  warning (0, "multiple fast interrupt routines seen: %qE and %qE",
+		   fndecl, warned_decls->fndecl);
+	  add_warned_decl (fndecl);
+	}
     }
 
   rx_previous_fndecl = fndecl;
@@ -1381,7 +1435,7 @@ rx_get_stack_layout (unsigned int * lowest,
 	      be used in (non-interrupt aware) routines called from this one.  */
 	   || (call_used_regs[reg]
 	       && is_interrupt_func (NULL_TREE)
-	       && ! current_function_is_leaf))
+	       && ! crtl->is_leaf))
 	  && (! call_used_regs[reg]
 	      /* Even call clobbered registered must
 		 be pushed inside interrupt handlers.  */
@@ -1606,6 +1660,9 @@ rx_expand_prologue (void)
 
   rx_get_stack_layout (& low, & high, & mask, & frame_size, & stack_size);
 
+  if (flag_stack_usage_info)
+    current_function_static_stack_size = frame_size + stack_size;
+
   /* If we use any of the callee-saved registers, save them now.  */
   if (mask)
     {
@@ -1776,7 +1833,7 @@ gen_rx_rtsd_vector (unsigned int adjust, unsigned int low, unsigned int high)
 
   XVECEXP (vector, 0, 0) =
     gen_rtx_SET (VOIDmode, stack_pointer_rtx,
-		 plus_constant (stack_pointer_rtx, adjust));
+		 plus_constant (Pmode, stack_pointer_rtx, adjust));
 
   for (i = 0; i < count - 2; i++)
     XVECEXP (vector, 0, i + 1) =
@@ -1784,7 +1841,7 @@ gen_rx_rtsd_vector (unsigned int adjust, unsigned int low, unsigned int high)
 		   gen_rtx_REG (SImode, low + i),
 		   gen_rtx_MEM (SImode,
 				i == 0 ? stack_pointer_rtx
-				: plus_constant (stack_pointer_rtx,
+				: plus_constant (Pmode, stack_pointer_rtx,
 						 i * UNITS_PER_WORD)));
 
   XVECEXP (vector, 0, count - 1) = ret_rtx;
@@ -1805,7 +1862,7 @@ gen_rx_popm_vector (unsigned int low, unsigned int high)
 
   XVECEXP (vector, 0, 0) =
     gen_rtx_SET (VOIDmode, stack_pointer_rtx,
-		 plus_constant (stack_pointer_rtx,
+		 plus_constant (Pmode, stack_pointer_rtx,
 				(count - 1) * UNITS_PER_WORD));
 
   for (i = 0; i < count - 1; i++)
@@ -1814,7 +1871,7 @@ gen_rx_popm_vector (unsigned int low, unsigned int high)
 		   gen_rtx_REG (SImode, low + i),
 		   gen_rtx_MEM (SImode,
 				i == 0 ? stack_pointer_rtx
-				: plus_constant (stack_pointer_rtx,
+				: plus_constant (Pmode, stack_pointer_rtx,
 						 i * UNITS_PER_WORD)));
 
   return vector;
@@ -2625,6 +2682,14 @@ rx_func_attr_inlinable (const_tree decl)
     &&   ! is_naked_func (decl);  
 }
 
+static bool
+rx_warn_func_return (tree decl)
+{
+  /* Naked functions are implemented entirely in assembly, including the
+     return sequence, so suppress warnings about this.  */
+  return !is_naked_func (decl);
+}
+
 /* Return nonzero if it is ok to make a tail-call to DECL,
    a function_decl or NULL if this is an indirect call, using EXP  */
 
@@ -2712,7 +2777,8 @@ rx_is_legitimate_constant (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x)
 }
 
 static int
-rx_address_cost (rtx addr, bool speed)
+rx_address_cost (rtx addr, enum machine_mode mode ATTRIBUTE_UNUSED,
+		 addr_space_t as ATTRIBUTE_UNUSED, bool speed)
 {
   rtx a, b;
 
@@ -3277,6 +3343,9 @@ rx_adjust_insn_length (rtx insn, int current_length)
 
 #undef  TARGET_LEGITIMIZE_ADDRESS
 #define TARGET_LEGITIMIZE_ADDRESS		rx_legitimize_address
+
+#undef TARGET_WARN_FUNC_RETURN
+#define TARGET_WARN_FUNC_RETURN rx_warn_func_return
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

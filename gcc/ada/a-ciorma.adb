@@ -399,9 +399,8 @@ package body Ada.Containers.Indefinite_Ordered_Maps is
          L : Natural renames T.Lock;
       begin
          return R : constant Constant_Reference_Type :=
-                      (Element => Position.Node.Element.all'Access,
-                       Control =>
-                         (Controlled with Container'Unrestricted_Access))
+           (Element => Position.Node.Element.all'Access,
+            Control => (Controlled with Container'Unrestricted_Access))
          do
             B := B + 1;
             L := L + 1;
@@ -410,7 +409,7 @@ package body Ada.Containers.Indefinite_Ordered_Maps is
    end Constant_Reference;
 
    function Constant_Reference
-     (Container : Map;
+     (Container : aliased Map;
       Key       : Key_Type) return Constant_Reference_Type
    is
       Node : constant Node_Access := Key_Ops.Find (Container.Tree, Key);
@@ -430,9 +429,8 @@ package body Ada.Containers.Indefinite_Ordered_Maps is
          L : Natural renames T.Lock;
       begin
          return R : constant Constant_Reference_Type :=
-                      (Element => Node.Element.all'Access,
-                       Control =>
-                         (Controlled with Container'Unrestricted_Access))
+           (Element => Node.Element.all'Access,
+            Control => (Controlled with Container'Unrestricted_Access))
          do
             B := B + 1;
             L := L + 1;
@@ -812,8 +810,16 @@ package body Ada.Containers.Indefinite_Ordered_Maps is
 
          Position.Node.Key := new Key_Type'(Key);
 
+         declare
+            --  The element allocator may need an accessibility check in the
+            --  case the actual type is class-wide or has access discriminants
+            --  (see RM 4.8(10.1) and AI12-0035).
+
+            pragma Unsuppress (Accessibility_Check);
+
          begin
             Position.Node.Element := new Element_Type'(New_Item);
+
          exception
             when others =>
                Free_Key (K);
@@ -852,6 +858,12 @@ package body Ada.Containers.Indefinite_Ordered_Maps is
       function New_Node return Node_Access is
          Node : Node_Access := new Node_Type;
 
+         --  The element allocator may need an accessibility check in the case
+         --  the actual type is class-wide or has access discriminants (see
+         --  RM 4.8(10.1) and AI12-0035).
+
+         pragma Unsuppress (Accessibility_Check);
+
       begin
          Node.Key := new Key_Type'(Key);
          Node.Element := new Element_Type'(New_Item);
@@ -860,9 +872,10 @@ package body Ada.Containers.Indefinite_Ordered_Maps is
       exception
          when others =>
 
-            --  On exception, deallocate key and elem
+            --  On exception, deallocate key and elem. Note that free
+            --  deallocates both the key and the elem.
 
-            Free (Node);  --  Note that Free deallocates key and elem too
+            Free (Node);
             raise;
       end New_Node;
 
@@ -999,9 +1012,9 @@ package body Ada.Containers.Indefinite_Ordered_Maps is
       --  for a reverse iterator, Container.Last is the beginning.
 
       return It : constant Iterator :=
-                    (Limited_Controlled with
-                       Container => Container'Unrestricted_Access,
-                       Node      => null)
+        (Limited_Controlled with
+           Container => Container'Unrestricted_Access,
+           Node      => null)
       do
          B := B + 1;
       end return;
@@ -1049,9 +1062,9 @@ package body Ada.Containers.Indefinite_Ordered_Maps is
       --  is a forward or reverse iteration.
 
       return It : constant Iterator :=
-                    (Limited_Controlled with
-                       Container => Container'Unrestricted_Access,
-                       Node      => Start.Node)
+        (Limited_Controlled with
+           Container => Container'Unrestricted_Access,
+           Node      => Start.Node)
       do
          B := B + 1;
       end return;
@@ -1189,7 +1202,7 @@ package body Ada.Containers.Indefinite_Ordered_Maps is
 
       declare
          Node : constant Node_Access :=
-                  Tree_Operations.Next (Position.Node);
+           Tree_Operations.Next (Position.Node);
       begin
          return (if Node = null then No_Element
                  else Cursor'(Position.Container, Node));
@@ -1245,7 +1258,7 @@ package body Ada.Containers.Indefinite_Ordered_Maps is
 
       declare
          Node : constant Node_Access :=
-                  Tree_Operations.Previous (Position.Node);
+           Tree_Operations.Previous (Position.Node);
       begin
          return (if Node = null then No_Element
                  else Cursor'(Position.Container, Node));
@@ -1422,8 +1435,8 @@ package body Ada.Containers.Indefinite_Ordered_Maps is
          L : Natural renames T.Lock;
       begin
          return R : constant Reference_Type :=
-                      (Element => Position.Node.Element.all'Access,
-                       Control => (Controlled with Position.Container))
+           (Element => Position.Node.Element.all'Access,
+            Control => (Controlled with Position.Container))
          do
             B := B + 1;
             L := L + 1;
@@ -1452,9 +1465,8 @@ package body Ada.Containers.Indefinite_Ordered_Maps is
          L : Natural renames T.Lock;
       begin
          return R : constant Reference_Type :=
-                      (Element => Node.Element.all'Access,
-                       Control =>
-                         (Controlled with Container'Unrestricted_Access))
+           (Element => Node.Element.all'Access,
+            Control => (Controlled with Container'Unrestricted_Access))
          do
             B := B + 1;
             L := L + 1;
@@ -1471,8 +1483,7 @@ package body Ada.Containers.Indefinite_Ordered_Maps is
       Key       : Key_Type;
       New_Item  : Element_Type)
    is
-      Node : constant Node_Access :=
-               Key_Ops.Find (Container.Tree, Key);
+      Node : constant Node_Access := Key_Ops.Find (Container.Tree, Key);
 
       K : Key_Access;
       E : Element_Access;
@@ -1492,8 +1503,16 @@ package body Ada.Containers.Indefinite_Ordered_Maps is
 
       Node.Key := new Key_Type'(Key);
 
+      declare
+         --  The element allocator may need an accessibility check in the case
+         --  the actual type is class-wide or has access discriminants (see
+         --  RM 4.8(10.1) and AI12-0035).
+
+         pragma Unsuppress (Accessibility_Check);
+
       begin
          Node.Element := new Element_Type'(New_Item);
+
       exception
          when others =>
             Free_Key (K);
@@ -1541,6 +1560,12 @@ package body Ada.Containers.Indefinite_Ordered_Maps is
 
       declare
          X : Element_Access := Position.Node.Element;
+
+         --  The element allocator may need an accessibility check in the case
+         --  the actual type is class-wide or has access discriminants (see
+         --  RM 4.8(10.1) and AI12-0035).
+
+         pragma Unsuppress (Accessibility_Check);
 
       begin
          Position.Node.Element := new Element_Type'(New_Item);

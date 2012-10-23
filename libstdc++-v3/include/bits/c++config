@@ -1,7 +1,7 @@
 // Predefined symbols and macros -*- C++ -*-
 
 // Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-// 2006, 2007, 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
+// 2006, 2007, 2008, 2009, 2010, 2011, 2012 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -210,7 +210,6 @@ namespace std
   namespace this_thread { inline namespace __7 { } }
 
   namespace __detail { inline namespace __7 { } }
-  namespace __regex { inline namespace __7 { } }
 }
 
 namespace __gnu_cxx
@@ -288,7 +287,7 @@ namespace std
 # define _GLIBCXX_BEGIN_NAMESPACE_CONTAINER \
 	 namespace _GLIBCXX_STD_C { _GLIBCXX_BEGIN_NAMESPACE_VERSION
 # define _GLIBCXX_END_NAMESPACE_CONTAINER \
-	 } _GLIBCXX_END_NAMESPACE_VERSION
+	 _GLIBCXX_END_NAMESPACE_VERSION }
 # undef _GLIBCXX_EXTERN_TEMPLATE
 # define _GLIBCXX_EXTERN_TEMPLATE -1
 #endif
@@ -298,7 +297,7 @@ namespace std
 # define _GLIBCXX_BEGIN_NAMESPACE_ALGO \
 	 namespace _GLIBCXX_STD_A { _GLIBCXX_BEGIN_NAMESPACE_VERSION
 # define _GLIBCXX_END_NAMESPACE_ALGO \
-	 } _GLIBCXX_END_NAMESPACE_VERSION
+	 _GLIBCXX_END_NAMESPACE_VERSION }
 #endif
 
 #ifndef _GLIBCXX_STD_A

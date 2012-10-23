@@ -1,7 +1,5 @@
 /* CPP Library. (Directive handling.)
-   Copyright (C) 1986, 1987, 1989, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-   1999, 2000, 2001, 2002, 2003, 2004, 2005,
-   2007, 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
+   Copyright (C) 1986-2012 Free Software Foundation, Inc.
    Contributed by Per Bothner, 1994-95.
    Based on CCCP program by Paul Rubin, June 1986
    Adapted to ANSI C, Richard Stallman, Jan 1987
@@ -118,6 +116,9 @@ static void do_pragma_once (cpp_reader *);
 static void do_pragma_poison (cpp_reader *);
 static void do_pragma_system_header (cpp_reader *);
 static void do_pragma_dependency (cpp_reader *);
+static void do_pragma_warning_or_error (cpp_reader *, bool error);
+static void do_pragma_warning (cpp_reader *);
+static void do_pragma_error (cpp_reader *);
 static void do_linemarker (cpp_reader *);
 static const cpp_token *get_token_no_padding (cpp_reader *);
 static const cpp_token *get__Pragma_string (cpp_reader *);
@@ -446,7 +447,7 @@ _cpp_handle_directive (cpp_reader *pfile, int indented)
 	 
 	 We exclude the -fdirectives-only case because macro expansion
 	 has not been performed yet, and block comments can cause spaces
-	 to preceed the directive.  */
+	 to precede the directive.  */
       if (CPP_OPTION (pfile, preprocessed)
 	  && !CPP_OPTION (pfile, directives_only)
 	  && (indented || !(dir->flags & IN_I)))
@@ -1263,6 +1264,8 @@ _cpp_init_internal_pragmas (cpp_reader *pfile)
   register_pragma_internal (pfile, "GCC", "system_header",
 			    do_pragma_system_header);
   register_pragma_internal (pfile, "GCC", "dependency", do_pragma_dependency);
+  register_pragma_internal (pfile, "GCC", "warning", do_pragma_warning);
+  register_pragma_internal (pfile, "GCC", "error", do_pragma_error);
 }
 
 /* Return the number of registered pragmas in PE.  */
@@ -1347,13 +1350,15 @@ static void
 do_pragma (cpp_reader *pfile)
 {
   const struct pragma_entry *p = NULL;
-  const cpp_token *token, *pragma_token = pfile->cur_token;
+  const cpp_token *token, *pragma_token;
+  source_location pragma_token_virt_loc = 0;
   cpp_token ns_token;
   unsigned int count = 1;
 
   pfile->state.prevent_expansion++;
 
-  token = cpp_get_token (pfile);
+  pragma_token = token = cpp_get_token_with_location (pfile,
+						      &pragma_token_virt_loc);
   ns_token = *token;
   if (token->type == CPP_NAME)
     {
@@ -1362,35 +1367,7 @@ do_pragma (cpp_reader *pfile)
 	{
 	  bool allow_name_expansion = p->allow_expansion;
 	  if (allow_name_expansion)
-	    {
-	      pfile->state.prevent_expansion--;
-	      /*
-		Kludge ahead.
-
-		Consider this code snippet:
-
-		#define P parallel
-		#pragma omp P for
-		... a for loop ...
-
-		Once we parsed the 'omp' namespace of the #pragma
-		directive, we then parse the 'P' token that represents the
-		pragma name.  P being a macro, it is expanded into the
-		resulting 'parallel' token.
-
-		At this point the 'p' variable contains the 'parallel'
-		pragma name.  And pfile->context->macro is non-null
-		because we are still right at the end of the macro
-		context of 'P'.  The problem is, if we are being
-		(indirectly) called by cpp_get_token_with_location,
-		that function might test pfile->context->macro to see
-		if we are in the context of a macro expansion, (and we
-		are) and then use pfile->invocation_location as the
-		location of the macro invocation.  So we must instruct
-		cpp_get_token below to set
-		pfile->invocation_location.  */
-	      pfile->set_invocation_location = true;
-	    }
+	    pfile->state.prevent_expansion--;
 
 	  token = cpp_get_token (pfile);
 	  if (token->type == CPP_NAME)
@@ -1407,7 +1384,7 @@ do_pragma (cpp_reader *pfile)
     {
       if (p->is_deferred)
 	{
-	  pfile->directive_result.src_loc = pragma_token->src_loc;
+	  pfile->directive_result.src_loc = pragma_token_virt_loc;
 	  pfile->directive_result.type = CPP_PRAGMA;
 	  pfile->directive_result.flags = pragma_token->flags;
 	  pfile->directive_result.val.pragma = p->u.ident;
@@ -1660,6 +1637,42 @@ do_pragma_dependency (cpp_reader *pfile)
   free ((void *) fname);
 }
 
+/* Issue a diagnostic with the message taken from the pragma.  If
+   ERROR is true, the diagnostic is a warning, otherwise, it is an
+   error.  */
+static void
+do_pragma_warning_or_error (cpp_reader *pfile, bool error)
+{
+  const cpp_token *tok = _cpp_lex_token (pfile);
+  cpp_string str;
+  if (tok->type != CPP_STRING
+      || !cpp_interpret_string_notranslate (pfile, &tok->val.str, 1, &str,
+					    CPP_STRING)
+      || str.len == 0)
+    {
+      cpp_error (pfile, CPP_DL_ERROR, "invalid \"#pragma GCC %s\" directive",
+		 error ? "error" : "warning");
+      return;
+    }
+  cpp_error (pfile, error ? CPP_DL_ERROR : CPP_DL_WARNING,
+	     "%s", str.text);
+  free ((void *)str.text);
+}
+
+/* Issue a warning diagnostic.  */
+static void
+do_pragma_warning (cpp_reader *pfile)
+{
+  do_pragma_warning_or_error (pfile, false);
+}
+
+/* Issue an error diagnostic.  */
+static void
+do_pragma_error (cpp_reader *pfile)
+{
+  do_pragma_warning_or_error (pfile, true);
+}
+
 /* Get a token but skip padding.  */
 static const cpp_token *
 get_token_no_padding (cpp_reader *pfile)
@@ -1741,10 +1754,7 @@ destringize_and_run (cpp_reader *pfile, const cpp_string *in)
   saved_cur_token = pfile->cur_token;
   saved_cur_run = pfile->cur_run;
 
-  pfile->context = XNEW (cpp_context);
-  pfile->context->c.macro = 0;
-  pfile->context->prev = 0;
-  pfile->context->next = 0;
+  pfile->context = XCNEW (cpp_context);
 
   /* Inline run_directive, since we need to delay the _cpp_pop_buffer
      until we've read all of the tokens that we want.  */

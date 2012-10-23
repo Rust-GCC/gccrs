@@ -72,10 +72,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "targhooks.h"
 #include "debug.h"
 #include "expr.h"
-#include "cfglayout.h"
 #include "tree-pass.h"
 #include "tree-flow.h"
-#include "timevar.h"
 #include "cgraph.h"
 #include "coverage.h"
 #include "df.h"
@@ -83,7 +81,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "ggc.h"
 #include "cfgloop.h"
 #include "params.h"
-#include "tree-pretty-print.h"
+#include "tree-pretty-print.h" /* for dump_function_header */
 
 #ifdef XCOFF_DEBUGGING_INFO
 #include "xcoffout.h"		/* Needed for external data
@@ -717,6 +715,7 @@ compute_alignments (void)
 
   if (dump_file)
     {
+      dump_reg_info (dump_file);
       dump_flow_info (dump_file, TDF_DETAILS);
       flow_loops_dump (dump_file, NULL, 1);
     }
@@ -740,7 +739,8 @@ compute_alignments (void)
 	{
 	  if (dump_file)
 	    fprintf(dump_file, "BB %4i freq %4i loop %2i loop_depth %2i skipped.\n",
-		    bb->index, bb->frequency, bb->loop_father->num, bb->loop_depth);
+		    bb->index, bb->frequency, bb->loop_father->num,
+		    bb_loop_depth (bb));
 	  continue;
 	}
       max_log = LABEL_ALIGN (label);
@@ -757,7 +757,7 @@ compute_alignments (void)
 	{
 	  fprintf(dump_file, "BB %4i freq %4i loop %2i loop_depth %2i fall %4i branch %4i",
 		  bb->index, bb->frequency, bb->loop_father->num,
-		  bb->loop_depth,
+		  bb_loop_depth (bb),
 		  fallthru_frequency, branch_frequency);
 	  if (!bb->loop_father->inner && bb->loop_father->num)
 	    fprintf (dump_file, " inner_loop");
@@ -1009,6 +1009,13 @@ shorten_branches (rtx first ATTRIBUTE_UNUSED)
 	    align_tab[i] = seq;
 	}
     }
+
+  /* When optimizing, we start assuming minimum length, and keep increasing
+     lengths as we find the need for this, till nothing changes.
+     When not optimizing, we start assuming maximum lengths, and
+     do a single pass to update the lengths.  */
+  bool increasing = optimize != 0;
+
 #ifdef CASE_VECTOR_SHORTEN_MODE
   if (optimize)
     {
@@ -1062,11 +1069,16 @@ shorten_branches (rtx first ATTRIBUTE_UNUSED)
 	  flags.min_after_base = min > rel;
 	  flags.max_after_base = max > rel;
 	  ADDR_DIFF_VEC_FLAGS (pat) = flags;
+
+	  if (increasing)
+	    PUT_MODE (pat, CASE_VECTOR_SHORTEN_MODE (0, 0, pat));
 	}
     }
 #endif /* CASE_VECTOR_SHORTEN_MODE */
 
   /* Compute initial lengths, addresses, and varying flags for each insn.  */
+  int (*length_fun) (rtx) = increasing ? insn_min_length : insn_default_length;
+
   for (insn_current_address = 0, insn = first;
        insn != 0;
        insn_current_address += insn_lengths[uid], insn = NEXT_INSN (insn))
@@ -1117,6 +1129,8 @@ shorten_branches (rtx first ATTRIBUTE_UNUSED)
 #else
 	  const_delay_slots = 0;
 #endif
+	  int (*inner_length_fun) (rtx)
+	    = const_delay_slots ? length_fun : insn_default_length;
 	  /* Inside a delay slot sequence, we do not do any branch shortening
 	     if the shortening could change the number of delay slots
 	     of the branch.  */
@@ -1131,7 +1145,7 @@ shorten_branches (rtx first ATTRIBUTE_UNUSED)
 		inner_length = (asm_insn_count (PATTERN (inner_insn))
 				* insn_default_length (inner_insn));
 	      else
-		inner_length = insn_default_length (inner_insn);
+		inner_length = inner_length_fun (inner_insn);
 
 	      insn_lengths[inner_uid] = inner_length;
 	      if (const_delay_slots)
@@ -1149,7 +1163,7 @@ shorten_branches (rtx first ATTRIBUTE_UNUSED)
 	}
       else if (GET_CODE (body) != USE && GET_CODE (body) != CLOBBER)
 	{
-	  insn_lengths[uid] = insn_default_length (insn);
+	  insn_lengths[uid] = length_fun (insn);
 	  varying_length[uid] = insn_variable_length_p (insn);
 	}
 
@@ -1220,6 +1234,7 @@ shorten_branches (rtx first ATTRIBUTE_UNUSED)
 	      rtx prev;
 	      int rel_align = 0;
 	      addr_diff_vec_flags flags;
+	      enum machine_mode vec_mode;
 
 	      /* Avoid automatic aggregate initialization.  */
 	      flags = ADDR_DIFF_VEC_FLAGS (body);
@@ -1298,9 +1313,12 @@ shorten_branches (rtx first ATTRIBUTE_UNUSED)
 		  else
 		    max_addr += align_fuzz (max_lab, rel_lab, 0, 0);
 		}
-	      PUT_MODE (body, CASE_VECTOR_SHORTEN_MODE (min_addr - rel_addr,
-							max_addr - rel_addr,
-							body));
+	      vec_mode = CASE_VECTOR_SHORTEN_MODE (min_addr - rel_addr,
+						   max_addr - rel_addr, body);
+	      if (!increasing
+		  || (GET_MODE_SIZE (vec_mode)
+		      >= GET_MODE_SIZE (GET_MODE (body))))
+		PUT_MODE (body, vec_mode);
 	      if (JUMP_TABLES_IN_TEXT_SECTION
 		  || readonly_data_section == text_section)
 		{
@@ -1362,10 +1380,15 @@ shorten_branches (rtx first ATTRIBUTE_UNUSED)
 
 		  if (inner_length != insn_lengths[inner_uid])
 		    {
-		      insn_lengths[inner_uid] = inner_length;
-		      something_changed = 1;
+		      if (!increasing || inner_length > insn_lengths[inner_uid])
+			{
+			  insn_lengths[inner_uid] = inner_length;
+			  something_changed = 1;
+			}
+		      else
+			inner_length = insn_lengths[inner_uid];
 		    }
-		  insn_current_address += insn_lengths[inner_uid];
+		  insn_current_address += inner_length;
 		  new_length += inner_length;
 		}
 	    }
@@ -1382,14 +1405,17 @@ shorten_branches (rtx first ATTRIBUTE_UNUSED)
 	  insn_current_address += (new_length - tmp_length);
 #endif
 
-	  if (new_length != insn_lengths[uid])
+	  if (new_length != insn_lengths[uid]
+	      && (!increasing || new_length > insn_lengths[uid]))
 	    {
 	      insn_lengths[uid] = new_length;
 	      something_changed = 1;
 	    }
+	  else
+	    insn_current_address += insn_lengths[uid] - new_length;
 	}
       /* For a non-optimizing compile, do only a single pass.  */
-      if (!optimize)
+      if (!increasing)
 	break;
     }
 
@@ -1515,6 +1541,114 @@ dwarf2_debug_info_emitted_p (tree decl)
   return true;
 }
 
+/* Return scope resulting from combination of S1 and S2.  */
+static tree
+choose_inner_scope (tree s1, tree s2)
+{
+   if (!s1)
+     return s2;
+   if (!s2)
+     return s1;
+   if (BLOCK_NUMBER (s1) > BLOCK_NUMBER (s2))
+     return s1;
+   return s2;
+}
+
+/* Emit lexical block notes needed to change scope from S1 to S2.  */
+
+static void
+change_scope (rtx orig_insn, tree s1, tree s2)
+{
+  rtx insn = orig_insn;
+  tree com = NULL_TREE;
+  tree ts1 = s1, ts2 = s2;
+  tree s;
+
+  while (ts1 != ts2)
+    {
+      gcc_assert (ts1 && ts2);
+      if (BLOCK_NUMBER (ts1) > BLOCK_NUMBER (ts2))
+	ts1 = BLOCK_SUPERCONTEXT (ts1);
+      else if (BLOCK_NUMBER (ts1) < BLOCK_NUMBER (ts2))
+	ts2 = BLOCK_SUPERCONTEXT (ts2);
+      else
+	{
+	  ts1 = BLOCK_SUPERCONTEXT (ts1);
+	  ts2 = BLOCK_SUPERCONTEXT (ts2);
+	}
+    }
+  com = ts1;
+
+  /* Close scopes.  */
+  s = s1;
+  while (s != com)
+    {
+      rtx note = emit_note_before (NOTE_INSN_BLOCK_END, insn);
+      NOTE_BLOCK (note) = s;
+      s = BLOCK_SUPERCONTEXT (s);
+    }
+
+  /* Open scopes.  */
+  s = s2;
+  while (s != com)
+    {
+      insn = emit_note_before (NOTE_INSN_BLOCK_BEG, insn);
+      NOTE_BLOCK (insn) = s;
+      s = BLOCK_SUPERCONTEXT (s);
+    }
+}
+
+/* Rebuild all the NOTE_INSN_BLOCK_BEG and NOTE_INSN_BLOCK_END notes based
+   on the scope tree and the newly reordered instructions.  */
+
+static void
+reemit_insn_block_notes (void)
+{
+  tree cur_block = DECL_INITIAL (cfun->decl);
+  rtx insn, note;
+
+  insn = get_insns ();
+  if (!active_insn_p (insn))
+    insn = next_active_insn (insn);
+  for (; insn; insn = next_active_insn (insn))
+    {
+      tree this_block;
+
+      /* Avoid putting scope notes between jump table and its label.  */
+      if (JUMP_TABLE_DATA_P (insn))
+	continue;
+
+      this_block = insn_scope (insn);
+      /* For sequences compute scope resulting from merging all scopes
+	 of instructions nested inside.  */
+      if (GET_CODE (PATTERN (insn)) == SEQUENCE)
+	{
+	  int i;
+	  rtx body = PATTERN (insn);
+
+	  this_block = NULL;
+	  for (i = 0; i < XVECLEN (body, 0); i++)
+	    this_block = choose_inner_scope (this_block,
+					     insn_scope (XVECEXP (body, 0, i)));
+	}
+      if (! this_block)
+	this_block = DECL_INITIAL (cfun->decl);
+
+      if (this_block != cur_block)
+	{
+	  change_scope (insn, cur_block, this_block);
+	  cur_block = this_block;
+	}
+    }
+
+  /* change_scope emits before the insn, not after.  */
+  note = emit_note (NOTE_INSN_DELETED);
+  change_scope (note, cur_block, DECL_INITIAL (cfun->decl));
+  delete_insn (note);
+
+  reorder_blocks ();
+}
+
 /* Output assembler code for the start of a function,
    and initialize some of the variables in this file
    for the new function.  The label for the function and associated
@@ -1533,8 +1667,8 @@ final_start_function (rtx first ATTRIBUTE_UNUSED, FILE *file,
 
   this_is_asm_operands = 0;
 
-  last_filename = locator_file (prologue_locator);
-  last_linenum = locator_line (prologue_locator);
+  last_filename = LOCATION_FILE (prologue_location);
+  last_linenum = LOCATION_LINE (prologue_location);
   last_discriminator = discriminator = 0;
 
   high_block_linenum = high_function_linenum = last_linenum;
@@ -1546,7 +1680,7 @@ final_start_function (rtx first ATTRIBUTE_UNUSED, FILE *file,
     dwarf2out_begin_prologue (0, NULL);
 
 #ifdef LEAF_REG_REMAP
-  if (current_function_uses_only_leaf_regs)
+  if (crtl->uses_only_leaf_regs)
     leaf_renumber_regs (first);
 #endif
 
@@ -1692,7 +1826,7 @@ dump_basic_block_info (FILE *file, rtx insn, basic_block *start_to_bb,
       fprintf (file, "\n%s PRED:", ASM_COMMENT_START);
       FOR_EACH_EDGE (e, ei, bb->preds)
         {
-          dump_edge_info (file, e, 0);
+          dump_edge_info (file, e, TDF_DETAILS, 0);
         }
       fprintf (file, "\n");
     }
@@ -1705,7 +1839,7 @@ dump_basic_block_info (FILE *file, rtx insn, basic_block *start_to_bb,
       fprintf (asm_out_file, "%s SUCC:", ASM_COMMENT_START);
       FOR_EACH_EDGE (e, ei, bb->succs)
        {
-         dump_edge_info (asm_out_file, e, 1);
+         dump_edge_info (asm_out_file, e, TDF_DETAILS, 1);
        }
       fprintf (file, "\n");
     }
@@ -1718,7 +1852,6 @@ void
 final (rtx first, FILE *file, int optimize_p)
 {
   rtx insn, next;
-  int max_uid = 0;
   int seen = 0;
 
   /* Used for -dA dump.  */
@@ -1729,11 +1862,9 @@ final (rtx first, FILE *file, int optimize_p)
 
   last_ignored_compare = 0;
 
+#ifdef HAVE_cc0
   for (insn = first; insn; insn = NEXT_INSN (insn))
     {
-      if (INSN_UID (insn) > max_uid)       /* Find largest UID.  */
-	max_uid = INSN_UID (insn);
-#ifdef HAVE_cc0
       /* If CC tracking across branches is enabled, record the insn which
 	 jumps to each branch only reached from one place.  */
       if (optimize_p && JUMP_P (insn))
@@ -1744,8 +1875,8 @@ final (rtx first, FILE *file, int optimize_p)
 	      LABEL_REFS (lab) = insn;
 	    }
 	}
-#endif
     }
+#endif
 
   init_recog ();
 
@@ -1759,11 +1890,13 @@ final (rtx first, FILE *file, int optimize_p)
       start_to_bb = XCNEWVEC (basic_block, bb_map_size);
       end_to_bb = XCNEWVEC (basic_block, bb_map_size);
 
-      FOR_EACH_BB_REVERSE (bb)
-	{
-	  start_to_bb[INSN_UID (BB_HEAD (bb))] = bb;
-	  end_to_bb[INSN_UID (BB_END (bb))] = bb;
-	}
+      /* There is no cfg for a thunk.  */
+      if (!cfun->is_thunk)
+	FOR_EACH_BB_REVERSE (bb)
+	  {
+	    start_to_bb[INSN_UID (BB_HEAD (bb))] = bb;
+	    end_to_bb[INSN_UID (BB_END (bb))] = bb;
+	  }
     }
 
   /* Output the insns.  */
@@ -2643,11 +2776,16 @@ final_scan_insn (rtx insn, FILE *file, int optimize_p ATTRIBUTE_UNUSED,
 	insn_code_number = recog_memoized (insn);
 	cleanup_subreg_operands (insn);
 
-	/* Dump the insn in the assembly for debugging.  */
+	/* Dump the insn in the assembly for debugging (-dAP).
+	   If the final dump is requested as slim RTL, dump slim
+	   RTL to the assembly file also.  */
 	if (flag_dump_rtl_in_asm)
 	  {
 	    print_rtx_head = ASM_COMMENT_START;
-	    print_rtl_single (asm_out_file, insn);
+	    if (! (dump_flags & TDF_SLIM))
+	      print_rtl_single (asm_out_file, insn);
+	    else
+	      dump_insn_slim (asm_out_file, insn);
 	    print_rtx_head = "";
 	  }
 
@@ -3234,6 +3372,72 @@ output_asm_operand_names (rtx *operands, int *oporder, int nops)
     }
 }
 
+#ifdef ASSEMBLER_DIALECT
+/* Helper function to parse assembler dialects in the asm string.
+   This is called from output_asm_insn and asm_fprintf.  */
+static const char *
+do_assembler_dialects (const char *p, int *dialect)
+{
+  char c = *(p - 1);
+
+  switch (c)
+    {
+    case '{':
+      {
+        int i;
+
+        if (*dialect)
+          output_operand_lossage ("nested assembly dialect alternatives");
+        else
+          *dialect = 1;
+
+        /* If we want the first dialect, do nothing.  Otherwise, skip
+           DIALECT_NUMBER of strings ending with '|'.  */
+        for (i = 0; i < dialect_number; i++)
+          {
+            while (*p && *p != '}' && *p++ != '|')
+	      ;
+            if (*p == '}')
+	      break;
+          }
+
+        if (*p == '\0')
+          output_operand_lossage ("unterminated assembly dialect alternative");
+      }
+      break;
+
+    case '|':
+      if (*dialect)
+        {
+          /* Skip to close brace.  */
+          do
+            {
+	      if (*p == '\0')
+		{
+		  output_operand_lossage ("unterminated assembly dialect alternative");
+		  break;
+		}
+            }
+          while (*p++ != '}');
+          *dialect = 0;
+        }
+      else
+        putc (c, asm_out_file);
+      break;
+
+    case '}':
+      if (! *dialect)
+        putc (c, asm_out_file);
+      *dialect = 0;
+      break;
+    default:
+      gcc_unreachable ();
+    }
+
+  return p;
+}
+#endif
+
 /* Output text from TEMPLATE to the assembler output file,
    obeying %-directions to substitute operands taken from
    the vector OPERANDS.
@@ -3300,54 +3504,9 @@ output_asm_insn (const char *templ, rtx *operands)
 
 #ifdef ASSEMBLER_DIALECT
       case '{':
-	{
-	  int i;
-
-	  if (dialect)
-	    output_operand_lossage ("nested assembly dialect alternatives");
-	  else
-	    dialect = 1;
-
-	  /* If we want the first dialect, do nothing.  Otherwise, skip
-	     DIALECT_NUMBER of strings ending with '|'.  */
-	  for (i = 0; i < dialect_number; i++)
-	    {
-	      while (*p && *p != '}' && *p++ != '|')
-		;
-	      if (*p == '}')
-		break;
-	      if (*p == '|')
-		p++;
-	    }
-
-	  if (*p == '\0')
-	    output_operand_lossage ("unterminated assembly dialect alternative");
-	}
-	break;
-
-      case '|':
-	if (dialect)
-	  {
-	    /* Skip to close brace.  */
-	    do
-	      {
-		if (*p == '\0')
-		  {
-		    output_operand_lossage ("unterminated assembly dialect alternative");
-		    break;
-		  }
-	      }
-	    while (*p++ != '}');
-	    dialect = 0;
-	  }
-	else
-	  putc (c, asm_out_file);
-	break;
-
       case '}':
-	if (! dialect)
-	  putc (c, asm_out_file);
-	dialect = 0;
+      case '|':
+	p = do_assembler_dialects (p, &dialect);
 	break;
 #endif
 
@@ -3806,6 +3965,9 @@ asm_fprintf (FILE *file, const char *p, ...)
 {
   char buf[10];
   char *q, c;
+#ifdef ASSEMBLER_DIALECT
+  int dialect = 0;
+#endif
   va_list argptr;
 
   va_start (argptr, p);
@@ -3817,29 +3979,9 @@ asm_fprintf (FILE *file, const char *p, ...)
       {
 #ifdef ASSEMBLER_DIALECT
       case '{':
-	{
-	  int i;
-
-	  /* If we want the first dialect, do nothing.  Otherwise, skip
-	     DIALECT_NUMBER of strings ending with '|'.  */
-	  for (i = 0; i < dialect_number; i++)
-	    {
-	      while (*p && *p++ != '|')
-		;
-
-	      if (*p == '|')
-		p++;
-	    }
-	}
-	break;
-
-      case '|':
-	/* Skip to close brace.  */
-	while (*p && *p++ != '}')
-	  ;
-	break;
-
       case '}':
+      case '|':
+	p = do_assembler_dialects (p, &dialect);
 	break;
 #endif
 
@@ -3959,149 +4101,6 @@ asm_fprintf (FILE *file, const char *p, ...)
 	putc (c, file);
       }
   va_end (argptr);
-}
-
-/* Split up a CONST_DOUBLE or integer constant rtx
-   into two rtx's for single words,
-   storing in *FIRST the word that comes first in memory in the target
-   and in *SECOND the other.  */
-
-void
-split_double (rtx value, rtx *first, rtx *second)
-{
-  if (CONST_INT_P (value))
-    {
-      if (HOST_BITS_PER_WIDE_INT >= (2 * BITS_PER_WORD))
-	{
-	  /* In this case the CONST_INT holds both target words.
-	     Extract the bits from it into two word-sized pieces.
-	     Sign extend each half to HOST_WIDE_INT.  */
-	  unsigned HOST_WIDE_INT low, high;
-	  unsigned HOST_WIDE_INT mask, sign_bit, sign_extend;
-	  unsigned bits_per_word = BITS_PER_WORD;
-
-	  /* Set sign_bit to the most significant bit of a word.  */
-	  sign_bit = 1;
-	  sign_bit <<= bits_per_word - 1;
-
-	  /* Set mask so that all bits of the word are set.  We could
-	     have used 1 << BITS_PER_WORD instead of basing the
-	     calculation on sign_bit.  However, on machines where
-	     HOST_BITS_PER_WIDE_INT == BITS_PER_WORD, it could cause a
-	     compiler warning, even though the code would never be
-	     executed.  */
-	  mask = sign_bit << 1;
-	  mask--;
-
-	  /* Set sign_extend as any remaining bits.  */
-	  sign_extend = ~mask;
-
-	  /* Pick the lower word and sign-extend it.  */
-	  low = INTVAL (value);
-	  low &= mask;
-	  if (low & sign_bit)
-	    low |= sign_extend;
-
-	  /* Pick the higher word, shifted to the least significant
-	     bits, and sign-extend it.  */
-	  high = INTVAL (value);
-	  high >>= bits_per_word - 1;
-	  high >>= 1;
-	  high &= mask;
-	  if (high & sign_bit)
-	    high |= sign_extend;
-
-	  /* Store the words in the target machine order.  */
-	  if (WORDS_BIG_ENDIAN)
-	    {
-	      *first = GEN_INT (high);
-	      *second = GEN_INT (low);
-	    }
-	  else
-	    {
-	      *first = GEN_INT (low);
-	      *second = GEN_INT (high);
-	    }
-	}
-      else
-	{
-	  /* The rule for using CONST_INT for a wider mode
-	     is that we regard the value as signed.
-	     So sign-extend it.  */
-	  rtx high = (INTVAL (value) < 0 ? constm1_rtx : const0_rtx);
-	  if (WORDS_BIG_ENDIAN)
-	    {
-	      *first = high;
-	      *second = value;
-	    }
-	  else
-	    {
-	      *first = value;
-	      *second = high;
-	    }
-	}
-    }
-  else if (GET_CODE (value) != CONST_DOUBLE)
-    {
-      if (WORDS_BIG_ENDIAN)
-	{
-	  *first = const0_rtx;
-	  *second = value;
-	}
-      else
-	{
-	  *first = value;
-	  *second = const0_rtx;
-	}
-    }
-  else if (GET_MODE (value) == VOIDmode
-	   /* This is the old way we did CONST_DOUBLE integers.  */
-	   || GET_MODE_CLASS (GET_MODE (value)) == MODE_INT)
-    {
-      /* In an integer, the words are defined as most and least significant.
-	 So order them by the target's convention.  */
-      if (WORDS_BIG_ENDIAN)
-	{
-	  *first = GEN_INT (CONST_DOUBLE_HIGH (value));
-	  *second = GEN_INT (CONST_DOUBLE_LOW (value));
-	}
-      else
-	{
-	  *first = GEN_INT (CONST_DOUBLE_LOW (value));
-	  *second = GEN_INT (CONST_DOUBLE_HIGH (value));
-	}
-    }
-  else
-    {
-      REAL_VALUE_TYPE r;
-      long l[2];
-      REAL_VALUE_FROM_CONST_DOUBLE (r, value);
-
-      /* Note, this converts the REAL_VALUE_TYPE to the target's
-	 format, splits up the floating point double and outputs
-	 exactly 32 bits of it into each of l[0] and l[1] --
-	 not necessarily BITS_PER_WORD bits.  */
-      REAL_VALUE_TO_TARGET_DOUBLE (r, l);
-
-      /* If 32 bits is an entire word for the target, but not for the host,
-	 then sign-extend on the host so that the number will look the same
-	 way on the host that it would on the target.  See for instance
-	 simplify_unary_operation.  The #if is needed to avoid compiler
-	 warnings.  */
-
-#if HOST_BITS_PER_LONG > 32
-      if (BITS_PER_WORD < HOST_BITS_PER_LONG && BITS_PER_WORD == 32)
-	{
-	  if (l[0] & ((long) 1 << 31))
-	    l[0] |= ((long) (-1) << 32);
-	  if (l[1] & ((long) 1 << 31))
-	    l[1] |= ((long) (-1) << 32);
-	}
-#endif
-
-      *first = GEN_INT (l[0]);
-      *second = GEN_INT (l[1]);
-    }
 }
 
 /* Return nonzero if this function has no function calls.  */
@@ -4404,7 +4403,7 @@ struct rtl_opt_pass pass_shorten_branches =
   NULL,                                 /* sub */
   NULL,                                 /* next */
   0,                                    /* static_pass_number */
-  TV_FINAL,                             /* tv_id */
+  TV_SHORTEN_BRANCH,                    /* tv_id */
   0,                                    /* properties_required */
   0,                                    /* properties_provided */
   0,                                    /* properties_destroyed */

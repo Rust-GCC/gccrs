@@ -32,9 +32,6 @@ extern const char empty_string[];	/* empty string */
 /* Internal functions and data structures used by the GTY
    machinery, including the generated gt*.[hc] files.  */
 
-/* The first parameter is a pointer to a pointer, the second a cookie.  */
-typedef void (*gt_pointer_operator) (void *, void *);
-
 #include "gtype-desc.h"
 
 /* One of these applies its third parameter (with cookie in the fourth
@@ -143,29 +140,28 @@ extern void gt_pch_save (FILE *f);
 /* Allocation.  */
 
 /* The internal primitive.  */
-extern void *ggc_internal_alloc_stat (size_t MEM_STAT_DECL);
+extern void *ggc_internal_alloc_stat (size_t MEM_STAT_DECL)
+  ATTRIBUTE_MALLOC;
 
 extern size_t ggc_round_alloc_size (size_t requested_size);
 
 #define ggc_internal_alloc(s) ggc_internal_alloc_stat (s MEM_STAT_INFO)
 
 /* Allocate an object of the specified type and size.  */
-extern void *ggc_alloc_typed_stat (enum gt_types_enum, size_t MEM_STAT_DECL);
+extern void *ggc_alloc_typed_stat (enum gt_types_enum, size_t MEM_STAT_DECL)
+  ATTRIBUTE_MALLOC;
 
 #define ggc_alloc_typed(s, z) ggc_alloc_typed_stat (s, z MEM_STAT_INFO)
 
 /* Allocates cleared memory.  */
-extern void *ggc_internal_cleared_alloc_stat (size_t MEM_STAT_DECL);
+extern void *ggc_internal_cleared_alloc_stat (size_t MEM_STAT_DECL)
+  ATTRIBUTE_MALLOC;
 
 /* Resize a block.  */
 extern void *ggc_realloc_stat (void *, size_t MEM_STAT_DECL);
 
 /* Free a block.  To be used when known for certain it's not reachable.  */
 extern void ggc_free (void *);
-
-extern void ggc_record_overhead (size_t, size_t, void * MEM_STAT_DECL);
-extern void ggc_free_overhead (void *);
-extern void ggc_prune_overhead_list (void);
 
 extern void dump_ggc_loc_statistics (bool);
 
@@ -202,9 +198,11 @@ ggc_alloc_atomic_stat (size_t s MEM_STAT_DECL)
 #define ggc_alloc_cleared_atomic(S)             \
     (ggc_internal_cleared_alloc_stat ((S) MEM_STAT_INFO))
 
-extern void * ggc_cleared_alloc_htab_ignore_args (size_t, size_t);
+extern void *ggc_cleared_alloc_htab_ignore_args (size_t, size_t)
+  ATTRIBUTE_MALLOC;
 
-extern void * ggc_cleared_alloc_ptr_array_two_args (size_t, size_t);
+extern void *ggc_cleared_alloc_ptr_array_two_args (size_t, size_t)
+  ATTRIBUTE_MALLOC;
 
 #define htab_create_ggc(SIZE, HASH, EQ, DEL) \
   htab_create_typed_alloc (SIZE, HASH, EQ, DEL,	\
@@ -216,7 +214,8 @@ extern void * ggc_cleared_alloc_ptr_array_two_args (size_t, size_t);
   splay_tree_new_typed_alloc (COMPARE, NULL, NULL, &ALLOC_TREE, &ALLOC_NODE, \
 			      &ggc_splay_dont_free, NULL)
 
-extern void *ggc_splay_alloc (enum gt_types_enum, int, void *);
+extern void *ggc_splay_alloc (enum gt_types_enum, int, void *)
+  ATTRIBUTE_MALLOC;
 
 extern void ggc_splay_dont_free (void *, void *);
 
@@ -276,10 +275,12 @@ extern struct alloc_zone tree_id_zone;
 
 /* Allocate an object into the specified allocation zone.  */
 extern void *ggc_internal_alloc_zone_stat (size_t,
-					  struct alloc_zone * MEM_STAT_DECL);
+					  struct alloc_zone * MEM_STAT_DECL)
+  ATTRIBUTE_MALLOC;
 
 extern void *ggc_internal_cleared_alloc_zone_stat (size_t,
-					  struct alloc_zone * MEM_STAT_DECL);
+					  struct alloc_zone * MEM_STAT_DECL)
+  ATTRIBUTE_MALLOC;
 
 static inline void *
 ggc_internal_zone_alloc_stat (struct alloc_zone * z, size_t s MEM_STAT_DECL)

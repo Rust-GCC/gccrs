@@ -1,4 +1,5 @@
 ! { dg-do compile }
+! { dg-options "-Wc-binding-type" }
 module bind_c_procs
   use, intrinsic :: iso_c_binding, only: c_int
 
@@ -35,5 +36,3 @@ contains
   end function my_f03_func
 
 end module bind_c_procs
-
-! { dg-final { cleanup-modules "bind_c_procs" } }

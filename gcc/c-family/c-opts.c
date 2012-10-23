@@ -1,6 +1,6 @@
 /* C/ObjC/C++ command line option handling.
-   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
-   Free Software Foundation, Inc.
+   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011,
+   2012 Free Software Foundation, Inc.
    Contributed by Neil Booth.
 
 This file is part of GCC.
@@ -111,6 +111,7 @@ static size_t include_cursor;
 static void handle_OPT_d (const char *);
 static void set_std_cxx98 (int);
 static void set_std_cxx11 (int);
+static void set_std_cxx1y (int);
 static void set_std_c89 (int, int);
 static void set_std_c99 (int);
 static void set_std_c11 (int);
@@ -359,32 +360,14 @@ c_common_handle_option (size_t scode, const char *arg, int value,
       break;
 
     case OPT_Wall:
-      warn_unused = value;
+      /* ??? Don't add new options here. Use LangEnabledBy in c.opt.  */
       set_Wformat (value);
-      handle_generated_option (&global_options, &global_options_set,
-			       OPT_Wimplicit, NULL, value,
-			       c_family_lang_mask, kind, loc,
-			       handlers, global_dc);
-      warn_char_subscripts = value;
-      warn_missing_braces = value;
-      warn_parentheses = value;
-      warn_return_type = value;
-      warn_sequence_point = value;	/* Was C only.  */
       warn_switch = value;
-      if (warn_strict_aliasing == -1)
-	set_Wstrict_aliasing (&global_options, value);
-      warn_address = value;
-      if (warn_strict_overflow == -1)
-	warn_strict_overflow = value;
       warn_array_bounds = value;
-      warn_volatile_register_var = value;
 
       /* Only warn about unknown pragmas that are not in system
 	 headers.  */
       warn_unknown_pragmas = value;
-
-      warn_uninitialized = value;
-      warn_maybe_uninitialized = value;
 
       if (!c_dialect_cxx ())
 	{
@@ -393,28 +376,16 @@ c_common_handle_option (size_t scode, const char *arg, int value,
 	  if (warn_main == -1)
 	    warn_main = (value ? 2 : 0);
 
-	  /* In C, -Wall turns on -Wenum-compare, which we do here.
-	     In C++ it is on by default, which is done in
-	     c_common_post_options.  */
+	  /* In C, -Wall and -Wc++-compat turns on -Wenum-compare,
+	     which we do here.  In C++ it is on by default, which is
+	     done in c_common_post_options.  */
           if (warn_enum_compare == -1)
             warn_enum_compare = value;
-	}
-      else
-	{
-	  /* C++-specific warnings.  */
-          warn_sign_compare = value;
-	  warn_reorder = value;
-          warn_cxx0x_compat = value;
-          warn_delnonvdtor = value;
-	  warn_narrowing = value;
 	}
 
       cpp_opts->warn_trigraphs = value;
       cpp_opts->warn_comments = value;
       cpp_opts->warn_num_sign_change = value;
-
-      if (warn_pointer_sign == -1)
-	warn_pointer_sign = value;
       break;
 
     case OPT_Wbuiltin_macro_redefined:
@@ -430,15 +401,7 @@ c_common_handle_option (size_t scode, const char *arg, int value,
 	 implies -Wenum-compare.  */
       if (warn_enum_compare == -1 && value)
 	warn_enum_compare = value;
-      /* Because C++ always warns about a goto which misses an
-	 initialization, -Wc++-compat turns on -Wjump-misses-init.  */
-      if (warn_jump_misses_init == -1 && value)
-	warn_jump_misses_init = value;
       cpp_opts->warn_cxx_operator_names = value;
-      break;
-
-    case OPT_Wc__0x_compat:
-      warn_narrowing = value;
       break;
 
     case OPT_Wdeprecated:
@@ -457,22 +420,12 @@ c_common_handle_option (size_t scode, const char *arg, int value,
       set_Wformat (atoi (arg));
       break;
 
-    case OPT_Wimplicit:
-      gcc_assert (value == 0 || value == 1);
-      if (warn_implicit_int == -1)
-	handle_generated_option (&global_options, &global_options_set,
-				 OPT_Wimplicit_int, NULL, value,
-				 c_family_lang_mask, kind, loc, handlers,
-				 global_dc);
-      if (warn_implicit_function_declaration == -1)
-	handle_generated_option (&global_options, &global_options_set,
-				 OPT_Wimplicit_function_declaration, NULL,
-				 value, c_family_lang_mask, kind, loc,
-				 handlers, global_dc);
-      break;
-
     case OPT_Winvalid_pch:
       cpp_opts->warn_invalid_pch = value;
+      break;
+
+    case OPT_Wliteral_suffix:
+      cpp_opts->warn_literal_suffix = value;
       break;
 
     case OPT_Wlong_long:
@@ -509,10 +462,6 @@ c_common_handle_option (size_t scode, const char *arg, int value,
 	  break;
 	}
 
-    case OPT_Wreturn_type:
-      warn_return_type = value;
-      break;
-
     case OPT_Wtraditional:
       cpp_opts->cpp_warn_traditional = value;
       break;
@@ -539,12 +488,7 @@ c_common_handle_option (size_t scode, const char *arg, int value,
       warn_variadic_macros = value;
       break;
 
-    case OPT_Wwrite_strings:
-      warn_write_strings = value;
-      break;
-
     case OPT_Weffc__:
-      warn_ecpp = value;
       if (value)
         warn_nonvdtor = true;
       break;
@@ -739,15 +683,12 @@ c_common_handle_option (size_t scode, const char *arg, int value,
 	error ("output filename specified twice");
       break;
 
-      /* We need to handle the -pedantic switches here, rather than in
+      /* We need to handle the -Wpedantic switch here, rather than in
 	 c_common_post_options, so that a subsequent -Wno-endif-labels
 	 is not overridden.  */
-    case OPT_pedantic_errors:
-    case OPT_pedantic:
+    case OPT_Wpedantic:
       cpp_opts->cpp_pedantic = 1;
       cpp_opts->warn_endif_labels = 1;
-      if (warn_pointer_sign == -1)
-	warn_pointer_sign = 1;
       if (warn_overlength_strings == -1)
 	warn_overlength_strings = 1;
       if (warn_main == -1)
@@ -772,6 +713,12 @@ c_common_handle_option (size_t scode, const char *arg, int value,
     case OPT_std_gnu__11:
       if (!preprocessing_asm_p)
 	set_std_cxx11 (code == OPT_std_c__11 /* ISO */);
+      break;
+
+    case OPT_std_c__1y:
+    case OPT_std_gnu__1y:
+      if (!preprocessing_asm_p)
+	set_std_cxx1y (code == OPT_std_c__11 /* ISO */);
       break;
 
     case OPT_std_c90:
@@ -822,6 +769,40 @@ c_common_handle_option (size_t scode, const char *arg, int value,
       break;
     }
 
+  switch (c_language)
+    {
+    case clk_c:
+      C_handle_option_auto (&global_options, &global_options_set, 
+                            scode, arg, value, 
+                            c_family_lang_mask, kind,
+                            loc, handlers, global_dc);
+      break;
+
+    case clk_objc:
+      ObjC_handle_option_auto (&global_options, &global_options_set,
+                               scode, arg, value, 
+                               c_family_lang_mask, kind,
+                               loc, handlers, global_dc);
+      break;
+
+    case clk_cxx:
+      CXX_handle_option_auto (&global_options, &global_options_set,
+                              scode, arg, value,
+                              c_family_lang_mask, kind,
+                              loc, handlers, global_dc);
+      break;
+
+    case clk_objcxx:
+      ObjCXX_handle_option_auto (&global_options, &global_options_set,
+                                 scode, arg, value,
+                                 c_family_lang_mask, kind,
+                                 loc, handlers, global_dc);
+      break;
+
+    default:
+      gcc_unreachable ();
+    }
+  
   return result;
 }
 
@@ -896,40 +877,7 @@ c_common_post_options (const char **pfilename)
   if (flag_objc_exceptions && !flag_objc_sjlj_exceptions)
     flag_exceptions = 1;
 
-  /* -Wextra implies the following flags
-     unless explicitly overridden.  */
-  if (warn_type_limits == -1)
-    warn_type_limits = extra_warnings;
-  if (warn_clobbered == -1)
-    warn_clobbered = extra_warnings;
-  if (warn_empty_body == -1)
-    warn_empty_body = extra_warnings;
-  if (warn_sign_compare == -1)
-    warn_sign_compare = extra_warnings;
-  if (warn_missing_field_initializers == -1)
-    warn_missing_field_initializers = extra_warnings;
-  if (warn_missing_parameter_type == -1)
-    warn_missing_parameter_type = extra_warnings;
-  if (warn_old_style_declaration == -1)
-    warn_old_style_declaration = extra_warnings;
-  if (warn_override_init == -1)
-    warn_override_init = extra_warnings;
-  if (warn_ignored_qualifiers == -1)
-    warn_ignored_qualifiers = extra_warnings;
-
-  /* -Wpointer-sign is disabled by default, but it is enabled if any
-     of -Wall or -pedantic are given.  */
-  if (warn_pointer_sign == -1)
-    warn_pointer_sign = 0;
-
-  if (warn_strict_aliasing == -1)
-    warn_strict_aliasing = 0;
-  if (warn_strict_overflow == -1)
-    warn_strict_overflow = 0;
-  if (warn_jump_misses_init == -1)
-    warn_jump_misses_init = 0;
-
-  /* -Woverlength-strings is off by default, but is enabled by -pedantic.
+  /* -Woverlength-strings is off by default, but is enabled by -Wpedantic.
      It is never enabled in C++, as the minimum limit is not normative
      in that standard.  */
   if (warn_overlength_strings == -1 || c_dialect_cxx ())
@@ -943,12 +891,6 @@ c_common_post_options (const char **pfilename)
     warn_main = (c_dialect_cxx () && flag_hosted) ? 1 : 0;
   else if (warn_main == 2)
     warn_main = flag_hosted ? 1 : 0;
-
-  /* In C, -Wconversion enables -Wsign-conversion (unless disabled
-     through -Wno-sign-conversion). While in C++,
-     -Wsign-conversion needs to be requested explicitly.  */
-  if (warn_sign_conversion == -1)
-    warn_sign_conversion =  (c_dialect_cxx ()) ? 0 : warn_conversion;
 
   /* In C, -Wall and -Wc++-compat enable -Wenum-compare, which we do
      in c_common_handle_option; if it has not yet been set, it is
@@ -980,17 +922,11 @@ c_common_post_options (const char **pfilename)
 	       "-Wformat-security ignored without -Wformat");
     }
 
-  if (warn_implicit == -1)
-    warn_implicit = 0;
-      
-  if (warn_implicit_int == -1)
-    warn_implicit_int = 0;
-
   /* -Wimplicit-function-declaration is enabled by default for C99.  */
   if (warn_implicit_function_declaration == -1)
     warn_implicit_function_declaration = flag_isoc99;
 
-  if (cxx_dialect == cxx0x)
+  if (cxx_dialect >= cxx0x)
     {
       /* If we're allowing C++0x constructs, don't warn about C++98
 	 identifiers which are keywords in C++0x.  */
@@ -1086,7 +1022,13 @@ c_common_init (void)
   cpp_init_iconv (parse_in);
 
   if (version_flag)
-    c_common_print_pch_checksum (stderr);
+    {
+      int i;
+      fputs ("Compiler executable checksum: ", stderr);
+      for (i = 0; i < 16; i++)
+	fprintf (stderr, "%02x", executable_checksum[i]);
+      putc ('\n', stderr);
+    }
 
   /* Has to wait until now so that cpplib has its hash table.  */
   init_pragma ();
@@ -1271,8 +1213,8 @@ sanitize_cpp_opts (void)
   cpp_opts->stdc_0_in_system_headers = STDC_0_IN_SYSTEM_HEADERS;
 
   /* Wlong-long is disabled by default. It is enabled by:
-      [-pedantic | -Wtraditional] -std=[gnu|c]++98 ; or
-      [-pedantic | -Wtraditional] -std=non-c99 .
+      [-Wpedantic | -Wtraditional] -std=[gnu|c]++98 ; or
+      [-Wpedantic | -Wtraditional] -std=non-c99 .
 
       Either -Wlong-long or -Wno-long-long override any other settings.  */
   if (warn_long_long == -1)
@@ -1520,6 +1462,20 @@ set_std_cxx11 (int iso)
   flag_isoc94 = 1;
   flag_isoc99 = 1;
   cxx_dialect = cxx11;
+}
+
+/* Set the C++ 201y draft standard (without GNU extensions if ISO).  */
+static void
+set_std_cxx1y (int iso)
+{
+  cpp_set_lang (parse_in, iso ? CLK_CXX11: CLK_GNUCXX11);
+  flag_no_gnu_keywords = iso;
+  flag_no_nonansi_builtin = iso;
+  flag_iso = iso;
+  /* C++11 includes the C99 standard library.  */
+  flag_isoc94 = 1;
+  flag_isoc99 = 1;
+  cxx_dialect = cxx1y;
 }
 
 /* Args to -d specify what to dump.  Silently ignore

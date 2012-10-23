@@ -29,9 +29,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "langhooks.h"
 #include "tree-iterator.h"
 #include "diagnostic.h"
-#include "gimple-pretty-print.h"
+#include "gimple-pretty-print.h" /* FIXME */
 #include "tree-flow.h"
-#include "tree-pass.h"
+#include "dumpfile.h"
 
 /* Define the hash table of nodes already seen.
    Such nodes are not repeated; brief cross-references are used.  */
@@ -363,20 +363,24 @@ print_node (FILE *file, const char *prefix, tree node, int indent)
     fputs (" deprecated", file);
   if (TREE_VISITED (node))
     fputs (" visited", file);
-  if (TREE_LANG_FLAG_0 (node))
-    fputs (" tree_0", file);
-  if (TREE_LANG_FLAG_1 (node))
-    fputs (" tree_1", file);
-  if (TREE_LANG_FLAG_2 (node))
-    fputs (" tree_2", file);
-  if (TREE_LANG_FLAG_3 (node))
-    fputs (" tree_3", file);
-  if (TREE_LANG_FLAG_4 (node))
-    fputs (" tree_4", file);
-  if (TREE_LANG_FLAG_5 (node))
-    fputs (" tree_5", file);
-  if (TREE_LANG_FLAG_6 (node))
-    fputs (" tree_6", file);
+
+  if (code != TREE_VEC && code != SSA_NAME)
+    {
+      if (TREE_LANG_FLAG_0 (node))
+	fputs (" tree_0", file);
+      if (TREE_LANG_FLAG_1 (node))
+	fputs (" tree_1", file);
+      if (TREE_LANG_FLAG_2 (node))
+	fputs (" tree_2", file);
+      if (TREE_LANG_FLAG_3 (node))
+	fputs (" tree_3", file);
+      if (TREE_LANG_FLAG_4 (node))
+	fputs (" tree_4", file);
+      if (TREE_LANG_FLAG_5 (node))
+	fputs (" tree_5", file);
+      if (TREE_LANG_FLAG_6 (node))
+	fputs (" tree_6", file);
+    }
 
   /* DECL_ nodes have additional attributes.  */
 
@@ -611,9 +615,6 @@ print_node (FILE *file, const char *prefix, tree node, int indent)
 	   || code == QUAL_UNION_TYPE)
 	  && TYPE_NO_FORCE_BLK (node))
 	fputs (" no-force-blk", file);
-      else if (code == INTEGER_TYPE
-	       && TYPE_IS_SIZETYPE (node))
-	fputs (" sizetype", file);
 
       if (TYPE_STRING_FLAG (node))
 	fputs (" string-flag", file);
@@ -821,16 +822,13 @@ print_node (FILE *file, const char *prefix, tree node, int indent)
 
 	case VECTOR_CST:
 	  {
-	    tree vals = TREE_VECTOR_CST_ELTS (node);
 	    char buf[10];
-	    tree link;
-	    int i;
+	    unsigned i;
 
-	    i = 0;
-	    for (link = vals; link; link = TREE_CHAIN (link), ++i)
+	    for (i = 0; i < VECTOR_CST_NELTS (node); ++i)
 	      {
-		sprintf (buf, "elt%d: ", i);
-		print_node (file, buf, TREE_VALUE (link), indent + 4);
+		sprintf (buf, "elt%u: ", i);
+		print_node (file, buf, VECTOR_CST_ELT (node, i), indent + 4);
 	      }
 	  }
 	  break;

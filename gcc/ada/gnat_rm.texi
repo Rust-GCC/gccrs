@@ -15,7 +15,7 @@
 @setfilename gnat_rm.info
 
 @copying
-Copyright @copyright{} 1995-2008, Free Software Foundation, Inc.
+Copyright @copyright{} 1995-2012, Free Software Foundation, Inc.
 
 Permission is granted to copy, distribute and/or modify this document
 under the terms of the GNU Free Documentation License, Version 1.3 or
@@ -71,7 +71,7 @@ AdaCore
 * About This Guide::
 * Implementation Defined Pragmas::
 * Implementation Defined Attributes::
-* Implementation Defined Restrictions::
+* Standard and Implementation Defined Restrictions::
 * Implementation Advice::
 * Implementation Defined Characteristics::
 * Intrinsic Subprograms::
@@ -120,6 +120,7 @@ Implementation Defined Pragmas
 * Pragma Complete_Representation::
 * Pragma Complex_Representation::
 * Pragma Component_Alignment::
+* Pragma Contract_Case::
 * Pragma Convention_Identifier::
 * Pragma CPP_Class::
 * Pragma CPP_Constructor::
@@ -178,6 +179,7 @@ Implementation Defined Pragmas
 * Pragma Obsolescent::
 * Pragma Optimize_Alignment::
 * Pragma Ordered::
+* Pragma Overflow_Checks::
 * Pragma Passive::
 * Pragma Persistent_BSS::
 * Pragma Polling::
@@ -264,13 +266,13 @@ Implementation Defined Attributes
 * Mechanism_Code::
 * Null_Parameter::
 * Object_Size::
-* Old::
 * Passed_By_Reference::
 * Pool_Address::
 * Range_Length::
 * Result::
 * Safe_Emax::
 * Safe_Large::
+* Scalar_Storage_Order::
 * Simple_Storage_Pool::
 * Small::
 * Storage_Unit::
@@ -284,12 +286,13 @@ Implementation Defined Attributes
 * Unconstrained_Array::
 * Universal_Literal_String::
 * Unrestricted_Access::
+* Valid_Scalars::
 * VADS_Size::
 * Value_Size::
 * Wchar_T_Size::
 * Word_Size::
 
-Implementation Defined Restrictions
+Standard and Implementation Defined Restrictions
 
 * Partition-Wide Restrictions::
 * Program Unit Level Restrictions::
@@ -650,7 +653,7 @@ implementation-dependent attributes, which can be used to extend and
 enhance the functionality of the compiler.
 
 @item
-@ref{Implementation Defined Restrictions}, lists GNAT
+@ref{Standard and Implementation Defined Restrictions}, lists GNAT
 implementation-dependent restrictions, which can be used to extend and
 enhance the functionality of the compiler.
 
@@ -855,6 +858,7 @@ consideration, the use of these pragmas should be minimized.
 * Pragma Complete_Representation::
 * Pragma Complex_Representation::
 * Pragma Component_Alignment::
+* Pragma Contract_Case::
 * Pragma Convention_Identifier::
 * Pragma CPP_Class::
 * Pragma CPP_Constructor::
@@ -913,6 +917,7 @@ consideration, the use of these pragmas should be minimized.
 * Pragma Obsolescent::
 * Pragma Optimize_Alignment::
 * Pragma Ordered::
+* Pragma Overflow_Checks::
 * Pragma Passive::
 * Pragma Persistent_BSS::
 * Pragma Polling::
@@ -1202,10 +1207,22 @@ pragma Assertion_Policy (CHECK | DISABLE | IGNORE);
 @end smallexample
 
 @noindent
-If the argument is @code{CHECK}, then pragma @code{Assert} is enabled.
-If the argument is @code{IGNORE}, then pragma @code{Assert} is ignored.
+If the argument is @code{CHECK}, then assertions are enabled.
+If the argument is @code{IGNORE}, then assertions are ignored.
 This pragma overrides the effect of the @option{-gnata} switch on the
 command line.
+
+Assertions are of three kinds:
+
+@itemize @bullet
+@item
+Pragma @code{Assert}.
+@item
+In Ada 2012, all assertions defined in the RM as aspects: preconditions,
+postconditions, type invariants and (sub)type predicates.
+@item
+Corresponding pragmas for type invariants and (sub)type predicates.
+@end itemize
 
 The implementation defined policy @code{DISABLE} is like
 @code{IGNORE} except that it completely disables semantic
@@ -1423,17 +1440,20 @@ pragma Check_Policy (Critical_Error, OFF);
 @noindent
 is given, then subsequent @code{Check} pragmas whose first argument is also
 @code{Critical_Error} will be disabled. The special identifier @code{Assertion}
-controls the behavior of normal @code{Assert} pragmas (thus a pragma
+controls the behavior of normal assertions (thus a pragma
 @code{Check_Policy} with this identifier is similar to the normal
 @code{Assertion_Policy} pragma except that it can appear within a
 declarative part).
 
 The special identifiers @code{Precondition} and @code{Postcondition} control
-the status of preconditions and postconditions. If a @code{Precondition} pragma
+the status of preconditions and postconditions given as pragmas.
+If a @code{Precondition} pragma
 is encountered, it is ignored if turned off by a @code{Check_Policy} specifying
 that @code{Precondition} checks are @code{Off} or @code{Ignored}. Similarly use
 of the name @code{Postcondition} controls whether @code{Postcondition} pragmas
-are recognized.
+are recognized. Note that preconditions and postconditions given as aspects
+are controlled differently, either by the @code{Assertion_Policy} pragma or
+by the @code{Check_Policy} pragma with identifier @code{Assertion}.
 
 The check policy is @code{OFF} to turn off corresponding checks, and @code{ON}
 to turn on corresponding checks. The default for a set of checks for which no
@@ -1689,6 +1709,108 @@ If the alignment for a record or array type is not specified (using
 pragma @code{Pack}, pragma @code{Component_Alignment}, or a record rep
 clause), the GNAT uses the default alignment as described previously.
 
+@node Pragma Contract_Case
+@unnumberedsec Pragma Contract_Case
+@cindex Contract cases
+@findex Contract_Case
+@noindent
+Syntax:
+
+@smallexample @c ada
+pragma Contract_Case (
+   [Name     =>] static_string_Expression
+  ,[Mode     =>] (Nominal | Robustness)
+ [, Requires =>  Boolean_Expression]
+ [, Ensures  =>  Boolean_Expression]);
+@end smallexample
+
+@noindent
+The @code{Contract_Case} pragma allows defining fine-grain specifications
+that can complement or replace the contract given by a precondition and a
+postcondition. Additionally, the @code{Contract_Case} pragma can be used
+by testing and formal verification tools. The compiler checks its validity and,
+depending on the assertion policy at the point of declaration of the pragma,
+it may insert a check in the executable. For code generation, the contract
+case
+
+@smallexample @c ada
+pragma Contract_Case (
+   Name     => ...
+   Mode     => ...
+   Requires => R,
+   Ensures  => E);
+@end smallexample
+
+@noindent
+is equivalent to
+
+@smallexample @c ada
+pragma Postcondition (not R'Old or else E);
+@end smallexample
+
+@noindent
+which is also equivalent to (in Ada 2012)
+
+@smallexample @c ada
+pragma Postcondition (if R'Old then E);
+@end smallexample
+
+@noindent
+expressing that, whenever condition @code{R} is satisfied on entry to the
+subprogram, condition @code{E} should be fulfilled on exit to the subprogram.
+
+A precondition @code{P} and postcondition @code{Q} can also be
+expressed as contract cases:
+
+@smallexample @c ada
+pragma Contract_Case (
+   Name     => "Replace precondition",
+   Mode     => Nominal,
+   Requires => not P,
+   Ensures  => False);
+pragma Contract_Case (
+   Name     => "Replace postcondition",
+   Mode     => Nominal,
+   Requires => P,
+   Ensures  => Q);
+@end smallexample
+
+@code{Contract_Case} pragmas may only appear immediately following the
+(separate) declaration of a subprogram in a package declaration, inside
+a package spec unit. Only other pragmas may intervene (that is appear
+between the subprogram declaration and a contract case).
+
+The compiler checks that boolean expressions given in @code{Requires} and
+@code{Ensures} are valid, where the rules for @code{Requires} are the
+same as the rule for an expression in @code{Precondition} and the rules
+for @code{Ensures} are the same as the rule for an expression in
+@code{Postcondition}. In particular, attributes @code{'Old} and
+@code{'Result} can only be used within the @code{Ensures}
+expression. The following is an example of use within a package spec:
+
+@smallexample @c ada
+package Math_Functions is
+   ...
+   function Sqrt (Arg : Float) return Float;
+   pragma Contract_Case (Name     => "Small argument",
+                         Mode     => Nominal,
+                         Requires => Arg < 100,
+                         Ensures  => Sqrt'Result < 10);
+   ...
+end Math_Functions;
+@end smallexample
+
+@noindent
+The meaning of a contract case is that, whenever the associated subprogram is
+executed in a context where @code{Requires} holds, then @code{Ensures}
+should hold when the subprogram returns. Mode @code{Nominal} indicates
+that the input context should also satisfy the precondition of the
+subprogram, and the output context should also satisfy its
+postcondition. More @code{Robustness} indicates that the precondition and
+postcondition of the subprogram should be ignored for this contract case,
+which is mostly useful when testing such a contract using a testing tool
+that understands contract cases.
+
 @node Pragma Convention_Identifier
 @unnumberedsec Pragma Convention_Identifier
 @findex Convention_Identifier
@@ -1749,8 +1871,6 @@ functions (see pragma @code{CPP_Constructor}). Such types are implicitly
 limited if not explicitly declared as limited or derived from a limited
 type, and an error is issued in that case.
 
-Pragma @code{CPP_Class} is intended primarily for automatic generation
-using an automatic binding generator tool.
 See @ref{Interfacing to C++} for related information.
 
 Note: Pragma @code{CPP_Class} is currently obsolete. It is supported
@@ -1801,13 +1921,14 @@ where @var{T} is a limited record type imported from C++ with pragma
 The first two forms import the default constructor, used when an object
 of type @var{T} is created on the Ada side with no explicit constructor.
 The latter two forms cover all the non-default constructors of the type.
-See the GNAT users guide for details.
+See the @value{EDITION} User's Guide for details.
 
 If no constructors are imported, it is impossible to create any objects
 on the Ada side and the type is implicitly declared abstract.
 
 Pragma @code{CPP_Constructor} is intended primarily for automatic generation
-using an automatic binding generator tool.
+using an automatic binding generator tool (such as the @code{-fdump-ada-spec}
+GCC switch).
 See @ref{Interfacing to C++} for more related information.
 
 Note: The use of functions returning class-wide types for constructors is
@@ -2980,8 +3101,8 @@ initialize with invalid values (similar to Normalize_Scalars, though for
 Initialize_Scalars it is not always possible to determine the invalid
 values in complex cases like signed component fields with non-standard
 sizes). You can also initialize with high or
-low values, or with a specified bit pattern.  See the users guide for binder
-options for specifying these cases.
+low values, or with a specified bit pattern.  See the @value{EDITION}
+User's Guide for binder options for specifying these cases.
 
 This means that you can compile a program, and then without having to
 recompile the program, you can run it with different values being used
@@ -2992,13 +3113,14 @@ uninitialized value.
 
 It is even possible to change the value at execution time eliminating even
 the need to rebind with a different switch using an environment variable.
-See the GNAT users guide for details.
+See the @value{EDITION} User's Guide for details.
 
 Note that pragma @code{Initialize_Scalars} is particularly useful in
 conjunction with the enhanced validity checking that is now provided
 in GNAT, which checks for invalid values under more conditions.
 Using this feature (see description of the @option{-gnatV} flag in the
-users guide) in conjunction with pragma @code{Initialize_Scalars}
+@value{EDITION} User's Guide) in conjunction with
+pragma @code{Initialize_Scalars}
 provides a powerful new tool to assist in the detection of problems
 caused by uninitialized variables.
 
@@ -3006,8 +3128,8 @@ Note: the use of @code{Initialize_Scalars} has a fairly extensive
 effect on the generated code. This may cause your code to be
 substantially larger. It may also cause an increase in the amount
 of stack required, so it is probably a good idea to turn on stack
-checking (see description of stack checking in the GNAT users guide)
-when using this pragma.
+checking (see description of stack checking in the @value{EDITION}
+User's Guide) when using this pragma.
 
 @node Pragma Inline_Always
 @unnumberedsec Pragma Inline_Always
@@ -3197,12 +3319,14 @@ pragma Invariant
 @end smallexample
 
 @noindent
-This pragma provides exactly the same capabilities as the Invariant aspect
-defined in AI05-0146-1, and in the Ada 2012 Reference Manual. The Invariant
-aspect is fully implemented in Ada 2012 mode, but since it requires the use
-of the aspect syntax, which is not available exception in 2012 mode, it is
-not possible to use the Invariant aspect in earlier versions of Ada. However
-the Invariant pragma may be used in any version of Ada.
+This pragma provides exactly the same capabilities as the Type_Invariant aspect
+defined in AI05-0146-1, and in the Ada 2012 Reference Manual. The
+Type_Invariant aspect is fully implemented in Ada 2012 mode, but since it
+requires the use of the aspect syntax, which is not available except in 2012
+mode, it is not possible to use the Type_Invariant aspect in earlier versions
+of Ada. However the Invariant pragma may be used in any version of Ada. Also
+note that the aspect Invariant is a synonym in GNAT for the aspect
+Type_Invariant, but there is no pragma Type_Invariant.
 
 The pragma must appear within the visible part of the package specification,
 after the type to which its Entity argument appears. As with the Invariant
@@ -3218,7 +3342,7 @@ in Ada 2012 mode, but you cannot have both an invariant aspect and an
 invariant pragma for the same entity.
 
 For further details on the use of this pragma, see the Ada 2012 documentation
-of the Invariant aspect.
+of the Type_Invariant aspect.
 
 @node Pragma Keep_Names
 @unnumberedsec Pragma Keep_Names
@@ -4005,6 +4129,61 @@ as unordered, and will generate warnings for inappropriate uses.
 
 For additional information please refer to the description of the
 @option{-gnatw.u} switch in the @value{EDITION} User's Guide.
+
+@node Pragma Overflow_Checks
+@unnumberedsec Pragma Overflow_Checks
+@findex Overflow checks
+@findex pragma @code{Overflow_Checks}
+@noindent
+Syntax:
+
+@smallexample @c ada
+pragma Overflow_Checks
+ (  [General    =>] MODE
+  [,[Assertions =>] MODE]);
+
+MODE ::= SUPPRESSED | CHECKED | MINIMIZED | ELIMINATED
+@end smallexample
+
+@noindent
+This pragma sets the current overflow mode to the given mode. For details
+of the meaning of these modes, please refer to the
+``Overflow Check Handling in GNAT'' appendix in the
+@value{EDITION} User's Guide. If only the @code{General} parameter is present,
+the given mode applies to all expressions. If both parameters are present,
+the @code{General} mode applies to expressions outside assertions, and
+the @code{Eliminated} mode applies to expressions within assertions.
+
+The case of the @code{MODE} parameter is ignored,
+so @code{MINIMIZED}, @code{Minimized} and
+@code{minimized} all have the same effect.
+
+The @code{Overflow_Checks} pragma has the same scoping and placement
+rules as pragma @code{Suppress}, so it can occur either as a
+configuration pragma, specifying a default for the whole
+program, or in a declarative scope, where it applies to the
+remaining declarations and statements in that scope.
+
+The pragma @code{Suppress (Overflow_Check)} sets mode
+
+@smallexample @c ada
+   General => Suppressed
+@end smallexample
+
+@noindent
+suppressing all overflow checking within and outside
+assertions.
+
+The pragam @code{Unsuppress (Overflow_Check)} sets mode
+
+@smallexample @c ada
+   General => Checked
+@end smallexample
+
+@noindent
+which causes overflow checking of all intermediate overflows.
+This applies both inside and outside assertions.
+
 
 @node Pragma Passive
 @unnumberedsec Pragma Passive
@@ -5221,9 +5400,12 @@ pragma Test_Case (
 
 @noindent
 The @code{Test_Case} pragma allows defining fine-grain specifications
-for use by testing and verification tools. The compiler checks its
-validity but the presence of pragma @code{Test_Case} does not lead to
-any modification of the code generated by the compiler.
+for use by testing tools. Its syntax is similar to the syntax of the
+@code{Contract_Case} pragma, which is used for both testing and
+formal verification.
+The compiler checks the validity of the @code{Test_Case} pragma, but its
+presence does not lead to any modification of the code generated by the
+compiler, contrary to the treatment of the @code{Contract_Case} pragma.
 
 @code{Test_Case} pragmas may only appear immediately following the
 (separate) declaration of a subprogram in a package declaration, inside
@@ -5244,19 +5426,19 @@ package Math_Functions is
    function Sqrt (Arg : Float) return Float;
    pragma Test_Case (Name     => "Test 1",
                      Mode     => Nominal,
-                     Requires => Arg < 100,
+                     Requires => Arg < 10000,
                      Ensures  => Sqrt'Result < 10);
    ...
 end Math_Functions;
 @end smallexample
 
 @noindent
-The meaning of a test case is that, if the associated subprogram is
-executed in a context where @code{Requires} holds, then @code{Ensures}
-should hold when the subprogram returns. Mode @code{Nominal} indicates
-that the input context should satisfy the precondition of the
-subprogram, and the output context should then satisfy its
-postcondition. More @code{Robustness} indicates that the pre- and
+The meaning of a test case is that there is at least one context where
+@code{Requires} holds such that, if the associated subprogram is executed in
+that context, then @code{Ensures} holds when the subprogram returns.
+Mode @code{Nominal} indicates that the input context should also satisfy the
+precondition of the subprogram, and the output context should also satisfy its
+postcondition. More @code{Robustness} indicates that the precondition and
 postcondition of the subprogram should be ignored for this test case.
 
 @node Pragma Thread_Local_Storage
@@ -5614,8 +5796,8 @@ activated.  The validity checks are first set to include only the default
 reference manual settings, and then a string of letters in the string
 specifies the exact set of options required.  The form of this string
 is exactly as described for the @option{-gnatVx} compiler switch (see the
-GNAT users guide for details).  For example the following two methods
-can be used to enable validity checking for mode @code{in} and
+@value{EDITION} User's Guide for details).  For example the following two
+methods can be used to enable validity checking for mode @code{in} and
 @code{in out} subprogram parameters:
 
 @itemize @bullet
@@ -5890,7 +6072,6 @@ consideration, you should minimize the use of these attributes.
 * Mechanism_Code::
 * Null_Parameter::
 * Object_Size::
-* Old::
 * Passed_By_Reference::
 * Pool_Address::
 * Range_Length::
@@ -5898,6 +6079,7 @@ consideration, you should minimize the use of these attributes.
 * Result::
 * Safe_Emax::
 * Safe_Large::
+* Scalar_Storage_Order::
 * Simple_Storage_Pool::
 * Small::
 * Storage_Unit::
@@ -5911,6 +6093,7 @@ consideration, you should minimize the use of these attributes.
 * Unconstrained_Array::
 * Universal_Literal_String::
 * Unrestricted_Access::
+* Valid_Scalars::
 * VADS_Size::
 * Value_Size::
 * Wchar_T_Size::
@@ -6499,53 +6682,6 @@ alignment will be 4, because of the
 integer field, and so the default size of record objects for this type
 will be 64 (8 bytes).
 
-@node Old
-@unnumberedsec Old
-@cindex Capturing Old values
-@cindex Postconditions
-@noindent
-The attribute Prefix'Old can be used within a
-subprogram body or within a precondition or
-postcondition pragma. The effect is to
-refer to the value of the prefix on entry. So for
-example if you have an argument of a record type X called Arg1,
-you can refer to Arg1.Field'Old which yields the value of
-Arg1.Field on entry. The implementation simply involves generating
-an object declaration which captures the value on entry.
-The prefix must denote an object of a nonlimited type (since limited types
-cannot be copied to capture their values) and it must not reference a local
-variable (since local variables do not exist at subprogram entry time). Note
-that the variable introduced by a quantified expression is a local variable.
-The following example shows the use of 'Old to implement
-a test of a postcondition:
-
-@smallexample @c ada
-with Old_Pkg;
-procedure Old is
-begin
-   Old_Pkg.Incr;
-end Old;
-
-package Old_Pkg is
-   procedure Incr;
-end Old_Pkg;
-
-package body Old_Pkg is
-   Count : Natural := 0;
-
-   procedure Incr is
-   begin
-      ... code manipulating the value of Count
-
-      pragma Assert (Count = Count'Old + 1);
-   end Incr;
-end Old_Pkg;
-@end smallexample
-
-@noindent
-Note that it is allowed to apply 'Old to a constant entity, but this will
-result in a warning, since the old and new values will always be the same.
-
 @node Passed_By_Reference
 @unnumberedsec Passed_By_Reference
 @cindex Parameters, when passed by reference
@@ -6623,6 +6759,61 @@ this attribute.
 The @code{Safe_Large} attribute is provided for compatibility with Ada 83.  See
 the Ada 83 reference manual for an exact description of the semantics of
 this attribute.
+
+@node Scalar_Storage_Order
+@unnumberedsec Scalar_Storage_Order
+@cindex Endianness
+@cindex Scalar storage order
+@findex Scalar_Storage_Order
+@noindent
+For every array or record type @var{S}, the representation attribute
+@code{Scalar_Storage_Order} denotes the order in which storage elements
+that make up scalar components are ordered within S. Other properties are
+as for standard representation attribute @code{Bit_Order}, as defined by
+Ada RM 13.5.3(4). The default is @code{System.Default_Bit_Order}.
+
+If @code{@var{S}'Scalar_Storage_Order} is specified explicitly, it shall be
+equal to @code{@var{S}'Bit_Order}. Note: This means that if a
+@code{Scalar_Storage_Order} attribute definition clause is not confirming,
+then the type's @code{Bit_Order} shall be specified explicitly and set to
+the same value.
+
+If a component of S has itself a record or array type, then it shall also
+have a @code{Scalar_Storage_Order} attribute definition clause. In addition,
+if the component does not start on a byte boundary, then the scalar storage
+order specified for S and for the nested component type shall be identical.
+
+No component of a type that has a @code{Scalar_Storage_Order} attribute
+definition may be aliased.
+
+A confirming @code{Scalar_Storage_Order} attribute definition clause (i.e.
+with a value equal to @code{System.Default_Bit_Order}) has no effect.
+
+If the opposite storage order is specified, then whenever the value of
+a scalar component of S is read, the storage elements of the enclosing
+machine scalar are first reversed (before retrieving the component value,
+possibly applying some shift and mask operatings on the enclosing machine
+scalar), and the opposite operation is done for writes.
+
+In that case, the restrictions set forth in 13.5.1(10.3/2) for scalar components
+are relaxed. Instead, the following rules apply:
+
+@itemize @bullet
+@item the underlying storage elements are those at positions
+  @code{(position + first_bit / storage_element_size) ..
+        (position + (last_bit + storage_element_size - 1) /
+                    storage_element_size)}
+@item the sequence of underlying storage elements shall have
+        a size no greater than the largest machine scalar
+@item the enclosing machine scalar is defined as the smallest machine
+        scalar starting at a position no greater than
+        @code{position + first_bit / storage_element_size} and covering
+        storage elements at least up to @code{position + (last_bit +
+        storage_element_size - 1) / storage_element_size}
+@item the position of the component is interpreted relative to that machine
+ scalar.
+
+@end itemize
 
 @node Simple_Storage_Pool
 @unnumberedsec Simple_Storage_Pool
@@ -6867,6 +7058,28 @@ scope. For instance, a function cannot use @code{Unrestricted_Access}
 to create a unconstrained pointer and then return that value to the
 caller.
 
+@node Valid_Scalars
+@unnumberedsec Valid_Scalars
+@findex Valid_Scalars
+@noindent
+The @code{'Valid_Scalars} attribute is intended to make it easier to
+check the validity of scalar subcomponents of composite objects. It
+is defined for any prefix @code{X} that denotes an object.
+The value of this attribute is of the predefined type Boolean.
+@code{X'Valid_Scalars} yields True if and only if evaluation of
+@code{P'Valid} yields True for every scalar part P of X or if X has
+no scalar parts. It is not specified in what order the scalar parts
+are checked, nor whether any more are checked after any one of them
+is determined to be invalid. If the prefix @code{X} is of a class-wide
+type @code{T'Class} (where @code{T} is the associated specific type),
+or if the prefix @code{X} is of a specific tagged type @code{T}, then
+only the scalar parts of components of @code{T} are traversed; in other
+words, components of extensions of @code{T} are not traversed even if
+@code{T'Class (X)'Tag /= T'Tag} . The compiler will issue a warning if it can
+be determined at compile time that the prefix of the attribute has no
+scalar parts (e.g., if the prefix is of an access type, an interface type,
+an undiscriminated task type, or an undiscriminated protected type).
+
 @node VADS_Size
 @unnumberedsec VADS_Size
 @cindex @code{Size}, VADS compatibility
@@ -6904,8 +7117,8 @@ package @code{Interfaces.C}.
 @code{Standard'Word_Size} (@code{Standard} is the only permissible
 prefix) provides the value @code{System.Word_Size}.
 
-@node Implementation Defined Restrictions
-@chapter Implementation Defined Restrictions
+@node Standard and Implementation Defined Restrictions
+@chapter Standard and Implementation Defined Restrictions
 
 @noindent
 All RM defined Restriction identifiers are implemented:
@@ -8913,10 +9126,6 @@ of interrupt blocking.
 Whenever possible, the implementation should allow interrupt handlers to
 be called directly by the hardware.
 @end cartouche
-@c SGI info:
-@ignore
-This is never possible under IRIX, so this is followed by default.
-@end ignore
 Followed on any target where the underlying operating system permits
 such direct calls.
 
@@ -9229,11 +9438,6 @@ A requirement for conforming Ada compilers is that they provide
 documentation describing how the implementation deals with each of these
 issues.  In this chapter, you will find each point in Annex M listed
 followed by a description in italic font of how GNAT
-@c SGI info:
-@ignore
-in the ProDev Ada
-implementation on IRIX 5.3 operating system or greater
-@end ignore
 handles the implementation dependence.
 
 You can use this chapter as a guide to minimizing implementation
@@ -9920,7 +10124,7 @@ See documentation in the sources of the run time mentioned in paragraph
 @code{Restrictions}.  See 13.12(7).
 @end cartouche
 @noindent
-@xref{Implementation Defined Restrictions}.
+@xref{Standard and Implementation Defined Restrictions}.
 
 @sp 1
 @cartouche
@@ -10500,11 +10704,6 @@ object does not keep its processor busy.
 on task dispatching.  See D.2.1(9).
 @end cartouche
 @noindent
-@c SGI info
-@ignore
-Tasks map to IRIX threads, and the dispatching policy is as defined by
-the IRIX implementation of threads.
-@end ignore
 Tasks map to threads in the threads package used by GNAT@.  Where possible
 and appropriate, these threads correspond to native threads of the
 underlying operating system.
@@ -10535,11 +10734,6 @@ of delay expirations for lower priority tasks.
 @strong{100}.  Implementation-defined task dispatching.  See D.2.2(18).
 @end cartouche
 @noindent
-@c SGI info:
-@ignore
-Tasks map to IRIX threads, and the dispatching policy is as defined by
-the IRIX implementation of threads.
-@end ignore
 The policy is the same as that of the underlying threads implementation.
 
 @sp 1
@@ -13570,7 +13764,9 @@ ENCODING=[UTF8|8BITS]
 @end smallexample
 
 @noindent
-The use of these parameters is described later in this section.
+The use of these parameters is described later in this section. If an
+unrecognized keyword appears in a form string, it is silently ignored
+and not considered invalid.
 
 @node Direct_IO
 @section Direct_IO
@@ -15323,7 +15519,7 @@ sequences for various UCS input formats.
 @section @code{GNAT.Byte_Swapping} (@file{g-bytswa.ads})
 @cindex @code{GNAT.Byte_Swapping} (@file{g-bytswa.ads})
 @cindex Byte swapping
-@cindex Endian
+@cindex Endianness
 
 @noindent
 General routines for swapping the bytes in 2-, 4-, and 8-byte quantities.
@@ -16478,8 +16674,7 @@ of the length corresponding to the @code{@var{type}'Size} value in Ada.
 @noindent
 The interface to C++ makes use of the following pragmas, which are
 primarily intended to be constructed automatically using a binding generator
-tool, although it is possible to construct them by hand.  No suitable binding
-generator tool is supplied with GNAT though.
+tool, although it is possible to construct them by hand.
 
 Using these pragmas it is possible to achieve complete
 inter-operability between Ada tagged types and C++ class definitions.
@@ -16500,6 +16695,12 @@ using pragma @code{Import} with @code{Convention} = @code{CPP}.
 This pragma identifies an imported function (imported in the usual way
 with pragma @code{Import}) as corresponding to a C++ constructor.
 @end table
+
+In addition, C++ exceptions are propagated and can be handled in an
+@code{others} choice of an exception handler. The corresponding Ada
+occurrence has no message, and the simple name of the exception identity
+contains @samp{Foreign_Exception}. Finalization and awaiting dependent
+tasks works properly when such foreign exceptions are propagated.
 
 @node Interfacing to COBOL
 @section Interfacing to COBOL
@@ -17377,12 +17578,13 @@ A complete description of the AIs may be found in
 @item @code{Atomic_Components} @tab
 @item @code{Bit_Order} @tab
 @item @code{Component_Size} @tab
+@item @code{Contract_Case} @tab                 -- GNAT
 @item @code{Discard_Names} @tab
 @item @code{External_Tag} @tab
 @item @code{Favor_Top_Level} @tab               -- GNAT
 @item @code{Inline} @tab
 @item @code{Inline_Always} @tab                 -- GNAT
-@item @code{Invariant} @tab
+@item @code{Invariant} @tab                     -- GNAT
 @item @code{Machine_Radix} @tab
 @item @code{No_Return} @tab
 @item @code{Object_Size} @tab                   -- GNAT
@@ -17402,6 +17604,7 @@ A complete description of the AIs may be found in
 @item @code{Suppress} @tab
 @item @code{Suppress_Debug_Info} @tab           -- GNAT
 @item @code{Test_Case} @tab                     -- GNAT
+@item @code{Type_Invariant} @tab
 @item @code{Unchecked_Union} @tab
 @item @code{Universal_Aliasing} @tab            -- GNAT
 @item @code{Unmodified} @tab                    -- GNAT
@@ -18422,8 +18625,8 @@ A complete description of the AIs may be found in
 
 @noindent
   Type invariants may be specified for private types using the aspect notation.
-  Aspect @code{Invariant} may be specified for any private type,
-  @code{Invariant'Class} can
+  Aspect @code{Type_Invariant} may be specified for any private type,
+  @code{Type_Invariant'Class} can
   only be specified for tagged types, and is inherited by any descendent of the
   tagged types. The invariant is a boolean expression that is tested for being
   true in the following situations: conversions to the private type, object
@@ -18431,6 +18634,8 @@ A complete description of the AIs may be found in
   [@b{in}] @b{out}
   parameters and returned result on return from any primitive operation for
   the type that is visible to a client.
+  GNAT defines the synonyms @code{Invariant} for @code{Type_Invariant} and
+  @code{Invariant'Class} for @code{Type_Invariant'Class}.
 
 @noindent
   RM References:  13.03.03 (00)

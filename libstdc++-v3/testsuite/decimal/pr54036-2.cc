@@ -44,6 +44,7 @@ my_inf64 (void)
 int
 main ()
 {
+  bool test __attribute__((unused)) = true;
   decimal64 v;
 
   v = my_nan64 ();

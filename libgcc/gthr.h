@@ -1,7 +1,6 @@
 /* Threads compatibility routines for libgcc2.  */
 /* Compile this one with gcc.  */
-/* Copyright (C) 1997, 1998, 2004, 2008, 2009, 2011
-   Free Software Foundation, Inc.
+/* Copyright (C) 1997-2012 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -52,11 +51,12 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
      		to initialize __gthread_mutex_t to get a fast
 		non-recursive mutex.
      __GTHREAD_MUTEX_INIT_FUNCTION
-     		some systems can't initialize a mutex without a
-		function call.  On such systems, define this to a
-		function which looks like this:
+		to initialize __gthread_mutex_t to get a fast
+		non-recursive mutex.
+		Define this to a function which looks like this:
 		  void __GTHREAD_MUTEX_INIT_FUNCTION (__gthread_mutex_t *)
-		Don't define __GTHREAD_MUTEX_INIT in this case
+     		Some systems can't initialize a mutex without a
+		function call.  Don't define __GTHREAD_MUTEX_INIT in this case.
      __GTHREAD_RECURSIVE_MUTEX_INIT
      __GTHREAD_RECURSIVE_MUTEX_INIT_FUNCTION
      		as above, but for a recursive mutex.
@@ -72,6 +72,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
      int __gthread_setspecific (__gthread_key_t key, const void *ptr)
 
      int __gthread_mutex_destroy (__gthread_mutex_t *mutex);
+     int __gthread_recursive_mutex_destroy (__gthread_recursive_mutex_t *mutex);
 
      int __gthread_mutex_lock (__gthread_mutex_t *mutex);
      int __gthread_mutex_trylock (__gthread_mutex_t *mutex);

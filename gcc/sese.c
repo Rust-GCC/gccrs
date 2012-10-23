@@ -133,7 +133,7 @@ eq_ivtype_map_elts (const void *e1, const void *e2)
 
 
 
-/* Record LOOP as occuring in REGION.  */
+/* Record LOOP as occurring in REGION.  */
 
 static void
 sese_record_loop (sese region, loop_p loop)
@@ -304,7 +304,7 @@ sese_build_liveouts (sese region, bitmap liveouts)
 
   FOR_EACH_BB (bb)
     sese_build_liveouts_bb (region, liveouts, bb);
-  if (MAY_HAVE_DEBUG_INSNS)
+  if (MAY_HAVE_DEBUG_STMTS)
     FOR_EACH_BB (bb)
       sese_reset_debug_liveouts_bb (region, liveouts, bb);
 }
@@ -345,10 +345,8 @@ free_sese (sese region)
 static void
 sese_add_exit_phis_edge (basic_block exit, tree use, edge false_e, edge true_e)
 {
-  gimple phi = create_phi_node (use, exit);
-
-  create_new_def_for (gimple_phi_result (phi), phi,
-		      gimple_phi_result_ptr (phi));
+  gimple phi = create_phi_node (NULL_TREE, exit);
+  create_new_def_for (use, phi, gimple_phi_result_ptr (phi));
   add_phi_arg (phi, use, false_e, UNKNOWN_LOCATION);
   add_phi_arg (phi, use, true_e, UNKNOWN_LOCATION);
 }
@@ -482,14 +480,13 @@ rename_uses (gimple copy, htab_t rename_map, gimple_stmt_iterator *gsi_tgt,
       return false;
     }
 
-  FOR_EACH_SSA_USE_OPERAND (use_p, copy, op_iter, SSA_OP_ALL_USES)
+  FOR_EACH_SSA_USE_OPERAND (use_p, copy, op_iter, SSA_OP_USE)
     {
       tree old_name = USE_FROM_PTR (use_p);
       tree new_expr, scev;
       gimple_seq stmts;
 
       if (TREE_CODE (old_name) != SSA_NAME
-	  || !is_gimple_reg (old_name)
 	  || SSA_NAME_IS_DEFAULT_DEF (old_name))
 	continue;
 
@@ -501,16 +498,14 @@ rename_uses (gimple copy, htab_t rename_map, gimple_stmt_iterator *gsi_tgt,
 	  tree type_new_expr = TREE_TYPE (new_expr);
 
 	  if (type_old_name != type_new_expr
-	      || (TREE_CODE (new_expr) != SSA_NAME
-		  && is_gimple_reg (old_name)))
+	      || TREE_CODE (new_expr) != SSA_NAME)
 	    {
 	      tree var = create_tmp_var (type_old_name, "var");
 
-	      if (type_old_name != type_new_expr)
+	      if (!useless_type_conversion_p (type_old_name, type_new_expr))
 		new_expr = fold_convert (type_old_name, new_expr);
 
-	      new_expr = build2 (MODIFY_EXPR, type_old_name, var, new_expr);
-	      new_expr = force_gimple_operand (new_expr, &stmts, true, NULL);
+	      new_expr = force_gimple_operand (new_expr, &stmts, true, var);
 	      gsi_insert_seq_before (gsi_tgt, stmts, GSI_SAME_STMT);
 	    }
 
@@ -604,7 +599,6 @@ graphite_copy_stmts_from_block (basic_block bb, basic_block new_bb,
 	 operands.  */
       copy = gimple_copy (stmt);
       gsi_insert_after (&gsi_tgt, copy, GSI_NEW_STMT);
-      mark_sym_for_renaming (gimple_vop (cfun));
 
       maybe_duplicate_eh_stmt (copy, stmt);
       gimple_duplicate_stmt_histograms (cfun, copy, cfun, stmt);

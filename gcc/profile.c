@@ -55,7 +55,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm.h"
 #include "rtl.h"
 #include "flags.h"
-#include "output.h"
 #include "regs.h"
 #include "expr.h"
 #include "function.h"
@@ -64,11 +63,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "coverage.h"
 #include "value-prof.h"
 #include "tree.h"
-#include "cfghooks.h"
 #include "tree-flow.h"
-#include "timevar.h"
 #include "cfgloop.h"
-#include "tree-pass.h"
+#include "dumpfile.h"
 
 #include "profile.h"
 
@@ -86,6 +83,15 @@ struct bb_info {
 /* Counter summary from the last set of coverage counts read.  */
 
 const struct gcov_ctr_summary *profile_info;
+
+/* Number of data points in the working set summary array. Using 128
+   provides information for at least every 1% increment of the total
+   profile size. The last entry is hardwired to 99.9% of the total.  */
+#define NUM_GCOV_WORKING_SETS 128
+
+/* Counter working set information computed from the current counter
+   summary. Not initialized unless profile_info summary is non-NULL.  */
+static gcov_working_set_t gcov_working_sets[NUM_GCOV_WORKING_SETS];
 
 /* Collect statistics on the performance of this pass for the entire source
    file.  */
@@ -146,46 +152,15 @@ instrument_edges (struct edge_list *el)
 static void
 instrument_values (histogram_values values)
 {
-  unsigned i, t;
+  unsigned i;
 
   /* Emit code to generate the histograms before the insns.  */
 
   for (i = 0; i < VEC_length (histogram_value, values); i++)
     {
       histogram_value hist = VEC_index (histogram_value, values, i);
-      switch (hist->type)
-	{
-	case HIST_TYPE_INTERVAL:
-	  t = GCOV_COUNTER_V_INTERVAL;
-	  break;
+      unsigned t = COUNTER_FOR_HIST_TYPE (hist->type);
 
-	case HIST_TYPE_POW2:
-	  t = GCOV_COUNTER_V_POW2;
-	  break;
-
-	case HIST_TYPE_SINGLE_VALUE:
-	  t = GCOV_COUNTER_V_SINGLE;
-	  break;
-
-	case HIST_TYPE_CONST_DELTA:
-	  t = GCOV_COUNTER_V_DELTA;
-	  break;
-
- 	case HIST_TYPE_INDIR_CALL:
- 	  t = GCOV_COUNTER_V_INDIR;
- 	  break;
-
- 	case HIST_TYPE_AVERAGE:
- 	  t = GCOV_COUNTER_AVERAGE;
- 	  break;
-
- 	case HIST_TYPE_IOR:
- 	  t = GCOV_COUNTER_IOR;
- 	  break;
-
-	default:
-	  gcc_unreachable ();
-	}
       if (!coverage_counter_alloc (t, hist->n_counters))
 	continue;
 
@@ -226,6 +201,152 @@ instrument_values (histogram_values values)
 }
 
 
+/* Compute the working set information from the counter histogram in
+   the profile summary. This is an array of information corresponding to a
+   range of percentages of the total execution count (sum_all), and includes
+   the number of counters required to cover that working set percentage and
+   the minimum counter value in that working set.  */
+
+static void
+compute_working_sets (void)
+{
+  gcov_type working_set_cum_values[NUM_GCOV_WORKING_SETS];
+  gcov_type ws_cum_hotness_incr;
+  gcov_type cum, tmp_cum;
+  const gcov_bucket_type *histo_bucket;
+  unsigned ws_ix, c_num, count, pctinc, pct;
+  int h_ix;
+  gcov_working_set_t *ws_info;
+
+  if (!profile_info)
+    return;
+
+  /* Compute the amount of sum_all that the cumulative hotness grows
+     by in each successive working set entry, which depends on the
+     number of working set entries.  */
+  ws_cum_hotness_incr = profile_info->sum_all / NUM_GCOV_WORKING_SETS;
+
+  /* Next fill in an array of the cumulative hotness values corresponding
+     to each working set summary entry we are going to compute below.
+     Skip 0% statistics, which can be extrapolated from the
+     rest of the summary data.  */
+  cum = ws_cum_hotness_incr;
+  for (ws_ix = 0; ws_ix < NUM_GCOV_WORKING_SETS;
+       ws_ix++, cum += ws_cum_hotness_incr)
+    working_set_cum_values[ws_ix] = cum;
+  /* The last summary entry is reserved for (roughly) 99.9% of the
+     working set. Divide by 1024 so it becomes a shift, which gives
+     almost exactly 99.9%.  */
+  working_set_cum_values[NUM_GCOV_WORKING_SETS-1]
+      = profile_info->sum_all - profile_info->sum_all/1024;
+
+  /* Next, walk through the histogram in decending order of hotness
+     and compute the statistics for the working set summary array.
+     As histogram entries are accumulated, we check to see which
+     working set entries have had their expected cum_value reached
+     and fill them in, walking the working set entries in increasing
+     size of cum_value.  */
+  ws_ix = 0; /* The current entry into the working set array.  */
+  cum = 0; /* The current accumulated counter sum.  */
+  count = 0; /* The current accumulated count of block counters.  */
+  for (h_ix = GCOV_HISTOGRAM_SIZE - 1;
+       h_ix >= 0 && ws_ix < NUM_GCOV_WORKING_SETS; h_ix--)
+    {
+      histo_bucket = &profile_info->histogram[h_ix];
+
+      /* If we haven't reached the required cumulative counter value for
+         the current working set percentage, simply accumulate this histogram
+         entry into the running sums and continue to the next histogram
+         entry.  */
+      if (cum + histo_bucket->cum_value < working_set_cum_values[ws_ix])
+        {
+          cum += histo_bucket->cum_value;
+          count += histo_bucket->num_counters;
+          continue;
+        }
+
+      /* If adding the current histogram entry's cumulative counter value
+         causes us to exceed the current working set size, then estimate
+         how many of this histogram entry's counter values are required to
+         reach the working set size, and fill in working set entries
+         as we reach their expected cumulative value.  */
+      for (c_num = 0, tmp_cum = cum;
+           c_num < histo_bucket->num_counters && ws_ix < NUM_GCOV_WORKING_SETS;
+           c_num++)
+        {
+          count++;
+          /* If we haven't reached the last histogram entry counter, add
+             in the minimum value again. This will underestimate the
+             cumulative sum so far, because many of the counter values in this
+             entry may have been larger than the minimum. We could add in the
+             average value every time, but that would require an expensive
+             divide operation.  */
+          if (c_num + 1 < histo_bucket->num_counters)
+            tmp_cum += histo_bucket->min_value;
+          /* If we have reached the last histogram entry counter, then add
+             in the entire cumulative value.  */
+          else
+            tmp_cum = cum + histo_bucket->cum_value;
+
+          /* Next walk through successive working set entries and fill in
+            the statistics for any whose size we have reached by accumulating
+            this histogram counter.  */
+          while (tmp_cum >= working_set_cum_values[ws_ix]
+                 && ws_ix < NUM_GCOV_WORKING_SETS)
+            {
+              gcov_working_sets[ws_ix].num_counters = count;
+              gcov_working_sets[ws_ix].min_counter
+                  = histo_bucket->min_value;
+              ws_ix++;
+            }
+        }
+      /* Finally, update the running cumulative value since we were
+         using a temporary above.  */
+      cum += histo_bucket->cum_value;
+    }
+  gcc_assert (ws_ix == NUM_GCOV_WORKING_SETS);
+
+  if (dump_file)
+    {
+      fprintf (dump_file, "Counter working sets:\n");
+      /* Multiply the percentage by 100 to avoid float.  */
+      pctinc = 100 * 100 / NUM_GCOV_WORKING_SETS;
+      for (ws_ix = 0, pct = pctinc; ws_ix < NUM_GCOV_WORKING_SETS;
+           ws_ix++, pct += pctinc)
+        {
+          if (ws_ix == NUM_GCOV_WORKING_SETS - 1)
+            pct = 9990;
+          ws_info = &gcov_working_sets[ws_ix];
+          /* Print out the percentage using int arithmatic to avoid float.  */
+          fprintf (dump_file, "\t\t%u.%02u%%: num counts=%u, min counter="
+                   HOST_WIDEST_INT_PRINT_DEC "\n",
+                   pct / 100, pct - (pct / 100 * 100),
+                   ws_info->num_counters,
+                   (HOST_WIDEST_INT)ws_info->min_counter);
+        }
+    }
+}
+
+/* Given a the desired percentage of the full profile (sum_all from the
+   summary), multiplied by 10 to avoid float in PCT_TIMES_10, returns
+   the corresponding working set information. If an exact match for
+   the percentage isn't found, the closest value is used.  */
+
+gcov_working_set_t *
+find_working_set (unsigned pct_times_10)
+{
+  unsigned i;
+  if (!profile_info)
+    return NULL;
+  gcc_assert (pct_times_10 <= 1000);
+  if (pct_times_10 >= 999)
+    return &gcov_working_sets[NUM_GCOV_WORKING_SETS - 1];
+  i = pct_times_10 * NUM_GCOV_WORKING_SETS / 1000;
+  if (!i)
+    return &gcov_working_sets[0];
+  return &gcov_working_sets[i - 1];
+}
+
 /* Computes hybrid profile for all matching entries in da_file.  
    
    CFG_CHECKSUM is the precomputed checksum for the CFG.  */
@@ -253,6 +374,8 @@ get_exec_counts (unsigned cfg_checksum, unsigned lineno_checksum)
   if (!counts)
     return NULL;
 
+  compute_working_sets();
+
   if (dump_file && profile_info)
     fprintf(dump_file, "Merged %u profiles with maximal count %u.\n",
 	    profile_info->runs, (unsigned) profile_info->sum_max);
@@ -279,8 +402,8 @@ is_edge_inconsistent (VEC(edge,gc) *edges)
 		  fprintf (dump_file,
 		  	   "Edge %i->%i is inconsistent, count"HOST_WIDEST_INT_PRINT_DEC,
 			   e->src->index, e->dest->index, e->count);
-		  dump_bb (e->src, dump_file, 0);
-		  dump_bb (e->dest, dump_file, 0);
+		  dump_bb (dump_file, e->src, 0, TDF_DETAILS);
+		  dump_bb (dump_file, e->dest, 0, TDF_DETAILS);
 		}
               return true;
 	    }
@@ -329,7 +452,7 @@ is_inconsistent (void)
 		       HOST_WIDEST_INT_PRINT_DEC,
 		       bb->index,
 		       bb->count);
-	      dump_bb (bb, dump_file, 0);
+	      dump_bb (dump_file, bb, 0, TDF_DETAILS);
 	    }
 	  inconsistent = true;
 	}
@@ -342,7 +465,7 @@ is_inconsistent (void)
 		       bb->index,
 		       bb->count,
 		       sum_edge_counts (bb->preds));
-	      dump_bb (bb, dump_file, 0);
+	      dump_bb (dump_file, bb, 0, TDF_DETAILS);
 	    }
 	  inconsistent = true;
 	}
@@ -356,7 +479,7 @@ is_inconsistent (void)
 		       bb->index,
 		       bb->count,
 		       sum_edge_counts (bb->succs));
-	      dump_bb (bb, dump_file, 0);
+	      dump_bb (dump_file, bb, 0, TDF_DETAILS);
 	    }
 	  inconsistent = true;
 	}
@@ -642,7 +765,7 @@ compute_branch_probabilities (unsigned cfg_checksum, unsigned lineno_checksum)
   if (dump_file)
     {
       int overlap = compute_frequency_overlap ();
-      dump_flow_info (dump_file, dump_flags);
+      gimple_dump_cfg (dump_file, dump_flags);
       fprintf (dump_file, "Static profile overlap: %d.%d%%\n",
 	       overlap / (OVERLAP_BASE / 100),
 	       overlap % (OVERLAP_BASE / 100));
@@ -873,9 +996,6 @@ compute_value_histograms (histogram_values values, unsigned cfg_checksum,
     free (histogram_counts[t]);
 }
 
-/* The entry basic block will be moved around so that it has index=1,
-   there is nothing at index 0 and the exit is at n_basic_block.  */
-#define BB_TO_GCOV_INDEX(bb)  ((bb)->index - 1)
 /* When passed NULL as file_name, initialize.
    When passed something else, output the necessary commands to change
    line to LINE and offset to FILE_NAME.  */
@@ -902,7 +1022,7 @@ output_location (char const *file_name, int line,
       if (!*offset)
 	{
 	  *offset = gcov_write_tag (GCOV_TAG_LINES);
-	  gcov_write_unsigned (BB_TO_GCOV_INDEX (bb));
+	  gcov_write_unsigned (bb->index);
 	  name_differs = line_differs=true;
 	}
 
@@ -922,19 +1042,22 @@ output_location (char const *file_name, int line,
      }
 }
 
-/* Instrument and/or analyze program behavior based on program flow graph.
-   In either case, this function builds a flow graph for the function being
-   compiled.  The flow graph is stored in BB_GRAPH.
+/* Instrument and/or analyze program behavior based on program the CFG.
+
+   This function creates a representation of the control flow graph (of
+   the function being compiled) that is suitable for the instrumentation
+   of edges and/or converting measured edge counts to counts on the
+   complete CFG.
 
    When FLAG_PROFILE_ARCS is nonzero, this function instruments the edges in
    the flow graph that are needed to reconstruct the dynamic behavior of the
-   flow graph.
+   flow graph.  This data is written to the gcno file for gcov.
 
    When FLAG_BRANCH_PROBABILITIES is nonzero, this function reads auxiliary
-   information from a data file containing edge count information from previous
-   executions of the function being compiled.  In this case, the flow graph is
-   annotated with actual execution counts, which are later propagated into the
-   rtl for optimization purposes.
+   information from the gcda file containing edge count information from
+   previous executions of the function being compiled.  In this case, the
+   control flow graph is annotated with actual execution counts by
+   compute_branch_probabilities().
 
    Main entry point of this file.  */
 
@@ -1000,7 +1123,7 @@ branch_prob (void)
 	     is not computed twice.  */
 	  if (last
 	      && gimple_has_location (last)
-	      && e->goto_locus != UNKNOWN_LOCATION
+	      && LOCATION_LOCUS (e->goto_locus) != UNKNOWN_LOCATION
 	      && !single_succ_p (bb)
 	      && (LOCATION_FILE (e->goto_locus)
 	          != LOCATION_FILE (gimple_location (last))
@@ -1010,7 +1133,6 @@ branch_prob (void)
 	      basic_block new_bb = split_edge (e);
 	      edge ne = single_succ_edge (new_bb);
 	      ne->goto_locus = e->goto_locus;
-	      ne->goto_block = e->goto_block;
 	    }
 	  if ((e->flags & (EDGE_ABNORMAL | EDGE_ABNORMAL_CALL))
 	       && e->dest != EXIT_BLOCK_PTR)
@@ -1136,6 +1258,9 @@ branch_prob (void)
   if (dump_file)
     fprintf (dump_file, "%d ignored edges\n", ignored_edges);
 
+  total_num_edges_instrumented += num_instrumented;
+  if (dump_file)
+    fprintf (dump_file, "%d instrumentation edges\n", num_instrumented);
 
   /* Compute two different checksums. Note that we want to compute
      the checksum in only once place, since it depends on the shape
@@ -1145,8 +1270,7 @@ branch_prob (void)
   lineno_checksum = coverage_compute_lineno_checksum ();
 
   /* Write the data from which gcov can reconstruct the basic block
-     graph and function line numbers  */
-
+     graph and function line numbers (the gcno file).  */
   if (coverage_begin_function (lineno_checksum, cfg_checksum))
     {
       gcov_position_t offset;
@@ -1157,12 +1281,6 @@ branch_prob (void)
 	gcov_write_unsigned (0);
       gcov_write_length (offset);
 
-      /* Keep all basic block indexes nonnegative in the gcov output.
-	 Index 0 is used for entry block, last index is for exit
-	 block.    */
-      ENTRY_BLOCK_PTR->index = 1;
-      EXIT_BLOCK_PTR->index = last_basic_block;
-
       /* Arcs */
       FOR_BB_BETWEEN (bb, ENTRY_BLOCK_PTR, EXIT_BLOCK_PTR, next_bb)
 	{
@@ -1170,7 +1288,7 @@ branch_prob (void)
 	  edge_iterator ei;
 
 	  offset = gcov_write_tag (GCOV_TAG_ARCS);
-	  gcov_write_unsigned (BB_TO_GCOV_INDEX (bb));
+	  gcov_write_unsigned (bb->index);
 
 	  FOR_EACH_EDGE (e, ei, bb->succs)
 	    {
@@ -1191,16 +1309,13 @@ branch_prob (void)
 		      && e->src->next_bb == e->dest)
 		    flag_bits |= GCOV_ARC_FALLTHROUGH;
 
-		  gcov_write_unsigned (BB_TO_GCOV_INDEX (e->dest));
+		  gcov_write_unsigned (e->dest->index);
 		  gcov_write_unsigned (flag_bits);
 	        }
 	    }
 
 	  gcov_write_length (offset);
 	}
-
-      ENTRY_BLOCK_PTR->index = ENTRY_BLOCK;
-      EXIT_BLOCK_PTR->index = EXIT_BLOCK;
 
       /* Line numbers.  */
       /* Initialize the output.  */
@@ -1229,7 +1344,8 @@ branch_prob (void)
 
 	  /* Notice GOTO expressions eliminated while constructing the CFG.  */
 	  if (single_succ_p (bb)
-	      && single_succ_edge (bb)->goto_locus != UNKNOWN_LOCATION)
+	      && LOCATION_LOCUS (single_succ_edge (bb)->goto_locus)
+		 != UNKNOWN_LOCATION)
 	    {
 	      expanded_location curr_location
 		= expand_location (single_succ_edge (bb)->goto_locus);
@@ -1246,8 +1362,6 @@ branch_prob (void)
 	    }
 	}
     }
-
-#undef BB_TO_GCOV_INDEX
 
   if (flag_profile_values)
     gimple_find_values_to_profile (&values);
@@ -1391,8 +1505,7 @@ find_spanning_tree (struct edge_list *el)
 	}
     }
 
-  FOR_BB_BETWEEN (bb, ENTRY_BLOCK_PTR, NULL, next_bb)
-    bb->aux = NULL;
+  clear_aux_for_blocks ();
 }
 
 /* Perform file-level initialization for branch-prob processing.  */

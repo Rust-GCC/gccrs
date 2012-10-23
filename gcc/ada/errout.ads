@@ -230,7 +230,7 @@ package Errout is
    --      one (the plus one is because the number is stored 0-origin and
    --      displayed 1-origin).
 
-   --    Insertion character ^ (Carret: insert integer value)
+   --    Insertion character ^ (Caret: insert integer value)
    --      The character ^ is replaced by the decimal conversion of the Uint
    --      value stored in Error_Msg_Uint_1, with a possible leading minus.
    --      A second ^ may occur in the message, in which case it is replaced
@@ -380,6 +380,9 @@ package Errout is
    Gname8 : aliased constant String := "gnat2012";
    Vname8 : aliased constant String := "2012";
 
+   Gname9 : aliased constant String := "gnateinn";
+   Vname9 : aliased constant String := "MAX_INSTANTIATIONS=nn";
+
    type Cstring_Ptr is access constant String;
 
    Gnames : array (Nat range <>) of Cstring_Ptr :=
@@ -390,7 +393,8 @@ package Errout is
                Gname5'Access,
                Gname6'Access,
                Gname7'Access,
-               Gname8'Access);
+               Gname8'Access,
+               Gname9'Access);
 
    Vnames : array (Nat range <>) of Cstring_Ptr :=
               (Vname1'Access,
@@ -400,7 +404,8 @@ package Errout is
                Vname5'Access,
                Vname6'Access,
                Vname7'Access,
-               Vname8'Access);
+               Vname8'Access,
+               Vname9'Access);
 
    -----------------------------------------------------
    -- Global Values Used for Error Message Insertions --
@@ -721,6 +726,13 @@ package Errout is
    --  unit and comes from source. Typically this is a warning mode flag.
    --  This routine can only be called during semantic analysis. It may not
    --  be called during parsing.
+
+   procedure Cascaded_Error;
+   --  When an anomaly is detected, many semantic routines silently bail out,
+   --  assuming that the anomaly was caused by a previously detected error.
+   --  This routine should be called in these cases, and will raise an
+   --  exception if no serious error has been detected. This ensure that the
+   --  anomaly is never allowed to go unnoticed.
 
    procedure Change_Error_Text (Error_Id : Error_Msg_Id; New_Msg : String);
    --  The error message text of the message identified by Id is replaced by

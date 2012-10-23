@@ -1,5 +1,5 @@
 /* Common VxWorks target definitions for GNU compiler.
-   Copyright (C) 2007, 2008, 2010
+   Copyright (C) 2007, 2008, 2010, 2012
    Free Software Foundation, Inc.
    Contributed by CodeSourcery, Inc.
 
@@ -97,24 +97,22 @@ static tree
 vxworks_emutls_var_init (tree var, tree decl, tree tmpl_addr)
 {
   VEC(constructor_elt,gc) *v = VEC_alloc (constructor_elt, gc, 3);
-  constructor_elt *elt;
   
   tree type = TREE_TYPE (var);
   tree field = TYPE_FIELDS (type);
   
-  elt = VEC_quick_push (constructor_elt, v, NULL);
-  elt->index = field;
-  elt->value = fold_convert (TREE_TYPE (field), tmpl_addr);
+  constructor_elt elt = {field, fold_convert (TREE_TYPE (field), tmpl_addr)};
+  VEC_quick_push (constructor_elt, v, elt);
   
-  elt = VEC_quick_push (constructor_elt, v, NULL);
   field = DECL_CHAIN (field);
-  elt->index = field;
-  elt->value = build_int_cst (TREE_TYPE (field), 0);
+  elt.index = field;
+  elt.value = build_int_cst (TREE_TYPE (field), 0);
+  VEC_quick_push (constructor_elt, v, elt);
   
-  elt = VEC_quick_push (constructor_elt, v, NULL);
   field = DECL_CHAIN (field);
-  elt->index = field;
-  elt->value = fold_convert (TREE_TYPE (field), DECL_SIZE_UNIT (decl));
+  elt.index = field;
+  elt.value = fold_convert (TREE_TYPE (field), DECL_SIZE_UNIT (decl));
+  VEC_quick_push (constructor_elt, v, elt);
   
   return build_constructor (type, v);
 }
@@ -144,4 +142,12 @@ vxworks_override_options (void)
   /* PIC is only supported for RTPs.  */
   if (flag_pic && !TARGET_VXWORKS_RTP)
     error ("PIC is only supported for RTPs");
+
+  /* Default to strict dwarf-2 to prevent potential difficulties observed with
+     non-gdb debuggers on extensions > 2.  */
+  if (!global_options_set.x_dwarf_strict)
+    dwarf_strict = 1;
+
+  if (!global_options_set.x_dwarf_version)
+    dwarf_version = 2;
 }

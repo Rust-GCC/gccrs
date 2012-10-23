@@ -31,7 +31,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "insn-config.h"
 #include "insn-attr.h"
 #include "params.h"
-#include "output.h"
 #include "basic-block.h"
 #include "cselib.h"
 #include "target.h"
@@ -957,7 +956,7 @@ debug_mem_addr_value (rtx x)
   enum machine_mode address_mode;
 
   gcc_assert (MEM_P (x));
-  address_mode = targetm.addr_space.address_mode (MEM_ADDR_SPACE (x));
+  address_mode = get_address_mode (x);
 
   t = shallow_copy_rtx (x);
   if (cselib_lookup (XEXP (t, 0), address_mode, 0, GET_MODE (t)))

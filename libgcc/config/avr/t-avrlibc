@@ -1,4 +1,4 @@
-# This file is used with --with-avrlibc=yes
+# This file is used if not configured --with-avrlibc=no
 #
 # AVR-Libc comes with hand-optimized float routines.
 # For historical reasons, these routines live in AVR-Libc

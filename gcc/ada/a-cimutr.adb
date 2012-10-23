@@ -291,7 +291,19 @@ package body Ada.Containers.Indefinite_Multiway_Trees is
            with "attempt to tamper with cursors (tree is busy)";
       end if;
 
-      Element := new Element_Type'(New_Item);
+      declare
+         --  The element allocator may need an accessibility check in the case
+         --  the actual type is class-wide or has access discriminants (see
+         --  RM 4.8(10.1) and AI12-0035). We don't unsuppress the check on the
+         --  allocator in the loop below, because the one in this block would
+         --  have failed already.
+
+         pragma Unsuppress (Accessibility_Check);
+
+      begin
+         Element := new Element_Type'(New_Item);
+      end;
+
       First := new Tree_Node_Type'(Parent  => Parent.Node,
                                    Element => Element,
                                    others  => <>);
@@ -492,9 +504,8 @@ package body Ada.Containers.Indefinite_Multiway_Trees is
          L : Natural renames C.Lock;
       begin
          return R : constant Constant_Reference_Type :=
-                      (Element => Position.Node.Element.all'Access,
-                       Control =>
-                         (Controlled with Container'Unrestricted_Access))
+           (Element => Position.Node.Element.all'Access,
+            Control => (Controlled with Container'Unrestricted_Access))
          do
             B := B + 1;
             L := L + 1;
@@ -1037,7 +1048,7 @@ package body Ada.Containers.Indefinite_Multiway_Trees is
       Item      : Element_Type) return Cursor
    is
       N : constant Tree_Node_Access :=
-            Find_In_Children (Root_Node (Container), Item);
+        Find_In_Children (Root_Node (Container), Item);
 
    begin
       if N = null then
@@ -1240,7 +1251,19 @@ package body Ada.Containers.Indefinite_Multiway_Trees is
 
       Position.Container := Parent.Container;
 
-      Element := new Element_Type'(New_Item);
+      declare
+         --  The element allocator may need an accessibility check in the case
+         --  the actual type is class-wide or has access discriminants (see
+         --  RM 4.8(10.1) and AI12-0035). We don't unsuppress the check on the
+         --  allocator in the loop below, because the one in this block would
+         --  have failed already.
+
+         pragma Unsuppress (Accessibility_Check);
+
+      begin
+         Element := new Element_Type'(New_Item);
+      end;
+
       Position.Node := new Tree_Node_Type'(Parent  => Parent.Node,
                                            Element => Element,
                                            others  => <>);
@@ -1510,9 +1533,9 @@ package body Ada.Containers.Indefinite_Multiway_Trees is
       end if;
 
       return It : constant Child_Iterator :=
-                    Child_Iterator'(Limited_Controlled with
-                                      Container => C,
-                                      Subtree   => Parent.Node)
+        Child_Iterator'(Limited_Controlled with
+                          Container => C,
+                          Subtree   => Parent.Node)
       do
          B := B + 1;
       end return;
@@ -1538,9 +1561,9 @@ package body Ada.Containers.Indefinite_Multiway_Trees is
          B : Natural renames Position.Container.Busy;
       begin
          return It : constant Subtree_Iterator :=
-                       (Limited_Controlled with
-                          Container => Position.Container,
-                          Subtree   => Position.Node)
+           (Limited_Controlled with
+              Container => Position.Container,
+              Subtree   => Position.Node)
          do
             B := B + 1;
          end return;
@@ -1805,7 +1828,19 @@ package body Ada.Containers.Indefinite_Multiway_Trees is
            with "attempt to tamper with cursors (tree is busy)";
       end if;
 
-      Element := new Element_Type'(New_Item);
+      declare
+         --  The element allocator may need an accessibility check in the case
+         --  the actual type is class-wide or has access discriminants (see
+         --  RM 4.8(10.1) and AI12-0035). We don't unsuppress the check on the
+         --  allocator in the loop below, because the one in this block would
+         --  have failed already.
+
+         pragma Unsuppress (Accessibility_Check);
+
+      begin
+         Element := new Element_Type'(New_Item);
+      end;
+
       First := new Tree_Node_Type'(Parent  => Parent.Node,
                                    Element => Element,
                                    others  => <>);
@@ -1987,13 +2022,11 @@ package body Ada.Containers.Indefinite_Multiway_Trees is
         (Parent : Tree_Node_Access) return Tree_Node_Access
       is
          Element : constant Element_Access :=
-                     new Element_Type'(Element_Type'Input (Stream));
+           new Element_Type'(Element_Type'Input (Stream));
 
          Subtree : constant Tree_Node_Access :=
-                     new Tree_Node_Type'
-                           (Parent  => Parent,
-                            Element => Element,
-                            others  => <>);
+           new Tree_Node_Type'
+             (Parent  => Parent, Element => Element, others  => <>);
 
       begin
          Read_Count := Read_Count + 1;
@@ -2090,8 +2123,8 @@ package body Ada.Containers.Indefinite_Multiway_Trees is
          L : Natural renames C.Lock;
       begin
          return R : constant Reference_Type :=
-                      (Element => Position.Node.Element.all'Access,
-                       Control => (Controlled with Position.Container))
+           (Element => Position.Node.Element.all'Access,
+            Control => (Controlled with Position.Container))
          do
             B := B + 1;
             L := L + 1;
@@ -2163,7 +2196,16 @@ package body Ada.Containers.Indefinite_Multiway_Trees is
            with "attempt to tamper with elements (tree is locked)";
       end if;
 
-      E := new Element_Type'(New_Item);
+      declare
+         --  The element allocator may need an accessibility check in the case
+         --  the actual type is class-wide or has access discriminants (see
+         --  RM 4.8(10.1) and AI12-0035).
+
+         pragma Unsuppress (Accessibility_Check);
+
+      begin
+         E := new Element_Type'(New_Item);
+      end;
 
       X := Position.Node.Element;
       Position.Node.Element := E;

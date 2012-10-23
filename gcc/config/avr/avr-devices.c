@@ -18,10 +18,12 @@
    along with GCC; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.  */
 
+#ifndef IN_GEN_AVR_MMCU_TEXI
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
+#endif /* IN_GEN_AVR_MMCU_TEXI */
 
 /* List of all known AVR MCU architectures.
    Order as of enum avr_arch from avr.h.  */
@@ -53,6 +55,51 @@ avr_arch_types[] =
   { 0, 1, 1, 1, 1, 1, 0, 1, 1, 0x2000,  0, "105", "avrxmega5" },
   { 0, 1, 1, 1, 1, 1, 1, 1, 0, 0x2000,  0, "106", "avrxmega6" },
   { 0, 1, 1, 1, 1, 1, 1, 1, 1, 0x2000,  0, "107", "avrxmega7" }
+};
+
+const struct arch_info_s
+avr_texinfo[] =
+{
+  { ARCH_AVR1,
+    "This ISA is implemented by the minimal AVR core and supported "
+    "for assembler only." },
+  { ARCH_AVR2,
+    "``Classic'' devices with up to 8@tie{}KiB of program memory." },
+  { ARCH_AVR25,
+    "``Classic'' devices with up to 8@tie{}KiB of program memory and with "
+    "the @code{MOVW} instruction." },
+  { ARCH_AVR3,
+    "``Classic'' devices with 16@tie{}KiB up to 64@tie{}KiB of "
+    " program memory." },
+  { ARCH_AVR31,
+    "``Classic'' devices with 128@tie{}KiB of program memory." },
+  { ARCH_AVR35,
+    "``Classic'' devices with 16@tie{}KiB up to 64@tie{}KiB of "
+    "program memory and with the @code{MOVW} instruction." },
+  { ARCH_AVR4,
+    "``Enhanced'' devices with up to 8@tie{}KiB of program memory." },
+  { ARCH_AVR5,
+    "``Enhanced'' devices with 16@tie{}KiB up to 64@tie{}KiB of "
+    "program memory." },
+  { ARCH_AVR51,
+    "``Enhanced'' devices with 128@tie{}KiB of program memory." },
+  { ARCH_AVR6,
+    "``Enhanced'' devices with 3-byte PC, i.e.@: with more than 128@tie{}KiB "
+    "of program memory." },
+  { ARCH_AVRXMEGA2,
+    "``XMEGA'' devices with more than 8@tie{}KiB and up to 64@tie{}KiB "
+    "of program memory." },
+  { ARCH_AVRXMEGA4,
+    "``XMEGA'' devices with more than 64@tie{}KiB and up to 128@tie{}KiB "
+    "of program memory." },
+  { ARCH_AVRXMEGA5,
+    "``XMEGA'' devices with more than 64@tie{}KiB and up to 128@tie{}KiB "
+    "of program memory and more than 64@tie{}KiB of RAM." },
+  { ARCH_AVRXMEGA6,
+    "``XMEGA'' devices with more than 128@tie{}KiB of program memory." },
+  { ARCH_AVRXMEGA7,
+    "``XMEGA'' devices with more than 128@tie{}KiB of program memory "
+    "and more than 64@tie{}KiB of RAM." }
 };
 
 const struct mcu_type_s avr_mcu_types[] = {

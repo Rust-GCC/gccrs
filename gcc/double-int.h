@@ -1,5 +1,5 @@
 /* Operations with long integers.
-   Copyright (C) 2006, 2007, 2008, 2010 Free Software Foundation, Inc.
+   Copyright (C) 2006, 2007, 2008, 2010, 2012 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -23,7 +23,6 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GENERATOR_FILE
 #include <gmp.h>
 #endif
-#include "coretypes.h"
 
 /* A large integer is currently represented as a pair of HOST_WIDE_INTs.
    It therefore represents a number with precision of
@@ -51,11 +50,150 @@ along with GCC; see the file COPYING3.  If not see
    numbers with precision higher than HOST_WIDE_INT).  It might be less
    confusing to have them both signed or both unsigned.  */
 
-typedef struct
+struct double_int
 {
+  /* Normally, we would define constructors to create instances.
+     Two things prevent us from doing so.
+     First, defining a constructor makes the class non-POD in C++03,
+     and we certainly want double_int to be a POD.
+     Second, the GCC conding conventions prefer explicit conversion,
+     and explicit conversion operators are not available until C++11.  */
+
+  static double_int from_uhwi (unsigned HOST_WIDE_INT cst);
+  static double_int from_shwi (HOST_WIDE_INT cst);
+  static double_int from_pair (HOST_WIDE_INT high, unsigned HOST_WIDE_INT low);
+
+  /* No copy assignment operator or destructor to keep the type a POD.  */
+
+  /* There are some special value-creation static member functions.  */
+
+  static double_int mask (unsigned prec);
+  static double_int max_value (unsigned int prec, bool uns);
+  static double_int min_value (unsigned int prec, bool uns);
+
+  /* The following functions are mutating operations.  */
+
+  double_int &operator ++ (); // prefix
+  double_int &operator -- (); // prefix
+  double_int &operator *= (double_int);
+  double_int &operator += (double_int);
+  double_int &operator -= (double_int);
+  double_int &operator &= (double_int);
+  double_int &operator ^= (double_int);
+  double_int &operator |= (double_int);
+
+  /* The following functions are non-mutating operations.  */
+
+  /* Conversion functions.  */
+
+  HOST_WIDE_INT to_shwi () const;
+  unsigned HOST_WIDE_INT to_uhwi () const;
+
+  /* Conversion query functions.  */
+
+  bool fits_uhwi () const;
+  bool fits_shwi () const;
+  bool fits_hwi (bool uns) const;
+
+  /* Attribute query functions.  */
+
+  int trailing_zeros () const;
+  int popcount () const;
+
+  /* Arithmetic query operations.  */
+
+  bool multiple_of (double_int, bool, double_int *) const;
+
+  /* Arithmetic operation functions.  */
+
+  /* The following operations perform arithmetics modulo 2^precision, so you
+     do not need to call .ext between them, even if you are representing
+     numbers with precision less than HOST_BITS_PER_DOUBLE_INT bits.  */
+
+  double_int set_bit (unsigned) const;
+  double_int mul_with_sign (double_int, bool unsigned_p, bool *overflow) const;
+  double_int wide_mul_with_sign (double_int, bool unsigned_p,
+				 double_int *higher, bool *overflow) const;
+  double_int add_with_sign (double_int, bool unsigned_p, bool *overflow) const;
+  double_int sub_with_overflow (double_int, bool *overflow) const;
+  double_int neg_with_overflow (bool *overflow) const;
+
+  double_int operator * (double_int) const;
+  double_int operator + (double_int) const;
+  double_int operator - (double_int) const;
+  double_int operator - () const;
+  double_int operator ~ () const;
+  double_int operator & (double_int) const;
+  double_int operator | (double_int) const;
+  double_int operator ^ (double_int) const;
+  double_int and_not (double_int) const;
+
+  double_int lshift (HOST_WIDE_INT count, unsigned int prec, bool arith) const;
+  double_int rshift (HOST_WIDE_INT count, unsigned int prec, bool arith) const;
+  double_int alshift (HOST_WIDE_INT count, unsigned int prec) const;
+  double_int arshift (HOST_WIDE_INT count, unsigned int prec) const;
+  double_int llshift (HOST_WIDE_INT count, unsigned int prec) const;
+  double_int lrshift (HOST_WIDE_INT count, unsigned int prec) const;
+  double_int lrotate (HOST_WIDE_INT count, unsigned int prec) const;
+  double_int rrotate (HOST_WIDE_INT count, unsigned int prec) const;
+
+  /* You must ensure that double_int::ext is called on the operands
+     of the following operations, if the precision of the numbers
+     is less than HOST_BITS_PER_DOUBLE_INT bits.  */
+
+  double_int div (double_int, bool, unsigned) const;
+  double_int sdiv (double_int, unsigned) const;
+  double_int udiv (double_int, unsigned) const;
+  double_int mod (double_int, bool, unsigned) const;
+  double_int smod (double_int, unsigned) const;
+  double_int umod (double_int, unsigned) const;
+  double_int divmod_with_overflow (double_int, bool, unsigned,
+				   double_int *, bool *) const;
+  double_int divmod (double_int, bool, unsigned, double_int *) const;
+  double_int sdivmod (double_int, unsigned, double_int *) const;
+  double_int udivmod (double_int, unsigned, double_int *) const;
+
+  /* Precision control functions.  */
+
+  double_int ext (unsigned prec, bool uns) const;
+  double_int zext (unsigned prec) const;
+  double_int sext (unsigned prec) const;
+
+  /* Comparative functions.  */
+
+  bool is_zero () const;
+  bool is_one () const;
+  bool is_minus_one () const;
+  bool is_negative () const;
+
+  int cmp (double_int b, bool uns) const;
+  int ucmp (double_int b) const;
+  int scmp (double_int b) const;
+
+  bool ult (double_int b) const;
+  bool ule (double_int b) const;
+  bool ugt (double_int b) const;
+  bool slt (double_int b) const;
+  bool sle (double_int b) const;
+  bool sgt (double_int b) const;
+
+  double_int max (double_int b, bool uns);
+  double_int smax (double_int b);
+  double_int umax (double_int b);
+
+  double_int min (double_int b, bool uns);
+  double_int smin (double_int b);
+  double_int umin (double_int b);
+
+  bool operator == (double_int cst2) const;
+  bool operator != (double_int cst2) const;
+
+  /* Please migrate away from using these member variables publically.  */
+
   unsigned HOST_WIDE_INT low;
   HOST_WIDE_INT high;
-} double_int;
+
+};
 
 #define HOST_BITS_PER_DOUBLE_INT (2 * HOST_BITS_PER_WIDE_INT)
 
@@ -64,247 +202,249 @@ typedef struct
 /* Constructs double_int from integer CST.  The bits over the precision of
    HOST_WIDE_INT are filled with the sign bit.  */
 
-static inline double_int
-shwi_to_double_int (HOST_WIDE_INT cst)
+inline double_int
+double_int::from_shwi (HOST_WIDE_INT cst)
 {
   double_int r;
-
   r.low = (unsigned HOST_WIDE_INT) cst;
   r.high = cst < 0 ? -1 : 0;
-
   return r;
 }
 
 /* Some useful constants.  */
+/* FIXME(crowl): Maybe remove after converting callers?
+   The problem is that a named constant would not be as optimizable,
+   while the functional syntax is more verbose.  */
 
-#define double_int_minus_one (shwi_to_double_int (-1))
-#define double_int_zero (shwi_to_double_int (0))
-#define double_int_one (shwi_to_double_int (1))
-#define double_int_two (shwi_to_double_int (2))
-#define double_int_ten (shwi_to_double_int (10))
+#define double_int_minus_one (double_int::from_shwi (-1))
+#define double_int_zero (double_int::from_shwi (0))
+#define double_int_one (double_int::from_shwi (1))
+#define double_int_two (double_int::from_shwi (2))
+#define double_int_ten (double_int::from_shwi (10))
 
 /* Constructs double_int from unsigned integer CST.  The bits over the
    precision of HOST_WIDE_INT are filled with zeros.  */
 
-static inline double_int
-uhwi_to_double_int (unsigned HOST_WIDE_INT cst)
+inline double_int
+double_int::from_uhwi (unsigned HOST_WIDE_INT cst)
 {
   double_int r;
-
   r.low = cst;
   r.high = 0;
-
   return r;
 }
 
-/* Returns value of CST as a signed number.  CST must satisfy
-   double_int_fits_in_shwi_p.  */
-
-static inline HOST_WIDE_INT
-double_int_to_shwi (double_int cst)
+inline double_int
+double_int::from_pair (HOST_WIDE_INT high, unsigned HOST_WIDE_INT low)
 {
-  return (HOST_WIDE_INT) cst.low;
+  double_int r;
+  r.low = low;
+  r.high = high;
+  return r;
+}
+
+inline double_int &
+double_int::operator ++ ()
+{
+  *this += double_int_one;
+  return *this;
+}
+
+inline double_int &
+double_int::operator -- ()
+{
+  *this -= double_int_one;
+  return *this;
+}
+
+inline double_int &
+double_int::operator *= (double_int b)
+{
+  *this = *this * b;
+  return *this;
+}
+
+inline double_int &
+double_int::operator += (double_int b)
+{
+  *this = *this + b;
+  return *this;
+}
+
+inline double_int &
+double_int::operator -= (double_int b)
+{
+  *this = *this - b;
+  return *this;
+}
+
+inline double_int &
+double_int::operator &= (double_int b)
+{
+  *this = *this & b;
+  return *this;
+}
+
+inline double_int &
+double_int::operator ^= (double_int b)
+{
+  *this = *this ^ b;
+  return *this;
+}
+
+inline double_int &
+double_int::operator |= (double_int b)
+{
+  *this = *this | b;
+  return *this;
+}
+
+/* Returns value of CST as a signed number.  CST must satisfy
+   double_int::fits_signed.  */
+
+inline HOST_WIDE_INT
+double_int::to_shwi () const
+{
+  return (HOST_WIDE_INT) low;
 }
 
 /* Returns value of CST as an unsigned number.  CST must satisfy
-   double_int_fits_in_uhwi_p.  */
+   double_int::fits_unsigned.  */
 
-static inline unsigned HOST_WIDE_INT
-double_int_to_uhwi (double_int cst)
+inline unsigned HOST_WIDE_INT
+double_int::to_uhwi () const
 {
-  return cst.low;
+  return low;
 }
-
-bool double_int_fits_in_hwi_p (double_int, bool);
-bool double_int_fits_in_shwi_p (double_int);
 
 /* Returns true if CST fits in unsigned HOST_WIDE_INT.  */
 
-static inline bool
-double_int_fits_in_uhwi_p (double_int cst)
+inline bool
+double_int::fits_uhwi () const
 {
-  return cst.high == 0;
+  return high == 0;
 }
-
-/* The following operations perform arithmetics modulo 2^precision,
-   so you do not need to call double_int_ext between them, even if
-   you are representing numbers with precision less than
-   2 * HOST_BITS_PER_WIDE_INT bits.  */
-
-double_int double_int_mul (double_int, double_int);
-double_int double_int_mul_with_sign (double_int, double_int, bool, int *);
-double_int double_int_add (double_int, double_int);
-double_int double_int_sub (double_int, double_int);
-double_int double_int_neg (double_int);
-
-/* You must ensure that double_int_ext is called on the operands
-   of the following operations, if the precision of the numbers
-   is less than 2 * HOST_BITS_PER_WIDE_INT bits.  */
-double_int double_int_div (double_int, double_int, bool, unsigned);
-double_int double_int_sdiv (double_int, double_int, unsigned);
-double_int double_int_udiv (double_int, double_int, unsigned);
-double_int double_int_mod (double_int, double_int, bool, unsigned);
-double_int double_int_smod (double_int, double_int, unsigned);
-double_int double_int_umod (double_int, double_int, unsigned);
-double_int double_int_divmod (double_int, double_int, bool, unsigned, double_int *);
-double_int double_int_sdivmod (double_int, double_int, unsigned, double_int *);
-double_int double_int_udivmod (double_int, double_int, unsigned, double_int *);
-
-double_int double_int_setbit (double_int, unsigned);
-int double_int_ctz (double_int);
 
 /* Logical operations.  */
 
 /* Returns ~A.  */
 
-static inline double_int
-double_int_not (double_int a)
+inline double_int
+double_int::operator ~ () const
 {
-  a.low = ~a.low;
-  a.high = ~a.high;
-  return a;
+  double_int result;
+  result.low = ~low;
+  result.high = ~high;
+  return result;
 }
 
 /* Returns A | B.  */
 
-static inline double_int
-double_int_ior (double_int a, double_int b)
+inline double_int
+double_int::operator | (double_int b) const
 {
-  a.low |= b.low;
-  a.high |= b.high;
-  return a;
+  double_int result;
+  result.low = low | b.low;
+  result.high = high | b.high;
+  return result;
 }
 
 /* Returns A & B.  */
 
-static inline double_int
-double_int_and (double_int a, double_int b)
+inline double_int
+double_int::operator & (double_int b) const
 {
-  a.low &= b.low;
-  a.high &= b.high;
-  return a;
+  double_int result;
+  result.low = low & b.low;
+  result.high = high & b.high;
+  return result;
 }
 
 /* Returns A & ~B.  */
 
-static inline double_int
-double_int_and_not (double_int a, double_int b)
+inline double_int
+double_int::and_not (double_int b) const
 {
-  a.low &= ~b.low;
-  a.high &= ~b.high;
-  return a;
+  double_int result;
+  result.low = low & ~b.low;
+  result.high = high & ~b.high;
+  return result;
 }
 
 /* Returns A ^ B.  */
 
-static inline double_int
-double_int_xor (double_int a, double_int b)
+inline double_int
+double_int::operator ^ (double_int b) const
 {
-  a.low ^= b.low;
-  a.high ^= b.high;
-  return a;
+  double_int result;
+  result.low = low ^ b.low;
+  result.high = high ^ b.high;
+  return result;
 }
-
-
-/* Shift operations.  */
-double_int double_int_lshift (double_int, HOST_WIDE_INT, unsigned int, bool);
-double_int double_int_rshift (double_int, HOST_WIDE_INT, unsigned int, bool);
-double_int double_int_lrotate (double_int, HOST_WIDE_INT, unsigned int);
-double_int double_int_rrotate (double_int, HOST_WIDE_INT, unsigned int);
-
-/* Returns true if CST is negative.  Of course, CST is considered to
-   be signed.  */
-
-static inline bool
-double_int_negative_p (double_int cst)
-{
-  return cst.high < 0;
-}
-
-int double_int_cmp (double_int, double_int, bool);
-int double_int_scmp (double_int, double_int);
-int double_int_ucmp (double_int, double_int);
-
-double_int double_int_max (double_int, double_int, bool);
-double_int double_int_smax (double_int, double_int);
-double_int double_int_umax (double_int, double_int);
-
-double_int double_int_min (double_int, double_int, bool);
-double_int double_int_smin (double_int, double_int);
-double_int double_int_umin (double_int, double_int);
 
 void dump_double_int (FILE *, double_int, bool);
-
-/* Zero and sign extension of numbers in smaller precisions.  */
-
-double_int double_int_ext (double_int, unsigned, bool);
-double_int double_int_sext (double_int, unsigned);
-double_int double_int_zext (double_int, unsigned);
-double_int double_int_mask (unsigned);
 
 #define ALL_ONES (~((unsigned HOST_WIDE_INT) 0))
 
 /* The operands of the following comparison functions must be processed
    with double_int_ext, if their precision is less than
-   2 * HOST_BITS_PER_WIDE_INT bits.  */
+   HOST_BITS_PER_DOUBLE_INT bits.  */
 
 /* Returns true if CST is zero.  */
 
-static inline bool
-double_int_zero_p (double_int cst)
+inline bool
+double_int::is_zero () const
 {
-  return cst.low == 0 && cst.high == 0;
+  return low == 0 && high == 0;
 }
 
 /* Returns true if CST is one.  */
 
-static inline bool
-double_int_one_p (double_int cst)
+inline bool
+double_int::is_one () const
 {
-  return cst.low == 1 && cst.high == 0;
+  return low == 1 && high == 0;
 }
 
 /* Returns true if CST is minus one.  */
 
-static inline bool
-double_int_minus_one_p (double_int cst)
+inline bool
+double_int::is_minus_one () const
 {
-  return (cst.low == ALL_ONES && cst.high == -1);
+  return low == ALL_ONES && high == -1;
+}
+
+/* Returns true if CST is negative.  */
+
+inline bool
+double_int::is_negative () const
+{
+  return high < 0;
 }
 
 /* Returns true if CST1 == CST2.  */
 
-static inline bool
-double_int_equal_p (double_int cst1, double_int cst2)
+inline bool
+double_int::operator == (double_int cst2) const
 {
-  return cst1.low == cst2.low && cst1.high == cst2.high;
+  return low == cst2.low && high == cst2.high;
 }
 
+/* Returns true if CST1 != CST2.  */
 
-/* Legacy interface with decomposed high/low parts.  */
+inline bool
+double_int::operator != (double_int cst2) const
+{
+  return low != cst2.low || high != cst2.high;
+}
 
-extern int add_double_with_sign (unsigned HOST_WIDE_INT, HOST_WIDE_INT,
-				 unsigned HOST_WIDE_INT, HOST_WIDE_INT,
-				 unsigned HOST_WIDE_INT *, HOST_WIDE_INT *,
-				 bool);
-#define add_double(l1,h1,l2,h2,lv,hv) \
-  add_double_with_sign (l1, h1, l2, h2, lv, hv, false)
-extern int neg_double (unsigned HOST_WIDE_INT, HOST_WIDE_INT,
-		       unsigned HOST_WIDE_INT *, HOST_WIDE_INT *);
-extern int mul_double_with_sign (unsigned HOST_WIDE_INT, HOST_WIDE_INT,
-				 unsigned HOST_WIDE_INT, HOST_WIDE_INT,
-				 unsigned HOST_WIDE_INT *, HOST_WIDE_INT *,
-				 bool);
-#define mul_double(l1,h1,l2,h2,lv,hv) \
-  mul_double_with_sign (l1, h1, l2, h2, lv, hv, false)
-extern void lshift_double (unsigned HOST_WIDE_INT, HOST_WIDE_INT,
-			   HOST_WIDE_INT, unsigned int,
-			   unsigned HOST_WIDE_INT *, HOST_WIDE_INT *, bool);
-extern int div_and_round_double (unsigned, int, unsigned HOST_WIDE_INT,
-				 HOST_WIDE_INT, unsigned HOST_WIDE_INT,
-				 HOST_WIDE_INT, unsigned HOST_WIDE_INT *,
-				 HOST_WIDE_INT *, unsigned HOST_WIDE_INT *,
-				 HOST_WIDE_INT *);
+/* Return number of set bits of CST.  */
+
+inline int
+double_int::popcount () const
+{
+  return popcount_hwi (high) + popcount_hwi (low);
+}
 
 
 #ifndef GENERATOR_FILE

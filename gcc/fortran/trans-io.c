@@ -664,7 +664,7 @@ gfc_convert_array_to_string (gfc_se * se, gfc_expr * e)
       return;
     }
 
-  gfc_conv_array_parameter (se, e, gfc_walk_expr (e), true, NULL, NULL, &size);
+  gfc_conv_array_parameter (se, e, true, NULL, NULL, &size);
   se->string_length = fold_convert (gfc_charlen_type_node, size);
 }
 
@@ -780,8 +780,6 @@ set_internal_unit (stmtblock_t * block, stmtblock_t * post_block,
   /* Character array.  */
   else if (e->rank > 0)
     {
-      se.ss = gfc_walk_expr (e);
-
       if (is_subref_array (e))
 	{
 	  /* Use a temporary for components of arrays of derived types
@@ -796,7 +794,7 @@ set_internal_unit (stmtblock_t * block, stmtblock_t * post_block,
       else
 	{
 	  /* Return the data pointer and rank from the descriptor.  */
-	  gfc_conv_expr_descriptor (&se, e, se.ss);
+	  gfc_conv_expr_descriptor (&se, e);
 	  tmp = gfc_conv_descriptor_data_get (se.expr);
 	  se.expr = gfc_build_addr_expr (pchar_type_node, se.expr);
 	}
@@ -882,7 +880,8 @@ io_result (stmtblock_t * block, tree var, gfc_st_label * err_label,
 			rc, build_int_cst (TREE_TYPE (rc),
 					   IOPARM_common_libreturn_mask));
 
-  tmp = build3_v (SWITCH_EXPR, rc, tmp, NULL_TREE);
+  tmp = fold_build3_loc (input_location, SWITCH_EXPR, NULL_TREE,
+			 rc, tmp, NULL_TREE);
 
   gfc_add_expr_to_block (block, tmp);
 }
@@ -1612,7 +1611,7 @@ transfer_namelist_element (stmtblock_t * block, const char * var_name,
       gfc_add_expr_to_block (block, tmp);
     }
 
-  if (ts->type == BT_DERIVED)
+  if (ts->type == BT_DERIVED && ts->u.derived->components)
     {
       gfc_component *cmp;
 
@@ -2147,6 +2146,9 @@ transfer_expr (gfc_se * se, gfc_typespec * ts, tree addr_expr, gfc_code * code)
       break;
 
     case BT_DERIVED:
+      if (ts->u.derived->components == NULL)
+	return;
+
       /* Recurse into the elements of the derived type.  */
       expr = gfc_evaluate_now (addr_expr, &se->pre);
       expr = build_fold_indirect_ref_loc (input_location,
@@ -2235,12 +2237,10 @@ gfc_trans_transfer (gfc_code * code)
   gfc_init_block (&body);
 
   expr = code->expr1;
-  ss = gfc_walk_expr (expr);
-
   ref = NULL;
   gfc_init_se (&se, NULL);
 
-  if (ss == gfc_ss_terminator)
+  if (expr->rank == 0)
     {
       /* Transfer a scalar value.  */
       gfc_conv_expr_reference (&se, expr);
@@ -2251,11 +2251,11 @@ gfc_trans_transfer (gfc_code * code)
       /* Transfer an array. If it is an array of an intrinsic
 	 type, pass the descriptor to the library.  Otherwise
 	 scalarize the transfer.  */
-      if (expr->ref && !gfc_is_proc_ptr_comp (expr, NULL))
+      if (expr->ref && !gfc_is_proc_ptr_comp (expr))
 	{
 	  for (ref = expr->ref; ref && ref->type != REF_ARRAY;
-		 ref = ref->next);
-	  gcc_assert (ref->type == REF_ARRAY);
+	    ref = ref->next);
+	  gcc_assert (ref && ref->type == REF_ARRAY);
 	}
 
       if (expr->ts.type != BT_DERIVED
@@ -2280,15 +2280,16 @@ gfc_trans_transfer (gfc_code * code)
 	  else
 	    {
 	      /* Get the descriptor.  */
-	      gfc_conv_expr_descriptor (&se, expr, ss);
+	      gfc_conv_expr_descriptor (&se, expr);
 	      tmp = gfc_build_addr_expr (NULL_TREE, se.expr);
 	    }
 
 	  transfer_array_desc (&se, &expr->ts, tmp);
 	  goto finish_block_label;
 	}
-      
+
       /* Initialize the scalarizer.  */
+      ss = gfc_walk_expr (expr);
       gfc_init_loopinfo (&loop);
       gfc_add_ss_to_loop (&loop, ss);
 
@@ -2316,6 +2317,7 @@ gfc_trans_transfer (gfc_code * code)
     tmp = gfc_finish_block (&body);
   else
     {
+      gcc_assert (expr->rank != 0);
       gcc_assert (se.ss == gfc_ss_terminator);
       gfc_trans_scalarizing_loops (&loop, &body);
 

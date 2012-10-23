@@ -1,29 +1,6 @@
-2012-09-20  Release Manager
-
-	* GCC 4.7.2 released.
-
-2012-06-14  Release Manager
-
-	* GCC 4.7.1 released.
-
 2012-06-11  Olivier Hainque  <hainque@adacore.com>
 
 	* Makefile.in (GNATLIBCFLAGS_FOR_C): Remove $(PICFLAG).
-
-2012-05-06  Pascal Obry  <obry@adacore.com>
-
-	Revert
-	2012-02-24  Dave Korn  <dave.korn.cygwin@gmail.com>
-
-	* Makefile.in (bindir): Import from autoconf and pass down to submake.
-
-2012-03-22  Release Manager
-
-	* GCC 4.7.0 released.
-
-2012-02-24  Dave Korn  <dave.korn.cygwin@gmail.com>
-
-	* Makefile.in (bindir): Import from autoconf and pass down to submake.
 
 2012-01-22  Douglas B Rupp  <rupp@gnat.com>
 
@@ -120,7 +97,7 @@
 
 2008-09-21  Laurent Guerby  <laurent@guerby.net>
             Paolo Bonzini  <bonzini@gnu.org>
-	
+
 	PR ada/5911
 	* Makefile.in (all, install, mostlyclean, clean, distclean): Add
 	multilib handling.
@@ -128,7 +105,7 @@
 	* configure: Regenerate.
 
 2008-08-29  Laurent Guerby  <laurent@guerby.net>
-	
+
 	* Makefile.in (FLAGS_TO_PASS): renamed to LIBADA_FLAGS_TO_PASS to
 	avoid conflicts. Factor more flags to pass.
 	(libsubdir): New variable.
@@ -137,7 +114,7 @@
 2008-08-28  Laurent Guerby  <laurent@guerby.net>
 
 	* configure: Regenerate.
-	
+
 2008-08-06  Thomas Quinot  <quinot@adacore.com>
 
 	* Makefile.in: generate s-oscons.ads again, previous change was

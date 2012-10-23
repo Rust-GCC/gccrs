@@ -1,7 +1,7 @@
 /* Analyze RTL for GNU compiler.
    Copyright (C) 1987, 1988, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
    1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
-   2011 Free Software Foundation, Inc.
+   2011, 2012 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -97,10 +97,7 @@ rtx_unstable_p (const_rtx x)
       return !MEM_READONLY_P (x) || rtx_unstable_p (XEXP (x, 0));
 
     case CONST:
-    case CONST_INT:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
-    case CONST_VECTOR:
+    CASE_CONST_ANY:
     case SYMBOL_REF:
     case LABEL_REF:
       return 0;
@@ -170,10 +167,7 @@ rtx_varies_p (const_rtx x, bool for_alias)
       return !MEM_READONLY_P (x) || rtx_varies_p (XEXP (x, 0), for_alias);
 
     case CONST:
-    case CONST_INT:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
-    case CONST_VECTOR:
+    CASE_CONST_ANY:
     case SYMBOL_REF:
     case LABEL_REF:
       return 0;
@@ -472,6 +466,22 @@ rtx_addr_varies_p (const_rtx x, bool for_alias)
   return 0;
 }
 
+/* Return the CALL in X if there is one.  */
+
+rtx
+get_call_rtx_from (rtx x)
+{
+  if (INSN_P (x))
+    x = PATTERN (x);
+  if (GET_CODE (x) == PARALLEL)
+    x = XVECEXP (x, 0, 0);
+  if (GET_CODE (x) == SET)
+    x = SET_SRC (x);
+  if (GET_CODE (x) == CALL && MEM_P (XEXP (x, 0)))
+    return x;
+  return NULL_RTX;
+}
+
 /* Return the value of the integer term in X, if one is apparent;
    otherwise return 0.
    Only obvious integer terms are detected.
@@ -585,10 +595,7 @@ count_occurrences (const_rtx x, const_rtx find, int count_dest)
   switch (code)
     {
     case REG:
-    case CONST_INT:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
-    case CONST_VECTOR:
+    CASE_CONST_ANY:
     case SYMBOL_REF:
     case CODE_LABEL:
     case PC:
@@ -636,6 +643,25 @@ count_occurrences (const_rtx x, const_rtx find, int count_dest)
 }
 
 
+/* Return TRUE if OP is a register or subreg of a register that
+   holds an unsigned quantity.  Otherwise, return FALSE.  */
+
+bool
+unsigned_reg_p (rtx op)
+{
+  if (REG_P (op)
+      && REG_EXPR (op)
+      && TYPE_UNSIGNED (TREE_TYPE (REG_EXPR (op))))
+    return true;
+
+  if (GET_CODE (op) == SUBREG
+      && SUBREG_PROMOTED_UNSIGNED_P (op))
+    return true;
+
+  return false;
+}
+
+
 /* Nonzero if register REG appears somewhere within IN.
    Also works if REG is not a register; in this case it checks
    for a subexpression of IN that is Lisp "equal" to REG.  */
@@ -671,10 +697,7 @@ reg_mentioned_p (const_rtx reg, const_rtx in)
     case PC:
       return 0;
 
-    case CONST_INT:
-    case CONST_VECTOR:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
+    CASE_CONST_ANY:
       /* These are kept unique for a given value.  */
       return 0;
 
@@ -868,10 +891,7 @@ modified_between_p (const_rtx x, const_rtx start, const_rtx end)
 
   switch (code)
     {
-    case CONST_INT:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
-    case CONST_VECTOR:
+    CASE_CONST_ANY:
     case CONST:
     case SYMBOL_REF:
     case LABEL_REF:
@@ -927,10 +947,7 @@ modified_in_p (const_rtx x, const_rtx insn)
 
   switch (code)
     {
-    case CONST_INT:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
-    case CONST_VECTOR:
+    CASE_CONST_ANY:
     case CONST:
     case SYMBOL_REF:
     case LABEL_REF:
@@ -1700,8 +1717,9 @@ dead_or_set_regno_p (const_rtx insn, unsigned int test_regno)
 
   pattern = PATTERN (insn);
 
+  /* If a COND_EXEC is not executed, the value survives.  */
   if (GET_CODE (pattern) == COND_EXEC)
-    pattern = COND_EXEC_CODE (pattern);
+    return 0;
 
   if (GET_CODE (pattern) == SET)
     return covers_regno_p (SET_DEST (pattern), test_regno);
@@ -2076,11 +2094,8 @@ volatile_insn_p (const_rtx x)
     {
     case LABEL_REF:
     case SYMBOL_REF:
-    case CONST_INT:
     case CONST:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
-    case CONST_VECTOR:
+    CASE_CONST_ANY:
     case CC0:
     case PC:
     case REG:
@@ -2141,11 +2156,8 @@ volatile_refs_p (const_rtx x)
     {
     case LABEL_REF:
     case SYMBOL_REF:
-    case CONST_INT:
     case CONST:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
-    case CONST_VECTOR:
+    CASE_CONST_ANY:
     case CC0:
     case PC:
     case REG:
@@ -2204,11 +2216,8 @@ side_effects_p (const_rtx x)
     {
     case LABEL_REF:
     case SYMBOL_REF:
-    case CONST_INT:
     case CONST:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
-    case CONST_VECTOR:
+    CASE_CONST_ANY:
     case CC0:
     case PC:
     case REG:
@@ -2293,10 +2302,7 @@ may_trap_p_1 (const_rtx x, unsigned flags)
   switch (code)
     {
       /* Handle these cases quickly.  */
-    case CONST_INT:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
-    case CONST_VECTOR:
+    CASE_CONST_ANY:
     case SYMBOL_REF:
     case LABEL_REF:
     case CONST:
@@ -2495,10 +2501,7 @@ inequality_comparisons_p (const_rtx x)
     case SCRATCH:
     case PC:
     case CC0:
-    case CONST_INT:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
-    case CONST_VECTOR:
+    CASE_CONST_ANY:
     case CONST:
     case LABEL_REF:
     case SYMBOL_REF:
@@ -2551,11 +2554,6 @@ replace_rtx (rtx x, rtx from, rtx to)
 {
   int i, j;
   const char *fmt;
-
-  /* The following prevents loops occurrence when we change MEM in
-     CONST_DOUBLE onto the same CONST_DOUBLE.  */
-  if (x != 0 && GET_CODE (x) == CONST_DOUBLE)
-    return x;
 
   if (x == from)
     return to;
@@ -2746,10 +2744,7 @@ computed_jump_p_1 (const_rtx x)
       return 0;
 
     case CONST:
-    case CONST_INT:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
-    case CONST_VECTOR:
+    CASE_CONST_ANY:
     case SYMBOL_REF:
     case REG:
       return 1;
@@ -3736,9 +3731,16 @@ rtx_cost (rtx x, enum rtx_code outer_code, int opno, bool speed)
   enum rtx_code code;
   const char *fmt;
   int total;
+  int factor;
 
   if (x == 0)
     return 0;
+
+  /* A size N times larger than UNITS_PER_WORD likely needs N times as
+     many insns, taking N times as long.  */
+  factor = GET_MODE_SIZE (GET_MODE (x)) / UNITS_PER_WORD;
+  if (factor == 0)
+    factor = 1;
 
   /* Compute the default costs of certain things.
      Note that targetm.rtx_costs can override the defaults.  */
@@ -3747,20 +3749,31 @@ rtx_cost (rtx x, enum rtx_code outer_code, int opno, bool speed)
   switch (code)
     {
     case MULT:
-      total = COSTS_N_INSNS (5);
+      /* Multiplication has time-complexity O(N*N), where N is the
+	 number of units (translated from digits) when using
+	 schoolbook long multiplication.  */
+      total = factor * factor * COSTS_N_INSNS (5);
       break;
     case DIV:
     case UDIV:
     case MOD:
     case UMOD:
-      total = COSTS_N_INSNS (7);
+      /* Similarly, complexity for schoolbook long division.  */
+      total = factor * factor * COSTS_N_INSNS (7);
       break;
     case USE:
       /* Used in combine.c as a marker.  */
       total = 0;
       break;
+    case SET:
+      /* A SET doesn't have a mode, so let's look at the SET_DEST to get
+	 the mode for the factor.  */
+      factor = GET_MODE_SIZE (GET_MODE (SET_DEST (x))) / UNITS_PER_WORD;
+      if (factor == 0)
+	factor = 1;
+      /* Pass through.  */
     default:
-      total = COSTS_N_INSNS (1);
+      total = factor * COSTS_N_INSNS (1);
     }
 
   switch (code)
@@ -3773,8 +3786,7 @@ rtx_cost (rtx x, enum rtx_code outer_code, int opno, bool speed)
       /* If we can't tie these modes, make this expensive.  The larger
 	 the mode, the more expensive it is.  */
       if (! MODES_TIEABLE_P (GET_MODE (x), GET_MODE (SUBREG_REG (x))))
-	return COSTS_N_INSNS (2
-			      + GET_MODE_SIZE (GET_MODE (x)) / UNITS_PER_WORD);
+	return COSTS_N_INSNS (2 + factor);
       break;
 
     default:
@@ -3825,13 +3837,13 @@ address_cost (rtx x, enum machine_mode mode, addr_space_t as, bool speed)
   if (!memory_address_addr_space_p (mode, x, as))
     return 1000;
 
-  return targetm.address_cost (x, speed);
+  return targetm.address_cost (x, mode, as, speed);
 }
 
 /* If the target doesn't override, compute the cost as with arithmetic.  */
 
 int
-default_address_cost (rtx x, bool speed)
+default_address_cost (rtx x, enum machine_mode, addr_space_t, bool speed)
 {
   return rtx_cost (x, MEM, 0, speed);
 }
@@ -3962,7 +3974,7 @@ nonzero_bits1 (const_rtx x, enum machine_mode mode, const_rtx known_x,
 #if defined(POINTERS_EXTEND_UNSIGNED) && !defined(HAVE_ptr_extend)
       /* If pointers extend unsigned and this is a pointer in Pmode, say that
 	 all the bits above ptr_mode are known to be zero.  */
-      /* As we do not know which address space the pointer is refering to,
+      /* As we do not know which address space the pointer is referring to,
 	 we can do this only if the target does not support different pointer
 	 or address modes depending on the address space.  */
       if (target_default_pointer_address_modes_p ()
@@ -4472,7 +4484,7 @@ num_sign_bit_copies1 (const_rtx x, enum machine_mode mode, const_rtx known_x,
 #if defined(POINTERS_EXTEND_UNSIGNED) && !defined(HAVE_ptr_extend)
       /* If pointers extend signed and this is a pointer in Pmode, say that
 	 all the bits above ptr_mode are known to be sign bit copies.  */
-      /* As we do not know which address space the pointer is refering to,
+      /* As we do not know which address space the pointer is referring to,
 	 we can do this only if the target does not support different pointer
 	 or address modes depending on the address space.  */
       if (target_default_pointer_address_modes_p ()
@@ -5241,7 +5253,7 @@ bool
 constant_pool_constant_p (rtx x)
 {
   x = avoid_constant_pool_reference (x);
-  return GET_CODE (x) == CONST_DOUBLE;
+  return CONST_DOUBLE_P (x);
 }
 
 /* If M is a bitmask that selects a field of low-order bits within an item but
@@ -5260,3 +5272,161 @@ low_bitmask_len (enum machine_mode mode, unsigned HOST_WIDE_INT m)
 
   return exact_log2 (m + 1);
 }
+
+/* Return the mode of MEM's address.  */
+
+enum machine_mode
+get_address_mode (rtx mem)
+{
+  enum machine_mode mode;
+
+  gcc_assert (MEM_P (mem));
+  mode = GET_MODE (XEXP (mem, 0));
+  if (mode != VOIDmode)
+    return mode;
+  return targetm.addr_space.address_mode (MEM_ADDR_SPACE (mem));
+}
+
+/* Split up a CONST_DOUBLE or integer constant rtx
+   into two rtx's for single words,
+   storing in *FIRST the word that comes first in memory in the target
+   and in *SECOND the other.  */
+
+void
+split_double (rtx value, rtx *first, rtx *second)
+{
+  if (CONST_INT_P (value))
+    {
+      if (HOST_BITS_PER_WIDE_INT >= (2 * BITS_PER_WORD))
+	{
+	  /* In this case the CONST_INT holds both target words.
+	     Extract the bits from it into two word-sized pieces.
+	     Sign extend each half to HOST_WIDE_INT.  */
+	  unsigned HOST_WIDE_INT low, high;
+	  unsigned HOST_WIDE_INT mask, sign_bit, sign_extend;
+	  unsigned bits_per_word = BITS_PER_WORD;
+
+	  /* Set sign_bit to the most significant bit of a word.  */
+	  sign_bit = 1;
+	  sign_bit <<= bits_per_word - 1;
+
+	  /* Set mask so that all bits of the word are set.  We could
+	     have used 1 << BITS_PER_WORD instead of basing the
+	     calculation on sign_bit.  However, on machines where
+	     HOST_BITS_PER_WIDE_INT == BITS_PER_WORD, it could cause a
+	     compiler warning, even though the code would never be
+	     executed.  */
+	  mask = sign_bit << 1;
+	  mask--;
+
+	  /* Set sign_extend as any remaining bits.  */
+	  sign_extend = ~mask;
+
+	  /* Pick the lower word and sign-extend it.  */
+	  low = INTVAL (value);
+	  low &= mask;
+	  if (low & sign_bit)
+	    low |= sign_extend;
+
+	  /* Pick the higher word, shifted to the least significant
+	     bits, and sign-extend it.  */
+	  high = INTVAL (value);
+	  high >>= bits_per_word - 1;
+	  high >>= 1;
+	  high &= mask;
+	  if (high & sign_bit)
+	    high |= sign_extend;
+
+	  /* Store the words in the target machine order.  */
+	  if (WORDS_BIG_ENDIAN)
+	    {
+	      *first = GEN_INT (high);
+	      *second = GEN_INT (low);
+	    }
+	  else
+	    {
+	      *first = GEN_INT (low);
+	      *second = GEN_INT (high);
+	    }
+	}
+      else
+	{
+	  /* The rule for using CONST_INT for a wider mode
+	     is that we regard the value as signed.
+	     So sign-extend it.  */
+	  rtx high = (INTVAL (value) < 0 ? constm1_rtx : const0_rtx);
+	  if (WORDS_BIG_ENDIAN)
+	    {
+	      *first = high;
+	      *second = value;
+	    }
+	  else
+	    {
+	      *first = value;
+	      *second = high;
+	    }
+	}
+    }
+  else if (!CONST_DOUBLE_P (value))
+    {
+      if (WORDS_BIG_ENDIAN)
+	{
+	  *first = const0_rtx;
+	  *second = value;
+	}
+      else
+	{
+	  *first = value;
+	  *second = const0_rtx;
+	}
+    }
+  else if (GET_MODE (value) == VOIDmode
+	   /* This is the old way we did CONST_DOUBLE integers.  */
+	   || GET_MODE_CLASS (GET_MODE (value)) == MODE_INT)
+    {
+      /* In an integer, the words are defined as most and least significant.
+	 So order them by the target's convention.  */
+      if (WORDS_BIG_ENDIAN)
+	{
+	  *first = GEN_INT (CONST_DOUBLE_HIGH (value));
+	  *second = GEN_INT (CONST_DOUBLE_LOW (value));
+	}
+      else
+	{
+	  *first = GEN_INT (CONST_DOUBLE_LOW (value));
+	  *second = GEN_INT (CONST_DOUBLE_HIGH (value));
+	}
+    }
+  else
+    {
+      REAL_VALUE_TYPE r;
+      long l[2];
+      REAL_VALUE_FROM_CONST_DOUBLE (r, value);
+
+      /* Note, this converts the REAL_VALUE_TYPE to the target's
+	 format, splits up the floating point double and outputs
+	 exactly 32 bits of it into each of l[0] and l[1] --
+	 not necessarily BITS_PER_WORD bits.  */
+      REAL_VALUE_TO_TARGET_DOUBLE (r, l);
+
+      /* If 32 bits is an entire word for the target, but not for the host,
+	 then sign-extend on the host so that the number will look the same
+	 way on the host that it would on the target.  See for instance
+	 simplify_unary_operation.  The #if is needed to avoid compiler
+	 warnings.  */
+
+#if HOST_BITS_PER_LONG > 32
+      if (BITS_PER_WORD < HOST_BITS_PER_LONG && BITS_PER_WORD == 32)
+	{
+	  if (l[0] & ((long) 1 << 31))
+	    l[0] |= ((long) (-1) << 32);
+	  if (l[1] & ((long) 1 << 31))
+	    l[1] |= ((long) (-1) << 32);
+	}
+#endif
+
+      *first = GEN_INT (l[0]);
+      *second = GEN_INT (l[1]);
+    }
+}
+

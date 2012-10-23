@@ -142,9 +142,6 @@ C ObjC C++ ObjC++ Joined Separate
 -pedantic
 C ObjC C++ ObjC++ Alias(pedantic)
 
--pedantic-errors
-C ObjC C++ ObjC++ Alias(pedantic-errors)
-
 -preprocess
 C ObjC C++ ObjC++ Undocumented Alias(E)
 
@@ -264,7 +261,7 @@ Wpsabi
 C ObjC C++ ObjC++ LTO Var(warn_psabi) Init(1) Undocumented
 
 Waddress
-C ObjC C++ ObjC++ Var(warn_address) Warning
+C ObjC C++ ObjC++ Var(warn_address) Warning LangEnabledBy(C ObjC C++ ObjC++,Wall)
 Warn about suspicious uses of memory addresses
 
 Wall
@@ -288,7 +285,7 @@ C ObjC Var(warn_cxx_compat) Warning
 Warn about C constructs that are not in the common subset of C and C++
 
 Wc++0x-compat
-C++ ObjC++ Var(warn_cxx0x_compat) Warning
+C++ ObjC++ Var(warn_cxx0x_compat) Warning LangEnabledBy(C++ ObjC++,Wall)
 Deprecated in favor of -Wc++11-compat
 
 Wc++11-compat
@@ -300,11 +297,11 @@ C ObjC C++ ObjC++ Var(warn_cast_qual) Warning
 Warn about casts which discard qualifiers
 
 Wchar-subscripts
-C ObjC C++ ObjC++ Var(warn_char_subscripts) Warning
+C ObjC C++ ObjC++ Var(warn_char_subscripts) Warning LangEnabledBy(C ObjC C++ ObjC++,Wall)
 Warn about subscripts whose type is \"char\"
 
 Wclobbered
-C ObjC C++ ObjC++ Var(warn_clobbered) Init(-1) Warning
+C ObjC C++ ObjC++ Var(warn_clobbered) Warning EnabledBy(Wextra)
 Warn about variables that might be changed by \"longjmp\" or \"vfork\"
 
 Wcomment
@@ -323,10 +320,6 @@ Wconversion-null
 C++ ObjC++ Var(warn_conversion_null) Init(1) Warning
 Warn for converting NULL from/to a non-pointer type
 
-Wsign-conversion
-C ObjC C++ ObjC++ Var(warn_sign_conversion) Init(-1)
-Warn for implicit type conversions between signed and unsigned integers
-
 Wctor-dtor-privacy
 C++ ObjC++ Var(warn_ctor_dtor_privacy) Warning
 Warn when all constructors and destructors are private
@@ -336,7 +329,7 @@ C ObjC Var(warn_declaration_after_statement) Warning
 Warn when a declaration is found after a statement
 
 Wdelete-non-virtual-dtor
-C++ ObjC++ Var(warn_delnonvdtor) Warning
+C++ ObjC++ Var(warn_delnonvdtor) Warning LangEnabledBy(C++ ObjC++,Wall)
 Warn about deleting polymorphic objects with non-virtual destructors
 
 Wdeprecated
@@ -352,7 +345,7 @@ C++ ObjC++ Var(warn_ecpp) Warning
 Warn about violations of Effective C++ style rules
 
 Wempty-body
-C ObjC C++ ObjC++ Var(warn_empty_body) Init(-1) Warning
+C ObjC C++ ObjC++ Var(warn_empty_body) Warning EnabledBy(Wextra)
 Warn about an empty body in an if or else statement
 
 Wendif-labels
@@ -407,15 +400,15 @@ Wformat=
 C ObjC C++ ObjC++ Joined Warning
 
 Wignored-qualifiers
-C C++ Var(warn_ignored_qualifiers) Init(-1) Warning
+C C++ Var(warn_ignored_qualifiers) Warning EnabledBy(Wextra)
 Warn whenever type qualifiers are ignored.
 
 Winit-self
-C ObjC C++ ObjC++ Var(warn_init_self) Warning
+C ObjC C++ ObjC++ Var(warn_init_self) Warning LangEnabledBy(C++ ObjC++,Wall)
 Warn about variables which are initialized to themselves
 
 Wimplicit
-C ObjC Var(warn_implicit) Init(-1) Warning
+C ObjC Var(warn_implicit) Warning LangEnabledBy(C ObjC,Wall)
 Warn about implicit declarations
 
 Wdouble-promotion
@@ -423,11 +416,11 @@ C ObjC C++ ObjC++ Var(warn_double_promotion) Warning
 Warn about implicit conversions from \"float\" to \"double\"
 
 Wimplicit-function-declaration
-C ObjC Var(warn_implicit_function_declaration) Init(-1) Warning
+C ObjC Var(warn_implicit_function_declaration) Init(-1) Warning LangEnabledBy(C ObjC,Wimplicit)
 Warn about implicit function declarations
 
 Wimplicit-int
-C ObjC Var(warn_implicit_int) Init(-1) Warning
+C ObjC Var(warn_implicit_int) Warning LangEnabledBy(C ObjC,Wimplicit)
 Warn when a declaration does not specify a type
 
 Wimport
@@ -446,8 +439,12 @@ C ObjC C++ ObjC++ Warning
 Warn about PCH files that are found but not used
 
 Wjump-misses-init
-C ObjC Var(warn_jump_misses_init) Init(-1) Warning
+C ObjC Var(warn_jump_misses_init) Warning LangEnabledby(C ObjC,Wc++-compat)
 Warn when a jump misses a variable initialization
+
+Wliteral-suffix
+C++ ObjC++ Warning
+Warn when a string or character literal is followed by a ud-suffix which does not begin with an underscore.
 
 Wlogical-op
 C ObjC C++ ObjC++ Var(warn_logical_op) Init(0) Warning 
@@ -462,7 +459,7 @@ C ObjC C++ ObjC++ Var(warn_main) Init(-1) Warning
 Warn about suspicious declarations of \"main\"
 
 Wmissing-braces
-C ObjC C++ ObjC++ Var(warn_missing_braces) Warning
+C ObjC C++ ObjC++ Var(warn_missing_braces) Warning LangEnabledBy(C ObjC,Wall)
 Warn about possibly missing braces around initializers
 
 Wmissing-declarations
@@ -470,19 +467,26 @@ C ObjC C++ ObjC++ Var(warn_missing_declarations) Warning
 Warn about global functions without previous declarations
 
 Wmissing-field-initializers
-C ObjC C++ ObjC++ Var(warn_missing_field_initializers) Init(-1) Warning
+C ObjC C++ ObjC++ Var(warn_missing_field_initializers) Warning EnabledBy(Wextra)
 Warn about missing fields in struct initializers
 
-Wmissing-format-attribute
-C ObjC C++ ObjC++ Var(warn_missing_format_attribute) Warning
+Wsizeof-pointer-memaccess
+C ObjC C++ ObjC++ Var(warn_sizeof_pointer_memaccess) Warning LangEnabledBy(C ObjC C++ ObjC++,Wall)
+
+Wsuggest-attribute=format
+C ObjC C++ ObjC++ Var(warn_suggest_attribute_format) Warning
 Warn about functions which might be candidates for format attributes
+
+Wmissing-format-attribute
+C ObjC C++ ObjC++ Alias(Wsuggest-attribute=format)
+;
 
 Wmissing-include-dirs
 C ObjC C++ ObjC++ Warning
 Warn about user-specified include directories that do not exist
 
 Wmissing-parameter-type
-C ObjC Var(warn_missing_parameter_type) Init(-1) Warning
+C ObjC Var(warn_missing_parameter_type) Warning EnabledBy(Wextra)
 Warn about function parameters declared without a type specifier in K&R-style functions
 
 Wmissing-prototypes
@@ -498,8 +502,12 @@ C ObjC C++ ObjC++ Warning
 Warn about use of multi-character character constants
 
 Wnarrowing
-C ObjC C++ ObjC++ Warning Var(warn_narrowing) Init(-1)
+C ObjC C++ ObjC++ Warning Var(warn_narrowing) Init(-1) LangEnabledBy(C++ ObjC++,Wall)
 Warn about narrowing conversions within { } that are ill-formed in C++11
+
+Wnarrowing
+C ObjC C++ ObjC++ LangEnabledBy(C++ ObjC++,Wc++0x-compat)
+;
 
 Wnested-externs
 C ObjC Var(warn_nested_externs) Warning
@@ -530,7 +538,7 @@ C++ ObjC++ Var(warn_old_style_cast) Warning
 Warn if a C-style cast is used in a program
 
 Wold-style-declaration
-C ObjC Var(warn_old_style_declaration) Init(-1) Warning
+C ObjC Var(warn_old_style_declaration) Warning EnabledBy(Wextra)
 Warn for obsolescent usage in a declaration
 
 Wold-style-definition
@@ -546,7 +554,7 @@ C++ ObjC++ Var(warn_overloaded_virtual) Warning
 Warn about overloaded virtual function names
 
 Woverride-init
-C ObjC Var(warn_override_init) Init(-1) Warning
+C ObjC Var(warn_override_init) Warning EnabledBy(Wextra)
 Warn about overriding initializers without side effects
 
 Wpacked-bitfield-compat
@@ -554,8 +562,12 @@ C ObjC C++ ObjC++ Var(warn_packed_bitfield_compat) Init(-1) Warning
 Warn about packed bit-fields whose offset changed in GCC 4.4
 
 Wparentheses
-C ObjC C++ ObjC++ Var(warn_parentheses) Warning
+C ObjC C++ ObjC++ Var(warn_parentheses) Warning LangEnabledBy(C ObjC C++ ObjC++,Wall)
 Warn about possibly missing parentheses
+
+Wpedantic
+C ObjC C++ ObjC++ Warning
+; Documented in common.opt
 
 Wpmf-conversions
 C++ ObjC++ Var(warn_pmf2ptr) Init(1) Warning
@@ -564,6 +576,14 @@ Warn when converting the type of pointers to member functions
 Wpointer-arith
 C ObjC C++ ObjC++ Var(warn_pointer_arith) Warning
 Warn about function pointer arithmetic
+
+Wpointer-sign
+C ObjC Var(warn_pointer_sign) Warning LangEnabledBy(C ObjC,Wall)
+Warn when a pointer differs in signedness in an assignment
+
+Wpointer-sign
+C ObjC LangEnabledBy(C ObjC,Wpedantic)
+;
 
 Wpointer-to-int-cast
 C ObjC Var(warn_pointer_to_int_cast) Init(1) Warning
@@ -586,11 +606,11 @@ C ObjC C++ ObjC++ Var(warn_redundant_decls) Warning
 Warn about multiple declarations of the same object
 
 Wreorder
-C++ ObjC++ Var(warn_reorder) Warning
+C++ ObjC++ Var(warn_reorder) Warning LangEnabledBy(C++ ObjC++,Wall)
 Warn when the compiler reorders code
 
 Wreturn-type
-C ObjC C++ ObjC++ Var(warn_return_type) Warning
+C ObjC C++ ObjC++ Var(warn_return_type) Warning LangEnabledBy(C ObjC C++ ObjC++,Wall)
 Warn whenever a function's return type defaults to \"int\" (C), or about inconsistent return types (C++)
 
 Wselector
@@ -598,12 +618,20 @@ ObjC ObjC++ Var(warn_selector) Warning
 Warn if a selector has multiple methods
 
 Wsequence-point
-C ObjC C++ ObjC++ Var(warn_sequence_point) Warning
+C ObjC C++ ObjC++ Var(warn_sequence_point) Warning LangEnabledBy(C ObjC C++ ObjC++,Wall)
 Warn about possible violations of sequence point rules
 
 Wsign-compare
-C ObjC C++ ObjC++ Var(warn_sign_compare) Init(-1) Warning
+C ObjC C++ ObjC++ Var(warn_sign_compare) Warning LangEnabledBy(C++ ObjC++,Wall)
 Warn about signed-unsigned comparisons
+
+Wsign-compare
+C ObjC C++ ObjC++ EnabledBy(Wextra)
+;
+
+Wsign-conversion
+C ObjC C++ ObjC++ Var(warn_sign_conversion) LangEnabledBy(C ObjC,Wconversion)
+Warn for implicit type conversions between signed and unsigned integers
 
 Wsign-promo
 C++ ObjC++ Var(warn_sign_promo) Warning
@@ -616,6 +644,14 @@ Warn about uncasted NULL used as sentinel
 Wstrict-prototypes
 C ObjC Var(warn_strict_prototypes) Warning
 Warn about unprototyped function declarations
+
+Wstrict-aliasing=
+C ObjC C++ ObjC++ LangEnabledBy(C ObjC C++ ObjC++,Wall, 3, 0)
+;
+
+Wstrict-overflow=
+C ObjC C++ ObjC++ LangEnabledBy(C ObjC C++ ObjC++,Wall, 1, 0)
+;
 
 Wstrict-selector-match
 ObjC ObjC++ Var(warn_strict_selector_match) Warning
@@ -653,6 +689,14 @@ Wundef
 C ObjC C++ ObjC++ Warning
 Warn if an undefined macro is used in an #if directive
 
+Wuninitialized
+C ObjC C++ ObjC++ LangEnabledBy(C ObjC C++ ObjC++,Wall)
+;
+
+Wmaybe-uninitialized
+C ObjC C++ ObjC++ LangEnabledBy(C ObjC C++ ObjC++,Wall)
+;
+
 Wunknown-pragmas
 C ObjC C++ ObjC++ Warning
 Warn about unrecognized pragmas
@@ -661,8 +705,12 @@ Wunsuffixed-float-constants
 C ObjC Var(warn_unsuffixed_float_constants) Warning
 Warn about unsuffixed float constants
 
+Wunused
+C ObjC C++ ObjC++ LangEnabledBy(C ObjC C++ ObjC++,Wall)
+; documented in common.opt
+
 Wunused-local-typedefs
-C ObjC C++ ObjC++ Var(warn_unused_local_typedefs) Warning
+C ObjC C++ ObjC++ Var(warn_unused_local_typedefs) Warning EnabledBy(Wunused)
 Warn when typedefs locally defined in a function are not used
 
 Wunused-macros
@@ -677,25 +725,29 @@ Wvariadic-macros
 C ObjC C++ ObjC++ Warning
 Do not warn about using variadic macros when -pedantic
 
+Wvarargs
+C ObjC C++ ObjC++ Warning Var(warn_varargs) Init(1)
+Warn about questionable usage of the macros used to retrieve variable arguments
+
 Wvla
 C ObjC C++ ObjC++ Var(warn_vla) Init(-1) Warning
 Warn if a variable length array is used
 
 Wvolatile-register-var
-C ObjC C++ ObjC++ Var(warn_volatile_register_var) Warning
+C ObjC C++ ObjC++ Var(warn_volatile_register_var) Warning LangEnabledBy(C ObjC C++ ObjC++,Wall)
 Warn when a register variable is declared volatile
 
 Wwrite-strings
 C ObjC C++ ObjC++ Var(warn_write_strings) Warning
 In C++, nonzero means warn about deprecated conversion from string literals to 'char *'.  In C, similar warning, except that the conversion is of course not deprecated by the ISO C standard.
 
-Wpointer-sign
-C ObjC Var(warn_pointer_sign) Init(-1) Warning
-Warn when a pointer differs in signedness in an assignment
-
 Wzero-as-null-pointer-constant
 C++ ObjC++ Var(warn_zero_as_null_pointer_constant) Warning
 Warn when a literal '0' is used as null pointer
+
+Wuseless-cast
+C++ ObjC++ Var(warn_useless_cast) Warning
+Warn about useless casts
 
 ansi
 C ObjC C++ ObjC++
@@ -708,6 +760,10 @@ C ObjC C++ ObjC++ Joined
 faccess-control
 C++ ObjC++ Var(flag_access_control) Init(1)
 Enforce class member access control semantics
+
+fada-spec-parent=
+C ObjC C++ ObjC++ RejectNegative Joined Var(ada_specs_parent)
+-fada-spec-parent=unit  Dump Ada specs as child units of given parent
 
 fall-virtual
 C++ ObjC++ Ignore Warn(switch %qs is no longer supported)
@@ -745,7 +801,7 @@ Allow the arguments of the '?' operator to have different types
 
 fconserve-space
 C++ ObjC++ Var(flag_conserve_space)
-Reduce the size of object files
+Does nothing.  Preserved for backward compatibility.
 
 fconstant-string-class=
 ObjC ObjC++ Joined MissingArgError(no class name specified with %qs)
@@ -774,6 +830,14 @@ Preprocess directives only.
 fdollars-in-identifiers
 C ObjC C++ ObjC++
 Permit '$' as an identifier character
+
+fdump-ada-spec
+C ObjC C++ ObjC++ RejectNegative Var(flag_dump_ada_spec)
+Write all declarations as Ada code transitively
+
+fdump-ada-spec-slim
+C ObjC C++ ObjC++ RejectNegative Var(flag_dump_ada_spec_slim)
+Write all declarations as Ada code for the given file only
 
 felide-constructors
 C++ ObjC++ Var(flag_elide_constructors) Init(1)
@@ -962,7 +1026,7 @@ C ObjC C++ ObjC++
 Look for and use PCH files even when preprocessing
 
 fpermissive
-C++ ObjC++
+C++ ObjC++ Var(flag_permissive)
 Downgrade conformance errors to warnings
 
 fplan9-extensions
@@ -1034,6 +1098,10 @@ C++ ObjC++ Ignore Warn(switch %qs is no longer supported)
 ftabstop=
 C ObjC C++ ObjC++ Joined RejectNegative UInteger
 -ftabstop=<number>	Distance between tab stops for column reporting
+
+ftemplate-backtrace-limit=
+C++ ObjC++ Joined RejectNegative UInteger Var(template_backtrace_limit) Init(10)
+Set the maximum number of template instantiation notes for a single warning or error
 
 ftemplate-depth-
 C++ ObjC++ Joined RejectNegative Undocumented Alias(ftemplate-depth=)
@@ -1176,11 +1244,7 @@ C ObjC C++ ObjC++ Joined Separate
 ; Documented in common.opt
 
 pedantic
-C ObjC C++ ObjC++
-; Documented in common.opt
-
-pedantic-errors
-C ObjC C++ ObjC++
+C ObjC C++ ObjC++ Alias(Wpedantic)
 ; Documented in common.opt
 
 print-objc-runtime-info
@@ -1206,6 +1270,10 @@ Conform to the ISO 2011 C++ standard (experimental and incomplete support)
 std=c++0x
 C++ ObjC++ Alias(std=c++11)
 Deprecated in favor of -std=c++11
+
+std=c++1y
+C++ ObjC++
+Conform to the ISO 201y(7?) C++ draft standard (experimental and incomplete support)
 
 std=c11
 C ObjC
@@ -1248,6 +1316,10 @@ Conform to the ISO 2011 C++ standard with GNU extensions (experimental and incom
 std=gnu++0x
 C++ ObjC++ Alias(std=gnu++11)
 Deprecated in favor of -std=gnu++11
+
+std=gnu++1y
+C++ ObjC++
+Conform to the ISO 201y(7?) C++ draft standard with GNU extensions (experimental and incomplete support)
 
 std=gnu11
 C ObjC

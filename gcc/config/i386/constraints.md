@@ -18,7 +18,7 @@
 ;; <http://www.gnu.org/licenses/>.
 
 ;;; Unused letters:
-;;;     B     H           T  W
+;;;     B     H           T
 ;;;           h jk          v
 
 ;; Integer register constraints.
@@ -89,6 +89,7 @@
 ;;  z	First SSE register.
 ;;  i	SSE2 inter-unit moves enabled
 ;;  m	MMX inter-unit moves enabled
+;;  a	Integer register when zero extensions with AND are disabled
 ;;  p	Integer register when TARGET_PARTIAL_REG_STALL is disabled
 ;;  d	Integer register when integer DFmode moves are enabled
 ;;  x	Integer register when integer XFmode moves are enabled
@@ -107,6 +108,11 @@
 (define_register_constraint "Yp"
  "TARGET_PARTIAL_REG_STALL ? NO_REGS : GENERAL_REGS"
  "@internal Any integer register when TARGET_PARTIAL_REG_STALL is disabled.")
+
+(define_register_constraint "Ya"
+ "TARGET_ZERO_EXTEND_WITH_AND && optimize_function_for_speed_p (cfun)
+  ? NO_REGS : GENERAL_REGS"
+ "@internal Any integer register when zero extensions with AND are disabled.")
 
 (define_register_constraint "Yd"
  "(TARGET_64BIT
@@ -187,6 +193,16 @@
    to fit that range (for immediate operands in sign-extending x86-64
    instructions)."
   (match_operand 0 "x86_64_immediate_operand"))
+
+;; We use W prefix to denote any number of
+;; constant-or-symbol-reference constraints
+
+(define_constraint "Wz"
+  "32-bit unsigned integer constant, or a symbolic reference known
+   to fit that range (for zero-extending conversion operations that
+   require non-VOIDmode immediate operands)."
+  (and (match_operand 0 "x86_64_zext_immediate_operand")
+       (match_test "GET_MODE (op) != VOIDmode")))
 
 (define_constraint "Z"
   "32-bit unsigned integer constant, or a symbolic reference known

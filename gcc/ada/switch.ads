@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -123,12 +123,12 @@ private
       Ptr          : in out Integer;
       Result       : out Pos;
       Switch       : Character);
-   --  Scan positive integer parameter for switch. On entry, Ptr points just
-   --  past the switch character, on exit it points past the last digit of the
-   --  integer value.
+   --  Scan positive integer parameter for switch. Identical to Scan_Nat with
+   --  same parameters except that zero is considered out of range.
 
    procedure Bad_Switch (Switch : Character);
    procedure Bad_Switch (Switch : String);
+   pragma No_Return (Bad_Switch);
    --  Fail with an appropriate message when a switch is not recognized
 
 end Switch;

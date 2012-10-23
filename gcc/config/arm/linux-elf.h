@@ -65,8 +65,9 @@
    %{static:-Bstatic} \
    %{shared:-shared} \
    %{symbolic:-Bsymbolic} \
-   %{rdynamic:-export-dynamic} \
-   -dynamic-linker " GNU_USER_DYNAMIC_LINKER " \
+   %{!static: \
+     %{rdynamic:-export-dynamic} \
+     -dynamic-linker " GNU_USER_DYNAMIC_LINKER "} \
    -X \
    %{mbig-endian:-EB} %{mlittle-endian:-EL}" \
    SUBTARGET_EXTRA_LINK_SPEC
@@ -92,9 +93,8 @@
     }					   \
   while (0)
 
-/* NWFPE always understands FPA instructions.  */
 #undef  FPUTYPE_DEFAULT
-#define FPUTYPE_DEFAULT "fpe3"
+#define FPUTYPE_DEFAULT "vfp"
 
 /* Call the function profiler with a given profile label.  */
 #undef  ARM_FUNCTION_PROFILER

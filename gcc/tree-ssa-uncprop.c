@@ -26,15 +26,11 @@ along with GCC; see the file COPYING3.  If not see
 #include "flags.h"
 #include "tm_p.h"
 #include "basic-block.h"
-#include "output.h"
 #include "function.h"
-#include "timevar.h"
-#include "tree-dump.h"
 #include "tree-flow.h"
 #include "domwalk.h"
 #include "tree-pass.h"
 #include "tree-ssa-propagate.h"
-#include "langhooks.h"
 
 /* The basic structure describing an equivalency created by traversing
    an edge.  Traversing the edge effectively means that we can assume
@@ -467,14 +463,16 @@ uncprop_into_successor_phis (basic_block bb)
 	{
 	  gimple phi = gsi_stmt (gsi);
 	  tree arg = PHI_ARG_DEF (phi, e->dest_idx);
+	  tree res = PHI_RESULT (phi);
 	  struct equiv_hash_elt equiv_hash_elt;
 	  void **slot;
 
-	  /* If the argument is not an invariant, or refers to the same
+	  /* If the argument is not an invariant, and refers to the same
 	     underlying variable as the PHI result, then there's no
 	     point in un-propagating the argument.  */
 	  if (!is_gimple_min_invariant (arg)
-	      && SSA_NAME_VAR (arg) != SSA_NAME_VAR (PHI_RESULT (phi)))
+	      && (SSA_NAME_VAR (arg) == SSA_NAME_VAR (res)
+		  && TREE_TYPE (arg) == TREE_TYPE (res)))
 	    continue;
 
 	  /* Lookup this argument's value in the hash table.  */
@@ -496,7 +494,8 @@ uncprop_into_successor_phis (basic_block bb)
 		{
 		  tree equiv = VEC_index (tree, elt->equivalences, j);
 
-		  if (SSA_NAME_VAR (equiv) == SSA_NAME_VAR (PHI_RESULT (phi)))
+		  if (SSA_NAME_VAR (equiv) == SSA_NAME_VAR (res)
+		      && TREE_TYPE (equiv) == TREE_TYPE (res))
 		    {
 		      SET_PHI_ARG_DEF (phi, e->dest_idx, equiv);
 		      break;

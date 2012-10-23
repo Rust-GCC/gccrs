@@ -72,9 +72,7 @@ struct cl_decoded_option;
 struct cl_option_handlers;
 struct diagnostic_context;
 typedef struct diagnostic_context diagnostic_context;
-struct gimple_seq_d;
-typedef struct gimple_seq_d *gimple_seq;
-typedef const struct gimple_seq_d *const_gimple_seq;
+typedef gimple gimple_seq;
 
 /* Address space number for named address space support.  */
 typedef unsigned char addr_space_t;
@@ -118,7 +116,8 @@ enum unwind_info_type
   UI_NONE,
   UI_SJLJ,
   UI_DWARF2,
-  UI_TARGET
+  UI_TARGET,
+  UI_SEH
 };
 
 /* Callgraph node profile representation.  */
@@ -193,6 +192,13 @@ enum memmodel
   MEMMODEL_SEQ_CST = 5,
   MEMMODEL_LAST = 6
 };
+
+/* Suppose that higher bits are target dependant. */
+#define MEMMODEL_MASK ((1<<16)-1)
+
+/* Support for user-provided GGC and PCH markers.  The first parameter
+   is a pointer to a pointer, the second a cookie.  */
+typedef void (*gt_pointer_operator) (void *, void *);
 
 #endif /* coretypes.h */
 

@@ -51,7 +51,7 @@ typedef const struct vn_nary_op_s *const_vn_nary_op_t;
 static inline size_t
 sizeof_vn_nary_op (unsigned int length)
 {
-  return sizeof (struct vn_nary_op_s) + sizeof (tree) * (length - 1);
+  return sizeof (struct vn_nary_op_s) + sizeof (tree) * length - sizeof (tree);
 }
 
 /* Phi nodes in the hashtable consist of their non-VN_TOP phi
@@ -110,6 +110,7 @@ typedef struct vn_reference_s
   tree type;
   VEC (vn_reference_op_s, heap) *operands;
   tree result;
+  tree result_vdef;
 } *vn_reference_t;
 typedef const struct vn_reference_s *const_vn_reference_t;
 
@@ -119,6 +120,9 @@ typedef struct vn_constant_s
   hashval_t hashcode;
   tree constant;
 } *vn_constant_t;
+
+enum vn_kind { VN_NONE, VN_CONSTANT, VN_NARY, VN_REFERENCE, VN_PHI };
+enum vn_kind vn_get_stmt_kind (gimple);
 
 /* Hash the constant CONSTANT with distinguishing type incompatible
    constants in the types_compatible_p sense.  */
@@ -199,7 +203,7 @@ tree vn_reference_lookup_pieces (tree, alias_set_type, tree,
 				 VEC (vn_reference_op_s, heap) *,
 				 vn_reference_t *, vn_lookup_kind);
 tree vn_reference_lookup (tree, tree, vn_lookup_kind, vn_reference_t *);
-vn_reference_t vn_reference_insert (tree, tree, tree);
+vn_reference_t vn_reference_insert (tree, tree, tree, tree);
 vn_reference_t vn_reference_insert_pieces (tree, alias_set_type, tree,
 					   VEC (vn_reference_op_s, heap) *,
 					   tree, unsigned int);

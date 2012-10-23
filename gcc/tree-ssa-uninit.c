@@ -26,9 +26,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "flags.h"
 #include "tm_p.h"
-#include "langhooks.h"
 #include "basic-block.h"
-#include "output.h"
 #include "function.h"
 #include "gimple-pretty-print.h"
 #include "bitmap.h"
@@ -36,12 +34,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-flow.h"
 #include "gimple.h"
 #include "tree-inline.h"
-#include "timevar.h"
 #include "hashtab.h"
-#include "tree-dump.h"
 #include "tree-pass.h"
 #include "diagnostic-core.h"
-#include "timevar.h"
 
 /* This implements the pass that does predicate aware warning on uses of
    possibly uninitialized variables. The pass first collects the set of
@@ -88,18 +83,17 @@ ssa_undefined_value_p (tree t)
 {
   tree var = SSA_NAME_VAR (t);
 
+  if (!var)
+    ;
   /* Parameters get their initial value from the function entry.  */
-  if (TREE_CODE (var) == PARM_DECL)
+  else if (TREE_CODE (var) == PARM_DECL)
     return false;
-
   /* When returning by reference the return address is actually a hidden
      parameter.  */
-  if (TREE_CODE (SSA_NAME_VAR (t)) == RESULT_DECL
-      && DECL_BY_REFERENCE (SSA_NAME_VAR (t)))
+  else if (TREE_CODE (var) == RESULT_DECL && DECL_BY_REFERENCE (var))
     return false;
-
   /* Hard register variables get their initial value from the ether.  */
-  if (TREE_CODE (var) == VAR_DECL && DECL_HARD_REGISTER (var))
+  else if (TREE_CODE (var) == VAR_DECL && DECL_HARD_REGISTER (var))
     return false;
 
   /* The value is undefined iff its definition statement is empty.  */
@@ -1756,7 +1750,7 @@ normalize_preds (VEC(use_pred_info_t, heap) **preds, size_t *n)
 
 /* Computes the predicates that guard the use and checks
    if the incoming paths that have empty (or possibly
-   empty) defintion can be pruned/filtered. The function returns
+   empty) definition can be pruned/filtered. The function returns
    true if it can be determined that the use of PHI's def in
    USE_STMT is guarded with a predicate set not overlapping with
    predicate sets of all runtime paths that do not have a definition.
@@ -1764,7 +1758,7 @@ normalize_preds (VEC(use_pred_info_t, heap) **preds, size_t *n)
    the bb of the use (for phi operand use, the bb is not the bb of
    the phi stmt, but the src bb of the operand edge). UNINIT_OPNDS
    is a bit vector. If an operand of PHI is uninitialized, the
-   correponding bit in the vector is 1.  VISIED_PHIS is a pointer
+   corresponding bit in the vector is 1.  VISIED_PHIS is a pointer
    set of phis being visted.  */
 
 static bool
@@ -1929,8 +1923,8 @@ warn_uninitialized_phi (gimple phi, VEC(gimple, heap) **worklist,
   gimple uninit_use_stmt = 0;
   tree uninit_op;
 
-  /* Don't look at memory tags.  */
-  if (!is_gimple_reg (gimple_phi_result (phi)))
+  /* Don't look at virtual operands.  */
+  if (virtual_operand_p (gimple_phi_result (phi)))
     return;
 
   uninit_opnds = compute_uninit_opnds_pos (phi);
@@ -1953,6 +1947,8 @@ warn_uninitialized_phi (gimple phi, VEC(gimple, heap) **worklist,
     return;
 
   uninit_op = gimple_phi_arg_def (phi, MASK_FIRST_SET_BIT (uninit_opnds));
+  if (SSA_NAME_VAR (uninit_op) == NULL_TREE)
+    return;
   warn_uninit (OPT_Wmaybe_uninitialized, uninit_op, SSA_NAME_VAR (uninit_op),
 	       SSA_NAME_VAR (uninit_op),
                "%qD may be used uninitialized in this function",
@@ -1992,8 +1988,8 @@ execute_late_warn_uninitialized (void)
 
         n = gimple_phi_num_args (phi);
 
-        /* Don't look at memory tags.  */
-        if (!is_gimple_reg (gimple_phi_result (phi)))
+        /* Don't look at virtual operands.  */
+        if (virtual_operand_p (gimple_phi_result (phi)))
           continue;
 
         for (i = 0; i < n; ++i)

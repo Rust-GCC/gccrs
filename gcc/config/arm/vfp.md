@@ -19,11 +19,6 @@
 ;; along with GCC; see the file COPYING3.  If not see
 ;; <http://www.gnu.org/licenses/>.  */
 
-;; Additional register numbers
-(define_constants
-  [(VFPCC_REGNUM 127)]
-)
-
 ;; The VFP "type" attributes differ from those used in the FPA model.
 ;; fcpys	Single precision cpy.
 ;; ffariths	Single precision abs, neg.
@@ -83,6 +78,7 @@
   "
   [(set_attr "predicable" "yes")
    (set_attr "type" "*,*,*,*,load1,store1,r_2_f,f_2_r,fcpys,f_loads,f_stores")
+   (set_attr "neon_type" "*,*,*,*,*,*,neon_mcr,neon_mrc,neon_vmov,*,*")
    (set_attr "insn" "mov,mov,mvn,mov,*,*,*,*,*,*,*")
    (set_attr "pool_range"     "*,*,*,*,4096,*,*,*,*,1020,*")
    (set_attr "neg_pool_range" "*,*,*,*,4084,*,*,*,*,1008,*")]
@@ -125,6 +121,7 @@
   "
   [(set_attr "predicable" "yes")
    (set_attr "type" "*,*,*,*,load1,load1,store1,store1,r_2_f,f_2_r,fcpys,f_loads,f_stores")
+   (set_attr "neon_type" "*,*,*,*,*,*,*,*,neon_mcr,neon_mrc,neon_vmov,*,*")
    (set_attr "insn" "mov,mov,mvn,mov,*,*,*,*,*,*,*,*,*")
    (set_attr "pool_range"     "*,*,*,*,1020,4096,*,*,*,*,*,1020,*")
    (set_attr "neg_pool_range" "*,*,*,*,   0,   0,*,*,*,*,*,1008,*")]
@@ -138,7 +135,9 @@
        (match_operand:DI 1 "di_operand"              "r,rDa,Db,Dc,mi,mi,r,r,w,w,Uvi,w"))]
   "TARGET_32BIT && TARGET_HARD_FLOAT && TARGET_VFP && arm_tune != cortexa8
    && (   register_operand (operands[0], DImode)
-       || register_operand (operands[1], DImode))"
+       || register_operand (operands[1], DImode))
+   && !(TARGET_NEON && CONST_INT_P (operands[1])
+        && neon_immediate_valid_for_move (operands[1], DImode, NULL, NULL))"
   "*
   switch (which_alternative)
     {
@@ -187,7 +186,9 @@
        (match_operand:DI 1 "di_operand"              "r,rDa,Db,Dc,mi,mi,r,r,w,w,Uvi,w"))]
   "TARGET_32BIT && TARGET_HARD_FLOAT && TARGET_VFP && arm_tune == cortexa8
     && (   register_operand (operands[0], DImode)
-        || register_operand (operands[1], DImode))"
+        || register_operand (operands[1], DImode))
+    && !(TARGET_NEON && CONST_INT_P (operands[1])
+	 && neon_immediate_valid_for_move (operands[1], DImode, NULL, NULL))"
   "*
   switch (which_alternative)
     {
@@ -213,6 +214,7 @@
     }
   "
   [(set_attr "type" "*,*,*,*,load2,load2,store2,r_2_f,f_2_r,ffarithd,f_loadd,f_stored")
+   (set_attr "neon_type" "*,*,*,*,*,*,*,neon_mcr_2_mcrr,neon_mrrc,neon_vmov,*,*")
    (set (attr "length") (cond [(eq_attr "alternative" "1") (const_int 8)
                                (eq_attr "alternative" "2") (const_int 12)
                                (eq_attr "alternative" "3") (const_int 16)
@@ -371,6 +373,7 @@
   [(set_attr "predicable" "yes")
    (set_attr "type"
      "r_2_f,f_2_r,fconsts,f_loads,f_stores,load1,store1,fcpys,*")
+   (set_attr "neon_type" "neon_mcr,neon_mrc,*,*,*,*,*,neon_vmov,*")
    (set_attr "insn" "*,*,*,*,*,*,*,*,mov")
    (set_attr "pool_range" "*,*,*,1020,*,4096,*,*,*")
    (set_attr "neg_pool_range" "*,*,*,1008,*,4080,*,*,*")]
@@ -408,6 +411,7 @@
   [(set_attr "predicable" "yes")
    (set_attr "type"
      "r_2_f,f_2_r,fconsts,f_loads,f_stores,load1,store1,fcpys,*")
+   (set_attr "neon_type" "neon_mcr,neon_mrc,*,*,*,*,*,neon_vmov,*")
    (set_attr "insn" "*,*,*,*,*,*,*,*,mov")
    (set_attr "pool_range" "*,*,*,1020,*,4092,*,*,*")
    (set_attr "neg_pool_range" "*,*,*,1008,*,0,*,*,*")]
@@ -451,6 +455,7 @@
   "
   [(set_attr "type"
      "r_2_f,f_2_r,fconstd,f_loadd,f_stored,load2,store2,ffarithd,*")
+   (set_attr "neon_type" "neon_mcr_2_mcrr,neon_mrrc,*,*,*,*,*,neon_vmov,*")
    (set (attr "length") (cond [(eq_attr "alternative" "5,6,8") (const_int 8)
 			       (eq_attr "alternative" "7")
 				(if_then_else
@@ -466,7 +471,9 @@
 (define_insn "*thumb2_movdf_vfp"
   [(set (match_operand:DF 0 "nonimmediate_soft_df_operand" "=w,?r,w ,w  ,Uv,r ,m,w,r")
 	(match_operand:DF 1 "soft_df_operand"		   " ?r,w,Dy,UvF,w, mF,r, w,r"))]
-  "TARGET_THUMB2 && TARGET_HARD_FLOAT && TARGET_VFP"
+  "TARGET_THUMB2 && TARGET_HARD_FLOAT && TARGET_VFP
+   && (   register_operand (operands[0], DFmode)
+       || register_operand (operands[1], DFmode))"
   "*
   {
     switch (which_alternative)
@@ -494,6 +501,7 @@
   "
   [(set_attr "type"
      "r_2_f,f_2_r,fconstd,f_loadd,f_stored,load2,store2,ffarithd,*")
+   (set_attr "neon_type" "neon_mcr_2_mcrr,neon_mrrc,*,*,*,*,*,neon_vmov,*")
    (set (attr "length") (cond [(eq_attr "alternative" "5,6,8") (const_int 8)
 			       (eq_attr "alternative" "7")
 				(if_then_else
@@ -528,7 +536,8 @@
    fmrs%D3\\t%0, %2\;fmrs%d3\\t%0, %1"
    [(set_attr "conds" "use")
     (set_attr "length" "4,4,8,4,4,8,4,4,8")
-    (set_attr "type" "fcpys,fcpys,fcpys,r_2_f,r_2_f,r_2_f,f_2_r,f_2_r,f_2_r")]
+    (set_attr "type" "fcpys,fcpys,fcpys,r_2_f,r_2_f,r_2_f,f_2_r,f_2_r,f_2_r")
+    (set_attr "neon_type" "neon_vmov,neon_vmov,neon_vmov,neon_mcr,neon_mcr,neon_mcr,neon_mrc,neon_mrc,neon_mrc")]
 )
 
 (define_insn "*thumb2_movsfcc_vfp"
@@ -551,7 +560,8 @@
    ite\\t%D3\;fmrs%D3\\t%0, %2\;fmrs%d3\\t%0, %1"
    [(set_attr "conds" "use")
     (set_attr "length" "6,6,10,6,6,10,6,6,10")
-    (set_attr "type" "fcpys,fcpys,fcpys,r_2_f,r_2_f,r_2_f,f_2_r,f_2_r,f_2_r")]
+    (set_attr "type" "fcpys,fcpys,fcpys,r_2_f,r_2_f,r_2_f,f_2_r,f_2_r,f_2_r")
+    (set_attr "neon_type" "neon_vmov,neon_vmov,neon_vmov,neon_mcr,neon_mcr,neon_mcr,neon_mrc,neon_mrc,neon_mrc")]
 )
 
 (define_insn "*movdfcc_vfp"
@@ -574,7 +584,8 @@
    fmrrd%D3\\t%Q0, %R0, %P2\;fmrrd%d3\\t%Q0, %R0, %P1"
    [(set_attr "conds" "use")
     (set_attr "length" "4,4,8,4,4,8,4,4,8")
-    (set_attr "type" "ffarithd,ffarithd,ffarithd,r_2_f,r_2_f,r_2_f,f_2_r,f_2_r,f_2_r")]
+    (set_attr "type" "ffarithd,ffarithd,ffarithd,r_2_f,r_2_f,r_2_f,f_2_r,f_2_r,f_2_r")
+    (set_attr "neon_type" "neon_vmov,neon_vmov,neon_vmov,neon_mcr_2_mcrr,neon_mcr_2_mcrr,neon_mcr_2_mcrr,neon_mrrc,neon_mrrc,neon_mrrc")]
 )
 
 (define_insn "*thumb2_movdfcc_vfp"
@@ -597,7 +608,8 @@
    ite\\t%D3\;fmrrd%D3\\t%Q0, %R0, %P2\;fmrrd%d3\\t%Q0, %R0, %P1"
    [(set_attr "conds" "use")
     (set_attr "length" "6,6,10,6,6,10,6,6,10")
-    (set_attr "type" "ffarithd,ffarithd,ffarithd,r_2_f,r_2_f,r_2_f,f_2_r,f_2_r,f_2_r")]
+    (set_attr "type" "ffarithd,ffarithd,ffarithd,r_2_f,r_2_f,r_2_f,f_2_r,f_2_r,f_2_r")
+    (set_attr "neon_type" "neon_vmov,neon_vmov,neon_vmov,neon_mcr_2_mcrr,neon_mcr_2_mcrr,neon_mcr_2_mcrr,neon_mrrc,neon_mrrc,neon_mrrc")]
 )
 
 
@@ -884,6 +896,54 @@
   "fnmscd%?\\t%P0, %P2, %P3"
   [(set_attr "predicable" "yes")
    (set_attr "type" "fmacd")]
+)
+
+;; Fused-multiply-accumulate
+
+(define_insn "fma<SDF:mode>4"
+  [(set (match_operand:SDF 0 "register_operand" "=<F_constraint>")
+        (fma:SDF (match_operand:SDF 1 "register_operand" "<F_constraint>")
+		 (match_operand:SDF 2 "register_operand" "<F_constraint>")
+		 (match_operand:SDF 3 "register_operand" "0")))]
+  "TARGET_32BIT && TARGET_HARD_FLOAT && TARGET_FMA"
+  "vfma%?.<V_if_elem>\\t%<V_reg>0, %<V_reg>1, %<V_reg>2"
+  [(set_attr "predicable" "yes")
+   (set_attr "type" "<F_fma_type>")]
+)
+
+(define_insn "*fmsub<SDF:mode>4"
+  [(set (match_operand:SDF 0 "register_operand" "=<F_constraint>")
+	(fma:SDF (neg:SDF (match_operand:SDF 1 "register_operand"
+					     "<F_constraint>"))
+		 (match_operand:SDF 2 "register_operand" "<F_constraint>")
+		 (match_operand:SDF 3 "register_operand" "0")))]
+  "TARGET_32BIT && TARGET_HARD_FLOAT && TARGET_FMA"
+  "vfms%?.<V_if_elem>\\t%<V_reg>0, %<V_reg>1, %<V_reg>2"
+  [(set_attr "predicable" "yes")
+   (set_attr "type" "<F_fma_type>")]
+)
+
+(define_insn "*fnmsub<SDF:mode>4"
+  [(set (match_operand:SDF 0 "register_operand" "=<F_constraint>")
+	(fma:SDF (match_operand:SDF 1 "register_operand" "<F_constraint>")
+		 (match_operand:SDF 2 "register_operand" "<F_constraint>")
+		 (neg:SDF (match_operand:SDF 3 "register_operand" "0"))))]
+  "TARGET_32BIT && TARGET_HARD_FLOAT && TARGET_FMA"
+  "vfnms%?.<V_if_elem>\\t%<V_reg>0, %<V_reg>1, %<V_reg>2"
+  [(set_attr "predicable" "yes")
+   (set_attr "type" "<F_fma_type>")]
+)
+
+(define_insn "*fnmadd<SDF:mode>4"
+  [(set (match_operand:SDF 0 "register_operand" "=<F_constraint>")
+	(fma:SDF (neg:SDF (match_operand:SDF 1 "register_operand"
+					       "<F_constraint>"))
+		 (match_operand:SDF 2 "register_operand" "<F_constraint>")
+		 (neg:SDF (match_operand:SDF 3 "register_operand" "0"))))]
+  "TARGET_32BIT && TARGET_HARD_FLOAT && TARGET_FMA"
+  "vfnma%?.<V_if_elem>\\t%<V_reg>0, %<V_reg>1, %<V_reg>2"
+  [(set_attr "predicable" "yes")
+   (set_attr "type" "<F_fma_type>")]
 )
 
 

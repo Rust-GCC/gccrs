@@ -54,7 +54,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "diagnostic-core.h"
 #include "reload.h"
 #include "predict.h"
-#include "timevar.h"
 #include "tree-pass.h"
 #include "target.h"
 
@@ -275,13 +274,13 @@ mark_all_labels (rtx f)
 	  /* In cfglayout mode, there may be non-insns between the
 	     basic blocks.  If those non-insns represent tablejump data,
 	     they contain label references that we must record.  */
-	  for (insn = bb->il.rtl->header; insn; insn = NEXT_INSN (insn))
+	  for (insn = BB_HEADER (bb); insn; insn = NEXT_INSN (insn))
 	    if (INSN_P (insn))
 	      {
 		gcc_assert (JUMP_TABLE_DATA_P (insn));
 		mark_jump_label (PATTERN (insn), insn, 0);
 	      }
-	  for (insn = bb->il.rtl->footer; insn; insn = NEXT_INSN (insn))
+	  for (insn = BB_FOOTER (bb); insn; insn = NEXT_INSN (insn))
 	    if (INSN_P (insn))
 	      {
 		gcc_assert (JUMP_TABLE_DATA_P (insn));
@@ -1079,8 +1078,6 @@ mark_jump_label_1 (rtx x, rtx insn, bool in_mem, bool is_target)
     case PC:
     case CC0:
     case REG:
-    case CONST_INT:
-    case CONST_DOUBLE:
     case CLOBBER:
     case CALL:
       return;
@@ -1754,8 +1751,7 @@ rtx_renumbered_equal_p (const_rtx x, const_rtx y)
     case CC0:
     case ADDR_VEC:
     case ADDR_DIFF_VEC:
-    case CONST_INT:
-    case CONST_DOUBLE:
+    CASE_CONST_UNIQUE:
       return 0;
 
     case LABEL_REF:
@@ -1784,7 +1780,7 @@ rtx_renumbered_equal_p (const_rtx x, const_rtx y)
   if (GET_MODE (x) != GET_MODE (y))
     return 0;
 
-  /* MEMs refering to different address space are not equivalent.  */
+  /* MEMs referring to different address space are not equivalent.  */
   if (code == MEM && MEM_ADDR_SPACE (x) != MEM_ADDR_SPACE (y))
     return 0;
 
@@ -1819,8 +1815,7 @@ rtx_renumbered_equal_p (const_rtx x, const_rtx y)
 	  if (XINT (x, i) != XINT (y, i))
 	    {
 	      if (((code == ASM_OPERANDS && i == 6)
-		   || (code == ASM_INPUT && i == 1))
-		  && locator_eq (XINT (x, i), XINT (y, i)))
+		   || (code == ASM_INPUT && i == 1)))
 		break;
 	      return 0;
 	    }

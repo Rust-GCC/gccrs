@@ -38,12 +38,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "function.h"
 #include "ggc.h"
 #include "diagnostic.h"
-#include "libfuncs.h"
 #include "except.h"
 #include "debug.h"
 #include "vec.h"
-#include "timevar.h"
-#include "output.h"
 #include "ipa-utils.h"
 #include "data-streamer.h"
 #include "gimple-streamer.h"
@@ -141,8 +138,8 @@ clear_line_info (struct data_in *data_in)
 
 /* Read a location bitpack from input block IB.  */
 
-static location_t
-lto_input_location_bitpack (struct data_in *data_in, struct bitpack_d *bp)
+location_t
+lto_input_location (struct bitpack_d *bp, struct data_in *data_in)
 {
   bool file_change, line_change, column_change;
   unsigned len;
@@ -178,26 +175,6 @@ lto_input_location_bitpack (struct data_in *data_in, struct bitpack_d *bp)
     linemap_line_start (line_table, data_in->current_line, data_in->current_col);
 
   return linemap_position_for_column (line_table, data_in->current_col);
-}
-
-
-/* Read a location from input block IB.
-   If the input_location streamer hook exists, call it.
-   Otherwise, proceed with reading the location from the
-   expanded location bitpack.  */
-
-location_t
-lto_input_location (struct lto_input_block *ib, struct data_in *data_in)
-{
-  if (streamer_hooks.input_location)
-    return streamer_hooks.input_location (ib, data_in);
-  else
-    {
-      struct bitpack_d bp;
-
-      bp = streamer_read_bitpack (ib);
-      return lto_input_location_bitpack (data_in, &bp);
-    }
 }
 
 
@@ -371,9 +348,13 @@ input_eh_region (struct lto_input_block *ib, struct data_in *data_in, int ix)
 	break;
 
       case LTO_ert_must_not_throw:
-	r->type = ERT_MUST_NOT_THROW;
-	r->u.must_not_throw.failure_decl = stream_read_tree (ib, data_in);
-	r->u.must_not_throw.failure_loc = lto_input_location (ib, data_in);
+	{
+	  r->type = ERT_MUST_NOT_THROW;
+	  r->u.must_not_throw.failure_decl = stream_read_tree (ib, data_in);
+	  bitpack_d bp = streamer_read_bitpack (ib);
+	  r->u.must_not_throw.failure_loc
+	   = stream_input_location (&bp, data_in);
+	}
 	break;
 
       default:
@@ -599,10 +580,7 @@ make_new_block (struct function *fn, unsigned int index)
   basic_block bb = alloc_block ();
   bb->index = index;
   SET_BASIC_BLOCK_FOR_FUNCTION (fn, index, bb);
-  bb->il.gimple = ggc_alloc_cleared_gimple_bb_info ();
   n_basic_blocks_for_function (fn)++;
-  bb->flags = 0;
-  set_bb_seq (bb, gimple_seq_alloc ());
   return bb;
 }
 
@@ -619,7 +597,7 @@ input_cfg (struct lto_input_block *ib, struct function *fn,
   int index;
 
   init_empty_tree_cfg_for_function (fn);
-  init_ssa_operands ();
+  init_ssa_operands (fn);
 
   profile_status_for_function (fn) = streamer_read_enum (ib, profile_status_d,
 							 PROFILE_LAST);
@@ -715,7 +693,7 @@ input_ssa_names (struct lto_input_block *ib, struct data_in *data_in,
       ssa_name = make_ssa_name_fn (fn, name, gimple_build_nop ());
 
       if (is_default_def)
-	set_default_def (SSA_NAME_VAR (ssa_name), ssa_name);
+	set_ssa_default_def (cfun, SSA_NAME_VAR (ssa_name), ssa_name);
 
       i = streamer_read_uhwi (ib);
     }
@@ -792,10 +770,6 @@ input_struct_function_base (struct function *fn, struct data_in *data_in,
 	}
     }
 
-  /* Input the function start and end loci.  */
-  fn->function_start_locus = lto_input_location (ib, data_in);
-  fn->function_end_locus = lto_input_location (ib, data_in);
-
   /* Input the current IL state of the function.  */
   fn->curr_properties = streamer_read_uhwi (ib);
 
@@ -803,10 +777,10 @@ input_struct_function_base (struct function *fn, struct data_in *data_in,
   bp = streamer_read_bitpack (ib);
   fn->is_thunk = bp_unpack_value (&bp, 1);
   fn->has_local_explicit_reg_vars = bp_unpack_value (&bp, 1);
-  fn->after_tree_profile = bp_unpack_value (&bp, 1);
   fn->returns_pcc_struct = bp_unpack_value (&bp, 1);
   fn->returns_struct = bp_unpack_value (&bp, 1);
   fn->can_throw_non_call_exceptions = bp_unpack_value (&bp, 1);
+  fn->can_delete_dead_exceptions = bp_unpack_value (&bp, 1);
   fn->always_inline_functions_inlined = bp_unpack_value (&bp, 1);
   fn->after_inlining = bp_unpack_value (&bp, 1);
   fn->stdarg = bp_unpack_value (&bp, 1);
@@ -815,6 +789,10 @@ input_struct_function_base (struct function *fn, struct data_in *data_in,
   fn->calls_setjmp = bp_unpack_value (&bp, 1);
   fn->va_list_fpr_size = bp_unpack_value (&bp, 8);
   fn->va_list_gpr_size = bp_unpack_value (&bp, 8);
+
+  /* Input the function start and end loci.  */
+  fn->function_start_locus = stream_input_location (&bp, data_in);
+  fn->function_end_locus = stream_input_location (&bp, data_in);
 }
 
 
@@ -829,7 +807,6 @@ input_function (tree fn_decl, struct data_in *data_in,
   gimple *stmts;
   basic_block bb;
   struct cgraph_node *node;
-  tree args, narg, oarg;
 
   fn = DECL_STRUCT_FUNCTION (fn_decl);
   tag = streamer_read_record_start (ib);
@@ -839,22 +816,6 @@ input_function (tree fn_decl, struct data_in *data_in,
   lto_tag_check (tag, LTO_function);
 
   input_struct_function_base (fn, data_in, ib);
-
-  /* Read all function arguments.  We need to re-map them here to the
-     arguments of the merged function declaration.  */
-  args = stream_read_tree (ib, data_in);
-  for (oarg = args, narg = DECL_ARGUMENTS (fn_decl);
-       oarg && narg;
-       oarg = TREE_CHAIN (oarg), narg = TREE_CHAIN (narg))
-    {
-      unsigned ix;
-      bool res;
-      res = streamer_tree_cache_lookup (data_in->reader_cache, oarg, &ix);
-      gcc_assert (res);
-      /* Replace the argument in the streamer cache.  */
-      streamer_tree_cache_insert_at (data_in->reader_cache, narg, ix);
-    }
-  gcc_assert (!oarg && !narg);
 
   /* Read all the SSA names.  */
   input_ssa_names (ib, data_in, fn);
@@ -934,39 +895,6 @@ input_function (tree fn_decl, struct data_in *data_in,
 }
 
 
-/* Read initializer expressions for public statics.  DATA_IN is the
-   file being read.  IB is the input block used for reading.  */
-
-static void
-input_alias_pairs (struct lto_input_block *ib, struct data_in *data_in)
-{
-  tree var;
-
-  clear_line_info (data_in);
-
-  var = stream_read_tree (ib, data_in);
-  while (var)
-    {
-      const char *orig_name, *new_name;
-      alias_pair *p;
-
-      p = VEC_safe_push (alias_pair, gc, alias_pairs, NULL);
-      p->decl = var;
-      p->target = stream_read_tree (ib, data_in);
-
-      /* If the target is a static object, we may have registered a
-	 new name for it to avoid clashes between statics coming from
-	 different files.  In that case, use the new name.  */
-      orig_name = IDENTIFIER_POINTER (p->target);
-      new_name = lto_get_decl_name_mapping (data_in->file_data, orig_name);
-      if (strcmp (orig_name, new_name) != 0)
-	p->target = get_identifier (new_name);
-
-      var = stream_read_tree (ib, data_in);
-    }
-}
-
-
 /* Read the body from DATA for function FN_DECL and fill it in.
    FILE_DATA are the global decls and types.  SECTION_TYPE is either
    LTO_section_function_body or LTO_section_static_initializer.  If
@@ -1018,6 +946,9 @@ lto_read_body (struct lto_file_decl_data *file_data, tree fn_decl,
       push_cfun (fn);
       init_tree_ssa (fn);
 
+      /* We input IL in SSA form.  */
+      cfun->gimple_df->in_ssa_p = true;
+
       /* Use the function's decl state. */
       decl_state = lto_get_function_in_decl_state (file_data, fn_decl);
       gcc_assert (decl_state);
@@ -1054,17 +985,10 @@ lto_read_body (struct lto_file_decl_data *file_data, tree fn_decl,
 	    }
 	}
 
-      /* We should now be in SSA.  */
-      cfun->gimple_df->in_ssa_p = true;
-
       /* Restore decl state */
       file_data->current_decl_state = file_data->global_decl_state;
 
       pop_cfun ();
-    }
-  else
-    {
-      input_alias_pairs (&ib_main, data_in);
     }
 
   clear_line_info (data_in);
@@ -1079,19 +1003,7 @@ void
 lto_input_function_body (struct lto_file_decl_data *file_data,
 			 tree fn_decl, const char *data)
 {
-  current_function_decl = fn_decl;
   lto_read_body (file_data, fn_decl, data, LTO_section_function_body);
-}
-
-
-/* Read in VAR_DECL using DATA.  FILE_DATA holds the global decls and
-   types.  */
-
-void
-lto_input_constructors_and_inits (struct lto_file_decl_data *file_data,
-				  const char *data)
-{
-  lto_read_body (file_data, NULL, data, LTO_section_static_initializer);
 }
 
 
@@ -1113,7 +1025,7 @@ lto_read_tree (struct lto_input_block *ib, struct data_in *data_in,
   /* Read all the bitfield values in RESULT.  Note that for LTO, we
      only write language-independent bitfields, so no more unpacking is
      needed.  */
-  streamer_read_tree_bitfields (ib, result);
+  streamer_read_tree_bitfields (ib, data_in, result);
 
   /* Read all the pointer fields in RESULT.  */
   streamer_read_tree_body (ib, data_in, result);
@@ -1174,9 +1086,9 @@ lto_input_tree (struct lto_input_block *ib, struct data_in *data_in)
 	 the code and class.  */
       result = streamer_get_builtin_tree (ib, data_in);
     }
-  else if (tag == lto_tree_code_to_tag (INTEGER_CST))
+  else if (tag == LTO_integer_cst)
     {
-      /* For integer constants we only need the type and its hi/low
+      /* For shared integer constants we only need the type and its hi/low
 	 words.  */
       result = streamer_read_integer_cst (ib, data_in);
     }
@@ -1223,10 +1135,10 @@ lto_input_toplevel_asms (struct lto_file_decl_data *file_data, int order_base)
 
   while ((str = streamer_read_string_cst (data_in, &ib)))
     {
-      struct cgraph_asm_node *node = cgraph_add_asm_node (str);
+      struct asm_node *node = add_asm_node (str);
       node->order = streamer_read_hwi (&ib) + order_base;
-      if (node->order >= cgraph_order)
-	cgraph_order = node->order + 1;
+      if (node->order >= symtab_order)
+	symtab_order = node->order + 1;
     }
 
   clear_line_info (data_in);

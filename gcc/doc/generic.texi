@@ -1235,6 +1235,7 @@ the byte offset of the field, but should not be used directly; call
 @tindex PLUS_EXPR
 @tindex MINUS_EXPR
 @tindex MULT_EXPR
+@tindex MULT_HIGHPART_EXPR
 @tindex RDIV_EXPR
 @tindex TRUNC_DIV_EXPR
 @tindex FLOOR_DIV_EXPR
@@ -1387,7 +1388,8 @@ shift.  Right shift should be treated as arithmetic, i.e., the
 high-order bits should be zero-filled when the expression has unsigned
 type and filled with the sign bit when the expression has signed type.
 Note that the result is undefined if the second operand is larger
-than or equal to the first operand's type size.
+than or equal to the first operand's type size. Unlike most nodes, these
+can have a vector as first operand and a scalar as second operand.
 
 
 @item BIT_IOR_EXPR
@@ -1433,6 +1435,11 @@ one operand is of floating type and the other is of integral type.
 The behavior of these operations on signed arithmetic overflow is
 controlled by the @code{flag_wrapv} and @code{flag_trapv} variables.
 
+@item MULT_HIGHPART_EXPR
+This node represents the ``high-part'' of a widening multiplication.
+For an integral type with @var{b} bits of precision, the result is
+the most significant @var{b} bits of the full @math{2@var{b}} product.
+
 @item RDIV_EXPR
 This node represents a floating point division operation.
 
@@ -1476,11 +1483,12 @@ allows the backend to choose between the faster of @code{TRUNC_DIV_EXPR},
 @itemx NE_EXPR
 These nodes represent the less than, less than or equal to, greater
 than, greater than or equal to, equal, and not equal comparison
-operators.  The first and second operand with either be both of integral
-type or both of floating type.  The result type of these expressions
-will always be of integral or boolean type.  These operations return
-the result type's zero value for false, and the result type's one value
-for true.
+operators.  The first and second operands will either be both of integral
+type, both of floating type or both of vector type.  The result type of
+these expressions will always be of integral, boolean or signed integral
+vector type.  These operations return the result type's zero value for
+false, the result type's one value for true, and a vector whose elements
+are zero (false) or minus one (true) for vectors.
 
 For floating point comparisons, if we honor IEEE NaNs and either operand
 is NaN, then @code{NE_EXPR} always returns true and the remaining operators
@@ -1763,6 +1771,17 @@ of elements of a floating point type.  The result is a vector that contains
 twice as many elements of an integral type whose size is half as wide.  The
 elements of the two vectors are merged (concatenated) to form the output
 vector.
+
+@item VEC_COND_EXPR
+These nodes represent @code{?:} expressions.  The three operands must be
+vectors of the same size and number of elements.  The second and third
+operands must have the same type as the entire expression.  The first
+operand is of signed integral vector type.  If an element of the first
+operand evaluates to a zero value, the corresponding element of the
+result is taken from the third operand. If it evaluates to a minus one
+value, it is taken from the second operand. It should never evaluate to
+any other value. In contrast with a @code{COND_EXPR}, all operands are
+always evaluated.
 @end table
 
 
@@ -2494,7 +2513,7 @@ should submit your patches for inclusion in GCC@.
 @findex TYPE_PRECISION
 @findex TYPE_ARG_TYPES
 @findex TYPE_METHOD_BASETYPE
-@findex TYPE_PTRMEM_P
+@findex TYPE_PTRDATAMEM_P
 @findex TYPE_OFFSET_BASETYPE
 @findex TREE_TYPE
 @findex TYPE_CONTEXT
@@ -2571,7 +2590,7 @@ This predicate holds for a class-type.
 @item TYPE_BUILT_IN
 This predicate holds for a built-in type.
 
-@item TYPE_PTRMEM_P
+@item TYPE_PTRDATAMEM_P
 This predicate holds if the type is a pointer to data member.
 
 @item TYPE_PTR_P
@@ -2597,7 +2616,7 @@ language-dependent info about GENERIC types.
 @item POINTER_TYPE
 Used to represent pointer types, and pointer to data member types.  If
 @code{TREE_TYPE}
-is a pointer to data member type, then @code{TYPE_PTRMEM_P} will hold.
+is a pointer to data member type, then @code{TYPE_PTRDATAMEM_P} will hold.
 For a pointer to data member type of the form @samp{T X::*},
 @code{TYPE_PTRMEM_CLASS_TYPE} will be the type @code{X}, while
 @code{TYPE_PTRMEM_POINTED_TO_TYPE} will be the type @code{T}.

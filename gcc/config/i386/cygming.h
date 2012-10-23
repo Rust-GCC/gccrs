@@ -48,6 +48,10 @@ along with GCC; see the file COPYING3.  If not see
 #define TARGET_ASM_UNWIND_EMIT_BEFORE_INSN  false
 #undef  TARGET_ASM_FUNCTION_END_PROLOGUE
 #define TARGET_ASM_FUNCTION_END_PROLOGUE  i386_pe_seh_end_prologue
+#undef  TARGET_ASM_EMIT_EXCEPT_PERSONALITY
+#define TARGET_ASM_EMIT_EXCEPT_PERSONALITY i386_pe_seh_emit_except_personality
+#undef  TARGET_ASM_INIT_SECTIONS
+#define TARGET_ASM_INIT_SECTIONS  i386_pe_seh_init_sections
 #define SUBTARGET_ASM_UNWIND_INIT  i386_pe_seh_init
 
 #undef DEFAULT_ABI
@@ -224,6 +228,11 @@ do {									\
    Note that we can be called twice on the same decl.  */
 
 #define SUBTARGET_ENCODE_SECTION_INFO  i386_pe_encode_section_info
+
+/* Local and global relocs can be placed always into readonly memory
+   for PE-COFF targets.  */
+#undef TARGET_ASM_RELOC_RW_MASK
+#define TARGET_ASM_RELOC_RW_MASK i386_pe_reloc_rw_mask
 
 /* Output a common block.  */
 #undef ASM_OUTPUT_ALIGNED_DECL_COMMON

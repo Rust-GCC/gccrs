@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -100,8 +100,8 @@ package body Debug is
    --  d.g  Enable conversion of raise into goto
    --  d.h
    --  d.i  Ignore Warnings pragmas
-   --  d.j
-   --  d.k
+   --  d.j  Generate listing of frontend inlined calls
+   --  d.k  Enable new support for frontend inlining
    --  d.l  Use Ada 95 semantics for limited function returns
    --  d.m  For -gnatl, print full source only for main unit
    --  d.n  Print source file names
@@ -129,16 +129,16 @@ package body Debug is
    --  d.I  SCIL generation mode
    --  d.J  Disable parallel SCIL generation mode
    --  d.K  Alfa detection only mode for gnat2why
-   --  d.L  Depend on back end for limited types in conditional expressions
+   --  d.L  Depend on back end for limited types in if and case expressions
    --  d.M
-   --  d.N
+   --  d.N  Add node to all entities
    --  d.O  Dump internal SCO tables
    --  d.P  Previous (non-optimized) handling of length comparisons
    --  d.Q
-   --  d.R
+   --  d.R  Restrictions in ali files in positional form
    --  d.S  Force Optimize_Alignment (Space)
    --  d.T  Force Optimize_Alignment (Time)
-   --  d.U
+   --  d.U  Ignore indirect calls for static elaboration
    --  d.V
    --  d.W  Print out debugging information for Walk_Library_Items
    --  d.X  Use Expression_With_Actions
@@ -153,7 +153,7 @@ package body Debug is
    --  d6   Default access unconstrained to thin pointers
    --  d7   Do not output version & file time stamp in -gnatv or -gnatl mode
    --  d8   Force opposite endianness in packed stuff
-   --  d9
+   --  d9   Allow lock free implementation
 
    --  Debug flags for binder (GNATBIND)
 
@@ -533,6 +533,13 @@ package body Debug is
    --       be used in particular to disable Warnings (Off) to check if any of
    --       these statements are inappropriate.
 
+   --  d.j  Generate listing of frontend inlined calls and inline calls passed
+   --       to the backend. This is useful to locate skipped calls that must be
+   --       inlined by the frontend.
+
+   --  d.k  Enable new semantics of frontend inlining.  This is useful to test
+   --       this new feature in all the platforms.
+
    --  d.l  Use Ada 95 semantics for limited function returns. This may be
    --       used to work around the incompatibility introduced by AI-318-2.
    --       It is useful only in -gnat05 mode.
@@ -622,6 +629,10 @@ package body Debug is
    --       case expansion, leaving it up to the back end to handle conditional
    --       expressions correctly.
 
+   --  d.N  Enlarge entities by one node (but don't attempt to use this extra
+   --       node for storage of any flags or fields). This can be used to do
+   --       experiments on the impact of increasing entity sizes.
+
    --  d.O  Dump internal SCO tables. Before outputting the SCO information to
    --       the ALI file, the internal SCO tables (SCO_Table/SCO_Unit_Table)
    --       are dumped for debugging purposes.
@@ -631,9 +642,21 @@ package body Debug is
    --       This is there in case we find a situation where the optimization
    --       malfunctions, to provide a work around.
 
+   --  d.R  As documented in lib-writ.ads, restrictions in the ali file can
+   --       have two forms, positional and named. The named notation is the
+   --       current preferred form, but the use of this debug switch will force
+   --       the use of the obsolescent positional form.
+
    --  d.S  Force Optimize_Alignment (Space) mode as the default
 
    --  d.T  Force Optimize_Alignment (Time) mode as the default
+
+   --  d.U  Ignore indirect calls for static elaboration. The static
+   --       elaboration model is conservative, especially regarding indirect
+   --       calls. If you say Proc'Access, it will assume you might call
+   --       Proc. This can cause elaboration cycles at bind time. This flag
+   --       reverts to the behavior of earlier compilers, which ignored
+   --       indirect calls.
 
    --  d.W  Print out debugging information for Walk_Library_Items, including
    --       the order in which units are walked. This is primarily for use in
@@ -691,6 +714,9 @@ package body Debug is
    --  d8   This forces the packed stuff to generate code assuming the
    --       opposite endianness from the actual correct value. Useful in
    --       testing out code generation from the packed routines.
+
+   --  d9   This allows lock free implementation for protected objects
+   --       (see Exp_Ch9).
 
    ------------------------------------------
    -- Documentation for Binder Debug Flags --

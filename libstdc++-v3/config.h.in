@@ -845,23 +845,14 @@
 /* Define if code specialized for wchar_t should be used. */
 #undef _GLIBCXX_USE_WCHAR_T
 
+/* Define to 1 if a verbose library is built, or 0 otherwise. */
+#undef _GLIBCXX_VERBOSE
+
+/* Defined if as can handle rdrand. */
+#undef _GLIBCXX_X86_RDRAND
+
 /* Define to 1 if mutex_timedlock is available. */
 #undef _GTHREAD_USE_MUTEX_TIMEDLOCK
-
-/* Define if all C++ overloads are available in <math.h>.  */
-#if __cplusplus >= 199711L
-#undef __CORRECT_ISO_CPP_MATH_H_PROTO1
-#endif
-
-/* Define if only double std::abs(double) is available in <math.h>.  */
-#if __cplusplus >= 199711L
-#undef __CORRECT_ISO_CPP_MATH_H_PROTO2
-#endif
-
-/* Define if all C++ overloads are available in <stdlib.h>.  */
-#if __cplusplus >= 199711L
-#undef __CORRECT_ISO_CPP_STDLIB_H_PROTO
-#endif
 
 #if defined (HAVE__ACOSF) && ! defined (HAVE_ACOSF)
 # define HAVE_ACOSF 1

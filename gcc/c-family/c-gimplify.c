@@ -31,13 +31,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "c-common.h"
 #include "gimple.h"
-#include "basic-block.h"
 #include "tree-inline.h"
 #include "diagnostic-core.h"
 #include "langhooks.h"
 #include "langhooks-def.h"
 #include "flags.h"
-#include "tree-dump.h"
+#include "dumpfile.h"
 #include "c-pretty-print.h"
 #include "cgraph.h"
 
@@ -100,7 +99,7 @@ c_genericize (tree fndecl)
   /* Dump all nested functions now.  */
   cgn = cgraph_get_create_node (fndecl);
   for (cgn = cgn->nested; cgn ; cgn = cgn->next_nested)
-    c_genericize (cgn->decl);
+    c_genericize (cgn->symbol.decl);
 }
 
 static void

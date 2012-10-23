@@ -1,37 +1,70 @@
+2012-10-02  Uros Bizjak  <ubizjak@gmail.com>
+
+	* config/x86/target.h (struct gtm_jmpbuf): Merge x86_64
+	and ia32 declarations some more.
+	* config/x86/sjlj.S (_ITM_beginTransaction): Move ret to common code.
+
 2012-09-20  Jakub Jelinek  <jakub@redhat.com>
 
 	PR other/43620
 	* configure.ac (AM_INIT_AUTOMAKE): Add no-dist.
-	* Makefile.in: Regenerated.
+	* configure: Regenerate.
+	* Makefile.in: Regenerate.
+
+2012-09-14  David Edelsohn  <dje.gcc@gmail.com>
+
 	* configure: Regenerated.
-	* testsuite/Makefile.in: Regenerated.
 
-2012-09-20  Release Manager
+2012-07-31  Uros Bizjak  <ubizjak@gmail.com>
 
-	* GCC 4.7.2 released.
+	* config/x86/target.h (cpu_relax): Use __builtin_ia32_pause.
 
-2012-06-14  Release Manager
+2012-05-21  Patrick Marlier  <patrick.marlier@gmail.com>
 
-	* GCC 4.7.1 released.
+	* eh_cpp.cc: Fix __cxa_end_catch declaration.
+
+2012-05-16  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* configure: Regenerated.
 
 2012-04-04  H.J. Lu  <hongjiu.lu@intel.com>
-
-	Backported from mainline
-	2012-04-04  H.J. Lu  <hongjiu.lu@intel.com>
 
 	PR libitm/52854
 	* config/x86/target.h (gtm_jmpbuf): Replace long with long long
 	for x86-64.
 
-2012-03-22  Release Manager
+2012-04-03  Tristan Gingold  <gingold@adacore.com>
 
-	* GCC 4.7.0 released.
+	* configure: Regenerate.
+
+2012-03-31  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR bootstrap/52812
+	* configure.tgt (i[456]86-*-linux*): Handle -mx32 like -m64.
+
+2012-03-16  Bernhard Reutner-Fischer  <aldot@gcc.gnu.org>
+
+	* testsuite/lib/libitm.exp: load fortran-modules.exp
+
+2012-03-14  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.tgt (*-*-irix6*): Remove.
 
 2012-03-13  Torvald Riegel  <triegel@redhat.com>
 
 	PR libitm/52526
 	* config/linux/rwlock.cc (GTM::gtm_rwlock::read_lock): Fix lost
 	wake-up.
+
+2012-03-12  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.tgt (*-*-osf*): Remove.
+	* configure: Regenerate.
+
+2012-03-05  Torvald Riegel  <triegel@redhat.com>
+
+	* dispatch.h (CREATE_DISPATCH_METHODS_MEM): Don't execute
+	memtransfer/memset if size isn't larger than zero.
 
 2012-03-02  Torvald Riegel  <triegel@redhat.com>
 

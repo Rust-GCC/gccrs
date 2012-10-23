@@ -1,14 +1,32 @@
-2012-09-20  Release Manager
+2012-09-14  David Edelsohn  <dje.gcc@gmail.com>
 
-	* GCC 4.7.2 released.
+	* configure: Regenerated.
 
-2012-06-14  Release Manager
+2012-07-13  Richard Guenther  <rguenther@suse.de>
 
-	* GCC 4.7.1 released.
+	* testsuite/libmudflap.c++/ctors.exp: Explicitely specify -O0.
+	* testsuite/libmudflap.c++/c++frags.exp: Likewise.
+	* testsuite/libmudflap.cth/cthfrags.exp: Likewise.
+	* testsuite/libmudflap.c/cfrags.exp: Likewise.
+	* testsuite/libmudflap.c/externs.exp: Likewise.
 
-2012-03-22  Release Manager
+2012-07-13  Richard Guenther  <rguenther@suse.de>
 
-	* GCC 4.7.0 released.
+	* testsuite/libmudflap.c/fail11-frag.c: Adjust to not look like memset.
+	* testsuite/libmudflap.c/fail12-frag.c: Likewise.
+
+2012-05-29  Joseph Myers  <joseph@codesourcery.com>
+
+	* mf-impl.h: Fix typo.
+
+2012-05-16  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* configure: Regenerated.
+
+2012-04-11  Manuel López-Ibáñez  <manu@gcc.gnu.org>
+
+	PR 24985
+	* testsuite/lib/libmudflap.exp: Handle caret.
 
 2012-01-19  Jakub Jelinek  <jakub@redhat.com>
 

@@ -400,11 +400,6 @@ DEFTREECODE (COMPONENT_REF, "component_ref", tcc_reference, 3)
    to its mode width.  */
 DEFTREECODE (BIT_FIELD_REF, "bit_field_ref", tcc_reference, 3)
 
-/* Used only on an operand of complex type, these return
-   a value of the corresponding component type.  */
-DEFTREECODE (REALPART_EXPR, "realpart_expr", tcc_reference, 1)
-DEFTREECODE (IMAGPART_EXPR, "imagpart_expr", tcc_reference, 1)
-
 /* Array indexing.
    Operand 0 is the array; operand 1 is a (single) array index.
    Operand 2, if present, is a copy of TYPE_MIN_VALUE of the index.
@@ -416,6 +411,23 @@ DEFTREECODE (ARRAY_REF, "array_ref", tcc_reference, 4)
    starting index of the resulting array is taken from operand 1 and the size
    of the range is taken from the type of the expression.  */
 DEFTREECODE (ARRAY_RANGE_REF, "array_range_ref", tcc_reference, 4)
+
+/* Used only on an operand of complex type, these return
+   a value of the corresponding component type.  */
+DEFTREECODE (REALPART_EXPR, "realpart_expr", tcc_reference, 1)
+DEFTREECODE (IMAGPART_EXPR, "imagpart_expr", tcc_reference, 1)
+
+/* Represents viewing something of one type as being of a second type.
+   This corresponds to an "Unchecked Conversion" in Ada and roughly to
+   the idiom *(type2 *)&X in C.  The only operand is the value to be
+   viewed as being of another type.  It is undefined if the type of the
+   input and of the expression have different sizes.
+
+   This code may also be used within the LHS of a MODIFY_EXPR, in which
+   case no actual data motion may occur.  TREE_ADDRESSABLE will be set in
+   this case and GCC must abort if it could not do the operation without
+   generating insns.  */
+DEFTREECODE (VIEW_CONVERT_EXPR, "view_convert_expr", tcc_reference, 1)
 
 /* C unary `*' or Pascal `^'.  One operand, an expression for a pointer.  */
 DEFTREECODE (INDIRECT_REF, "indirect_ref", tcc_reference, 1)
@@ -627,6 +639,10 @@ DEFTREECODE (MULT_EXPR, "mult_expr", tcc_binary, 2)
    second operand is an integer of type sizetype.  */
 DEFTREECODE (POINTER_PLUS_EXPR, "pointer_plus_expr", tcc_binary, 2)
 
+/* Highpart multiplication.  For an integral type with precision B,
+   returns bits [2B-1, B] of the full 2*B product.  */
+DEFTREECODE (MULT_HIGHPART_EXPR, "mult_highpart_expr", tcc_binary, 2)
+
 /* Division for integer result that rounds the quotient toward zero.  */
 DEFTREECODE (TRUNC_DIV_EXPR, "trunc_div_expr", tcc_binary, 2)
 
@@ -769,18 +785,6 @@ DEFTREECODE (NOP_EXPR, "nop_expr", tcc_unary, 1)
 /* Value is same as argument, but guaranteed not an lvalue.  */
 DEFTREECODE (NON_LVALUE_EXPR, "non_lvalue_expr", tcc_unary, 1)
 
-/* Represents viewing something of one type as being of a second type.
-   This corresponds to an "Unchecked Conversion" in Ada and roughly to
-   the idiom *(type2 *)&X in C.  The only operand is the value to be
-   viewed as being of another type.  It is undefined if the type of the
-   input and of the expression have different sizes.
-
-   This code may also be used within the LHS of a MODIFY_EXPR, in which
-   case no actual data motion may occur.  TREE_ADDRESSABLE will be set in
-   this case and GCC must abort if it could not do the operation without
-   generating insns.  */
-DEFTREECODE (VIEW_CONVERT_EXPR, "view_convert_expr", tcc_reference, 1)
-
 /* A COMPOUND_LITERAL_EXPR represents a literal that is placed in a DECL.  The
    COMPOUND_LITERAL_EXPR_DECL_EXPR is the a DECL_EXPR containing the decl
    for the anonymous object represented by the COMPOUND_LITERAL;
@@ -876,10 +880,16 @@ DEFTREECODE (LOOP_EXPR, "loop_expr", tcc_statement, 1)
      of all the cases.  */
 DEFTREECODE (SWITCH_EXPR, "switch_expr", tcc_statement, 3)
 
-/* Used to represent a case label. The operands are CASE_LOW and
-   CASE_HIGH, respectively. If CASE_LOW is NULL_TREE, the label is a
-   'default' label. If CASE_HIGH is NULL_TREE, the label is a normal case
-   label.  CASE_LABEL is the corresponding LABEL_DECL.  */
+/* Used to represent a case label.
+
+   Operand 0 is CASE_LOW.  It may be NULL_TREE, in which case the label
+     is a 'default' label.
+   Operand 1 is CASE_HIGH.  If it is NULL_TREE, the label is a simple
+     (one-value) case label.  If it is non-NULL_TREE, the case is a range.
+   Operand 2 is CASE_LABEL, which is is the corresponding LABEL_DECL.
+   Operand 4 is CASE_CHAIN.  This operand is only used in tree-cfg.c to
+     speed up the lookup of case labels which use a particular edge in
+     the control flow graph.  */
 DEFTREECODE (CASE_LABEL_EXPR, "case_label_expr", tcc_statement, 4)
 
 /* Used to represent an inline assembly statement.  ASM_STRING returns a
@@ -1083,8 +1093,11 @@ DEFTREECODE (TRANSACTION_EXPR, "transaction_expr", tcc_expression, 1)
    Operations that take a vector of elements and "reduce" it to a scalar
    result (e.g. summing the elements of the vector, finding the minimum over
    the vector elements, etc).
-   Operand 0 is a vector; the first element in the vector has the result.
-   Operand 1 is a vector.  */
+   Operand 0 is a vector.
+   The expression returns a vector of the same type, with the first
+   element in the vector holding the result of the reduction of all elements
+   of the operand.  The content of the other elements in the returned vector
+   is undefined.  */
 DEFTREECODE (REDUC_MAX_EXPR, "reduc_max_expr", tcc_unary, 1)
 DEFTREECODE (REDUC_MIN_EXPR, "reduc_min_expr", tcc_unary, 1)
 DEFTREECODE (REDUC_PLUS_EXPR, "reduc_plus_expr", tcc_unary, 1)
@@ -1160,6 +1173,10 @@ DEFTREECODE (VEC_RSHIFT_EXPR, "vec_rshift_expr", tcc_binary, 2)
    VEC_WIDEN_MULT_LO_EXPR computes the N/2 low products.  */
 DEFTREECODE (VEC_WIDEN_MULT_HI_EXPR, "widen_mult_hi_expr", tcc_binary, 2)
 DEFTREECODE (VEC_WIDEN_MULT_LO_EXPR, "widen_mult_lo_expr", tcc_binary, 2)
+
+/* Similarly, but return the even or odd N/2 products.  */
+DEFTREECODE (VEC_WIDEN_MULT_EVEN_EXPR, "widen_mult_even_expr", tcc_binary, 2)
+DEFTREECODE (VEC_WIDEN_MULT_ODD_EXPR, "widen_mult_odd_expr", tcc_binary, 2)
 
 /* Unpack (extract and promote/widen) the high/low elements of the input
    vector into the output vector.  The input vector has twice as many

@@ -98,7 +98,7 @@
 ;; ls2_[f]alu{1,2}_turn_enabled units according to this attribute.
 ;; These instructions are used in mips.c: sched_ls2_dfa_post_advance_cycle.
 
-(define_attr "ls2_turn_type" "alu1,alu2,falu1,falu2,unknown"
+(define_attr "ls2_turn_type" "alu1,alu2,falu1,falu2,unknown,atomic,syncloop"
   (const_string "unknown"))
 
 ;; Subscribe ls2_alu1_turn_enabled.
@@ -154,8 +154,8 @@
 ;; Reservation for integer instructions.
 (define_insn_reservation "ls2_alu" 2
   (and (eq_attr "cpu" "loongson_2e,loongson_2f")
-       (eq_attr "type" "arith,condmove,const,logical,mfhilo,move,
-                        mthilo,nop,shift,signext,slt"))
+       (eq_attr "type" "arith,condmove,const,logical,mfhi,mflo,move,
+                        mthi,mtlo,nop,shift,signext,slt"))
   "ls2_alu")
 
 ;; Reservation for branch instructions.

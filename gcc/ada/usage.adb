@@ -6,7 +6,7 @@
 --                                                                          --
 --                                B o d y                                   --
 --                                                                          --
---          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -167,6 +167,11 @@ begin
    Write_Switch_Char ("Dnn");
    Write_Line ("Debug expanded generated code (max line length = nn)");
 
+   --  Line for -gnateA switch
+
+   Write_Switch_Char ("eA");
+   Write_Line ("Aliasing checks on subprogram parameters");
+
    --  Line for -gnatec switch
 
    Write_Switch_Char ("ec=?");
@@ -197,6 +202,11 @@ begin
    Write_Switch_Char ("eG");
    Write_Line ("Generate preprocessed source");
 
+   --  Line for -gnatei switch
+
+   Write_Switch_Char ("einn");
+   Write_Line ("Set maximumum number of instantiations to nn");
+
    --  Line for -gnateI switch
 
    Write_Switch_Char ("eInn");
@@ -221,6 +231,11 @@ begin
 
    Write_Switch_Char ("eS");
    Write_Line ("Generate SCO (Source Coverage Obligation) information");
+
+   --  Line for -gnateV switch
+
+   Write_Switch_Char ("eV");
+   Write_Line ("Validity checks on subprogram parameters");
 
    --  Line for -gnatE switch
 
@@ -293,8 +308,8 @@ begin
 
    --  Line for -gnatn switch
 
-   Write_Switch_Char ("n");
-   Write_Line ("Enable pragma Inline (both within and across units)");
+   Write_Switch_Char ("n[?]");
+   Write_Line ("Enable pragma Inline (both within and across units, ?=1/2)");
 
    --  Line for -gnatN switch
 
@@ -304,7 +319,15 @@ begin
    --  Line for -gnato switch
 
    Write_Switch_Char ("o");
-   Write_Line ("Enable overflow checking (off by default)");
+   Write_Line ("Enable overflow checking mode to CHECKED (off by default)");
+
+   --  Line for -gnato? switch
+
+   Write_Switch_Char ("o?");
+   Write_Line ("Set SUPPRESSED/CHECKED/MINIMIZED/ELIMINATED (?=0/1/2/3) mode");
+
+   Write_Switch_Char ("o??");
+   Write_Line ("Set mode for general/assertion expressions separately");
 
    --  Line for -gnatO switch
 

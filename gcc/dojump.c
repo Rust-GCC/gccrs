@@ -35,7 +35,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "langhooks.h"
 #include "ggc.h"
 #include "basic-block.h"
-#include "output.h"
 #include "tm_p.h"
 
 static bool prefer_and_bit_test (enum machine_mode, int);
@@ -166,8 +165,7 @@ prefer_and_bit_test (enum machine_mode mode, int bitnum)
 
   /* Fill in the integers.  */
   XEXP (and_test, 1)
-    = immed_double_int_const (double_int_setbit (double_int_zero, bitnum),
-						 mode);
+    = immed_double_int_const (double_int_zero.set_bit (bitnum), mode);
   XEXP (XEXP (shift_test, 0), 1) = GEN_INT (bitnum);
 
   speed_p = optimize_insn_for_speed_p ();
@@ -443,36 +441,6 @@ do_jump (tree exp, rtx if_false_label, rtx if_true_label, int prob)
     case COMPOUND_EXPR:
       /* Lowered by gimplify.c.  */
       gcc_unreachable ();
-
-    case COMPONENT_REF:
-    case BIT_FIELD_REF:
-    case ARRAY_REF:
-    case ARRAY_RANGE_REF:
-      {
-        HOST_WIDE_INT bitsize, bitpos;
-        int unsignedp;
-        enum machine_mode mode;
-        tree type;
-        tree offset;
-        int volatilep = 0;
-
-        /* Get description of this reference.  We don't actually care
-           about the underlying object here.  */
-        get_inner_reference (exp, &bitsize, &bitpos, &offset, &mode,
-                             &unsignedp, &volatilep, false);
-
-        type = lang_hooks.types.type_for_size (bitsize, unsignedp);
-        if (! SLOW_BYTE_ACCESS
-            && type != 0 && bitsize >= 0
-            && TYPE_PRECISION (type) < TYPE_PRECISION (TREE_TYPE (exp))
-            && have_insn_for (COMPARE, TYPE_MODE (type)))
-          {
-	    do_jump (fold_convert (type, exp), if_false_label, if_true_label,
-		     prob);
-            break;
-          }
-        goto normal;
-      }
 
     case MINUS_EXPR:
       /* Nonzero iff operands of minus differ.  */
@@ -918,7 +886,6 @@ do_compare_rtx_and_jump (rtx op0, rtx op1, enum rtx_code code, int unsignedp,
 {
   rtx tem;
   rtx dummy_label = NULL_RTX;
-  rtx last;
 
   /* Reverse the comparison if that is safe and we want to jump if it is
      false.  Also convert to the reverse comparison if the target can
@@ -1059,19 +1026,16 @@ do_compare_rtx_and_jump (rtx op0, rtx op1, enum rtx_code code, int unsignedp,
 	  op0 = op1;
 	  op1 = tmp;
 	}
-
       else if (SCALAR_FLOAT_MODE_P (mode)
 	       && ! can_compare_p (code, mode, ccp_jump)
-
-	       /* Never split ORDERED and UNORDERED.  These must be implemented.  */
+	       /* Never split ORDERED and UNORDERED.
+		  These must be implemented.  */
 	       && (code != ORDERED && code != UNORDERED)
-
-               /* Split a floating-point comparison if we can jump on other
-	          conditions...  */
+               /* Split a floating-point comparison if
+		  we can jump on other conditions...  */
 	       && (have_insn_for (COMPARE, mode)
-
 	           /* ... or if there is no libcall for it.  */
-	           || code_to_optab[code] == NULL))
+	           || code_to_optab (code) == unknown_optab))
         {
 	  enum rtx_code first_code;
 	  bool and_them = split_comparison (code, mode, &first_code, &code);
@@ -1104,30 +1068,8 @@ do_compare_rtx_and_jump (rtx op0, rtx op1, enum rtx_code code, int unsignedp,
 	    }
 	}
 
-      last = get_last_insn ();
       emit_cmp_and_jump_insns (op0, op1, code, size, mode, unsignedp,
-			       if_true_label);
-      if (prob != -1 && profile_status != PROFILE_ABSENT)
-	{
-	  for (last = NEXT_INSN (last);
-	       last && NEXT_INSN (last);
-	       last = NEXT_INSN (last))
-	    if (JUMP_P (last))
-	      break;
-	  if (!last
-	      || !JUMP_P (last)
-	      || NEXT_INSN (last)
-	      || !any_condjump_p (last))
-	    {
-	      if (dump_file)
-		fprintf (dump_file, "Failed to add probability note\n");
-	    }
-	  else
-	    {
-	      gcc_assert (!find_reg_note (last, REG_BR_PROB, 0));
-	      add_reg_note (last, REG_BR_PROB, GEN_INT (prob));
-	    }
-	}
+			       if_true_label, prob);
     }
 
   if (if_false_label)

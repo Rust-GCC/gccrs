@@ -499,9 +499,11 @@ default_builtin_vectorized_conversion (unsigned int code ATTRIBUTE_UNUSED,
 
 int
 default_builtin_vectorization_cost (enum vect_cost_for_stmt type_of_cost,
-                                    tree vectype ATTRIBUTE_UNUSED,
+                                    tree vectype,
                                     int misalign ATTRIBUTE_UNUSED)
 {
+  unsigned elements;
+
   switch (type_of_cost)
     {
       case scalar_stmt:
@@ -523,6 +525,10 @@ default_builtin_vectorization_cost (enum vect_cost_for_stmt type_of_cost,
 
       case cond_branch_taken:
         return 3;
+
+      case vec_construct:
+	elements = TYPE_VECTOR_SUBPARTS (vectype);
+	return elements / 2 + 1;
 
       default:
         gcc_unreachable ();
@@ -997,6 +1003,68 @@ default_autovectorize_vector_sizes (void)
   return 0;
 }
 
+/* By default, the cost model accumulates three separate costs (prologue,
+   loop body, and epilogue) for a vectorized loop or block.  So allocate an
+   array of three unsigned ints, set it to zero, and return its address.  */
+
+void *
+default_init_cost (struct loop *loop_info ATTRIBUTE_UNUSED)
+{
+  unsigned *cost = XNEWVEC (unsigned, 3);
+  cost[vect_prologue] = cost[vect_body] = cost[vect_epilogue] = 0;
+  return cost;
+}
+
+/* By default, the cost model looks up the cost of the given statement
+   kind and mode, multiplies it by the occurrence count, accumulates
+   it into the cost specified by WHERE, and returns the cost added.  */
+
+unsigned
+default_add_stmt_cost (void *data, int count, enum vect_cost_for_stmt kind,
+		       struct _stmt_vec_info *stmt_info, int misalign,
+		       enum vect_cost_model_location where)
+{
+  unsigned *cost = (unsigned *) data;
+  unsigned retval = 0;
+
+  if (flag_vect_cost_model)
+    {
+      tree vectype = stmt_info ? stmt_vectype (stmt_info) : NULL_TREE;
+      int stmt_cost = default_builtin_vectorization_cost (kind, vectype,
+							  misalign);
+      /* Statements in an inner loop relative to the loop being
+	 vectorized are weighted more heavily.  The value here is
+	 arbitrary and could potentially be improved with analysis.  */
+      if (where == vect_body && stmt_info && stmt_in_inner_loop_p (stmt_info))
+	count *= 50;  /* FIXME.  */
+
+      retval = (unsigned) (count * stmt_cost);
+      cost[where] += retval;
+    }
+
+  return retval;
+}
+
+/* By default, the cost model just returns the accumulated costs.  */
+
+void
+default_finish_cost (void *data, unsigned *prologue_cost,
+		     unsigned *body_cost, unsigned *epilogue_cost)
+{
+  unsigned *cost = (unsigned *) data;
+  *prologue_cost = cost[vect_prologue];
+  *body_cost     = cost[vect_body];
+  *epilogue_cost = cost[vect_epilogue];
+}
+
+/* Free the cost data.  */
+
+void
+default_destroy_cost_data (void *data)
+{
+  free (data);
+}
+
 /* Determine whether or not a pointer mode is valid. Assume defaults
    of ptr_mode or Pmode - can be overridden.  */
 bool
@@ -1134,21 +1202,10 @@ default_hard_regno_scratch_ok (unsigned int regno ATTRIBUTE_UNUSED)
 /* The default implementation of TARGET_MODE_DEPENDENT_ADDRESS_P.  */
 
 bool
-default_mode_dependent_address_p (const_rtx addr ATTRIBUTE_UNUSED)
+default_mode_dependent_address_p (const_rtx addr ATTRIBUTE_UNUSED,
+				  addr_space_t addrspace ATTRIBUTE_UNUSED)
 {
-#ifdef GO_IF_MODE_DEPENDENT_ADDRESS
-
-  GO_IF_MODE_DEPENDENT_ADDRESS (CONST_CAST_RTX (addr), win);
   return false;
-  /* Label `win' might (not) be used via GO_IF_MODE_DEPENDENT_ADDRESS.  */
- win: ATTRIBUTE_UNUSED_LABEL
-  return true;
-
-#else
-
-  return false;
-
-#endif
 }
 
 bool
@@ -1207,7 +1264,8 @@ default_target_can_inline_p (tree caller, tree callee)
    this means extra overhead for dispatch tables, which raises the
    threshold for using them.  */
 
-unsigned int default_case_values_threshold (void)
+unsigned int
+default_case_values_threshold (void)
 {
   return (HAVE_casesi ? 4 : 5);
 }
@@ -1454,6 +1512,14 @@ default_pch_valid_p (const void *data_p, size_t len)
       }
 
   return NULL;
+}
+
+/* Default version of member_type_forces_blk.  */
+
+bool
+default_member_type_forces_blk (const_tree, enum machine_mode)
+{
+  return false;
 }
 
 #include "gt-targhooks.h"

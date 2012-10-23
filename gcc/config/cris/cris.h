@@ -33,9 +33,9 @@ along with GCC; see the file COPYING3.  If not see
    the section-comment is present.  */
 
 /* Note that other header files (e.g. config/elfos.h, config/linux.h,
-   config/cris/linux.h and config/cris/aout.h) are responsible for lots of
-   settings not repeated below.  This file contains general CRIS
-   definitions and definitions for the cris-*-elf subtarget.  */
+   and config/cris/linux.h) are responsible for lots of settings not
+   repeated below.  This file contains general CRIS definitions
+   and definitions for the cris-*-elf subtarget.  */
 
 /* We don't want to use gcc_assert for everything, as that can be
    compiled out.  */
@@ -92,8 +92,7 @@ extern int cris_cpu_version;
 
 /* Node: Driver */
 
-/* Also provide canonical vN definitions when user specifies an alias.
-   Note that -melf overrides -maout.  */
+/* Also provide canonical vN definitions when user specifies an alias.  */
 
 #define CPP_SPEC \
  "%{mtune=*:-D__tune_%* %{mtune=v*:-D__CRIS_arch_tune=%*}\
@@ -156,11 +155,13 @@ extern int cris_cpu_version;
     " -D__CRIS_arch_tune=" CRIS_DEFAULT_TUNE "}}}}}"\
  CRIS_ARCH_CPP_DEFAULT
 
-/* Override previous definitions (linux.h).  */
+/* Override previous definitions (../linux.h).  */
 #undef CC1_SPEC
 #define CC1_SPEC \
  "%{metrax4:-march=v3}\
   %{metrax100:-march=v8}\
+  %{march=*:-march=%*}\
+  %{mcpu=*:-mcpu=%*}\
   %(cc1_subtarget)"
 
 /* For the cris-*-elf subtarget.  */
@@ -184,13 +185,15 @@ extern int cris_cpu_version;
 #define MAYBE_AS_NO_MUL_BUG_ABORT
 #endif
 
-/* Override previous definitions (linux.h).  */
+/* Override previous definitions (../linux.h).  */
 #undef ASM_SPEC
 #define ASM_SPEC \
  MAYBE_AS_NO_MUL_BUG_ABORT \
  "%(asm_subtarget)\
  %{march=*:%{mcpu=*:%edo not specify both -march=... and -mcpu=...}}\
- %{march=v32:--march=v32} %{mcpu=v32:--march=v32}"
+ %{march=v0|mcpu=v0|march=v3|mcpu=v3|march=v8|mcpu=v8:--march=v0_v10}\
+ %{march=v10|mcpu=v10:--march=v10}\
+ %{march=v32|mcpu=v32:--march=v32}"
 
 /* For the cris-*-elf subtarget.  */
 #define CRIS_ASM_SUBTARGET_SPEC \
@@ -200,11 +203,7 @@ extern int cris_cpu_version;
    "emulation" unless a linker script is provided (-T*), but I don't know
    how to do that if either of -Ttext, -Tdata or -Tbss is given but no
    linker script, as is usually the case.  Leave it to the user for the
-   time being.
-
-   Note that -melf overrides -maout except that a.out-compiled libraries
-   are linked in (multilibbing).  We'd need some %s-variant that
-   checked for existence of some specific file.  */
+   time being.  */
 #undef LINK_SPEC
 #define LINK_SPEC \
  "%{v:--verbose}\
@@ -262,9 +261,6 @@ extern int cris_cpu_version;
     }						\
   while (0)
 
-/* Previously controlled by target_flags.  */
-#define TARGET_ELF 1
-
 /* Previously controlled by target_flags.  Note that this is *not* set
    for -melinux.  */
 #define TARGET_LINUX 0
@@ -282,15 +278,25 @@ extern int cris_cpu_version;
 #define TARGET_CPU_DEFAULT CRIS_CPU_BASE
 #endif
 
-/* Default target_flags if no switches specified.  */
+/* Default target_flags if no switches specified.
+   The alignment-by-32 is to make builtin atomic support for v10 and v32
+   work for *-elf for types without specified alignment (like plain
+   "int").  See top comment in sync.md.  */
 #ifndef TARGET_DEFAULT
 # if TARGET_CPU_DEFAULT == 32
 #  define TARGET_DEFAULT \
  (MASK_STACK_ALIGN \
   + MASK_CONST_ALIGN + MASK_DATA_ALIGN \
+  + MASK_ALIGN_BY_32 \
   + MASK_PROLOGUE_EPILOGUE)
-# else  /* 10 */
-# define TARGET_DEFAULT \
+# elif TARGET_CPU_DEFAULT == 10
+#  define TARGET_DEFAULT \
+ (MASK_SIDE_EFFECT_PREFIXES + MASK_STACK_ALIGN \
+  + MASK_CONST_ALIGN + MASK_DATA_ALIGN \
+  + MASK_ALIGN_BY_32 \
+  + MASK_PROLOGUE_EPILOGUE + MASK_MUL_BUG)
+# else  /* 0 */
+#  define TARGET_DEFAULT \
  (MASK_SIDE_EFFECT_PREFIXES + MASK_STACK_ALIGN \
   + MASK_CONST_ALIGN + MASK_DATA_ALIGN \
   + MASK_PROLOGUE_EPILOGUE + MASK_MUL_BUG)
@@ -302,8 +308,28 @@ extern int cris_cpu_version;
 
 #define TARGET_HAS_MUL_INSNS (cris_cpu_version >= CRIS_CPU_NG)
 #define TARGET_HAS_LZ (cris_cpu_version >= CRIS_CPU_ETRAX4)
+#define TARGET_HAS_BREAK (cris_cpu_version >= CRIS_CPU_ETRAX4)
 #define TARGET_HAS_SWAP (cris_cpu_version >= CRIS_CPU_SVINTO)
 #define TARGET_V32 (cris_cpu_version >= CRIS_CPU_V32)
+
+/* The "break" instruction was introduced with ETRAX 4.  */
+#define TARGET_TRAP_USING_BREAK8 \
+ (cris_trap_using_break8 == 2 ? TARGET_HAS_BREAK : cris_trap_using_break8)
+
+/* Call library functions by default for GNU/Linux.  */
+#define TARGET_ATOMICS_MAY_CALL_LIBFUNCS		\
+ (cris_atomics_calling_libfunc == 2			\
+  ? TARGET_LINUX : cris_atomics_calling_libfunc)
+
+/* The < v10 atomics turn off interrupts, so they don't need alignment.
+   Incidentally, by default alignment is off there causing variables to
+   be default unaligned all over, so we'd have to make support
+   libraries use a proper atomic type (instead of "int"), one we'd
+   specify as aligned.  */
+#define TARGET_TRAP_UNALIGNED_ATOMIC		\
+ (cris_trap_unaligned_atomic == 2		\
+  ? (TARGET_V32 || cris_cpu_version == 10)	\
+  : cris_trap_unaligned_atomic)
 
 /* Node: Storage Layout */
 
@@ -752,6 +778,9 @@ struct cum_args {int regs;};
 
 #define HAVE_POST_INCREMENT 1
 
+#define CONSTANT_ADDRESS_P(X) \
+  (CONSTANT_P (X) && cris_legitimate_address_p (QImode, X, false))
+
 /* Must be a compile-time constant, so we go with the highest value
    among all CRIS variants.  */
 #define MAX_REGS_PER_ADDRESS 2
@@ -796,8 +825,6 @@ struct cum_args {int regs;};
 
 #define DATA_SECTION_ASM_OP "\t.data"
 
-#define FORCE_EH_FRAME_INFO_IN_DATA_SECTION (! TARGET_ELF)
-
 /* The jump table is immediately connected to the preceding insn.  */
 #define JUMP_TABLES_IN_TEXT_SECTION 1
 
@@ -823,12 +850,11 @@ enum cris_pic_symbol_type
 /* Node: File Framework */
 
 /* We don't want an .ident for gcc.  To avoid that but still support
-   #ident, we override ASM_OUTPUT_IDENT and, since the gcc .ident is its
-   only use besides ASM_OUTPUT_IDENT, undef IDENT_ASM_OP from elfos.h.  */
-#undef IDENT_ASM_OP
-#undef ASM_OUTPUT_IDENT
-#define ASM_OUTPUT_IDENT(FILE, NAME) \
-  fprintf (FILE, "%s\"%s\"\n", "\t.ident\t", NAME);
+   #ident, we override TARGET_ASM_OUTPUT_IDENT and, since the gcc .ident
+   is its only use besides front-end .ident directives, we return if
+   the state if the cgraph is not CGRAPH_STATE_PARSING.  */
+#undef TARGET_ASM_OUTPUT_IDENT
+#define TARGET_ASM_OUTPUT_IDENT cris_asm_output_ident
 
 #define ASM_APP_ON "#APP\n"
 
@@ -849,7 +875,7 @@ enum cris_pic_symbol_type
    are used on the object files.  Since ".global ... .lcomm ..." works, we
    use that.  Use .._ALIGNED_COMMON, since gcc whines when we only have
    ..._COMMON, and we prefer to whine ourselves; BIGGEST_ALIGNMENT is not
-   the one to check.  This done for a.out only.  */
+   the one to check.  */
 /* FIXME: I suspect a bug in gcc with alignment.  Do not warn until
    investigated; it mucks up the testsuite results.  */
 #define CRIS_ASM_OUTPUT_ALIGNED_DECL_COMMON(FILE, DECL, NAME, SIZE, ALIGN, LOCAL) \
@@ -864,29 +890,15 @@ enum cris_pic_symbol_type
       else if (align_ < 1)						\
 	align_ = 1;							\
 									\
-      if (TARGET_ELF)							\
+      if (LOCAL)							\
 	{								\
-	  if (LOCAL)							\
-	    {								\
-	      fprintf ((FILE), "%s", LOCAL_ASM_OP);			\
-	      assemble_name ((FILE), (NAME));				\
-	      fprintf ((FILE), "\n");					\
-	    }								\
-	  fprintf ((FILE), "%s", COMMON_ASM_OP);			\
+	  fprintf ((FILE), "%s", LOCAL_ASM_OP);				\
 	  assemble_name ((FILE), (NAME));				\
-	  fprintf ((FILE), ",%u,%u\n", (int)(SIZE), align_);		\
+	  fprintf ((FILE), "\n");					\
 	}								\
-      else								\
-	{								\
-	  /* We can't tell a one-only or weak COMM from a "global	\
-	     COMM" so just make all non-locals weak.  */		\
-	  if (! (LOCAL))						\
-	    ASM_WEAKEN_LABEL (FILE, NAME);				\
-	  fputs ("\t.lcomm ", (FILE));					\
-	  assemble_name ((FILE), (NAME));				\
-	  fprintf ((FILE), ",%u\n",					\
-		   ((int)(SIZE) + (align_ - 1)) & ~(align_ - 1));	\
-	}								\
+      fprintf ((FILE), "%s", COMMON_ASM_OP);				\
+      assemble_name ((FILE), (NAME));					\
+      fprintf ((FILE), ",%u,%u\n", (int)(SIZE), align_);		\
     }									\
   while (0)
 
@@ -934,7 +946,7 @@ enum cris_pic_symbol_type
 #define DBR_OUTPUT_SEQEND(FILE) \
   fprintf (FILE, "\n")
 
-#define LOCAL_LABEL_PREFIX (TARGET_ELF ? "." : "")
+#define LOCAL_LABEL_PREFIX "."
 
 /* cppinit.c initializes a const array from this, so it must be constant,
    can't have it different based on options.  Luckily, the prefix is
@@ -1042,8 +1054,6 @@ enum cris_pic_symbol_type
 
 /* FIXME: Investigate CASE_VECTOR_SHORTEN_MODE to make sure HImode is not
    used when broken-.word could possibly fail (plus testcase).  */
-
-#define FIXUNS_TRUNC_LIKE_FIX_TRUNC
 
 /* This is the number of bytes that can be moved in one
    reasonably fast instruction sequence.  For CRIS, this is two

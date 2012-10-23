@@ -60,12 +60,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "insn-attr.h"
 #include "except.h"
 #include "recog.h"
-#include "cfglayout.h"
 #include "params.h"
 #include "sched-int.h"
 #include "sel-sched.h"
 #include "target.h"
-#include "timevar.h"
 #include "tree-pass.h"
 #include "dbgcnt.h"
 
@@ -125,6 +123,9 @@ int current_blocks;
    target are in array bblst_table.  */
 static basic_block *bblst_table;
 static int bblst_size, bblst_last;
+
+static char *bb_state_array;
+static state_t *bb_state;
 
 /* Target info declarations.
 
@@ -398,7 +399,8 @@ debug_region (int rgn)
 
   for (bb = 0; bb < rgn_table[rgn].rgn_nr_blocks; bb++)
     {
-      debug_bb_n_slim (rgn_bb_table[current_blocks + bb]);
+      dump_bb (stderr, BASIC_BLOCK (rgn_bb_table[current_blocks + bb]),
+	       0, TDF_SLIM | TDF_BLOCKS);
       fprintf (stderr, "\n");
     }
 
@@ -436,7 +438,7 @@ dump_region_dot (FILE *f, int rgn)
       edge e;
       edge_iterator ei;
       int src_bb_num = rgn_bb_table[current_blocks + i];
-      struct basic_block_def *bb = BASIC_BLOCK (src_bb_num);
+      basic_block bb = BASIC_BLOCK (src_bb_num);
 
       FOR_EACH_EDGE (e, ei, bb->succs)
         if (bb_in_region_p (e->dest->index, rgn))
@@ -1456,7 +1458,7 @@ compute_dom_prob_ps (int bb)
 static void
 split_edges (int bb_src, int bb_trg, edgelst *bl)
 {
-  sbitmap src = sbitmap_alloc (pot_split[bb_src]->n_bits);
+  sbitmap src = sbitmap_alloc (SBITMAP_SIZE (pot_split[bb_src]));
   sbitmap_copy (src, pot_split[bb_src]);
 
   sbitmap_difference (src, src, pot_split[bb_trg]);
@@ -2104,6 +2106,8 @@ init_ready_list (void)
      Count number of insns in the target block being scheduled.  */
   for (insn = NEXT_INSN (prev_head); insn != next_tail; insn = NEXT_INSN (insn))
     {
+      gcc_assert (TODO_SPEC (insn) == HARD_DEP || TODO_SPEC (insn) == DEP_POSTPONED);
+      TODO_SPEC (insn) = HARD_DEP;
       try_ready (insn);
       target_n_insns++;
 
@@ -2127,7 +2131,11 @@ init_ready_list (void)
 
 	for (insn = src_head; insn != src_next_tail; insn = NEXT_INSN (insn))
 	  if (INSN_P (insn))
-	    try_ready (insn);
+	    {
+	      gcc_assert (TODO_SPEC (insn) == HARD_DEP || TODO_SPEC (insn) == DEP_POSTPONED);
+	      TODO_SPEC (insn) = HARD_DEP;
+	      try_ready (insn);
+	    }
       }
 }
 
@@ -2219,11 +2227,11 @@ new_ready (rtx next, ds_t ts)
 		ts = new_ds;
 	      else
 		/* NEXT isn't ready yet.  */
-		ts = (ts & ~SPECULATIVE) | HARD_DEP;
+		ts = DEP_POSTPONED;
 	    }
 	  else
 	    /* NEXT isn't ready yet.  */
-            ts = (ts & ~SPECULATIVE) | HARD_DEP;
+            ts = DEP_POSTPONED;
 	}
     }
 
@@ -2827,7 +2835,9 @@ void debug_dependencies (rtx head, rtx tail)
 	dep_t dep;
 
 	FOR_EACH_DEP (insn, SD_LIST_FORW, sd_it, dep)
-	  fprintf (sched_dump, "%d ", INSN_UID (DEP_CON (dep)));
+	  fprintf (sched_dump, "%d%s%s ", INSN_UID (DEP_CON (dep)),
+		   DEP_NONREG (dep) ? "n" : "",
+		   DEP_MULTIPLE (dep) ? "m" : "");
       }
       fprintf (sched_dump, "\n");
     }
@@ -2921,7 +2931,7 @@ schedule_region (int rgn)
 
   sched_extend_ready_list (rgn_n_insns);
 
-  if (sched_pressure_p)
+  if (sched_pressure == SCHED_PRESSURE_WEIGHTED)
     {
       sched_init_region_reg_pressure_info ();
       for (bb = 0; bb < current_nr_blocks; bb++)
@@ -2975,9 +2985,21 @@ schedule_region (int rgn)
       curr_bb = first_bb;
       if (dbg_cnt (sched_block))
         {
-          schedule_block (&curr_bb);
+	  edge f;
+
+          schedule_block (&curr_bb, bb_state[first_bb->index]);
           gcc_assert (EBB_FIRST_BB (bb) == first_bb);
           sched_rgn_n_insns += sched_n_insns;
+	  f = find_fallthru_edge (last_bb->succs);
+	  if (f && f->probability * 100 / REG_BR_PROB_BASE >=
+	      PARAM_VALUE (PARAM_SCHED_STATE_EDGE_PROB_CUTOFF))
+	    {
+	      memcpy (bb_state[f->dest->index], curr_state,
+		      dfa_state_size);
+	      if (sched_verbose >= 5)
+		fprintf (sched_dump, "saving state for edge %d->%d\n",
+			 f->src->index, f->dest->index);
+	    }
         }
       else
         {
@@ -3010,6 +3032,8 @@ schedule_region (int rgn)
 void
 sched_rgn_init (bool single_blocks_p)
 {
+  int i;
+
   min_spec_prob = ((PARAM_VALUE (PARAM_MIN_SPEC_PROB) * REG_BR_PROB_BASE)
 		    / 100);
 
@@ -3020,6 +3044,23 @@ sched_rgn_init (bool single_blocks_p)
 
   CONTAINING_RGN (ENTRY_BLOCK) = -1;
   CONTAINING_RGN (EXIT_BLOCK) = -1;
+
+  if (!sel_sched_p ())
+    {
+      bb_state_array = (char *) xmalloc (last_basic_block * dfa_state_size);
+      bb_state = XNEWVEC (state_t, last_basic_block);
+      for (i = 0; i < last_basic_block; i++)
+	{
+	  bb_state[i] = (state_t) (bb_state_array + i * dfa_state_size);
+      
+	  state_reset (bb_state[i]);
+	}
+    }
+  else
+    {
+      bb_state_array = NULL;
+      bb_state = NULL;
+    }
 
   /* Compute regions for scheduling.  */
   if (single_blocks_p
@@ -3057,6 +3098,9 @@ sched_rgn_init (bool single_blocks_p)
 void
 sched_rgn_finish (void)
 {
+  free (bb_state_array);
+  free (bb_state);
+
   /* Reposition the prologue and epilogue notes in case we moved the
      prologue/epilogue insns.  */
   if (reload_completed)
@@ -3474,7 +3518,7 @@ static bool
 gate_handle_sched (void)
 {
 #ifdef INSN_SCHEDULING
-  return flag_schedule_insns && dbg_cnt (sched_func);
+  return optimize > 0 && flag_schedule_insns && dbg_cnt (sched_func);
 #else
   return 0;
 #endif

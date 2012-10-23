@@ -1,5 +1,6 @@
 /* Subroutines for the gcc driver.
-   Copyright (C) 2006, 2007, 2008, 2010 Free Software Foundation, Inc.
+   Copyright (C) 2006, 2007, 2008, 2010, 2011, 2012
+   Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -347,17 +348,6 @@ detect_caches_intel (bool xeon_mp, unsigned max_level,
   return describe_cache (level1, level2);
 }
 
-enum vendor_signatures
-{
-  SIG_INTEL =	0x756e6547 /* Genu */,
-  SIG_AMD =	0x68747541 /* Auth */
-};
-
-enum processor_signatures
-{
-  SIG_GEODE =	0x646f6547 /* Geod */
-};
-
 /* This will be called by the spec parser in gcc.c when it sees
    a %:local_cpu_detect(args) construct.  Currently it will be called
    with either "arch" or "tune" as argument depending on if -march=native
@@ -397,7 +387,9 @@ const char *host_detect_local_cpu (int argc, const char **argv)
   unsigned int has_pclmul = 0, has_abm = 0, has_lwp = 0;
   unsigned int has_fma = 0, has_fma4 = 0, has_xop = 0;
   unsigned int has_bmi = 0, has_bmi2 = 0, has_tbm = 0, has_lzcnt = 0;
+  unsigned int has_hle = 0, has_rtm = 0;
   unsigned int has_rdrnd = 0, has_f16c = 0, has_fsgsbase = 0;
+  unsigned int has_rdseed = 0, has_prfchw = 0, has_adx = 0;
   unsigned int has_osxsave = 0;
 
   bool arch;
@@ -420,7 +412,7 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 
   model = (eax >> 4) & 0x0f;
   family = (eax >> 8) & 0x0f;
-  if (vendor == SIG_INTEL)
+  if (vendor == signature_INTEL_ebx)
     {
       unsigned int extended_model, extended_family;
 
@@ -461,9 +453,13 @@ const char *host_detect_local_cpu (int argc, const char **argv)
       __cpuid_count (7, 0, eax, ebx, ecx, edx);
 
       has_bmi = ebx & bit_BMI;
+      has_hle = ebx & bit_HLE;
+      has_rtm = ebx & bit_RTM;
       has_avx2 = ebx & bit_AVX2;
       has_bmi2 = ebx & bit_BMI2;
       has_fsgsbase = ebx & bit_FSGSBASE;
+      has_rdseed = ebx & bit_RDSEED;
+      has_adx = ebx & bit_ADX;
     }
 
   /* Get XCR_XFEATURE_ENABLED_MASK register with xgetbv.  */
@@ -502,6 +498,7 @@ const char *host_detect_local_cpu (int argc, const char **argv)
       has_xop = ecx & bit_XOP;
       has_tbm = ecx & bit_TBM;
       has_lzcnt = ecx & bit_LZCNT;
+      has_prfchw = ecx & bit_PRFCHW;
 
       has_longmode = edx & bit_LM;
       has_3dnowp = edx & bit_3DNOWP;
@@ -510,9 +507,9 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 
   if (!arch)
     {
-      if (vendor == SIG_AMD)
+      if (vendor == signature_AMD_ebx)
 	cache = detect_caches_amd (ext_level);
-      else if (vendor == SIG_INTEL)
+      else if (vendor == signature_INTEL_ebx)
 	{
 	  bool xeon_mp = (family == 15 && model == 6);
 	  cache = detect_caches_intel (xeon_mp, max_level,
@@ -520,7 +517,7 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 	}
     }
 
-  if (vendor == SIG_AMD)
+  if (vendor == signature_AMD_ebx)
     {
       unsigned int name;
 
@@ -530,8 +527,10 @@ const char *host_detect_local_cpu (int argc, const char **argv)
       else
 	name = 0;
 
-      if (name == SIG_GEODE)
+      if (name == signature_NSC_ebx)
 	processor = PROCESSOR_GEODE;
+      else if (has_movbe)
+	processor = PROCESSOR_BTVER2;
       else if (has_bmi)
         processor = PROCESSOR_BDVER2;
       else if (has_xop)
@@ -705,6 +704,9 @@ const char *host_detect_local_cpu (int argc, const char **argv)
     case PROCESSOR_BTVER1:
       cpu = "btver1";
       break;
+    case PROCESSOR_BTVER2:
+      cpu = "btver2";
+      break;
 
     default:
       /* Use something reasonable.  */
@@ -753,14 +755,19 @@ const char *host_detect_local_cpu (int argc, const char **argv)
       const char *sse4_2 = has_sse4_2 ? " -msse4.2" : " -mno-sse4.2";
       const char *sse4_1 = has_sse4_1 ? " -msse4.1" : " -mno-sse4.1";
       const char *lzcnt = has_lzcnt ? " -mlzcnt" : " -mno-lzcnt";
+      const char *hle = has_hle ? " -mhle" : " -mno-hle";
+      const char *rtm = has_rtm ? " -mrtm" : " -mno-rtm";
       const char *rdrnd = has_rdrnd ? " -mrdrnd" : " -mno-rdrnd";
       const char *f16c = has_f16c ? " -mf16c" : " -mno-f16c";
       const char *fsgsbase = has_fsgsbase ? " -mfsgsbase" : " -mno-fsgsbase";
+      const char *rdseed = has_rdseed ? " -mrdseed" : " -mno-rdseed";
+      const char *prfchw = has_prfchw ? " -mprfchw" : " -mno-prfchw";
+      const char *adx = has_adx ? " -madx" : " -mno-adx";
 
       options = concat (options, cx16, sahf, movbe, ase, pclmul,
 			popcnt, abm, lwp, fma, fma4, xop, bmi, bmi2,
-			tbm, avx, avx2, sse4_2, sse4_1, lzcnt, rdrnd,
-			f16c, fsgsbase, NULL);
+			tbm, avx, avx2, sse4_2, sse4_1, lzcnt, rtm,
+			hle, rdrnd, f16c, fsgsbase, rdseed, prfchw, adx, NULL);
     }
 
 done:

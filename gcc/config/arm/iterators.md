@@ -1,5 +1,5 @@
 ;; Code and mode itertator and attribute definitions for the ARM backend
-;; Copyright (C) 2010 Free Software Foundation, Inc.
+;; Copyright (C) 2010, 2012 Free Software Foundation, Inc.
 ;; Contributed by ARM Ltd.
 ;;
 ;; This file is part of GCC.
@@ -36,14 +36,19 @@
 ;; A list of integer modes that are less than a word
 (define_mode_iterator NARROW [QI HI])
 
-;; A list of all the integer modes upto 64bit
+;; A list of all the integer modes up to 64bit
 (define_mode_iterator QHSD [QI HI SI DI])
 
 ;; A list of the 32bit and 64bit integer modes
 (define_mode_iterator SIDI [SI DI])
 
+;; A list of modes which the VFP unit can handle
+(define_mode_iterator SDF [(SF "TARGET_VFP") (DF "TARGET_VFP_DOUBLE")])
+
 ;; Integer element sizes implemented by IWMMXT.
 (define_mode_iterator VMMX [V2SI V4HI V8QI])
+
+(define_mode_iterator VMMX2 [V4HI V2SI])
 
 ;; Integer element sizes for shifts.
 (define_mode_iterator VSHFT [V4HI V2SI DI])
@@ -243,7 +248,8 @@
                          (V4HI "P") (V8HI  "q")
                          (V2SI "P") (V4SI  "q")
                          (V2SF "P") (V4SF  "q")
-                         (DI   "P") (V2DI  "q")])
+                         (DI   "P") (V2DI  "q")
+                         (SF   "")  (DF    "P")])
 
 ;; Wider modes with the same number of elements.
 (define_mode_attr V_widen [(V8QI "V8HI") (V4HI "V4SI") (V2SI "V2DI")])
@@ -301,7 +307,8 @@
                  (V4HI "i16") (V8HI  "i16")
                              (V2SI "i32") (V4SI  "i32")
                              (DI   "i64") (V2DI  "i64")
-                 (V2SF "f32") (V4SF  "f32")])
+                 (V2SF "f32") (V4SF  "f32")
+                 (SF "f32") (DF "f64")])
 
 ;; Same, but for operations which work on signed values.
 (define_mode_attr V_s_elem [(V8QI "s8")  (V16QI "s8")
@@ -420,6 +427,10 @@
 
 ;; Mode attribute for vshll.
 (define_mode_attr V_innermode [(V8QI "QI") (V4HI "HI") (V2SI "SI")])
+
+;; Mode attributes used for fused-multiply-accumulate VFP support
+(define_mode_attr F_constraint [(SF "t") (DF "w")])
+(define_mode_attr F_fma_type [(SF "fmacs") (DF "fmacd")])
 
 ;;----------------------------------------------------------------------------
 ;; Code attributes

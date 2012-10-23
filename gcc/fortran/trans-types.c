@@ -80,8 +80,8 @@ bool gfc_real16_is_float128 = false;
 
 static GTY(()) tree gfc_desc_dim_type;
 static GTY(()) tree gfc_max_array_element_size;
-static GTY(()) tree gfc_array_descriptor_base[2 * GFC_MAX_DIMENSIONS];
-static GTY(()) tree gfc_array_descriptor_base_caf[2 * GFC_MAX_DIMENSIONS];
+static GTY(()) tree gfc_array_descriptor_base[2 * (GFC_MAX_DIMENSIONS+1)];
+static GTY(()) tree gfc_array_descriptor_base_caf[2 * (GFC_MAX_DIMENSIONS+1)];
 
 /* Arrays for all integral and real kinds.  We'll fill this in at runtime
    after the target has a chance to process command-line options.  */
@@ -1106,6 +1106,9 @@ gfc_typenode_for_spec (gfc_typespec * spec)
     case BT_CLASS:
       basetype = gfc_get_derived_type (spec->u.derived);
 
+      if (spec->type == BT_CLASS)
+	GFC_CLASS_TYPE_P (basetype) = 1;
+
       /* If we're dealing with either C_PTR or C_FUNPTR, we modified the
          type and kind to fit a (void *) and the basetype returned was a
          ptr_type_node.  We need to pass up this new information to the
@@ -1118,6 +1121,7 @@ gfc_typenode_for_spec (gfc_typespec * spec)
         }
       break;
     case BT_VOID:
+    case BT_ASSUMED:
       /* This is for the second arg to c_f_pointer and c_f_procpointer
          of the iso_c_binding module, to accept any ptr type.  */
       basetype = ptr_type_node;
@@ -1268,12 +1272,13 @@ gfc_is_nodesc_array (gfc_symbol * sym)
     return 0;
 
   /* We want a descriptor for associate-name arrays that do not have an
-     explicitely known shape already.  */
+     explicitly known shape already.  */
   if (sym->assoc && sym->as->type != AS_EXPLICIT)
     return 0;
 
   if (sym->attr.dummy)
-    return sym->as->type != AS_ASSUMED_SHAPE;
+    return sym->as->type != AS_ASSUMED_SHAPE
+	   && sym->as->type != AS_ASSUMED_RANK;
 
   if (sym->attr.result || sym->attr.function)
     return 0;
@@ -1294,6 +1299,13 @@ gfc_build_array_type (tree type, gfc_array_spec * as,
   tree lbound[GFC_MAX_DIMENSIONS];
   tree ubound[GFC_MAX_DIMENSIONS];
   int n;
+
+  if (as->type == AS_ASSUMED_RANK)
+    for (n = 0; n < GFC_MAX_DIMENSIONS; n++)
+      {
+	lbound[n] = NULL_TREE;
+	ubound[n] = NULL_TREE;
+      }
 
   for (n = 0; n < as->rank; n++)
     {
@@ -1319,7 +1331,12 @@ gfc_build_array_type (tree type, gfc_array_spec * as,
   if (as->type == AS_ASSUMED_SHAPE)
     akind = contiguous ? GFC_ARRAY_ASSUMED_SHAPE_CONT
 		       : GFC_ARRAY_ASSUMED_SHAPE;
-  return gfc_get_array_type_bounds (type, as->rank, as->corank, lbound,
+  else if (as->type == AS_ASSUMED_RANK)
+    akind = contiguous ? GFC_ARRAY_ASSUMED_RANK_CONT
+		       : GFC_ARRAY_ASSUMED_RANK;
+  return gfc_get_array_type_bounds (type, as->rank == -1
+					  ? GFC_MAX_DIMENSIONS : as->rank,
+				    as->corank, lbound,
 				    ubound, 0, akind, restricted);
 }
 
@@ -1414,6 +1431,10 @@ gfc_get_dtype (tree type)
 
     case ARRAY_TYPE:
       n = BT_CHARACTER;
+      break;
+
+    case POINTER_TYPE:
+      n = BT_ASSUMED;
       break;
 
     default:
@@ -1674,9 +1695,15 @@ gfc_get_array_descriptor_base (int dimen, int codimen, bool restricted,
 {
   tree fat_type, decl, arraytype, *chain = NULL;
   char name[16 + 2*GFC_RANK_DIGITS + 1 + 1];
-  int idx = 2 * (codimen + dimen - 1) + restricted;
+  int idx;
 
-  gcc_assert (codimen + dimen >= 1 && codimen + dimen <= GFC_MAX_DIMENSIONS);
+  /* Assumed-rank array.  */
+  if (dimen == -1)
+    dimen = GFC_MAX_DIMENSIONS;
+
+  idx = 2 * (codimen + dimen) + restricted;
+
+  gcc_assert (codimen + dimen >= 0 && codimen + dimen <= GFC_MAX_DIMENSIONS);
 
   if (gfc_option.coarray == GFC_FCOARRAY_LIB && codimen)
     {
@@ -1713,16 +1740,18 @@ gfc_get_array_descriptor_base (int dimen, int codimen, bool restricted,
   TREE_NO_WARNING (decl) = 1;
 
   /* Build the array type for the stride and bound components.  */
-  arraytype =
-    build_array_type (gfc_get_desc_dim_type (),
-		      build_range_type (gfc_array_index_type,
-					gfc_index_zero_node,
-					gfc_rank_cst[codimen + dimen - 1]));
+  if (dimen + codimen > 0)
+    {
+      arraytype =
+	build_array_type (gfc_get_desc_dim_type (),
+			  build_range_type (gfc_array_index_type,
+					    gfc_index_zero_node,
+					    gfc_rank_cst[codimen + dimen - 1]));
 
-  decl = gfc_add_field_to_struct_1 (fat_type,
-				    get_identifier ("dim"),
-				    arraytype, &chain);
-  TREE_NO_WARNING (decl) = 1;
+      decl = gfc_add_field_to_struct_1 (fat_type, get_identifier ("dim"),
+					arraytype, &chain);
+      TREE_NO_WARNING (decl) = 1;
+    }
 
   if (gfc_option.coarray == GFC_FCOARRAY_LIB && codimen
       && akind == GFC_ARRAY_ALLOCATABLE)
@@ -1949,7 +1978,7 @@ gfc_nonrestricted_type (tree t)
 {
   tree ret = t;
 
-  /* If the type isn't layed out yet, don't copy it.  If something
+  /* If the type isn't laid out yet, don't copy it.  If something
      needs it for real it should wait until the type got finished.  */
   if (!TYPE_SIZE (t))
     return t;
@@ -2416,7 +2445,7 @@ gfc_get_derived_type (gfc_symbol * derived)
 	  || c->ts.u.derived->backend_decl == NULL)
 	c->ts.u.derived->backend_decl = gfc_get_derived_type (c->ts.u.derived);
 
-      if (c->ts.u.derived && c->ts.u.derived->attr.is_iso_c)
+      if (c->ts.u.derived->attr.is_iso_c)
         {
           /* Need to copy the modified ts from the derived type.  The
              typespec was modified because C_PTR/C_FUNPTR are translated

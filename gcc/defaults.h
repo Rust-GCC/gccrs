@@ -1,6 +1,6 @@
 /* Definitions of various defaults for tm.h macros.
    Copyright (C) 1992, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
-   2005, 2007, 2008, 2009, 2010, 2011
+   2005, 2007, 2008, 2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
    Contributed by Ron Guilmette (rfg@monkeys.com)
 
@@ -332,12 +332,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 # endif
 #endif
 
-/* Determines whether we may use common symbols to represent one-only
-   semantics (a.k.a. "vague linkage").  */
-#ifndef USE_COMMON_FOR_ONE_ONLY
-# define USE_COMMON_FOR_ONE_ONLY 1
-#endif
-
 /* By default we can assume that all global symbols are in one namespace,
    across all shared libraries.  */
 #ifndef MULTIPLE_SYMBOL_SPACES
@@ -349,13 +343,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #ifndef SUPPORTS_INIT_PRIORITY
 #define SUPPORTS_INIT_PRIORITY 1
 #endif /* SUPPORTS_INIT_PRIORITY */
-
-/* If duplicate library search directories can be removed from a
-   linker command without changing the linker's semantics, give this
-   symbol a nonzero.  */
-#ifndef LINK_ELIMINATE_DUPLICATE_LDIRECTORIES
-#define LINK_ELIMINATE_DUPLICATE_LDIRECTORIES 0
-#endif /* LINK_ELIMINATE_DUPLICATE_LDIRECTORIES */
 
 /* If we have a definition of INCOMING_RETURN_ADDR_RTX, assume that
    the rest of the DWARF 2 frame unwind support is also provided.  */
@@ -587,6 +574,10 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #ifndef SIZE_TYPE
 #define SIZE_TYPE "long unsigned int"
+#endif
+
+#ifndef SIZETYPE
+#define SIZETYPE SIZE_TYPE
 #endif
 
 #ifndef PID_TYPE
@@ -1225,13 +1216,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 /* Alignment value for attribute ((aligned)).  */
 #ifndef ATTRIBUTE_ALIGNED_VALUE
 #define ATTRIBUTE_ALIGNED_VALUE BIGGEST_ALIGNMENT
-#endif
-
-/* Many ports have no mode-dependent addresses (except possibly autoincrement
-   and autodecrement addresses, which are handled by target-independent code
-   in recog.c).  */
-#ifndef GO_IF_MODE_DEPENDENT_ADDRESS
-#define GO_IF_MODE_DEPENDENT_ADDRESS(X, WIN)
 #endif
 
 /* For most ports anything that evaluates to a constant symbolic

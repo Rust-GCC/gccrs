@@ -1,14 +1,7 @@
-2012-09-20  Release Manager
+2012-06-02  Jason Merrill  <jason@redhat.com>
 
-	* GCC 4.7.2 released.
-
-2012-06-14  Release Manager
-
-	* GCC 4.7.1 released.
-
-2012-03-22  Release Manager
-
-	* GCC 4.7.0 released.
+	* objcp-decl.c (objcp_start_struct): Adjust for change in
+	begin_class_definition prototype.
 
 2011-10-14  Nicola Pero  <nicola.pero@meta-innovation.com>
 

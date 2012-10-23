@@ -82,9 +82,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "expr.h"
 #include "recog.h"
 #include "params.h"
-#include "timevar.h"
-#include "tree-pass.h"
-#include "output.h"
 #include "reload.h"
 #include "df.h"
 #include "ira-int.h"
@@ -160,7 +157,7 @@ create_new_allocno (int regno, ira_loop_tree_node_t loop_tree_node)
 typedef struct move *move_t;
 
 /* The structure represents an allocno move.  Both allocnos have the
-   same origional regno but different allocation.  */
+   same original regno but different allocation.  */
 struct move
 {
   /* The allocnos involved in the move.  */
@@ -330,8 +327,8 @@ add_to_edge_list (edge e, move_t move, bool head_p)
 
 /* Create and return new pseudo-register with the same attributes as
    ORIGINAL_REG.  */
-static rtx
-create_new_reg (rtx original_reg)
+rtx
+ira_create_new_reg (rtx original_reg)
 {
   rtx new_reg;
 
@@ -446,7 +443,7 @@ setup_entered_from_non_parent_p (void)
 }
 
 /* Return TRUE if move of SRC_ALLOCNO (assigned to hard register) to
-   DEST_ALLOCNO (assigned to memory) can be removed beacuse it does
+   DEST_ALLOCNO (assigned to memory) can be removed because it does
    not change value of the destination.  One possible reason for this
    is the situation when SRC_ALLOCNO is not modified in the
    corresponding loop.  */
@@ -498,6 +495,7 @@ generate_edge_moves (edge e)
   bitmap_iterator bi;
   ira_allocno_t src_allocno, dest_allocno, *src_map, *dest_map;
   move_t move;
+  bitmap regs_live_in_dest, regs_live_out_src;
 
   src_loop_node = IRA_BB_NODE (e->src)->parent;
   dest_loop_node = IRA_BB_NODE (e->dest)->parent;
@@ -506,9 +504,11 @@ generate_edge_moves (edge e)
     return;
   src_map = src_loop_node->regno_allocno_map;
   dest_map = dest_loop_node->regno_allocno_map;
-  EXECUTE_IF_SET_IN_REG_SET (DF_LR_IN (e->dest),
+  regs_live_in_dest = df_get_live_in (e->dest);
+  regs_live_out_src = df_get_live_out (e->src);
+  EXECUTE_IF_SET_IN_REG_SET (regs_live_in_dest,
 			     FIRST_PSEUDO_REGISTER, regno, bi)
-    if (bitmap_bit_p (DF_LR_OUT (e->src), regno))
+    if (bitmap_bit_p (regs_live_out_src, regno))
       {
 	src_allocno = src_map[regno];
 	dest_allocno = dest_map[regno];
@@ -606,7 +606,7 @@ change_loop (ira_loop_tree_node_t node)
 		  == ALLOCNO_HARD_REGNO (parent_allocno))
 	      && (ALLOCNO_HARD_REGNO (allocno) < 0
 		  || (parent->reg_pressure[pclass] + 1
-		      <= ira_available_class_regs[pclass])
+		      <= ira_class_hard_regs_num[pclass])
 		  || TEST_HARD_REG_BIT (ira_prohibited_mode_move_regs
 					[ALLOCNO_MODE (allocno)],
 					ALLOCNO_HARD_REGNO (allocno))
@@ -625,7 +625,7 @@ change_loop (ira_loop_tree_node_t node)
 		fprintf (ira_dump_file, "  %i vs parent %i:",
 			 ALLOCNO_HARD_REGNO (allocno),
 			 ALLOCNO_HARD_REGNO (parent_allocno));
-	      set_allocno_reg (allocno, create_new_reg (original_reg));
+	      set_allocno_reg (allocno, ira_create_new_reg (original_reg));
 	    }
 	}
     }
@@ -646,7 +646,7 @@ change_loop (ira_loop_tree_node_t node)
       if (! used_p)
 	continue;
       bitmap_set_bit (renamed_regno_bitmap, regno);
-      set_allocno_reg (allocno, create_new_reg (allocno_emit_reg (allocno)));
+      set_allocno_reg (allocno, ira_create_new_reg (allocno_emit_reg (allocno)));
     }
 }
 
@@ -852,7 +852,7 @@ modify_move_list (move_t list)
 		ALLOCNO_ASSIGNED_P (new_allocno) = true;
 		ALLOCNO_HARD_REGNO (new_allocno) = -1;
 		ALLOCNO_EMIT_DATA (new_allocno)->reg
-		  = create_new_reg (allocno_emit_reg (set_move->to));
+		  = ira_create_new_reg (allocno_emit_reg (set_move->to));
 
 		/* Make it possibly conflicting with all earlier
 		   created allocnos.  Cases where temporary allocnos
@@ -1209,15 +1209,16 @@ add_ranges_and_copies (void)
 	 destination block) to use for searching allocnos by their
 	 regnos because of subsequent IR flattening.  */
       node = IRA_BB_NODE (bb)->parent;
-      bitmap_copy (live_through, DF_LR_IN (bb));
+      bitmap_copy (live_through, df_get_live_in (bb));
       add_range_and_copies_from_move_list
 	(at_bb_start[bb->index], node, live_through, REG_FREQ_FROM_BB (bb));
-      bitmap_copy (live_through, DF_LR_OUT (bb));
+      bitmap_copy (live_through, df_get_live_out (bb));
       add_range_and_copies_from_move_list
 	(at_bb_end[bb->index], node, live_through, REG_FREQ_FROM_BB (bb));
       FOR_EACH_EDGE (e, ei, bb->succs)
 	{
-	  bitmap_and (live_through, DF_LR_IN (e->dest), DF_LR_OUT (bb));
+	  bitmap_and (live_through,
+		      df_get_live_in (e->dest), df_get_live_out (bb));
 	  add_range_and_copies_from_move_list
 	    ((move_t) e->aux, node, live_through,
 	     REG_FREQ_FROM_EDGE_FREQ (EDGE_FREQUENCY (e)));

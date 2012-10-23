@@ -2,11 +2,11 @@
 --                                                                          --
 --                         GNAT LIBRARY COMPONENTS                          --
 --                                                                          --
---       A D A . C O N T A I N E R S . B O U N D E D _ V E C T O R S        --
+--     A D A . C O N T A I N E R S . I N D E F I N I T E _ H O L D E R S    --
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---             Copyright (C) 2011, Free Software Foundation, Inc.           --
+--             Copyright (C) 2012, Free Software Foundation, Inc.           --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -220,8 +220,19 @@ package body Ada.Containers.Indefinite_Holders is
          raise Program_Error with "attempt to tamper with elements";
       end if;
 
-      Free (Container.Element);
-      Container.Element := new Element_Type'(New_Item);
+      declare
+         X : Element_Access := Container.Element;
+
+         --  Element allocator may need an accessibility check in case actual
+         --  type is class-wide or has access discriminants (RM 4.8(10.1) and
+         --  AI12-0035).
+
+         pragma Unsuppress (Accessibility_Check);
+
+      begin
+         Container.Element := new Element_Type'(New_Item);
+         Free (X);
+      end;
    end Replace_Element;
 
    ---------------
@@ -229,6 +240,12 @@ package body Ada.Containers.Indefinite_Holders is
    ---------------
 
    function To_Holder (New_Item : Element_Type) return Holder is
+      --  The element allocator may need an accessibility check in the case the
+      --  actual type is class-wide or has access discriminants (RM 4.8(10.1)
+      --  and AI12-0035).
+
+      pragma Unsuppress (Accessibility_Check);
+
    begin
       return (AF.Controlled with new Element_Type'(New_Item), 0);
    end To_Holder;

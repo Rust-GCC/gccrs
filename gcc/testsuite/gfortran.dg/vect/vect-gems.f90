@@ -5,9 +5,9 @@ MODULE UPML_mod
 
 IMPLICIT NONE
 
-PUBLIC UPMLupdateE
-
-PRIVATE
+!PUBLIC UPMLupdateE
+!
+!PRIVATE
 
 real(kind=8), dimension(:,:,:), allocatable :: Dx_ilow
 
@@ -55,4 +55,3 @@ END MODULE UPML_mod
 
 ! { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect"  } }
 ! { dg-final { cleanup-tree-dump "vect" } }
-! { dg-final { cleanup-modules "upml_mod" } }

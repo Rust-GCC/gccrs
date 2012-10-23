@@ -1,6 +1,6 @@
 // Debugging unordered_set/unordered_multiset implementation -*- C++ -*-
 
-// Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
+// Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -128,6 +128,7 @@ namespace __debug
       {
 	// NB: DR 1204.
 	// NB: DR 675.
+	__glibcxx_check_self_move_assign(__x);
 	clear();
 	swap(__x);
 	return *this;
@@ -182,27 +183,63 @@ namespace __debug
       // local versions
       local_iterator
       begin(size_type __b)
-      { return local_iterator(_Base::begin(__b), __b, this); }
+      {
+	__glibcxx_check_bucket_index(__b);
+	return local_iterator(_Base::begin(__b), __b, this);
+      }
 
       local_iterator
       end(size_type __b)
-      { return local_iterator(_Base::end(__b), __b, this); }
+      {
+	__glibcxx_check_bucket_index(__b);
+	return local_iterator(_Base::end(__b), __b, this);
+      }
 
       const_local_iterator
       begin(size_type __b) const
-      { return const_local_iterator(_Base::begin(__b), __b, this); }
+      {
+	__glibcxx_check_bucket_index(__b);
+	return const_local_iterator(_Base::begin(__b), __b, this);
+      }
 
       const_local_iterator
       end(size_type __b) const
-      { return const_local_iterator(_Base::end(__b), __b, this); }
+      {
+	__glibcxx_check_bucket_index(__b);
+	return const_local_iterator(_Base::end(__b), __b, this);
+      }
 
       const_local_iterator
       cbegin(size_type __b) const
-      { return const_local_iterator(_Base::cbegin(__b), __b, this); }
+      {
+	__glibcxx_check_bucket_index(__b);
+	return const_local_iterator(_Base::cbegin(__b), __b, this);
+      }
 
       const_local_iterator
       cend(size_type __b) const
-      { return const_local_iterator(_Base::cend(__b), __b, this); }
+      {
+	__glibcxx_check_bucket_index(__b);
+	return const_local_iterator(_Base::cend(__b), __b, this);
+      }
+
+      size_type
+      bucket_size(size_type __b) const
+      {
+	__glibcxx_check_bucket_index(__b);
+	return _Base::bucket_size(__b);
+      }
+
+      float
+      max_load_factor() const noexcept
+      { return _Base::max_load_factor(); }
+
+      void
+      max_load_factor(float __f)
+      {
+	__glibcxx_check_max_load_factor(__f);
+	_Base::max_load_factor(__f);
+      }
 
       template<typename... _Args>
 	std::pair<iterator, bool>
@@ -442,7 +479,7 @@ namespace __debug
     inline bool
     operator==(const unordered_set<_Value, _Hash, _Pred, _Alloc>& __x,
 	       const unordered_set<_Value, _Hash, _Pred, _Alloc>& __y)
-    { return __x._M_equal(__y); }
+    { return __x._M_base() == __y._M_base(); }
 
   template<typename _Value, typename _Hash, typename _Pred, typename _Alloc>
     inline bool
@@ -537,6 +574,7 @@ namespace __debug
       {
 	// NB: DR 1204.
         // NB: DR 675.
+	__glibcxx_check_self_move_assign(__x);
 	clear();
 	swap(__x);
 	return *this;
@@ -591,27 +629,63 @@ namespace __debug
       // local versions
       local_iterator
       begin(size_type __b)
-      { return local_iterator(_Base::begin(__b), __b, this); }
+      {
+	__glibcxx_check_bucket_index(__b);
+	return local_iterator(_Base::begin(__b), __b, this);
+      }
 
       local_iterator
       end(size_type __b)
-      { return local_iterator(_Base::end(__b), __b, this); }
+      {
+	__glibcxx_check_bucket_index(__b);
+	return local_iterator(_Base::end(__b), __b, this);
+      }
 
       const_local_iterator
       begin(size_type __b) const
-      { return const_local_iterator(_Base::begin(__b), __b, this); }
+      {
+	__glibcxx_check_bucket_index(__b);
+	return const_local_iterator(_Base::begin(__b), __b, this);
+      }
 
       const_local_iterator
       end(size_type __b) const
-      { return const_local_iterator(_Base::end(__b), __b, this); }
+      {
+	__glibcxx_check_bucket_index(__b);
+	return const_local_iterator(_Base::end(__b), __b, this);
+      }
 
       const_local_iterator
       cbegin(size_type __b) const
-      { return const_local_iterator(_Base::cbegin(__b), __b, this); }
+      {
+	__glibcxx_check_bucket_index(__b);
+	return const_local_iterator(_Base::cbegin(__b), __b, this);
+      }
 
       const_local_iterator
       cend(size_type __b) const
-      { return const_local_iterator(_Base::cend(__b), __b, this); }
+      {
+	__glibcxx_check_bucket_index(__b);
+	return const_local_iterator(_Base::cend(__b), __b, this);
+      }
+
+      size_type
+      bucket_size(size_type __b) const
+      {
+	__glibcxx_check_bucket_index(__b);
+	return _Base::bucket_size(__b);
+      }
+
+      float
+      max_load_factor() const noexcept
+      { return _Base::max_load_factor(); }
+
+      void
+      max_load_factor(float __f)
+      {
+	__glibcxx_check_max_load_factor(__f);
+	_Base::max_load_factor(__f);
+      }
 
       template<typename... _Args>
 	iterator
@@ -838,7 +912,7 @@ namespace __debug
     inline bool
     operator==(const unordered_multiset<_Value, _Hash, _Pred, _Alloc>& __x,
 	       const unordered_multiset<_Value, _Hash, _Pred, _Alloc>& __y)
-    { return __x._M_equal(__y); }
+    { return __x._M_base() == __y._M_base(); }
 
   template<typename _Value, typename _Hash, typename _Pred, typename _Alloc>
     inline bool

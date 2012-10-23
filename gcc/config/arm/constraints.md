@@ -19,18 +19,20 @@
 ;; <http://www.gnu.org/licenses/>.
 
 ;; The following register constraints have been used:
-;; - in ARM/Thumb-2 state: f, t, v, w, x, y, z
+;; - in ARM/Thumb-2 state: t, w, x, y, z
 ;; - in Thumb state: h, b
 ;; - in both states: l, c, k
 ;; In ARM state, 'l' is an alias for 'r'
+;; 'f' and 'v' were previously used for FPA and MAVERICK registers.
 
 ;; The following normal constraints have been used:
-;; in ARM/Thumb-2 state: G, H, I, j, J, K, L, M
+;; in ARM/Thumb-2 state: G, I, j, J, K, L, M
 ;; in Thumb-1 state: I, J, K, L, M, N, O
+;; 'H' was previously used for FPA.
 
 ;; The following multi-letter normal constraints have been used:
-;; in ARM/Thumb-2 state: Da, Db, Dc, Dn, Dl, DL, Dv, Dy, Di, Dt, Dz
-;; in Thumb-1 state: Pa, Pb, Pc, Pd
+;; in ARM/Thumb-2 state: Da, Db, Dc, Dd, Dn, Dl, DL, Do, Dv, Dy, Di, Dt, Dz
+;; in Thumb-1 state: Pa, Pb, Pc, Pd, Pe
 ;; in Thumb-2 state: Pj, PJ, Ps, Pt, Pu, Pv, Pw, Px, Py
 
 ;; The following memory constraints have been used:
@@ -39,14 +41,8 @@
 ;; in Thumb state: Uu, Uw
 
 
-(define_register_constraint "f" "TARGET_ARM ? FPA_REGS : NO_REGS"
- "Legacy FPA registers @code{f0}-@code{f7}.")
-
 (define_register_constraint "t" "TARGET_32BIT ? VFP_LO_REGS : NO_REGS"
  "The VFP registers @code{s0}-@code{s31}.")
-
-(define_register_constraint "v" "TARGET_ARM ? CIRRUS_REGS : NO_REGS"
- "The Cirrus Maverick co-processor registers.")
 
 (define_register_constraint "w"
   "TARGET_32BIT ? (TARGET_VFPD32 ? VFP_REGS : VFP_LO_REGS) : NO_REGS"
@@ -172,6 +168,11 @@
   (and (match_code "const_int")
        (match_test "TARGET_THUMB1 && ival >= 0 && ival <= 7")))
 
+(define_constraint "Pe"
+  "@internal In Thumb-1 state a constant in the range 256 to +510"
+  (and (match_code "const_int")
+       (match_test "TARGET_THUMB1 && ival >= 256 && ival <= 510")))
+
 (define_constraint "Ps"
   "@internal In Thumb-2 state a constant in the range -255 to +255"
   (and (match_code "const_int")
@@ -208,14 +209,9 @@
        (match_test "TARGET_THUMB2 && ival >= 0 && ival <= 255")))
 
 (define_constraint "G"
- "In ARM/Thumb-2 state a valid FPA immediate constant."
+ "In ARM/Thumb-2 state the floating-point constant 0."
  (and (match_code "const_double")
       (match_test "TARGET_32BIT && arm_const_double_rtx (op)")))
-
-(define_constraint "H"
- "In ARM/Thumb-2 state a valid FPA immediate constant when negated."
- (and (match_code "const_double")
-      (match_test "TARGET_32BIT && neg_const_double_rtx_ok_for_fpa (op)")))
 
 (define_constraint "Dz"
  "@internal
@@ -246,6 +242,12 @@
       (match_test "TARGET_32BIT && arm_const_double_inline_cost (op) == 4
 		   && !(optimize_size || arm_ld_sched)")))
 
+(define_constraint "Dd"
+ "@internal
+  In ARM/Thumb-2 state a const_int that can be used by insn adddi."
+ (and (match_code "const_int")
+      (match_test "TARGET_32BIT && const_ok_for_dimode_op (ival, PLUS)")))
+
 (define_constraint "Di"
  "@internal
   In ARM/Thumb-2 state a const_int or const_double where both the high
@@ -255,9 +257,9 @@
 
 (define_constraint "Dn"
  "@internal
-  In ARM/Thumb-2 state a const_vector which can be loaded with a Neon vmov
-  immediate instruction."
- (and (match_code "const_vector")
+  In ARM/Thumb-2 state a const_vector or const_int which can be loaded with a
+  Neon vmov immediate instruction."
+ (and (match_code "const_vector,const_int")
       (match_test "TARGET_32BIT
 		   && imm_for_neon_mov_operand (op, GET_MODE (op))")))
 
@@ -276,6 +278,12 @@
  (and (match_code "const_vector")
       (match_test "TARGET_32BIT
 		   && imm_for_neon_inv_logic_operand (op, GET_MODE (op))")))
+
+(define_constraint "Do"
+ "@internal
+  In ARM/Thumb2 state valid offset for an ldrd/strd instruction."
+ (and (match_code "const_int")
+      (match_test "TARGET_LDRD && offset_ok_for_ldrd_strd (ival)")))
 
 (define_constraint "Dv"
  "@internal

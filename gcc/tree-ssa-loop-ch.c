@@ -25,11 +25,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "tm_p.h"
 #include "basic-block.h"
-#include "output.h"
 #include "tree-flow.h"
-#include "tree-dump.h"
 #include "tree-pass.h"
-#include "timevar.h"
 #include "cfgloop.h"
 #include "tree-inline.h"
 #include "flags.h"
@@ -146,10 +143,6 @@ copy_loop_headers (void)
       return 0;
     }
 
-#ifdef ENABLE_CHECKING
-  verify_loop_structure ();
-#endif
-
   bbs = XNEWVEC (basic_block, n_basic_blocks);
   copied_bbs = XNEWVEC (basic_block, n_basic_blocks);
   bbs_size = n_basic_blocks;
@@ -248,6 +241,7 @@ copy_loop_headers (void)
       split_edge (loop_latch_edge (loop));
     }
 
+  update_ssa (TODO_update_ssa);
   free (bbs);
   free (copied_bbs);
 

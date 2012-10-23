@@ -141,7 +141,7 @@ package body Ada.Calendar is
    --  UTC, it must be increased to include all leap seconds.
 
    Ada_High_And_Leaps : constant OS_Time :=
-                          Ada_High + OS_Time (Leap_Seconds_Count) * Mili;
+     Ada_High + OS_Time (Leap_Seconds_Count) * Mili;
 
    --  Two constants used in the calculations of elapsed leap seconds.
    --  End_Of_Time is later than Ada_High in time zone -28. Start_Of_Time
@@ -221,9 +221,9 @@ package body Ada.Calendar is
       --  The bound of type Duration expressed as time
 
       Dur_High : constant OS_Time :=
-                   OS_Time (To_Relative_Time (Duration'Last));
+        OS_Time (To_Relative_Time (Duration'Last));
       Dur_Low  : constant OS_Time :=
-                   OS_Time (To_Relative_Time (Duration'First));
+        OS_Time (To_Relative_Time (Duration'First));
 
       Res_M : OS_Time;
 
@@ -517,22 +517,23 @@ package body Ada.Calendar is
       Le : Boolean;
 
    begin
-      --  Use UTC as the local time zone on VMS, the status of flag Is_Ada_05
-      --  is irrelevant in this case.
+      --  Use UTC as the local time zone on VMS, the status of flag Use_TZ is
+      --  irrelevant in this case.
 
       Formatting_Operations.Split
-        (Date      => Date,
-         Year      => Year,
-         Month     => Month,
-         Day       => Day,
-         Day_Secs  => Seconds,
-         Hour      => H,
-         Minute    => M,
-         Second    => Se,
-         Sub_Sec   => Ss,
-         Leap_Sec  => Le,
-         Is_Ada_05 => False,
-         Time_Zone => 0);
+        (Date        => Date,
+         Year        => Year,
+         Month       => Month,
+         Day         => Day,
+         Day_Secs    => Seconds,
+         Hour        => H,
+         Minute      => M,
+         Second      => Se,
+         Sub_Sec     => Ss,
+         Leap_Sec    => Le,
+         Use_TZ      => False,
+         Is_Historic => True,
+         Time_Zone   => 0);
 
       --  Validity checks
 
@@ -573,8 +574,8 @@ package body Ada.Calendar is
          raise Time_Error;
       end if;
 
-      --  Use UTC as the local time zone on VMS, the status of flag Is_Ada_05
-      --  is irrelevant in this case.
+      --  Use UTC as the local time zone on VMS, the status of flag Use_TZ is
+      --  irrelevant in this case.
 
       return
         Formatting_Operations.Time_Of
@@ -588,7 +589,8 @@ package body Ada.Calendar is
            Sub_Sec      => Ss,
            Leap_Sec     => False,
            Use_Day_Secs => True,
-           Is_Ada_05    => False,
+           Use_TZ       => False,
+           Is_Historic  => True,
            Time_Zone    => 0);
    end Time_Of;
 
@@ -835,7 +837,8 @@ package body Ada.Calendar is
                 Sub_Sec      => 0.0,      --  No precise sub second given
                 Leap_Sec     => Leap,
                 Use_Day_Secs => False,    --  Time is given in h:m:s
-                Is_Ada_05    => True,     --  Force usage of explicit time zone
+                Use_TZ       => True,     --  Force usage of explicit time zone
+                Is_Historic  => True,
                 Time_Zone    => 0));      --  Place the value in UTC
          --  Step 4: Daylight Savings Time
 
@@ -912,8 +915,19 @@ package body Ada.Calendar is
          --  Step 1: Split the input time
 
          Formatting_Operations.Split
-           (T, Year, Month, tm_day, Day_Secs,
-            tm_hour, tm_min, Second, Sub_Sec, Leap_Sec, True, 0);
+           (Date        => T,
+            Year        => Year,
+            Month       => Month,
+            Day         => tm_day,
+            Day_Secs    => Day_Secs,
+            Hour        => tm_hour,
+            Minute      => tm_min,
+            Second      => Second,
+            Sub_Sec     => Sub_Sec,
+            Leap_Sec    => Leap_Sec,
+            Use_TZ      => True,
+            Is_Historic => False,
+            Time_Zone   => 0);
 
          --  Step 2: Correct the year and month
 
@@ -980,22 +994,23 @@ package body Ada.Calendar is
       -----------
 
       procedure Split
-        (Date      : Time;
-         Year      : out Year_Number;
-         Month     : out Month_Number;
-         Day       : out Day_Number;
-         Day_Secs  : out Day_Duration;
-         Hour      : out Integer;
-         Minute    : out Integer;
-         Second    : out Integer;
-         Sub_Sec   : out Duration;
-         Leap_Sec  : out Boolean;
-         Is_Ada_05 : Boolean;
-         Time_Zone : Long_Integer)
+        (Date        : Time;
+         Year        : out Year_Number;
+         Month       : out Month_Number;
+         Day         : out Day_Number;
+         Day_Secs    : out Day_Duration;
+         Hour        : out Integer;
+         Minute      : out Integer;
+         Second      : out Integer;
+         Sub_Sec     : out Duration;
+         Leap_Sec    : out Boolean;
+         Use_TZ      : Boolean;
+         Is_Historic : Boolean;
+         Time_Zone   : Long_Integer)
       is
-         --  The flag Is_Ada_05 is present for interfacing purposes
+         --  Flags Use_TZ and Is_Historic are present for interfacing purposes
 
-         pragma Unreferenced (Is_Ada_05);
+         pragma Unreferenced (Use_TZ, Is_Historic);
 
          procedure Numtim
            (Status : out Unsigned_Longword;
@@ -1104,11 +1119,16 @@ package body Ada.Calendar is
          Minute       : Integer;
          Second       : Integer;
          Sub_Sec      : Duration;
-         Leap_Sec     : Boolean := False;
-         Use_Day_Secs : Boolean := False;
-         Is_Ada_05    : Boolean := False;
-         Time_Zone    : Long_Integer := 0) return Time
+         Leap_Sec     : Boolean;
+         Use_Day_Secs : Boolean;
+         Use_TZ       : Boolean;
+         Is_Historic  : Boolean;
+         Time_Zone    : Long_Integer) return Time
       is
+         --  Flag Is_Historic is present for interfacing purposes
+
+         pragma Unreferenced (Is_Historic);
+
          procedure Cvt_Vectim
            (Status         : out Unsigned_Longword;
             Input_Time     : Unsigned_Word_Array;
@@ -1255,7 +1275,7 @@ package body Ada.Calendar is
 
             Rounded_Res_M := Res_M - (Res_M mod Mili);
 
-            if Is_Ada_05
+            if Use_TZ
               and then Leap_Sec
               and then Rounded_Res_M /= Next_Leap_M
             then

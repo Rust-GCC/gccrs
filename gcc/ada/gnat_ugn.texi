@@ -94,10 +94,12 @@ Texts.  A copy of the license is included in the section entitled
 
 @ifset unw
 @set PLATFORM
+@set TITLESUFFIX
 @end ifset
 
 @ifset vms
 @set PLATFORM OpenVMS
+@set TITLESUFFIX for OpenVMS
 @end ifset
 
 @c @ovar(ARG)
@@ -115,7 +117,7 @@ Texts.  A copy of the license is included in the section entitled
 @c of the @ovar macro have been expanded inline.
 
 
-@settitle @value{EDITION} User's Guide @value{PLATFORM}
+@settitle @value{EDITION} User's Guide @value{TITLESUFFIX}
 @dircategory GNU Ada tools
 @direntry
 * @value{EDITION} User's Guide: (gnat_ugn). @value{PLATFORM}
@@ -193,6 +195,7 @@ AdaCore@*
 * Verifying Properties Using gnatcheck::
 * Creating Sample Bodies Using gnatstub::
 * Creating Unit Tests Using gnattest::
+* Performing Dimensionality Analysis in GNAT::
 * Generating Ada Bindings for C and C++ headers::
 * Other Utility Programs::
 * Running and Debugging Ada Programs::
@@ -205,6 +208,7 @@ AdaCore@*
 * Platform-Specific Information for the Run-Time Libraries::
 * Example of Binder Output File::
 * Elaboration Order Handling in GNAT::
+* Overflow Check Handling in GNAT::
 * Conditional Compilation::
 * Inline Assembler::
 * Compatibility and Porting Guide::
@@ -484,6 +488,9 @@ Creating Unit Tests Using gnattest
 * Tagged Types Substitutability Testing::
 * Testing with Contracts::
 * Additional Tests::
+@ifclear vms
+* Support for other platforms/run-times::
+@end ifclear
 * Current Limitations::
 
 Other Utility Programs
@@ -584,7 +591,6 @@ Platform-Specific Information for the Run-Time Libraries
 * Solaris-Specific Considerations::
 * Linux-Specific Considerations::
 * AIX-Specific Considerations::
-* Irix-Specific Considerations::
 * RTX-Specific Considerations::
 * HP-UX-Specific Considerations::
 
@@ -602,9 +608,16 @@ Elaboration Order Handling in GNAT
 * Elaboration Issues for Library Tasks::
 * Mixing Elaboration Models::
 * What to Do If the Default Elaboration Behavior Fails::
-* Elaboration for Access-to-Subprogram Values::
+* Elaboration for Dispatching Calls::
 * Summary of Procedures for Elaboration Control::
 * Other Elaboration Order Considerations::
+
+Overflow Check Handling in GNAT
+* Background::
+* Overflow Checking Modes in GNAT::
+* Specifying the Desired Mode::
+* Default Settings::
+* Implementation Notes::
 
 Conditional Compilation
 * Use of Boolean Constants::
@@ -836,6 +849,12 @@ a utility that generates empty but compilable bodies for library units.
 a utility that generates unit testing templates for library units.
 
 @item
+@ref{Performing Dimensionality Analysis in GNAT}, describes the Ada 2012
+facilities used in GNAT to declare dimensioned objects, and to verify that
+uses of these objects are consistent with their given physical dimensions
+(so that meters cannot be assigned to kilograms, and so on).
+
+@item
 @ref{Generating Ada Bindings for C and C++ headers}, describes how to
 generate automatically Ada bindings from C and C++ headers.
 
@@ -878,6 +897,10 @@ output file for a sample program.
 @item
 @ref{Elaboration Order Handling in GNAT}, describes how GNAT helps
 you deal with elaboration order issues.
+
+@item
+@ref{Overflow Check Handling in GNAT}, describes how GNAT helps
+you deal with arithmetic overflow issues.
 
 @item
 @ref{Conditional Compilation}, describes how to model conditional compilation,
@@ -3078,7 +3101,7 @@ $ gnatlink ada_unit file1.o file2.o --LINK=./my_script
 Where CC is the name of the non-GNU C++ compiler.
 
 If the @code{zero cost} exception mechanism is used, and the platform
-supports automatic registration of exception tables (e.g.@: Solaris or IRIX),
+supports automatic registration of exception tables (e.g.@: Solaris),
 paths to more objects are required:
 
 @smallexample
@@ -3091,8 +3114,8 @@ $ gnatlink ada_unit file1.o file2.o --LINK=./my_script
 @end smallexample
 
 If the @code{zero cost} exception mechanism is used, and the platform
-doesn't support automatic registration of exception tables (e.g.@: HP-UX,
-Tru64 or AIX), the simple approach described above will not work and
+doesn't support automatic registration of exception tables (e.g.@: HP-UX
+or AIX), the simple approach described above will not work and
 a pre-linking phase using GNAT will be necessary.
 
 @end enumerate
@@ -4036,6 +4059,13 @@ Makes the compiler output callgraph information for the program, on a
 per-file basis.  The information is generated in the VCG format.  It can
 be decorated with stack-usage per-node information.
 
+@item -fdump-scos
+@cindex @option{-fdump-scos} (@command{gcc})
+Generate SCO (Source Coverage Obligation) information in the ALI file.
+This information is used by advanced coverage tools. See unit @file{SCOs}
+in the compiler sources for details in files @file{scos.ads} and
+@file{scos.adb}.
+
 @item ^-g^/DEBUG^
 @cindex @option{^-g^/DEBUG^} (@command{gcc})
 Generate debugging information. This information is stored in the object
@@ -4073,7 +4103,11 @@ activated. Note that these pragmas can also be controlled using the
 configuration pragmas @code{Assertion_Policy} and @code{Debug_Policy}.
 It also activates pragmas @code{Check}, @code{Precondition}, and
 @code{Postcondition}. Note that these pragmas can also be controlled
-using the configuration pragma @code{Check_Policy}.
+using the configuration pragma @code{Check_Policy}. In Ada 2012, it
+also activates all assertions defined in the RM as aspects: preconditions,
+postconditions, type invariants and (sub)type predicates. In all Ada modes,
+corresponding pragmas for type invariants and (sub)type predicates are
+also activated.
 
 @item -gnatA
 @cindex @option{-gnatA} (@command{gcc})
@@ -4152,7 +4186,13 @@ Display full source path name in brief error messages.
 @cindex @option{-gnateG} (@command{gcc})
 Save result of preprocessing in a text file.
 
-@item ^-gnateI^/MULTI_UNIT_INDEX=^@var{nnn}
+@item -gnatei@var{nnn}
+@cindex @option{-gnatei} (@command{gcc})
+Set maximum number of instantiations during compilation of a single unit to
+@var{nnn}. This may be useful in increasing the default maximum of 8000 for
+the rare case when a single unit legitimately exceeds this limit.
+
+@item -gnateI@var{nnn}
 @cindex @option{-gnateI} (@command{gcc})
 Indicates that the source is a multi-unit source and that the index of the
 unit to compile is @var{nnn}. @var{nnn} needs to be a positive number and need
@@ -4182,12 +4222,10 @@ example a Pure unit cannot WITH a Preelaborate unit. If this switch is used,
 these errors become warnings (which can be ignored, or suppressed in the usual
 manner). This can be useful in some specialized circumstances such as the
 temporary use of special test software.
+
 @item -gnateS
 @cindex @option{-gnateS} (@command{gcc})
-Generate SCO (Source Coverage Obligation) information in the ALI
-file. This information is used by advanced coverage tools. See
-unit @file{SCOs} in the compiler sources for details in files
-@file{scos.ads} and @file{scos.adb}.
+Synonym of @option{-fdump-scos}, kept for backards compatibility.
 
 @item -gnatE
 @cindex @option{-gnatE} (@command{gcc})
@@ -4278,11 +4316,13 @@ reaches this limit, then a message is output and the compilation
 is abandoned. The equal sign here is optional. A value of zero
 means that no limit applies.
 
-@item -gnatn
+@item -gnatn[12]
 @cindex @option{-gnatn} (@command{gcc})
-Activate inlining for subprograms for which
-pragma @code{Inline} is specified. This inlining is performed
-by the GCC back-end.
+Activate inlining for subprograms for which pragma @code{Inline} is
+specified. This inlining is performed by the GCC back-end. An optional
+digit sets the inlining level: 1 for moderate inlining across modules
+or 2 for full inlining across modules. If no inlining level is specified,
+the compiler will pick it based on the optimization level.
 
 @item -gnatN
 @cindex @option{-gnatN} (@command{gcc})
@@ -4297,11 +4337,37 @@ of GNAT other than the JGNAT, .NET or GNAAMP versions), then the use of
 Historically front end inlining was more extensive than the gcc back end
 inlining, but that is no longer the case.
 
-@item -gnato
-@cindex @option{-gnato} (@command{gcc})
-Enable numeric overflow checking (which is not normally enabled by
-default). Note that division by zero is a separate check that is not
+@item -gnato??
+@cindex @option{-gnato??} (@command{gcc})
+Set default overflow checking mode. Here `@code{??}' is two digits, a
+single digit, or nothing. Each digit is one of the digits `@code{0}'
+through `@code{3}':
+
+@itemize @bullet
+@item   @code{0}:
+suppress overflow checks (@code{SUPPRESSED})
+@item   @code{1}:
+all intermediate overflows checked (@code{CHECKED})
+@item   @code{2}:
+minimize intermediate overflows (@code{MINIMIZED})
+@item   @code{3}:
+eliminate intermediate overflows (@code{ELIMINATED})
+@end itemize
+
+If only one digit appears then it applies to all
+cases; if two digits are given, then the first applies outside
+assertions, and the second within assertions.
+
+If no digits follow the @option{-gnato}, then it is equivalent to
+@option{-gnato11},
+causing all intermediate overflows to be checked.
+
+The default if no option @option{-gnato} is given is that overflows are not
+checked, which is equivalent to @option{-gnato00}.
+Note that division by zero is a separate check that is not
 controlled by this switch (division by zero checking is on by default).
+
+See also @ref{Specifying the Desired Mode}.
 
 @item -gnatp
 @cindex @option{-gnatp} (@command{gcc})
@@ -5439,8 +5505,8 @@ when such pragmas should be used.
 @emph{List inherited aspects.}
 @cindex @option{-gnatw.l} (@command{gcc})
 This switch causes the compiler to list inherited invariants,
-preconditions, and postconditions from Invariant'Class, Pre'Class, and
-Post'Class aspects. Also list inherited subtype predicates.
+preconditions, and postconditions from Type_Invariant'Class, Invariant'Class,
+Pre'Class, and Post'Class aspects. Also list inherited subtype predicates.
 These messages are not automatically turned on by the use of @option{-gnatwa}.
 
 @item -gnatw.L
@@ -5693,9 +5759,11 @@ This switch suppresses warnings for tracking of deleted conditional code.
 @emph{Activate warnings on suspicious contracts.}
 @cindex @option{-gnatw.t} (@command{gcc})
 This switch activates warnings on suspicious postconditions (whether a
-pragma @code{Postcondition} or a @code{Post} aspect in Ada 2012). A
-function postcondition is suspicious when it does not mention the result
-of the function. A procedure postcondition is suspicious when it only
+pragma @code{Postcondition} or a @code{Post} aspect in Ada 2012)
+and suspicious contract cases (pragma @code{Contract_Case}). A
+function postcondition or contract case is suspicious when no postcondition
+or contract case for this function mentions the result of the function.
+A procedure postcondition or contract case is suspicious when it only
 refers to the pre-state of the procedure, because in that case it should
 rather be expressed as a precondition. The default is that such warnings
 are not generated. This warning can also be turned on using @option{-gnatwa}.
@@ -5779,6 +5847,24 @@ then the following code:
 
 will suppress warnings on subsequent statements that access components
 of variable Tab.
+
+@item -gnatw.v
+@emph{Activate info messages for non-default bit order.}
+@cindex @option{-gnatw.v} (@command{gcc})
+@cindex bit order warnings
+This switch activates messages (labeled "info", they are not warnings,
+just informational messages) about the effects of non-default bit-order
+on records to which a component clause is applied. The effect of specifying
+non-default bit ordering is a bit subtle (and changed with Ada 2005), so
+these messages, which are given by default, are useful in understanding the
+exact consequences of using this feature. These messages
+can also be turned on using @option{-gnatwa}
+
+@item -gnatw.V
+@emph{Suppress info messages for non-default bit order.}
+@cindex @option{-gnatw.V} (@command{gcc})
+This switch suppresses information messages for the effects of specifying
+non-default bit order on record components with component clauses.
 
 @item -gnatww
 @emph{Activate warnings on wrong low bound assumption.}
@@ -5949,6 +6035,7 @@ When no switch @option{^-gnatw^/WARNINGS^} is used, this is equivalent to:
 
 @table @option
 @c !sort!
+@item -gnatw.a
 @item -gnatwB
 @item -gnatw.b
 @item -gnatwC
@@ -6664,6 +6751,10 @@ A unary plus or minus may not be followed by a space.
 A vertical bar must be surrounded by spaces.
 @end itemize
 
+@item
+Exactly one blank (and no other white space) must appear between
+a @code{not} token and a following @code{in} token.
+
 @item ^u^UNNECESSARY_BLANK_LINES^
 @emph{Check unnecessary blank lines.}
 Unnecessary blank lines are not allowed. A blank line is considered
@@ -6811,78 +6902,103 @@ The @option{-gnatp} switch has no effect if a subsequent
 @findex Suppress
 This switch cancels the effect of a previous @option{gnatp} switch.
 
-@item -gnato
-@cindex @option{-gnato} (@command{gcc})
+@item -gnato??
+@cindex @option{-gnato??} (@command{gcc})
 @cindex Overflow checks
 @cindex Check, overflow
-Enables overflow checking for integer operations.
-This causes GNAT to generate slower and larger executable
-programs by adding code to check for overflow (resulting in raising
-@code{Constraint_Error} as required by standard Ada
-semantics). These overflow checks correspond to situations in which
-the true value of the result of an operation may be outside the base
-range of the result type. The following example shows the distinction:
+In @code{CHECKED} and @code{MINIMIZED} modes (@option{-gnato1} and
+@option{-gnato2}), it enables overflow checking for integer operations.
+In @code{ELIMINATED} mode (@option{-gnato3}), it enables arbitrary
+precision arithmetic for integer operations. In all these modes, this
+causes @value{EDITION} to generate slower and larger executable programs
+by adding code to either check for overflow (resulting in raising
+@code{Constraint_Error} as required by standard Ada semantics) or avoid
+overflows. In mode @code{CHECKED}, overflow checks correspond to
+situations in which the true value of the result of an operation may be
+outside the base range of the result type. In mode @code{MINIMIZED},
+overflow checks correspond to situations in which the true value of the
+result of an operation may be outside the largest available machine
+integer type (@code{Long_Long_Integer}). The following example shows the
+distinction:
 
 @smallexample @c ada
-X1 : Integer := "Integer'Last";
-X2 : Integer range 1 .. 5 := "5";
-X3 : Integer := "Integer'Last";
-X4 : Integer range 1 .. 5 := "5";
-F  : Float := "2.0E+20";
-@dots{}
-X1 := X1 + 1;
-X2 := X2 + 1;
-X3 := Integer (F);
-X4 := Integer (F);
+procedure Add_And_Subtract (X : in out Integer; Y, Z : in Integer) is
+begin
+   X := X + Y - Z;
+end Add_And_Subtract;
+
+X1 : Integer := Integer'Last;
+X2 : Integer range 1 .. 5 := 5;
+
+Add_And_Subtract (X1, 1, 0);  --  first addition and subtraction
+Add_And_Subtract (X1, 1, 1);  --  second addition and subtraction
+Add_And_Subtract (X2, 1, 0);  --  third addition and subtraction
+Add_And_Subtract (X2, 1, 1);  --  fourth addition and subtraction
 @end smallexample
 
 @noindent
-Note that if explicit values are assigned at compile time, the
-compiler may be able to detect overflow at compile time, in which case
-no actual run-time checking code is required, and Constraint_Error
-will be raised unconditionally, with or without
-@option{-gnato}. That's why the assigned values in the above fragment
-are in quotes, the meaning is "assign a value not known to the
-compiler that happens to be equal to ...". The remaining discussion
-assumes that the compiler cannot detect the values at compile time.
+Note that if explicit values are assigned at compile time, the compiler
+may be able to detect overflow at compile time, in which case no actual
+run-time checking code is required, and @code{Constraint_Error} will be
+raised unconditionally, with or without @option{-gnato}.
 
-Here the first addition results in a value that is outside the base range
-of Integer, and hence requires an overflow check for detection of the
-constraint error. Thus the first assignment to @code{X1} raises a
-@code{Constraint_Error} exception only if @option{-gnato} is set.
+The first addition results in a value that is outside the base range of
+@code{Integer}. In mode @code{CHECKED}, this raises
+@code{Constraint_Error} at run time. In mode @code{MINIMIZED}, the
+addition and subtraction are performed in type @code{Long_Long_Integer},
+which is 64 bits for most machines. The compiler detects that no
+overflow check is needed on these operations. The program still raises
+@code{Constraint_Error} at run time because the resulting value is too
+large to be assigned to @code{X}. The assignment results in a violation
+of the explicit range constraint; such range checks are performed by
+default, and are unaffected by @option{-gnato??}.  In mode
+@code{ELIMINATED}, the compiler uses type @code{Long_Long_Integer} for
+intermediate computations, as this type is sufficient here to avoid all
+overflows. When it is not sufficient, the compiler uses instead a
+library for multiple-precision arithmetic, which may cause a significant
+run-time overhead. The program still raises @code{Constraint_Error} at
+run time when assigning to @code{X}.
 
-The second increment operation results in a violation of the explicit
-range constraint; such range checks are performed by default, and are
-unaffected by @option{-gnato}.
+The second addition results in a value that is outside the base range of
+@code{Integer}. In mode @code{CHECKED}, this raises
+@code{Constraint_Error} at run time, like in the previous case. In mode
+@code{MINIMIZED}, the addition and subtraction are performed in type
+@code{Long_Long_Integer}, resulting in a final value that fits in an
+@code{Integer}. Thus, no @code{Constraint_Error} is raised. In mode
+@code{ELIMINATED}, the compiler generates the same code as in mode
+@code{MINIMIZED}, which avoids all overflows.
 
-The two conversions of @code{F} both result in values that are outside
-the base range of type @code{Integer} and thus will raise
-@code{Constraint_Error} exceptions only if @option{-gnato} is used.
-The fact that the result of the second conversion is assigned to
-variable @code{X4} with a restricted range is irrelevant, since the problem
-is in the conversion, not the assignment.
+The third addition and subtraction result in an intermediate value and a
+result well in the base range of @code{Integer}, so no
+@code{Constraint_Error} exception is raised at run time in any
+mode. However, the copy to @code{X2} when returning from the call to
+@code{Add_And_Subtract} fails the range check for the type of
+@code{X2}. Hence, a @code{Constraint_Error} exception is raised at run
+time in all modes.
 
-Basically the rule is that in the default mode (@option{-gnato} not
-used), the generated code assures that all integer variables stay
-within their declared ranges, or within the base range if there is
-no declared range. This prevents any serious problems like indexes
-out of range for array operations.
+The fourth addition and subtraction result in an intermediate value and
+a result well in the base range of @code{Integer}, and in a final value
+that fits in the type of @code{X2}. Hence, no exception is raised at run
+time in any mode.
 
-What is not checked in default mode is an overflow that results in
-an in-range, but incorrect value. In the above example, the assignments
-to @code{X1}, @code{X2}, @code{X3} all give results that are within the
-range of the target variable, but the result is wrong in the sense that
-it is too large to be represented correctly. Typically the assignment
-to @code{X1} will result in wrap around to the largest negative number.
-The conversions of @code{F} will result in some @code{Integer} value
-and if that integer value is out of the @code{X4} range then the
-subsequent assignment would generate an exception.
+Basically the rule is that in the default mode (@option{-gnato??} not
+used), the generated code assures that all integer variables stay within
+their declared ranges, or within the base range if there is no declared
+range. This prevents any serious problems like indexes out of range for
+array operations.
+
+What is not checked in default mode is an overflow that results in an
+in-range, but incorrect value. In the above example, the first
+assignment to @code{X1} gives a result that is within the range of the
+target variable, but the result is wrong in the sense that it is too
+large to be represented correctly. Typically the assignment to @code{X1}
+will result in wrap around to the largest negative number.
 
 @findex Machine_Overflows
-Note that the @option{-gnato} switch does not affect the code generated
+Note that the @option{-gnato??} switch does not affect the code generated
 for any floating-point operations; it applies only to integer
-semantics).
-For floating-point, GNAT has the @code{Machine_Overflows}
+semantics.
+For floating-point, @value{EDITION} has the @code{Machine_Overflows}
 attribute set to @code{False} and the normal mode of operation is to
 generate IEEE NaN and infinite values on overflow or invalid operations
 (such as dividing 0.0 by 0.0).
@@ -6895,12 +7011,12 @@ subscript), or a wild jump (from an out of range case value). Overflow
 checking is also quite expensive in time and space, since in general it
 requires the use of double length arithmetic.
 
-Note again that @option{-gnato} is off by default, so overflow checking is
+Note again that the default is @option{-gnato00}, so overflow checking is
 not performed in default mode. This means that out of the box, with the
-default settings, GNAT does not do all the checks expected from the
+default settings, @value{EDITION} does not do all the checks expected from the
 language description in the Ada Reference Manual. If you want all constraint
 checks to be performed, as described in this Manual, then you must
-explicitly use the -gnato switch either on the @command{gnatmake} or
+explicitly use the @option{-gnato??} switch either on the @command{gnatmake} or
 @command{gcc} command.
 
 @item -gnatE
@@ -7286,20 +7402,27 @@ For the source file naming rules, @xref{File Naming Rules}.
 
 @table @option
 @c !sort!
-@item -gnatn
+@item -gnatn[12]
 @cindex @option{-gnatn} (@command{gcc})
 @ifclear vms
 The @code{n} here is intended to suggest the first syllable of the
 word ``inline''.
 @end ifclear
 GNAT recognizes and processes @code{Inline} pragmas. However, for the
-inlining to actually occur, optimization must be enabled. To enable
-inlining of subprograms specified by pragma @code{Inline},
+inlining to actually occur, optimization must be enabled and, in order
+to enable inlining of subprograms specified by pragma @code{Inline},
 you must also specify this switch.
 In the absence of this switch, GNAT does not attempt
 inlining and does not need to access the bodies of
 subprograms for which @code{pragma Inline} is specified if they are not
 in the current unit.
+
+You can optionally specify the inlining level: 1 for moderate inlining across
+modules, which is a good compromise between compilation times and performances
+at run time, or 2 for full inlining across modules, which may bring about
+longer compilation times. If no inlining level is specified, the compiler will
+pick it based on the optimization level: 1 for @option{-O1}, @option{-O2} or
+@option{-Os} and 2 for @option{-O3}.
 
 If you specify this switch the compiler will access these bodies,
 creating an extra source dependency for the resulting object file, and
@@ -10591,13 +10714,13 @@ Any one of the following applies: @code{pragma Inline} is applied to the
 subprogram and the @option{^-gnatn^/INLINE^} switch is specified; the
 subprogram is local to the unit and called once from within it; the
 subprogram is small and optimization level @option{-O2} is specified;
-optimization level @option{-O3}) is specified.
+optimization level @option{-O3} is specified.
 @end itemize
 
 @noindent
 Calls to subprograms in @code{with}'ed units are normally not inlined.
 To achieve actual inlining (that is, replacement of the call by the code
-in the body of the subprogram), the following conditions must all be true.
+in the body of the subprogram), the following conditions must all be true:
 
 @itemize @bullet
 @item
@@ -10684,19 +10807,22 @@ Note: The @option{-fno-inline-functions-called-once} switch
 can be used to prevent inlining of subprograms local to the unit
 and called once from within it if @option{-O1} is used.
 
-Note regarding the use of @option{-O3}: There is no difference in inlining
-behavior between @option{-O2} and @option{-O3} for subprograms with an explicit
-pragma @code{Inline} assuming the use of @option{-gnatn}
-or @option{-gnatN} (the switches that activate inlining). If you have used
-pragma @code{Inline} in appropriate cases, then it is usually much better
-to use @option{-O2} and @option{-gnatn} and avoid the use of @option{-O3} which
-in this case only has the effect of inlining subprograms you did not
-think should be inlined. We often find that the use of @option{-O3} slows
-down code by performing excessive inlining, leading to increased instruction
-cache pressure from the increased code size. So the bottom line here is
-that you should not automatically assume that @option{-O3} is better than
-@option{-O2}, and indeed you should use @option{-O3} only if tests show that
-it actually improves performance.
+Note regarding the use of @option{-O3}: @option{-gnatn} is made up of two
+sub-switches @option{-gnatn1} and @option{-gnatn2} that can be directly
+specified in lieu of it, @option{-gnatn} being translated into one of them
+based on the optimization level. With @option{-O2} or below, @option{-gnatn}
+is equivalent to @option{-gnatn1} which activates pragma @code{Inline} with
+moderate inlining across modules. With @option{-O3}, @option{-gnatn} is
+equivalent to @option{-gnatn2} which activates pragma @code{Inline} with
+full inlining across modules. If you have used pragma @code{Inline} in appropriate cases, then it is usually much better to use @option{-O2} and @option{-gnatn} and avoid the use of @option{-O3} which has the additional
+effect of inlining subprograms you did not think should be inlined. We have
+found that the use of @option{-O3} may slow down the compilation and increase
+the code size by performing excessive inlining, leading to increased
+instruction cache pressure from the increased code size and thus minor
+performance improvements. So the bottom line here is that you should not
+automatically assume that @option{-O3} is better than @option{-O2}, and
+indeed you should use @option{-O3} only if tests show that it actually
+improves performance for your program.
 
 @node Vectorization of loops
 @subsection Vectorization of loops
@@ -13040,12 +13166,8 @@ semantically legal.
 If this condition is not met, @command{gnatpp} will terminate with an
 error message; no output file will be generated.
 
-If the source files presented to @command{gnatpp} contain
-preprocessing directives, then the output file will
-correspond to the generated source after all
-preprocessing is carried out. There is no way
-using @command{gnatpp} to obtain pretty printed files that
-include the preprocessing directives.
+@command{gnatpp} cannot process sources that contain
+preprocessing directives.
 
 If the compilation unit
 contained in the input source depends semantically upon units located
@@ -13372,7 +13494,7 @@ stops.
 @cindex @option{^--no-separate-is^/NO_SEPARATE_IS^} (@command{gnatpp})
 @item ^--no-separate-is^/NO_SEPARATE_IS^
 Do not place the keyword @code{is} on a separate line in a subprogram body in
-case if the spec occupies more then one line.
+case if the spec occupies more than one line.
 
 @cindex @option{^--separate-label^/SEPARATE_LABEL^} (@command{gnatpp})
 @item ^--separate-label^/SEPARATE_LABEL^
@@ -13447,7 +13569,7 @@ Indentation level, @var{nnn} from 1@dots{}9, the default value is 3
 Indentation level for continuation lines (relative to the line being
 continued), @var{nnn} from 1@dots{}9.
 The default
-value is one less then the (normal) indentation level, unless the
+value is one less than the (normal) indentation level, unless the
 indentation is set to 1 (in which case the default value for continuation
 line indentation is also 1)
 @end table
@@ -14761,7 +14883,7 @@ statements unless @option{^-ne^NO_EXITS_AS_GOTOS^} option is specified.
 The Ada essential complexity metric defined here is intended to quantify
 the extent to which the software is unstructured. It is adapted from
 the McCabe essential complexity metric defined in
-http://www.mccabe.com/pdf/nist235r.pdf but is modified to be more
+@url{http://www.mccabe.com/pdf/mccabe-nist235r.pdf} but is modified to be more
 suitable for typical Ada usage. For example, short circuit forms
 are not penalized as unstructured in the Ada essential complexity metric.
 
@@ -14936,14 +15058,88 @@ upon units that define subprograms are counted, so control fan-out coupling
 is reported for all units, but control fan-in coupling - only for the units
 that define subprograms.
 
+The following simple example illustrates the difference between unit coupling
+and control coupling metrics:
 
+@smallexample @c ada
+package Lib_1 is
+    function F_1 (I : Integer) return Integer;
+end Lib_1;
 
+package Lib_2 is
+    type T_2 is new Integer;
+end Lib_2;
 
+package body Lib_1 is
+    function F_1 (I : Integer) return Integer is
+    begin
+       return I + 1;
+    end F_1;
+end Lib_1;
 
+with Lib_2; use Lib_2;
+package Pack is
+    Var : T_2;
+    function Fun (I : Integer) return Integer;
+end Pack;
+
+with Lib_1; use Lib_1;
+package body Pack is
+    function Fun (I : Integer) return Integer is
+    begin
+       return F_1 (I);
+    end Fun;
+end Pack;
+@end smallexample
+
+@noindent
+if we apply @command{gnatmetric} with @code{--coupling-all} option to these
+units, the result will be:
+
+@smallexample
+Coupling metrics:
+=================
+    Unit Lib_1 (C:\customers\662\L406-007\lib_1.ads)
+       control fan-out coupling  : 0
+       control fan-in coupling   : 1
+       unit fan-out coupling     : 0
+       unit fan-in coupling      : 1
+
+    Unit Pack (C:\customers\662\L406-007\pack.ads)
+       control fan-out coupling  : 1
+       control fan-in coupling   : 0
+       unit fan-out coupling     : 2
+       unit fan-in coupling      : 0
+
+    Unit Lib_2 (C:\customers\662\L406-007\lib_2.ads)
+       control fan-out coupling  : 0
+       unit fan-out coupling     : 0
+       unit fan-in coupling      : 1
+@end smallexample
+
+@noindent
+The result does not contain values for object-oriented
+coupling because none of the argument unit contains a tagged type and
+therefore none of these units can be treated as a class.
+
+@code{Pack} (considered as a program unit, that is spec+body) depends on two
+units - @code{Lib_1} @code{and Lib_2}, therefore it has unit fan-out coupling
+equals to 2. And nothing depend on it, so its unit fan-in coupling is 0 as
+well as control fan-in coupling. Only one of the units @code{Pack} depends
+upon defines a subprogram, so its control fan-out coupling is 1.
+
+@code{Lib_2} depends on nothing, so fan-out metrics for it are 0. It does
+not define a subprogram, so control fan-in metric cannot be applied to it,
+and there is one unit that depends on it (@code{Pack}), so it has
+unit fan-in coupling equals to 1.
+
+@code{Lib_1} is similar to @code{Lib_2}, but it does define a subprogram.
+So it has control fan-in coupling equals to 1 (because there is a unit
+depending on it).
 
 When computing coupling metrics, @command{gnatmetric} counts only
-dependencies between units that are arguments of the gnatmetric call.
-Coupling metrics are program-wide (or project-wide) metrics, so to
+dependencies between units that are arguments of the @command{gnatmetric}
+call. Coupling metrics are program-wide (or project-wide) metrics, so to
 get a valid result, you should call @command{gnatmetric} for
 the whole set of sources that make up your program. It can be done
 by calling @command{gnatmetric} from the GNAT driver with @option{-U}
@@ -17949,24 +18145,24 @@ Verbose mode: generate version information.
 @findex gnattest
 
 @noindent
-@command{gnattest} is an ASIS-based utility that creates unit-test stubs
+@command{gnattest} is an ASIS-based utility that creates unit-test skeletons
 as well as a test driver infrastructure (harness). @command{gnattest} creates
-a stub for each visible subprogram in the packages under consideration when
+a skeleton for each visible subprogram in the packages under consideration when
 they do not exist already.
 
 In order to process source files from a project, @command{gnattest} has to
-semantically analyze the sources. Therefore, test stubs can only be
+semantically analyze the sources. Therefore, test skeletons can only be
 generated for legal Ada units. If a unit is dependent on other units,
 those units should be among the source files of the project or of other projects
 imported by this one.
 
-Generated stubs and harnesses are based on the AUnit testing framework. AUnit is
-an Ada adaptation of the xxxUnit testing frameworks, similar to JUnit for Java
-or CppUnit for C++. While it is advised that gnattest users read the AUnit
-manual, deep knowledge of AUnit is not necessary for using gnattest. For correct
-operation of @command{gnattest}, AUnit should be installed and aunit.gpr must be
-on the project path. This happens automatically when Aunit is installed at its
-default location.
+Generated skeletons and harnesses are based on the AUnit testing framework.
+AUnit is an Ada adaptation of the xxxUnit testing frameworks, similar to JUnit
+for Java or CppUnit for C++. While it is advised that gnattest users read
+the AUnit manual, deep knowledge of AUnit is not necessary for using gnattest.
+For correct operation of @command{gnattest}, AUnit should be installed and
+aunit.gpr must be on the project path. This happens automatically when Aunit
+is installed at its default location.
 @menu
 * Running gnattest::
 * Switches for gnattest::
@@ -17980,6 +18176,9 @@ default location.
 * Tagged Types Substitutability Testing::
 * Testing with Contracts::
 * Additional Tests::
+@ifclear vms
+* Support for other platforms/run-times::
+@end ifclear
 * Current Limitations::
 @end menu
 
@@ -18004,11 +18203,6 @@ specifies the project defining the location of source files. When no
 file names are provided on the command line, all sources in the project
 are used as input. This switch is required.
 
-@item --harness-dir=dirname
-specifies the directory that will hold the harness packages and project file
-for the test driver. The harness directory should be specified either by that
-switch or by the corresponding attribute in the project file.
-
 @item filename
 is the name of the source file containing the library unit package declaration
 for which a test package will be created. The file name may be given with a
@@ -18017,7 +18211,7 @@ path.
 @item @samp{@var{gcc_switches}}
 is a list of switches for
 @command{gcc}. These switches will be passed on to all compiler invocations
-made by @command{gnatstub} to generate a set of ASIS trees. Here you can provide
+made by @command{gnattest} to generate a set of ASIS trees. Here you can provide
 @option{^-I^/INCLUDE_DIRS=^} switches to form the source search path,
 use the @option{-gnatec} switch to set the configuration file,
 use the @option{-gnat05} switch if sources should be compiled in
@@ -18032,13 +18226,13 @@ is an optional sequence of switches as described in the next section.
 
 @itemize @bullet
 @item automatic harness:
-the harness code, which is located either in the harness-dir as specified on
-the command line or in the project file. All of this code is generated
-completely automatically and can be destroyed and regenerated at will. It is not
-recommended to modify this code manually, since it could easily be overridden
-by mistake. The entry point in the harness code is the project file named
-@command{test_driver.gpr}. Tests can be compiled and run using a command
-such as:
+the harness code, which is located by default in "gnattest/harness" directory
+that is created in the object directory of corresponding project file. All of
+this code is generated completely automatically and can be destroyed and
+regenerated at will. It is not recommended to modify this code manually, since
+it could easily be overridden by mistake. The entry point in the harness code is
+the project file named @command{test_driver.gpr}. Tests can be compiled and run
+using a command such as:
 
 @smallexample
 gnatmake -P<harness-dir>/test_driver
@@ -18048,18 +18242,17 @@ test_runner
 Note that you might need to specify the necessary values of scenario variables
 when you are not using the AUnit defaults.
 
-@item actual unit test stubs:
-a test stub for each visible subprogram is created in a separate file, if it
+@item actual unit test skeletons:
+a test skeleton for each visible subprogram is created in a separate file, if it
 doesn't exist already. By default, those separate test files are located in a
-"tests" directory that is created in the directory containing the source file
-itself. If it is not appropriate to create the tests in subdirectories of the
-source, option @option{--separate-root} can be used. For example, if a source
-file my_unit.ads in directory src contains a visible subprogram Proc, then
-the corresponding unit test will be found in file
-src/tests/my_unit-tests-proc_<code>.adb. <code> is a signature encoding used to
-differentiate test names in case of overloading.
+"gnattest/tests" directory that is created in the object directory of
+corresponding project file. For example, if a source file my_unit.ads in
+directory src contains a visible subprogram Proc, then the corresponding unit
+test will be found in file src/tests/my_unit-test_data-tests-proc_<code>.adb.
+<code> is a signature encoding used to differentiate test names in case of
+overloading.
 
-Note that if the project already has both my_unit.ads and my_unit-tests.ads,
+Note that if the project already has both my_unit.ads and my_unit-test_data.ads,
 this will cause a name conflict with the generated test package.
 @end itemize
 
@@ -18095,30 +18288,48 @@ Suppresses noncritical output messages.
 @cindex @option{-v} (@command{gnattest})
 Verbose mode: generates version information.
 
-@item --liskov
-@cindex @option{--liskov} (@command{gnattest})
-Enables Liskov verification: run all tests from all parents in order
+@item --validate-type-extensions
+@cindex @option{--validate-type-extensions} (@command{gnattest})
+Enables substitution check: run all tests from all parents in order
 to check substitutability.
 
-@item --stub-default=@var{val}
-@cindex @option{--stub-default} (@command{gnattest})
-Specifies the default behavior of generated stubs. @var{val} can be either
+@item --skeleton-default=@var{val}
+@cindex @option{--skeleton-default} (@command{gnattest})
+Specifies the default behavior of generated skeletons. @var{val} can be either
 "fail" or "pass", "fail" being the default.
 
-@item --separate-root=@var{dirname}
-@cindex @option{--separate-root} (@command{gnattest})
+@item --tests-root=@var{dirname}
+@cindex @option{--tests-root} (@command{gnattest})
 The directory hierarchy of tested sources is recreated in the @var{dirname}
 directory, and test packages are placed in corresponding directories.
+If the @var{dirname} is a relative path, it is considered relative to the object
+directory of the project file. When all sources from all projects are taken
+recursively from all projects, directory hierarchies of tested sources are
+recreated for each project in their object directories and test packages are
+placed accordingly.
 
 @item --subdir=@var{dirname}
 @cindex @option{--subdir} (@command{gnattest})
-Test packages are placed in subdirectories. This is the default output mode
-since it does not require any additional input from the user. Subdirectories
-named "tests" will be created by default.
+Test packages are placed in subdirectories.
+
+@item --tests-dir=@var{dirname}
+@cindex @option{--tests-dir} (@command{gnattest})
+All test packages are placed in the @var{dirname} directory.
+If the @var{dirname} is a relative path, it is considered relative to the object
+directory of the project file. When all sources from all projects are taken
+recursively from all projects, @var{dirname} directories are created for each
+project in their object directories and test packages are placed accordingly.
+
+@item --harness-dir=@var{dirname}
+@cindex @option{--harness-dir} (@command{gnattest})
+specifies the directory that will hold the harness packages and project file
+for the test driver. If the @var{dirname} is a relative path, it is considered
+relative to the object directory of the project file.
 
 @end table
 
-@option{--separate_root} and @option{--subdir} switches are mutually exclusive.
+@option{--tests_root}, @option{--subdir} and @option{--tests-dir} switches are
+mutually exclusive.
 
 @node Project Attributes for gnattest
 @section Project Attributes for @command{gnattest}
@@ -18131,13 +18342,17 @@ package gnattest. Here is the list of attributes:
 
 @itemize @bullet
 
-@item Separate_Stub_Root
-is used to select the same output mode as with the --separate-root option.
-This attribute cannot be used together with Stub_Subdir.
+@item Tests_Root
+is used to select the same output mode as with the --tests-root option.
+This attribute cannot be used together with Subdir or Tests_Dir.
 
-@item Stub_Subdir
+@item Subdir
 is used to select the same output mode as with the --subdir option.
-This attribute cannot be used together with Separate_Stub_Root.
+This attribute cannot be used together with Tests_Root or Tests_Dir.
+
+@item Tests_Dir
+is used to select the same output mode as with the --tests-dir option.
+This attribute cannot be used together with Subdir or Tests_Root.
 
 @item Harness_Dir
 is used to specify the directory in which to place harness packages and project
@@ -18147,9 +18362,9 @@ file for the test driver, otherwise specified by --harness-dir.
 is used to specify the project file, otherwise given by
 --additional-tests switch.
 
-@item Stubs_Default
-is used to specify the default behaviour of test stubs, otherwise
-specified by --stub-default option. The value of this attribute
+@item Skeletons_Default
+is used to specify the default behaviour of test skeletons, otherwise
+specified by --skeleton-default option. The value of this attribute
 should be either "pass" or "fail".
 
 @end itemize
@@ -18189,16 +18404,16 @@ Since no special output option was specified, the test package Simple.Tests
 is located in:
 
 @smallexample
-<install_prefix>/share/examples/gnattest/simple/src/tests
+<install_prefix>/share/examples/gnattest/simple/obj/gnattest/tests
 @end smallexample
 
 For each package containing visible subprograms, a child test package is
 generated. It contains one test routine per tested subprogram. Each
 declaration of a test subprogram has a comment specifying which tested
 subprogram it corresponds to. All of the test routines have separate bodies.
-The test routine located at simple-tests-test_inc_5eaee3.adb contains a single
-statement: a call to procedure Assert. It has two arguments: the Boolean
-expression we want to check and the diagnosis message to display if
+The test routine located at simple-test_data-tests-test_inc_5eaee3.adb contains
+a single statement: a call to procedure Assert. It has two arguments:
+the Boolean expression we want to check and the diagnosis message to display if
 the condition is false.
 
 That is where actual testing code should be written after a proper setup.
@@ -18216,22 +18431,24 @@ is reported.
 
 @noindent
 
-Besides test routines themselves, each test package has an inner package
-Env_Mgmt that has two procedures: User_Set_Up and User_Tear_Down.
-User_Set_Up is called before each test routine of the package and
-User_Tear_Down is called after each test routine. Those two procedures can
-be used to perform necessary initialization and finalization,
-memory allocation, etc.
+Besides test routines themselves, each test package has a parent package
+Test_Data that has two procedures: Set_Up and Tear_Down. This package is never
+overwritten by the tool. Set_Up is called before each test routine of the
+package and Tear_Down is called after each test routine. Those two procedures
+can be used to perform necessary initialization and finalization,
+memory allocation, etc. Test type declared in Test_Data package is parent type
+for the test type of test package and can have user-defined components whose
+values can be set by Set_Up routine and used in test routines afterwards.
 
 @node Regenerating Tests
 @section Regenerating Tests
 
 @noindent
 
-Bodies of test routines and env_mgmt packages are never overridden after they
+Bodies of test routines and test_data packages are never overridden after they
 have been created once. As long as the name of the subprogram, full expanded Ada
 names, and the order of its parameters is the same, the old test routine will
-fit in its place and no test stub will be generated for the subprogram.
+fit in its place and no test skeleton will be generated for the subprogram.
 
 This can be demonstrated with the previous example. By uncommenting declaration
 and body of function Dec in simple.ads and simple.adb, running
@@ -18244,10 +18461,10 @@ gprbuild -Ptest_driver
 test_runner
 @end smallexample
 
-the old test is not replaced with a stub, nor is it lost, but a new test stub is
-created for function Dec.
+the old test is not replaced with a stub, nor is it lost, but a new test
+skeleton is created for function Dec.
 
-The only way of regenerating tests stubs is to remove the previously created
+The only way of regenerating tests skeletons is to remove the previously created
 tests.
 
 @node Default Test Behavior
@@ -18260,8 +18477,9 @@ either count them all as failed (this is useful to see which tests are still
 left to implement) or as passed (to sort out unimplemented ones from those
 actually failing).
 
-The test driver accepts a switch to specify this behavior: --stub-default=val,
-where val is either "pass" or "fail" (exactly as for @command{gnattest}).
+The test driver accepts a switch to specify this behavior:
+--skeleton-default=val, where val is either "pass" or "fail" (exactly as for
+@command{gnattest}).
 
 The default behavior of the test driver is set with the same switch
 as passed to gnattest when generating the test driver.
@@ -18269,7 +18487,7 @@ as passed to gnattest when generating the test driver.
 Passing it to the driver generated on the first example:
 
 @smallexample
-test_runner --stub-default=pass
+test_runner --skeleton-default=pass
 @end smallexample
 
 makes both tests pass, even the unimplemented one.
@@ -18279,11 +18497,11 @@ makes both tests pass, even the unimplemented one.
 
 @noindent
 
-Creation of test stubs for primitive operations of tagged types entails a number
-of features. Test routines for all primitives of a given tagged type are
-placed in a separate child package named according to the tagged type. For
+Creation of test skeletons for primitive operations of tagged types entails
+a number of features. Test routines for all primitives of a given tagged type
+are placed in a separate child package named according to the tagged type. For
 example, if you have tagged type T in package P, all tests for primitives
-of T will be in P.T_Tests.
+of T will be in P.T_Test_Data.T_Tests.
 
 Consider running gnattest on the second example (note: actual tests for this
 example already exist, so there's no need to worry if the tool reports that
@@ -18295,10 +18513,10 @@ gnattest --harness-dir=driver -Ptagged_rec.gpr
 @end smallexample
 
 Taking a closer look at the test type declared in the test package
-Speed1.Controller_Tests is necessary. It is declared in:
+Speed1.Controller_Test_Data is necessary. It is declared in:
 
 @smallexample
-<install_prefix>/share/examples/gnattest/tagged_rec/src/tests
+<install_prefix>/share/examples/gnattest/tagged_rec/obj/gnattest/tests
 @end smallexample
 
 Test types are direct or indirect descendants of
@@ -18313,10 +18531,10 @@ package Speed2.Auto_Controller, you will see that Test_Auto_Controller
 actually derives from Test_Controller rather than AUnit type Test_Fixture.
 Thus, test types mirror the hierarchy of tested types.
 
-The User_Set_Up procedure of Env_Mgmt package corresponding to a test package
+The Set_Up procedure of Test_Data package corresponding to a test package
 of primitive operations of type T assigns to Fixture a reference to an
 object of that exact type T. Notice, however, that if the tagged type has
-discriminants, the User_Set_Up only has a commented template for setting
+discriminants, the Set_Up only has a commented template for setting
 up the fixture, since filling the discriminant with actual value is up
 to the user.
 
@@ -18348,26 +18566,29 @@ derived type.
 
 @noindent
 
-Tagged Types Substitutability Testing is a way of verifying the Liskov
-substitution principle (LSP) by testing. LSP is a principle stating that if
+Tagged Types Substitutability Testing is a way of verifying the global type
+consistency by testing. Global type consistency is a principle stating that if
 S is a subtype of T (in Ada, S is a derived type of tagged type T),
 then objects of type T may be replaced with objects of type S (that is,
 objects of type S may be substituted for objects of type T), without
 altering any of the desirable properties of the program. When the properties
 of the program are expressed in the form of subprogram preconditions and
-postconditions (let's call them pre and post), LSP is formulated as relations
-between the pre and post of primitive operations and the pre and post of their
-derived operations. The pre of a derived operation should not be stronger than
-the original pre, and the post of the derived operation should not be weaker
-than the original post. Those relations ensure that verifying if a dispatching
-call is safe can be done just by using the pre and post of the root operation.
+postconditions (let's call them pre and post), the principle is formulated as
+relations between the pre and post of primitive operations and the pre and post
+of their derived operations. The pre of a derived operation should not be
+stronger than the original pre, and the post of the derived operation should
+not be weaker than the original post. Those relations ensure that verifying if
+a dispatching call is safe can be done just by using the pre and post of the
+root operation.
 
-Verifying LSP by testing consists of running all the unit tests associated with
-the primitives of a given tagged type with objects of its derived types.
+Verifying global type consistency by testing consists of running all the unit
+tests associated with the primitives of a given tagged type with objects of its
+derived types.
 
 In the example used in the previous section, there was clearly a violation of
-LSP. The overriding primitive Adjust_Speed in package Speed2 removes the
-functionality of the overridden primitive and thus doesn't respect LSP.
+type consistency. The overriding primitive Adjust_Speed in package Speed2
+removes the functionality of the overridden primitive and thus doesn't respect
+the consistency principle.
 Gnattest has a special option to run overridden parent tests against objects
 of the type which have overriding primitives:
 
@@ -18381,12 +18602,17 @@ test_runner
 While all the tests pass by themselves, the parent test for Adjust_Speed fails
 against objects of the derived type.
 
+Non-overridden tests are already inherited for derived test types, so the
+--validate-type-extensions enables the application of overriden tests to objects
+of derived types.
+
 @node Testing with Contracts
 @section Testing with Contracts
 
 @noindent
 
-@command{gnattest} supports pragmas Precondition, Postcondition, and Test_Case.
+@command{gnattest} supports pragmas Precondition, Postcondition, and Test_Case,
+as well as corresponding aspects.
 Test routines are generated, one per each Test_Case associated with a tested
 subprogram. Those test routines have special wrappers for tested functions
 that have composition of pre- and postcondition of the subprogram with
@@ -18466,6 +18692,29 @@ gnatmake -Pmixing/test_driver.gpr
 mixing/test_runner
 @end smallexample
 
+@ifclear vms
+@node Support for other platforms/run-times
+@section Support for other platforms/run-times
+
+@noindent
+@command{gnattest} can be used to generate the test harness for platforms
+and run-time libraries others than the default native target with the
+default full run-time. For example, when using a limited run-time library
+such as Zero FootPrint (ZFP), a simplified harness is generated.
+
+Two variables are used to tell the underlying AUnit framework how to generate
+the test harness: @code{PLATFORM}, which identifies the target, and
+@code{RUNTIME}, used to determine the run-time library for which the harness
+is generated. Corresponding prefix should also be used when calling
+@command{gnattest} for non-native targets. For example, the following options
+are used to generate the AUnit test harness for a PowerPC ELF target using
+the ZFP run-time library:
+
+@smallexample
+powerpc-elf-gnattest -Psimple.gpr -XPLATFORM=powerpc-elf -XRUNTIME=zfp
+@end smallexample
+@end ifclear
+
 @node Current Limitations
 @section Current Limitations
 
@@ -18476,10 +18725,162 @@ The tool currently does not support following features:
 @itemize @bullet
 @item generic tests for generic packages and package instantiations
 @item tests for protected subprograms and entries
-@item aspects Precondition, Postcondition, and Test_Case
-@item generating test packages for code that is not conformant with ada 2005
 
 @end itemize
+
+@c *********************************
+@node Performing Dimensionality Analysis in GNAT
+@chapter Performing Dimensionality Analysis in GNAT
+@noindent
+The GNAT compiler now supports dimensionality checking. The user can
+specify physical units for objects, and the compiler will verify that uses
+of these objects are compatible with their dimensions, in a fashion that is
+familiar to engineering practice. The dimensions of algebraic expressions
+(including powers with static exponents) are computed from their consistuents.
+
+This feature depends on Ada 2012 aspect specifications, and is available from
+version 7.0.1 of GNAT onwards. The GNAT-specific aspect Dimension_System allows
+the user to define a system of units; the aspect Dimension then allows the user
+to declare dimensioned quantities within a given system.
+
+The major advantage of this model is that it does not require the declaration of
+multiple operators for all possible combinations of types: it is only necessary
+to use the proper subtypes in object declarations.
+
+The simplest way to impose dimensionality checking on a computation is to make
+use of the package System.Dim.Mks, which is part of the GNAT library. This
+package defines a floating-point type MKS_Type, for which a sequence of
+dimension names are specified, together with their conventional abbreviations.
+The following should be read together with the full specification of the
+package, in file s-dimmks.ads.
+
+@smallexample @c ada
+   type Mks_Type is new Long_Long_Float
+     with
+      Dimension_System => (
+        (Unit_Name => Meter,    Unit_Symbol => 'm',   Dim_Symbol => 'L'),
+        (Unit_Name => Kilogram, Unit_Symbol => "kg",  Dim_Symbol => 'M'),
+        (Unit_Name => Second,   Unit_Symbol => 's',   Dim_Symbol => 'T'),
+        (Unit_Name => Ampere,   Unit_Symbol => 'A',   Dim_Symbol => 'I'),
+        (Unit_Name => Kelvin,   Unit_Symbol => 'K',   Dim_Symbol => "Theta"),
+        (Unit_Name => Mole,     Unit_Symbol => "mol", Dim_Symbol => 'N'),
+        (Unit_Name => Candela,  Unit_Symbol => "cd",  Dim_Symbol => 'J'));
+@end smallexample
+
+@noindent
+The package then defines a series of subtypes that correspond to these
+conventional units. For example:
+@smallexample @c ada
+   subtype Length is Mks_Type
+     with
+      Dimension => (Symbol => 'm',
+        Meter  => 1,
+        others => 0);
+@end smallexample
+@noindent
+and similarly for Mass, Time, Electric_Current, Thermodynamic_Temperature,
+Amount_Of_Substance, and Luminous_Intensity (the standard set of units of
+the SI system).
+
+The package also defines conventional names for values of each unit, for
+example:
+
+@smallexample @c ada
+   m   : constant Length           := 1.0;
+   kg  : constant Mass             := 1.0;
+   s   : constant Time             := 1.0;
+   A   : constant Electric_Current := 1.0;
+@end smallexample
+
+@noindent
+as well as useful multiples of these units:
+
+@smallexample @c ada
+   cm  : constant Length := 1.0E-02;
+   g   : constant Mass   := 1.0E-03;
+   min : constant Time   := 60.0;
+   day : constant TIme   := 60.0 * 24.0 * min;
+  ...
+@end smallexample
+
+@noindent
+The user can then define a derived unit by providing the aspect that
+specifies its dimensions within the MKS system, as well as the string to
+be used for output of a value of that unit:
+
+@smallexample @c ada
+  subtype Acceleration is Mks_Type
+    with Dimension => ("m/sec^^^2", Meter => 1, Second => -2, others => 0);
+@end smallexample
+
+@noindent
+Here is a complete example of use:
+
+@smallexample @c ada
+with System.Dim.MKS; use System.Dim.Mks;
+with System.Dim.Mks_IO; use System.Dim.Mks_IO;
+with Text_IO; use Text_IO;
+procedure Free_Fall is
+  subtype Acceleration is Mks_Type
+    with Dimension => ("m/sec^^^2", 1, 0, -2, others => 0);
+  G : constant acceleration := 9.81 * m / (s ** 2);
+  T : Time := 10.0*s;
+  Distance : Length;
+begin
+  Put ("Gravitational constant: ");
+  Put (G, Aft => 2, Exp => 0); Put_Line ("");
+  Distance := 0.5 * G * T ** 2;
+  Put ("distance travelled in 10 seconds of free fall ");
+  Put (Distance, Aft => 2, Exp => 0);
+  Put_Line ("");
+end Free_Fall;
+@end smallexample
+
+@noindent
+Execution of this program yields:
+@smallexample
+Gravitational constant:  9.81 m/sec^^^2
+distance travelled in 10 seconds of free fall 490.50 m
+@end smallexample
+
+@noindent
+However, incorrect assignments such as:
+
+@smallexample @c ada
+   Distance := 5.0;
+   Distance := 5.0 * kg:
+@end smallexample
+
+@noindent
+are rejected with the following diagnoses:
+
+@smallexample
+   Distance := 5.0;
+      >>> dimensions mismatch in assignment
+      >>> left-hand side has dimension [L]
+      >>> right-hand side is dimensionless
+
+   Distance := 5.0 * kg:
+      >>> dimensions mismatch in assignment
+      >>> left-hand side has dimension [L]
+      >>> right-hand side has dimension [M]
+@end smallexample
+
+@noindent
+The dimensions of an expression are properly displayed, even if there is
+no explicit subtype for it. If we add to the program:
+
+@smallexample @c ada
+      Put ("Final velocity: ");
+      Put (G * T, Aft =>2, Exp =>0);
+      Put_Line ("");
+@end smallexample
+
+@noindent
+then the output includes:
+@smallexample
+     Final velocity: 98.10 m.s**(-1)
+@end smallexample
 
 @c *********************************
 @node Generating Ada Bindings for C and C++ headers
@@ -18541,6 +18942,9 @@ and will attempt to generate corresponding Ada comments.
 
 If you want to generate a single Ada file and not the transitive closure, you
 can use instead the @option{-fdump-ada-spec-slim} switch.
+
+You can optionally specify a parent unit, of which all generated units will
+be children, using @code{-fada-spec-parent=}@var{unit}.
 
 Note that we recommend when possible to use the @command{g++} driver to
 generate bindings, even for most C headers, since this will in general
@@ -18724,6 +19128,11 @@ all header files that these headers depend upon).
 @cindex @option{-fdump-ada-spec-slim} (@command{gcc})
 Generate Ada spec files for the header files specified on the command line
 only.
+
+@item -fada-spec-parent=@var{unit}
+@cindex -fada-spec-parent (@command{gcc})
+Specifies that all files generated by @option{-fdump-ada-spec-slim} are
+to be child units of the specified parent unit.
 
 @item -C
 @cindex @option{-C} (@command{gcc})
@@ -22149,7 +22558,6 @@ information about several specific platforms.
 * Solaris-Specific Considerations::
 * Linux-Specific Considerations::
 * AIX-Specific Considerations::
-* Irix-Specific Considerations::
 * RTX-Specific Considerations::
 * HP-UX-Specific Considerations::
 @end menu
@@ -22161,11 +22569,6 @@ information about several specific platforms.
 @item @b{alpha-openvms}
 @item @code{@ @ }@i{rts-native (default)}
 @item @code{@ @ @ @ }Tasking    @tab native VMS threads
-@item @code{@ @ @ @ }Exceptions @tab ZCX
-@*
-@item @b{alpha-tru64}
-@item @code{@ @ }@i{rts-native (default)}
-@item @code{@ @ @ @ }Tasking    @tab native TRU64 threads
 @item @code{@ @ @ @ }Exceptions @tab ZCX
 @*
 @item @code{@ @ }@i{rts-sjlj}
@@ -22190,11 +22593,6 @@ information about several specific platforms.
 @item @b{ia64-sgi_linux}
 @item @code{@ @ }@i{rts-native (default)}
 @item @code{@ @ @ @ }Tasking    @tab pthread library
-@item @code{@ @ @ @ }Exceptions @tab ZCX
-@*
-@item @b{mips-irix}
-@item @code{@ @ }@i{rts-native (default)}
-@item @code{@ @ @ @ }Tasking    @tab native IRIX threads
 @item @code{@ @ @ @ }Exceptions @tab ZCX
 @*
 @item @b{pa-hpux}
@@ -22484,24 +22882,6 @@ to @code{GNAT.Sockets.Get_Host_By_Name} or
 occurs in the environment task, or use @code{pragma Storage_Size} to
 specify a sufficiently large size for the stack of the task that contains
 this call.
-
-@node Irix-Specific Considerations
-@section Irix-Specific Considerations
-@cindex Irix libraries
-
-@noindent
-The GCC support libraries coming with the Irix compiler have moved to
-their canonical place with respect to the general Irix ABI related
-conventions. Running applications built with the default shared GNAT
-run-time now requires the LD_LIBRARY_PATH environment variable to
-include this location. A possible way to achieve this is to issue the
-following command line on a bash prompt:
-
-@smallexample
-@group
-$  LD_LIBRARY_PATH=$LD_LIBRARY_PATH:`dirname \`gcc --print-file-name=libgcc_s.so\``
-@end group
-@end smallexample
 
 @node RTX-Specific Considerations
 @section RTX-Specific Considerations
@@ -23300,7 +23680,7 @@ elaboration code in your own application).
 * Elaboration Issues for Library Tasks::
 * Mixing Elaboration Models::
 * What to Do If the Default Elaboration Behavior Fails::
-* Elaboration for Access-to-Subprogram Values::
+* Elaboration for Dispatching Calls::
 * Summary of Procedures for Elaboration Control::
 * Other Elaboration Order Considerations::
 @end menu
@@ -24957,39 +25337,22 @@ elaboration switch if your code is correct, and we assume that the
 C-tests are indeed correct (it is less efficient, but efficiency is
 not a factor in running the ACVC tests.)
 
-@node Elaboration for Access-to-Subprogram Values
-@section Elaboration for Access-to-Subprogram Values
-@cindex Access-to-subprogram
+@node Elaboration for Dispatching Calls
+@section Elaboration for Dispatching Calls
+@cindex Dispatching calls
 
 @noindent
-Access-to-subprogram types (introduced in Ada 95) complicate
-the handling of elaboration. The trouble is that it becomes
-impossible to tell at compile time which procedure
-is being called. This means that it is not possible for the binder
-to analyze the elaboration requirements in this case.
-
-If at the point at which the access value is created
-(i.e., the evaluation of @code{P'Access} for a subprogram @code{P}),
-the body of the subprogram is
-known to have been elaborated, then the access value is safe, and its use
-does not require a check. This may be achieved by appropriate arrangement
-of the order of declarations if the subprogram is in the current unit,
-or, if the subprogram is in another unit, by using pragma
-@code{Pure}, @code{Preelaborate}, or @code{Elaborate_Body}
-on the referenced unit.
-
-If the referenced body is not known to have been elaborated at the point
-the access value is created, then any use of the access value must do a
-dynamic check, and this dynamic check will fail and raise a
-@code{Program_Error} exception if the body has not been elaborated yet.
-GNAT will generate the necessary checks, and in addition, if the
-@option{-gnatwl}
-switch is set, will generate warnings that such checks are required.
-
-The use of dynamic dispatching for tagged types similarly generates
-a requirement for dynamic checks, and premature calls to any primitive
+In rare cases, the static elaboration model fails to prevent
+dispatching calls to not-yet-elaborated subprograms. In such cases, we
+fall back to run-time checks; premature calls to any primitive
 operation of a tagged type before the body of the operation has been
-elaborated, will result in the raising of @code{Program_Error}.
+elaborated will raise @code{Program_Error}.
+
+Access-to-subprogram types, however, are handled conservatively, and
+do not require run-time checks. This was not true in earlier versions
+of the compiler; you can use the @option{-gnatd.U} debug switch to
+revert to the old behavior if the new conservative behavior causes
+elaboration cycles.
 
 @node Summary of Procedures for Elaboration Control
 @section Summary of Procedures for Elaboration Control
@@ -25163,6 +25526,420 @@ and figuring out which is correct, and then adding the necessary
 @code{Elaborate} or @code{Elaborate_All} pragmas to ensure the desired order.
 
 
+@c **********************************
+@node Overflow Check Handling in GNAT
+@appendix Overflow Check Handling in GNAT
+@cindex Overflow checks
+@cindex Checks (overflow)
+@c **********************************
+
+@menu
+* Background::
+* Overflow Checking Modes in GNAT::
+* Specifying the Desired Mode::
+* Default Settings::
+* Implementation Notes::
+@end menu
+
+
+@node Background
+@section Background
+
+@noindent
+Overflow checks are checks that the compiler may make to ensure
+that intermediate results are not out of range. For example:
+
+@smallexample @c ada
+   A : Integer;
+   ...
+   A := A + 1;
+@end smallexample
+
+@noindent
+if @code{A} has the value @code{Integer'Last}, then the addition may cause
+overflow since the result is out of range of the type @code{Integer}.
+In this case @code{Constraint_Error} will be raised if checks are
+enabled.
+
+A trickier situation arises in examples like the following:
+
+@smallexample @c ada
+  A, C : Integer;
+  ...
+  A := (A + 1) + C;
+@end smallexample
+
+@noindent
+where @code{A} is @code{Integer'Last} and @code{C} is @code{-1}.
+Now the final result of the expression on the right hand side is
+@code{Integer'Last} which is in range, but the question arises whether the
+intermediate addition of @code{(A + 1)} raises an overflow error.
+
+The (perhaps surprising) answer is that the Ada language
+definition does not answer this question. Instead it leaves
+it up to the implementation to do one of two things:
+
+@itemize @bullet
+@item
+raise an exception (@code{Constraint_Error}), or
+
+@item
+yield the correct mathematical result which is then used in
+subsequent operations.
+@end itemize
+
+@noindent
+If the compiler chooses the first approach, then the assignment of this
+example will indeed raise @code{Constraint_Error}. But if the compiler
+chooses the second approach, then it can perform both additions yielding
+the correct mathematical result, which is in range, so no exception
+will be raised.
+
+Note that in the first example an
+exception will be raised in either case, since if the compiler
+gives the correct mathematical result for the addition, it will
+be out of range of the target type of the assignment, and thus
+fails the range check.
+
+This lack of specified behavior in the handling of overflow for
+intermediate results is a source of non-portability, and can thus
+be problematic when programs are ported. Most typically this arises
+in a situation where the original compiler did not raise an exception,
+and then the application is moved to a compiler where the check is
+performed on the intermediate result and an unexpected exception is
+raised.
+
+Furthermore, when using Ada 2012's preconditions and other
+assertion forms, another issue arises. Consider:
+
+@smallexample @c ada
+     procedure P (A, B : Integer) with
+       Pre => A + B <= Integer'Last;
+@end smallexample
+
+@noindent
+One often wants to regard arithmetic in a context like this from
+a mathematical point of view. So for example, if the two actual parameters
+for a call to @code{P} are both @code{Integer'Last}, then
+the precondition should be regarded as False. If we are executing
+in a mode with run-time checks enabled for preconditions, then we would
+like this precondition to fail, rather than raising an exception
+because of the intermediate overflow.
+
+However, the language definition leaves the specification of
+whether the above condition fails (raising @code{Assert_Error}) or
+causes an intermediate overflow (raising @code{Constraint_Error})
+up to the implementation.
+
+The situation is worse in a case such as the following:
+
+@smallexample @c ada
+     procedure Q (A, B, C : Integer) with
+       Pre => A + B + C <= Integer'Last;
+@end smallexample
+
+@noindent
+Consider the call
+
+@smallexample @c ada
+     Q (A => Integer'Last, B => 1, C => -1);
+@end smallexample
+
+@noindent
+From a mathematical point of view the precondition
+is True, but at run time we may (but are not guaranteed to) get an
+exception raised because of the intermediate overflow (and we really
+would prefer this precondition to be considered True at run time).
+
+@node Overflow Checking Modes in GNAT
+@section Overflow Checking Modes in GNAT
+
+@noindent
+To deal with the portability issue, and with the problem of
+mathematical versus run-time intepretation of the expressions in
+assertions, GNAT provides comprehensive control over the handling
+of intermediate overflow. GNAT can operate in four modes, and
+furthemore, permits separate selection of operating modes for
+the expressions within assertions (here the term ``assertions''
+is used in the technical sense, which includes preconditions and so forth)
+and for expressions appearing outside assertions.
+
+The four modes are:
+
+@itemize @bullet
+@item   @i{Checks suppressed} (@code{SUPPRESSED})
+
+     This is the normal defined language mode, as specified by a pragma
+     @code{Suppress (Overflow_Check)}. If any intermediate overflow occurs,
+     then the program execution is erroneous, which means that anything
+     could happen. Note in particular, that the result of evaluating
+     a precondition may be plain wrong if there is an intermediate
+     overflow, as in our examples above.
+
+@item   @i{All intermediate overflows checked} (@code{CHECKED})
+
+     In this mode, all intermediate results for predefined arithmetic
+     operators must be in range of the base type. If this is not the
+     case a constraint error is raised. This is the normal default mode
+     specified by use of the pragma @code{Unsuppress (Overflow_Check)}.
+
+@item   @i{Most intermediate overflows avoided} (@code{MINIMIZED})
+
+     In this mode, the compiler attempts to avoid intermediate overflows by
+     using @code{Long_Long_Integer} as the type in which arithmetic is
+     performed for predefined arithmetic operators. This is slightly more
+     expensive at
+     run time (compared to suppressing intermediate overflow checks), though
+     the cost is minimal on modern 64-bit machines. For the examples given
+     earlier, no intermediate overflows would have resulted in exceptions,
+     since the intermediate results are all in the range of
+     @code{Long_Long_Integer} (typically 64-bits on nearly all implementations
+     of GNAT).
+
+     However, there are cases where @code{Long_Long_Integer} is not large
+     enough, consider the following example:
+
+@smallexample @c ada
+       procedure R (A, B, C, D : Integer) with
+         Pre => (A**2 * B**2) / (C**2 * D**2) <= 10;
+@end smallexample
+
+     where @code{A} = @code{B} = @code{C} = @code{D} = @code{Integer'Last}.
+     Now the intermediate results are
+     out of the range of @code{Long_Long_Integer} even though the final result
+     is in range and the precondition is True (from a mathematical point
+     of view). In such a case, operating in this mode, an exception will
+     be raised for the intermediate overflow (which is why this mode
+     says @i{most} intermediate overflows are avoided).
+
+@item   @i{All intermediate overflows avoided} (@code{ELIMINATED})
+
+     In this mode, the compiler  avoids all intermediate overflows
+     by using arbitrary precision arithmetic as required. In this
+     mode, the above example with @code{A**2 * B**2} would
+     not cause intermediate overflow, because the intermediate result
+     would be evaluated using sufficient precision, and the result
+     of evaluating the precondition would be True.
+
+     This mode has the advantage of avoiding any intermediate
+     overflows, but at the expense of significant run-time overhead,
+     including the use of a library (included automatically in this
+     mode) for multiple-precision arithmetic.
+
+     This mode provides cleaner semantics for assertions, since now
+     the run-time behavior emulates true arithmetic behavior for the
+     predefined arithmetic operators, meaning that there is never a
+     conflict between the mathematical view of the assertion, and its
+     run-time behavior.
+@end itemize
+
+@noindent
+  Note that these modes apply only to the evaluation of predefined
+  arithmetic, membership, and comparison operators for signed integer
+  aritmetic.
+
+  For fixed-point arithmetic, checks can be suppressed. But if checks
+  are enabled (any of the three non-suppress modes will enable checks),
+  then fixed-point values are always checked for overflow against the
+  base type for intermediate expressions.
+
+  For floating-point, on nearly all architectures, @code{Machine_Overflows}
+  is False, and IEEE infinities are generated, so overflow exceptions
+  are never raised. If you want to avoid infinities, and check that
+  final results of expressions are in range, then you can declare a
+  constrained floating-point type, and range checks will be carried
+  out in the normal manner (with infinite values always failing all
+  range checks).
+
+
+@c -------------------------
+@node Specifying the Desired Mode
+@section Specifying the Desired Mode
+
+@noindent
+The desired mode of overflow checking can be specified using
+either the @code{Overflow_Checks} pragma or an equivalent compiler switch.
+The pragma has the form
+@cindex pragma @code{Overflow_Checks}
+
+@smallexample @c ada
+    pragma Overflow_Checks ([General =>] MODE [, [Assertions =>] MODE]);
+@end smallexample
+
+@noindent
+where @code{MODE} is one of
+
+@itemize @bullet
+@item   @code{SUPPRESSED}: suppress overflow checks
+@item   @code{CHECKED}:  all intermediate overflows checked
+@item   @code{MINIMIZED}: minimize intermediate overflows
+@item   @code{ELIMINATED}: eliminate intermediate overflows
+@end itemize
+
+@noindent
+The case is ignored, so @code{MINIMIZED}, @code{Minimized} and
+@code{minimized} all have the same effect.
+
+If only the @code{General} parameter is present, then the given @code{MODE}
+applies
+to expressions both within and outside assertions. If both arguments
+are present, then @code{General} applies to expressions outside assertions,
+and @code{Assertions} applies to expressions within assertions. For example:
+
+@smallexample @c ada
+   pragma Overflow_Checks
+     (General => Minimized, Assertions => Eliminated);
+@end smallexample
+
+@noindent
+specifies that general expressions outside assertions be evaluated
+in ``minimize intermediate overflows'' mode, and expressions within
+assertions be evaluated in ``eliminate intermediate overflows'' mode.
+This is often a reasonable choice, avoiding excessive overhead
+outside assertions, but assuring a high degree of portability
+when importing code from another compiler, while incurring
+the extra overhead for assertion expressions to ensure that
+the behavior at run time matches the expected mathematical
+behavior.
+
+The @code{Overflow_Checks} pragma has the same scoping and placement
+rules as pragma @code{Suppress}, so it can occur either as a
+configuration pragma, specifying a default for the whole
+program, or in a declarative scope, where it applies to the
+remaining declarations and statements in that scope.
+
+Additionally, a compiler switch @option{-gnato?} or @option{-gnato??}
+can be used to control the checking mode default (which can be subsequently
+overridden using the pragma form).
+@cindex @option{-gnato?} (gcc)
+@cindex @option{-gnato??} (gcc)
+
+Here `@code{?}' is one of the digits `@code{0}' through `@code{3}':
+
+@itemize @bullet
+@item   @code{0}:
+suppress overflow checks (@code{SUPPRESSED})
+@item   @code{1}:
+all intermediate overflows checked (@code{CHECKED})
+@item   @code{2}:
+minimize intermediate overflows (@code{MINIMIZED})
+@item   @code{3}:
+eliminate intermediate overflows (@code{ELIMINATED})
+@end itemize
+
+@noindent
+As with the pragma, if only one digit appears then it applies to all
+cases; if two digits are given, then the first applies outside
+assertions, and the second within assertions. Thus the equivalent
+of the example pragma above would be @option{-gnato23}.
+
+If no digits follow the @option{-gnato}, then it is equivalent to
+@option{-gnato11},
+causing all intermediate overflows to be checked.
+
+
+@c -------------------------
+@node Default Settings
+@section Default Settings
+
+The default mode for overflow checks is
+
+@smallexample
+   General => Suppressed
+@end smallexample
+
+@noindent
+which suppresses checks inside and outside assertions,
+This retains compatibility with previous versions of
+GNAT which suppressed overflow checks by default.
+
+The switch @option{-gnato} (with no digits following) is equivalent to
+@cindex @option{-gnato} (gcc)
+
+@smallexample
+   General => Checked
+@end smallexample
+
+@noindent
+which causes overflow checking of all intermediate overflows
+both inside and outside assertions. This provides compatibility
+with this switch as implemented in previous versions of GNAT.
+
+The pragma @code{Suppress (Overflow_Check)} sets mode
+
+@smallexample
+   General => Suppressed
+@end smallexample
+
+@noindent
+suppressing all overflow checking within and outside
+assertions.
+@cindex @code{Overflow_Check} (argument to pragma Suppress)
+
+The pragam @code{Unsuppress (Overflow_Check)} sets mode
+
+@smallexample
+   General => Checked
+@end smallexample
+
+@noindent
+which causes overflow checking of all intermediate overflows.
+This applies both inside and outside assertions.
+@cindex @code{Overflow_Check} (argument to pragma Unsuppress)
+
+
+@c -------------------------
+@node Implementation Notes
+@section Implementation Notes
+
+In practice on typical 64-bit machines, the @code{MINIMIZED} mode is
+reasonably efficient, and can be generally used. It also helps
+to ensure compatibility with code imported from some other
+compiler to GNAT.
+
+Setting all intermediate overflows checking (@code{CHECKED} mode)
+makes sense if you want to
+make sure that your code is compatible with any other possible
+Ada implementation. This may be useful in ensuring portability
+for code that is to be exported to some other compiler than GNAT.
+It is also appropriate if you intend to turn off checks for
+the final delivered software, since in @code{SUPPRESSED} mode, the
+assumption is that all intermediate results are in range. In
+this situation, it is likely that you are also suppressing
+assertions in the final executable, so in that case it does not
+matter which mode is selected for assertions during development.
+
+The Ada standard allows the reassociation of expressions at
+the same precedence level if no parentheses are present. For
+example, @w{@code{A+B+C}} parses as though it were @w{@code{(A+B)+C}}, but
+the compiler can reintepret this as @w{@code{A+(B+C)}}, possibly
+introducing or eliminating an overflow exception. The GNAT
+compiler never takes advantage of this freedom, and the
+expression @w{@code{A+B+C}} will be evaluated as @w{@code{(A+B)+C}}.
+If you need the other order, you can write the parentheses
+explicitly @w{@code{A+(B+C)}} and GNAT will respect this order.
+
+The use of @code{ELIMINATED} mode will cause the compiler to
+automatically include an appropriate arbitrary precision
+integer arithmetic package. The compiler will make calls
+to this package, though only in cases where it cannot be
+sure that @code{Long_Long_Integer} is sufficient to guard against
+intermediate overflows. This package does not use dynamic
+alllocation, but it does use the secondary stack, so an
+appropriate secondary stack package must be present (this
+is always true for standard full Ada, but may require
+specific steps for restricted run times such as ZFP).
+
+Although @code{ELIMINATED} mode causes expressions to use arbitrary
+precision arithmetic, avoiding overflow, the final result
+must be in an appropriate range. This is true even if the
+final result is of type @code{[Long_[Long_]]Integer'Base}, which
+still has the same bounds as its associated constrained
+type at run-time.
+
+Currently, the @code{ELIMINATED} mode is only available on target
+platforms for which @code{Long_Long_Integer} is 64-bits (nearly all GNAT
+platforms).
 
 @c *******************************
 @node Conditional Compilation
@@ -26107,8 +26884,8 @@ procedure Increment is
       Result : Unsigned_32;
    begin
       Asm ("incl %0",
-           Inputs  => Unsigned_32'Asm_Input ("a", Value),
-           Outputs => Unsigned_32'Asm_Output ("=a", Result));
+           Outputs => Unsigned_32'Asm_Output ("=a", Result),
+           Inputs  => Unsigned_32'Asm_Input ("a", Value));
       return Result;
    end Incr;
 
@@ -26134,10 +26911,8 @@ The @code{"="} constraint, indicating an output value, is not present.
 You can have multiple input variables, in the same way that you can have more
 than one output variable.
 
-The parameter count (%0, %1) etc, now starts at the first input
-statement, and continues with the output statements.
-When both parameters use the same variable, the
-compiler will treat them as the same %n operand, which is the case here.
+The parameter count (%0, %1) etc, still starts at the first output statement,
+and continues with the input statements.
 
 Just as the @code{Outputs} parameter causes the register to be stored into the
 target variable after execution of the assembler statements, so does the
@@ -26191,8 +26966,8 @@ procedure Increment_2 is
       Result : Unsigned_32;
    begin
       Asm ("incl %0",
-           Inputs  => Unsigned_32'Asm_Input ("a", Value),
-           Outputs => Unsigned_32'Asm_Output ("=a", Result));
+           Outputs => Unsigned_32'Asm_Output ("=a", Result),
+           Inputs  => Unsigned_32'Asm_Input ("a", Value));
       return Result;
    end Incr;
    pragma Inline (Increment);
@@ -26274,8 +27049,8 @@ assembly code; for example:
 @group
 Asm ("movl %0, %%ebx" & LF & HT &
      "movl %%ebx, %1",
-     Inputs  => Unsigned_32'Asm_Input  ("g", Var_In),
-     Outputs => Unsigned_32'Asm_Output ("=g", Var_Out));
+     Outputs => Unsigned_32'Asm_Output ("=g", Var_Out),
+     Inputs  => Unsigned_32'Asm_Input  ("g", Var_In));
 @end group
 @end smallexample
 @noindent
@@ -26289,8 +27064,8 @@ to identify the registers that will be used by your assembly code:
 @group
 Asm ("movl %0, %%ebx" & LF & HT &
      "movl %%ebx, %1",
-     Inputs  => Unsigned_32'Asm_Input  ("g", Var_In),
      Outputs => Unsigned_32'Asm_Output ("=g", Var_Out),
+     Inputs  => Unsigned_32'Asm_Input  ("g", Var_In),
      Clobber => "ebx");
 @end group
 @end smallexample
@@ -26324,8 +27099,8 @@ the @code{Volatile} parameter to @code{True}; for example:
 @group
 Asm ("movl %0, %%ebx" & LF & HT &
      "movl %%ebx, %1",
-     Inputs   => Unsigned_32'Asm_Input  ("g", Var_In),
      Outputs  => Unsigned_32'Asm_Output ("=g", Var_Out),
+     Inputs   => Unsigned_32'Asm_Input  ("g", Var_In),
      Clobber  => "ebx",
      Volatile => True);
 @end group
@@ -27437,8 +28212,14 @@ success. It should be possible to use @code{GetLastError} and
 features are not used, but it is not guaranteed to work.
 
 @item
-It is not possible to link against Microsoft libraries except for
+It is not possible to link against Microsoft C++ libraries except for
 import libraries. Interfacing must be done by the mean of DLLs.
+
+@item
+It is possible to link against Microsoft C libraries. Yet the preferred
+solution is to use C/C++ compiler that comes with @value{EDITION}, since it
+doesn't require having two different development environments and makes the
+inter-language debugging experience smoother.
 
 @item
 When the compilation environment is located on FAT32 drives, users may
@@ -27527,14 +28308,14 @@ application that contains a mix of Ada and C/C++, the choice of your
 Windows C/C++ development environment conditions your overall
 interoperability strategy.
 
-If you use @command{gcc} to compile the non-Ada part of your application,
-there are no Windows-specific restrictions that affect the overall
-interoperability with your Ada code. If you do want to use the
-Microsoft tools for your non-Ada code, you have two choices:
+If you use @command{gcc} or Microsoft C to compile the non-Ada part of
+your application, there are no Windows-specific restrictions that
+affect the overall interoperability with your Ada code. If you do want
+to use the Microsoft tools for your C++ code, you have two choices:
 
 @enumerate
 @item
-Encapsulate your non-Ada code in a DLL to be linked with your Ada
+Encapsulate your C++ code in a DLL to be linked with your Ada
 application. In this case, use the Microsoft or whatever environment to
 build the DLL and use GNAT to build your executable
 (@pxref{Using DLLs with GNAT}).

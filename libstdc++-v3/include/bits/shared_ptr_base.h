@@ -1,7 +1,6 @@
 // shared_ptr and weak_ptr implementation details -*- C++ -*-
 
-// Copyright (C) 2007, 2008, 2009, 2010, 2011, 2012
-// Free Software Foundation, Inc.
+// Copyright (C) 2007-2012 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -53,6 +52,10 @@
 namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
+
+#if _GLIBCXX_USE_DEPRECATED
+  template<typename> class auto_ptr;
+#endif
 
  /**
    *  @brief  Exception possibly thrown by @c shared_ptr.
@@ -537,9 +540,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       // Special case for auto_ptr<_Tp> to provide the strong guarantee.
       template<typename _Tp>
         explicit
-	__shared_count(std::auto_ptr<_Tp>&& __r)
-	: _M_pi(new _Sp_counted_ptr<_Tp*, _Lp>(__r.get()))
-	{ __r.release(); }
+	__shared_count(std::auto_ptr<_Tp>&& __r);
 #endif
 
       // Special case for unique_ptr<_Tp,_Del> to provide the strong guarantee.
@@ -859,15 +860,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #if _GLIBCXX_USE_DEPRECATED
       // Postcondition: use_count() == 1 and __r.get() == 0
       template<typename _Tp1>
-	__shared_ptr(std::auto_ptr<_Tp1>&& __r)
-	: _M_ptr(__r.get()), _M_refcount()
-	{
-	  __glibcxx_function_requires(_ConvertibleConcept<_Tp1*, _Tp*>)
-	  static_assert( sizeof(_Tp1) > 0, "incomplete type" );
-	  _Tp1* __tmp = __r.get();
-	  _M_refcount = __shared_count<_Lp>(std::move(__r));
-	  __enable_shared_from_this_helper(_M_refcount, __tmp, __tmp);
-	}
+	__shared_ptr(std::auto_ptr<_Tp1>&& __r);
 #endif
 
       /* TODO: use delegating constructor */
@@ -1063,7 +1056,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     };
 
 
-  // 20.8.13.2.7 shared_ptr comparisons
+  // 20.7.2.2.7 shared_ptr comparisons
   template<typename _Tp1, typename _Tp2, _Lock_policy _Lp>
     inline bool
     operator==(const __shared_ptr<_Tp1, _Lp>& __a,
@@ -1355,7 +1348,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       __weak_count<_Lp>  _M_refcount;    // Reference counter.
     };
 
-  // 20.8.13.3.7 weak_ptr specialized algorithms.
+  // 20.7.2.3.6 weak_ptr specialized algorithms.
   template<typename _Tp, _Lock_policy _Lp>
     inline void
     swap(__weak_ptr<_Tp, _Lp>& __a, __weak_ptr<_Tp, _Lp>& __b) noexcept

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---                     Copyright (C) 2001-2011, AdaCore                     --
+--                     Copyright (C) 2001-2012, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -123,7 +123,7 @@ package body GNAT.Sockets is
    function Resolve_Error
      (Error_Value : Integer;
       From_Errno  : Boolean := True) return Error_Type;
-   --  Associate an enumeration value (error_type) to en error value (errno).
+   --  Associate an enumeration value (error_type) to an error value (errno).
    --  From_Errno prevents from mixing h_errno with errno.
 
    function To_Name   (N  : String) return Name_Type;
@@ -480,9 +480,7 @@ package body GNAT.Sockets is
       --  no check required. Warnings suppressed because condition
       --  is known at compile time.
 
-      pragma Warnings (Off);
       if Target_OS = Windows then
-         pragma Warnings (On);
 
          return;
 
@@ -704,6 +702,13 @@ package body GNAT.Sockets is
       Req : Request_Type;
       --  Used to set Socket to non-blocking I/O
 
+      Conn_Err : aliased Integer;
+      --  Error status of the socket after completion of select(2)
+
+      Res           : C.int;
+      Conn_Err_Size : aliased C.int := Conn_Err'Size / 8;
+      --  For getsockopt(2) call
+
    begin
       if Selector /= null and then not Is_Open (Selector.all) then
          raise Program_Error with "closed selector";
@@ -737,10 +742,32 @@ package body GNAT.Sockets is
          Selector => Selector,
          Status   => Status);
 
+      --  Check error condition (the asynchronous connect may have terminated
+      --  with an error, e.g. ECONNREFUSED) if select(2) completed.
+
+      if Status = Completed then
+         Res := C_Getsockopt
+           (C.int (Socket), SOSC.SOL_SOCKET, SOSC.SO_ERROR,
+            Conn_Err'Address, Conn_Err_Size'Access);
+
+         if Res /= 0 then
+            Conn_Err := Socket_Errno;
+         end if;
+
+      else
+         Conn_Err := 0;
+      end if;
+
       --  Reset the socket to blocking I/O
 
       Req := (Name => Non_Blocking_IO, Enabled => False);
       Control_Socket (Socket, Request => Req);
+
+      --  Report error condition if any
+
+      if Conn_Err /= 0 then
+         Raise_Socket_Error (Conn_Err);
+      end if;
    end Connect_Socket;
 
    --------------------
@@ -1112,6 +1139,7 @@ package body GNAT.Sockets is
       Level  : Level_Type := Socket_Level;
       Name   : Option_Name) return Option_Type
    is
+      use SOSC;
       use type C.unsigned_char;
 
       V8  : aliased Two_Ints;
@@ -1144,8 +1172,19 @@ package body GNAT.Sockets is
 
          when Send_Timeout    |
               Receive_Timeout =>
-            Len := VT'Size / 8;
-            Add := VT'Address;
+
+            --  The standard argument for SO_RCVTIMEO and SO_SNDTIMEO is a
+            --  struct timeval, but on Windows it is a milliseconds count in
+            --  a DWORD.
+
+            if Target_OS = Windows then
+               Len := V4'Size / 8;
+               Add := V4'Address;
+
+            else
+               Len := VT'Size / 8;
+               Add := VT'Address;
+            end if;
 
          when Linger          |
               Add_Membership  |
@@ -1201,7 +1240,21 @@ package body GNAT.Sockets is
 
          when Send_Timeout    |
               Receive_Timeout =>
-            Opt.Timeout := To_Duration (VT);
+
+            if Target_OS = Windows then
+
+               --  Timeout is in milliseconds, actual value is 500 ms +
+               --  returned value (unless it is 0).
+
+               if V4 = 0 then
+                  Opt.Timeout := 0.0;
+               else
+                  Opt.Timeout := Natural (V4) * 0.001 + 0.500;
+               end if;
+
+            else
+               Opt.Timeout := To_Duration (VT);
+            end if;
       end case;
 
       return Opt;
@@ -1705,8 +1758,6 @@ package body GNAT.Sockets is
       Item   : out Ada.Streams.Stream_Element_Array;
       Last   : out Ada.Streams.Stream_Element_Offset)
    is
-      pragma Warnings (Off, Stream);
-
       First : Ada.Streams.Stream_Element_Offset          := Item'First;
       Index : Ada.Streams.Stream_Element_Offset          := First - 1;
       Max   : constant Ada.Streams.Stream_Element_Offset := Item'Last;
@@ -2176,6 +2227,8 @@ package body GNAT.Sockets is
       Level  : Level_Type := Socket_Level;
       Option : Option_Type)
    is
+      use SOSC;
+
       V8  : aliased Two_Ints;
       V4  : aliased C.int;
       V1  : aliased C.unsigned_char;
@@ -2236,9 +2289,30 @@ package body GNAT.Sockets is
 
          when Send_Timeout    |
               Receive_Timeout =>
-            VT  := To_Timeval (Option.Timeout);
-            Len := VT'Size / 8;
-            Add := VT'Address;
+
+            if Target_OS = Windows then
+
+               --  On Windows, the timeout is a DWORD in milliseconds, and
+               --  the actual timeout is 500 ms + the given value (unless it
+               --  is 0).
+
+               V4 := C.int (Option.Timeout / 0.001);
+
+               if V4 > 500 then
+                  V4 := V4 - 500;
+
+               elsif V4 > 0 then
+                  V4 := 1;
+               end if;
+
+               Len := V4'Size / 8;
+               Add := V4'Address;
+
+            else
+               VT  := To_Timeval (Option.Timeout);
+               Len := VT'Size / 8;
+               Add := VT'Address;
+            end if;
 
       end case;
 
@@ -2261,16 +2335,11 @@ package body GNAT.Sockets is
       use type C.unsigned_short;
 
    begin
-      --  Big-endian case. No conversion needed. On these platforms,
-      --  htons() defaults to a null procedure.
-
-      pragma Warnings (Off);
-      --  Since the test can generate "always True/False" warning
+      --  Big-endian case. No conversion needed. On these platforms, htons()
+      --  defaults to a null procedure.
 
       if Default_Bit_Order = High_Order_First then
          return S;
-
-         pragma Warnings (On);
 
       --  Little-endian case. We must swap the high and low bytes of this
       --  short to make the port number network compliant.

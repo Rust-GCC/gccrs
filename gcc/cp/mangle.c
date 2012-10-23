@@ -1,6 +1,6 @@
 /* Name mangling for the 3.0 C++ ABI.
    Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010,
-   2011  Free Software Foundation, Inc.
+   2011, 2012  Free Software Foundation, Inc.
    Written by Alex Samuel <samuel@codesourcery.com>
 
    This file is part of GCC.
@@ -942,7 +942,7 @@ write_nested_name (const tree decl)
 	}
       else
 	{
-	  write_prefix (CP_DECL_CONTEXT (decl));
+	  write_prefix (decl_mangling_context (decl));
 	  write_unqualified_name (decl);
 	}
     }
@@ -1030,7 +1030,7 @@ write_prefix (const tree node)
 	}
       else
 	{
-	  write_prefix (CP_DECL_CONTEXT (decl));
+	  write_prefix (decl_mangling_context (decl));
 	  write_unqualified_name (decl);
 	}
     }
@@ -1060,7 +1060,7 @@ write_template_prefix (const tree node)
 {
   tree decl = DECL_P (node) ? node : TYPE_NAME (node);
   tree type = DECL_P (node) ? TREE_TYPE (node) : node;
-  tree context = CP_DECL_CONTEXT (decl);
+  tree context = decl_mangling_context (decl);
   tree template_info;
   tree templ;
   tree substitution;
@@ -1337,7 +1337,7 @@ nested_anon_class_index (tree type)
 /* <unnamed-type-name> ::= Ut [ <nonnegative number> ] _ */
 
 static void
-write_unnamed_type_name (const tree type ATTRIBUTE_UNUSED)
+write_unnamed_type_name (const tree type)
 {
   int discriminator;
   MANGLE_TRACE_TREE ("unnamed-type-name", type);
@@ -1694,8 +1694,8 @@ discriminator_for_local_entity (tree entity)
    string literals used in FUNCTION.  */
 
 static int
-discriminator_for_string_literal (tree function ATTRIBUTE_UNUSED,
-				  tree string ATTRIBUTE_UNUSED)
+discriminator_for_string_literal (tree /*function*/,
+				  tree /*string*/)
 {
   /* For now, we don't discriminate amongst string literals.  */
   return 0;
@@ -1845,7 +1845,7 @@ write_type (tree type)
       if (TREE_CODE (type) == RECORD_TYPE && TYPE_TRANSPARENT_AGGR (type))
 	type = TREE_TYPE (first_field (type));
 
-      if (TYPE_PTRMEM_P (type))
+      if (TYPE_PTRDATAMEM_P (type))
 	write_pointer_to_member_type (type);
       else
         {
@@ -2023,6 +2023,8 @@ write_type (tree type)
 
 	    case NULLPTR_TYPE:
 	      write_string ("Dn");
+	      if (abi_version_at_least (7))
+		++is_builtin_type;
 	      break;
 
 	    case TYPEOF_TYPE:
@@ -2579,6 +2581,12 @@ write_expression (tree expr)
       write_char ('E');
     }
   else if (TREE_CODE (expr) == SIZEOF_EXPR
+	   && SIZEOF_EXPR_TYPE_P (expr))
+    {
+      write_string ("st");
+      write_type (TREE_TYPE (TREE_OPERAND (expr, 0)));
+    }
+  else if (TREE_CODE (expr) == SIZEOF_EXPR
 	   && TYPE_P (TREE_OPERAND (expr, 0)))
     {
       write_string ("st");
@@ -2813,7 +2821,17 @@ write_expression (tree expr)
 
       if (name == NULL)
 	{
-	  sorry ("mangling %C", code);
+	  switch (code)
+	    {
+	    case TRAIT_EXPR:
+	      error ("use of built-in trait %qE in function signature; "
+		     "use library traits instead", expr);
+	      break;
+
+	    default:
+	      sorry ("mangling %C", code);
+	      break;
+	    }
 	  return;
 	}
       else
@@ -3107,12 +3125,11 @@ write_array_type (const tree type)
 	{
 	  /* The ABI specifies that we should mangle the number of
 	     elements in the array, not the largest allowed index.  */
-	  double_int dmax
-	    = double_int_add (tree_to_double_int (max), double_int_one);
+	  double_int dmax = tree_to_double_int (max) + double_int_one;
 	  /* Truncate the result - this will mangle [0, SIZE_INT_MAX]
 	     number of elements as zero.  */
-	  dmax = double_int_zext (dmax, TYPE_PRECISION (TREE_TYPE (max)));
-	  gcc_assert (double_int_fits_in_uhwi_p (dmax));
+	  dmax = dmax.zext (TYPE_PRECISION (TREE_TYPE (max)));
+	  gcc_assert (dmax.fits_uhwi ());
 	  write_unsigned_number (dmax.low);
 	}
       else
@@ -3667,6 +3684,20 @@ mangle_conv_op_name_for_type (const tree type)
   return identifier;
 }
 
+/* Write out the appropriate string for this variable when generating
+   another mangled name based on this one.  */
+
+static void
+write_guarded_var_name (const tree variable)
+{
+  if (strncmp (IDENTIFIER_POINTER (DECL_NAME (variable)), "_ZGR", 4) == 0)
+    /* The name of a guard variable for a reference temporary should refer
+       to the reference, not the temporary.  */
+    write_string (IDENTIFIER_POINTER (DECL_NAME (variable)) + 4);
+  else
+    write_name (variable, /*ignore_local_scope=*/0);
+}
+
 /* Return an identifier for the name of an initialization guard
    variable for indicated VARIABLE.  */
 
@@ -3675,13 +3706,46 @@ mangle_guard_variable (const tree variable)
 {
   start_mangling (variable);
   write_string ("_ZGV");
-  if (strncmp (IDENTIFIER_POINTER (DECL_NAME (variable)), "_ZGR", 4) == 0)
-    /* The name of a guard variable for a reference temporary should refer
-       to the reference, not the temporary.  */
-    write_string (IDENTIFIER_POINTER (DECL_NAME (variable)) + 4);
-  else
-    write_name (variable, /*ignore_local_scope=*/0);
+  write_guarded_var_name (variable);
   return finish_mangling_get_identifier (/*warn=*/false);
+}
+
+/* Return an identifier for the name of a thread_local initialization
+   function for VARIABLE.  */
+
+tree
+mangle_tls_init_fn (const tree variable)
+{
+  start_mangling (variable);
+  write_string ("_ZTH");
+  write_guarded_var_name (variable);
+  return finish_mangling_get_identifier (/*warn=*/false);
+}
+
+/* Return an identifier for the name of a thread_local wrapper
+   function for VARIABLE.  */
+
+#define TLS_WRAPPER_PREFIX "_ZTW"
+
+tree
+mangle_tls_wrapper_fn (const tree variable)
+{
+  start_mangling (variable);
+  write_string (TLS_WRAPPER_PREFIX);
+  write_guarded_var_name (variable);
+  return finish_mangling_get_identifier (/*warn=*/false);
+}
+
+/* Return true iff FN is a thread_local wrapper function.  */
+
+bool
+decl_tls_wrapper_p (const tree fn)
+{
+  if (TREE_CODE (fn) != FUNCTION_DECL)
+    return false;
+  tree name = DECL_NAME (fn);
+  return strncmp (IDENTIFIER_POINTER (name), TLS_WRAPPER_PREFIX,
+		  strlen (TLS_WRAPPER_PREFIX)) == 0;
 }
 
 /* Return an identifier for the name of a temporary variable used to

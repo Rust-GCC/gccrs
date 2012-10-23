@@ -1,6 +1,6 @@
 /* Definitions of target machine for GCC for IA-32.
    Copyright (C) 1988, 1992, 1994, 1995, 1996, 1997, 1998, 1999, 2000,
-   2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
+   2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -41,46 +41,51 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 /* Redefines for option macros.  */
 
-#define TARGET_64BIT	OPTION_ISA_64BIT
-#define TARGET_X32	OPTION_ISA_X32
-#define TARGET_MMX	OPTION_ISA_MMX
-#define TARGET_3DNOW	OPTION_ISA_3DNOW
-#define TARGET_3DNOW_A	OPTION_ISA_3DNOW_A
-#define TARGET_SSE	OPTION_ISA_SSE
-#define TARGET_SSE2	OPTION_ISA_SSE2
-#define TARGET_SSE3	OPTION_ISA_SSE3
-#define TARGET_SSSE3	OPTION_ISA_SSSE3
-#define TARGET_SSE4_1	OPTION_ISA_SSE4_1
-#define TARGET_SSE4_2	OPTION_ISA_SSE4_2
-#define TARGET_AVX	OPTION_ISA_AVX
-#define TARGET_AVX2	OPTION_ISA_AVX2
-#define TARGET_FMA	OPTION_ISA_FMA
-#define TARGET_SSE4A	OPTION_ISA_SSE4A
-#define TARGET_FMA4	OPTION_ISA_FMA4
-#define TARGET_XOP	OPTION_ISA_XOP
-#define TARGET_LWP	OPTION_ISA_LWP
-#define TARGET_ROUND	OPTION_ISA_ROUND
-#define TARGET_ABM	OPTION_ISA_ABM
-#define TARGET_BMI	OPTION_ISA_BMI
-#define TARGET_BMI2	OPTION_ISA_BMI2
-#define TARGET_LZCNT	OPTION_ISA_LZCNT
-#define TARGET_TBM	OPTION_ISA_TBM
-#define TARGET_POPCNT	OPTION_ISA_POPCNT
-#define TARGET_SAHF	OPTION_ISA_SAHF
-#define TARGET_MOVBE	OPTION_ISA_MOVBE
-#define TARGET_CRC32	OPTION_ISA_CRC32
-#define TARGET_AES	OPTION_ISA_AES
-#define TARGET_PCLMUL	OPTION_ISA_PCLMUL
-#define TARGET_CMPXCHG16B OPTION_ISA_CX16
-#define TARGET_FSGSBASE	OPTION_ISA_FSGSBASE
-#define TARGET_RDRND	OPTION_ISA_RDRND
-#define TARGET_F16C	OPTION_ISA_F16C
+#define TARGET_64BIT	TARGET_ISA_64BIT
+#define TARGET_MMX	TARGET_ISA_MMX
+#define TARGET_3DNOW	TARGET_ISA_3DNOW
+#define TARGET_3DNOW_A	TARGET_ISA_3DNOW_A
+#define TARGET_SSE	TARGET_ISA_SSE
+#define TARGET_SSE2	TARGET_ISA_SSE2
+#define TARGET_SSE3	TARGET_ISA_SSE3
+#define TARGET_SSSE3	TARGET_ISA_SSSE3
+#define TARGET_SSE4_1	TARGET_ISA_SSE4_1
+#define TARGET_SSE4_2	TARGET_ISA_SSE4_2
+#define TARGET_AVX	TARGET_ISA_AVX
+#define TARGET_AVX2	TARGET_ISA_AVX2
+#define TARGET_FMA	TARGET_ISA_FMA
+#define TARGET_SSE4A	TARGET_ISA_SSE4A
+#define TARGET_FMA4	TARGET_ISA_FMA4
+#define TARGET_XOP	TARGET_ISA_XOP
+#define TARGET_LWP	TARGET_ISA_LWP
+#define TARGET_ROUND	TARGET_ISA_ROUND
+#define TARGET_ABM	TARGET_ISA_ABM
+#define TARGET_BMI	TARGET_ISA_BMI
+#define TARGET_BMI2	TARGET_ISA_BMI2
+#define TARGET_LZCNT	TARGET_ISA_LZCNT
+#define TARGET_TBM	TARGET_ISA_TBM
+#define TARGET_POPCNT	TARGET_ISA_POPCNT
+#define TARGET_SAHF	TARGET_ISA_SAHF
+#define TARGET_MOVBE	TARGET_ISA_MOVBE
+#define TARGET_CRC32	TARGET_ISA_CRC32
+#define TARGET_AES	TARGET_ISA_AES
+#define TARGET_PCLMUL	TARGET_ISA_PCLMUL
+#define TARGET_CMPXCHG16B TARGET_ISA_CX16
+#define TARGET_FSGSBASE	TARGET_ISA_FSGSBASE
+#define TARGET_RDRND	TARGET_ISA_RDRND
+#define TARGET_F16C	TARGET_ISA_F16C
+#define TARGET_RTM      TARGET_ISA_RTM
+#define TARGET_HLE	TARGET_ISA_HLE
+#define TARGET_RDSEED	TARGET_ISA_RDSEED
+#define TARGET_PRFCHW	TARGET_ISA_PRFCHW
+#define TARGET_ADX	TARGET_ISA_ADX
 
-#define TARGET_LP64	(TARGET_64BIT && !TARGET_X32)
+#define TARGET_LP64	TARGET_ABI_64
+#define TARGET_X32	TARGET_ABI_X32
 
 /* SSE4.1 defines round instructions */
 #define	OPTION_MASK_ISA_ROUND	OPTION_MASK_ISA_SSE4_1
-#define	OPTION_ISA_ROUND	((ix86_isa_flags & OPTION_MASK_ISA_ROUND) != 0)
+#define	TARGET_ISA_ROUND	((ix86_isa_flags & OPTION_MASK_ISA_ROUND) != 0)
 
 #include "config/vxworks-dummy.h"
 
@@ -247,6 +252,7 @@ extern const struct processor_costs ix86_size_cost;
 #define TARGET_BDVER1 (ix86_tune == PROCESSOR_BDVER1)
 #define TARGET_BDVER2 (ix86_tune == PROCESSOR_BDVER2)
 #define TARGET_BTVER1 (ix86_tune == PROCESSOR_BTVER1)
+#define TARGET_BTVER2 (ix86_tune == PROCESSOR_BTVER2)
 #define TARGET_ATOM (ix86_tune == PROCESSOR_ATOM)
 
 /* Feature tests against the various tunings.  */
@@ -261,6 +267,7 @@ enum ix86_tune_indices {
   X86_TUNE_MOVX,
   X86_TUNE_PARTIAL_REG_STALL,
   X86_TUNE_PARTIAL_FLAG_REG_STALL,
+  X86_TUNE_LCP_STALL,
   X86_TUNE_USE_HIMODE_FIOP,
   X86_TUNE_USE_SIMODE_FIOP,
   X86_TUNE_USE_MOV0,
@@ -339,6 +346,8 @@ extern unsigned char ix86_tune_features[X86_TUNE_LAST];
 #define TARGET_PARTIAL_REG_STALL ix86_tune_features[X86_TUNE_PARTIAL_REG_STALL]
 #define TARGET_PARTIAL_FLAG_REG_STALL \
 	ix86_tune_features[X86_TUNE_PARTIAL_FLAG_REG_STALL]
+#define TARGET_LCP_STALL \
+	ix86_tune_features[X86_TUNE_LCP_STALL]
 #define TARGET_USE_HIMODE_FIOP	ix86_tune_features[X86_TUNE_USE_HIMODE_FIOP]
 #define TARGET_USE_SIMODE_FIOP	ix86_tune_features[X86_TUNE_USE_SIMODE_FIOP]
 #define TARGET_USE_MOV0		ix86_tune_features[X86_TUNE_USE_MOV0]
@@ -449,11 +458,8 @@ extern unsigned char ix86_arch_features[X86_ARCH_LAST];
 
 #define TARGET_FISTTP		(TARGET_SSE3 && TARGET_80387)
 
-extern int x86_prefetch_sse;
+extern unsigned char x86_prefetch_sse;
 #define TARGET_PREFETCH_SSE	x86_prefetch_sse
-
-extern int x86_prefetchw;
-#define TARGET_PREFETCHW	x86_prefetchw
 
 #define ASSEMBLER_DIALECT	(ix86_asm_dialect)
 
@@ -605,6 +611,7 @@ enum target_cpu_default
   TARGET_CPU_DEFAULT_bdver1,
   TARGET_CPU_DEFAULT_bdver2,
   TARGET_CPU_DEFAULT_btver1,
+  TARGET_CPU_DEFAULT_btver2,
 
   TARGET_CPU_DEFAULT_max
 };
@@ -663,9 +670,17 @@ enum target_cpu_default
 #define LONG_LONG_TYPE_SIZE 64
 #define FLOAT_TYPE_SIZE 32
 #define DOUBLE_TYPE_SIZE 64
-#define LONG_DOUBLE_TYPE_SIZE 80
+#define LONG_DOUBLE_TYPE_SIZE (TARGET_LONG_DOUBLE_64 ? 64 : 80)
 
-#define WIDEST_HARDWARE_FP_SIZE LONG_DOUBLE_TYPE_SIZE
+/* Define this to set long double type size to use in libgcc2.c, which can
+   not depend on target_flags.  */
+#ifdef __LONG_DOUBLE_64__
+#define LIBGCC2_LONG_DOUBLE_TYPE_SIZE 64
+#else
+#define LIBGCC2_LONG_DOUBLE_TYPE_SIZE 80
+#endif
+
+#define WIDEST_HARDWARE_FP_SIZE 80
 
 #if defined (TARGET_BI_ARCH) || TARGET_64BIT_DEFAULT
 #define MAX_BITS_PER_WORD 64
@@ -705,7 +720,7 @@ enum target_cpu_default
 #define MAIN_STACK_BOUNDARY (TARGET_64BIT ? 128 : 32)
 
 /* Minimum stack boundary.  */
-#define MIN_STACK_BOUNDARY (TARGET_64BIT ? 128 : 32)
+#define MIN_STACK_BOUNDARY (TARGET_64BIT ? (TARGET_SSE ? 128 : 64) : 32)
 
 /* Boundary (in *bits*) on which the stack pointer prefers to be
    aligned; the compiler cannot rely on having this alignment.  */
@@ -913,12 +928,9 @@ enum target_cpu_default
    and are not available for the register allocator.
    On the 80386, the stack pointer is such, as is the arg pointer.
 
-   The value is zero if the register is not fixed on either 32 or
-   64 bit targets, one if the register if fixed on both 32 and 64
-   bit targets, two if it is only fixed on 32bit targets and three
-   if its only fixed on 64bit targets.
-   Proper values are computed in TARGET_CONDITIONAL_REGISTER_USAGE.
- */
+   REX registers are disabled for 32bit targets in
+   TARGET_CONDITIONAL_REGISTER_USAGE.  */
+
 #define FIXED_REGISTERS						\
 /*ax,dx,cx,bx,si,di,bp,sp,st,st1,st2,st3,st4,st5,st6,st7*/	\
 {  0, 0, 0, 0, 0, 0, 0, 1, 0,  0,  0,  0,  0,  0,  0,  0,	\
@@ -929,10 +941,9 @@ enum target_cpu_default
 /* mm0, mm1, mm2, mm3, mm4, mm5, mm6, mm7*/			\
      0,   0,   0,   0,   0,   0,   0,   0,			\
 /*  r8,  r9, r10, r11, r12, r13, r14, r15*/			\
-     2,   2,   2,   2,   2,   2,   2,   2,			\
+     0,   0,   0,   0,   0,   0,   0,   0,			\
 /*xmm8,xmm9,xmm10,xmm11,xmm12,xmm13,xmm14,xmm15*/		\
-     2,   2,    2,    2,    2,    2,    2,    2 }
-
+     0,   0,    0,    0,    0,    0,    0,    0 }
 
 /* 1 for registers not available across function calls.
    These must include the FIXED_REGISTERS and also any
@@ -941,25 +952,26 @@ enum target_cpu_default
    and the register where structure-value addresses are passed.
    Aside from that, you can include as many other registers as you like.
 
-   The value is zero if the register is not call used on either 32 or
-   64 bit targets, one if the register if call used on both 32 and 64
-   bit targets, two if it is only call used on 32bit targets and three
-   if its only call used on 64bit targets.
-   Proper values are computed in TARGET_CONDITIONAL_REGISTER_USAGE.
-*/
+   Value is set to 1 if the register is call used unconditionally.
+   Bit one is set if the register is call used on TARGET_32BIT ABI.
+   Bit two is set if the register is call used on TARGET_64BIT ABI.
+   Bit three is set if the register is call used on TARGET_64BIT_MS_ABI.
+
+   Proper values are computed in TARGET_CONDITIONAL_REGISTER_USAGE.  */
+
 #define CALL_USED_REGISTERS					\
 /*ax,dx,cx,bx,si,di,bp,sp,st,st1,st2,st3,st4,st5,st6,st7*/	\
-{  1, 1, 1, 0, 3, 3, 0, 1, 1,  1,  1,  1,  1,  1,  1,  1,	\
+{  1, 1, 1, 0, 4, 4, 0, 1, 1,  1,  1,  1,  1,  1,  1,  1,	\
 /*arg,flags,fpsr,fpcr,frame*/					\
     1,   1,    1,   1,    1,					\
 /*xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7*/			\
-     1,   1,   1,   1,   1,   1,   1,   1,			\
+     1,   1,   1,   1,   1,   1,   6,   6,			\
 /* mm0, mm1, mm2, mm3, mm4, mm5, mm6, mm7*/			\
      1,   1,   1,   1,   1,   1,   1,   1,			\
 /*  r8,  r9, r10, r11, r12, r13, r14, r15*/			\
      1,   1,   1,   1,   2,   2,   2,   2,			\
 /*xmm8,xmm9,xmm10,xmm11,xmm12,xmm13,xmm14,xmm15*/		\
-     1,   1,    1,    1,    1,    1,    1,    1 }
+     6,   6,    6,    6,    6,    6,    6,    6 }
 
 /* Order in which to allocate registers.  Each register must be
    listed once, even those in FIXED_REGISTERS.  List frame pointer
@@ -995,7 +1007,7 @@ enum target_cpu_default
    applied to them.  */
 
 #define HARD_REGNO_NREGS(REGNO, MODE)					\
-  (FP_REGNO_P (REGNO) || SSE_REGNO_P (REGNO) || MMX_REGNO_P (REGNO)	\
+  (STACK_REGNO_P (REGNO) || SSE_REGNO_P (REGNO) || MMX_REGNO_P (REGNO)	\
    ? (COMPLEX_MODE_P (MODE) ? 2 : 1)					\
    : ((MODE) == XFmode							\
       ? (TARGET_64BIT ? 2 : 3)						\
@@ -1005,7 +1017,7 @@ enum target_cpu_default
 
 #define HARD_REGNO_NREGS_HAS_PADDING(REGNO, MODE)			\
   ((TARGET_128BIT_LONG_DOUBLE && !TARGET_64BIT)				\
-   ? (FP_REGNO_P (REGNO) || SSE_REGNO_P (REGNO) || MMX_REGNO_P (REGNO)	\
+   ? (STACK_REGNO_P (REGNO) || SSE_REGNO_P (REGNO) || MMX_REGNO_P (REGNO) \
       ? 0								\
       : ((MODE) == XFmode || (MODE) == XCmode))				\
    : 0)
@@ -1084,7 +1096,7 @@ enum target_cpu_default
    : (MODE) == VOIDmode && (NREGS) != 1 ? VOIDmode			\
    : (MODE) == VOIDmode ? choose_hard_reg_mode ((REGNO), (NREGS), false) \
    : (MODE) == HImode && !TARGET_PARTIAL_REG_STALL ? SImode		\
-   : (MODE) == QImode && (REGNO) > BX_REG && !TARGET_64BIT ? SImode 	\
+   : (MODE) == QImode && !(TARGET_64BIT || QI_REGNO_P (REGNO)) ? SImode	\
    : (MODE))
 
 /* The only ABI that saves SSE registers across calls is Win64 (thus no
@@ -1195,11 +1207,11 @@ enum reg_class
   NO_REGS,
   AREG, DREG, CREG, BREG, SIREG, DIREG,
   AD_REGS,			/* %eax/%edx for DImode */
-  CLOBBERED_REGS,		/* call-clobbered integers */
   Q_REGS,			/* %eax %ebx %ecx %edx */
   NON_Q_REGS,			/* %esi %edi %ebp %esp */
   INDEX_REGS,			/* %eax %ebx %ecx %edx %esi %edi %ebp */
   LEGACY_REGS,			/* %eax %ebx %ecx %edx %esi %edi %ebp %esp */
+  CLOBBERED_REGS,		/* call-clobbered integer registers */
   GENERAL_REGS,			/* %eax %ebx %ecx %edx %esi %edi %ebp %esp
 				   %r8 %r9 %r10 %r11 %r12 %r13 %r14 %r15 */
   FP_TOP_REG, FP_SECOND_REG,	/* %st(0) %st(1) */
@@ -1245,10 +1257,10 @@ enum reg_class
    "AREG", "DREG", "CREG", "BREG",	\
    "SIREG", "DIREG",			\
    "AD_REGS",				\
-   "CLOBBERED_REGS",			\
    "Q_REGS", "NON_Q_REGS",		\
    "INDEX_REGS",			\
    "LEGACY_REGS",			\
+   "CLOBBERED_REGS",			\
    "GENERAL_REGS",			\
    "FP_TOP_REG", "FP_SECOND_REG",	\
    "FLOAT_REGS",			\
@@ -1266,9 +1278,8 @@ enum reg_class
 /* Define which registers fit in which classes.  This is an initializer
    for a vector of HARD_REG_SET of length N_REG_CLASSES.
 
-   Note that the default setting of CLOBBERED_REGS is for 32-bit; this
-   is adjusted by TARGET_CONDITIONAL_REGISTER_USAGE for the 64-bit ABI
-   in effect.  */
+   Note that CLOBBERED_REGS are calculated by
+   TARGET_CONDITIONAL_REGISTER_USAGE.  */
 
 #define REG_CLASS_CONTENTS						\
 {     { 0x00,     0x0 },						\
@@ -1276,11 +1287,11 @@ enum reg_class
       { 0x04,     0x0 }, { 0x08, 0x0 },	/* CREG, BREG */		\
       { 0x10,     0x0 }, { 0x20, 0x0 },	/* SIREG, DIREG */		\
       { 0x03,     0x0 },		/* AD_REGS */			\
-      { 0x07,     0x0 },		/* CLOBBERED_REGS */		\
       { 0x0f,     0x0 },		/* Q_REGS */			\
   { 0x1100f0,  0x1fe0 },		/* NON_Q_REGS */		\
       { 0x7f,  0x1fe0 },		/* INDEX_REGS */		\
   { 0x1100ff,     0x0 },		/* LEGACY_REGS */		\
+      { 0x00,     0x0 },		/* CLOBBERED_REGS */		\
   { 0x1100ff,  0x1fe0 },		/* GENERAL_REGS */		\
      { 0x100,     0x0 }, { 0x0200, 0x0 },/* FP_TOP_REG, FP_SECOND_REG */\
     { 0xff00,     0x0 },		/* FLOAT_REGS */		\
@@ -1290,9 +1301,9 @@ enum reg_class
 { 0x1fe00100,0x1fe000 },		/* FP_TOP_SSE_REG */		\
 { 0x1fe00200,0x1fe000 },		/* FP_SECOND_SSE_REG */		\
 { 0x1fe0ff00,0x1fe000 },		/* FLOAT_SSE_REGS */		\
-   { 0x1ffff,  0x1fe0 },		/* FLOAT_INT_REGS */		\
-{ 0x1fe100ff,0x1fffe0 },		/* INT_SSE_REGS */		\
-{ 0x1fe1ffff,0x1fffe0 },		/* FLOAT_INT_SSE_REGS */	\
+  { 0x11ffff,  0x1fe0 },		/* FLOAT_INT_REGS */		\
+{ 0x1ff100ff,0x1fffe0 },		/* INT_SSE_REGS */		\
+{ 0x1ff1ffff,0x1fffe0 },		/* FLOAT_INT_SSE_REGS */	\
 { 0xffffffff,0x1fffff }							\
 }
 
@@ -1309,29 +1320,32 @@ enum reg_class
    registers.  */
 #define TARGET_SMALL_REGISTER_CLASSES_FOR_MODE_P hook_bool_mode_true
 
-#define QI_REG_P(X) (REG_P (X) && REGNO (X) <= BX_REG)
-
-#define GENERAL_REGNO_P(N) \
-  ((N) <= STACK_POINTER_REGNUM || REX_INT_REGNO_P (N))
+#define QI_REG_P(X) (REG_P (X) && QI_REGNO_P (REGNO (X)))
+#define QI_REGNO_P(N) IN_RANGE ((N), AX_REG, BX_REG)
 
 #define GENERAL_REG_P(X) \
   (REG_P (X) && GENERAL_REGNO_P (REGNO (X)))
+#define GENERAL_REGNO_P(N) \
+  (IN_RANGE ((N), AX_REG, SP_REG) || REX_INT_REGNO_P (N))
 
-#define ANY_QI_REG_P(X) (TARGET_64BIT ? GENERAL_REG_P(X) : QI_REG_P (X))
+#define ANY_QI_REG_P(X) (REG_P (X) && ANY_QI_REGNO_P (REGNO (X)))
+#define ANY_QI_REGNO_P(N) \
+  (TARGET_64BIT ? GENERAL_REGNO_P (N) : QI_REGNO_P (N))
 
+#define REX_INT_REG_P(X) (REG_P (X) && REX_INT_REGNO_P (REGNO (X)))
 #define REX_INT_REGNO_P(N) \
   IN_RANGE ((N), FIRST_REX_INT_REG, LAST_REX_INT_REG)
-#define REX_INT_REG_P(X) (REG_P (X) && REX_INT_REGNO_P (REGNO (X)))
 
-#define FP_REG_P(X) (REG_P (X) && FP_REGNO_P (REGNO (X)))
-#define FP_REGNO_P(N) IN_RANGE ((N), FIRST_STACK_REG, LAST_STACK_REG)
+#define STACK_REG_P(X) (REG_P (X) && STACK_REGNO_P (REGNO (X)))
+#define STACK_REGNO_P(N) IN_RANGE ((N), FIRST_STACK_REG, LAST_STACK_REG)
+
 #define ANY_FP_REG_P(X) (REG_P (X) && ANY_FP_REGNO_P (REGNO (X)))
-#define ANY_FP_REGNO_P(N) (FP_REGNO_P (N) || SSE_REGNO_P (N))
+#define ANY_FP_REGNO_P(N) (STACK_REGNO_P (N) || SSE_REGNO_P (N))
 
 #define X87_FLOAT_MODE_P(MODE)	\
   (TARGET_80387 && ((MODE) == SFmode || (MODE) == DFmode || (MODE) == XFmode))
 
-#define SSE_REG_P(N) (REG_P (N) && SSE_REGNO_P (REGNO (N)))
+#define SSE_REG_P(X) (REG_P (X) && SSE_REGNO_P (REGNO (X)))
 #define SSE_REGNO_P(N)						\
   (IN_RANGE ((N), FIRST_SSE_REG, LAST_SSE_REG)			\
    || REX_SSE_REGNO_P (N))
@@ -1349,13 +1363,10 @@ enum reg_class
   (TARGET_FMA4 && ((MODE) == V4SFmode || (MODE) == V2DFmode \
 		  || (MODE) == V8SFmode || (MODE) == V4DFmode))
 
-#define MMX_REG_P(XOP) (REG_P (XOP) && MMX_REGNO_P (REGNO (XOP)))
+#define MMX_REG_P(X) (REG_P (X) && MMX_REGNO_P (REGNO (X)))
 #define MMX_REGNO_P(N) IN_RANGE ((N), FIRST_MMX_REG, LAST_MMX_REG)
 
-#define STACK_REG_P(XOP) (REG_P (XOP) && STACK_REGNO_P (REGNO (XOP)))
-#define STACK_REGNO_P(N) IN_RANGE ((N), FIRST_STACK_REG, LAST_STACK_REG)
-
-#define STACK_TOP_P(XOP) (REG_P (XOP) && REGNO (XOP) == FIRST_STACK_REG)
+#define STACK_TOP_P(X) (REG_P (X) && REGNO (X) == FIRST_STACK_REG)
 
 #define CC_REG_P(X) (REG_P (X) && CC_REGNO_P (REGNO (X)))
 #define CC_REGNO_P(X) ((X) == FLAGS_REG || (X) == FPSR_REG)
@@ -1367,13 +1378,27 @@ enum reg_class
 
 /* Place additional restrictions on the register class to use when it
    is necessary to be able to hold a value of mode MODE in a reload
-   register for which class CLASS would ordinarily be used.  */
+   register for which class CLASS would ordinarily be used.
 
-#define LIMIT_RELOAD_CLASS(MODE, CLASS) 			\
-  ((MODE) == QImode && !TARGET_64BIT				\
-   && ((CLASS) == ALL_REGS || (CLASS) == GENERAL_REGS		\
-       || (CLASS) == LEGACY_REGS || (CLASS) == INDEX_REGS)	\
-   ? Q_REGS : (CLASS))
+   We avoid classes containing registers from multiple units due to
+   the limitation in ix86_secondary_memory_needed.  We limit these
+   classes to their "natural mode" single unit register class, depending
+   on the unit availability.
+
+   Please note that reg_class_subset_p is not commutative, so these
+   conditions mean "... if (CLASS) includes ALL registers from the
+   register set."  */
+
+#define LIMIT_RELOAD_CLASS(MODE, CLASS)					\
+  (((MODE) == QImode && !TARGET_64BIT					\
+    && reg_class_subset_p (Q_REGS, (CLASS))) ? Q_REGS			\
+   : (((MODE) == SImode || (MODE) == DImode)				\
+      && reg_class_subset_p (GENERAL_REGS, (CLASS))) ? GENERAL_REGS	\
+   : (SSE_FLOAT_MODE_P (MODE) && TARGET_SSE_MATH			\
+      && reg_class_subset_p (SSE_REGS, (CLASS))) ? SSE_REGS		\
+   : (X87_FLOAT_MODE_P (MODE)						\
+      && reg_class_subset_p (FLOAT_REGS, (CLASS))) ? FLOAT_REGS		\
+   : (CLASS))
 
 /* If we are copying between general and FP registers, we need a memory
    location. The same is true for SSE and MMX registers.  */
@@ -1774,7 +1799,7 @@ do {							\
 /* Specify the machine mode that pointers have.
    After generation of rtl, the compiler makes no further distinction
    between pointers and any other objects of this machine mode.  */
-#define Pmode (TARGET_64BIT ? DImode : SImode)
+#define Pmode (ix86_pmode == PMODE_DI ? DImode : SImode)
 
 /* A C expression whose value is zero if pointers that need to be extended
    from being `POINTER_SIZE' bits wide to `Pmode' are sign-extended and
@@ -1794,6 +1819,10 @@ do {							\
 
 #define BRANCH_COST(speed_p, predictable_p) \
   (!(speed_p) ? 2 : (predictable_p) ? 0 : ix86_branch_cost)
+
+/* An integer expression for the size in bits of the largest integer machine
+   mode that should actually be used.  We allow pairs of registers.  */
+#define MAX_FIXED_MODE_SIZE GET_MODE_BITSIZE (TARGET_64BIT ? TImode : DImode)
 
 /* Define this macro as a C expression which is nonzero if accessing
    less than a word of memory (i.e. a `char' or a `short') is no
@@ -1921,8 +1950,9 @@ extern int const svr4_dbx_register_map[FIRST_PSEUDO_REGISTER];
 /* After the prologue, RA is at -4(AP) in the current frame.  */
 #define RETURN_ADDR_RTX(COUNT, FRAME)					   \
   ((COUNT) == 0								   \
-   ? gen_rtx_MEM (Pmode, plus_constant (arg_pointer_rtx, -UNITS_PER_WORD)) \
-   : gen_rtx_MEM (Pmode, plus_constant (FRAME, UNITS_PER_WORD)))
+   ? gen_rtx_MEM (Pmode, plus_constant (Pmode, arg_pointer_rtx,	   \
+					-UNITS_PER_WORD))		   \
+   : gen_rtx_MEM (Pmode, plus_constant (Pmode, FRAME, UNITS_PER_WORD)))
 
 /* PC is dbx register 8; let's use that column for RA.  */
 #define DWARF_FRAME_RETURN_COLUMN 	(TARGET_64BIT ? 16 : 8)
@@ -2063,6 +2093,7 @@ enum processor_type
   PROCESSOR_BDVER1,
   PROCESSOR_BDVER2,
   PROCESSOR_BTVER1,
+  PROCESSOR_BTVER2,
   PROCESSOR_ATOM,
   PROCESSOR_max
 };
@@ -2169,8 +2200,7 @@ enum ix86_stack_slot
 
    ??? Maybe Pentium chips benefits from renaming, someone can try....  */
 
-#define HARD_REGNO_RENAME_OK(SRC, TARGET)  \
-  (! IN_RANGE ((SRC), FIRST_STACK_REG, LAST_STACK_REG))
+#define HARD_REGNO_RENAME_OK(SRC, TARGET) !STACK_REGNO_P (SRC)
 
 
 #define FASTCALL_PREFIX '@'
@@ -2358,6 +2388,9 @@ extern void debug_dispatch_window (int);
 #define TARGET_RECIP_SQRT	((recip_mask & RECIP_MASK_SQRT) != 0)
 #define TARGET_RECIP_VEC_DIV	((recip_mask & RECIP_MASK_VEC_DIV) != 0)
 #define TARGET_RECIP_VEC_SQRT	((recip_mask & RECIP_MASK_VEC_SQRT) != 0)
+
+#define IX86_HLE_ACQUIRE (1 << 16)
+#define IX86_HLE_RELEASE (1 << 17)
 
 /*
 Local variables:

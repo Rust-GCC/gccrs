@@ -127,7 +127,15 @@ package body Snames is
 
    function Get_Attribute_Id (N : Name_Id) return Attribute_Id is
    begin
-      return Attribute_Id'Val (N - First_Attribute_Name);
+      if N = Name_CPU then
+         return Attribute_CPU;
+      elsif N = Name_Dispatching_Domain then
+         return Attribute_Dispatching_Domain;
+      elsif N = Name_Interrupt_Priority then
+         return Attribute_Interrupt_Priority;
+      else
+         return Attribute_Id'Val (N - First_Attribute_Name);
+      end if;
    end Get_Attribute_Id;
 
    -----------------------
@@ -209,10 +217,18 @@ package body Snames is
    begin
       if N = Name_AST_Entry then
          return Pragma_AST_Entry;
+      elsif N = Name_CPU then
+         return Pragma_CPU;
+      elsif N = Name_Dispatching_Domain then
+         return Pragma_Dispatching_Domain;
       elsif N = Name_Fast_Math then
          return Pragma_Fast_Math;
       elsif N = Name_Interface then
          return Pragma_Interface;
+      elsif N = Name_Interrupt_Priority then
+         return Pragma_Interrupt_Priority;
+      elsif N = Name_Lock_Free then
+         return Pragma_Lock_Free;
       elsif N = Name_Priority then
          return Pragma_Priority;
       elsif N = Name_Relative_Deadline then
@@ -384,6 +400,16 @@ package body Snames is
                    or else N not in Ada_2012_Reserved_Words);
    end Is_Keyword_Name;
 
+   --------------------------------
+   -- Is_Internal_Attribute_Name --
+   --------------------------------
+
+   function Is_Internal_Attribute_Name (N : Name_Id) return Boolean is
+   begin
+      return
+        N in First_Internal_Attribute_Name .. Last_Internal_Attribute_Name;
+   end Is_Internal_Attribute_Name;
+
    ----------------------------
    -- Is_Locking_Policy_Name --
    ----------------------------
@@ -410,8 +436,12 @@ package body Snames is
    begin
       return N in First_Pragma_Name .. Last_Pragma_Name
         or else N = Name_AST_Entry
+        or else N = Name_CPU
+        or else N = Name_Dispatching_Domain
         or else N = Name_Fast_Math
         or else N = Name_Interface
+        or else N = Name_Interrupt_Priority
+        or else N = Name_Lock_Free
         or else N = Name_Relative_Deadline
         or else N = Name_Priority
         or else N = Name_Storage_Size

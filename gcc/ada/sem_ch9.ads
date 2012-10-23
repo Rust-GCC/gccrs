@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -23,6 +23,7 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
+with Table;
 with Types; use Types;
 
 package Sem_Ch9  is
@@ -52,4 +53,53 @@ package Sem_Ch9  is
    procedure Analyze_Terminate_Alternative              (N : Node_Id);
    procedure Analyze_Timed_Entry_Call                   (N : Node_Id);
    procedure Analyze_Triggering_Alternative             (N : Node_Id);
+
+   procedure Install_Declarations (Spec : Entity_Id);
+   --  Make visible in corresponding body the entities defined in a task,
+   --  protected type declaration, or entry declaration.
+
+   procedure Install_Discriminants (E : Entity_Id);
+   --  Make visible the discriminants of type entity E
+
+   procedure Push_Scope_And_Install_Discriminants (E : Entity_Id);
+   --  Push scope E and makes visible the discriminants of type entity E if E
+   --  has discriminants.
+
+   procedure Uninstall_Discriminants (E : Entity_Id);
+   --  Remove visibility to the discriminants of type entity E
+
+   procedure Uninstall_Discriminants_And_Pop_Scope (E : Entity_Id);
+   --  Remove visibility to the discriminants of type entity E and pop the
+   --  scope stack if E has discriminants.
+
+   ------------------------------
+   -- Lock Free Data Structure --
+   ------------------------------
+
+   --  A lock-free subprogram is a protected routine which references a unique
+   --  protected scalar component and does not contain statements that cause
+   --  side effects. Due to this restricted behavior, all references to shared
+   --  data from within the subprogram can be synchronized through the use of
+   --  atomic operations rather than relying on locks.
+
+   type Lock_Free_Subprogram is record
+      Sub_Body : Node_Id;
+      --  Reference to the body of a protected subprogram which meets the lock-
+      --  free requirements.
+
+      Comp_Id : Entity_Id;
+      --  Reference to the scalar component referenced from within Sub_Body
+   end record;
+
+   --  This table establishes a relation between a protected subprogram body
+   --  and a unique component it references. The table is used when building
+   --  the lock-free versions of a protected subprogram body.
+
+   package Lock_Free_Subprogram_Table is new Table.Table (
+     Table_Component_Type => Lock_Free_Subprogram,
+     Table_Index_Type     => Nat,
+     Table_Low_Bound      => 1,
+     Table_Initial        => 5,
+     Table_Increment      => 5,
+     Table_Name           => "Lock_Free_Subprogram_Table");
 end Sem_Ch9;

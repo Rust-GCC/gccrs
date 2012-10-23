@@ -19,7 +19,7 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// { dg-error "static assertion failed" "" { target *-*-* } 186 }
+// { dg-error "with noexcept" "" { target *-*-* } 248 }
 
 #include <unordered_set>
 
@@ -35,7 +35,10 @@ namespace
 void
 test01()
 {
-  std::__unordered_set<int, hash_without_noexcept,
-		       std::equal_to<int>, std::allocator<int>,
-		       false> us;
+  using traits = std::__detail::_Hashtable_traits<false, true, true>;
+  using hashtable = std::__uset_hashtable<int, hash_without_noexcept,
+					  std::equal_to<int>,
+					  std::allocator<int>, traits>;
+
+  hashtable ht;
 }

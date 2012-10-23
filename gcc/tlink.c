@@ -835,8 +835,8 @@ do_tlink (char **ld_argv, char **object_lst ATTRIBUTE_UNUSED)
 	  {
 	    if (tlink_verbose >= 3)
 	      {
-		dump_file (ldout, stdout);
-		dump_file (lderrout, stderr);
+		dump_ld_file (ldout, stdout);
+		dump_ld_file (lderrout, stderr);
 	      }
 	    demangle_new_symbols ();
 	    if (! scan_linker_output (ldout)
@@ -850,13 +850,19 @@ do_tlink (char **ld_argv, char **object_lst ATTRIBUTE_UNUSED)
 	  }
     }
 
-  dump_file (ldout, stdout);
+  dump_ld_file (ldout, stdout);
   unlink (ldout);
-  dump_file (lderrout, stderr);
+  dump_ld_file (lderrout, stderr);
   unlink (lderrout);
   if (exit)
     {
       error ("ld returned %d exit status", exit);
       collect_exit (exit);
+    }
+  else
+    {
+      /* We have just successfully produced an output file, so assume that we
+	 may unlink it if need be for now on.  */ 
+      may_unlink_output_file = true;
     }
 }

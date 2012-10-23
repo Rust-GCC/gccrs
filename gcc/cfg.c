@@ -43,38 +43,24 @@ along with GCC; see the file COPYING3.  If not see
 	 verify_flow_info
      - Dumping and debugging
 	 print_rtl_with_bb, dump_bb, debug_bb, debug_bb_n
+
+   TODO: Document these "Available functionality" functions in the files
+   that implement them.
  */
 
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "tree.h"
-#include "rtl.h"
-#include "hard-reg-set.h"
-#include "regs.h"
-#include "flags.h"
-#include "output.h"
-#include "function.h"
-#include "except.h"
-#include "diagnostic-core.h"
-#include "tm_p.h"
 #include "obstack.h"
-#include "timevar.h"
-#include "tree-pass.h"
 #include "ggc.h"
-#include "hashtab.h"
+#include "hash-table.h"
 #include "alloc-pool.h"
+#include "tree.h"
+#include "basic-block.h"
 #include "df.h"
-#include "cfgloop.h"
-#include "tree-flow.h"
+#include "cfgloop.h" /* FIXME: For struct loop.  */
+#include "dumpfile.h"
 
-/* The obstack on which the flow graph components are allocated.  */
-
-struct bitmap_obstack reg_obstack;
-
-void debug_flow_info (void);
-static void free_edge (edge);
 
 #define RDIV(X,Y) (((X) + (Y) / 2) / (Y))
 
@@ -99,10 +85,10 @@ init_flow (struct function *the_fun)
 }
 
 /* Helper function for remove_edge and clear_edges.  Frees edge structure
-   without actually unlinking it from the pred/succ lists.  */
+   without actually removing it from the pred/succ arrays.  */
 
 static void
-free_edge (edge e ATTRIBUTE_UNUSED)
+free_edge (edge e)
 {
   n_edges--;
   ggc_free (e);
@@ -242,13 +228,13 @@ disconnect_src (edge e)
       if (tmp == e)
 	{
 	  VEC_unordered_remove (edge, src->succs, ei.index);
+	  df_mark_solutions_dirty ();
 	  return;
 	}
       else
 	ei_next (&ei);
     }
 
-  df_mark_solutions_dirty ();
   gcc_unreachable ();
 }
 
@@ -364,9 +350,6 @@ remove_edge_raw (edge e)
   disconnect_src (e);
   disconnect_dest (e);
 
-  /* This is probably not needed, but it doesn't hurt.  */
-  redirect_edge_var_map_clear (e);
-
   free_edge (e);
 }
 
@@ -387,31 +370,6 @@ redirect_edge_succ (edge e, basic_block new_succ)
   execute_on_growing_pred (e);
 }
 
-/* Like previous but avoid possible duplicate edge.  */
-
-edge
-redirect_edge_succ_nodup (edge e, basic_block new_succ)
-{
-  edge s;
-
-  s = find_edge (e->src, new_succ);
-  if (s && s != e)
-    {
-      s->flags |= e->flags;
-      s->probability += e->probability;
-      if (s->probability > REG_BR_PROB_BASE)
-	s->probability = REG_BR_PROB_BASE;
-      s->count += e->count;
-      redirect_edge_var_map_dup (s, e);
-      remove_edge (e);
-      e = s;
-    }
-  else
-    redirect_edge_succ (e, new_succ);
-
-  return e;
-}
-
 /* Redirect an edge's predecessor from one block to another.  */
 
 void
@@ -425,16 +383,14 @@ redirect_edge_pred (edge e, basic_block new_pred)
   connect_src (e);
 }
 
-/* Clear all basic block flags, with the exception of partitioning and
-   setjmp_target.  */
+/* Clear all basic block flags that do not have to be preserved.  */
 void
 clear_bb_flags (void)
 {
   basic_block bb;
 
   FOR_BB_BETWEEN (bb, ENTRY_BLOCK_PTR, NULL, next_bb)
-    bb->flags = (BB_PARTITION (bb)
-		 | (bb->flags & (BB_DISABLE_SCHEDULE + BB_RTL + BB_NON_LOCAL_GOTO_TARGET)));
+    bb->flags &= BB_FLAGS_TO_PRESERVE;
 }
 
 /* Check the consistency of profile information.  We can't do that
@@ -442,289 +398,99 @@ clear_bb_flags (void)
    solved graphs, later eliminating of conditionals or roundoff errors.
    It is still practical to have them reported for debugging of simple
    testcases.  */
-void
-check_bb_profile (basic_block bb, FILE * file)
+static void
+check_bb_profile (basic_block bb, FILE * file, int indent, int flags)
 {
   edge e;
   int sum = 0;
   gcov_type lsum;
   edge_iterator ei;
+  struct function *fun = DECL_STRUCT_FUNCTION (current_function_decl);
+  char *s_indent = (char *) alloca ((size_t) indent + 1);
+  memset ((void *) s_indent, ' ', (size_t) indent);
+  s_indent[indent] = '\0';
 
-  if (profile_status == PROFILE_ABSENT)
+  if (profile_status_for_function (fun) == PROFILE_ABSENT)
     return;
 
-  if (bb != EXIT_BLOCK_PTR)
+  if (bb != EXIT_BLOCK_PTR_FOR_FUNCTION (fun))
     {
       FOR_EACH_EDGE (e, ei, bb->succs)
 	sum += e->probability;
       if (EDGE_COUNT (bb->succs) && abs (sum - REG_BR_PROB_BASE) > 100)
-	fprintf (file, "Invalid sum of outgoing probabilities %.1f%%\n",
+	fprintf (file, "%s%sInvalid sum of outgoing probabilities %.1f%%\n",
+		 (flags & TDF_COMMENT) ? ";; " : "", s_indent,
 		 sum * 100.0 / REG_BR_PROB_BASE);
       lsum = 0;
       FOR_EACH_EDGE (e, ei, bb->succs)
 	lsum += e->count;
       if (EDGE_COUNT (bb->succs)
 	  && (lsum - bb->count > 100 || lsum - bb->count < -100))
-	fprintf (file, "Invalid sum of outgoing counts %i, should be %i\n",
+	fprintf (file, "%s%sInvalid sum of outgoing counts %i, should be %i\n",
+		 (flags & TDF_COMMENT) ? ";; " : "", s_indent,
 		 (int) lsum, (int) bb->count);
     }
-  if (bb != ENTRY_BLOCK_PTR)
+    if (bb != ENTRY_BLOCK_PTR_FOR_FUNCTION (fun))
     {
       sum = 0;
       FOR_EACH_EDGE (e, ei, bb->preds)
 	sum += EDGE_FREQUENCY (e);
       if (abs (sum - bb->frequency) > 100)
 	fprintf (file,
-		 "Invalid sum of incoming frequencies %i, should be %i\n",
+		 "%s%sInvalid sum of incoming frequencies %i, should be %i\n",
+		 (flags & TDF_COMMENT) ? ";; " : "", s_indent,
 		 sum, bb->frequency);
       lsum = 0;
       FOR_EACH_EDGE (e, ei, bb->preds)
 	lsum += e->count;
       if (lsum - bb->count > 100 || lsum - bb->count < -100)
-	fprintf (file, "Invalid sum of incoming counts %i, should be %i\n",
+	fprintf (file, "%s%sInvalid sum of incoming counts %i, should be %i\n",
+		 (flags & TDF_COMMENT) ? ";; " : "", s_indent,
 		 (int) lsum, (int) bb->count);
     }
 }
 
-/* Write information about registers and basic blocks into FILE.
-   This is part of making a debugging dump.  */
-
 void
-dump_regset (regset r, FILE *outf)
-{
-  unsigned i;
-  reg_set_iterator rsi;
-
-  if (r == NULL)
-    {
-      fputs (" (nil)", outf);
-      return;
-    }
-
-  EXECUTE_IF_SET_IN_REG_SET (r, 0, i, rsi)
-    {
-      fprintf (outf, " %d", i);
-      if (i < FIRST_PSEUDO_REGISTER)
-	fprintf (outf, " [%s]",
-		 reg_names[i]);
-    }
-}
-
-/* Print a human-readable representation of R on the standard error
-   stream.  This function is designed to be used from within the
-   debugger.  */
-
-DEBUG_FUNCTION void
-debug_regset (regset r)
-{
-  dump_regset (r, stderr);
-  putc ('\n', stderr);
-}
-
-/* Emit basic block information for BB.  HEADER is true if the user wants
-   the generic information and the predecessors, FOOTER is true if they want
-   the successors.  FLAGS is the dump flags of interest; TDF_DETAILS emit
-   global register liveness information.  PREFIX is put in front of every
-   line.  The output is emitted to FILE.  */
-void
-dump_bb_info (basic_block bb, bool header, bool footer, int flags,
-	      const char *prefix, FILE *file)
-{
-  edge e;
-  edge_iterator ei;
-
-  if (header)
-    {
-      fprintf (file, "\n%sBasic block %d ", prefix, bb->index);
-      if (bb->prev_bb)
-        fprintf (file, ", prev %d", bb->prev_bb->index);
-      if (bb->next_bb)
-        fprintf (file, ", next %d", bb->next_bb->index);
-      fprintf (file, ", loop_depth %d, count ", bb->loop_depth);
-      fprintf (file, HOST_WIDEST_INT_PRINT_DEC, bb->count);
-      fprintf (file, ", freq %i", bb->frequency);
-      /* Both maybe_hot_bb_p & probably_never_executed_bb_p functions
-	 crash without cfun. */
-      if (cfun && maybe_hot_bb_p (bb))
-	fputs (", maybe hot", file);
-      if (cfun && probably_never_executed_bb_p (bb))
-	fputs (", probably never executed", file);
-      if (bb->flags)
-	{
-	  static const char * const bits[] = {
-	    "new", "reachable", "irr_loop", "superblock", "disable_sched",
-	    "hot_partition", "cold_partition", "duplicated",
-	    "non_local_goto_target", "rtl", "forwarder", "nonthreadable",
-	    "modified"
-	  };
-	  unsigned int flags;
-
-	  fputs (", flags:", file);
-	  for (flags = bb->flags; flags ; flags &= flags - 1)
-	    {
-	      unsigned i = ctz_hwi (flags);
-	      if (i < ARRAY_SIZE (bits))
-		fprintf (file, " %s", bits[i]);
-	      else
-		fprintf (file, " <%d>", i);
-	    }
-	}
-      fputs (".\n", file);
-
-      fprintf (file, "%sPredecessors: ", prefix);
-      FOR_EACH_EDGE (e, ei, bb->preds)
-	dump_edge_info (file, e, 0);
-
-      if ((flags & TDF_DETAILS)
-	  && (bb->flags & BB_RTL)
-	  && df)
-	{
-	  putc ('\n', file);
-	  df_dump_top (bb, file);
-	}
-   }
-
-  if (footer)
-    {
-      fprintf (file, "\n%sSuccessors: ", prefix);
-      FOR_EACH_EDGE (e, ei, bb->succs)
-	dump_edge_info (file, e, 1);
-
-      if ((flags & TDF_DETAILS)
-	  && (bb->flags & BB_RTL)
-	  && df)
-	{
-	  putc ('\n', file);
-	  df_dump_bottom (bb, file);
-	}
-   }
-
-  putc ('\n', file);
-}
-
-/* Dump the register info to FILE.  */
-
-void
-dump_reg_info (FILE *file)
-{
-  unsigned int i, max = max_reg_num ();
-  if (reload_completed)
-    return;
-
-  if (reg_info_p_size < max)
-    max = reg_info_p_size;
-
-  fprintf (file, "%d registers.\n", max);
-  for (i = FIRST_PSEUDO_REGISTER; i < max; i++)
-    {
-      enum reg_class rclass, altclass;
-
-      if (regstat_n_sets_and_refs)
-	fprintf (file, "\nRegister %d used %d times across %d insns",
-		 i, REG_N_REFS (i), REG_LIVE_LENGTH (i));
-      else if (df)
-	fprintf (file, "\nRegister %d used %d times across %d insns",
-		 i, DF_REG_USE_COUNT (i) + DF_REG_DEF_COUNT (i), REG_LIVE_LENGTH (i));
-
-      if (REG_BASIC_BLOCK (i) >= NUM_FIXED_BLOCKS)
-	fprintf (file, " in block %d", REG_BASIC_BLOCK (i));
-      if (regstat_n_sets_and_refs)
-	fprintf (file, "; set %d time%s", REG_N_SETS (i),
-		 (REG_N_SETS (i) == 1) ? "" : "s");
-      else if (df)
-	fprintf (file, "; set %d time%s", DF_REG_DEF_COUNT (i),
-		 (DF_REG_DEF_COUNT (i) == 1) ? "" : "s");
-      if (regno_reg_rtx[i] != NULL && REG_USERVAR_P (regno_reg_rtx[i]))
-	fputs ("; user var", file);
-      if (REG_N_DEATHS (i) != 1)
-	fprintf (file, "; dies in %d places", REG_N_DEATHS (i));
-      if (REG_N_CALLS_CROSSED (i) == 1)
-	fputs ("; crosses 1 call", file);
-      else if (REG_N_CALLS_CROSSED (i))
-	fprintf (file, "; crosses %d calls", REG_N_CALLS_CROSSED (i));
-      if (REG_FREQ_CALLS_CROSSED (i))
-	fprintf (file, "; crosses call with %d frequency", REG_FREQ_CALLS_CROSSED (i));
-      if (regno_reg_rtx[i] != NULL
-	  && PSEUDO_REGNO_BYTES (i) != UNITS_PER_WORD)
-	fprintf (file, "; %d bytes", PSEUDO_REGNO_BYTES (i));
-
-      rclass = reg_preferred_class (i);
-      altclass = reg_alternate_class (i);
-      if (rclass != GENERAL_REGS || altclass != ALL_REGS)
-	{
-	  if (altclass == ALL_REGS || rclass == ALL_REGS)
-	    fprintf (file, "; pref %s", reg_class_names[(int) rclass]);
-	  else if (altclass == NO_REGS)
-	    fprintf (file, "; %s or none", reg_class_names[(int) rclass]);
-	  else
-	    fprintf (file, "; pref %s, else %s",
-		     reg_class_names[(int) rclass],
-		     reg_class_names[(int) altclass]);
-	}
-
-      if (regno_reg_rtx[i] != NULL && REG_POINTER (regno_reg_rtx[i]))
-	fputs ("; pointer", file);
-      fputs (".\n", file);
-    }
-}
-
-
-void
-dump_flow_info (FILE *file, int flags)
-{
-  basic_block bb;
-
-  /* There are no pseudo registers after reload.  Don't dump them.  */
-  if (reg_info_p_size && (flags & TDF_DETAILS) != 0)
-    dump_reg_info (file);
-
-  fprintf (file, "\n%d basic blocks, %d edges.\n", n_basic_blocks, n_edges);
-  FOR_ALL_BB (bb)
-    {
-      dump_bb_info (bb, true, true, flags, "", file);
-      check_bb_profile (bb, file);
-    }
-
-  putc ('\n', file);
-}
-
-DEBUG_FUNCTION void
-debug_flow_info (void)
-{
-  dump_flow_info (stderr, TDF_DETAILS);
-}
-
-void
-dump_edge_info (FILE *file, edge e, int do_succ)
+dump_edge_info (FILE *file, edge e, int flags, int do_succ)
 {
   basic_block side = (do_succ ? e->dest : e->src);
-  /* both ENTRY_BLOCK_PTR & EXIT_BLOCK_PTR depend upon cfun. */
-  if (cfun && side == ENTRY_BLOCK_PTR)
+  bool do_details = false;
+  
+  if ((flags & TDF_DETAILS) != 0
+      && (flags & TDF_SLIM) == 0)
+    do_details = true;
+
+  /* ENTRY_BLOCK_PTR/EXIT_BLOCK_PTR depend on cfun.
+     Compare against ENTRY_BLOCK/EXIT_BLOCK to avoid that dependency.  */
+  if (side->index == ENTRY_BLOCK)
     fputs (" ENTRY", file);
-  else if (cfun && side == EXIT_BLOCK_PTR)
+  else if (side->index == EXIT_BLOCK)
     fputs (" EXIT", file);
   else
     fprintf (file, " %d", side->index);
 
-  if (e->probability)
+  if (e->probability && do_details)
     fprintf (file, " [%.1f%%] ", e->probability * 100.0 / REG_BR_PROB_BASE);
 
-  if (e->count)
+  if (e->count && do_details)
     {
       fputs (" count:", file);
       fprintf (file, HOST_WIDEST_INT_PRINT_DEC, e->count);
     }
 
-  if (e->flags)
+  if (e->flags && do_details)
     {
-      static const char * const bitnames[] = {
-	"fallthru", "ab", "abcall", "eh", "fake", "dfs_back",
-	"can_fallthru", "irreducible", "sibcall", "loop_exit",
-	"true", "false", "exec", "crossing", "preserve"
-      };
-      int comma = 0;
+      static const char * const bitnames[] =
+	{
+#define DEF_EDGE_FLAG(NAME,IDX) #NAME ,
+#include "cfg-flags.def"
+	  NULL
+#undef DEF_EDGE_FLAG
+	};
+      bool comma = false;
       int i, flags = e->flags;
 
+      gcc_assert (e->flags <= EDGE_ALL_FLAGS);
       fputs (" (", file);
       for (i = 0; flags; i++)
 	if (flags & (1 << i))
@@ -733,11 +499,8 @@ dump_edge_info (FILE *file, edge e, int do_succ)
 
 	    if (comma)
 	      fputc (',', file);
-	    if (i < (int) ARRAY_SIZE (bitnames))
-	      fputs (bitnames[i], file);
-	    else
-	      fprintf (file, "%d", i);
-	    comma = 1;
+	    fputs (bitnames[i], file);
+	    comma = true;
 	  }
 
       fputc (')', file);
@@ -891,69 +654,155 @@ free_aux_for_edges (void)
 DEBUG_FUNCTION void
 debug_bb (basic_block bb)
 {
-  dump_bb (bb, stderr, 0);
+  dump_bb (stderr, bb, 0, dump_flags);
 }
 
 DEBUG_FUNCTION basic_block
 debug_bb_n (int n)
 {
   basic_block bb = BASIC_BLOCK (n);
-  dump_bb (bb, stderr, 0);
+  debug_bb (bb);
   return bb;
 }
 
-/* Dumps cfg related information about basic block BB to FILE.  */
+/* Dumps cfg related information about basic block BB to OUTF.
+   If HEADER is true, dump things that appear before the instructions
+   contained in BB.  If FOOTER is true, dump things that appear after.
+   Flags are the TDF_* masks as documented in dumpfile.h.
+   NB: With TDF_DETAILS, it is assumed that cfun is available, so
+   that maybe_hot_bb_p and probably_never_executed_bb_p don't ICE.  */
 
-static void
-dump_cfg_bb_info (FILE *file, basic_block bb)
+void
+dump_bb_info (FILE *outf, basic_block bb, int indent, int flags,
+	      bool do_header, bool do_footer)
 {
-  unsigned i;
   edge_iterator ei;
-  bool first = true;
+  edge e;
   static const char * const bb_bitnames[] =
     {
-      "new", "reachable", "irreducible_loop", "superblock",
-      "nosched", "hot", "cold", "dup", "xlabel", "rtl",
-      "fwdr", "nothrd"
+#define DEF_BASIC_BLOCK_FLAG(NAME,IDX) #NAME ,
+#include "cfg-flags.def"
+      NULL
+#undef DEF_BASIC_BLOCK_FLAG
     };
   const unsigned n_bitnames = sizeof (bb_bitnames) / sizeof (char *);
-  edge e;
+  bool first;
+  char *s_indent = (char *) alloca ((size_t) indent + 1);
+  memset ((void *) s_indent, ' ', (size_t) indent);
+  s_indent[indent] = '\0';
 
-  fprintf (file, "Basic block %d", bb->index);
-  for (i = 0; i < n_bitnames; i++)
-    if (bb->flags & (1 << i))
-      {
-	if (first)
-	  fputs (" (", file);
-	else
-	  fputs (", ", file);
-	first = false;
-	fputs (bb_bitnames[i], file);
-      }
-  if (!first)
-    putc (')', file);
-  putc ('\n', file);
+  gcc_assert (bb->flags <= BB_ALL_FLAGS);
 
-  fputs ("Predecessors: ", file);
-  FOR_EACH_EDGE (e, ei, bb->preds)
-    dump_edge_info (file, e, 0);
+  if (do_header)
+    {
+      unsigned i;
 
-  fprintf (file, "\nSuccessors: ");
-  FOR_EACH_EDGE (e, ei, bb->succs)
-    dump_edge_info (file, e, 1);
-  fputs ("\n\n", file);
+      if (flags & TDF_COMMENT)
+	fputs (";; ", outf);
+      fprintf (outf, "%sbasic block %d, loop depth %d",
+	       s_indent, bb->index, bb_loop_depth (bb));
+      if (flags & TDF_DETAILS)
+	{
+	  struct function *fun = DECL_STRUCT_FUNCTION (current_function_decl);
+	  fprintf (outf, ", count " HOST_WIDEST_INT_PRINT_DEC,
+		   (HOST_WIDEST_INT) bb->count);
+	  fprintf (outf, ", freq %i", bb->frequency);
+	  if (maybe_hot_bb_p (fun, bb))
+	    fputs (", maybe hot", outf);
+	  if (probably_never_executed_bb_p (fun, bb))
+	    fputs (", probably never executed", outf);
+	}
+      fputc ('\n', outf);
+      if (TDF_DETAILS)
+	check_bb_profile (bb, outf, indent, flags);
+
+      if (flags & TDF_DETAILS)
+	{
+	  if (flags & TDF_COMMENT)
+	    fputs (";; ", outf);
+	  fprintf (outf, "%s prev block ", s_indent);
+	  if (bb->prev_bb)
+	    fprintf (outf, "%d", bb->prev_bb->index);
+	  else
+	    fprintf (outf, "(nil)");
+	  fprintf (outf, ", next block ");
+	  if (bb->next_bb)
+	    fprintf (outf, "%d", bb->next_bb->index);
+	  else
+	    fprintf (outf, "(nil)");
+
+	  fputs (", flags:", outf);
+	  first = true;
+	  for (i = 0; i < n_bitnames; i++)
+	    if (bb->flags & (1 << i))
+	      {
+		if (first)
+		  fputs (" (", outf);
+		else
+		  fputs (", ", outf);
+		first = false;
+		fputs (bb_bitnames[i], outf);
+	      }
+	  if (!first)
+	    fputc (')', outf);
+	  fputc ('\n', outf);
+	}
+
+      if (flags & TDF_COMMENT)
+	fputs (";; ", outf);
+      fprintf (outf, "%s pred:      ", s_indent);
+      first = true;
+      FOR_EACH_EDGE (e, ei, bb->preds)
+	{
+	  if (! first)
+	    {
+	      if (flags & TDF_COMMENT)
+		fputs (";; ", outf);
+	      fprintf (outf, "%s            ", s_indent);
+	    }
+	  first = false;
+	  dump_edge_info (outf, e, flags, 0);
+	  fputc ('\n', outf);
+	}
+      if (first)
+	fputc ('\n', outf);
+    }
+
+  if (do_footer)
+    {
+      if (flags & TDF_COMMENT)
+	fputs (";; ", outf);
+      fprintf (outf, "%s succ:      ", s_indent);
+      first = true;
+      FOR_EACH_EDGE (e, ei, bb->succs)
+        {
+	  if (! first)
+	    {
+	      if (flags & TDF_COMMENT)
+		fputs (";; ", outf);
+	      fprintf (outf, "%s            ", s_indent);
+	    }
+	  first = false;
+	  dump_edge_info (outf, e, flags, 1);
+	  fputc ('\n', outf);
+	}
+      if (first)
+	fputc ('\n', outf);
+    }
 }
 
 /* Dumps a brief description of cfg to FILE.  */
 
 void
-brief_dump_cfg (FILE *file)
+brief_dump_cfg (FILE *file, int flags)
 {
   basic_block bb;
 
   FOR_EACH_BB (bb)
     {
-      dump_cfg_bb_info (file, bb);
+      dump_bb_info (file, bb, 0,
+		    flags & (TDF_COMMENT | TDF_DETAILS),
+		    true, true);
     }
 }
 
@@ -1127,14 +976,7 @@ scale_bbs_frequencies_gcov_type (basic_block *bbs, int nbbs, gcov_type num,
       }
 }
 
-/* Data structures used to maintain mapping between basic blocks and
-   copies.  */
-static htab_t bb_original;
-static htab_t bb_copy;
-
-/* And between loops and copies.  */
-static htab_t loop_copy;
-static alloc_pool original_copy_bb_pool;
+/* Helper types for hash tables.  */
 
 struct htab_bb_copy_original_entry
 {
@@ -1144,24 +986,34 @@ struct htab_bb_copy_original_entry
   int index2;
 };
 
-static hashval_t
-bb_copy_original_hash (const void *p)
+struct bb_copy_hasher : typed_noop_remove <htab_bb_copy_original_entry>
 {
-  const struct htab_bb_copy_original_entry *data
-    = ((const struct htab_bb_copy_original_entry *)p);
+  typedef htab_bb_copy_original_entry T;
+  static inline hashval_t hash (const T *);
+  static inline bool equal (const T *existing, const T * candidate);
+};
 
+inline hashval_t
+bb_copy_hasher::hash (const T *data)
+{
   return data->index1;
 }
-static int
-bb_copy_original_eq (const void *p, const void *q)
-{
-  const struct htab_bb_copy_original_entry *data
-    = ((const struct htab_bb_copy_original_entry *)p);
-  const struct htab_bb_copy_original_entry *data2
-    = ((const struct htab_bb_copy_original_entry *)q);
 
+inline bool
+bb_copy_hasher::equal (const T *data, const T *data2)
+{
   return data->index1 == data2->index1;
 }
+
+/* Data structures used to maintain mapping between basic blocks and
+   copies.  */
+static hash_table <bb_copy_hasher> bb_original;
+static hash_table <bb_copy_hasher> bb_copy;
+
+/* And between loops and copies.  */
+static hash_table <bb_copy_hasher> loop_copy;
+static alloc_pool original_copy_bb_pool;
+
 
 /* Initialize the data structures to maintain mapping between blocks
    and its copies.  */
@@ -1172,10 +1024,9 @@ initialize_original_copy_tables (void)
   original_copy_bb_pool
     = create_alloc_pool ("original_copy",
 			 sizeof (struct htab_bb_copy_original_entry), 10);
-  bb_original = htab_create (10, bb_copy_original_hash,
-			     bb_copy_original_eq, NULL);
-  bb_copy = htab_create (10, bb_copy_original_hash, bb_copy_original_eq, NULL);
-  loop_copy = htab_create (10, bb_copy_original_hash, bb_copy_original_eq, NULL);
+  bb_original.create (10);
+  bb_copy.create (10);
+  loop_copy.create (10);
 }
 
 /* Free the data structures to maintain mapping between blocks and
@@ -1184,34 +1035,31 @@ void
 free_original_copy_tables (void)
 {
   gcc_assert (original_copy_bb_pool);
-  htab_delete (bb_copy);
-  htab_delete (bb_original);
-  htab_delete (loop_copy);
+  bb_copy.dispose ();
+  bb_original.dispose ();
+  loop_copy.dispose ();
   free_alloc_pool (original_copy_bb_pool);
-  bb_copy = NULL;
-  bb_original = NULL;
-  loop_copy = NULL;
   original_copy_bb_pool = NULL;
 }
 
 /* Removes the value associated with OBJ from table TAB.  */
 
 static void
-copy_original_table_clear (htab_t tab, unsigned obj)
+copy_original_table_clear (hash_table <bb_copy_hasher> tab, unsigned obj)
 {
-  void **slot;
+  htab_bb_copy_original_entry **slot;
   struct htab_bb_copy_original_entry key, *elt;
 
   if (!original_copy_bb_pool)
     return;
 
   key.index1 = obj;
-  slot = htab_find_slot (tab, &key, NO_INSERT);
+  slot = tab.find_slot (&key, NO_INSERT);
   if (!slot)
     return;
 
-  elt = (struct htab_bb_copy_original_entry *) *slot;
-  htab_clear_slot (tab, slot);
+  elt = *slot;
+  tab.clear_slot (slot);
   pool_free (original_copy_bb_pool, elt);
 }
 
@@ -1219,7 +1067,8 @@ copy_original_table_clear (htab_t tab, unsigned obj)
    Do nothing when data structures are not initialized.  */
 
 static void
-copy_original_table_set (htab_t tab, unsigned obj, unsigned val)
+copy_original_table_set (hash_table <bb_copy_hasher> tab,
+			 unsigned obj, unsigned val)
 {
   struct htab_bb_copy_original_entry **slot;
   struct htab_bb_copy_original_entry key;
@@ -1228,8 +1077,7 @@ copy_original_table_set (htab_t tab, unsigned obj, unsigned val)
     return;
 
   key.index1 = obj;
-  slot = (struct htab_bb_copy_original_entry **)
-		htab_find_slot (tab, &key, INSERT);
+  slot = tab.find_slot (&key, INSERT);
   if (!*slot)
     {
       *slot = (struct htab_bb_copy_original_entry *)
@@ -1257,7 +1105,7 @@ get_bb_original (basic_block bb)
   gcc_assert (original_copy_bb_pool);
 
   key.index1 = bb->index;
-  entry = (struct htab_bb_copy_original_entry *) htab_find (bb_original, &key);
+  entry = bb_original.find (&key);
   if (entry)
     return BASIC_BLOCK (entry->index2);
   else
@@ -1282,7 +1130,7 @@ get_bb_copy (basic_block bb)
   gcc_assert (original_copy_bb_pool);
 
   key.index1 = bb->index;
-  entry = (struct htab_bb_copy_original_entry *) htab_find (bb_copy, &key);
+  entry = bb_copy.find (&key);
   if (entry)
     return BASIC_BLOCK (entry->index2);
   else
@@ -1312,7 +1160,7 @@ get_loop_copy (struct loop *loop)
   gcc_assert (original_copy_bb_pool);
 
   key.index1 = loop->num;
-  entry = (struct htab_bb_copy_original_entry *) htab_find (loop_copy, &key);
+  entry = loop_copy.find (&key);
   if (entry)
     return get_loop (entry->index2);
   else

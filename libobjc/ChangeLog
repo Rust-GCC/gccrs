@@ -1,14 +1,30 @@
-2012-09-20  Release Manager
+2012-10-19  Michael Meissner  <meissner@linux.vnet.ibm.com>
 
-	* GCC 4.7.2 released.
+	* encoding.c (TARGET_VSX): Provide definitions based on the
+	current compilation options, and not based off the target options
+	structure.
+	(TARGET_ALTIVEC): Likewise.
+	(TARGET_64BIT): Likewise.
 
-2012-06-14  Release Manager
+2012-09-14  David Edelsohn  <dje.gcc@gmail.com>
 
-	* GCC 4.7.1 released.
+	* configure: Regenerated.
 
-2012-03-22  Release Manager
+2012-07-19  Tristan Gingold  <gingold@adacore.com>
+	    Richard Henderson  <rth@redhat.com>
 
-	* GCC 4.7.0 released.
+	* exception.c (__gnu_objc_personality_seh0): New function.
+
+2012-05-16  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* configure: Regenerated.
+
+2012-03-12  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac (enable_objc_gc): Remove alpha*-dec-osf* handling.
+	* configure: Regenerate.
+
+	* thr.c (_XOPEN_SOURCE): Define unconditionally.
 
 2011-11-21  Andreas Tobler  <andreast@fgznet.ch>
 
@@ -39,7 +55,7 @@
 	fields other than the first two upon loading a class.
 
 2011-10-09  Nicola Pero  <nicola.pero@meta-innovation.com>
-	
+
 	* class.c (objc_lookup_class): Added back for compatibility with
 	clang which seems to emit calls to it.
 

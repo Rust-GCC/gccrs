@@ -4,7 +4,7 @@
 ## files that should be in the distribution are not mentioned in this
 ## Makefile.am.
 
-AUTOMAKE_OPTIONS = foreign subdir-objects no-dist
+AUTOMAKE_OPTIONS = foreign subdir-objects
 ACLOCAL_AMFLAGS = -I .. -I ../config
 
 SUBDIRS = include testsuite

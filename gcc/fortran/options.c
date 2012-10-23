@@ -34,7 +34,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gfortran.h"
 #include "target.h"
 #include "cpp.h"
-#include "diagnostic-core.h"	/* For sorry.  */
+#include "diagnostic.h"	/* For global_dc.  */
 #include "tm.h"
 
 gfc_option_t gfc_option;
@@ -97,6 +97,7 @@ gfc_init_options (unsigned int decoded_options_count,
   gfc_option.warn_ampersand = 0;
   gfc_option.warn_character_truncation = 0;
   gfc_option.warn_array_temp = 0;
+  gfc_option.warn_c_binding_type = 0;
   gfc_option.gfc_warn_conversion = 0;
   gfc_option.warn_conversion_extra = 0;
   gfc_option.warn_function_elimination = 0;
@@ -110,6 +111,10 @@ gfc_init_options (unsigned int decoded_options_count,
   gfc_option.warn_align_commons = 1;
   gfc_option.warn_real_q_constant = 0;
   gfc_option.warn_unused_dummy_argument = 0;
+  gfc_option.warn_realloc_lhs = 0;
+  gfc_option.warn_realloc_lhs_all = 0;
+  gfc_option.warn_compare_reals = 0;
+  gfc_option.warn_target_lifetime = 0;
   gfc_option.max_errors = 25;
 
   gfc_option.flag_all_intrinsics = 0;
@@ -436,6 +441,9 @@ gfc_post_options (const char **pfilename)
   if (gfc_option.flag_frontend_optimize == -1)
     gfc_option.flag_frontend_optimize = optimize;
 
+  if (gfc_option.warn_realloc_lhs_all)
+    gfc_option.warn_realloc_lhs = 1;
+
   gfc_cpp_post_options ();
 
 /* FIXME: return gfc_cpp_preprocess_only ();
@@ -456,6 +464,7 @@ set_Wall (int setting)
 {
   gfc_option.warn_aliasing = setting;
   gfc_option.warn_ampersand = setting;
+  gfc_option.warn_c_binding_type = setting;
   gfc_option.gfc_warn_conversion = setting;
   gfc_option.warn_line_truncation = setting;
   gfc_option.warn_surprising = setting;
@@ -466,14 +475,21 @@ set_Wall (int setting)
   gfc_option.warn_character_truncation = setting;
   gfc_option.warn_real_q_constant = setting;
   gfc_option.warn_unused_dummy_argument = setting;
+  gfc_option.warn_target_lifetime = setting;
 
-  warn_unused = setting;
   warn_return_type = setting;
   warn_switch = setting;
   warn_uninitialized = setting;
   warn_maybe_uninitialized = setting;
 }
 
+/* Set the options for -Wextra.  */
+
+static void
+set_Wextra (int setting)
+{
+  gfc_option.warn_compare_reals = setting;
+}
 
 static void
 gfc_handle_module_path_options (const char *arg)
@@ -605,6 +621,10 @@ gfc_handle_option (size_t scode, const char *arg, int value,
       break;
 
     case OPT_Wall:
+      handle_generated_option (&global_options, &global_options_set,
+			       OPT_Wunused, NULL, value,
+			       gfc_option_lang_mask (), kind, loc,
+			       handlers, global_dc);
       set_Wall (value);
       break;
 
@@ -620,8 +640,16 @@ gfc_handle_option (size_t scode, const char *arg, int value,
       gfc_option.warn_array_temp = value;
       break;
 
+    case OPT_Wc_binding_type:
+      gfc_option.warn_c_binding_type = value;
+      break;
+
     case OPT_Wcharacter_truncation:
       gfc_option.warn_character_truncation = value;
+      break;
+
+    case OPT_Wcompare_reals:
+      gfc_option.warn_compare_reals = value;
       break;
 
     case OPT_Wconversion:
@@ -630,6 +658,15 @@ gfc_handle_option (size_t scode, const char *arg, int value,
 
     case OPT_Wconversion_extra:
       gfc_option.warn_conversion_extra = value;
+      break;
+
+    case OPT_Wextra:
+      handle_generated_option (&global_options, &global_options_set,
+			       OPT_Wunused_parameter, NULL, value,
+			       gfc_option_lang_mask (), kind, loc,
+			       handlers, global_dc);
+      set_Wextra (value);
+
       break;
 
     case OPT_Wfunction_elimination:
@@ -648,6 +685,14 @@ gfc_handle_option (size_t scode, const char *arg, int value,
       gfc_option.warn_line_truncation = value;
       break;
 
+    case OPT_Wrealloc_lhs:
+      gfc_option.warn_realloc_lhs = value;
+      break;
+
+    case OPT_Wrealloc_lhs_all:
+      gfc_option.warn_realloc_lhs_all = value;
+      break;
+
     case OPT_Wreturn_type:
       warn_return_type = value;
       break;
@@ -658,6 +703,10 @@ gfc_handle_option (size_t scode, const char *arg, int value,
 
     case OPT_Wtabs:
       gfc_option.warn_tabs = value;
+      break;
+
+    case OPT_Wtarget_lifetime:
+      gfc_option.warn_target_lifetime = value;
       break;
 
     case OPT_Wunderflow:
@@ -797,7 +846,6 @@ gfc_handle_option (size_t scode, const char *arg, int value,
       break;
 
     case OPT_fintrinsic_modules_path:
-      gfc_add_include_path (arg, false, false);
       gfc_add_intrinsic_modules_path (arg);
       break;
 
@@ -1068,6 +1116,10 @@ gfc_handle_option (size_t scode, const char *arg, int value,
       break;
     }
 
+  Fortran_handle_option_auto (&global_options, &global_options_set, 
+                              scode, arg, value, 
+                              gfc_option_lang_mask (), kind,
+                              loc, handlers, global_dc);
   return result;
 }
 

@@ -408,11 +408,6 @@ enum reg_class
 #define BASE_REG_CLASS GENERAL_REGS
 #define INDEX_REG_CLASS GENERAL_REGS
 
-#if 0
-#define REG_CLASS_FROM_CONSTRAINT(CHAR, STRING) \
-	mep_reg_class_from_constraint (CHAR, STRING)
-#endif
-
 #define REGNO_OK_FOR_BASE_P(NUM) (GR_REGNO_P (NUM) \
 	|| (NUM) == ARG_POINTER_REGNUM \
 	|| (NUM) >= FIRST_PSEUDO_REGISTER)
@@ -427,16 +422,6 @@ enum reg_class
 	mep_secondary_output_reload_class (CLASS, MODE, X)
 #define SECONDARY_MEMORY_NEEDED(CLASS1, CLASS2, MODE) \
 	mep_secondary_memory_needed (CLASS1, CLASS2, MODE)
-
-#if 0
-#define CONST_OK_FOR_LETTER_P(VALUE, C) mep_const_ok_for_letter_p (VALUE, C)
-
-#define CONST_DOUBLE_OK_FOR_LETTER_P(VALUE, C) 0
-
-#define CONSTRAINT_LEN(C, STR) \
-	((C) == 'e' ? 2 : DEFAULT_CONSTRAINT_LEN (C, STR))
-#define EXTRA_CONSTRAINT(VALUE, C) mep_extra_constraint (VALUE, C)
-#endif
 
 #define WANT_GCC_DECLARATIONS
 #include "mep-intrin.h"
@@ -561,8 +546,6 @@ typedef struct
   if (mep_legitimize_reload_address (&(X), (MODE), (OPNUM), (TYPE), (IND_LEVELS))) \
     goto WIN
 
-#define GO_IF_MODE_DEPENDENT_ADDRESS(ADDR, LABEL)
-
 #define SELECT_CC_MODE(OP, X, Y)  CCmode
 
 
@@ -635,9 +618,6 @@ typedef struct
       fprintf (FILE, "\n");			\
     }						\
   while (0)
-
-#define ASM_OUTPUT_BYTE(STREAM, VALUE) \
-  fprintf (STREAM, "\t%s\t0x%x\n", ASM_BYTE_OP, (VALUE))
 
 /* Most of these are here to support based/tiny/far/io attributes.  */
 

@@ -23,6 +23,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include <setjmp.h>
+#include "coretypes.h"
 #include "gfortran.h"
 #include "match.h"
 #include "parse.h"
@@ -75,7 +76,7 @@ match_word (const char *str, match (*subr) (void), locus *old_locus)
 }
 
 
-/* Load symbols from all USE statements encounted in this scoping unit.  */
+/* Load symbols from all USE statements encountered in this scoping unit.  */
 
 static void
 use_modules (void)
@@ -161,7 +162,7 @@ decode_specification_statement (void)
     case 'a':
       match ("abstract% interface", gfc_match_abstract_interface,
 	     ST_INTERFACE);
-      match ("allocatable", gfc_match_asynchronous, ST_ATTR_DECL);
+      match ("allocatable", gfc_match_allocatable, ST_ATTR_DECL);
       match ("asynchronous", gfc_match_asynchronous, ST_ATTR_DECL);
       break;
 
@@ -1167,7 +1168,10 @@ check_statement_label (gfc_statement st)
     case ST_END_ASSOCIATE:
     case_executable:
     case_exec_markers:
-      type = ST_LABEL_TARGET;
+      if (st == ST_ENDDO || st == ST_CONTINUE)
+	type = ST_LABEL_DO_TARGET;
+      else
+	type = ST_LABEL_TARGET;
       break;
 
     case ST_FORMAT:
@@ -1975,7 +1979,7 @@ parse_derived_contains (void)
 	  goto error;
 
 	case ST_PROCEDURE:
-	  if (gfc_notify_std (GFC_STD_F2003, "Fortran 2003:  Type-bound"
+	  if (gfc_notify_std (GFC_STD_F2003, "Type-bound"
 					     " procedure at %C") == FAILURE)
 	    goto error;
 
@@ -1984,7 +1988,7 @@ parse_derived_contains (void)
 	  break;
 
 	case ST_GENERIC:
-	  if (gfc_notify_std (GFC_STD_F2003, "Fortran 2003:  GENERIC binding"
+	  if (gfc_notify_std (GFC_STD_F2003, "GENERIC binding"
 					     " at %C") == FAILURE)
 	    goto error;
 
@@ -1994,7 +1998,7 @@ parse_derived_contains (void)
 
 	case ST_FINAL:
 	  if (gfc_notify_std (GFC_STD_F2003,
-			      "Fortran 2003:  FINAL procedure declaration"
+			      "FINAL procedure declaration"
 			      " at %C") == FAILURE)
 	    goto error;
 
@@ -2006,7 +2010,7 @@ parse_derived_contains (void)
 	  to_finish = true;
 
 	  if (!seen_comps
-	      && (gfc_notify_std (GFC_STD_F2008, "Fortran 2008: Derived type "
+	      && (gfc_notify_std (GFC_STD_F2008, "Derived type "
 				  "definition at %C with empty CONTAINS "
 				  "section") == FAILURE))
 	    goto error;
@@ -2111,7 +2115,7 @@ endType:
 	  compiling_type = 0;
 
 	  if (!seen_component)
-	    gfc_notify_std (GFC_STD_F2003, "Fortran 2003: Derived type "
+	    gfc_notify_std (GFC_STD_F2003, "Derived type "
 			    "definition at %C without components");
 
 	  accept_statement (ST_END_TYPE);
@@ -2165,7 +2169,7 @@ endType:
 
 	case ST_CONTAINS:
 	  gfc_notify_std (GFC_STD_F2003,
-			  "Fortran 2003:  CONTAINS block in derived type"
+			  "CONTAINS block in derived type"
 			  " definition at %C");
 
 	  accept_statement (ST_CONTAINS);
@@ -2191,7 +2195,8 @@ endType:
       if (c->attr.allocatable
 	  || (c->ts.type == BT_CLASS && c->attr.class_ok
 	      && CLASS_DATA (c)->attr.allocatable)
-	  || (c->ts.type == BT_DERIVED && c->ts.u.derived->attr.alloc_comp))
+	  || (c->ts.type == BT_DERIVED && !c->attr.pointer
+	      && c->ts.u.derived->attr.alloc_comp))
 	{
 	  allocatable = true;
 	  sym->attr.alloc_comp = 1;
@@ -2359,7 +2364,6 @@ parse_interface (void)
   gfc_interface_info save;
   gfc_state_data s1, s2;
   gfc_statement st;
-  locus proc_locus;
 
   accept_statement (ST_INTERFACE);
 
@@ -2448,7 +2452,9 @@ loop:
   accept_statement (st);
   prog_unit = gfc_new_block;
   prog_unit->formal_ns = gfc_current_ns;
-  proc_locus = gfc_current_locus;
+  if (prog_unit == prog_unit->formal_ns->proc_name
+      && prog_unit->ns != prog_unit->formal_ns)
+    prog_unit->refs++;
 
 decl:
   /* Read data declaration statements.  */
@@ -2489,7 +2495,8 @@ decl:
 	&& strcmp (current_interface.ns->proc_name->name,
 		   prog_unit->name) == 0)
     gfc_error ("INTERFACE procedure '%s' at %L has the same name as the "
-	       "enclosing procedure", prog_unit->name, &proc_locus);
+	       "enclosing procedure", prog_unit->name,
+	       &current_interface.ns->proc_name->declared_at);
 
   goto loop;
 
@@ -3267,7 +3274,7 @@ parse_critical_block (void)
 	    if (s.ext.end_do_label != NULL
 		&& s.ext.end_do_label != gfc_statement_label)
 	      gfc_error_now ("Statement label in END CRITICAL at %C does not "
-			     "match CRITIAL label");
+			     "match CRITICAL label");
 
 	    if (gfc_statement_label != NULL)
 	      {
@@ -3334,7 +3341,7 @@ parse_block_construct (void)
   gfc_namespace* my_ns;
   gfc_state_data s;
 
-  gfc_notify_std (GFC_STD_F2008, "Fortran 2008: BLOCK construct at %C");
+  gfc_notify_std (GFC_STD_F2008, "BLOCK construct at %C");
 
   my_ns = gfc_build_block_ns (gfc_current_ns);
 
@@ -3364,7 +3371,7 @@ parse_associate (void)
   gfc_statement st;
   gfc_association_list* a;
 
-  gfc_notify_std (GFC_STD_F2003, "Fortran 2003: ASSOCIATE construct at %C");
+  gfc_notify_std (GFC_STD_F2003, "ASSOCIATE construct at %C");
 
   my_ns = gfc_build_block_ns (gfc_current_ns);
 
@@ -3392,7 +3399,7 @@ parse_associate (void)
 	 however, as it may only be set on the target during resolution.
 	 Still, sometimes it helps to have it right now -- especially
 	 for parsing component references on the associate-name
-	 in case of assication to a derived-type.  */
+	 in case of association to a derived-type.  */
       sym->ts = a->target->ts;
     }
 
@@ -3824,8 +3831,12 @@ parse_executable (gfc_statement st)
 	case ST_NONE:
 	  unexpected_eof ();
 
-	case ST_FORMAT:
 	case ST_DATA:
+	  gfc_notify_std (GFC_STD_F95_OBS, "DATA statement at %C after the "
+			  "first executable statement");
+	  /* Fall through.  */
+
+	case ST_FORMAT:
 	case ST_ENTRY:
 	case_executable:
 	  accept_statement (st);
@@ -4067,6 +4078,7 @@ parse_contained (int module)
 	case ST_END_PROGRAM:
 	case ST_END_SUBROUTINE:
 	  accept_statement (st);
+	  gfc_current_ns->code = s1.head;
 	  break;
 
 	default:
@@ -4094,7 +4106,7 @@ parse_contained (int module)
 
   pop_state ();
   if (!contains_statements)
-    gfc_notify_std (GFC_STD_F2008, "Fortran 2008: CONTAINS statement without "
+    gfc_notify_std (GFC_STD_F2008, "CONTAINS statement without "
 		    "FUNCTION or SUBROUTINE statement at %C");
 }
 
@@ -4512,6 +4524,7 @@ gfc_parse_file (void)
   gfc_global_ns_list = next = NULL;
 
   seen_program = 0;
+  errors_before = 0;
 
   /* Exit early for empty files.  */
   if (gfc_at_eof ())

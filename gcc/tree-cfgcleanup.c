@@ -25,19 +25,15 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "tm_p.h"
 #include "basic-block.h"
-#include "output.h"
 #include "diagnostic-core.h"
 #include "flags.h"
 #include "function.h"
 #include "ggc.h"
 #include "langhooks.h"
 #include "tree-flow.h"
-#include "timevar.h"
-#include "tree-dump.h"
 #include "tree-pass.h"
 #include "except.h"
 #include "cfgloop.h"
-#include "cfglayout.h"
 #include "hashtab.h"
 #include "tree-ssa-propagate.h"
 #include "tree-scalar-evolution.h"
@@ -92,40 +88,11 @@ cleanup_control_expr_graph (basic_block bb, gimple_stmt_iterator gsi)
       switch (gimple_code (stmt))
 	{
 	case GIMPLE_COND:
-	  {
-	    tree lhs = gimple_cond_lhs (stmt);
-	    tree rhs = gimple_cond_rhs (stmt);
-	    /* For conditions try harder and lookup single-argument
-	       PHI nodes.  Only do so from the same basic-block though
-	       as other basic-blocks may be dead already.  */
-	    if (TREE_CODE (lhs) == SSA_NAME
-		&& !name_registered_for_update_p (lhs))
-	      {
-		gimple def_stmt = SSA_NAME_DEF_STMT (lhs);
-		if (gimple_code (def_stmt) == GIMPLE_PHI
-		    && gimple_phi_num_args (def_stmt) == 1
-		    && gimple_bb (def_stmt) == gimple_bb (stmt)
-		    && (TREE_CODE (PHI_ARG_DEF (def_stmt, 0)) != SSA_NAME
-			|| !name_registered_for_update_p (PHI_ARG_DEF (def_stmt,
-								       0))))
-		  lhs = PHI_ARG_DEF (def_stmt, 0);
-	      }
-	    if (TREE_CODE (rhs) == SSA_NAME
-		&& !name_registered_for_update_p (rhs))
-	      {
-		gimple def_stmt = SSA_NAME_DEF_STMT (rhs);
-		if (gimple_code (def_stmt) == GIMPLE_PHI
-		    && gimple_phi_num_args (def_stmt) == 1
-		    && gimple_bb (def_stmt) == gimple_bb (stmt)
-		    && (TREE_CODE (PHI_ARG_DEF (def_stmt, 0)) != SSA_NAME
-			|| !name_registered_for_update_p (PHI_ARG_DEF (def_stmt,
-								       0))))
-		  rhs = PHI_ARG_DEF (def_stmt, 0);
-	      }
-	    val = fold_binary_loc (loc, gimple_cond_code (stmt),
-				   boolean_type_node, lhs, rhs);
-	    break;
-	  }
+	  val = fold_binary_loc (loc, gimple_cond_code (stmt),
+				 boolean_type_node,
+			         gimple_cond_lhs (stmt),
+				 gimple_cond_rhs (stmt));
+	  break;
 
 	case GIMPLE_SWITCH:
 	  val = gimple_switch_index (stmt);
@@ -741,6 +708,8 @@ repair_loop_structures (void)
 {
   bitmap changed_bbs;
 
+  calculate_dominance_info (CDI_DOMINATORS);
+
   timevar_push (TV_REPAIR_LOOPS);
   changed_bbs = BITMAP_ALLOC (NULL);
   fix_loop_structure (changed_bbs);
@@ -758,7 +727,6 @@ repair_loop_structures (void)
 #endif
   scev_reset ();
 
-  loops_state_clear (LOOPS_NEED_FIXUP);
   timevar_pop (TV_REPAIR_LOOPS);
 }
 

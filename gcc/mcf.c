@@ -46,14 +46,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
 #include "basic-block.h"
-#include "output.h"
-#include "langhooks.h"
-#include "tree.h"
 #include "gcov-io.h"
-
 #include "profile.h"
+#include "dumpfile.h"
 
 /* CAP_INFINITY: Constant to represent infinite capacity.  */
 #define CAP_INFINITY INTTYPE_MAXIMUM (HOST_WIDEST_INT)
@@ -290,7 +286,7 @@ dump_fixup_graph (FILE *file, fixup_graph_type *fixup_graph, const char *msg)
   fnum_edges = fixup_graph->num_edges;
 
   fprintf (file, "\nDump fixup graph for %s(): %s.\n",
-	   lang_hooks.decl_printable_name (current_function_decl, 2), msg);
+	   current_function_name (), msg);
   fprintf (file,
 	   "There are %d vertices and %d edges. new_exit_index is %d.\n\n",
 	   fnum_vertices, fnum_edges, fixup_graph->new_exit_index);
@@ -1280,8 +1276,8 @@ adjust_cfg_counts (fixup_graph_type *fixup_graph)
   if (dump_file)
     {
       fprintf (dump_file, "\nCheck %s() CFG flow conservation:\n",
-           lang_hooks.decl_printable_name (current_function_decl, 2));
-      FOR_BB_BETWEEN (bb, ENTRY_BLOCK_PTR->next_bb, EXIT_BLOCK_PTR, next_bb)
+	       current_function_name ());
+      FOR_EACH_BB (bb)
         {
           if ((bb->count != sum_edge_counts (bb->preds))
                || (bb->count != sum_edge_counts (bb->succs)))
@@ -1385,7 +1381,7 @@ sum_edge_counts (VEC (edge, gc) *to_edges)
 }
 
 
-/* Main routine. Smoothes the intial assigned basic block and edge counts using
+/* Main routine. Smoothes the initial assigned basic block and edge counts using
    a minimum cost flow algorithm, to ensure that the flow consistency rule is
    obeyed: sum of outgoing edges = sum of incoming edges for each basic
    block.  */

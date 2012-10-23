@@ -1,5 +1,5 @@
 /* Configuration file for Linux Android targets.
-   Copyright (C) 2008, 2010
+   Copyright (C) 2008, 2010, 2012
    Free Software Foundation, Inc.
    Contributed by Doug Kwan (dougkwan@google.com)
    Rewritten by CodeSourcery, Inc.
@@ -22,7 +22,7 @@
 
 #define ANDROID_TARGET_OS_CPP_BUILTINS()			\
     do {							\
-	if (OPTION_ANDROID)					\
+	if (TARGET_ANDROID)					\
 	  builtin_define ("__ANDROID__");			\
     } while (0)
 
@@ -53,8 +53,8 @@
   "%{!static: -ldl}"
 
 #define ANDROID_STARTFILE_SPEC						\
-  "%{!shared:"								\
+  "%{shared: crtbegin_so%O%s;:"						\
   "  %{static: crtbegin_static%O%s;: crtbegin_dynamic%O%s}}"
 
 #define ANDROID_ENDFILE_SPEC \
-  "%{!shared: crtend_android%O%s}"
+  "%{shared: crtend_so%O%s;: crtend_android%O%s}"

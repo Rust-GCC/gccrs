@@ -38,21 +38,16 @@ else
 ldbl_compat_sources =
 endif
 
-if ENABLE_PARALLEL
+
 parallel_compat_sources = \
 	compatibility-parallel_list.cc  compatibility-parallel_list-2.cc
-else
-parallel_compat_sources =
-endif
+
 
 cxx98_sources = \
 	compatibility.cc \
 	compatibility-debug_list.cc \
 	compatibility-debug_list-2.cc \
-	compatibility-list.cc \
-	compatibility-list-2.cc \
-	${ldbl_compat_sources} \
-	${parallel_compat_sources}
+	${ldbl_compat_sources} 
 
 cxx11_sources = \
 	compatibility-c++0x.cc \
@@ -79,18 +74,6 @@ libstdc___la_LDFLAGS = \
 libstdc___la_LINK = $(CXXLINK) $(libstdc___la_LDFLAGS)
 
 
-# Use special rules for parallel mode compilation.
-PARALLEL_FLAGS = -fopenmp -D_GLIBCXX_PARALLEL -I$(glibcxx_builddir)/../libgomp
-compatibility-parallel_list.lo: compatibility-parallel_list.cc
-	$(LTCXXCOMPILE) -c $<
-compatibility-parallel_list.o: compatibility-parallel_list.cc
-	$(CXXCOMPILE) -c $<
-
-compatibility-parallel_list-2.lo: compatibility-parallel_list-2.cc
-	$(LTCXXCOMPILE) -c $<
-compatibility-parallel_list-2.o: compatibility-parallel_list-2.cc
-	$(CXXCOMPILE) -c $<
-
 # Use special rules for compatibility-ldbl.cc compilation, as we need to
 # pass -mlong-double-64.
 if GLIBCXX_LDBL_COMPAT
@@ -116,22 +99,41 @@ compatibility-thread-c++0x.lo: compatibility-thread-c++0x.cc
 compatibility-thread-c++0x.o: compatibility-thread-c++0x.cc
 	$(CXXCOMPILE) -std=gnu++11 -c $<
 
-# AM_CXXFLAGS needs to be in each subdirectory so that it can be
+# A note on compatibility and static libraries.
+# 
+# static lib == linked against only this version, should not need compat
+# shared lib == linked against potentially all compat versions
+#
+# Thus, the shared libs have more compat symbols, which can be found
+# segregated in the sources with -D_GLIBCXX_SHARED.
+#
+# In the sub-directories of libsupc++, src/c++98, src/c++11, only
+# -prefer-pic objects are generated for the convenience libraries.
+# 
+# In the main src directory, make shared and static objects just for
+# the compat libraries. Shared objects are compiled with -prefer-pic
+# -D_GLIBCXX_SHARED and in the .libs sub-directory, static objects are
+# compiled with -prefer-pic (ie, -fPIC but not -D_GLIBCXX_SHARED) and
+# the main src directory.
+#
+# Why are objects destined for libstdc++.a compiled with -fPIC? First,
+# because -fPIC is not harmful to use for objects destined for static
+# libraries. In addition, using -fPIC will allow the use of static
+# libstdc++.a in the creation of other C++ shared libraries.
+
+# AM_CXXFLAGS needs to be in each sub-directory so that it can be
 # modified in a per-library or per-sub-library way.  Need to manually
 # set this option because CONFIG_CXXFLAGS has to be after
 # OPTIMIZE_CXXFLAGS on the compile line so that -O2 can be overridden
 # as the occasion calls for it.
 AM_CXXFLAGS = \
+	$(glibcxx_compiler_pic_flag) \
 	$(XTEMPLATE_FLAGS) \
 	$(WARN_CXXFLAGS) $(OPTIMIZE_CXXFLAGS) $(CONFIG_CXXFLAGS)
 
 # Libtool notes
 
-# 1) Need to explicitly set LTCXXCOMPILE so that AM_CXXFLAGS is
-# last. (That way, things like -O2 passed down from the toplevel can
-# be overridden by --enable-debug.)
-
-# 2) In general, libtool expects an argument such as `--tag=CXX' when
+# 1) In general, libtool expects an argument such as `--tag=CXX' when
 # using the C++ compiler, because that will enable the settings
 # detected when C++ support was being configured.  However, when no
 # such flag is given in the command line, libtool attempts to figure
@@ -142,12 +144,24 @@ AM_CXXFLAGS = \
 # can't decide which configuration to use, and it gives up.  The
 # correct solution is to add `--tag CXX' to LTCXXCOMPILE and maybe
 # CXXLINK, just after $(LIBTOOL), so that libtool doesn't have to
-# attempt to infer which configuration to use
+# attempt to infer which configuration to use.
+# 
+# The second tag argument, `--tag disable-shared` means that libtool
+# only compiles each source once, for static objects. In actuality,
+# glibcxx_lt_pic_flag and glibcxx_compiler_shared_flag are added to
+# the libtool command that is used create the object, which is
+# suitable for shared libraries.  The `--tag disable-shared` must be
+# placed after --tag CXX lest things CXX undo the affect of
+# disable-shared.
+
+# 2) Need to explicitly set LTCXXCOMPILE so that EXTRA_CXX_FLAGS is
+# last. (That way, things like -O2 passed down from the toplevel can
+# be overridden by --enable-debug and --enable-cxx-flags.)
 LTCXXCOMPILE = \
 	$(LIBTOOL) --tag CXX \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=compile $(CXX) $(INCLUDES) \
-	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
+	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) $(EXTRA_CXX_FLAGS)
 
 LTLDFLAGS = $(shell $(SHELL) $(top_srcdir)/../libtool-ldflags $(LDFLAGS))
 
@@ -295,6 +309,7 @@ build-debug: stamp-debug
 	      -e 's,install-data-local: install-data-once,install-data-local:,' \
 	      -e '/vpath/!s,src/c,src/debug/c,' \
 	  < Makefile.tmp > Makefile ; \
+	  rm -f Makefile.tmp ; \
 	  $(MAKE) CXXFLAGS='$(DEBUG_FLAGS)' \
 	  toolexeclibdir=$(glibcxx_toolexeclibdir)/debug all) ;
 

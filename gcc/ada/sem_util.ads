@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -28,7 +28,6 @@
 with Einfo;   use Einfo;
 with Exp_Tss; use Exp_Tss;
 with Namet;   use Namet;
-with Nmake;   use Nmake;
 with Snames;  use Snames;
 with Types;   use Types;
 with Uintp;   use Uintp;
@@ -63,6 +62,12 @@ package Sem_Util is
    --  compiler, then this function returns the alignment value in bits.
    --  Otherwise Uint_0 is returned, indicating that the alignment of the
    --  entity is not yet known to the compiler.
+
+   procedure Append_Inherited_Subprogram (S : Entity_Id);
+   --  If the parent of the operation is declared in the visible part of
+   --  the current scope, the inherited operation is visible even though the
+   --  derived type that inherits the operation may be completed in the private
+   --  part of the current package.
 
    procedure Apply_Compile_Time_Constraint_Error
      (N      : Node_Id;
@@ -169,6 +174,12 @@ package Sem_Util is
    --  AI05-139-2: Accessors and iterators for containers. This procedure
    --  checks whether T is a reference type, and if so it adds an interprettion
    --  to Expr whose type is the designated type of the reference_discriminant.
+
+   procedure Check_Internal_Protected_Use (N : Node_Id; Nam : Entity_Id);
+   --  Within a protected function, the current object is a constant, and
+   --  internal calls to a procedure or entry are illegal. Similarly, other
+   --  uses of a protected procedure in a renaming or a generic instantiation
+   --  in the context of a protected function are illegal (AI05-0225).
 
    procedure Check_Later_Vs_Basic_Declarations
      (Decls          : List_Id;
@@ -288,6 +299,12 @@ package Sem_Util is
    --  create a new compatible record type. Loc is the source location assigned
    --  to the created nodes.
 
+   function Corresponding_Generic_Type (T : Entity_Id) return Entity_Id;
+   --  If a type is a generic actual type, return the corresponding formal in
+   --  the generic parent unit. There is no direct link in the tree for this
+   --  attribute, except in the case of formal private and derived types.
+   --  Possible optimization???
+
    function Current_Entity (N : Node_Id) return Entity_Id;
    pragma Inline (Current_Entity);
    --  Find the currently visible definition for a given identifier, that is to
@@ -368,6 +385,10 @@ package Sem_Util is
    --  Same as Einfo.Extra_Accessibility except thtat object renames
    --  are looked through.
 
+   function Enclosing_Comp_Unit_Node (N : Node_Id) return Node_Id;
+   --  Returns the enclosing N_Compilation_Unit Node that is the root of a
+   --  subtree containing N.
+
    function Enclosing_CPP_Parent (Typ : Entity_Id) return Entity_Id;
    --  Returns the closest ancestor of Typ that is a CPP type.
 
@@ -381,14 +402,12 @@ package Sem_Util is
    --  Returns the Node_Id associated with the innermost enclosing generic
    --  unit, if any. If none, then returns Empty.
 
-   function Enclosing_Lib_Unit_Entity return Entity_Id;
-   --  Returns the entity of enclosing N_Compilation_Unit Node which is the
+   function Enclosing_Lib_Unit_Entity
+     (E : Entity_Id := Current_Scope) return Entity_Id;
+   --  Returns the entity of enclosing library unit node which is the
    --  root of the current scope (which must not be Standard_Standard, and the
-   --  caller is responsible for ensuring this condition).
-
-   function Enclosing_Lib_Unit_Node (N : Node_Id) return Node_Id;
-   --  Returns the enclosing N_Compilation_Unit Node that is the root of a
-   --  subtree containing N.
+   --  caller is responsible for ensuring this condition) or other specified
+   --  entity.
 
    function Enclosing_Package (E : Entity_Id) return Entity_Id;
    --  Utility function to return the Ada entity of the package enclosing
@@ -538,8 +557,9 @@ package Sem_Util is
    --  If expression N references a part of an object, return this object.
    --  Otherwise return Empty. Expression N should have been resolved already.
 
-   function Get_Ensures_From_Test_Case_Pragma (N : Node_Id) return Node_Id;
-   --  Return the Ensures component of Test_Case pragma N, or Empty otherwise
+   function Get_Ensures_From_CTC_Pragma (N : Node_Id) return Node_Id;
+   --  Return the Ensures component of Contract_Case or Test_Case pragma N, or
+   --  Empty otherwise.
 
    function Get_Generic_Entity (N : Node_Id) return Entity_Id;
    --  Returns the true generic entity in an instantiation. If the name in the
@@ -572,8 +592,8 @@ package Sem_Util is
    --  is the innermost visible entity with the given name. See the body of
    --  Sem_Ch8 for further details on handling of entity visibility.
 
-   function Get_Name_From_Test_Case_Pragma (N : Node_Id) return String_Id;
-   --  Return the Name component of Test_Case pragma N
+   function Get_Name_From_CTC_Pragma (N : Node_Id) return String_Id;
+   --  Return the Name component of Contract_Case or Test_Case pragma N
 
    function Get_Pragma_Id (N : Node_Id) return Pragma_Id;
    pragma Inline (Get_Pragma_Id);
@@ -590,8 +610,9 @@ package Sem_Util is
    --  not a renamed entity, returns its argument. It is an error to call this
    --  with any other kind of entity.
 
-   function Get_Requires_From_Test_Case_Pragma (N : Node_Id) return Node_Id;
-   --  Return the Requires component of Test_Case pragma N, or Empty otherwise
+   function Get_Requires_From_CTC_Pragma (N : Node_Id) return Node_Id;
+   --  Return the Requires component of Contract_Case or Test_Case pragma N, or
+   --  Empty otherwise.
 
    function Get_Subprogram_Entity (Nod : Node_Id) return Entity_Id;
    --  Nod is either a procedure call statement, or a function call, or an
@@ -738,6 +759,10 @@ package Sem_Util is
    function In_Parameter_Specification (N : Node_Id) return Boolean;
    --  Returns True if node N belongs to a parameter specification
 
+   function In_Reverse_Storage_Order_Object (N : Node_Id) return Boolean;
+   --  Returns True if N denotes a component or subcomponent in a record or
+   --  array that has Reverse_Storage_Order.
+
    function In_Subprogram_Or_Concurrent_Unit return Boolean;
    --  Determines if the current scope is within a subprogram compilation unit
    --  (inside a subprogram declaration, subprogram body, or generic
@@ -792,6 +817,10 @@ package Sem_Util is
    function Is_Atomic_Object (N : Node_Id) return Boolean;
    --  Determines if the given node denotes an atomic object in the sense of
    --  the legality checks described in RM C.6(12).
+
+   function Is_Bounded_String (T : Entity_Id) return Boolean;
+   --  True if T is a bounded string type. Used to make sure "=" composes
+   --  properly for bounded string types.
 
    function Is_Controlling_Limited_Procedure
      (Proc_Nam : Entity_Id) return Boolean;
@@ -1075,28 +1104,12 @@ package Sem_Util is
    --  statement in Statements (HSS) that has Comes_From_Source set. If no
    --  such statement exists, Empty is returned.
 
-   function Make_Simple_Return_Statement
-     (Sloc       : Source_Ptr;
-      Expression : Node_Id := Empty) return Node_Id
-     renames Make_Return_Statement;
-   --  See Sinfo. We rename Make_Return_Statement to the correct Ada 2005
-   --  terminology here. Clients should use Make_Simple_Return_Statement.
-
    function Matching_Static_Array_Bounds
      (L_Typ : Node_Id;
       R_Typ : Node_Id) return Boolean;
    --  L_Typ and R_Typ are two array types. Returns True when they have the
    --  same number of dimensions, and the same static bounds for each index
    --  position.
-
-   Make_Return_Statement : constant := -2 ** 33;
-   --  Attempt to prevent accidental uses of Make_Return_Statement. If this
-   --  and the one in Nmake are both potentially use-visible, it will cause
-   --  a compilation error. Note that type and value are irrelevant.
-
-   N_Return_Statement : constant := -2**33;
-   --  Attempt to prevent accidental uses of N_Return_Statement; similar to
-   --  Make_Return_Statement above.
 
    procedure Mark_Coextensions (Context_Nod : Node_Id; Root_Nod : Node_Id);
    --  Given a node which designates the context of analysis and an origin in
@@ -1114,6 +1127,9 @@ package Sem_Util is
    --  it returns True. It tries hard to get the answer right, but it is hard
    --  to guarantee this in all cases. Note that it is more possible to give
    --  correct answer if the tree is fully analyzed.
+
+   function Must_Inline (Subp : Entity_Id) return Boolean;
+   --  Return true if Subp must be inlined by the frontend
 
    function Needs_One_Actual (E : Entity_Id) return Boolean;
    --  Returns True if a function has defaults for all but its first
@@ -1212,6 +1228,11 @@ package Sem_Util is
    --  Note that the result produced is always an expression, not a parameter
    --  association node, even if named notation was used.
 
+   function No_Scalar_Parts (T : Entity_Id) return Boolean;
+   --  Tests if type T can be determined at compile time to have no scalar
+   --  parts in the sense of the Valid_Scalars attribute. Returns True if
+   --  this is the case, meaning that the result of Valid_Scalars is True.
+
    procedure Normalize_Actuals
      (N       : Node_Id;
       S       : Entity_Id;
@@ -1306,6 +1327,9 @@ package Sem_Util is
 
    procedure Reset_Analyzed_Flags (N : Node_Id);
    --  Reset the Analyzed flags in all nodes of the tree whose root is N
+
+   function Returns_Unconstrained_Type (Subp : Entity_Id) return Boolean;
+   --  Return true if Subp is a function that returns an unconstrained type
 
    function Safe_To_Capture_Value
      (N    : Node_Id;
@@ -1453,6 +1477,10 @@ package Sem_Util is
 
    function Subprogram_Access_Level (Subp : Entity_Id) return Uint;
    --  Return the accessibility level of the view denoted by Subp
+
+   function Support_Atomic_Primitives (Typ : Entity_Id) return Boolean;
+   --  Return True if Typ supports the GCC built-in atomic operations (i.e. if
+   --  Typ is properly sized and aligned).
 
    procedure Trace_Scope (N : Node_Id; E : Entity_Id; Msg : String);
    --  Print debugging information on entry to each unit being analyzed

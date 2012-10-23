@@ -427,6 +427,10 @@ struct cpp_options
   /* Nonzero for C++ 2011 Standard user-defnied literals.  */
   unsigned char user_literals;
 
+  /* Nonzero means warn when a string or character literal is followed by a
+     ud-suffix which does not beging with an underscore.  */
+  unsigned char warn_literal_suffix;
+
   /* Holds the name of the target (execution) character set.  */
   const char *narrow_charset;
 
@@ -847,7 +851,7 @@ struct cpp_num
 /* Classify a CPP_NUMBER token.  The return value is a combination of
    the flags from the above sets.  */
 extern unsigned cpp_classify_number (cpp_reader *, const cpp_token *,
-				     const char **);
+				     const char **, source_location);
 
 /* Return the classification flags for a float suffix.  */
 extern unsigned int cpp_interpret_float_suffix (const char *, size_t);
@@ -906,7 +910,8 @@ enum {
   CPP_W_CXX_OPERATOR_NAMES,
   CPP_W_NORMALIZE,
   CPP_W_INVALID_PCH,
-  CPP_W_WARNING_DIRECTIVE
+  CPP_W_WARNING_DIRECTIVE,
+  CPP_W_LITERAL_SUFFIX
 };
 
 /* Output a diagnostic of some kind.  */

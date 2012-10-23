@@ -395,6 +395,10 @@ i386_pe_unique_section (tree decl, int reloc)
   const char *name, *prefix;
   char *string;
 
+  /* Ignore RELOC, if we are allowed to put relocated
+     const data into read-only section.  */
+  if (!flag_writable_rel_rdata)
+    reloc = 0;
   name = IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (decl));
   name = i386_pe_strip_name_encoding_full (name);
 
@@ -415,6 +419,14 @@ i386_pe_unique_section (tree decl, int reloc)
   sprintf (string, "%s%s", prefix, name);
 
   DECL_SECTION_NAME (decl) = build_string (len, string);
+}
+
+/* Local and global relocs can be placed always into readonly memory for
+   memory for PE-COFF targets.  */
+int
+i386_pe_reloc_rw_mask (void)
+{
+  return 0;
 }
 
 /* Select a set of attributes for section NAME based on the properties
@@ -441,6 +453,10 @@ i386_pe_section_type_flags (tree decl, const char *name, int reloc)
   unsigned int flags;
   unsigned int **slot;
 
+  /* Ignore RELOC, if we are allowed to put relocated
+     const data into read-only section.  */
+  if (!flag_writable_rel_rdata)
+    reloc = 0;
   /* The names we put in the hashtable will always be the unique
      versions given to us by the stringtable, so we can just use
      their addresses as the keys.  */
@@ -1126,6 +1142,48 @@ i386_pe_seh_unwind_emit (FILE *asm_out_file, rtx insn)
   pat = PATTERN (insn);
  found:
   seh_frame_related_expr (asm_out_file, seh, pat);
+}
+
+void
+i386_pe_seh_emit_except_personality (rtx personality)
+{
+  int flags = 0;
+
+  if (!TARGET_SEH)
+    return;
+
+  fputs ("\t.seh_handler\t", asm_out_file);
+  output_addr_const (asm_out_file, personality);
+
+#if 0
+  /* ??? The current implementation of _GCC_specific_handler requires
+     both except and unwind handling, regardless of which sorts the
+     user-level function requires.  */
+  eh_region r;
+  FOR_ALL_EH_REGION(r)
+    {
+      if (r->type == ERT_CLEANUP)
+	flags |= 1;
+      else
+	flags |= 2;
+    }
+#else
+  flags = 3;
+#endif
+
+  if (flags & 1)
+    fputs (", @unwind", asm_out_file);
+  if (flags & 2)
+    fputs (", @except", asm_out_file);
+  fputc ('\n', asm_out_file);
+}
+
+void
+i386_pe_seh_init_sections (void)
+{
+  if (TARGET_SEH)
+    exception_section = get_unnamed_section (0, output_section_asm_op,
+					     "\t.seh_handlerdata");
 }
 
 void

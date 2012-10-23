@@ -611,6 +611,11 @@ DEFPARAM(PARAM_SCHED_SPEC_PROB_CUTOFF,
          "The minimal probability of speculation success (in percents), so that speculative insn will be scheduled.",
          40, 0, 100)
 
+DEFPARAM(PARAM_SCHED_STATE_EDGE_PROB_CUTOFF,
+         "sched-state-edge-prob-cutoff",
+         "The minimum probability an edge must have for the scheduler to save its state across it.",
+         10, 0, 100)
+
 DEFPARAM(PARAM_SELSCHED_MAX_LOOKAHEAD,
          "selsched-max-lookahead",
          "The maximum size of the lookahead window of selective scheduling",
@@ -644,30 +649,6 @@ DEFPARAM (PARAM_INTEGER_SHARE_LIMIT,
 	  "integer-share-limit",
 	  "The upper bound for sharing integer constants",
 	  251, 2, 2)
-
-/* Incremental SSA updates for virtual operands may be very slow if
-   there is a large number of mappings to process.  In those cases, it
-   is faster to rewrite the virtual symbols from scratch as if they
-   had been recently introduced.  This heuristic cannot be applied to
-   SSA mappings for real SSA names, only symbols kept in FUD chains.
-
-   PARAM_MIN_VIRTUAL_MAPPINGS specifies the minimum number of virtual
-   mappings that should be registered to trigger the heuristic.
-
-   PARAM_VIRTUAL_MAPPINGS_TO_SYMS_RATIO specifies the ratio between
-   mappings and symbols.  If the number of virtual mappings is
-   PARAM_VIRTUAL_MAPPINGS_TO_SYMS_RATIO bigger than the number of
-   virtual symbols to be updated, then the updater switches to a full
-   update for those symbols.  */
-DEFPARAM (PARAM_MIN_VIRTUAL_MAPPINGS,
-	  "min-virtual-mappings",
-	  "Minimum number of virtual mappings to consider switching to full virtual renames",
-	  100, 0, 0)
-
-DEFPARAM (PARAM_VIRTUAL_MAPPINGS_TO_SYMS_RATIO,
-	  "virtual-mappings-ratio",
-	  "Ratio between virtual mappings and virtual symbols to do full virtual renames",
-	  3, 0, 0)
 
 DEFPARAM (PARAM_SSP_BUFFER_SIZE,
 	  "ssp-buffer-size",
@@ -775,6 +756,17 @@ DEFPARAM (PARAM_SCCVN_MAX_SCC_SIZE,
 	  "sccvn-max-scc-size",
 	  "Maximum size of a SCC before SCCVN stops processing a function",
 	  10000, 10, 0)
+
+/* The following is used as a stop-gap limit for cases where really huge
+   functions blow up compile-time use too much.  It limits the number of
+   alias-queries we do for finding common subexpressions for memory loads and
+   stores.  The number of alias-queries is otherwise limited by the number of
+   stores on paths to function entry.  */
+
+DEFPARAM (PARAM_SCCVN_MAX_ALIAS_QUERIES_PER_ACCESS,
+	  "sccvn-max-alias-queries-per-access",
+	  "Maximum number of disambiguations to perform per memory access",
+	  1000, 0, 0)
 
 DEFPARAM (PARAM_IRA_MAX_LOOPS_NUM,
 	  "ira-max-loops-num",
@@ -898,6 +890,12 @@ DEFPARAM (PARAM_IPA_CP_EVAL_THRESHOLD,
 	  "beneficial to clone.",
 	  500, 0, 0)
 
+DEFPARAM (PARAM_IPA_MAX_AGG_ITEMS,
+	  "ipa-max-agg-items",
+	  "Maximum number of aggregate content items for a parameter in "
+	  "jump functions and lattices",
+	  16, 0, 0)
+
 /* WHOPR partitioning configuration.  */
 
 DEFPARAM (PARAM_LTO_PARTITIONS,
@@ -979,6 +977,19 @@ DEFPARAM (PARAM_MAX_TRACKED_STRLENS,
 	  "Maximum number of strings for which strlen optimization pass will "
 	  "track string lengths",
 	  1000, 0, 0)
+
+/* Keep this in sync with the sched_pressure_algorithm enum.  */
+DEFPARAM (PARAM_SCHED_PRESSURE_ALGORITHM,
+	  "sched-pressure-algorithm",
+	  "Which -fsched-pressure algorithm to apply",
+	  1, 1, 2)
+
+/* Maximum length of candidate scans in straight-line strength reduction.  */
+DEFPARAM (PARAM_MAX_SLSR_CANDIDATE_SCAN,
+	  "max-slsr-cand-scan",
+	  "Maximum length of candidate scans for straight-line "
+	  "strength reduction",
+	  50, 1, 999999)
 
 /*
 Local variables:
