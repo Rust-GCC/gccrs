@@ -1,0 +1,11 @@
+* Rust Front-end to GCC
+This is a compiler for rust implemented on the feature rich GCC
+
+** Developers
+Philip Herron <redbrain@gcc.gnu.org>
+
+** Status
+Proof of Concept
+
+** TODO
+Everything

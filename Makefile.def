@@ -131,6 +131,7 @@ target_modules = { module= libquadmath; };
 target_modules = { module= libgfortran; };
 target_modules = { module= libobjc; };
 target_modules = { module= libgo; };
+target_modules = { module= libgrust; };
 target_modules = { module= libtermcap; no_check=true;
                    missing=mostlyclean;
                    missing=clean;
@@ -505,6 +506,11 @@ dependencies = { module=configure-target-libgo; on=all-target-libstdc++-v3; };
 dependencies = { module=all-target-libgo; on=all-target-libbacktrace; };
 dependencies = { module=all-target-libgo; on=all-target-libffi; };
 dependencies = { module=all-target-libgo; on=all-target-libatomic; };
+dependencies = { module=configure-target-libgrust; on=configure-target-libffi; };
+dependencies = { module=configure-target-libgrust; on=all-target-libstdc++-v3; };
+dependencies = { module=all-target-libgrust; on=all-target-libbacktrace; };
+dependencies = { module=all-target-libgrust; on=all-target-libffi; };
+dependencies = { module=all-target-libgrust; on=all-target-libatomic; };
 dependencies = { module=configure-target-libjava; on=configure-target-zlib; };
 dependencies = { module=configure-target-libjava; on=configure-target-boehm-gc; };
 dependencies = { module=configure-target-libjava; on=configure-target-libffi; };
@@ -522,6 +528,7 @@ dependencies = { module=configure-target-libsanitizer; on=all-target-libstdc++-v
 dependencies = { module=all-target-libstdc++-v3; on=configure-target-libgomp; };
 
 dependencies = { module=install-target-libgo; on=install-target-libatomic; };
+dependencies = { module=install-target-librust; on=install-target-libatomic; };
 dependencies = { module=install-target-libgfortran; on=install-target-libquadmath; };
 dependencies = { module=install-target-libgfortran; on=install-target-libgcc; };
 dependencies = { module=install-target-libsanitizer; on=install-target-libstdc++-v3; };
@@ -560,6 +567,8 @@ languages = { language=objc;	gcc-check-target=check-objc;
 languages = { language=obj-c++;	gcc-check-target=check-obj-c++; };
 languages = { language=go;	gcc-check-target=check-go;
 				lib-check-target=check-target-libgo; };
+languages = { language=rust;	gcc-check-target=check-rust;
+				lib-check-target=check-target-libgrust; };
 
 // Toplevel bootstrap
 bootstrap_stage = { id=1 ; };

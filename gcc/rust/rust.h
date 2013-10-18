@@ -1,0 +1,79 @@
+/* This file is part of GCC.
+
+GCC is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+
+GCC is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>. */
+
+#ifndef __GCC_RUST_H__
+#define __GCC_RUST_H__
+
+#include "config.h"
+#include "system.h"
+#include "ansidecl.h"
+#include "coretypes.h"
+#include "tm.h"
+#include "opts.h"
+#include "tree.h"
+#include "tree-iterator.h"
+#include "tree-pass.h"
+#include "gimple.h"
+#include "toplev.h"
+#include "debug.h"
+#include "options.h"
+#include "flags.h"
+#include "convert.h"
+#include "diagnostic-core.h"
+#include "langhooks.h"
+#include "langhooks-def.h"
+#include "target.h"
+#include "cgraph.h"
+
+#include <vec.h>
+
+#include <gmp.h>
+#include <mpfr.h>
+
+/* rust include */
+#include "rdot-impl.h"
+
+#if !defined(YYLTYPE)
+typedef struct grs_location {
+  int line;
+  int column;
+} grs_location_t;
+typedef grs_location_t YYLTYPE;
+#define YYLTYPE YYLTYPE
+#endif
+
+/* important langhook prototypes */
+extern void grs_set_prefix (const char *);
+extern void grs_preserve_from_gc (tree);
+extern void grs_add_search_path (const char *);
+extern void grs_parse_input_files (const char **, unsigned int);
+extern tree grs_type_for_size (unsigned int, int);
+extern tree grs_type_for_mode (enum machine_mode, int);
+
+extern bool grs_do_compile (const char *);
+extern void __grs_debug__ (const char *, unsigned int, const char *, ...)
+  __attribute__ ((format (printf, 3, 4)));
+
+/* quick and handy debug function */
+#define debug(...)					\
+  __grs_debug__ (__FILE__, __LINE__, __VA_ARGS__);
+
+/* rdot pass manager */
+extern vec<rdot,va_gc> * dot_pass_PrettyPrint (vec<rdot,va_gc> *);
+extern vec<tree,va_gc> * dot_pass_Genericify (vec<rdot,va_gc> *);
+extern void dot_pass_pushDecl (rdot);
+
+#endif //__GCC_RUST_H__

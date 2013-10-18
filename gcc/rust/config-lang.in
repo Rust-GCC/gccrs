@@ -1,0 +1,30 @@
+# config-lang.in -- Top level configure fragment for gcc Rust frontend.
+
+# Copyright (C) 2013 Free Software Foundation, Inc.
+
+# This file is part of GCC.
+
+# GCC is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3, or (at your option)
+# any later version.
+
+# GCC is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with GCC; see the file COPYING3.  If not see
+# <http://www.gnu.org/licenses/>.
+
+language="rust"
+compilers="grs1\$(exeext)"
+
+build_by_default="no"
+lang_requires_boot_languages=c++
+
+target_libs="target-libgrust target-libffi target-libbacktrace"
+
+gtfiles="\$(srcdir)/rust/rs-lang.c \
+\$(srcdir)/rust/rdot-impl.h"
