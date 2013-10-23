@@ -19,22 +19,23 @@ along with GCC; see the file COPYING3.  If not see
 
 #if !defined(YYLLOC_DEFAULT)
 # define YYLLOC_DEFAULT(Current, Rhs, N)                           \
-    do								   \
-	if (N)							   \
-	{							   \
-	    (Current).line = YYRHSLOC(Rhs, 1).line;		   \
-	    (Current).column = YYRHSLOC(Rhs, 1).column;		   \
-	}							   \
-	else							   \
-	{							   \
-	    (Current).line = YYRHSLOC(Rhs, 0).line;		   \
-	    (Current).column = YYRHSLOC(Rhs, 0).column;		   \
-	}							   \
+    do                                                             \
+        if (N)                                                     \
+        {                                                          \
+            (Current).line = YYRHSLOC(Rhs, 1).line;                \
+            (Current).column = YYRHSLOC(Rhs, 1).column;            \
+        }                                                          \
+        else                                                       \
+        {                                                          \
+            (Current).line = YYRHSLOC(Rhs, 0).line;                \
+            (Current).column = YYRHSLOC(Rhs, 0).column;            \
+        }                                                          \
     while (0)
 #endif
 
 #define YYDEBUG 1
 
+static vec<rdot, va_gc> * symStack;
 extern int yylineno;
 
 extern int yylex (void);
@@ -42,6 +43,7 @@ extern void yyerror (const char *);
 %}
 
 %union {
+    rdot symbol;
     char * string;
     int integer;
 }
@@ -59,6 +61,12 @@ extern void yyerror (const char *);
 %token LOOP
 %token STATIC
 
+%token RTYPE
+%token TYPE_BOOL
+%token TYPE_INT
+%token TYPE_UINT
+%token TYPE_FLOAT
+
 %token EQUAL_EQUAL
 %token NOT_EQUAL
 %token LESS
@@ -70,67 +78,105 @@ extern void yyerror (const char *);
 %token<string> IDENTIFIER
 %token<integer> INTEGER
 
+%type<symbol> funcdef
+%type<symbol> decl
+%type<symbol> target_ident
+%type<symbol> target
+%type<symbol> suite
+%type<symbol> statement_list
+%type<symbol> statement
+%type<symbol> primary
+%type<symbol> type
+%type<symbol> call
+%type<symbol> literal
+%type<symbol> expression_stmt
+%type<symbol> expression
+
 %left '='
 %left '-' '+'
-%left '*' '/'
-%left EQUAL_EQUAL
-%left LESS LESS_EQUAL
-%left GREATER GREATER_EQUAL
-%right '^'
-%nonassoc UMINUS
 
 %%
 
 declarations: /* epsilon */
             | declarations decl
+            { dot_pass_pushDecl ($2); }
             ;
 
-target: IDENTIFIER
-      ;
+target_ident: IDENTIFIER
+            { $$ = rdot_build_identifier ($1); }
+            ;
 
-var_decl: LET target '=' INTEGER ';'
-        ;
-
-expression_stmt: target '=' expression_stmt
-          | expression_stmt '+' expression_stmt
-          | expression_stmt '*' expression_stmt
-          | expression_stmt LESS expression_stmt
-          | expression_stmt GREATER expression_stmt
-          | expression_stmt EQUAL_EQUAL expression_stmt
-          | expression_stmt NOT_EQUAL expression_stmt
-          | '(' expression_stmt ')'
-          | primary
-          ;
-
-expression: expression_stmt
-          ;
-
-stmt: var_decl
-    | expression
-    ;
-
-statement: stmt ';'
-
-suite: suite statement
-     | statement
-     ;
-
-funcdef: DEFUN IDENTIFIER '(' ')' '{' suite '}'
+funcdef: DEFUN target_ident '(' ')' '{' suite '}'
+       { $$ = rdot_build_fndecl ($2, NULL_DOT, NULL_DOT, $6); }
+       | DEFUN target_ident '(' ')' RTYPE type '{' suite '}'
+       { $$ = rdot_build_fndecl ($2, NULL_DOT, $6, $8); }
        ;
 
 decl: funcdef
     ;
 
+suite: statement_list
+     { $$ = symStack->pop () }
+     ;
+
+statement_list: statement_list statement
+              {
+		  RDOT_CHAIN ($1) = $2;
+		  $$ = $2;
+	      }
+              | statement
+              {
+		  vec_safe_push (symStack, $1);
+		  $$ = $1;
+	      }
+              ;
+
+statement: expression ';'
+         { $$ = $1; }
+         ;
+
+expression: expression_stmt
+          ;
+
+expression_stmt: target '=' expression_stmt
+          { $$ = rdot_build_decl2 (D_MODIFY_EXPR, $1, $3); }
+          | expression_stmt '+' expression_stmt
+          { $$ = rdot_build_decl2 (D_ADD_EXPR, $1, $3); }
+          | '(' expression_stmt ')'
+          { $$ = $2; }
+          | primary
+          ;
+
+target: IDENTIFIER
+      { $$ = rdot_build_identifier ($1); }
+      | LET IDENTIFIER
+      { $$ = rdot_build_identifier ($2); }
+      ;
+
 literal: INTEGER
+       { $$ = rdot_build_integer ($1); }
        | IDENTIFIER
+       { $$ = rdot_build_identifier ($1); }
        ;
 
-call: primary '(' ')'
+type: TYPE_BOOL
+    { $$ = rdot_build_decl1 (RTYPE_BOOL, NULL_DOT); }
+    | TYPE_INT
+    { $$ = rdot_build_decl1 (RTYPE_INT, NULL_DOT); }
+    | TYPE_FLOAT
+    { $$ = rdot_build_decl1 (RTYPE_FLOAT, NULL_DOT); }
+    | TYPE_UINT
+    { $$ = rdot_build_decl1 (RTYPE_UINT, NULL_DOT); }
+    ;
+
+call: target_ident '(' ')'
+    { $$ = rdot_build_decl1 (D_CALL_EXPR, $1); }
     ;
 
 primary: literal
        | call
        ;
+
 %%
 
 void yyerror (const char * msg)

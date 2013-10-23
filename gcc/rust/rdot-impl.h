@@ -55,7 +55,10 @@ typedef enum {
     D_STRUCT_ELSE,
     D_STRUCT_CONDITIONAL,
 
-    D_KEY_RETURN
+    RTYPE_BOOL,
+    RTYPE_INT,
+    RTYPE_FLOAT,
+    RTYPE_UINT
 } opcode_t ;
 
 typedef struct GTY(()) grs_rdot_tree_common {
@@ -70,7 +73,8 @@ typedef struct GTY(()) grs_rdot_tree_common {
 typedef struct GTY(()) grs_tree_dot {
     opcode_t T, FT, opaT, opbT;
     /* location_t loc; */
-    struct grs_tree_dot * field;
+    struct grs_tree_dot * field1;
+    struct grs_tree_dot * field2;
     union {
 	struct grs_tree_dot * t;
 	rdot_tree_common * tc;
@@ -82,28 +86,30 @@ typedef struct GTY(()) grs_tree_dot {
     struct grs_tree_dot * next;
 } * rdot;
 
-#define RDOT_TYPE(x_)      x_->T
-#define RDOT_CHAIN(x_)     x_->next
-#define RDOT_T_FIELD(x_)   x_->FT
-#define RDOT_FIELD(x_)     x_->field
-
-#define RDOT_lhs_T(x_)     x_->opaT
-#define RDOT_rhs_T(x_)     x_->opbT
-
-#define RDOT_lhs_TT(x_)    x_->opa.t
-#define RDOT_rhs_TT(x_)    x_->opb.t
-#define RDOT_lhs_TC(x_)    x_->opa.tc
-#define RDOT_rhs_TC(x_)    x_->opb.tc
-
-#define NULL_DOT          (rdot) 0
-#define RDOT_alloc        rdot_alloc ()
-#define RDOT_CM_alloc     rdot_cm_alloc ()
+#define RDOT_TYPE(x_)                x_->T
+#define RDOT_CHAIN(x_)               x_->next
+#define RDOT_T_FIELD(x_)             x_->FT
+#define RDOT_FIELD(x_)               x_->field1
+#define RDOT_FIELD2(x_)              x_->field2
+#define RDOT_lhs_T(x_)               x_->opaT
+#define RDOT_rhs_T(x_)               x_->opbT
+#define RDOT_lhs_TT(x_)              x_->opa.t
+#define RDOT_rhs_TT(x_)              x_->opb.t
+#define RDOT_lhs_TC(x_)              x_->opa.tc
+#define RDOT_rhs_TC(x_)              x_->opb.tc
+#define NULL_DOT                     (rdot) 0
+#define RDOT_alloc                   rdot_alloc ()
+#define RDOT_CM_alloc                rdot_cm_alloc ()
+#define RDOT_IDENTIFIER_POINTER(x_)  RDOT_lhs_TC (x_)->o.string
 
 extern rdot rdot_alloc (void);
-
 extern rdot rdot_build_decl1 (opcode_t, rdot);
 extern rdot rdot_build_decl2 (opcode_t, rdot, rdot);
-
+/**
+ * 1 = identifier; 2 = parameters
+ * 3 = return type; 4 = suite
+ **/
+extern rdot rdot_build_fndecl (rdot, rdot, rdot, rdot);
 extern rdot rdot_build_integer (const int);
 extern rdot rdot_build_string (const char *);
 extern rdot rdot_build_identifier (const char *);

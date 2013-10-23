@@ -41,12 +41,19 @@ while                   {  return WHILE; }
 loop                    {  return LOOP; }
 static                  {  return STATIC; }
 
+bool                    {  return TYPE_BOOL; }
+int                     {  return TYPE_INT; }
+float                   {  return TYPE_FLOAT; }
+uint                    {  return TYPE_UINT; }
+
 \[                      {  return '['; }
 \]                      {  return ']'; }
 \(                      {  return '('; }
 \)                      {  return ')'; }
 \{                      {  return '{'; }
 \}                      {  return '}'; }
+
+"->"                    {  return RTYPE; }
 
 ";"                     { return ';'; }
 ","                     { return ','; }
