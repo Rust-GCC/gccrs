@@ -28,7 +28,7 @@ along with GCC; see the file COPYING3.  If not see
 #endif
 
 #ifndef RUST_LIBRARY
-# define RUST_LIBRARY "rust"
+# define RUST_LIBRARY "grust"
 #endif
 
 /* The original argument list and related info is copied here.  */

@@ -16,8 +16,13 @@
 
 #include "rust.h"
 
+#define RDOT_PREFIX      "rdot"
+
 static void dot_pass_dump_node (FILE *, rdot, size_t);
 static void dot_pass_dump_method (FILE *, rdot, size_t);
+
+static void dot_pass_dumpPrimitive (FILE *, rdot);
+static void dot_pass_dumpExprNode (FILE *, rdot);
 static void dot_pass_dump_expr (FILE *, rdot);
 
 static
@@ -61,13 +66,13 @@ void dot_pass_dump_method (FILE * fd, rdot node, size_t indents)
 
   rdot suite = RDOT_rhs_TT (node);
   do {
-    dot_pass_dump_node (fd, suite, indents + 1);
-    fprintf (fd, "\n");
+      dot_pass_dump_node (fd, suite, indents + 1);
+      fprintf (fd, "\n");
   }
   while ((suite = RDOT_CHAIN (suite)));
 
   for (i = 0; i < indents; ++i)
-    fprintf (fd, "  ");
+      fprintf (fd, "  ");
   fprintf (fd, "}\n");
 }
 
@@ -78,16 +83,16 @@ void dot_pass_dumpPrimitive (FILE * fd, rdot node)
   switch (RDOT_lhs_TC (node)->T)
     {
     case D_T_INTEGER:
-      fprintf (fd, "%i", RDOT_lhs_TC (node)->o.integer);
-      break;
+	fprintf (fd, "%i", RDOT_lhs_TC (node)->o.integer);
+	break;
 
     case D_T_STRING:
-      fprintf (fd, "\"%s\"", RDOT_lhs_TC (node)->o.string);
-      break;
+	fprintf (fd, "\"%s\"", RDOT_lhs_TC (node)->o.string);
+	break;
 
     default:
-      fatal_error ("Something very wrong!\n");
-      break;
+	fatal_error ("Something very wrong!\n");
+	break;
     }
 }
 
@@ -98,24 +103,29 @@ void dot_pass_dumpExprNode (FILE * fd, rdot node)
   switch (RDOT_TYPE (node))
     {
     case D_PRIMITIVE:
-      dot_pass_dumpPrimitive (fd, node);
-      break;
+	dot_pass_dumpPrimitive (fd, node);
+	break;
 
     case D_IDENTIFIER:
-      fprintf (fd, "%s", RDOT_IDENTIFIER_POINTER (node));
-      break;
+	fprintf (fd, "%s", RDOT_IDENTIFIER_POINTER (node));
+	break;
 
     case D_CALL_EXPR:
-      {
+    {
 	rdot id = RDOT_lhs_TT (node);
 	dot_pass_dump_expr (fd, id);
-	fprintf (fd, " ( )");
-      }
-      break;
+	fprintf (fd, " (");
+
+	rdot p;
+	for (p = RDOT_rhs_TT (node); p != NULL_DOT; p = RDOT_CHAIN (p))
+	    dot_pass_dump_expr (fd, p);
+	fprintf (fd, ")");
+    }
+    break;
 
     default:
-      dot_pass_dump_expr (fd, node);
-      break;
+	dot_pass_dump_expr (fd, node);
+	break;
     }
 }
 
@@ -190,6 +200,7 @@ void dot_pass_dump_node (FILE * fd, rdot node, size_t indents)
 	for (i = 0; i < indents; ++i)
 	    fprintf (fd, "    ");
 	dot_pass_dump_expr (fd, node);
+	fprintf (fd, ";");
     }
     else
     {
@@ -209,10 +220,20 @@ vec<rdot,va_gc> * dot_pass_PrettyPrint (vec<rdot,va_gc> * decls)
 {
     if (GRS_OPT_dump_dot)
     {
-	const char * dump_file = "gccrs.rdot";
-	FILE * fd = fopen (dump_file, "rb");
+	size_t bsize = 128;
+	char * outfile =  (char *) alloca (bsize);
+	gcc_assert (outfile);
+	memset (outfile, 0, bsize);
+
+	strncpy (outfile, GRS_current_infile, strlen (GRS_current_infile) - 2);
+	strncat (outfile, RDOT_PREFIX, sizeof (RDOT_PREFIX));
+
+	FILE * fd = fopen (outfile, "w");
 	if (!fd)
+	{
 	    error ("Unable to open %s for write\n", dump_file);
+	    goto exit;
+	}
 
 	rdot idtx = NULL_DOT;
 	size_t i;
@@ -224,5 +245,6 @@ vec<rdot,va_gc> * dot_pass_PrettyPrint (vec<rdot,va_gc> * decls)
 
 	fclose (fd);
     }
+exit:
     return decls;
 }

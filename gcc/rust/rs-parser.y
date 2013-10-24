@@ -91,6 +91,8 @@ extern void yyerror (const char *);
 %type<symbol> literal
 %type<symbol> expression_stmt
 %type<symbol> expression
+%type<symbol> arguments
+%type<symbol> argument_list
 
 %left '='
 %left '-' '+'
@@ -155,6 +157,8 @@ target: IDENTIFIER
 
 literal: INTEGER
        { $$ = rdot_build_integer ($1); }
+       | STRING
+       { $$ = rdot_build_string ($1); }
        | IDENTIFIER
        { $$ = rdot_build_identifier ($1); }
        ;
@@ -169,8 +173,24 @@ type: TYPE_BOOL
     { $$ = rdot_build_decl1 (RTYPE_UINT, NULL_DOT); }
     ;
 
-call: target_ident '(' ')'
-    { $$ = rdot_build_decl1 (D_CALL_EXPR, $1); }
+argument_list: argument_list ',' expression
+             {
+		 RDOT_CHAIN ($1) = $3;
+		 $$ = $3;
+	     }
+             | expression
+	     {
+		 vec_safe_push (symStack, $1);
+		 $$ = $1;
+	     }
+             ;
+
+arguments: argument_list
+         { $$ = symStack->pop (); }
+         ;
+
+call: target_ident '(' arguments ')'
+    { $$ = rdot_build_decl2 (D_CALL_EXPR, $1, $3); }
     ;
 
 primary: literal

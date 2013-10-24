@@ -28,9 +28,6 @@ extern int yyparse (void);
 DIGIT        [0-9]
 ID           [_a-zA-Z][a-zA_Z0-9_$]*
 QSTRING      \"[^\"\n]*[\"\n]
-NEWLINES     (\r\n|\r|\n)
-FORMFEED     [\f]
-WHITESPACE   [ \t]
 
 %%
 
@@ -76,12 +73,12 @@ uint                    {  return TYPE_UINT; }
 ">="                    { return GREATER_EQUAL; }
 
 {QSTRING}               {
-  yylval.string= xstrdup (yytext + 1);
+  yylval.string = xstrdup (yytext + 1);
   if (yylval.string [yyleng - 2] != '\"') {
     error ("Un-termintated character string!\n");
   }
   else {
-    yylval.string[yyleng-2] = '\0';
+    yylval.string [yyleng - 2] = '\0';
   }
   return STRING;
 }
@@ -102,6 +99,10 @@ uint                    {  return TYPE_UINT; }
   yylval.string = xstrdup (yytext);
   return IDENTIFIER;
 }
+
+.           {  }
+\t          {  }
+\n          { yylineno++; }
 
 %%
 

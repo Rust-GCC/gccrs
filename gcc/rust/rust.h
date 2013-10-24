@@ -18,6 +18,15 @@ along with GCC; see the file COPYING3.  If not see
 #define __GCC_RUST_H__
 
 #include "config.h"
+
+// These must be included before the #poison declarations in system.h.
+#include <algorithm>
+#include <string>
+#include <list>
+#include <map>
+#include <set>
+#include <vector>
+
 #include "system.h"
 #include "ansidecl.h"
 #include "coretypes.h"
@@ -39,6 +48,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "cgraph.h"
 
 #include <vec.h>
+#include <hashtab.h>
 
 #include <gmp.h>
 #include <mpfr.h>
@@ -54,6 +64,9 @@ typedef struct grs_location {
 typedef grs_location_t YYLTYPE;
 #define YYLTYPE YYLTYPE
 #endif
+
+extern char * GRS_current_infile;
+extern char * GRS_current_infname;
 
 /* important langhook prototypes */
 extern void grs_set_prefix (const char *);
@@ -72,8 +85,14 @@ extern void __grs_debug__ (const char *, unsigned int, const char *, ...)
   __grs_debug__ (__FILE__, __LINE__, __VA_ARGS__);
 
 /* rdot pass manager */
+extern tree cstring_type_node;
+
 extern vec<rdot,va_gc> * dot_pass_PrettyPrint (vec<rdot,va_gc> *);
 extern vec<tree,va_gc> * dot_pass_Genericify (vec<rdot,va_gc> *);
 extern void dot_pass_pushDecl (rdot);
+extern void dot_pass_WriteGlobals (void);
+
+/* hooks */
+extern void rs_fill_runtime_decls (std::map<std::string, tree> *);
 
 #endif //__GCC_RUST_H__

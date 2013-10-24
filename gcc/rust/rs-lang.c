@@ -17,19 +17,22 @@
 
 #include "rust.h"
 
+char * GRS_current_infname;
+char * GRS_current_infile;
+
 /* Language-dependent contents of a type.  */
 struct GTY(()) lang_type {
-  char dummy;
+    char dummy;
 } ;
 /* Language-dependent contents of a decl.  */
 struct GTY(()) lang_decl {
-  char dummy;
+    char dummy;
 } ;
 /* Language-dependent contents of an identifier.  This must include a
    tree_identifier.
 */
 struct GTY(()) lang_identifier {
-  struct tree_identifier common;
+    struct tree_identifier common;
 } ;
 
 /* The resulting tree type.  */
@@ -122,6 +125,8 @@ void grs_langhook_parse_file (void)
 	 would be ideal to get fname base name and use this
 	 as prefix for identifiers within input module.
        */
+      GRS_current_infname = xstrdup (in);
+      GRS_current_infile = basename (GRS_current_infname);
       grs_do_compile (in);
     }
 }
@@ -171,7 +176,8 @@ tree grs_langhook_getdecls (void)
 static
 void grs_langhook_write_globals (void)
 {
-  // pass off to middle end function basically.
+    // pass off to middle end function basically.
+    dot_pass_WriteGlobals ();
 }
 
 static

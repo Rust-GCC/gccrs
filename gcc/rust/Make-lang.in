@@ -70,6 +70,12 @@ rdot-generic-compiler.o: $(srcdir)/rust/rdot-generic-compiler.cc $(CONFIG_H) $(S
 	$(COMPILER) $(GRS_CFLAGS) $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
 	$(LDFLAGS) -c -o $@ $(srcdir)/rust/rdot-generic-compiler.cc
 
+rs-runtime-hooks.o: $(srcdir)/rust/rs-runtime-hooks.cc $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
+  $(FLAGS_H) toplev.h $(GGC_H) $(TREE_H) $(DIAGNOSTIC_H) input.h options.h opts.h \
+  gt-rust-rs-lang.h gtype-rust.h $(srcdir)/rust/rust.h $(srcdir)/rust/rdot-impl.h
+	$(COMPILER) $(GRS_CFLAGS) $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
+	$(LDFLAGS) -c -o $@ $(srcdir)/rust/rs-runtime-hooks.cc
+
 rs-lang.o: $(srcdir)/rust/rs-lang.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
   $(FLAGS_H) toplev.h $(GGC_H) $(TREE_H) $(DIAGNOSTIC_H) input.h options.h opts.h \
   gt-rust-rs-lang.h gtype-rust.h
@@ -81,6 +87,7 @@ GRS_OBJS = \
 	rs-parser.o \
 	rs-lexer.o \
 	rs-pass-manager.o \
+	rs-runtime-hooks.o \
 	rdot-impl.o \
 	rdot-pretty-print.o \
 	rdot-generic-compiler.o

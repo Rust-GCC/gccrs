@@ -16,6 +16,8 @@
 
 #include "rust.h"
 
+tree cstring_type_node;
+
 static vec<rdot,va_gc> * rust_decls;
 typedef vec<rdot,va_gc> * (*dot_pass)(vec<rdot,va_gc> *);
 static dot_pass dot_pass_mngr[] =
@@ -37,17 +39,20 @@ void dot_pass_pushDecl (rdot decl)
 /* Function to run over the pass manager hooks and
    generate the generic code to pass to gcc middle-end
 */
-void dot_pass_manager_WriteGlobals (void)
+void dot_pass_WriteGlobals (void)
 {
+    tree cptr = build_pointer_type (char_type_node);
+    cstring_type_node = build_qualified_type (cptr, TYPE_QUAL_CONST);
+
     dot_pass *p = NULL;
     vec<rdot,va_gc> * dot_decls = rust_decls;
 
     /* walk the passes */
     for (p = dot_pass_mngr; *p != NULL; ++p)
-	dot_decls = (*p)(dot_decls);
+ 	dot_decls = (*p)(dot_decls);
       
     /* lower the decls from DOT -> GENERIC */
-    vec<tree,va_gc> * globals =  dot_pass_Genericify (dot_decls);
+    vec<tree,va_gc> * globals = dot_pass_Genericify (dot_decls);
 
     int global_vec_len = vec_safe_length (globals);
     tree * global_vec = new tree[global_vec_len];
