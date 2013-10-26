@@ -87,6 +87,7 @@ extern void __grs_debug__ (const char *, unsigned int, const char *, ...)
 /* rdot pass manager */
 extern tree cstring_type_node;
 
+extern vec<rdot,va_gc> * dot_pass_inferTypes (vec<rdot,va_gc> *);
 extern vec<rdot,va_gc> * dot_pass_PrettyPrint (vec<rdot,va_gc> *);
 extern vec<tree,va_gc> * dot_pass_Genericify (vec<rdot,va_gc> *);
 extern void dot_pass_pushDecl (rdot);

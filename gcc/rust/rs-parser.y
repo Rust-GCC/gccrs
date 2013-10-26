@@ -54,25 +54,25 @@ extern void yyerror (const char *);
 %error-verbose
 %start declarations
 
-%token DEFUN
-%token LET
-%token MUT
-%token WHILE
-%token LOOP
-%token STATIC
+%token DEFUN "fn"
+%token LET "let"
+%token MUT "mut"
+%token WHILE "while"
+%token LOOP "loop"
+%token STATIC "static"
 
-%token RTYPE
-%token TYPE_BOOL
-%token TYPE_INT
-%token TYPE_UINT
-%token TYPE_FLOAT
+%token RTYPE "->"
+%token TYPE_BOOL "bool"
+%token TYPE_INT "int"
+%token TYPE_UINT "uint"
+%token TYPE_FLOAT "float"
 
-%token EQUAL_EQUAL
-%token NOT_EQUAL
-%token LESS
-%token GREATER
-%token LESS_EQUAL
-%token GREATER_EQUAL
+%token EQUAL_EQUAL "=="
+%token NOT_EQUAL "!=" 
+%token LESS "<"
+%token GREATER ">"
+%token LESS_EQUAL "<="
+%token GREATER_EQUAL ">="
 
 %token<string> STRING
 %token<string> IDENTIFIER
@@ -82,6 +82,7 @@ extern void yyerror (const char *);
 %type<symbol> decl
 %type<symbol> target_ident
 %type<symbol> target
+%type<symbol> vardecl
 %type<symbol> suite
 %type<symbol> statement_list
 %type<symbol> statement
@@ -134,7 +135,7 @@ statement_list: statement_list statement
               ;
 
 statement: expression ';'
-         { $$ = $1; }
+         | vardecl ';'
          ;
 
 expression: expression_stmt
@@ -149,10 +150,18 @@ expression_stmt: target '=' expression_stmt
           | primary
           ;
 
-target: IDENTIFIER
-      { $$ = rdot_build_identifier ($1); }
-      | LET IDENTIFIER
-      { $$ = rdot_build_identifier ($2); }
+vardecl: LET target_ident
+       { $$ = rdot_build_varDecl (D_MAYBE_TYPE, FINAL, $2); }
+       | LET target_ident ':' type
+       { $$ = rdot_build_varDecl ($4, FINAL, $2); }
+       | LET MUT target_ident 
+       { $$ = rdot_build_varDecl (D_MAYBE_TYPE, MUTABLE, $3); }
+       | LET MUT target_ident ':' type
+       { $$ = rdot_build_varDecl ($5, MUTABLE, $3); }
+       ;
+
+target: target_ident
+      | vardecl
       ;
 
 literal: INTEGER
@@ -185,7 +194,9 @@ argument_list: argument_list ',' expression
 	     }
              ;
 
-arguments: argument_list
+arguments: /* lambda/empty */
+         { $$ = NULL; }
+         | argument_list
          { $$ = symStack->pop (); }
          ;
 

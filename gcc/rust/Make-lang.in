@@ -64,6 +64,12 @@ rdot-pretty-print.o: $(srcdir)/rust/rdot-pretty-print.cc $(CONFIG_H) $(SYSTEM_H)
 	$(COMPILER) $(GRS_CFLAGS) $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
 	$(LDFLAGS) -c -o $@ $(srcdir)/rust/rdot-pretty-print.cc
 
+rdot-dataflow.o: $(srcdir)/rust/rdot-dataflow.cc $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
+  $(FLAGS_H) toplev.h $(GGC_H) $(TREE_H) $(DIAGNOSTIC_H) input.h options.h opts.h \
+  gt-rust-rs-lang.h gtype-rust.h $(srcdir)/rust/rust.h $(srcdir)/rust/rdot-impl.h
+	$(COMPILER) $(GRS_CFLAGS) $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
+	$(LDFLAGS) -c -o $@ $(srcdir)/rust/rdot-dataflow.cc
+
 rdot-generic-compiler.o: $(srcdir)/rust/rdot-generic-compiler.cc $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
   $(FLAGS_H) toplev.h $(GGC_H) $(TREE_H) $(DIAGNOSTIC_H) input.h options.h opts.h \
   gt-rust-rs-lang.h gtype-rust.h $(srcdir)/rust/rust.h $(srcdir)/rust/rdot-impl.h
@@ -90,6 +96,7 @@ GRS_OBJS = \
 	rs-runtime-hooks.o \
 	rdot-impl.o \
 	rdot-pretty-print.o \
+	rdot-dataflow.o \
 	rdot-generic-compiler.o
 
 grs1$(exeext): $(GRS_OBJS) attribs.o $(BACKEND) $(LIBDEPS)

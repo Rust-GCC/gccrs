@@ -17,16 +17,15 @@
 #include "rust.h"
 
 tree cstring_type_node;
+rdot D_MAYBE_TYPE;
 
 static vec<rdot,va_gc> * rust_decls;
 typedef vec<rdot,va_gc> * (*dot_pass)(vec<rdot,va_gc> *);
 static dot_pass dot_pass_mngr[] =
 {
-    &dot_pass_PrettyPrint,  /* pretty print if -fdump-dot */
-    /*
-      Potential to add in more passes here ... just hook the function pointer in here
-      and it shall be called and you gain access to the current state of the dot AST.
-    */
+    &dot_pass_PrettyPrint,  /* pretty print if -fdump-dot pre and post infereance */
+    &dot_pass_inferTypes,   /* This ensures there are no longer any D_MAYBE_TYPES */
+    &dot_pass_PrettyPrint,
     NULL                         /* sentinal */
 };
 

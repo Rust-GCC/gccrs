@@ -16,7 +16,8 @@
 
 #include "rust.h"
 
-#define RDOT_PREFIX      "rdot"
+#define RDOT_PREFIX_PRE      "pre-rdot"
+#define RDOT_PREFIX_POST     "post-rdot"
 
 static void dot_pass_dump_node (FILE *, rdot, size_t);
 static void dot_pass_dump_method (FILE *, rdot, size_t);
@@ -24,6 +25,8 @@ static void dot_pass_dump_method (FILE *, rdot, size_t);
 static void dot_pass_dumpPrimitive (FILE *, rdot);
 static void dot_pass_dumpExprNode (FILE *, rdot);
 static void dot_pass_dump_expr (FILE *, rdot);
+
+static bool first = true;
 
 static
 void dot_pass_dump_method (FILE * fd, rdot node, size_t indents)
@@ -226,7 +229,13 @@ vec<rdot,va_gc> * dot_pass_PrettyPrint (vec<rdot,va_gc> * decls)
 	memset (outfile, 0, bsize);
 
 	strncpy (outfile, GRS_current_infile, strlen (GRS_current_infile) - 2);
-	strncat (outfile, RDOT_PREFIX, sizeof (RDOT_PREFIX));
+	if (first == true)
+	{
+	    strncat (outfile, RDOT_PREFIX_PRE, sizeof (RDOT_PREFIX_PRE));
+	    first = false;
+	}
+	else
+	    strncat (outfile, RDOT_PREFIX_POST, sizeof (RDOT_PREFIX_POST));
 
 	FILE * fd = fopen (outfile, "w");
 	if (!fd)

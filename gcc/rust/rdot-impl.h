@@ -24,6 +24,7 @@ typedef enum {
     D_T_STRING,
     D_T_LIST,
 
+    D_VAR_DECL,
     D_MODIFY_EXPR,
     D_MULT_EXPR,
     D_DIVD_EXPR,
@@ -58,8 +59,16 @@ typedef enum {
     RTYPE_BOOL,
     RTYPE_INT,
     RTYPE_FLOAT,
-    RTYPE_UINT
+    RTYPE_UINT,
+
+    // infer the type please...
+    RTYPE_INFER
 } opcode_t ;
+
+typedef enum {
+    FINAL = 0,
+    MUTABLE
+} qualified;
 
 typedef struct GTY(()) grs_rdot_tree_common {
     opcode_t T;
@@ -72,6 +81,7 @@ typedef struct GTY(()) grs_rdot_tree_common {
 
 typedef struct GTY(()) grs_tree_dot {
     opcode_t T, FT, opaT, opbT;
+    qualified qual;
     /* location_t loc; */
     struct grs_tree_dot * field1;
     struct grs_tree_dot * field2;
@@ -97,12 +107,16 @@ typedef struct GTY(()) grs_tree_dot {
 #define RDOT_rhs_TT(x_)              x_->opb.t
 #define RDOT_lhs_TC(x_)              x_->opa.tc
 #define RDOT_rhs_TC(x_)              x_->opb.tc
+#define RDOT_qual(x_)                x_->qual
 #define NULL_DOT                     (rdot) 0
 #define RDOT_alloc                   rdot_alloc ()
 #define RDOT_CM_alloc                rdot_cm_alloc ()
 #define RDOT_IDENTIFIER_POINTER(x_)  RDOT_lhs_TC (x_)->o.string
 
+extern rdot D_MAYBE_TYPE;
+
 extern rdot rdot_alloc (void);
+extern void rdot_init (void);
 extern rdot rdot_build_decl1 (opcode_t, rdot);
 extern rdot rdot_build_decl2 (opcode_t, rdot, rdot);
 /**
@@ -113,5 +127,8 @@ extern rdot rdot_build_fndecl (rdot, rdot, rdot, rdot);
 extern rdot rdot_build_integer (const int);
 extern rdot rdot_build_string (const char *);
 extern rdot rdot_build_identifier (const char *);
+
+/* type / final or mutable / ident */
+extern rdot rdot_build_varDecl (rdot, qualified, rdot);
 
 #endif //__GCC_RDOT_IMPL_H__

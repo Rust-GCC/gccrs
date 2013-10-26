@@ -16,6 +16,23 @@
 
 #include "rust.h"
 
+static bool initilized = false;
+
+void rdot_init (void)
+{
+    if (initilized)
+	return;
+    D_MAYBE_TYPE = rdot_build_decl1 (RTYPE_INFER, NULL_DOT);
+    initilized = true;
+}
+
+rdot rdot_build_varDecl (rdot type, qualified final, rdot id)
+{
+    rdot decl = rdot_build_decl2 (D_VAR_DECL, id, type);
+    RDOT_qual (decl) = final;
+    return decl;
+}
+
 rdot rdot_alloc (void)
 {
     rdot retval = (struct grs_tree_dot *)
@@ -56,7 +73,8 @@ rdot rdot_build_decl2 (opcode_t o, rdot t1, rdot t2)
     rdot decl = RDOT_alloc;
 
     RDOT_TYPE (decl) = o;
-    if ((o == D_MODIFY_EXPR)
+    if ((o == D_VAR_DECL)
+	|| (o == D_MODIFY_EXPR)
         || (o == D_ADD_EXPR)
         || (o == D_MINUS_EXPR)
         || (o == D_MULT_EXPR)

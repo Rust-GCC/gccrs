@@ -67,6 +67,9 @@ bool grs_langhook_init (void)
   // for exceptions
   using_eh_for_cleanups ();
 
+  /* initilize some rdot stuff */
+  rdot_init ();
+
   return true;
 }
 
