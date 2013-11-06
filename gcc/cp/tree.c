@@ -70,7 +70,7 @@ lvalue_kind (const_tree ref)
       /* unnamed rvalue references are rvalues */
       if (TYPE_REF_IS_RVALUE (TREE_TYPE (ref))
 	  && TREE_CODE (ref) != PARM_DECL
-	  && TREE_CODE (ref) != VAR_DECL
+	  && !VAR_P (ref)
 	  && TREE_CODE (ref) != COMPONENT_REF
 	  /* Functions are always lvalues.  */
 	  && TREE_CODE (TREE_TYPE (TREE_TYPE (ref))) != FUNCTION_TYPE)
@@ -141,6 +141,7 @@ lvalue_kind (const_tree ref)
     case INDIRECT_REF:
     case ARROW_EXPR:
     case ARRAY_REF:
+    case ARRAY_NOTATION_REF:
     case PARM_DECL:
     case RESULT_DECL:
       return clk_ordinary;
@@ -210,7 +211,7 @@ lvalue_kind (const_tree ref)
       /* We just return clk_ordinary for NON_DEPENDENT_EXPR in C++98, but
 	 in C++11 lvalues don't bind to rvalue references, so we need to
 	 work harder to avoid bogus errors (c++/44870).  */
-      if (cxx_dialect < cxx0x)
+      if (cxx_dialect < cxx11)
 	return clk_ordinary;
       else
 	return lvalue_kind (TREE_OPERAND (ref, 0));
@@ -309,7 +310,7 @@ build_target_expr (tree decl, tree value, tsubst_flags_t complain)
   gcc_assert (VOID_TYPE_P (TREE_TYPE (value))
 	      || TREE_TYPE (decl) == TREE_TYPE (value)
 	      /* On ARM ctors return 'this'.  */
-	      || (TREE_CODE (TREE_TYPE (value)) == POINTER_TYPE
+	      || (TYPE_PTR_P (TREE_TYPE (value))
 		  && TREE_CODE (value) == CALL_EXPR)
 	      || useless_type_conversion_p (TREE_TYPE (decl),
 					    TREE_TYPE (value)));
@@ -565,7 +566,7 @@ build_vec_init_expr (tree type, tree init, tsubst_flags_t complain)
   TREE_SIDE_EFFECTS (init) = true;
   SET_EXPR_LOCATION (init, input_location);
 
-  if (cxx_dialect >= cxx0x
+  if (cxx_dialect >= cxx11
       && potential_constant_expression (elt_init))
     VEC_INIT_EXPR_IS_CONSTEXPR (init) = true;
   VEC_INIT_EXPR_VALUE_INIT (init) = value_init;
@@ -873,6 +874,21 @@ build_array_of_n_type (tree elt, int n)
   return build_cplus_array_type (elt, build_index_type (size_int (n - 1)));
 }
 
+/* True iff T is a C++1y array of runtime bound (VLA).  */
+
+bool
+array_of_runtime_bound_p (tree t)
+{
+  if (!t || TREE_CODE (t) != ARRAY_TYPE)
+    return false;
+  tree dom = TYPE_DOMAIN (t);
+  if (!dom)
+    return false;
+  tree max = TYPE_MAX_VALUE (dom);
+  return (!potential_rvalue_constant_expression (max)
+	  || (!value_dependent_expression_p (max) && !TREE_CONSTANT (max)));
+}
+
 /* Return a reference type node referring to TO_TYPE.  If RVAL is
    true, return an rvalue reference type, otherwise return an lvalue
    reference type.  If a type node exists, reuse it, otherwise create
@@ -1097,7 +1113,7 @@ cp_build_qualified_type_real (tree type,
      pointer-to-member-function type, because these will be distinct
      between the unqualified and qualified types.  */
   if (result != type
-      && TREE_CODE (type) == POINTER_TYPE
+      && TYPE_PTR_P (type)
       && TREE_CODE (TREE_TYPE (type)) == METHOD_TYPE
       && TYPE_LANG_SPECIFIC (result) == TYPE_LANG_SPECIFIC (type))
     TYPE_LANG_SPECIFIC (result) = NULL;
@@ -1106,7 +1122,7 @@ cp_build_qualified_type_real (tree type,
      type of a pointer-to-method type, which could have the same
      sharing problem described above.  */
   if (TYPE_CANONICAL (result) != TYPE_CANONICAL (type)
-      && TREE_CODE (type) == POINTER_TYPE
+      && TYPE_PTR_P (type)
       && TREE_CODE (TREE_TYPE (type)) == METHOD_TYPE
       && (TYPE_LANG_SPECIFIC (TYPE_CANONICAL (result)) 
           == TYPE_LANG_SPECIFIC (TYPE_CANONICAL (type))))
@@ -1814,7 +1830,7 @@ is_overloaded_fn (tree x)
 tree
 dependent_name (tree x)
 {
-  if (TREE_CODE (x) == IDENTIFIER_NODE)
+  if (identifier_p (x))
     return x;
   if (TREE_CODE (x) != COMPONENT_REF
       && TREE_CODE (x) != OFFSET_REF
@@ -2299,7 +2315,7 @@ bot_replace (tree* t, int* /*walk_subtrees*/, void* data)
 {
   splay_tree target_remap = ((splay_tree) data);
 
-  if (TREE_CODE (*t) == VAR_DECL)
+  if (VAR_P (*t))
     {
       splay_tree_node n = splay_tree_lookup (target_remap,
 					     (splay_tree_key) *t);
@@ -2664,10 +2680,10 @@ cp_tree_equal (tree t1, tree t2)
 	   it means that it's going to be unified with whatever the
 	   TARGET_EXPR is really supposed to initialize, so treat it
 	   as being equivalent to anything.  */
-	if (TREE_CODE (o1) == VAR_DECL && DECL_NAME (o1) == NULL_TREE
+	if (VAR_P (o1) && DECL_NAME (o1) == NULL_TREE
 	    && !DECL_RTL_SET_P (o1))
 	  /*Nop*/;
-	else if (TREE_CODE (o2) == VAR_DECL && DECL_NAME (o2) == NULL_TREE
+	else if (VAR_P (o2) && DECL_NAME (o2) == NULL_TREE
 		 && !DECL_RTL_SET_P (o2))
 	  /*Nop*/;
 	else if (!cp_tree_equal (o1, o2))
@@ -2959,7 +2975,7 @@ maybe_dummy_object (tree type, tree* binfop)
 int
 is_dummy_object (const_tree ob)
 {
-  if (TREE_CODE (ob) == INDIRECT_REF)
+  if (INDIRECT_REF_P (ob))
     ob = TREE_OPERAND (ob, 0);
   return (TREE_CODE (ob) == NOP_EXPR
 	  && TREE_OPERAND (ob, 0) == void_zero_node);
@@ -3229,7 +3245,7 @@ handle_init_priority_attribute (tree* node,
   type = strip_array_types (type);
 
   if (decl == NULL_TREE
-      || TREE_CODE (decl) != VAR_DECL
+      || !VAR_P (decl)
       || !TREE_STATIC (decl)
       || DECL_EXTERNAL (decl)
       || (TREE_CODE (type) != RECORD_TYPE
@@ -3317,7 +3333,7 @@ handle_abi_tag_attribute (tree* node, tree name, tree args,
 {
   if (TYPE_P (*node))
     {
-      if (!TAGGED_TYPE_P (*node))
+      if (!OVERLOAD_TYPE_P (*node))
 	{
 	  error ("%qE attribute applied to non-class, non-enum type %qT",
 		 name, *node);
@@ -3663,8 +3679,7 @@ decl_linkage (tree decl)
      template instantiations have internal linkage (in the object
      file), but the symbols should still be treated as having external
      linkage from the point of view of the language.  */
-  if ((TREE_CODE (decl) == FUNCTION_DECL
-       || TREE_CODE (decl) == VAR_DECL)
+  if (VAR_OR_FUNCTION_DECL_P (decl)
       && DECL_COMDAT (decl))
     return lk_external;
 
@@ -3678,7 +3693,7 @@ decl_linkage (tree decl)
      really meant to have internal linkage have DECL_THIS_STATIC set.  */
   if (TREE_CODE (decl) == TYPE_DECL)
     return lk_external;
-  if (TREE_CODE (decl) == VAR_DECL || TREE_CODE (decl) == FUNCTION_DECL)
+  if (VAR_OR_FUNCTION_DECL_P (decl))
     {
       if (!DECL_THIS_STATIC (decl))
 	return lk_external;
@@ -3703,7 +3718,7 @@ decl_storage_duration (tree decl)
     return dk_auto;
   if (TREE_CODE (decl) == FUNCTION_DECL)
     return dk_static;
-  gcc_assert (TREE_CODE (decl) == VAR_DECL);
+  gcc_assert (VAR_P (decl));
   if (!TREE_STATIC (decl)
       && !DECL_EXTERNAL (decl))
     return dk_auto;
@@ -3943,7 +3958,7 @@ bool
 cast_valid_in_integral_constant_expression_p (tree type)
 {
   return (INTEGRAL_OR_ENUMERATION_TYPE_P (type)
-	  || cxx_dialect >= cxx0x
+	  || cxx_dialect >= cxx11
 	  || dependent_type_p (type)
 	  || type == error_mark_node);
 }
@@ -3969,7 +3984,7 @@ cp_fix_function_decl_p (tree decl)
       /* Don't fix same_body aliases.  Although they don't have their own
 	 CFG, they share it with what they alias to.  */
       if (!node || !node->alias
-	  || !vec_safe_length (node->symbol.ref_list.references))
+	  || !vec_safe_length (node->ref_list.references))
 	return true;
     }
 

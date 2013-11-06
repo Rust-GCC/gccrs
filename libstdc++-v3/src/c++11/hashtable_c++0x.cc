@@ -28,6 +28,8 @@
 
 #include <initializer_list>
 #include <tuple>
+#include <ext/aligned_buffer.h>
+#include <ext/alloc_traits.h>
 #include <bits/hashtable_policy.h>
 
 namespace std _GLIBCXX_VISIBILITY(default)

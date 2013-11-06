@@ -1,5 +1,5 @@
 // { dg-do compile }
-// { dg-options "--std=c++0x" }
+// { dg-options "--std=c++11" }
 struct B1 {};
 
 struct B2 final {};
@@ -44,7 +44,7 @@ int main()
   B2 final2 = final;
   struct B2 {}; // { dg-error "redefinition" }
   struct B2 final; // { dg-error "redeclaration" }
-  struct B2 override; // { dg-error "previously declared here" }
+  struct B2 override; // { dg-message "previously declared here" }
   struct B2 final {}; // { dg-error "redefinition" }
   struct B2 override {}; // { dg-error "cannot specify 'override' for a class" }
   B2 override{}; // { dg-error "redeclaration" }

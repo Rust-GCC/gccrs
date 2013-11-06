@@ -23,6 +23,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "tree.h"
+#include "gimple.h"
 #include "streamer-hooks.h"
 #include "tree-streamer.h"
 
@@ -92,16 +94,24 @@ streamer_check_handled_ts_structures (void)
 
 static void
 streamer_tree_cache_add_to_node_array (struct streamer_tree_cache_d *cache,
-				       unsigned ix, tree t)
+				       unsigned ix, tree t, hashval_t hash)
 {
   /* Make sure we're either replacing an old element or
      appending consecutively.  */
   gcc_assert (ix <= cache->nodes.length ());
 
   if (ix == cache->nodes.length ())
-    cache->nodes.safe_push (t);
+    {
+      cache->nodes.safe_push (t);
+      if (cache->hashes.exists ())
+	cache->hashes.safe_push (hash);
+    }
   else
-    cache->nodes[ix] = t;
+    {
+      cache->nodes[ix] = t;
+      if (cache->hashes.exists ())
+	cache->hashes[ix] = hash;
+    }
 }
 
 
@@ -117,33 +127,30 @@ streamer_tree_cache_add_to_node_array (struct streamer_tree_cache_d *cache,
 
 static bool
 streamer_tree_cache_insert_1 (struct streamer_tree_cache_d *cache,
-			      tree t, unsigned *ix_p,
+			      tree t, hashval_t hash, unsigned *ix_p,
 			      bool insert_at_next_slot_p)
 {
-  void **slot;
+  unsigned *slot;
   unsigned ix;
   bool existed_p;
 
   gcc_assert (t);
 
-  slot = pointer_map_insert (cache->node_map, t);
-  if (!*slot)
+  slot = cache->node_map->insert (t, &existed_p);
+  if (!existed_p)
     {
       /* Determine the next slot to use in the cache.  */
       if (insert_at_next_slot_p)
 	ix = cache->nodes.length ();
       else
 	ix = *ix_p;
-       *slot = (void *)(size_t) (ix + 1);
+       *slot = ix;
 
-      streamer_tree_cache_add_to_node_array (cache, ix, t);
-
-      /* Indicate that the item was not present in the cache.  */
-      existed_p = false;
+      streamer_tree_cache_add_to_node_array (cache, ix, t, hash);
     }
   else
     {
-      ix = (size_t) *slot - 1;
+      ix = *slot;
 
       if (!insert_at_next_slot_p && ix != *ix_p)
 	{
@@ -151,11 +158,9 @@ streamer_tree_cache_insert_1 (struct streamer_tree_cache_d *cache,
 	     location, and ENTRY->TO does not match *IX_P, add T to
 	     the requested location slot.  */
 	  ix = *ix_p;
-	  streamer_tree_cache_add_to_node_array (cache, ix, t);
+	  streamer_tree_cache_add_to_node_array (cache, ix, t, hash);
+	  *slot = ix;
 	}
-
-      /* Indicate that T was already in the cache.  */
-      existed_p = true;
     }
 
   if (ix_p)
@@ -173,30 +178,39 @@ streamer_tree_cache_insert_1 (struct streamer_tree_cache_d *cache,
 
 bool
 streamer_tree_cache_insert (struct streamer_tree_cache_d *cache, tree t,
-			    unsigned *ix_p)
+			    hashval_t hash, unsigned *ix_p)
 {
-  return streamer_tree_cache_insert_1 (cache, t, ix_p, true);
+  return streamer_tree_cache_insert_1 (cache, t, hash, ix_p, true);
 }
 
 
-/* Insert tree node T in CACHE at slot IX.  If T already
-   existed in the cache return true.  Otherwise, return false.  */
+/* Replace the tree node with T in CACHE at slot IX.  */
 
-bool
-streamer_tree_cache_insert_at (struct streamer_tree_cache_d *cache,
-			       tree t, unsigned ix)
+void
+streamer_tree_cache_replace_tree (struct streamer_tree_cache_d *cache,
+				  tree t, unsigned ix)
 {
-  return streamer_tree_cache_insert_1 (cache, t, &ix, false);
+  hashval_t hash = 0;
+  if (cache->hashes.exists ())
+    hash = streamer_tree_cache_get_hash (cache, ix);
+  if (!cache->node_map)
+    streamer_tree_cache_add_to_node_array (cache, ix, t, hash);
+  else
+    streamer_tree_cache_insert_1 (cache, t, hash, &ix, false);
 }
 
 
 /* Appends tree node T to CACHE, even if T already existed in it.  */
 
 void
-streamer_tree_cache_append (struct streamer_tree_cache_d *cache, tree t)
+streamer_tree_cache_append (struct streamer_tree_cache_d *cache,
+			    tree t, hashval_t hash)
 {
   unsigned ix = cache->nodes.length ();
-  streamer_tree_cache_insert_1 (cache, t, &ix, false);
+  if (!cache->node_map)
+    streamer_tree_cache_add_to_node_array (cache, ix, t, hash);
+  else
+    streamer_tree_cache_insert_1 (cache, t, hash, &ix, false);
 }
 
 /* Return true if tree node T exists in CACHE, otherwise false.  If IX_P is
@@ -207,13 +221,13 @@ bool
 streamer_tree_cache_lookup (struct streamer_tree_cache_d *cache, tree t,
 			    unsigned *ix_p)
 {
-  void **slot;
+  unsigned *slot;
   bool retval;
   unsigned ix;
 
   gcc_assert (t);
 
-  slot = pointer_map_contains  (cache->node_map, t);
+  slot = cache->node_map->contains (t);
   if (slot == NULL)
     {
       retval = false;
@@ -222,7 +236,7 @@ streamer_tree_cache_lookup (struct streamer_tree_cache_d *cache, tree t,
   else
     {
       retval = true;
-      ix = (size_t) *slot - 1;
+      ix = *slot;
     }
 
   if (ix_p)
@@ -256,7 +270,10 @@ record_common_node (struct streamer_tree_cache_d *cache, tree node)
   if (!node)
     node = error_mark_node;
 
-  streamer_tree_cache_append (cache, node);
+  /* ???  FIXME, devise a better hash value.  But the hash needs to be equal
+     for all frontend and lto1 invocations.  So just use the position
+     in the cache as hash value.  */
+  streamer_tree_cache_append (cache, node, cache->nodes.length ());
 
   if (POINTER_TYPE_P (node)
       || TREE_CODE (node) == COMPLEX_TYPE
@@ -267,10 +284,10 @@ record_common_node (struct streamer_tree_cache_d *cache, tree node)
       /* The FIELD_DECLs of structures should be shared, so that every
 	 COMPONENT_REF uses the same tree node when referencing a field.
 	 Pointer equality between FIELD_DECLs is used by the alias
-	 machinery to compute overlapping memory references (See
-	 nonoverlapping_component_refs_p).  */
-      tree f;
-      for (f = TYPE_FIELDS (node); f; f = TREE_CHAIN (f))
+	 machinery to compute overlapping component references (see
+	 nonoverlapping_component_refs_p and
+	 nonoverlapping_component_refs_of_decl_p).  */
+      for (tree f = TYPE_FIELDS (node); f; f = TREE_CHAIN (f))
 	record_common_node (cache, f);
     }
 }
@@ -304,13 +321,17 @@ preload_common_nodes (struct streamer_tree_cache_d *cache)
 /* Create a cache of pickled nodes.  */
 
 struct streamer_tree_cache_d *
-streamer_tree_cache_create (void)
+streamer_tree_cache_create (bool with_hashes, bool with_map)
 {
   struct streamer_tree_cache_d *cache;
 
   cache = XCNEW (struct streamer_tree_cache_d);
 
-  cache->node_map = pointer_map_create ();
+  if (with_map)
+    cache->node_map = new pointer_map<unsigned>;
+  cache->nodes.create (165);
+  if (with_hashes)
+    cache->hashes.create (165);
 
   /* Load all the well-known tree nodes that are always created by
      the compiler on startup.  This prevents writing them out
@@ -329,7 +350,9 @@ streamer_tree_cache_delete (struct streamer_tree_cache_d *c)
   if (c == NULL)
     return;
 
-  pointer_map_destroy (c->node_map);
+  if (c->node_map)
+    delete c->node_map;
   c->nodes.release ();
+  c->hashes.release ();
   free (c);
 }

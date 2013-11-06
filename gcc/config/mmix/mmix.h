@@ -164,7 +164,7 @@ struct GTY(()) machine_function
 /* Copied from elfos.h.  */
 #define MAX_OFILE_ALIGNMENT (32768 * 8)
 
-#define DATA_ALIGNMENT(TYPE, BASIC_ALIGN) \
+#define DATA_ABI_ALIGNMENT(TYPE, BASIC_ALIGN) \
  mmix_data_alignment (TYPE, BASIC_ALIGN)
 
 #define CONSTANT_ALIGNMENT(CONSTANT, BASIC_ALIGN) \
@@ -812,6 +812,10 @@ typedef struct { int regs; int lib; } CUMULATIVE_ARGS;
 #define FUNCTION_MODE QImode
 
 #define NO_IMPLICIT_EXTERN_C
+
+/* mmix-knuth-mmixware target has no support of C99 runtime */
+#undef TARGET_LIBC_HAS_FUNCTION
+#define TARGET_LIBC_HAS_FUNCTION no_c99_libc_has_function
 
 /* These are checked.  */
 #define DOLLARS_IN_IDENTIFIERS 0

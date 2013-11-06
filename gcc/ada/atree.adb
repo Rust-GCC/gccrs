@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -979,6 +979,26 @@ package body Atree is
    end Ekind_In;
 
    function Ekind_In
+     (T  : Entity_Kind;
+      V1 : Entity_Kind;
+      V2 : Entity_Kind;
+      V3 : Entity_Kind;
+      V4 : Entity_Kind;
+      V5 : Entity_Kind;
+      V6 : Entity_Kind;
+      V7 : Entity_Kind) return Boolean
+   is
+   begin
+      return T = V1 or else
+             T = V2 or else
+             T = V3 or else
+             T = V4 or else
+             T = V5 or else
+             T = V6 or else
+             T = V7;
+   end Ekind_In;
+
+   function Ekind_In
      (E  : Entity_Id;
       V1 : Entity_Kind;
       V2 : Entity_Kind) return Boolean
@@ -1031,6 +1051,20 @@ package body Atree is
    is
    begin
       return Ekind_In (Ekind (E), V1, V2, V3, V4, V5, V6);
+   end Ekind_In;
+
+   function Ekind_In
+     (E  : Entity_Id;
+      V1 : Entity_Kind;
+      V2 : Entity_Kind;
+      V3 : Entity_Kind;
+      V4 : Entity_Kind;
+      V5 : Entity_Kind;
+      V6 : Entity_Kind;
+      V7 : Entity_Kind) return Boolean
+   is
+   begin
+      return Ekind_In (Ekind (E), V1, V2, V3, V4, V5, V6, V7);
    end Ekind_In;
 
    ------------------------
@@ -2525,6 +2559,18 @@ package body Atree is
          pragma Assert (Nkind (N) in N_Entity);
          return Node_Id (Nodes.Table (N + 5).Field6);
       end Node30;
+
+      function Node31 (N : Node_Id) return Node_Id is
+      begin
+         pragma Assert (Nkind (N) in N_Entity);
+         return Node_Id (Nodes.Table (N + 5).Field7);
+      end Node31;
+
+      function Node32 (N : Node_Id) return Node_Id is
+      begin
+         pragma Assert (Nkind (N) in N_Entity);
+         return Node_Id (Nodes.Table (N + 5).Field8);
+      end Node32;
 
       function List1 (N : Node_Id) return List_Id is
       begin
@@ -5230,6 +5276,18 @@ package body Atree is
          pragma Assert (Nkind (N) in N_Entity);
          Nodes.Table (N + 5).Field6 := Union_Id (Val);
       end Set_Node30;
+
+      procedure Set_Node31 (N : Node_Id; Val : Node_Id) is
+      begin
+         pragma Assert (Nkind (N) in N_Entity);
+         Nodes.Table (N + 5).Field7 := Union_Id (Val);
+      end Set_Node31;
+
+      procedure Set_Node32 (N : Node_Id; Val : Node_Id) is
+      begin
+         pragma Assert (Nkind (N) in N_Entity);
+         Nodes.Table (N + 5).Field8 := Union_Id (Val);
+      end Set_Node32;
 
       procedure Set_List1 (N : Node_Id; Val : List_Id) is
       begin

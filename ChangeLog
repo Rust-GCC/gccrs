@@ -1,24 +1,185 @@
-2013-10-16  Release Manager
+2013-11-04  Balaji V. Iyer  <balaji.v.iyer@intel.com>
 
-	* GCC 4.8.2 released.
+	* configure.ac: Added libcilkrts to noconfig list when C++ is not
+	supported.
+	* configure: Regenerated.
+
+2013-11-01  Trevor Saunders  <tsaunders@mozilla.com>
+
+* MAINTAINERS (Write After Approval): Add myself.
+
+2013-10-30  Jason Merrill  <jason@redhat.com>
+
+	* Makefile.tpl (STAGE1_CONFIGURE_FLAGS): Pass
+	--disable-build-format-warnings.
+
+2013-10-29  Balaji V. Iyer  <balaji.v.iyer@intel.com>
+
+	* Makefile.def: Add libcilkrts to target_modules.  Make libcilkrts 
+	depend on libstdc++ and libgcc.
+	* configure: Regenerate.
+	* configure.ac: Added libcilkrts to target binaries.  Also, restrict
+	libcilkrts for POSIX and i*86, and x86_64 architectures.
+	* Makefile.in: Added libcilkrts related fields to support building it.
+
+2013-10-26  Jeff Law  <law@redhat.com>
+
+	* Makefile.def (target_modules): Remove libmudflap
+	(languages): Remove check-target-libmudflap).
+	* Makefile.in: Rebuilt.
+	* Makefile.tpl (check-target-libmudflap-c++): Remove.
+	* configure.ac (target_libraries): Remove target-libmudflap.
+	Remove checks which disabled libmudflap on some systems.
+	* configure: Rebuilt.
+	* libmudflap: Directory removed.
+
+2013-10-21  Cong Hou  <congh@google.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2013-10-16  Mike Stump  <mikestump@comcast.net>
+
+	* .dir-locals.el: Add.
+
+2013-10-15  David Malcolm  <dmalcolm@redhat.com>
+
+	* configure.ac: Add --enable-host-shared
+	* configure: Regenerate.
+
+2013-01-10  Joern Rennecke  <joern.rennecke@embecosm.com>
+
+	Import from savannah.gnu.org:
+	* config.guess: Update to 2013-06-10 version.
+	* config.sub: Update to 2013-10-01 version.
+
+2013-10-01  Simon Cook  <simon.cook@embecosm.com>
+
+	Changes to build configuration to allow big endian ARC ELF toolchain
+	* configure.ac: Also add target-libgloss to noconfigdirs for arceb-*-*.
+	* configure: Regenerate.
+
+2013-09-20  Alan Modra  <amodra@gmail.com>
+
+	* libtool.m4 (_LT_ENABLE_LOCK <ld -m flags>): Remove non-canonical
+	ppc host match.  Support little-endian powerpc linux hosts.
+
+2013-09-19  Dodji Seketeli  <dodji@redhat.com>
+
+	* MAINTAINERS (diagnostic messages): Add myself as diagnostics
+	maintainer.
+
+2013-09-12  DJ Delorie  <dj@redhat.com>
+
+	* MAINTAINERS: Add Nick Clifton and DJ Delorie as msp430
+        maintainers.
 
 2013-09-03  Richard Biener  <rguenther@suse.de>
 
 	* configure.ac: Also allow ISL 0.12.
 	* configure: Regenerated.
 
-2013-05-31  Release Manager
+2013-08-30  Bernd Edlinger  <bernd.edlinger@hotmail.de>
 
-	* GCC 4.8.1 released.
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2013-08-27  David Malcolm  <dmalcolm@redhat.com>
+
+	* MAINTAINERS (gdbhooks.py): Add myself as maintainer.
+
+2013-08-26  Caroline Tice  <cmtice@google.com>
+
+	* MAINTAINERS:  Correct earliers update:  Move myself from libvtv
+	"Various Reviewers" to libvtv "Various Maintainers".
+
+2013-08-20  Steven Bosscher  <steven@gcc.gnu.org>
+
+	* MAINTAINERS: Add myself as RTL optimizers reviewer.
+
+2013-08-19  Benjamin De Kosnik  <bkoz@gnu.org>
+
+	* MAINTAINERS: Update name, email.
+
+2013-08-13  Adam Butcher  <adam@jessamine.co.uk>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2013-08-12  Caroline Tice  <cmtice@google.com>
+
+	* MAINTAINERS: Add myself as libvtv maintainer. Correct my email
+	address in the Write After Approval section.
+
+2013-08-09  Carlos O'Donell  <carlos@redhat.com>
+
+	* MAINTAINERS (Write After Approval): Update email.
+
+2013-08-08  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* configure.ac: Adjust to check VTV_SUPPORTED.
+	* configure: Regenerated.
+
+2013-08-02  Caroline Tice  <cmtice@google.com>
+
+	* configure.ac: Add target-libvtv to target_libraries; disable libvtv
+	on non-linux systems; add target-libvtv to noconfigdirs; add
+	libsupc++/.libs to C++ library search paths.
+	* configure: Regenerated.
+	* Makefile.def: Add libvtv to target_modules; make libvtv depend on
+	libstdc++ and libgcc.
+	* Makefile.in: Regenerated.
+
+2013-07-19  Yvan Roux  <yvan.roux@linaro.org>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2013-07-19  Chung-Ju Wu  <jasonwucj@gmail.com>
+	    Shiva Chen  <shiva0217@gmail.com>
+
+	* MAINTAINERS (nds32 port): Add Chung-Ju Wu and Shiva Chen as
+	nds32 port maintainers.
+
+2013-07-17  Tim Shen  <timshen91@gmail.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2013-07-16  Jan-Benedict Glaw  <jbglaw@lug-owl.de>
+
+	* configure.ac: Sync from binutils.
+	* configure: Regenerate.
+
+2013-06-14  Vidya Praveen  <vidyapraveen@arm.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2013-06-01  Dinar Temirbulatov  <dinar@kugelworks.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2013-05-17  David Malcolm  <dmalcolm@redhat.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2013-04-30  Brooks Moses  <bmoses@google.com>
+
+	* MAINTAINERS: Update my email; move myself from Fortran
+	reviewer to Write After Approval.
+
+2013-04-16  Andreas Schwab  <schwab@suse.de>
+
+	* configure.ac (aarch64-*-*): Don't disable java.
+	* configure: Regenerate.
+
+2013-04-10  Chung-Ju Wu  <jasonwucj@gmail.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
 
 2013-03-30  Matthias Klose  <doko@ubuntu.com>
 
 	* Makefile.def (target_modules): Don't install libffi.
 	* Makefile.in: Regenerate.
 
-2013-03-22  Release Manager
+2013-02-24  Tilo Schwarz  <tilo@tilo-schwarz.de>
 
-	* GCC 4.8.0 released.
+	* MAINTAINERS (Write After Approval): Add myself.
 
 2013-02-20  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
@@ -244,7 +405,7 @@
 	* configure.ac: add --disable-libstdcxx configure option
 	and handle defaulted state only for VxWorks, ARM-wince-pe and AVR.
 
-2012-10-30 Ganesh Gopalasubramanian  <Ganesh.Gopalasubramanian@amd.com>
+2012-10-30  Ganesh Gopalasubramanian  <Ganesh.Gopalasubramanian@amd.com>
 
 	* MAINTAINERS (Write After Approval): Add myself.
 
@@ -684,7 +845,7 @@
 	* Makefile.def (install-strip-gcc): Depend on install-strip-lto-plugin.
 	* Makefile.in: Regenerate.
 
-2011-12-28  Oleg Endo <olegendo@gcc.gnu.org>
+2011-12-28  Oleg Endo  <olegendo@gcc.gnu.org>
 
 	* MAINTAINERS (Write After Approval): Add myself.
 
@@ -785,7 +946,7 @@
 
 	* config.sub: Import these changes from the config project:
 
-	2011-10-08  Joern Rennecke <joern.rennecke@embecosm.com>
+	2011-10-08  Joern Rennecke  <joern.rennecke@embecosm.com>
 	    Ben Elliston  <bje@gnu.org>
 
 	* config.sub (epiphany): New.

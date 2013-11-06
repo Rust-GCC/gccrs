@@ -144,7 +144,7 @@ struct access_matrix
 #define AM_NB_INDUCTION_VARS(M) (M)->nb_induction_vars
 #define AM_PARAMETERS(M) (M)->parameters
 #define AM_MATRIX(M) (M)->matrix
-#define AM_NB_PARAMETERS(M) (AM_PARAMETERS(M)).length ()
+#define AM_NB_PARAMETERS(M) (AM_PARAMETERS (M)).length ()
 #define AM_CONST_COLUMN_INDEX(M) (AM_NB_INDUCTION_VARS (M) + AM_NB_PARAMETERS (M))
 #define AM_NB_COLUMNS(M) (AM_NB_INDUCTION_VARS (M) + AM_NB_PARAMETERS (M) + 1)
 #define AM_GET_SUBSCRIPT_ACCESS_VECTOR(M, I) AM_MATRIX (M)[I]
@@ -162,7 +162,7 @@ am_vector_index_for_loop (struct access_matrix *access_matrix, int loop_num)
     if (l->num == loop_num)
       return i;
 
-  gcc_unreachable();
+  gcc_unreachable ();
 }
 
 struct data_reference
@@ -369,10 +369,16 @@ extern bool compute_data_dependences_for_bb (basic_block, bool,
                                              vec<ddr_p> *);
 extern void debug_ddrs (vec<ddr_p> );
 extern void dump_data_reference (FILE *, struct data_reference *);
+extern void debug (data_reference &ref);
+extern void debug (data_reference *ptr);
 extern void debug_data_reference (struct data_reference *);
 extern void debug_data_references (vec<data_reference_p> );
+extern void debug (vec<data_reference_p> &ref);
+extern void debug (vec<data_reference_p> *ptr);
 extern void debug_data_dependence_relation (struct data_dependence_relation *);
 extern void dump_data_dependence_relations (FILE *, vec<ddr_p> );
+extern void debug (vec<ddr_p> &ref);
+extern void debug (vec<ddr_p> *ptr);
 extern void debug_data_dependence_relations (vec<ddr_p> );
 extern void free_dependence_relation (struct data_dependence_relation *);
 extern void free_dependence_relations (vec<ddr_p> );
@@ -382,6 +388,7 @@ extern bool find_data_references_in_stmt (struct loop *, gimple,
 					  vec<data_reference_p> *);
 extern bool graphite_find_data_references_in_stmt (loop_p, loop_p, gimple,
 						   vec<data_reference_p> *);
+tree find_data_references_in_loop (struct loop *, vec<data_reference_p> *);
 struct data_reference *create_data_ref (loop_p, loop_p, tree, gimple, bool);
 extern bool find_loop_nest (struct loop *, vec<loop_p> *);
 extern struct data_dependence_relation *initialize_data_dependence_relation
@@ -399,6 +406,7 @@ extern bool dr_may_alias_p (const struct data_reference *,
 			    const struct data_reference *, bool);
 extern bool dr_equal_offsets_p (struct data_reference *,
                                 struct data_reference *);
+extern void tree_check_data_deps (void);
 
 
 /* Return true when the base objects of data references A and B are
@@ -475,6 +483,21 @@ ddrs_have_anti_deps (vec<ddr_p> dependence_relations)
   return false;
 }
 
+/* Returns true when all the dependences are computable.  */
+
+inline bool
+known_dependences_p (vec<ddr_p> dependence_relations)
+{
+  ddr_p ddr;
+  unsigned int i;
+
+  FOR_EACH_VEC_ELT (dependence_relations, i, ddr)
+    if (DDR_ARE_DEPENDENT (ddr) == chrec_dont_know)
+      return false;
+
+  return true;
+}
+
 /* Returns the dependence level for a vector DIST of size LENGTH.
    LEVEL = 0 means a lexicographic dependence, i.e. a dependence due
    to the sequence of statements, not carried by any loop.  */
@@ -508,83 +531,6 @@ ddr_dependence_level (ddr_p ddr)
   return level;
 }
 
-
-
-/* A Reduced Dependence Graph (RDG) vertex representing a statement.  */
-typedef struct rdg_vertex
-{
-  /* The statement represented by this vertex.  */
-  gimple stmt;
-
-  /* Vector of data-references in this statement.  */
-  vec<data_reference_p> datarefs;
-
-  /* True when the statement contains a write to memory.  */
-  bool has_mem_write;
-
-  /* True when the statement contains a read from memory.  */
-  bool has_mem_reads;
-} *rdg_vertex_p;
-
-#define RDGV_STMT(V)     ((struct rdg_vertex *) ((V)->data))->stmt
-#define RDGV_DATAREFS(V) ((struct rdg_vertex *) ((V)->data))->datarefs
-#define RDGV_HAS_MEM_WRITE(V) ((struct rdg_vertex *) ((V)->data))->has_mem_write
-#define RDGV_HAS_MEM_READS(V) ((struct rdg_vertex *) ((V)->data))->has_mem_reads
-#define RDG_STMT(RDG, I) RDGV_STMT (&(RDG->vertices[I]))
-#define RDG_DATAREFS(RDG, I) RDGV_DATAREFS (&(RDG->vertices[I]))
-#define RDG_MEM_WRITE_STMT(RDG, I) RDGV_HAS_MEM_WRITE (&(RDG->vertices[I]))
-#define RDG_MEM_READS_STMT(RDG, I) RDGV_HAS_MEM_READS (&(RDG->vertices[I]))
-
-void debug_rdg_vertex (struct graph *, int);
-void debug_rdg_component (struct graph *, int);
-void dump_rdg (FILE *, struct graph *);
-void debug_rdg (struct graph *);
-int rdg_vertex_for_stmt (struct graph *, gimple);
-
-/* Data dependence type.  */
-
-enum rdg_dep_type
-{
-  /* Read After Write (RAW).  */
-  flow_dd = 'f',
-
-  /* Write After Read (WAR).  */
-  anti_dd = 'a',
-
-  /* Write After Write (WAW).  */
-  output_dd = 'o',
-
-  /* Read After Read (RAR).  */
-  input_dd = 'i'
-};
-
-/* Dependence information attached to an edge of the RDG.  */
-
-typedef struct rdg_edge
-{
-  /* Type of the dependence.  */
-  enum rdg_dep_type type;
-
-  /* Levels of the dependence: the depth of the loops that carry the
-     dependence.  */
-  unsigned level;
-
-  /* Dependence relation between data dependences, NULL when one of
-     the vertices is a scalar.  */
-  ddr_p relation;
-} *rdg_edge_p;
-
-#define RDGE_TYPE(E)        ((struct rdg_edge *) ((E)->data))->type
-#define RDGE_LEVEL(E)       ((struct rdg_edge *) ((E)->data))->level
-#define RDGE_RELATION(E)    ((struct rdg_edge *) ((E)->data))->relation
-
-struct graph *build_rdg (struct loop *,
-			 vec<loop_p> *,
-			 vec<ddr_p> *,
-			 vec<data_reference_p> *);
-struct graph *build_empty_rdg (int);
-void free_rdg (struct graph *);
-
 /* Return the index of the variable VAR in the LOOP_NEST array.  */
 
 static inline int
@@ -600,8 +546,6 @@ index_in_loop_nest (int var, vec<loop_p> loop_nest)
 
   return var_index;
 }
-
-bool rdg_defs_used_in_other_loops_p (struct graph *, int);
 
 /* Returns true when the data reference DR the form "A[i] = ..."
    with a stride equal to its unit type size.  */
@@ -623,18 +567,7 @@ adjacent_dr_p (struct data_reference *dr)
 			     TYPE_SIZE_UNIT (TREE_TYPE (DR_REF (dr))));
 }
 
-/* In tree-data-ref.c  */
 void split_constant_offset (tree , tree *, tree *);
-
-/* Strongly connected components of the reduced data dependence graph.  */
-
-typedef struct rdg_component
-{
-  int num;
-  vec<int> vertices;
-} *rdgc;
-
-
 
 /* Compute the greatest common divisor of a VECTOR of SIZE numbers.  */
 

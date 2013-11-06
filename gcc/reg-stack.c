@@ -253,7 +253,7 @@ static void replace_reg (rtx *, int);
 static void remove_regno_note (rtx, enum reg_note, unsigned int);
 static int get_hard_regnum (stack_ptr, rtx);
 static rtx emit_pop_insn (rtx, stack_ptr, rtx, enum emit_where);
-static void swap_to_top(rtx, stack_ptr, rtx, rtx);
+static void swap_to_top (rtx, stack_ptr, rtx, rtx);
 static bool move_for_stack_reg (rtx, stack_ptr, rtx);
 static bool move_nan_for_stack_reg (rtx, stack_ptr, rtx);
 static int swap_rtx_condition_1 (rtx);
@@ -1300,11 +1300,7 @@ compare_for_stack_reg (rtx insn, stack_ptr regstack, rtx pat_src)
 	  /* The 386 can only represent death of the first operand in
 	     the case handled above.  In all other cases, emit a separate
 	     pop and remove the death note from here.  */
-
-	  /* link_cc0_insns (insn); */
-
 	  remove_regno_note (insn, REG_DEAD, REGNO (XEXP (src2_note, 0)));
-
 	  emit_pop_insn (insn, regstack, XEXP (src2_note, 0),
 			 EMIT_AFTER);
 	}
@@ -2062,6 +2058,8 @@ subst_asm_stack_regs (rtx insn, stack_ptr regstack)
   n_notes = 0;
   for (note = REG_NOTES (insn); note; note = XEXP (note, 1))
     {
+      if (GET_CODE (note) != EXPR_LIST)
+	continue;
       rtx reg = XEXP (note, 0);
       rtx *loc = & XEXP (note, 0);
 
@@ -3296,25 +3294,42 @@ gate_handle_stack_regs (void)
 #endif
 }
 
-struct rtl_opt_pass pass_stack_regs =
+namespace {
+
+const pass_data pass_data_stack_regs =
 {
- {
-  RTL_PASS,
-  "*stack_regs",                        /* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  gate_handle_stack_regs,               /* gate */
-  NULL,					/* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_REG_STACK,                         /* tv_id */
-  0,                                    /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  0                                     /* todo_flags_finish */
- }
+  RTL_PASS, /* type */
+  "*stack_regs", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  false, /* has_execute */
+  TV_REG_STACK, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
 };
+
+class pass_stack_regs : public rtl_opt_pass
+{
+public:
+  pass_stack_regs (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_stack_regs, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_handle_stack_regs (); }
+
+}; // class pass_stack_regs
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_stack_regs (gcc::context *ctxt)
+{
+  return new pass_stack_regs (ctxt);
+}
 
 /* Convert register usage from flat register file usage to a stack
    register file.  */
@@ -3328,23 +3343,39 @@ rest_of_handle_stack_regs (void)
   return 0;
 }
 
-struct rtl_opt_pass pass_stack_regs_run =
+namespace {
+
+const pass_data pass_data_stack_regs_run =
 {
- {
-  RTL_PASS,
-  "stack",                              /* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  NULL,                                 /* gate */
-  rest_of_handle_stack_regs,            /* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_REG_STACK,                         /* tv_id */
-  0,                                    /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  TODO_df_finish | TODO_verify_rtl_sharing |
-  TODO_ggc_collect                      /* todo_flags_finish */
- }
+  RTL_PASS, /* type */
+  "stack", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  false, /* has_gate */
+  true, /* has_execute */
+  TV_REG_STACK, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  ( TODO_df_finish | TODO_verify_rtl_sharing ), /* todo_flags_finish */
 };
+
+class pass_stack_regs_run : public rtl_opt_pass
+{
+public:
+  pass_stack_regs_run (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_stack_regs_run, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  unsigned int execute () { return rest_of_handle_stack_regs (); }
+
+}; // class pass_stack_regs_run
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_stack_regs_run (gcc::context *ctxt)
+{
+  return new pass_stack_regs_run (ctxt);
+}

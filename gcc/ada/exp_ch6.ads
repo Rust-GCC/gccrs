@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -70,6 +70,29 @@ package Exp_Ch6 is
    procedure Expand_Call (N : Node_Id);
    --  This procedure contains common processing for Expand_N_Function_Call,
    --  Expand_N_Procedure_Statement, and Expand_N_Entry_Call.
+
+   procedure Expand_Contract_Cases
+     (CCs     : Node_Id;
+      Subp_Id : Entity_Id;
+      Decls   : List_Id;
+      Stmts   : in out List_Id);
+   --  Given pragma Contract_Cases CCs, create the circuitry needed to evaluate
+   --  case guards and trigger consequence expressions. Subp_Id is the related
+   --  subprogram for which the pragma applies. Decls are the declarations of
+   --  Subp_Id's body. All generated code is added to list Stmts. If Stmts is
+   --  empty, a new list is created.
+
+   procedure Expand_Subprogram_Contract
+     (N       : Node_Id;
+      Spec_Id : Entity_Id;
+      Body_Id : Entity_Id);
+   --  Expand the contracts of a subprogram body and its correspoding spec (if
+   --  any). This routine processes all [refined] pre- and postconditions as
+   --  well as Contract_Cases, invariants and predicates. N is the body of the
+   --  subprogram. Spec_Id denotes the entity of its specification. Body_Id
+   --  denotes the entity of the subprogram body. This routine is not a "pure"
+   --  expansion mechanism as it is invoked during analysis and may perform
+   --  actions for generic subprograms or set up contract assertions for ASIS.
 
    procedure Freeze_Subprogram (N : Node_Id);
    --  generate the appropriate expansions related to Subprogram freeze

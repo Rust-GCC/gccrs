@@ -68,8 +68,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "recog.h"
 #include "intl.h"
 #include "opts.h"
-#include "tree-flow.h"
+#include "gimple.h"
+#include "tree-ssanames.h"
 #include "tree-ssa-alias.h"
+#include "insn-codes.h"
 
 
 bool
@@ -92,7 +94,7 @@ void
 default_external_libcall (rtx fun ATTRIBUTE_UNUSED)
 {
 #ifdef ASM_OUTPUT_EXTERNAL_LIBCALL
-  ASM_OUTPUT_EXTERNAL_LIBCALL(asm_out_file, fun);
+  ASM_OUTPUT_EXTERNAL_LIBCALL (asm_out_file, fun);
 #endif
 }
 
@@ -434,6 +436,19 @@ targhook_float_words_big_endian (void)
   return !!FLOAT_WORDS_BIG_ENDIAN;
 }
 
+/* True if the target supports floating-point exceptions and rounding
+   modes.  */
+
+bool
+default_float_exceptions_rounding_supported_p (void)
+{
+#ifdef HAVE_adddf3
+  return HAVE_adddf3;
+#else
+  return false;
+#endif
+}
+
 /* True if the target supports decimal floating point.  */
 
 bool
@@ -448,6 +463,14 @@ bool
 default_fixed_point_supported_p (void)
 {
   return ENABLE_FIXED_POINT;
+}
+
+/* True if the target supports GNU indirect functions.  */
+
+bool
+default_has_ifunc_p (void)
+{
+  return HAVE_GNU_INDIRECT_FUNCTION;
 }
 
 /* NULL if INSN insn is valid within a low-overhead loop, otherwise returns
@@ -466,7 +489,7 @@ default_invalid_within_doloop (const_rtx insn)
   if (CALL_P (insn))
     return "Function call in loop.";
 
-  if (JUMP_TABLE_DATA_P (insn))
+  if (tablejump_p (insn, NULL, NULL) || computed_jump_p (insn))
     return "Computed branch in the loop.";
 
   return NULL;
@@ -850,6 +873,12 @@ default_register_priority (int hard_regno ATTRIBUTE_UNUSED)
 }
 
 extern bool
+default_register_usage_leveling_p (void)
+{
+  return false;
+}
+
+extern bool
 default_different_addr_displacement_p (void)
 {
   return false;
@@ -1042,20 +1071,17 @@ default_add_stmt_cost (void *data, int count, enum vect_cost_for_stmt kind,
   unsigned *cost = (unsigned *) data;
   unsigned retval = 0;
 
-  if (flag_vect_cost_model)
-    {
-      tree vectype = stmt_info ? stmt_vectype (stmt_info) : NULL_TREE;
-      int stmt_cost = default_builtin_vectorization_cost (kind, vectype,
+  tree vectype = stmt_info ? stmt_vectype (stmt_info) : NULL_TREE;
+  int stmt_cost = default_builtin_vectorization_cost (kind, vectype,
 							  misalign);
-      /* Statements in an inner loop relative to the loop being
-	 vectorized are weighted more heavily.  The value here is
-	 arbitrary and could potentially be improved with analysis.  */
-      if (where == vect_body && stmt_info && stmt_in_inner_loop_p (stmt_info))
-	count *= 50;  /* FIXME.  */
+   /* Statements in an inner loop relative to the loop being
+      vectorized are weighted more heavily.  The value here is
+      arbitrary and could potentially be improved with analysis.  */
+  if (where == vect_body && stmt_info && stmt_in_inner_loop_p (stmt_info))
+    count *= 50;  /* FIXME.  */
 
-      retval = (unsigned) (count * stmt_cost);
-      cost[where] += retval;
-    }
+  retval = (unsigned) (count * stmt_cost);
+  cost[where] += retval;
 
   return retval;
 }
@@ -1415,7 +1441,7 @@ default_debug_unwind_info (void)
    mode for registers used in apply_builtin_return and apply_builtin_arg.  */
 
 enum machine_mode
-default_get_reg_raw_mode(int regno)
+default_get_reg_raw_mode (int regno)
 {
   return reg_raw_mode[regno];
 }
@@ -1529,12 +1555,42 @@ default_pch_valid_p (const void *data_p, size_t len)
   return NULL;
 }
 
+/* Default version of cstore_mode.  */
+
+enum machine_mode
+default_cstore_mode (enum insn_code icode)
+{
+  return insn_data[(int) icode].operand[0].mode;
+}
+
 /* Default version of member_type_forces_blk.  */
 
 bool
 default_member_type_forces_blk (const_tree, enum machine_mode)
 {
   return false;
+}
+rtx
+default_load_bounds_for_arg (rtx addr ATTRIBUTE_UNUSED,
+			     rtx ptr ATTRIBUTE_UNUSED,
+			     rtx bnd ATTRIBUTE_UNUSED)
+{
+  gcc_unreachable ();
+}
+
+void
+default_store_bounds_for_arg (rtx val ATTRIBUTE_UNUSED,
+			      rtx addr ATTRIBUTE_UNUSED,
+			      rtx bounds ATTRIBUTE_UNUSED,
+			      rtx to ATTRIBUTE_UNUSED)
+{
+  gcc_unreachable ();
+}
+
+tree
+default_fn_abi_va_list_bounds_size (tree fndecl ATTRIBUTE_UNUSED)
+{
+  return integer_zero_node;
 }
 
 /* Default version of canonicalize_comparison.  */
@@ -1543,5 +1599,137 @@ void
 default_canonicalize_comparison (int *, rtx *, rtx *, bool)
 {
 }
+
+#ifndef PAD_VARARGS_DOWN
+#define PAD_VARARGS_DOWN BYTES_BIG_ENDIAN
+#endif
+
+/* Build an indirect-ref expression over the given TREE, which represents a
+   piece of a va_arg() expansion.  */
+tree
+build_va_arg_indirect_ref (tree addr)
+{
+  addr = build_simple_mem_ref_loc (EXPR_LOCATION (addr), addr);
+  return addr;
+}
+
+/* The "standard" implementation of va_arg: read the value from the
+   current (padded) address and increment by the (padded) size.  */
+
+tree
+std_gimplify_va_arg_expr (tree valist, tree type, gimple_seq *pre_p,
+			  gimple_seq *post_p)
+{
+  tree addr, t, type_size, rounded_size, valist_tmp;
+  unsigned HOST_WIDE_INT align, boundary;
+  bool indirect;
+
+#ifdef ARGS_GROW_DOWNWARD
+  /* All of the alignment and movement below is for args-grow-up machines.
+     As of 2004, there are only 3 ARGS_GROW_DOWNWARD targets, and they all
+     implement their own specialized gimplify_va_arg_expr routines.  */
+  gcc_unreachable ();
+#endif
+
+  indirect = pass_by_reference (NULL, TYPE_MODE (type), type, false);
+  if (indirect)
+    type = build_pointer_type (type);
+
+  align = PARM_BOUNDARY / BITS_PER_UNIT;
+  boundary = targetm.calls.function_arg_boundary (TYPE_MODE (type), type);
+
+  /* When we align parameter on stack for caller, if the parameter
+     alignment is beyond MAX_SUPPORTED_STACK_ALIGNMENT, it will be
+     aligned at MAX_SUPPORTED_STACK_ALIGNMENT.  We will match callee
+     here with caller.  */
+  if (boundary > MAX_SUPPORTED_STACK_ALIGNMENT)
+    boundary = MAX_SUPPORTED_STACK_ALIGNMENT;
+
+  boundary /= BITS_PER_UNIT;
+
+  /* Hoist the valist value into a temporary for the moment.  */
+  valist_tmp = get_initialized_tmp_var (valist, pre_p, NULL);
+
+  /* va_list pointer is aligned to PARM_BOUNDARY.  If argument actually
+     requires greater alignment, we must perform dynamic alignment.  */
+  if (boundary > align
+      && !integer_zerop (TYPE_SIZE (type)))
+    {
+      t = build2 (MODIFY_EXPR, TREE_TYPE (valist), valist_tmp,
+		  fold_build_pointer_plus_hwi (valist_tmp, boundary - 1));
+      gimplify_and_add (t, pre_p);
+
+      t = build2 (MODIFY_EXPR, TREE_TYPE (valist), valist_tmp,
+		  fold_build2 (BIT_AND_EXPR, TREE_TYPE (valist),
+			       valist_tmp,
+			       build_int_cst (TREE_TYPE (valist), -boundary)));
+      gimplify_and_add (t, pre_p);
+    }
+  else
+    boundary = align;
+
+  /* If the actual alignment is less than the alignment of the type,
+     adjust the type accordingly so that we don't assume strict alignment
+     when dereferencing the pointer.  */
+  boundary *= BITS_PER_UNIT;
+  if (boundary < TYPE_ALIGN (type))
+    {
+      type = build_variant_type_copy (type);
+      TYPE_ALIGN (type) = boundary;
+    }
+
+  /* Compute the rounded size of the type.  */
+  type_size = size_in_bytes (type);
+  rounded_size = round_up (type_size, align);
+
+  /* Reduce rounded_size so it's sharable with the postqueue.  */
+  gimplify_expr (&rounded_size, pre_p, post_p, is_gimple_val, fb_rvalue);
+
+  /* Get AP.  */
+  addr = valist_tmp;
+  if (PAD_VARARGS_DOWN && !integer_zerop (rounded_size))
+    {
+      /* Small args are padded downward.  */
+      t = fold_build2_loc (input_location, GT_EXPR, sizetype,
+		       rounded_size, size_int (align));
+      t = fold_build3 (COND_EXPR, sizetype, t, size_zero_node,
+		       size_binop (MINUS_EXPR, rounded_size, type_size));
+      addr = fold_build_pointer_plus (addr, t);
+    }
+
+  /* Compute new value for AP.  */
+  t = fold_build_pointer_plus (valist_tmp, rounded_size);
+  t = build2 (MODIFY_EXPR, TREE_TYPE (valist), valist, t);
+  gimplify_and_add (t, pre_p);
+
+  addr = fold_convert (build_pointer_type (type), addr);
+
+  if (indirect)
+    addr = build_va_arg_indirect_ref (addr);
+
+  return build_va_arg_indirect_ref (addr);
+}
+
+tree
+default_chkp_bound_type (void)
+{
+  tree res = make_node (POINTER_BOUNDS_TYPE);
+  TYPE_PRECISION (res) = TYPE_PRECISION (size_type_node) * 2;
+  layout_type (res);
+  return res;
+}
+
+enum machine_mode
+default_chkp_bound_mode (void)
+{
+  return VOIDmode;
+}
+
+tree
+default_builtin_chkp_function (unsigned int fcode ATTRIBUTE_UNUSED)
+{
+  return NULL_TREE;
+}
+
 
 #include "gt-targhooks.h"

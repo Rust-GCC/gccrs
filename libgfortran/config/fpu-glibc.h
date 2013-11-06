@@ -85,3 +85,117 @@ void set_fpu (void)
 	        "exception not supported.\n");
 #endif
 }
+
+
+int
+get_fpu_except_flags (void)
+{
+  int result, set_excepts;
+
+  result = 0;
+  set_excepts = fetestexcept (FE_ALL_EXCEPT);
+
+#ifdef FE_INVALID
+  if (set_excepts & FE_INVALID)
+    result |= GFC_FPE_INVALID;
+#endif
+
+#ifdef FE_DIVBYZERO
+  if (set_excepts & FE_DIVBYZERO)
+    result |= GFC_FPE_ZERO;
+#endif
+
+#ifdef FE_OVERFLOW
+  if (set_excepts & FE_OVERFLOW)
+    result |= GFC_FPE_OVERFLOW;
+#endif
+
+#ifdef FE_UNDERFLOW
+  if (set_excepts & FE_UNDERFLOW)
+    result |= GFC_FPE_UNDERFLOW;
+#endif
+
+#ifdef FE_DENORMAL
+  if (set_excepts & FE_DENORMAL)
+    result |= GFC_FPE_DENORMAL;
+#endif
+
+#ifdef FE_INEXACT
+  if (set_excepts & FE_INEXACT)
+    result |= GFC_FPE_INEXACT;
+#endif
+
+  return result;
+}
+
+
+int
+get_fpu_rounding_mode (void)
+{
+  int rnd_mode;
+
+  rnd_mode = fegetround ();
+
+  switch (rnd_mode)
+    {
+#ifdef FE_TONEAREST
+      case FE_TONEAREST:
+	return GFC_FPE_TONEAREST;
+#endif
+
+#ifdef FE_UPWARD
+      case FE_UPWARD:
+	return GFC_FPE_UPWARD;
+#endif
+
+#ifdef FE_DOWNWARD
+      case FE_DOWNWARD:
+	return GFC_FPE_DOWNWARD;
+#endif
+
+#ifdef FE_TOWARDZERO
+      case FE_TOWARDZERO:
+	return GFC_FPE_TOWARDZERO;
+#endif
+      default:
+	return GFC_FPE_INVALID;
+    }
+}
+
+
+void
+set_fpu_rounding_mode (int mode)
+{
+  int rnd_mode;
+
+  switch (mode)
+    {
+#ifdef FE_TONEAREST
+      case GFC_FPE_TONEAREST:
+	rnd_mode = FE_TONEAREST;
+	break;
+#endif
+
+#ifdef FE_UPWARD
+      case GFC_FPE_UPWARD:
+	rnd_mode = FE_UPWARD;
+	break;
+#endif
+
+#ifdef FE_DOWNWARD
+      case GFC_FPE_DOWNWARD:
+	rnd_mode = FE_DOWNWARD;
+	break;
+#endif
+
+#ifdef FE_TOWARDZERO
+      case GFC_FPE_TOWARDZERO:
+	rnd_mode = FE_TOWARDZERO;
+	break;
+#endif
+      default:
+	return;
+    }
+
+  fesetround (rnd_mode);
+}

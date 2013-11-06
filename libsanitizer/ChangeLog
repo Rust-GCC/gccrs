@@ -1,10 +1,47 @@
-2013-10-16  Release Manager
+2013-11-04  Kostya Serebryany  <kcc@google.com>
 
-	* GCC 4.8.2 released.
+	* All source files: Merge from upstream r191666.
+	* merge.sh: Added lsan.
+	* configure.ac (AC_CONFIG_FILES): Added lsan.
+	* Makefile.am (SUBDIRS): Added lsan.
+	* sanitizer_common/Makefile.am (sanitizer_common_files): Added new fles.
+	* asan/Makefile.am (asan_files): Added new files.
+	(libasan_la_LIBADD): Added a dependency on lsan.
+	* lsan/Makefile.am: New file.
+	* asan/Makefile.in: Regenerate.
+	* lsan/Makefile.in: Regenerate.
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+	* sanitizer_common/Makefile.in: Regenerate.
 
-2013-05-31  Release Manager
+2013-09-20  Alan Modra  <amodra@gmail.com>
 
-	* GCC 4.8.1 released.
+	* configure: Regenerate.
+
+2013-09-01  Iain Sandoe  <iain@codesourcery.com>
+
+	* ubsan/Makefile.am (libubsan_la_LIBADD): Revise to omit
+	libinterception.la for Darwin.
+	* ubsan/Makefile.in: Regenerate.
+
+2013-08-30  Jakub Jelinek  <jakub@redhat.com>
+
+	* Makefile.am (SUBDIRS): Add ubsan.
+	* configure.ac (AC_CONFIG_FILES): Add ubsan/Makefile.
+	* merge.sh: Merge ubsan.
+	* sanitizer_common/sanitizer_report_decorator.h: Partial merge from trunk.
+	* sanitizer_common/sanitizer_printf.cc: Likewise.
+	* sanitizer_common/sanitizer_common.h: Likewise.
+	* ubsan: New directory. Import ubsan runtime from llvm.
+
+2013-06-03  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	* sanitizer_common/sanitizer_linux.cc (MemoryMappingLayout::Next):
+	Cherry pick upstream r182922.
+
+2013-05-07  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	* configure.tgt: Add ARM pattern.
 
 2013-03-22  Jakub Jelinek  <jakub@redhat.com>
 
@@ -15,10 +52,6 @@
 	* interception/Makefile.in: Regenerated.
 	* sanitizer_common/Makefile.in: Regenerated.
 	* tsan/Makefile.in: Regenerated.
-
-2013-03-22  Release Manager
-
-	* GCC 4.8.0 released.
 
 2013-02-28  Jakub Jelinek  <jakub@redhat.com>
 
@@ -36,7 +69,7 @@
 	* asan/asan_preinit.cc: New file, synced from upstream.
 	* asan/asan_rtl.cc: Remove preinit stuff, synced from upstream.
 
-2013-02-21  Jack Howarth <howarth@bromo.med.uc.edu>
+2013-02-21  Jack Howarth  <howarth@bromo.med.uc.edu>
 
 	* asan/Makefile.am (libasan_la_SOURCES): Remove deprecated
 	dynamic/asan_interceptors_dynamic.cc.
@@ -192,7 +225,7 @@
 
 	* configure.tgt: Enable build on powerpc*-linux.
 
-2012-12-06  Jack Howarth <howarth@bromo.med.uc.edu>
+2012-12-06  Jack Howarth  <howarth@bromo.med.uc.edu>
 
 	PR 55599/sanitizer
 	* configure.ac: Set enable_static=no on darwin.
@@ -207,7 +240,7 @@
 	* All files: Merge from upstream r169371.
 
 2012-12-04  Kostya Serebryany  <kcc@google.com>
-	    Jack Howarth <howarth@bromo.med.uc.edu>
+	    Jack Howarth  <howarth@bromo.med.uc.edu>
 
 	PR 55521/sanitizer
 	* configure.ac: Define USING_MAC_INTERPOSE when on darwin.
@@ -273,7 +306,7 @@
 	* All files: Merge from upstream r168699.
 
 2012-11-24  Kostya Serebryany  <kcc@google.com>
-	    Jack Howarth <howarth@bromo.med.uc.edu>
+	    Jack Howarth  <howarth@bromo.med.uc.edu>
 
 	* interception/mach_override/mach_override.c: Migrate from llvm.
 	* interception/mach_override/mach_override.h: Likewise.

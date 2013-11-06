@@ -91,6 +91,9 @@ alpha*-*-*)
 am33_2.0-*-linux*)
 	cpu_type=mn10300
 	;;
+arc*-*-*)
+	cpu_type=arc
+	;;
 arm*-*-*)
 	cpu_type=arm
 	;;
@@ -101,6 +104,9 @@ bfin*-*)
 	cpu_type=bfin
 	;;
 cr16-*-*)
+	;;
+crisv32-*-*)
+	cpu_type=cris
 	;;
 fido-*-*)
 	cpu_type=m68k
@@ -136,6 +142,9 @@ microblaze*-*-*)
 mips*-*-*)
 	cpu_type=mips
 	tmake_file=mips/t-mips
+	;;
+nds32*-*)
+	cpu_type=nds32
 	;;
 powerpc*-*-*)
 	cpu_type=rs6000
@@ -197,7 +206,7 @@ case ${host} in
   ;;
 *-*-linux* | frv-*-*linux* | *-*-kfreebsd*-gnu | *-*-knetbsd*-gnu | *-*-gnu* | *-*-kopensolaris*-gnu)
   tmake_file="$tmake_file t-crtstuff-pic t-libgcc-pic t-eh-dw2-dip t-slibgcc t-slibgcc-gld t-slibgcc-elf-ver t-linux"
-  extra_parts="crtbegin.o crtbeginS.o crtbeginT.o crtend.o crtendS.o"
+  extra_parts="crtbegin.o crtbeginS.o crtbeginT.o crtend.o crtendS.o vtv_start.o vtv_end.o vtv_start_preinit.o vtv_end_preinit.o"
   ;;
 *-*-lynxos*)
   tmake_file="$tmake_file t-lynx $cpu_type/t-crtstuff t-crtstuff-pic t-libgcc-pic"
@@ -315,6 +324,14 @@ alpha*-dec-*vms*)
 	extra_parts="$extra_parts vms-dwarf2.o vms-dwarf2eh.o"
 	md_unwind_header=alpha/vms-unwind.h
 	;;
+arc*-*-elf*)
+	tmake_file="arc/t-arc-newlib arc/t-arc"
+	extra_parts="crti.o crtn.o crtend.o crtbegin.o crtendS.o crtbeginS.o libgmon.a crtg.o crtgend.o"
+	;;
+arc*-*-linux-uclibc*)
+	tmake_file="${tmake_file} t-slibgcc-libgcc t-slibgcc-nolc-override arc/t-arc700-uClibc arc/t-arc"
+	extra_parts="crti.o crtn.o crtend.o crtbegin.o crtendS.o crtbeginS.o libgmon.a crtg.o crtgend.o"
+	;;
 arm-wrs-vxworks)
 	tmake_file="$tmake_file arm/t-arm arm/t-vxworks t-softfp-sfdf t-softfp-excl arm/t-softfp t-softfp"
 	extra_parts="$extra_parts crti.o crtn.o"
@@ -397,13 +414,13 @@ cr16-*-elf)
 	extra_parts="$extra_parts crti.o crtn.o crtlibid.o"
         ;;
 crisv32-*-elf)
-	tmake_file="$tmake_file cris/t-cris t-fdpbit"
+	tmake_file="$tmake_file cris/t-cris t-softfp-sfdf t-softfp"
  	;;
 cris-*-elf)
-	tmake_file="$tmake_file cris/t-cris t-fdpbit cris/t-elfmulti"
+	tmake_file="$tmake_file cris/t-cris t-softfp-sfdf t-softfp cris/t-elfmulti"
 	;;
 cris-*-linux* | crisv32-*-linux*)
-	tmake_file="$tmake_file cris/t-cris t-fdpbit cris/t-linux"
+	tmake_file="$tmake_file cris/t-cris t-softfp-sfdf t-softfp cris/t-linux"
 	;;
 epiphany-*-elf*)
 	tmake_file="epiphany/t-epiphany t-fdpbit epiphany/t-custom-eqsf"
@@ -435,6 +452,7 @@ h8300-*-elf*)
 	;;
 hppa*64*-*-linux*)
 	tmake_file="$tmake_file pa/t-linux pa/t-linux64"
+	extra_parts="crtbegin.o crtbeginS.o crtbeginT.o crtend.o crtendS.o"
 	;;
 hppa*-*-linux*)
 	tmake_file="$tmake_file pa/t-linux t-slibgcc-libgcc"
@@ -444,6 +462,7 @@ hppa*-*-linux*)
 	else
 	    tmake_file="$tmake_file pa/t-slibgcc-dwarf-ver"
 	fi
+	extra_parts="crtbegin.o crtbeginS.o crtbeginT.o crtend.o crtendS.o"
 	md_unwind_header=pa/linux-unwind.h
 	;;
 hppa[12]*-*-hpux10*)
@@ -545,7 +564,7 @@ i[34567]86-*-nto-qnx*)
 	extra_parts=crtbegin.o
 	;;
 i[34567]86-*-rtems*)
-	tmake_file="$tmake_file i386/t-softfp i386/t-crtstuff"
+	tmake_file="$tmake_file i386/t-crtstuff t-softfp-sfdf t-softfp"
 	extra_parts="$extra_parts crti.o crtn.o"
 	;;
 i[34567]86-*-solaris2* | x86_64-*-solaris2.1[0-9]*)
@@ -570,6 +589,23 @@ i[34567]86-*-cygwin*)
 		tmake_dlldir_file="i386/t-dlldir-x"
 	fi
 	tmake_file="${tmake_file} ${tmake_eh_file} ${tmake_dlldir_file} i386/t-slibgcc-cygming i386/t-cygming i386/t-cygwin i386/t-crtfm i386/t-chkstk t-dfprules"
+	;;
+x86_64-*-cygwin*)
+	extra_parts="crtbegin.o crtend.o crtfastmath.o"
+	# This has to match the logic for DWARF2_UNWIND_INFO in gcc/config/i386/cygming.h
+	if test x$enable_sjlj_exceptions = xyes; then
+		tmake_eh_file="i386/t-sjlj-eh"
+	else
+		tmake_eh_file="i386/t-seh-eh"
+	fi
+	# Shared libgcc DLL install dir depends on cross/native build.
+	if test x${build} = x${host} ; then
+		tmake_dlldir_file="i386/t-dlldir"
+	else
+		tmake_dlldir_file="i386/t-dlldir-x"
+	fi
+	# FIXME - dj - t-chkstk used to be in here, need a 64-bit version of that
+	tmake_file="${tmake_file} ${tmake_eh_file} ${tmake_dlldir_file} i386/t-slibgcc-cygming i386/t-cygming i386/t-cygwin i386/t-crtfm t-dfprules i386/t-chkstk"
 	;;
 i[34567]86-*-mingw*)
 	extra_parts="crtbegin.o crtend.o crtfastmath.o"
@@ -722,7 +758,16 @@ mips*-*-netbsd*)			# NetBSD/mips, either endian.
 	;;
 mips*-*-linux*)				# Linux MIPS, either endian.
 	extra_parts="$extra_parts crtfastmath.o"
-	tmake_file="${tmake_file} t-crtfm mips/t-mips16"
+	tmake_file="${tmake_file} t-crtfm"
+	case ${host} in
+	  mips64r5900* | mipsr5900*)
+	    # The MIPS16 support code uses floating point
+	    # instructions that are not supported on r5900.
+	    ;;
+	  *)
+	    tmake_file="${tmake_file} mips/t-mips16 t-slibgcc-libgcc"
+	    ;;
+	esac
 	md_unwind_header=mips/linux-unwind.h
 	if test "${ac_cv_sizeof_long_double}" = 16; then
 		tmake_file="${tmake_file} mips/t-tpbit"
@@ -760,8 +805,16 @@ mips-*-elf* | mipsel-*-elf*)
 	tmake_file="$tmake_file mips/t-elf mips/t-crtstuff mips/t-mips16"
 	extra_parts="$extra_parts crti.o crtn.o"
 	;;
+mipsr5900-*-elf* | mipsr5900el-*-elf*)
+	tmake_file="$tmake_file mips/t-elf mips/t-crtstuff"
+	extra_parts="$extra_parts crti.o crtn.o"
+	;;
 mips64-*-elf* | mips64el-*-elf*)
 	tmake_file="$tmake_file mips/t-elf mips/t-crtstuff mips/t-mips16"
+	extra_parts="$extra_parts crti.o crtn.o"
+	;;
+mips64r5900-*-elf* | mips64r5900el-*-elf*)
+	tmake_file="$tmake_file mips/t-elf mips/t-crtstuff"
 	extra_parts="$extra_parts crti.o crtn.o"
 	;;
 mips64vr-*-elf* | mips64vrel-*-elf*)
@@ -796,6 +849,32 @@ moxie-*-rtems*)
 	tmake_file="$tmake_file moxie/t-moxie t-softfp-sfdf t-softfp-excl t-softfp"
 	# Don't use default.
 	extra_parts=
+	;;
+msp430*-*-elf)
+	tmake_file="$tm_file t-crtstuff t-fdpbit msp430/t-msp430"
+	;;
+nds32*-elf*)
+	# Basic makefile fragment and extra_parts for crt stuff.
+	# We also append c-isr library implementation.
+	tmake_file="${tmake_file} nds32/t-nds32 nds32/t-nds32-isr"
+	extra_parts="crtbegin1.o crtend1.o libnds32_isr.a"
+	# Append library definition makefile fragment according to --with-nds32-lib=X setting.
+	case "${with_nds32_lib}" in
+	"" | newlib)
+		# Append library definition makefile fragment t-nds32-newlib.
+		# Append 'soft-fp' software floating point make rule fragment provided by gcc.
+		tmake_file="${tmake_file} nds32/t-nds32-newlib t-softfp-sfdf t-softfp"
+		;;
+	mculib)
+		# Append library definition makefile fragment t-nds32-mculib.
+		# The software floating point library is included in mculib.
+		tmake_file="${tmake_file} nds32/t-nds32-mculib"
+		;;
+	*)
+		echo "Cannot accept --with-nds32-lib=$with_nds32_lib, available values are: newlib mculib" 1>&2
+		exit 1
+		;;
+	esac
 	;;
 pdp11-*-*)
 	tmake_file="pdp11/t-pdp11 t-fdpbit"
@@ -846,7 +925,7 @@ powerpc-*-eabisim*)
 	extra_parts="$extra_parts crtbegin.o crtend.o crtbeginS.o crtendS.o crtbeginT.o ecrti.o ecrtn.o ncrti.o ncrtn.o"
 	;;
 powerpc-*-elf*)
-	tmake_file="${tmake_file} rs6000/t-ppccomm rs6000/t-crtstuff t-crtstuff-pic t-fdpbit"
+	tmake_file="${tmake_file} rs6000/t-ppccomm rs6000/t-savresfgpr rs6000/t-crtstuff t-crtstuff-pic t-fdpbit"
 	extra_parts="$extra_parts crtbeginS.o crtendS.o crtbeginT.o ecrti.o ecrtn.o ncrti.o ncrtn.o"
 	;;
 powerpc-*-eabialtivec*)
@@ -871,7 +950,7 @@ powerpc*-*-linux*)
 	md_unwind_header=rs6000/linux-unwind.h
 	;;
 powerpc-wrs-vxworks|powerpc-wrs-vxworksae)
-	tmake_file="$tmake_file rs6000/t-ppccomm t-fdpbit"
+	tmake_file="$tmake_file rs6000/t-ppccomm rs6000/t-savresfgpr t-fdpbit"
 	;;
 powerpc-*-lynxos*)
 	tmake_file="$tmake_file rs6000/t-lynx t-fdpbit"
@@ -1143,7 +1222,8 @@ i[34567]86-*-darwin* | x86_64-*-darwin* | \
   i[34567]86-*-linux* | x86_64-*-linux* | \
   i[34567]86-*-gnu* | \
   i[34567]86-*-solaris2* | x86_64-*-solaris2.1[0-9]* | \
-  i[34567]86-*-cygwin* | i[34567]86-*-mingw* | x86_64-*-mingw* | \
+  i[34567]86-*-cygwin* | x86_64-*-cygwin* | \
+  i[34567]86-*-mingw* | x86_64-*-mingw* | \
   i[34567]86-*-freebsd* | x86_64-*-freebsd* | \
   i[34567]86-*-openbsd* | x86_64-*-openbsd*)
   	tmake_file="${tmake_file} t-softfp-tf"

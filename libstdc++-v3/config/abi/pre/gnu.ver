@@ -1354,6 +1354,22 @@ GLIBCXX_3.4.19 {
 
 } GLIBCXX_3.4.18;
 
+GLIBCXX_3.4.20 {
+
+    # std::get_new_handler()
+    _ZSt15get_new_handlerv;
+
+    # std::get_terminate()
+    _ZSt13get_terminatev;
+
+    # std::get_unexpected()
+    _ZSt14get_unexpectedv;
+
+    # std::__throw_out_of_range_fmt(char const*, ...)
+    _ZSt24__throw_out_of_range_fmtPKcz;
+
+} GLIBCXX_3.4.19;
+
 # Symbols in the support library (libsupc++) have their own tag.
 CXXABI_1.3 {
 
@@ -1553,6 +1569,23 @@ CXXABI_1.3.7 {
     __cxa_thread_atexit;
 } CXXABI_1.3.6;
 
+CXXABI_1.3.8 {
+    __cxa_throw_bad_array_new_length;
+    _Z*St20bad_array_new_length*;
+
+    __cxa_throw_bad_array_length;
+    _Z*St16bad_array_length*;
+
+    # Virtual table verification stub functions.
+    _Z17__VLTRegisterPair*;
+    _Z22__VLTRegisterPairDebug*;
+    _Z16__VLTRegisterSet*;
+    _Z21__VLTRegisterSetDebug*;
+    _Z24__VLTVerifyVtablePointer*;
+    _Z29__VLTVerifyVtablePointerDebug*;
+    __VLTChangePermission;
+
+} CXXABI_1.3.7;
 
 # Symbols in the support library (libsupc++) supporting transactional memory.
 CXXABI_TM_1 {

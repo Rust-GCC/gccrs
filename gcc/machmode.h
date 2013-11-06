@@ -174,6 +174,9 @@ extern const unsigned char mode_class[NUM_MACHINE_MODES];
    || CLASS == MODE_ACCUM                      \
    || CLASS == MODE_UACCUM)
 
+#define POINTER_BOUNDS_MODE_P(MODE)      \
+  (GET_MODE_CLASS (MODE) == MODE_POINTER_BOUNDS)
+
 /* Get the size in bytes and bits of an object of mode MODE.  */
 
 extern CONST_MODE_SIZE unsigned char mode_size[NUM_MACHINE_MODES];
@@ -269,16 +272,16 @@ public:
   bool prefer_smaller_modes ();
 
 private:
-  enum machine_mode mode_;
+  enum machine_mode m_mode;
   /* We use signed values here because the bit position can be negative
      for invalid input such as gcc.dg/pr48335-8.c.  */
-  HOST_WIDE_INT bitsize_;
-  HOST_WIDE_INT bitpos_;
-  HOST_WIDE_INT bitregion_start_;
-  HOST_WIDE_INT bitregion_end_;
-  unsigned int align_;
-  bool volatilep_;
-  int count_;
+  HOST_WIDE_INT m_bitsize;
+  HOST_WIDE_INT m_bitpos;
+  HOST_WIDE_INT m_bitregion_start;
+  HOST_WIDE_INT m_bitregion_end;
+  unsigned int m_align;
+  bool m_volatilep;
+  int m_count;
 };
 
 /* Find the best mode to use to access a bit field.  */
@@ -296,6 +299,10 @@ extern CONST_MODE_BASE_ALIGN unsigned char mode_base_align[NUM_MACHINE_MODES];
 extern unsigned get_mode_alignment (enum machine_mode);
 
 #define GET_MODE_ALIGNMENT(MODE) get_mode_alignment (MODE)
+
+/* Get the precision of the mode or its inner mode if it has one.  */
+
+extern unsigned int element_precision (enum machine_mode);
 
 /* For each class, get the narrowest mode in that class.  */
 

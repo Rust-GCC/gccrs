@@ -1204,7 +1204,7 @@ Type::finish_backend(Gogo* gogo, Btype *placeholder)
 
 // Return a pointer to the type descriptor for this type.
 
-tree
+Bexpression*
 Type::type_descriptor_pointer(Gogo* gogo, Location location)
 {
   Type* t = this->forwarded();
@@ -1215,10 +1215,9 @@ Type::type_descriptor_pointer(Gogo* gogo, Location location)
       t->make_type_descriptor_var(gogo);
       go_assert(t->type_descriptor_var_ != NULL);
     }
-  tree var_tree = var_to_tree(t->type_descriptor_var_);
-  if (var_tree == error_mark_node)
-    return error_mark_node;
-  return build_fold_addr_expr_loc(location.gcc_location(), var_tree);
+  Bexpression* var_expr =
+      gogo->backend()->var_expression(t->type_descriptor_var_, location);
+  return gogo->backend()->address_expression(var_expr, location);
 }
 
 // A mapping from unnamed types to type descriptor variables.
@@ -5646,12 +5645,12 @@ Array_type::write_equal_function(Gogo* gogo, Named_type* name)
   Expression* e1 = Expression::make_temporary_reference(p1, bloc);
   e1 = Expression::make_unary(OPERATOR_MULT, e1, bloc);
   ref = Expression::make_temporary_reference(index, bloc);
-  e1 = Expression::make_array_index(e1, ref, NULL, bloc);
+  e1 = Expression::make_array_index(e1, ref, NULL, NULL, bloc);
 
   Expression* e2 = Expression::make_temporary_reference(p2, bloc);
   e2 = Expression::make_unary(OPERATOR_MULT, e2, bloc);
   ref = Expression::make_temporary_reference(index, bloc);
-  e2 = Expression::make_array_index(e2, ref, NULL, bloc);
+  e2 = Expression::make_array_index(e2, ref, NULL, NULL, bloc);
 
   Expression* cond = Expression::make_binary(OPERATOR_NOTEQ, e1, e2, bloc);
 
@@ -6264,14 +6263,12 @@ Map_type::Map_descriptors Map_type::map_descriptors;
 
 // Build a map descriptor for this type.  Return a pointer to it.
 
-tree
+Bexpression*
 Map_type::map_descriptor_pointer(Gogo* gogo, Location location)
 {
   Bvariable* bvar = this->map_descriptor(gogo);
-  tree var_tree = var_to_tree(bvar);
-  if (var_tree == error_mark_node)
-    return error_mark_node;
-  return build_fold_addr_expr_loc(location.gcc_location(), var_tree);
+  Bexpression* var_expr = gogo->backend()->var_expression(bvar, location);
+  return gogo->backend()->address_expression(var_expr, location);
 }
 
 // Build a map descriptor for this type.

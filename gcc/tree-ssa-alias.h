@@ -116,10 +116,11 @@ extern void *walk_non_aliased_vuses (ao_ref *, tree,
 extern unsigned int walk_aliased_vdefs (ao_ref *, tree,
 					bool (*)(ao_ref *, tree, void *),
 					void *, bitmap *);
-extern struct ptr_info_def *get_ptr_info (tree);
 extern void dump_alias_info (FILE *);
 extern void debug_alias_info (void);
 extern void dump_points_to_solution (FILE *, struct pt_solution *);
+extern void debug (pt_solution &ref);
+extern void debug (pt_solution *ptr);
 extern void dump_points_to_info_for (FILE *, tree);
 extern void debug_points_to_info_for (tree);
 extern void dump_alias_stats (FILE *);
@@ -139,6 +140,29 @@ extern void pt_solution_set_var (struct pt_solution *, tree);
 extern void dump_pta_stats (FILE *);
 
 extern GTY(()) struct pt_solution ipa_escaped_pt;
+
+/* Return true, if the two ranges [POS1, SIZE1] and [POS2, SIZE2]
+   overlap.  SIZE1 and/or SIZE2 can be (unsigned)-1 in which case the
+   range is open-ended.  Otherwise return false.  */
+
+static inline bool
+ranges_overlap_p (HOST_WIDE_INT pos1,
+		  unsigned HOST_WIDE_INT size1,
+		  HOST_WIDE_INT pos2,
+		  unsigned HOST_WIDE_INT size2)
+{
+  if (pos1 >= pos2
+      && (size2 == (unsigned HOST_WIDE_INT)-1
+	  || pos1 < (pos2 + (HOST_WIDE_INT) size2)))
+    return true;
+  if (pos2 >= pos1
+      && (size1 == (unsigned HOST_WIDE_INT)-1
+	  || pos2 < (pos1 + (HOST_WIDE_INT) size1)))
+    return true;
+
+  return false;
+}
+
 
 
 #endif /* TREE_SSA_ALIAS_H  */

@@ -1,14 +1,17 @@
-2013-10-16  Release Manager
+2013-04-12  Jakub Jelinek  <jakub@redhat.com>
 
-	* GCC 4.8.2 released.
+	* crontab: Disable snapshots from gcc-4_6-branch.
+	* update_version_svn: Ignore gcc-4_6-branch.
 
-2013-05-31  Release Manager
+2013-04-07  Gerald Pfeifer  <gerald@pfeifer.com>
 
-	* GCC 4.8.1 released.
+	* update_web_docs_libstdcxx_svn: No longer ignore all output from
+	the actual copy process.
+	Check the exit code of the actual copy process; diagnose problems.
 
-2013-03-22  Release Manager
+2013-03-16  Jakub Jelinek  <jakub@redhat.com>
 
-	* GCC 4.8.0 released.
+	* crontab: Enable snapshots from gcc-4_8-branch.
 
 2012-07-02  Richard Guenther  <rguenther@suse.de>
 

@@ -1,5 +1,5 @@
 // PR c++/36628
-// { dg-options "-std=c++0x" }
+// { dg-options "-std=c++11" }
 // { dg-do run }
 
 #include <typeinfo>
@@ -24,6 +24,6 @@ int main()
     return 1;
   if (strcmp (typeid(g).name(), "FRivE") != 0)
     return 2;
-  if (strcmp (typeid(h).name(), "FivE") != 0)
+  if (strcmp (typeid(h).name(), "FOivE") != 0)
     return 3;
 }

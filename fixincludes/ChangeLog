@@ -1,11 +1,25 @@
-2013-10-16  Release Manager
+2013-09-20  Alan Modra  <amodra@gmail.com>
 
-	* GCC 4.8.2 released.
+	* configure: Regenerate.
 
-2013-05-31  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+2013-09-02  David Edelsohn  <dje.gcc@gmail.com>
 
-	Backport from mainline:
-	2013-05-17  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+	* inclhack.def (aix_assert): New fix.
+	* fixincl.x: Regenerate.
+	* tests/base/assert.h [AIX_ASSERT_CHECK]: New check.
+
+2013-07-06  Bruce Korb  <bkorb@gnu.org>
+
+	* inclhack.def (cdef_cplusplus): removed, per Bug 51776
+	* tests/base/sys/cdefs.h (CDEF_CPLUSPLUS_CHECK): obsolete
+
+2013-05-23  Alexander Ivchenko  <alexander.ivchenko@intel.com>
+
+	* inclhack.def (complier_h_tradcpp): New.
+	* fixincl.x: Rebuilt.
+	* tests/base/linux/compiler.h: New.
+
+2013-05-17  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
 	* inclhack.def (solaris_pow_int_overload): Update comment.
 	Change guard to match <cmath>.
@@ -13,15 +27,14 @@
 	* tests/base/iso/math_iso.h [SOLARIS_POW_INT_OVERLOAD_CHECK]:
 	Matching change.
 
-2013-05-31  Release Manager
+2013-05-04  David Edelsohn  <dje.gcc@gmail.com>
 
-	* GCC 4.8.1 released.
+	* inclhack.def (aix_null): New.
+	(void_null): Update replacement definition of NULL.
+	* fixincl.x: Regenerate.
+	* tests/base/curses.h: Update for new fix.
 
-2013-03-22  Release Manager
-
-	* GCC 4.8.0 released.
-
-2013-01-16  Alexandre Oliva <aoliva@redhat.com>
+2013-01-16  Alexandre Oliva  <aoliva@redhat.com>
 
 	* inclhack.def (feraiseexcept_nosse_invalid): New.
 	(feraiseexcept_nosse_divbyzero): Likewise.

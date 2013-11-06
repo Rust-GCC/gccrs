@@ -1,9 +1,9 @@
 // PR c++/39164
-// { dg-options -std=c++0x }
+// { dg-options -std=c++11 }
 
 struct A
 {
-  A() { }			// { dg-error "defined" }
+  A() { }			// { dg-message "defined" }
   ~A() = default;		// { dg-error "defaulted" }
 };
 

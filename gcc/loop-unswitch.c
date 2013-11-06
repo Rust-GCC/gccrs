@@ -126,7 +126,7 @@ compare_and_jump_seq (rtx op0, rtx op1, enum rtx_code comp, rtx label, int prob,
       JUMP_LABEL (jump) = label;
       LABEL_NUSES (label)++;
     }
-  add_reg_note (jump, REG_BR_PROB, GEN_INT (prob));
+  add_int_reg_note (jump, REG_BR_PROB, prob);
 
   seq = get_insns ();
   end_sequence ();
@@ -191,6 +191,7 @@ may_unswitch_on (basic_block bb, struct loop *loop, rtx *cinsn)
   if (!test)
     return NULL_RTX;
 
+  mode = VOIDmode;
   for (i = 0; i < 2; i++)
     {
       op[i] = XEXP (test, i);
@@ -205,11 +206,15 @@ may_unswitch_on (basic_block bb, struct loop *loop, rtx *cinsn)
 	return NULL_RTX;
 
       op[i] = get_iv_value (&iv, const0_rtx);
+      if (iv.extend != IV_UNKNOWN_EXTEND
+	  && iv.mode != iv.extend_mode)
+	op[i] = lowpart_subreg (iv.mode, op[i], iv.extend_mode);
+      if (mode == VOIDmode)
+	mode = iv.mode;
+      else
+	gcc_assert (mode == iv.mode);
     }
 
-  mode = GET_MODE (op[0]);
-  if (mode == VOIDmode)
-    mode = GET_MODE (op[1]);
   if (GET_MODE_CLASS (mode) == MODE_CC)
     {
       if (at != BB_END (bb))
@@ -304,7 +309,7 @@ unswitch_single_loop (struct loop *loop, rtx cond_checked, int num)
     }
 
   /* Nor if the loop usually does not roll.  */
-  iterations = estimated_loop_iterations_int (loop);
+  iterations = get_estimated_loop_iterations_int (loop);
   if (iterations >= 0 && iterations <= 1)
     {
       if (dump_file)
@@ -436,10 +441,10 @@ unswitch_loop (struct loop *loop, basic_block unswitch_on, rtx cond, rtx cinsn)
   emit_insn_after (seq, BB_END (switch_bb));
   e = make_edge (switch_bb, true_edge->dest, 0);
   e->probability = prob;
-  e->count = latch_edge->count * prob / REG_BR_PROB_BASE;
+  e->count = apply_probability (latch_edge->count, prob);
   e = make_edge (switch_bb, FALLTHRU_EDGE (unswitch_on)->dest, EDGE_FALLTHRU);
   e->probability = false_edge->probability;
-  e->count = latch_edge->count * (false_edge->probability) / REG_BR_PROB_BASE;
+  e->count = apply_probability (latch_edge->count, false_edge->probability);
 
   if (irred_flag)
     {

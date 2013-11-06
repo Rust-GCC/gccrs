@@ -31,6 +31,7 @@
 
 with Atree;    use Atree;
 with Casing;   use Casing;
+with Csets;    use Csets;
 with Debug;    use Debug;
 with Err_Vars; use Err_Vars;
 with Namet;    use Namet;
@@ -461,10 +462,7 @@ package body Erroutc is
             Warn_Tag := new String'(" [-gnatw" & Warn_Chr & ']');
 
          else pragma Assert (Warn_Chr in 'A' .. 'Z');
-            Warn_Tag :=
-              new String'(" [-gnatw."
-                          & Character'Val (Character'Pos (Warn_Chr) + 32)
-                          & ']');
+            Warn_Tag := new String'(" [-gnatw." & Fold_Lower (Warn_Chr) & ']');
          end if;
 
       else
@@ -986,12 +984,12 @@ package body Erroutc is
       if Name_Len = 2 and then Name_Buffer (1 .. 2) = "RM" then
          Set_Msg_Name_Buffer;
 
-      --  We make a similar exception for Alfa
+      --  We make a similar exception for SPARK
 
-      elsif Name_Len = 4 and then Name_Buffer (1 .. 4) = "Alfa" then
+      elsif Name_Len = 5 and then Name_Buffer (1 .. 5) = "SPARK" then
          Set_Msg_Name_Buffer;
 
-      --  Neither RM nor Alfa: case appropriately and add surrounding quotes
+      --  Neither RM nor SPARK: case appropriately and add surrounding quotes
 
       else
          Set_Casing (Keyword_Casing (Flag_Source), All_Lower_Case);
@@ -1226,21 +1224,23 @@ package body Erroutc is
    -- Test_Style_Warning_Serious_Msg --
    ------------------------------------
 
-   procedure Test_Style_Warning_Serious_Msg (Msg : String) is
+   procedure Test_Style_Warning_Serious_Unconditional_Msg (Msg : String) is
    begin
+      --  Nothing to do for continuation line
+
       if Msg (Msg'First) = '\' then
          return;
       end if;
 
-      Is_Serious_Error := True;
-      Is_Warning_Msg   := False;
+      --  Set initial values of globals (may be changed during scan)
+
+      Is_Serious_Error     := True;
+      Is_Unconditional_Msg := False;
+      Is_Warning_Msg       := False;
+      Has_Double_Exclam    := False;
 
       Is_Style_Msg :=
         (Msg'Length > 7 and then Msg (Msg'First .. Msg'First + 6) = "(style)");
-
-      if Is_Style_Msg then
-         Is_Serious_Error := False;
-      end if;
 
       for J in Msg'Range loop
          if Msg (J) = '?'
@@ -1248,6 +1248,16 @@ package body Erroutc is
          then
             Is_Warning_Msg := True;
             Warning_Msg_Char := ' ';
+
+         elsif Msg (J) = '!'
+           and then (J = Msg'First or else Msg (J - 1) /= ''')
+         then
+            Is_Unconditional_Msg := True;
+            Warning_Msg_Char := ' ';
+
+            if J < Msg'Last and then Msg (J + 1) = '!' then
+               Has_Double_Exclam := True;
+            end if;
 
          elsif Msg (J) = '<'
            and then (J = Msg'First or else Msg (J - 1) /= ''')
@@ -1265,7 +1275,7 @@ package body Erroutc is
       if Is_Warning_Msg or Is_Style_Msg then
          Is_Serious_Error := False;
       end if;
-   end Test_Style_Warning_Serious_Msg;
+   end Test_Style_Warning_Serious_Unconditional_Msg;
 
    --------------------------------
    -- Validate_Specific_Warnings --

@@ -121,6 +121,20 @@ i[[34567]]86 | x86_64)
     AC_DEFINE(HAVE_AS_RTM, 1, [Define to 1 if the assembler supports RTM.])
   fi
   ;;
+esac])
+
+dnl Check if as supports HTM instructions.
+AC_DEFUN([LIBITM_CHECK_AS_HTM], [
+case "${target_cpu}" in
+powerpc*)
+  AC_CACHE_CHECK([if the assembler supports HTM], libitm_cv_as_htm, [
+    AC_TRY_COMPILE([], [asm("tbegin. 0; tend. 0");],
+		   [libitm_cv_as_htm=yes], [libitm_cv_as_htm=no])
+  ])
+  if test x$libitm_cv_as_htm = xyes; then
+    AC_DEFINE(HAVE_AS_HTM, 1, [Define to 1 if the assembler supports HTM.])
+  fi
+  ;;
 s390*)
   AC_CACHE_CHECK([if the assembler supports HTM], libitm_cv_as_htm, [
     save_CFLAGS="$CFLAGS"

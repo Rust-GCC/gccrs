@@ -53,7 +53,7 @@ enum inline_hints_vals {
      to do so because it enables loop optimizatoins.  */
   INLINE_HINT_loop_iterations = 2,
   INLINE_HINT_loop_stride = 4,
-  /* Inlining withing same strongly connected component of callgraph is often
+  /* Inlining within same strongly connected component of callgraph is often
      a loss due to increased stack frame usage and prologue setup costs.  */
   INLINE_HINT_same_scc = 8,
   /* Inlining functions in strongly connected component is not such a great
@@ -67,7 +67,7 @@ enum inline_hints_vals {
    */
   INLINE_HINT_cross_module = 64,
   /* If array indexes of loads/stores become known there may be room for
-     futher optimization.  */
+     further optimization.  */
   INLINE_HINT_array_index = 128
 };
 typedef int inline_hints;
@@ -152,7 +152,7 @@ struct GTY(()) inline_summary
      using up-to-date value in the badness metric mean a lot of extra
      expenses.  */
   int growth;
-  /* Number of SCC on the beggining of inlining process.  */
+  /* Number of SCC on the beginning of inlining process.  */
   int scc_no;
 };
 
@@ -226,6 +226,7 @@ inline_hints do_estimate_edge_hints (struct cgraph_edge *edge);
 void initialize_growth_caches (void);
 void free_growth_caches (void);
 void compute_inline_parameters (struct cgraph_node *, bool);
+bool speculation_useful_p (struct cgraph_edge *e, bool anticipate_inlining);
 
 /* In ipa-inline-transform.c  */
 bool inline_call (struct cgraph_edge *, bool, vec<cgraph_edge_p> *, int *, bool);

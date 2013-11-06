@@ -1,5 +1,5 @@
-// { dg-do run { target *-*-freebsd* *-*-netbsd* *-*-linux* *-*-solaris* *-*-cygwin *-*-darwin* powerpc-ibm-aix* } }
-// { dg-options " -std=gnu++0x -pthread" { target *-*-freebsd* *-*-netbsd* *-*-linux* powerpc-ibm-aix* } }
+// { dg-do run { target *-*-freebsd* *-*-netbsd* *-*-linux* *-*-gnu* *-*-solaris* *-*-cygwin *-*-darwin* powerpc-ibm-aix* } }
+// { dg-options " -std=gnu++0x -pthread" { target *-*-freebsd* *-*-netbsd* *-*-linux* *-*-gnu* powerpc-ibm-aix* } }
 // { dg-options " -std=gnu++0x -pthreads" { target *-*-solaris* } }
 // { dg-options " -std=gnu++0x " { target *-*-cygwin *-*-darwin* } }
 // { dg-require-cstdint "" }
@@ -34,11 +34,11 @@ void test01()
   std::promise<int> p1;
   std::future<int> f1 = p1.get_future();
 
-  p1.set_exception(std::copy_exception(0));
+  p1.set_exception(std::make_exception_ptr(0));
 
   try
   {
-    p1.set_exception(std::copy_exception(1));
+    p1.set_exception(std::make_exception_ptr(1));
     VERIFY( false );
   }
   catch (std::future_error& e)
@@ -72,7 +72,7 @@ void test02()
 
   try
   {
-    p1.set_exception(std::copy_exception(0));
+    p1.set_exception(std::make_exception_ptr(0));
     VERIFY( false );
   }
   catch (std::future_error& e)

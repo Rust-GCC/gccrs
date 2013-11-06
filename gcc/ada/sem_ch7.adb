@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -136,6 +136,11 @@ package body Sem_Ch7 is
    --  inherited private operation has been overridden, then it's replaced by
    --  the overriding operation.
 
+   procedure Unit_Requires_Body_Info (P : Entity_Id);
+   --  Outputs info messages showing why package specification P requires a
+   --  body. Caller has checked that the switch requesting this information
+   --  is set, and that the package does indeed require a body.
+
    --------------------------
    -- Analyze_Package_Body --
    --------------------------
@@ -219,16 +224,15 @@ package body Sem_Ch7 is
       --  the later is never used for name resolution. In this fashion there
       --  is only one visible entity that denotes the package.
 
-      --  Set Body_Id. Note that this Will be reset to point to the generic
+      --  Set Body_Id. Note that this will be reset to point to the generic
       --  copy later on in the generic case.
 
       Body_Id := Defining_Entity (N);
 
+      --  Body is body of package instantiation. Corresponding spec has already
+      --  been set.
+
       if Present (Corresponding_Spec (N)) then
-
-         --  Body is body of package instantiation. Corresponding spec has
-         --  already been set.
-
          Spec_Id := Corresponding_Spec (N);
          Pack_Decl := Unit_Declaration_Node (Spec_Id);
 
@@ -311,6 +315,7 @@ package body Sem_Ch7 is
       Set_Ekind (Body_Id, E_Package_Body);
       Set_Body_Entity (Spec_Id, Body_Id);
       Set_Spec_Entity (Body_Id, Spec_Id);
+      Set_Contract    (Body_Id, Make_Contract (Sloc (Body_Id)));
 
       --  Defining name for the package body is not a visible entity: Only the
       --  defining name for the declaration is visible.
@@ -333,6 +338,10 @@ package body Sem_Ch7 is
       Set_In_Package_Body (Spec_Id);
       Set_Has_Completion (Spec_Id);
       Last_Spec_Entity := Last_Entity (Spec_Id);
+
+      if Has_Aspects (N) then
+         Analyze_Aspect_Specifications (N, Body_Id);
+      end if;
 
       Push_Scope (Spec_Id);
 
@@ -557,6 +566,7 @@ package body Sem_Ch7 is
                     and then Ekind (Entity (N)) = E_Constant
                   then
                      V := Constant_Value (Entity (N));
+
                      if Present (V)
                        and then not Compile_Time_Known_Value_Or_Aggr (V)
                      then
@@ -765,7 +775,22 @@ package body Sem_Ch7 is
       --  True when this package declaration is not a nested declaration
 
    begin
-      --  Analye aspect specifications immediately, since we need to recognize
+      if Debug_Flag_C then
+         Write_Str ("==> package spec ");
+         Write_Name (Chars (Id));
+         Write_Str (" from ");
+         Write_Location (Sloc (N));
+         Write_Eol;
+         Indent;
+      end if;
+
+      Generate_Definition (Id);
+      Enter_Name (Id);
+      Set_Ekind    (Id, E_Package);
+      Set_Etype    (Id, Standard_Void_Type);
+      Set_Contract (Id, Make_Contract (Sloc (Id)));
+
+      --  Analyze aspect specifications immediately, since we need to recognize
       --  things like Pure early enough to diagnose violations during analysis.
 
       if Has_Aspects (N) then
@@ -779,23 +804,9 @@ package body Sem_Ch7 is
       --     limited with Pkg; -- ERROR
       --     package Pkg is ...
 
-      if From_With_Type (Id) then
+      if From_Limited_With (Id) then
          return;
       end if;
-
-      if Debug_Flag_C then
-         Write_Str ("==> package spec ");
-         Write_Name (Chars (Id));
-         Write_Str (" from ");
-         Write_Location (Sloc (N));
-         Write_Eol;
-         Indent;
-      end if;
-
-      Generate_Definition (Id);
-      Enter_Name (Id);
-      Set_Ekind (Id, E_Package);
-      Set_Etype (Id, Standard_Void_Type);
 
       Push_Scope (Id);
 
@@ -1162,11 +1173,16 @@ package body Sem_Ch7 is
                --  then finish off by looping through the nongeneric parents
                --  and installing their private declarations.
 
+               --  If one of the non-generic parents is itself on the scope
+               --  stack, do not install its private declarations: they are
+               --  installed in due time when the private part of that parent
+               --  is analyzed. This is delicate ???
+
                else
                   while Present (Inst_Par)
                     and then Inst_Par /= Standard_Standard
                     and then (not In_Open_Scopes (Inst_Par)
-                                or else not In_Private_Part (Inst_Par))
+                               or else not In_Private_Part (Inst_Par))
                   loop
                      Install_Private_Declarations (Inst_Par);
                      Set_Use (Private_Declarations
@@ -1394,9 +1410,8 @@ package body Sem_Ch7 is
             begin
                ASN := First (Aspect_Specifications (Parent (E)));
                while Present (ASN) loop
-                  if Chars (Identifier (ASN)) = Name_Invariant
-                       or else
-                     Chars (Identifier (ASN)) = Name_Type_Invariant
+                  if Nam_In (Chars (Identifier (ASN)), Name_Invariant,
+                                                       Name_Type_Invariant)
                   then
                      Build_Invariant_Procedure (E, N);
                      exit;
@@ -1473,7 +1488,19 @@ package body Sem_Ch7 is
          Clear_Constants (Id, First_Private_Entity (Id));
       end if;
 
+      --  Issue an error in SPARK mode if a package specification contains
+      --  more than one tagged type or type extension.
+
       Check_One_Tagged_Type_Or_Extension_At_Most;
+
+      --  If switch set, output information on why body required
+
+      if List_Body_Required_Info
+        and then In_Extended_Main_Source_Unit (Id)
+        and then Unit_Requires_Body (Id)
+      then
+         Unit_Requires_Body_Info (Id);
+      end if;
    end Analyze_Package_Specification;
 
    --------------------------------------
@@ -1525,7 +1552,7 @@ package body Sem_Ch7 is
       E := First_Entity (Spec_Id);
       while Present (E) loop
          if Ekind (E) = E_Anonymous_Access_Type
-           and then From_With_Type (E)
+           and then From_Limited_With (E)
          then
             IR := Make_Itype_Reference (Sloc (P_Body));
             Set_Itype (IR, E);
@@ -1645,8 +1672,8 @@ package body Sem_Ch7 is
                           and then No (Interface_Alias (Node (Op_Elmt_2)))
                         then
                            --  The private inherited operation has been
-                           --  overridden by an explicit subprogram: replace
-                           --  the former by the latter.
+                           --  overridden by an explicit subprogram:
+                           --  replace the former by the latter.
 
                            New_Op := Node (Op_Elmt_2);
                            Replace_Elmt (Op_Elmt, New_Op);
@@ -1661,8 +1688,8 @@ package body Sem_Ch7 is
                              and then Present (DTC_Entity (New_Op))
                              and then Present (DTC_Entity (Prim_Op))
                            then
-                              pragma Assert (DT_Position (New_Op)
-                                              = DT_Position (Prim_Op));
+                              pragma Assert
+                                (DT_Position (New_Op) = DT_Position (Prim_Op));
                               null;
                            end if;
 
@@ -1813,9 +1840,71 @@ package body Sem_Ch7 is
 
    procedure Install_Private_Declarations (P : Entity_Id) is
       Id        : Entity_Id;
-      Priv_Elmt : Elmt_Id;
-      Priv      : Entity_Id;
       Full      : Entity_Id;
+      Priv_Deps : Elist_Id;
+
+      procedure Swap_Private_Dependents (Priv_Deps : Elist_Id);
+      --  When the full view of a private type is made available, we do the
+      --  same for its private dependents under proper visibility conditions.
+      --  When compiling a grand-chid unit this needs to be done recursively.
+
+      -----------------------------
+      -- Swap_Private_Dependents --
+      -----------------------------
+
+      procedure Swap_Private_Dependents (Priv_Deps : Elist_Id) is
+         Deps      : Elist_Id;
+         Priv      : Entity_Id;
+         Priv_Elmt : Elmt_Id;
+         Is_Priv   : Boolean;
+
+      begin
+         Priv_Elmt := First_Elmt (Priv_Deps);
+         while Present (Priv_Elmt) loop
+            Priv := Node (Priv_Elmt);
+
+            --  Before the exchange, verify that the presence of the Full_View
+            --  field. This field will be empty if the entity has already been
+            --  installed due to a previous call.
+
+            if Present (Full_View (Priv))
+              and then Is_Visible_Dependent (Priv)
+            then
+               if Is_Private_Type (Priv) then
+                  Deps := Private_Dependents (Priv);
+                  Is_Priv := True;
+               else
+                  Is_Priv := False;
+               end if;
+
+               --  For each subtype that is swapped, we also swap the reference
+               --  to it in Private_Dependents, to allow access to it when we
+               --  swap them out in End_Package_Scope.
+
+               Replace_Elmt (Priv_Elmt, Full_View (Priv));
+               Exchange_Declarations (Priv);
+               Set_Is_Immediately_Visible
+                 (Priv, In_Open_Scopes (Scope (Priv)));
+               Set_Is_Potentially_Use_Visible
+                 (Priv, Is_Potentially_Use_Visible (Node (Priv_Elmt)));
+
+               --  Within a child unit, recurse, except in generic child unit,
+               --  which (unfortunately) handle private_dependents separately.
+
+               if Is_Priv
+                 and then Is_Child_Unit (Cunit_Entity (Current_Sem_Unit))
+                 and then not Is_Empty_Elmt_List (Deps)
+                 and then not Inside_A_Generic
+               then
+                  Swap_Private_Dependents (Deps);
+               end if;
+            end if;
+
+            Next_Elmt (Priv_Elmt);
+         end loop;
+      end Swap_Private_Dependents;
+
+   --  Start of processing for Install_Private_Declarations
 
    begin
       --  First exchange declarations for private types, so that the full
@@ -1823,8 +1912,8 @@ package body Sem_Ch7 is
       --  Private_Dependents list and also exchange any subtypes of or derived
       --  types from it. Finally, if this is a Taft amendment type, the
       --  incomplete declaration is irrelevant, and we want to link the
-      --  eventual full declaration with the original private one so we also
-      --  skip the exchange.
+      --  eventual full declaration with the original private one so we
+      --  also skip the exchange.
 
       Id := First_Entity (P);
       while Present (Id) and then Id /= First_Private_Entity (P) loop
@@ -1834,8 +1923,8 @@ package body Sem_Ch7 is
            and then Scope (Full_View (Id)) = Scope (Id)
            and then Ekind (Full_View (Id)) /= E_Incomplete_Type
          then
-            --  If there is a use-type clause on the private type, set the
-            --  full view accordingly.
+            --  If there is a use-type clause on the private type, set the full
+            --  view accordingly.
 
             Set_In_Use (Full_View (Id), In_Use (Id));
             Full := Full_View (Id);
@@ -1851,9 +1940,9 @@ package body Sem_Ch7 is
                --  from another private type which is not private anymore. This
                --  can only happen in a package nested within a child package,
                --  when the parent type is defined in the parent unit. At this
-               --  point the current type is not private either, and we have to
-               --  install the underlying full view, which is now visible. Save
-               --  the current full view as well, so that all views can be
+               --  point the current type is not private either, and we have
+               --  to install the underlying full view, which is now visible.
+               --  Save the current full view as well, so that all views can be
                --  restored on exit. It may seem that after compiling the child
                --  body there are not environments to restore, but the back-end
                --  expects those links to be valid, and freeze nodes depend on
@@ -1870,36 +1959,10 @@ package body Sem_Ch7 is
                end if;
             end if;
 
-            Priv_Elmt := First_Elmt (Private_Dependents (Id));
-
+            Priv_Deps := Private_Dependents (Id);
             Exchange_Declarations (Id);
             Set_Is_Immediately_Visible (Id);
-
-            while Present (Priv_Elmt) loop
-               Priv := Node (Priv_Elmt);
-
-               --  Before the exchange, verify that the presence of the
-               --  Full_View field. It will be empty if the entity has already
-               --  been installed due to a previous call.
-
-               if Present (Full_View (Priv))
-                 and then Is_Visible_Dependent (Priv)
-               then
-
-                  --  For each subtype that is swapped, we also swap the
-                  --  reference to it in Private_Dependents, to allow access
-                  --  to it when we swap them out in End_Package_Scope.
-
-                  Replace_Elmt (Priv_Elmt, Full_View (Priv));
-                  Exchange_Declarations (Priv);
-                  Set_Is_Immediately_Visible
-                    (Priv, In_Open_Scopes (Scope (Priv)));
-                  Set_Is_Potentially_Use_Visible
-                    (Priv, Is_Potentially_Use_Visible (Node (Priv_Elmt)));
-               end if;
-
-               Next_Elmt (Priv_Elmt);
-            end loop;
+            Swap_Private_Dependents (Priv_Deps);
          end if;
 
          Next_Entity (Id);
@@ -1983,7 +2046,7 @@ package body Sem_Ch7 is
 
          return In_Open_Scopes (S)
            or else (Is_Generic_Instance (Current_Scope)
-              and then Scope (Dep) = Scope (Current_Scope));
+                     and then Scope (Dep) = Scope (Current_Scope));
       else
          return True;
       end if;
@@ -2036,8 +2099,8 @@ package body Sem_Ch7 is
       if Ada_Version < Ada_2012 then
          Enter_Name (Id);
 
-      --  Ada 2012 (AI05-0162): Enter the name in the current scope handling
-      --  private type that completes an incomplete type.
+      --  Ada 2012 (AI05-0162): Enter the name in the current scope. Note that
+      --  there may be an incomplete previous view.
 
       else
          declare
@@ -2094,7 +2157,7 @@ package body Sem_Ch7 is
 
          --  Create a class-wide type with the same attributes
 
-         Make_Class_Wide_Type     (Id);
+         Make_Class_Wide_Type (Id);
 
       elsif Abstract_Present (Def) then
          Error_Msg_N ("only a tagged type can be abstract", N);
@@ -2281,8 +2344,7 @@ package body Sem_Ch7 is
             Check_Conventions (Id);
          end if;
 
-         if (Ekind (Id) = E_Private_Type
-               or else Ekind (Id) = E_Limited_Private_Type)
+         if Ekind_In (Id, E_Private_Type, E_Limited_Private_Type)
            and then No (Full_View (Id))
            and then not Is_Generic_Type (Id)
            and then not Is_Derived_Type (Id)
@@ -2427,8 +2489,6 @@ package body Sem_Ch7 is
                  ("full view of type must be definite subtype", Full);
             end if;
 
-            Priv_Elmt := First_Elmt (Private_Dependents (Id));
-
             --  Swap out the subtypes and derived types of Id that
             --  were compiled in this scope, or installed previously
             --  by Install_Private_Declarations.
@@ -2437,6 +2497,7 @@ package body Sem_Ch7 is
             --  field which may be empty due to a swap by a previous call to
             --  End_Package_Scope (e.g. from the freezing mechanism).
 
+            Priv_Elmt := First_Elmt (Private_Dependents (Id));
             while Present (Priv_Elmt) loop
                Priv_Sub := Node (Priv_Elmt);
 
@@ -2516,7 +2577,7 @@ package body Sem_Ch7 is
                      if Etype (Subp) = Id
                        or else
                          (Is_Class_Wide_Type (Etype (Subp))
-                            and then Etype (Etype (Subp)) = Id)
+                           and then Etype (Etype (Subp)) = Id)
                      then
                         Error_Msg_NE
                           ("type& must be completed in the private part",
@@ -2529,8 +2590,7 @@ package body Sem_Ch7 is
             end;
 
          elsif not Is_Child_Unit (Id)
-           and then (not Is_Private_Type (Id)
-                      or else No (Full_View (Id)))
+           and then (not Is_Private_Type (Id) or else No (Full_View (Id)))
          then
             Set_Is_Hidden (Id);
             Set_Is_Potentially_Use_Visible (Id, False);
@@ -2545,7 +2605,10 @@ package body Sem_Ch7 is
    -- Unit_Requires_Body --
    ------------------------
 
-   function Unit_Requires_Body (P : Entity_Id) return Boolean is
+   function Unit_Requires_Body
+     (P                     : Entity_Id;
+      Ignore_Abstract_State : Boolean := False) return Boolean
+   is
       E : Entity_Id;
 
    begin
@@ -2582,6 +2645,21 @@ package body Sem_Ch7 is
                return True;
             end if;
          end;
+
+      --  A [generic] package that introduces at least one non-null abstract
+      --  state requires completion. However, there is a separate rule that
+      --  requires that such a package have a reason other than this for a
+      --  body being required (if necessary a pragma Elaborate_Body must be
+      --  provided). If Ignore_Abstract_State is True, we don't do this check
+      --  (so we can use Unit_Requires_Body to check for some other reason).
+
+      elsif Ekind_In (P, E_Generic_Package, E_Package)
+        and then not Ignore_Abstract_State
+        and then Present (Abstract_States (P))
+        and then
+            not Is_Null_State (Node (First_Elmt (Abstract_States (P))))
+      then
+         return True;
       end if;
 
       --  Otherwise search entity chain for entity requiring completion
@@ -2656,4 +2734,135 @@ package body Sem_Ch7 is
       return False;
    end Unit_Requires_Body;
 
+   -----------------------------
+   -- Unit_Requires_Body_Info --
+   -----------------------------
+
+   procedure Unit_Requires_Body_Info (P : Entity_Id) is
+      E : Entity_Id;
+
+   begin
+      --  Imported entity never requires body. Right now, only subprograms can
+      --  be imported, but perhaps in the future we will allow import of
+      --  packages.
+
+      if Is_Imported (P) then
+         return;
+
+      --  Body required if library package with pragma Elaborate_Body
+
+      elsif Has_Pragma_Elaborate_Body (P) then
+         Error_Msg_N
+           ("?Y?info: & requires body (Elaborate_Body)", P);
+
+      --  Body required if subprogram
+
+      elsif Is_Subprogram (P) or else Is_Generic_Subprogram (P) then
+         Error_Msg_N ("?Y?info: & requires body (subprogram case)", P);
+
+      --  Body required if generic parent has Elaborate_Body
+
+      elsif Ekind (P) = E_Package
+        and then Nkind (Parent (P)) = N_Package_Specification
+        and then Present (Generic_Parent (Parent (P)))
+      then
+         declare
+            G_P : constant Entity_Id := Generic_Parent (Parent (P));
+         begin
+            if Has_Pragma_Elaborate_Body (G_P) then
+               Error_Msg_N
+                 ("?Y?info: & requires body (generic parent Elaborate_Body)",
+                  P);
+            end if;
+         end;
+
+      --  A [generic] package that introduces at least one non-null abstract
+      --  state requires completion. However, there is a separate rule that
+      --  requires that such a package have a reason other than this for a
+      --  body being required (if necessary a pragma Elaborate_Body must be
+      --  provided). If Ignore_Abstract_State is True, we don't do this check
+      --  (so we can use Unit_Requires_Body to check for some other reason).
+
+      elsif Ekind_In (P, E_Generic_Package, E_Package)
+        and then Present (Abstract_States (P))
+        and then
+          not Is_Null_State (Node (First_Elmt (Abstract_States (P))))
+      then
+         Error_Msg_N
+           ("?Y?info: & requires body (non-null abstract state aspect)",
+            P);
+      end if;
+
+      --  Otherwise search entity chain for entity requiring completion
+
+      E := First_Entity (P);
+      while Present (E) loop
+
+         --  Always ignore child units. Child units get added to the entity
+         --  list of a parent unit, but are not original entities of the
+         --  parent, and so do not affect whether the parent needs a body.
+
+         if Is_Child_Unit (E) then
+            null;
+
+         --  Ignore formal packages and their renamings
+
+         elsif Ekind (E) = E_Package
+           and then Nkind (Original_Node (Unit_Declaration_Node (E))) =
+                                                N_Formal_Package_Declaration
+         then
+            null;
+
+         --  Otherwise test to see if entity requires a completion.
+         --  Note that subprogram entities whose declaration does not come
+         --  from source are ignored here on the basis that we assume the
+         --  expander will provide an implicit completion at some point.
+
+         elsif (Is_Overloadable (E)
+                 and then Ekind (E) /= E_Enumeration_Literal
+                 and then Ekind (E) /= E_Operator
+                 and then not Is_Abstract_Subprogram (E)
+                 and then not Has_Completion (E)
+                 and then Comes_From_Source (Parent (E)))
+
+           or else
+             (Ekind (E) = E_Package
+               and then E /= P
+               and then not Has_Completion (E)
+               and then Unit_Requires_Body (E))
+
+           or else
+             (Ekind (E) = E_Incomplete_Type
+               and then No (Full_View (E))
+               and then not Is_Generic_Type (E))
+
+           or else
+             (Ekind_In (E, E_Task_Type, E_Protected_Type)
+               and then not Has_Completion (E))
+
+           or else
+             (Ekind (E) = E_Generic_Package
+               and then E /= P
+               and then not Has_Completion (E)
+               and then Unit_Requires_Body (E))
+
+           or else
+             (Is_Generic_Subprogram (E)
+               and then not Has_Completion (E))
+
+         then
+            Error_Msg_Node_2 := E;
+            Error_Msg_NE
+              ("?Y?info: & requires body (& requires completion)",
+               E, P);
+
+         --  Entity that does not require completion
+
+         else
+            null;
+         end if;
+
+         Next_Entity (E);
+      end loop;
+   end Unit_Requires_Body_Info;
 end Sem_Ch7;

@@ -56,10 +56,9 @@ namespace __gnu_debug
       { return __it == __seq->_M_base().begin(); }
     };
 
-  /** Iterators that derive from _Safe_iterator_base but that aren't
-   *  _Safe_iterators can be determined singular or non-singular via
-   *  _Safe_iterator_base.
-   */
+  /** Iterators that derive from _Safe_iterator_base can be determined singular
+   *  or non-singular.
+   **/
   inline bool 
   __check_singular_aux(const _Safe_iterator_base* __x)
   { return __x->_M_singular(); }
@@ -139,7 +138,7 @@ namespace __gnu_debug
       typedef typename _Traits::pointer           pointer;
 
       /// @post the iterator is singular and unattached
-      _Safe_iterator() : _M_current() { }
+      _Safe_iterator() _GLIBCXX_NOEXCEPT : _M_current() { }
 
       /**
        * @brief Safe iterator construction from an unsafe iterator and
@@ -149,6 +148,7 @@ namespace __gnu_debug
        * @post this is not singular
        */
       _Safe_iterator(const _Iterator& __i, const _Sequence* __seq)
+      _GLIBCXX_NOEXCEPT
       : _Safe_iterator_base(__seq, _M_constant()), _M_current(__i)
       {
 	_GLIBCXX_DEBUG_VERIFY(! this->_M_singular(),
@@ -159,7 +159,7 @@ namespace __gnu_debug
       /**
        * @brief Copy construction.
        */
-      _Safe_iterator(const _Safe_iterator& __x)
+      _Safe_iterator(const _Safe_iterator& __x) _GLIBCXX_NOEXCEPT
       : _Safe_iterator_base(__x, _M_constant()), _M_current(__x._M_current)
       {
 	// _GLIBCXX_RESOLVE_LIB_DEFECTS
@@ -176,7 +176,7 @@ namespace __gnu_debug
        * @brief Move construction.
        * @post __x is singular and unattached
        */
-      _Safe_iterator(_Safe_iterator&& __x) : _M_current()
+      _Safe_iterator(_Safe_iterator&& __x) noexcept : _M_current()
       {
 	_GLIBCXX_DEBUG_VERIFY(!__x._M_singular()
 			      || __x._M_current == _Iterator(),
@@ -198,7 +198,7 @@ namespace __gnu_debug
           const _Safe_iterator<_MutableIterator,
           typename __gnu_cxx::__enable_if<(std::__are_same<_MutableIterator,
                       typename _Sequence::iterator::iterator_type>::__value),
-                   _Sequence>::__type>& __x)
+                   _Sequence>::__type>& __x) _GLIBCXX_NOEXCEPT
 	: _Safe_iterator_base(__x, _M_constant()), _M_current(__x.base())
         {
 	  // _GLIBCXX_RESOLVE_LIB_DEFECTS
@@ -214,7 +214,7 @@ namespace __gnu_debug
        * @brief Copy assignment.
        */
       _Safe_iterator&
-      operator=(const _Safe_iterator& __x)
+      operator=(const _Safe_iterator& __x) _GLIBCXX_NOEXCEPT
       {
 	// _GLIBCXX_RESOLVE_LIB_DEFECTS
 	// DR 408. Is vector<reverse_iterator<char*> > forbidden?
@@ -234,7 +234,7 @@ namespace __gnu_debug
        * @post __x is singular and unattached
        */
       _Safe_iterator&
-      operator=(_Safe_iterator&& __x)
+      operator=(_Safe_iterator&& __x) noexcept
       {
 	_GLIBCXX_DEBUG_VERIFY(this != &__x,
 			      _M_message(__msg_self_move_assign)
@@ -257,7 +257,7 @@ namespace __gnu_debug
        *  @pre iterator is dereferenceable
        */
       reference
-      operator*() const
+      operator*() const _GLIBCXX_NOEXCEPT
       {
 	_GLIBCXX_DEBUG_VERIFY(this->_M_dereferenceable(),
 			      _M_message(__msg_bad_deref)
@@ -269,15 +269,14 @@ namespace __gnu_debug
        *  @brief Iterator dereference.
        *  @pre iterator is dereferenceable
        *  @todo Make this correct w.r.t. iterators that return proxies
-       *  @todo Use addressof() instead of & operator
        */
       pointer
-      operator->() const
+      operator->() const _GLIBCXX_NOEXCEPT
       {
 	_GLIBCXX_DEBUG_VERIFY(this->_M_dereferenceable(),
 			      _M_message(__msg_bad_deref)
 			      ._M_iterator(*this, "this"));
-	return &*_M_current;
+	return std::__addressof(*_M_current);
       }
 
       // ------ Input iterator requirements ------
@@ -286,7 +285,7 @@ namespace __gnu_debug
        *  @pre iterator is incrementable
        */
       _Safe_iterator&
-      operator++()
+      operator++() _GLIBCXX_NOEXCEPT
       {
 	_GLIBCXX_DEBUG_VERIFY(this->_M_incrementable(),
 			      _M_message(__msg_bad_inc)
@@ -300,7 +299,7 @@ namespace __gnu_debug
        *  @pre iterator is incrementable
        */
       _Safe_iterator
-      operator++(int)
+      operator++(int) _GLIBCXX_NOEXCEPT
       {
 	_GLIBCXX_DEBUG_VERIFY(this->_M_incrementable(),
 			      _M_message(__msg_bad_inc)
@@ -316,7 +315,7 @@ namespace __gnu_debug
        *  @pre iterator is decrementable
        */
       _Safe_iterator&
-      operator--()
+      operator--() _GLIBCXX_NOEXCEPT
       {
 	_GLIBCXX_DEBUG_VERIFY(this->_M_decrementable(),
 			      _M_message(__msg_bad_dec)
@@ -330,7 +329,7 @@ namespace __gnu_debug
        *  @pre iterator is decrementable
        */
       _Safe_iterator
-      operator--(int)
+      operator--(int) _GLIBCXX_NOEXCEPT
       {
 	_GLIBCXX_DEBUG_VERIFY(this->_M_decrementable(),
 			      _M_message(__msg_bad_dec)
@@ -342,7 +341,7 @@ namespace __gnu_debug
 
       // ------ Random access iterator requirements ------
       reference
-      operator[](const difference_type& __n) const
+      operator[](const difference_type& __n) const _GLIBCXX_NOEXCEPT
       {
 	_GLIBCXX_DEBUG_VERIFY(this->_M_can_advance(__n)
 			      && this->_M_can_advance(__n+1),
@@ -353,7 +352,7 @@ namespace __gnu_debug
       }
 
       _Safe_iterator&
-      operator+=(const difference_type& __n)
+      operator+=(const difference_type& __n) _GLIBCXX_NOEXCEPT
       {
 	_GLIBCXX_DEBUG_VERIFY(this->_M_can_advance(__n),
 			      _M_message(__msg_advance_oob)
@@ -363,7 +362,7 @@ namespace __gnu_debug
       }
 
       _Safe_iterator
-      operator+(const difference_type& __n) const
+      operator+(const difference_type& __n) const _GLIBCXX_NOEXCEPT
       {
 	_Safe_iterator __tmp(*this);
 	__tmp += __n;
@@ -371,7 +370,7 @@ namespace __gnu_debug
       }
 
       _Safe_iterator&
-      operator-=(const difference_type& __n)
+      operator-=(const difference_type& __n) _GLIBCXX_NOEXCEPT
       {
 	_GLIBCXX_DEBUG_VERIFY(this->_M_can_advance(-__n),
 			      _M_message(__msg_retreat_oob)
@@ -381,7 +380,7 @@ namespace __gnu_debug
       }
 
       _Safe_iterator
-      operator-(const difference_type& __n) const
+      operator-(const difference_type& __n) const _GLIBCXX_NOEXCEPT
       {
 	_Safe_iterator __tmp(*this);
 	__tmp -= __n;
@@ -393,13 +392,13 @@ namespace __gnu_debug
        * @brief Return the underlying iterator
        */
       _Iterator
-      base() const { return _M_current; }
+      base() const _GLIBCXX_NOEXCEPT { return _M_current; }
 
       /**
        * @brief Conversion to underlying non-debug iterator to allow
        * better interaction with non-debug containers.
        */
-      operator _Iterator() const { return _M_current; }
+      operator _Iterator() const _GLIBCXX_NOEXCEPT { return _M_current; }
 
       /** Attach iterator to the given sequence. */
       void
@@ -483,6 +482,7 @@ namespace __gnu_debug
     inline bool
     operator==(const _Safe_iterator<_IteratorL, _Sequence>& __lhs,
 	       const _Safe_iterator<_IteratorR, _Sequence>& __rhs)
+    _GLIBCXX_NOEXCEPT
     {
       _GLIBCXX_DEBUG_VERIFY(! __lhs._M_singular() && ! __rhs._M_singular(),
 			    _M_message(__msg_iter_compare_bad)
@@ -499,6 +499,7 @@ namespace __gnu_debug
     inline bool
     operator==(const _Safe_iterator<_Iterator, _Sequence>& __lhs,
                const _Safe_iterator<_Iterator, _Sequence>& __rhs)
+    _GLIBCXX_NOEXCEPT
     {
       _GLIBCXX_DEBUG_VERIFY(! __lhs._M_singular() && ! __rhs._M_singular(),
 			    _M_message(__msg_iter_compare_bad)
@@ -515,6 +516,7 @@ namespace __gnu_debug
     inline bool
     operator!=(const _Safe_iterator<_IteratorL, _Sequence>& __lhs,
 	       const _Safe_iterator<_IteratorR, _Sequence>& __rhs)
+    _GLIBCXX_NOEXCEPT
     {
       _GLIBCXX_DEBUG_VERIFY(! __lhs._M_singular() && ! __rhs._M_singular(),
 			    _M_message(__msg_iter_compare_bad)
@@ -531,6 +533,7 @@ namespace __gnu_debug
     inline bool
     operator!=(const _Safe_iterator<_Iterator, _Sequence>& __lhs,
                const _Safe_iterator<_Iterator, _Sequence>& __rhs)
+    _GLIBCXX_NOEXCEPT
     {
       _GLIBCXX_DEBUG_VERIFY(! __lhs._M_singular() && ! __rhs._M_singular(),
 			    _M_message(__msg_iter_compare_bad)
@@ -547,6 +550,7 @@ namespace __gnu_debug
     inline bool
     operator<(const _Safe_iterator<_IteratorL, _Sequence>& __lhs,
 	      const _Safe_iterator<_IteratorR, _Sequence>& __rhs)
+    _GLIBCXX_NOEXCEPT
     {
       _GLIBCXX_DEBUG_VERIFY(! __lhs._M_singular() && ! __rhs._M_singular(),
 			    _M_message(__msg_iter_order_bad)
@@ -563,6 +567,7 @@ namespace __gnu_debug
     inline bool
     operator<(const _Safe_iterator<_Iterator, _Sequence>& __lhs,
 	      const _Safe_iterator<_Iterator, _Sequence>& __rhs)
+    _GLIBCXX_NOEXCEPT
     {
       _GLIBCXX_DEBUG_VERIFY(! __lhs._M_singular() && ! __rhs._M_singular(),
 			    _M_message(__msg_iter_order_bad)
@@ -579,6 +584,7 @@ namespace __gnu_debug
     inline bool
     operator<=(const _Safe_iterator<_IteratorL, _Sequence>& __lhs,
 	       const _Safe_iterator<_IteratorR, _Sequence>& __rhs)
+    _GLIBCXX_NOEXCEPT
     {
       _GLIBCXX_DEBUG_VERIFY(! __lhs._M_singular() && ! __rhs._M_singular(),
 			    _M_message(__msg_iter_order_bad)
@@ -595,6 +601,7 @@ namespace __gnu_debug
     inline bool
     operator<=(const _Safe_iterator<_Iterator, _Sequence>& __lhs,
                const _Safe_iterator<_Iterator, _Sequence>& __rhs)
+    _GLIBCXX_NOEXCEPT
     {
       _GLIBCXX_DEBUG_VERIFY(! __lhs._M_singular() && ! __rhs._M_singular(),
 			    _M_message(__msg_iter_order_bad)
@@ -611,6 +618,7 @@ namespace __gnu_debug
     inline bool
     operator>(const _Safe_iterator<_IteratorL, _Sequence>& __lhs,
 	      const _Safe_iterator<_IteratorR, _Sequence>& __rhs)
+    _GLIBCXX_NOEXCEPT
     {
       _GLIBCXX_DEBUG_VERIFY(! __lhs._M_singular() && ! __rhs._M_singular(),
 			    _M_message(__msg_iter_order_bad)
@@ -627,6 +635,7 @@ namespace __gnu_debug
     inline bool
     operator>(const _Safe_iterator<_Iterator, _Sequence>& __lhs,
 	      const _Safe_iterator<_Iterator, _Sequence>& __rhs)
+    _GLIBCXX_NOEXCEPT
     {
       _GLIBCXX_DEBUG_VERIFY(! __lhs._M_singular() && ! __rhs._M_singular(),
 			    _M_message(__msg_iter_order_bad)
@@ -643,6 +652,7 @@ namespace __gnu_debug
     inline bool
     operator>=(const _Safe_iterator<_IteratorL, _Sequence>& __lhs,
 	       const _Safe_iterator<_IteratorR, _Sequence>& __rhs)
+    _GLIBCXX_NOEXCEPT
     {
       _GLIBCXX_DEBUG_VERIFY(! __lhs._M_singular() && ! __rhs._M_singular(),
 			    _M_message(__msg_iter_order_bad)
@@ -659,6 +669,7 @@ namespace __gnu_debug
     inline bool
     operator>=(const _Safe_iterator<_Iterator, _Sequence>& __lhs,
                const _Safe_iterator<_Iterator, _Sequence>& __rhs)
+    _GLIBCXX_NOEXCEPT
     {
       _GLIBCXX_DEBUG_VERIFY(! __lhs._M_singular() && ! __rhs._M_singular(),
 			    _M_message(__msg_iter_order_bad)
@@ -679,6 +690,7 @@ namespace __gnu_debug
     inline typename _Safe_iterator<_IteratorL, _Sequence>::difference_type
     operator-(const _Safe_iterator<_IteratorL, _Sequence>& __lhs,
 	      const _Safe_iterator<_IteratorR, _Sequence>& __rhs)
+    _GLIBCXX_NOEXCEPT
     {
       _GLIBCXX_DEBUG_VERIFY(! __lhs._M_singular() && ! __rhs._M_singular(),
 			    _M_message(__msg_distance_bad)
@@ -695,6 +707,7 @@ namespace __gnu_debug
      inline typename _Safe_iterator<_Iterator, _Sequence>::difference_type
      operator-(const _Safe_iterator<_Iterator, _Sequence>& __lhs,
 	       const _Safe_iterator<_Iterator, _Sequence>& __rhs)
+    _GLIBCXX_NOEXCEPT
      {
        _GLIBCXX_DEBUG_VERIFY(! __lhs._M_singular() && ! __rhs._M_singular(),
 			     _M_message(__msg_distance_bad)
@@ -710,7 +723,7 @@ namespace __gnu_debug
   template<typename _Iterator, typename _Sequence>
     inline _Safe_iterator<_Iterator, _Sequence>
     operator+(typename _Safe_iterator<_Iterator,_Sequence>::difference_type __n,
-	      const _Safe_iterator<_Iterator, _Sequence>& __i)
+	      const _Safe_iterator<_Iterator, _Sequence>& __i) _GLIBCXX_NOEXCEPT
     { return __i + __n; }
 } // namespace __gnu_debug
 

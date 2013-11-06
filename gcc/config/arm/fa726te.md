@@ -78,15 +78,20 @@
 ;; Move instructions.
 (define_insn_reservation "726te_shift_op" 1
   (and (eq_attr "tune" "fa726te")
-       (eq_attr "insn" "mov,mvn"))
+       (eq_attr "type" "mov_imm,mov_reg,mov_shift,mov_shift_reg,\
+                        mvn_imm,mvn_reg,mvn_shift,mvn_shift_reg"))
   "fa726te_issue+(fa726te_alu0_pipe|fa726te_alu1_pipe)")
 
 ;; ALU operations with no shifted operand will finished in 1 cycle
 ;; Other ALU instructions 2 cycles.
 (define_insn_reservation "726te_alu_op" 1
  (and (eq_attr "tune" "fa726te")
-      (and (eq_attr "type" "alu_reg,simple_alu_imm")
-           (not (eq_attr "insn" "mov,mvn"))))
+      (eq_attr "type" "alu_imm,alus_imm,logic_imm,logics_imm,\
+                       alu_reg,alus_reg,logic_reg,logics_reg,\
+                       adc_imm,adcs_imm,adc_reg,adcs_reg,\
+                       adr,bfm,rev,\
+                       shift_imm,shift_reg,\
+                       mrs,multiple,no_insn"))
   "fa726te_issue+(fa726te_alu0_pipe|fa726te_alu1_pipe)")
 
 ;; ALU operations with a shift-by-register operand.
@@ -95,14 +100,14 @@
 ;; it takes 3 cycles.
 (define_insn_reservation "726te_alu_shift_op" 3
  (and (eq_attr "tune" "fa726te")
-      (and (eq_attr "type" "simple_alu_shift,alu_shift")
-           (not (eq_attr "insn" "mov,mvn"))))
+      (eq_attr "type" "extend,alu_shift_imm,alus_shift_imm,\
+                       logic_shift_imm,logics_shift_imm"))
   "fa726te_issue+(fa726te_alu0_pipe|fa726te_alu1_pipe)")
 
 (define_insn_reservation "726te_alu_shift_reg_op" 3
  (and (eq_attr "tune" "fa726te")
-      (and (eq_attr "type" "alu_shift_reg")
-           (not (eq_attr "insn" "mov,mvn"))))
+      (eq_attr "type" "alu_shift_reg,alus_shift_reg,\
+                       logic_shift_reg,logics_shift_reg"))
   "fa726te_issue+(fa726te_alu0_pipe|fa726te_alu1_pipe)")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Multiplication Instructions
@@ -115,7 +120,7 @@
 
 (define_insn_reservation "726te_mult_op" 3
  (and (eq_attr "tune" "fa726te")
-      (eq_attr "insn" "smlalxy,mul,mla,muls,mlas,umull,umlal,smull,smlal,\
+      (eq_attr "type" "smlalxy,mul,mla,muls,mlas,umull,umlal,smull,smlal,\
                        umulls,umlals,smulls,smlals,smlawx,smulxy,smlaxy"))
  "fa726te_issue+fa726te_mac_pipe")
 

@@ -608,6 +608,7 @@ build_os
 build_vendor
 build_cpu
 build
+enable_vtable_verify
 enable_shared
 libgcc_topdir
 target_alias
@@ -655,6 +656,7 @@ with_target_subdir
 with_cross_host
 with_ld
 enable_shared
+enable_vtable_verify
 enable_version_specific_runtime_libs
 with_slibdir
 enable_maintainer_mode
@@ -1288,6 +1290,7 @@ Optional Features:
   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --disable-shared        don't provide a shared libgcc
+  --enable-vtable-verify    Enable vtable verification feature
   --enable-version-specific-runtime-libs    Specify that runtime libraries should be installed in a compiler-specific directory
   --enable-maintainer-mode
                           enable make rules and dependencies not useful (and
@@ -2140,6 +2143,19 @@ fi
 
 
 
+# Check whether --enable-vtable-verify was given.
+if test "${enable_vtable_verify+set}" = set; then :
+  enableval=$enable_vtable_verify; case "$enableval" in
+ yes) enable_vtable_verify=yes ;;
+ no)  enable_vtable_verify=no ;;
+ *)   enable_vtable_verify=no;;
+ esac
+else
+  enable_vtable_verify=no
+fi
+
+
+
 # Make sure we can run config.sub.
 $SHELL "$ac_aux_dir/config.sub" sun4 >/dev/null 2>&1 ||
   as_fn_error "cannot run $SHELL $ac_aux_dir/config.sub" "$LINENO" 5
@@ -2228,7 +2244,9 @@ case "${host}" in
     hppa*64*-*-hpux*)
 	# PIC is the default for 64-bit PA HP-UX.
 	;;
-    i[34567]86-*-cygwin* | i[34567]86-*-mingw* | x86_64-*-mingw*)
+    i[34567]86-*-cygwin* | x86_64-*-cygwin*)
+	;;
+    i[34567]86-*-mingw* | x86_64-*-mingw*)
 	;;
     i[34567]86-*-interix[3-9]*)
 	# Interix 3.x gcc -fpic/-fPIC options generate broken code.
@@ -4078,7 +4096,7 @@ else
     powerpc*-*-linux* | i?86*-*-linux* | x86_64*-*-linux* | s390*-*-linux* | \
     i?86*-*-gnu* | \
     i?86*-*-mingw* | x86_64*-*-mingw* | \
-    i?86*-*-cygwin*)
+    i?86*-*-cygwin* | x86_64*-*-cygwin*)
       enable_decimal_float=yes
       ;;
     *)

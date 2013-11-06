@@ -100,6 +100,21 @@ namespace __profile
 
       unordered_set(unordered_set&&) = default;
 
+      explicit
+      unordered_set(const allocator_type& __a)
+	: _Base(__a)
+      { }
+
+      unordered_set(const unordered_set& __uset,
+		    const allocator_type& __a)
+	: _Base(__uset._M_base(), __a)
+      { }
+
+      unordered_set(unordered_set&& __uset,
+		    const allocator_type& __a)
+	: _Base(std::move(__uset._M_base()), __a)
+      { }
+
       unordered_set(initializer_list<value_type> __l,
 		    size_type __n = 0,
 		    const hasher& __hf = hasher(),
@@ -123,6 +138,7 @@ namespace __profile
 
       void
       swap(unordered_set& __x)
+      noexcept( noexcept(__x._M_base().swap(__x)) )
       { _Base::swap(__x); }
 
       void
@@ -308,6 +324,21 @@ namespace __profile
 
       unordered_multiset(unordered_multiset&&) = default;
 
+      explicit
+      unordered_multiset(const allocator_type& __a)
+	: _Base(__a)
+      { }
+
+      unordered_multiset(const unordered_multiset& __umset,
+			 const allocator_type& __a)
+	: _Base(__umset._M_base(), __a)
+      { }
+
+      unordered_multiset(unordered_multiset&& __umset,
+			 const allocator_type& __a)
+	: _Base(std::move(__umset._M_base()), __a)
+      { }
+
       unordered_multiset(initializer_list<value_type> __l,
 			 size_type __n = 0,
 			 const hasher& __hf = hasher(),
@@ -331,6 +362,7 @@ namespace __profile
 
       void
       swap(unordered_multiset& __x)
+      noexcept( noexcept(__x._M_base().swap(__x)) )
       { _Base::swap(__x); }
 
       void

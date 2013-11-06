@@ -1711,9 +1711,6 @@ Floating point constant zero
 @item Z
 Integer constant zero
 
-@item Usa
-An absolute symbolic address
-
 @item Ush
 The high part (bits 12 and upwards) of the pc-relative address of a symbol
 within 4GB of the instruction
@@ -1727,6 +1724,54 @@ DF modes
 
 @end table
 
+
+@item ARC ---@file{config/arc/constraints.md}
+@table @code
+@item q
+Registers usable in ARCompact 16-bit instructions: @code{r0}-@code{r3},
+@code{r12}-@code{r15}.  This constraint can only match when the @option{-mq}
+option is in effect.
+
+@item e
+Registers usable as base-regs of memory addresses in ARCompact 16-bit memory
+instructions: @code{r0}-@code{r3}, @code{r12}-@code{r15}, @code{sp}.
+This constraint can only match when the @option{-mq}
+option is in effect.
+@item D
+ARC FPX (dpfp) 64-bit registers. @code{D0}, @code{D1}.
+
+@item I
+A signed 12-bit integer constant.
+
+@item Cal
+constant for arithmetic/logical operations.  This might be any constant
+that can be put into a long immediate by the assmbler or linker without
+involving a PIC relocation.
+
+@item K
+A 3-bit unsigned integer constant.
+
+@item L
+A 6-bit unsigned integer constant.
+
+@item CnL
+One's complement of a 6-bit unsigned integer constant.
+
+@item CmL
+Two's complement of a 6-bit unsigned integer constant.
+
+@item M
+A 5-bit unsigned integer constant.
+
+@item O
+A 7-bit unsigned integer constant.
+
+@item P
+A 8-bit unsigned integer constant.
+
+@item H
+Any const_double value.
+@end table
 
 @item ARM family---@file{config/arm/constraints.md}
 @table @code
@@ -2055,7 +2100,7 @@ Any constant whose absolute value is no greater than 4-bits.
 
 @end table
 
-@item PowerPC and IBM RS6000---@file{config/rs6000/rs6000.h}
+@item PowerPC and IBM RS6000---@file{config/rs6000/constraints.md}
 @table @code
 @item b
 Address base register
@@ -2069,17 +2114,57 @@ Floating point register (containing 32-bit value)
 @item v
 Altivec vector register
 
+@item wa
+Any VSX register if the -mvsx option was used or NO_REGS.
+
 @item wd
-VSX vector register to hold vector double data
+VSX vector register to hold vector double data or NO_REGS.
 
 @item wf
-VSX vector register to hold vector float data
+VSX vector register to hold vector float data or NO_REGS.
+
+@item wg
+If @option{-mmfpgpr} was used, a floating point register or NO_REGS.
+
+@item wl
+Floating point register if the LFIWAX instruction is enabled or NO_REGS.
+
+@item wm
+VSX register if direct move instructions are enabled, or NO_REGS.
+
+@item wn
+No register (NO_REGS).
+
+@item wr
+General purpose register if 64-bit instructions are enabled or NO_REGS.
 
 @item ws
-VSX vector register to hold scalar float data
+VSX vector register to hold scalar double values or NO_REGS.
 
-@item wa
-Any VSX register
+@item wt
+VSX vector register to hold 128 bit integer or NO_REGS.
+
+@item wu
+Altivec register to use for float/32-bit int loads/stores  or NO_REGS.
+
+@item wv
+Altivec register to use for double loads/stores  or NO_REGS.
+
+@item ww
+FP or VSX register to perform float operations under @option{-mvsx} or NO_REGS.
+
+@item wx
+Floating point register if the STFIWX instruction is enabled or NO_REGS.
+
+@item wy
+VSX vector register to hold scalar float values or NO_REGS.
+
+@item wz
+Floating point register if the LFIWZX instruction is enabled or NO_REGS.
+
+@item wQ
+A memory address that will work with the @code{lq} and @code{stq}
+instructions.
 
 @item h
 @samp{MQ}, @samp{CTR}, or @samp{LINK} register
@@ -2916,6 +3001,19 @@ Floating-point zero.
 
 @item R
 An address that can be used in a non-macro load or store.
+
+@item ZC
+When compiling microMIPS code, this constraint matches a memory operand
+whose address is formed from a base register and a 12-bit offset.  These
+operands can be used for microMIPS instructions such as @code{ll} and
+@code{sc}.  When not compiling for microMIPS code, @code{ZC} is
+equivalent to @code{R}.
+
+@item ZD
+When compiling microMIPS code, this constraint matches an address operand
+that is formed from a base register and a 12-bit offset.  These operands
+can be used for microMIPS instructions such as @code{prefetch}.  When
+not compiling for microMIPS code, @code{ZD} is equivalent to @code{p}.
 @end table
 
 @item Motorola 680x0---@file{config/m68k/constraints.md}
@@ -3023,6 +3121,116 @@ A constant in the range of 0 to 255.
 @item N
 A constant in the range of 0 to @minus{}255.
 
+@end table
+
+@item MSP430--@file{config/msp430/constraints.md}
+@table @code
+
+@item R12
+Register R12.
+
+@item R13
+Register R13.
+
+@item K
+Integer constant 1.
+
+@item L
+Integer constant -1^20..1^19.
+
+@item M
+Integer constant 1-4.
+
+@item Ya
+Memory references which do not require an extended MOVX instruction.
+
+@item Yl
+Memory reference, labels only.
+
+@item Ys
+Memory reference, stack only.
+
+@end table
+
+@item NDS32---@file{config/nds32/constraints.md}
+@table @code
+@item w
+LOW register class $r0 to $r7 constraint for V3/V3M ISA.
+@item l
+LOW register class $r0 to $r7.
+@item d
+MIDDLE register class $r0 to $r11, $r16 to $r19.
+@item h
+HIGH register class $r12 to $r14, $r20 to $r31.
+@item t
+Temporary assist register $ta (i.e.@: $r15).
+@item k
+Stack register $sp.
+@item Iu03
+Unsigned immediate 3-bit value.
+@item In03
+Negative immediate 3-bit value in the range of @minus{}7--0.
+@item Iu04
+Unsigned immediate 4-bit value.
+@item Is05
+Signed immediate 5-bit value.
+@item Iu05
+Unsigned immediate 5-bit value.
+@item In05
+Negative immediate 5-bit value in the range of @minus{}31--0.
+@item Ip05
+Unsigned immediate 5-bit value for movpi45 instruction with range 16--47.
+@item Iu06
+Unsigned immediate 6-bit value constraint for addri36.sp instruction.
+@item Iu08
+Unsigned immediate 8-bit value.
+@item Iu09
+Unsigned immediate 9-bit value.
+@item Is10
+Signed immediate 10-bit value.
+@item Is11
+Signed immediate 11-bit value.
+@item Is15
+Signed immediate 15-bit value.
+@item Iu15
+Unsigned immediate 15-bit value.
+@item Ic15
+A constant which is not in the range of imm15u but ok for bclr instruction.
+@item Ie15
+A constant which is not in the range of imm15u but ok for bset instruction.
+@item It15
+A constant which is not in the range of imm15u but ok for btgl instruction.
+@item Ii15
+A constant whose compliment value is in the range of imm15u
+and ok for bitci instruction.
+@item Is16
+Signed immediate 16-bit value.
+@item Is17
+Signed immediate 17-bit value.
+@item Is19
+Signed immediate 19-bit value.
+@item Is20
+Signed immediate 20-bit value.
+@item Ihig
+The immediate value that can be simply set high 20-bit.
+@item Izeb
+The immediate value 0xff.
+@item Izeh
+The immediate value 0xffff.
+@item Ixls
+The immediate value 0x01.
+@item Ix11
+The immediate value 0x7ff.
+@item Ibms
+The immediate value with power of 2.
+@item Ifex
+The immediate value with power of 2 minus 1.
+@item U33
+Memory constraint for 333 format.
+@item U45
+Memory constraint for 45 format.
+@item U37
+Memory constraint for 37 format.
 @end table
 
 @item PDP-11---@file{config/pdp11/constraints.md}
@@ -5083,12 +5291,13 @@ are the first two operands, and both are @code{mem:BLK}s with an
 address in mode @code{Pmode}.
 
 The number of bytes to move is the third operand, in mode @var{m}.
-Usually, you specify @code{word_mode} for @var{m}.  However, if you can
+Usually, you specify @code{Pmode} for @var{m}.  However, if you can
 generate better code knowing the range of valid lengths is smaller than
-those representable in a full word, you should provide a pattern with a
+those representable in a full Pmode pointer, you should provide
+a pattern with a
 mode corresponding to the range of values you can handle efficiently
 (e.g., @code{QImode} for values in the range 0--127; note we avoid numbers
-that appear negative) and also a pattern with @code{word_mode}.
+that appear negative) and also a pattern with @code{Pmode}.
 
 The fourth operand is the known shared alignment of the source and
 destination, in the form of a @code{const_int} rtx.  Thus, if the
@@ -5613,7 +5822,7 @@ A label to jump to if the index has a value outside the bounds.
 @end enumerate
 
 The table is an @code{addr_vec} or @code{addr_diff_vec} inside of a
-@code{jump_insn}.  The number of elements in the table is one plus the
+@code{jump_table_data}.  The number of elements in the table is one plus the
 difference between the upper bound and the lower bound.
 
 @cindex @code{tablejump} instruction pattern
@@ -7540,7 +7749,7 @@ so here's a silly made-up example:
   "/* @r{determine 1 does not overlap 0 and 2} */"
   [(set (match_dup 4) (match_dup 1))
    (set (match_dup 0) (match_dup 4))
-   (set (match_dup 2) (match_dup 4))]
+   (set (match_dup 2) (match_dup 4))
    (set (match_dup 3) (match_dup 4))]
   "")
 @end smallexample
@@ -7571,6 +7780,7 @@ to track the condition codes.
 * Attr Example::        An example of assigning attributes.
 * Insn Lengths::        Computing the length of insns.
 * Constant Attributes:: Defining attributes that are constant.
+* Mnemonic Attribute::  Obtain the instruction mnemonic as attribute value.
 * Delay Slots::         Defining delay slots required for a machine.
 * Processor pipeline description:: Specifying information for insn scheduling.
 @end menu
@@ -7590,15 +7800,17 @@ by the target machine.  It looks like:
 (define_attr @var{name} @var{list-of-values} @var{default})
 @end smallexample
 
-@var{name} is a string specifying the name of the attribute being defined.
-Some attributes are used in a special way by the rest of the compiler. The
-@code{enabled} attribute can be used to conditionally enable or disable
-insn alternatives (@pxref{Disable Insn Alternatives}). The @code{predicable}
-attribute, together with a suitable @code{define_cond_exec}
-(@pxref{Conditional Execution}), can be used to automatically generate
-conditional variants of instruction patterns. The compiler internally uses
-the names @code{ce_enabled} and @code{nonce_enabled}, so they should not be
-used elsewhere as alternative names.
+@var{name} is a string specifying the name of the attribute being
+defined.  Some attributes are used in a special way by the rest of the
+compiler. The @code{enabled} attribute can be used to conditionally
+enable or disable insn alternatives (@pxref{Disable Insn
+Alternatives}). The @code{predicable} attribute, together with a
+suitable @code{define_cond_exec} (@pxref{Conditional Execution}), can
+be used to automatically generate conditional variants of instruction
+patterns. The @code{mnemonic} attribute can be used to check for the
+instruction mnemonic (@pxref{Mnemonic Attribute}).  The compiler
+internally uses the names @code{ce_enabled} and @code{nonce_enabled},
+so they should not be used elsewhere as alternative names.
 
 @var{list-of-values} is either a string that specifies a comma-separated
 list of values that can be assigned to the attribute, or a null string to
@@ -7662,6 +7874,11 @@ distances. @xref{Insn Lengths}.
 The @code{enabled} attribute can be defined to prevent certain
 alternatives of an insn definition from being used during code
 generation. @xref{Disable Insn Alternatives}.
+
+@item mnemonic
+The @code{mnemonic} attribute can be defined to implement instruction
+specific checks in e.g. the pipeline description.
+@xref{Mnemonic Attribute}.
 @end table
 
 For each of these special attributes, the corresponding
@@ -8211,6 +8428,47 @@ does not depend on any particular insn.  RTL expressions used to define
 the value of a constant attribute may use the @code{symbol_ref} form,
 but may not use either the @code{match_operand} form or @code{eq_attr}
 forms involving insn attributes.
+
+@end ifset
+@ifset INTERNALS
+@node Mnemonic Attribute
+@subsection Mnemonic Attribute
+@cindex mnemonic attribute
+
+The @code{mnemonic} attribute is a string type attribute holding the
+instruction mnemonic for an insn alternative.  The attribute values
+will automatically be generated by the machine description parser if
+there is an attribute definition in the md file:
+
+@smallexample
+(define_attr "mnemonic" "unknown" (const_string "unknown"))
+@end smallexample
+
+The default value can be freely chosen as long as it does not collide
+with any of the instruction mnemonics.  This value will be used
+whenever the machine description parser is not able to determine the
+mnemonic string.  This might be the case for output templates
+containing more than a single instruction as in
+@code{"mvcle\t%0,%1,0\;jo\t.-4"}.
+
+The @code{mnemonic} attribute set is not generated automatically if the
+instruction string is generated via C code.
+
+An existing @code{mnemonic} attribute set in an insn definition will not
+be overriden by the md file parser.  That way it is possible to
+manually set the instruction mnemonics for the cases where the md file
+parser fails to determine it automatically.
+
+The @code{mnemonic} attribute is useful for dealing with instruction
+specific properties in the pipeline description without defining
+additional insn attributes.
+
+@smallexample
+(define_attr "ooo_expanded" ""
+  (cond [(eq_attr "mnemonic" "dlr,dsgr,d,dsgf,stam,dsgfr,dlgr")
+         (const_int 1)]
+        (const_int 0)))
+@end smallexample
 
 @end ifset
 @ifset INTERNALS
@@ -8828,7 +9086,8 @@ can be quite tedious to describe these forms directly in the
 (define_cond_exec
   [@var{predicate-pattern}]
   "@var{condition}"
-  "@var{output-template}")
+  "@var{output-template}"
+  "@var{optional-insn-attribues}")
 @end smallexample
 
 @var{predicate-pattern} is the condition that must be true for the
@@ -8848,6 +9107,13 @@ assembly text for the predicate is a simple prefix to the main insn.
 In order to handle the general case, there is a global variable
 @code{current_insn_predicate} that will contain the entire predicate
 if the current insn is predicated, and will otherwise be @code{NULL}.
+
+@var{optional-insn-attributes} is an optional vector of attributes that gets
+appended to the insn attributes of the produced cond_exec rtx. It can
+be used to add some distinguishing attribute to cond_exec rtxs produced
+that way. An example usage would be to use this attribute in conjunction
+with attributes on the main pattern to disable particular alternatives under
+certain conditions.
 
 When @code{define_cond_exec} is used, an implicit reference to
 the @code{predicable} instruction attribute is made.
@@ -9605,7 +9871,7 @@ Here's an example of int iterators in action, taken from the ARM port:
 		      QABSNEG))]
   "TARGET_NEON"
   "vq<absneg>.<V_s_elem>\t%<V_reg>0, %<V_reg>1"
-  [(set_attr "neon_type" "neon_vqneg_vqabs")]
+  [(set_attr "type" "neon_vqneg_vqabs")]
 )
 
 @end smallexample
@@ -9620,7 +9886,7 @@ This is equivalent to:
 		      UNSPEC_VQABS))]
   "TARGET_NEON"
   "vqabs.<V_s_elem>\t%<V_reg>0, %<V_reg>1"
-  [(set_attr "neon_type" "neon_vqneg_vqabs")]
+  [(set_attr "type" "neon_vqneg_vqabs")]
 )
 
 (define_insn "neon_vqneg<mode>"
@@ -9630,7 +9896,7 @@ This is equivalent to:
 		      UNSPEC_VQNEG))]
   "TARGET_NEON"
   "vqneg.<V_s_elem>\t%<V_reg>0, %<V_reg>1"
-  [(set_attr "neon_type" "neon_vqneg_vqabs")]
+  [(set_attr "type" "neon_vqneg_vqabs")]
 )
 
 @end smallexample

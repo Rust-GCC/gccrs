@@ -58,6 +58,10 @@ mmad
 Target Report Var(TARGET_MAD)
 Use PMC-style 'mad' instructions
 
+mimadd
+Target Report Mask(IMADD)
+Use integer madd/msub instructions
+
 march=
 Target RejectNegative Joined Var(mips_arch_option) ToLower Enum(mips_arch_opt_value)
 -march=ISA	Generate code for the given ISA
@@ -137,6 +141,10 @@ membedded-data
 Target Report Var(TARGET_EMBEDDED_DATA)
 Use ROM instead of RAM
 
+meva
+Target Report Var(TARGET_EVA)
+Use Enhanced Virtual Addressing instructions
+
 mexplicit-relocs
 Target Report Mask(EXPLICIT_RELOCS)
 Use NewABI-style %reloc() assembly operators
@@ -197,6 +205,24 @@ mfused-madd
 Target Report Mask(FUSED_MADD)
 Generate floating-point multiply-add instructions
 
+mabs=
+Target RejectNegative Joined Enum(mips_ieee_754_value) Var(mips_abs) Init(MIPS_IEEE_754_DEFAULT)
+-mabs=MODE	Select the IEEE 754 ABS/NEG instruction execution mode
+
+mnan=
+Target RejectNegative Joined Enum(mips_ieee_754_value) Var(mips_nan) Init(MIPS_IEEE_754_DEFAULT)
+-mnan=ENCODING	Select the IEEE 754 NaN data encoding
+
+Enum
+Name(mips_ieee_754_value) Type(int)
+Known MIPS IEEE 754 settings (for use with the -mabs= and -mnan= options):
+
+EnumValue
+Enum(mips_ieee_754_value) String(2008) Value(MIPS_IEEE_754_2008)
+
+EnumValue
+Enum(mips_ieee_754_value) String(legacy) Value(MIPS_IEEE_754_LEGACY)
+
 mgp32
 Target Report RejectNegative InverseMask(64BIT)
 Use 32-bit general registers
@@ -217,9 +243,13 @@ mhard-float
 Target Report RejectNegative InverseMask(SOFT_FLOAT_ABI, HARD_FLOAT_ABI)
 Allow the use of hardware floating-point ABI and instructions
 
+minterlink-compressed
+Target Report Var(TARGET_INTERLINK_COMPRESSED) Init(0)
+Generate code that is link-compatible with MIPS16 and microMIPS code.
+
 minterlink-mips16
-Target Report Var(TARGET_INTERLINK_MIPS16) Init(0)
-Generate code that can be safely linked with MIPS16 code.
+Target Report Var(TARGET_INTERLINK_COMPRESSED) Init(0)
+An alias for minterlink-compressed provided for backward-compatibility.
 
 mips
 Target RejectNegative Joined ToLower Enum(mips_mips_opt_value) Var(mips_isa_option)
@@ -260,6 +290,10 @@ Pass the address of the ra save location to _mcount in $12
 mmemcpy
 Target Report Mask(MEMCPY)
 Don't optimize block moves
+
+mmicromips
+Target Report Mask(MICROMIPS)
+Use microMIPS instructions
 
 mmt
 Target Report Var(TARGET_MT)

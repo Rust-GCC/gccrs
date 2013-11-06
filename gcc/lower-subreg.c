@@ -24,6 +24,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "machmode.h"
 #include "tm.h"
+#include "tree.h"
 #include "rtl.h"
 #include "tm_p.h"
 #include "flags.h"
@@ -966,7 +967,20 @@ resolve_simple_move (rtx set, rtx insn)
       rtx reg;
 
       reg = gen_reg_rtx (orig_mode);
+
+#ifdef AUTO_INC_DEC
+      {
+	rtx move = emit_move_insn (reg, src);
+	if (MEM_P (src))
+	  {
+	    rtx note = find_reg_note (insn, REG_INC, NULL_RTX);
+	    if (note)
+	      add_reg_note (move, REG_INC, XEXP (note, 0));
+	  }
+      }
+#else
       emit_move_insn (reg, src);
+#endif
       src = reg;
     }
 
@@ -1056,6 +1070,16 @@ resolve_simple_move (rtx set, rtx insn)
 	mdest = simplify_gen_subreg (orig_mode, dest, GET_MODE (dest), 0);
       minsn = emit_move_insn (real_dest, mdest);
 
+#ifdef AUTO_INC_DEC
+  if (MEM_P (real_dest)
+      && !(resolve_reg_p (real_dest) || resolve_subreg_p (real_dest)))
+    {
+      rtx note = find_reg_note (insn, REG_INC, NULL_RTX);
+      if (note)
+	add_reg_note (minsn, REG_INC, XEXP (note, 0));
+    }
+#endif
+
       smove = single_set (minsn);
       gcc_assert (smove != NULL_RTX);
 
@@ -1069,7 +1093,13 @@ resolve_simple_move (rtx set, rtx insn)
 
   emit_insn_before (insns, insn);
 
-  delete_insn (insn);
+  /* If we get here via self-recursion, then INSN is not yet in the insns
+     chain and delete_insn will fail.  We only want to remove INSN from the
+     current sequence.  See PR56738.  */
+  if (in_sequence_p ())
+    remove_insn (insn);
+  else
+    delete_insn (insn);
 
   return insns;
 }
@@ -1683,45 +1713,79 @@ rest_of_handle_lower_subreg2 (void)
   return 0;
 }
 
-struct rtl_opt_pass pass_lower_subreg =
+namespace {
+
+const pass_data pass_data_lower_subreg =
 {
- {
-  RTL_PASS,
-  "subreg1",	                        /* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  gate_handle_lower_subreg,             /* gate */
-  rest_of_handle_lower_subreg,          /* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_LOWER_SUBREG,                      /* tv_id */
-  0,                                    /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  TODO_ggc_collect |
-  TODO_verify_flow                      /* todo_flags_finish */
- }
+  RTL_PASS, /* type */
+  "subreg1", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_LOWER_SUBREG, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  TODO_verify_flow, /* todo_flags_finish */
 };
 
-struct rtl_opt_pass pass_lower_subreg2 =
+class pass_lower_subreg : public rtl_opt_pass
 {
- {
-  RTL_PASS,
-  "subreg2",	                        /* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  gate_handle_lower_subreg,             /* gate */
-  rest_of_handle_lower_subreg2,          /* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_LOWER_SUBREG,                      /* tv_id */
-  0,                                    /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  TODO_df_finish | TODO_verify_rtl_sharing |
-  TODO_ggc_collect |
-  TODO_verify_flow                      /* todo_flags_finish */
- }
+public:
+  pass_lower_subreg (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_lower_subreg, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_handle_lower_subreg (); }
+  unsigned int execute () { return rest_of_handle_lower_subreg (); }
+
+}; // class pass_lower_subreg
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_lower_subreg (gcc::context *ctxt)
+{
+  return new pass_lower_subreg (ctxt);
+}
+
+namespace {
+
+const pass_data pass_data_lower_subreg2 =
+{
+  RTL_PASS, /* type */
+  "subreg2", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_LOWER_SUBREG, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  ( TODO_df_finish | TODO_verify_rtl_sharing
+    | TODO_verify_flow ), /* todo_flags_finish */
 };
+
+class pass_lower_subreg2 : public rtl_opt_pass
+{
+public:
+  pass_lower_subreg2 (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_lower_subreg2, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_handle_lower_subreg (); }
+  unsigned int execute () { return rest_of_handle_lower_subreg2 (); }
+
+}; // class pass_lower_subreg2
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_lower_subreg2 (gcc::context *ctxt)
+{
+  return new pass_lower_subreg2 (ctxt);
+}

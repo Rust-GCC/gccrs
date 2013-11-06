@@ -59,16 +59,18 @@ along with GCC; see the file COPYING3.  If not see
 
 #ifdef SINGLE_LIBC
 #define OPTION_GLIBC  (DEFAULT_LIBC == LIBC_GLIBC)
+#define OPTION_UCLIBC (DEFAULT_LIBC == LIBC_UCLIBC)
+#define OPTION_BIONIC (DEFAULT_LIBC == LIBC_BIONIC)
 #else
 #define OPTION_GLIBC  (linux_libc == LIBC_GLIBC)
+#define OPTION_UCLIBC (linux_libc == LIBC_UCLIBC)
+#define OPTION_BIONIC (linux_libc == LIBC_BIONIC)
 #endif
 
-/* Determine whether the entire c99 runtime is present in the
-   runtime library.  */
-#define TARGET_C99_FUNCTIONS (OPTION_GLIBC)
-
-/* Whether we have sincos that follows the GNU extension.  */
-#define TARGET_HAS_SINCOS (OPTION_GLIBC)
+/* Determine what functions are present at the runtime;
+   this includes full c99 runtime and sincos.  */
+#undef TARGET_LIBC_HAS_FUNCTION
+#define TARGET_LIBC_HAS_FUNCTION linux_android_libc_has_function
 
 #define TARGET_POSIX_IO
 

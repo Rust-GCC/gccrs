@@ -20,14 +20,14 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef IPA_PROP_H
 #define IPA_PROP_H
 
-#include "tree.h"
 #include "vec.h"
 #include "cgraph.h"
-#include "gimple.h"
 #include "alloc-pool.h"
 
 /* The following definitions and interfaces are used by
    interprocedural analyses or parameters.  */
+
+#define IPA_UNDESCRIBED_USE -1
 
 /* ipa-prop.c stuff (ipa-cp, indirect inlining):  */
 
@@ -84,6 +84,17 @@ struct GTY(()) ipa_known_type_data
   tree component_type;
 };
 
+struct ipa_cst_ref_desc;
+
+/* Structure holding data required to describe a constant jump function.  */
+struct GTY(()) ipa_constant_data
+{
+  /* THe value of the constant.  */
+  tree value;
+  /* Pointer to the structure that describes the reference.  */
+  struct ipa_cst_ref_desc GTY((skip)) *rdesc;
+};
+
 /* Structure holding data required to describe a pass-through jump function.  */
 
 struct GTY(()) ipa_pass_through_data
@@ -104,7 +115,12 @@ struct GTY(()) ipa_pass_through_data
      aggregate part of the jump function (see description of
      ipa_agg_jump_function).  The flag is used only when the operation is
      NOP_EXPR.  */
-  bool agg_preserved;
+  unsigned agg_preserved : 1;
+
+  /* When set to true, we guarantee that, if there is a C++ object pointed to
+     by this object, it does not undergo dynamic type change in the course of
+     functions decribed by this jump function.  */
+  unsigned type_preserved : 1;
 };
 
 /* Structure holding data required to describe an ancestor pass-through
@@ -119,7 +135,11 @@ struct GTY(()) ipa_ancestor_jf_data
   /* Number of the caller's formal parameter being passed.  */
   int formal_id;
   /* Flag with the same meaning like agg_preserve in ipa_pass_through_data.  */
-  bool agg_preserved;
+  unsigned agg_preserved : 1;
+  /* When set to true, we guarantee that, if there is a C++ object pointed to
+     by this object, it does not undergo dynamic type change in the course of
+     functions decribed by this jump function.  */
+  unsigned type_preserved : 1;
 };
 
 /* An element in an aggegate part of a jump function describing a known value
@@ -130,7 +150,7 @@ struct GTY(()) ipa_ancestor_jf_data
    the size of the type) is clobbered with an unknown value.  When
    agg_preserved is false or the type of the containing jump function is
    different, all unlisted parts are assumed to be unknown and all values must
-   fullfill is_gimple_ip_invariant.  */
+   fulfill is_gimple_ip_invariant.  */
 
 typedef struct GTY(()) ipa_agg_jf_item
 {
@@ -172,14 +192,14 @@ typedef struct GTY (()) ipa_jump_func
   union jump_func_value
   {
     struct ipa_known_type_data GTY ((tag ("IPA_JF_KNOWN_TYPE"))) known_type;
-    tree GTY ((tag ("IPA_JF_CONST"))) constant;
+    struct ipa_constant_data GTY ((tag ("IPA_JF_CONST"))) constant;
     struct ipa_pass_through_data GTY ((tag ("IPA_JF_PASS_THROUGH"))) pass_through;
     struct ipa_ancestor_jf_data GTY ((tag ("IPA_JF_ANCESTOR"))) ancestor;
   } GTY ((desc ("%1.type"))) value;
 } ipa_jump_func_t;
 
 
-/* Return the offset of the component that is decribed by a known type jump
+/* Return the offset of the component that is described by a known type jump
    function JFUNC.  */
 
 static inline HOST_WIDE_INT
@@ -213,7 +233,14 @@ static inline tree
 ipa_get_jf_constant (struct ipa_jump_func *jfunc)
 {
   gcc_checking_assert (jfunc->type == IPA_JF_CONST);
-  return jfunc->value.constant;
+  return jfunc->value.constant.value;
+}
+
+static inline struct ipa_cst_ref_desc *
+ipa_get_jf_constant_rdesc (struct ipa_jump_func *jfunc)
+{
+  gcc_checking_assert (jfunc->type == IPA_JF_CONST);
+  return jfunc->value.constant.rdesc;
 }
 
 /* Return the operand of a pass through jmp function JFUNC.  */
@@ -244,13 +271,22 @@ ipa_get_jf_pass_through_operation (struct ipa_jump_func *jfunc)
   return jfunc->value.pass_through.operation;
 }
 
-/* Return the agg_preserved flag of a pass through jump functin JFUNC.  */
+/* Return the agg_preserved flag of a pass through jump function JFUNC.  */
 
 static inline bool
 ipa_get_jf_pass_through_agg_preserved (struct ipa_jump_func *jfunc)
 {
   gcc_checking_assert (jfunc->type == IPA_JF_PASS_THROUGH);
   return jfunc->value.pass_through.agg_preserved;
+}
+
+/* Return the type_preserved flag of a pass through jump function JFUNC.  */
+
+static inline bool
+ipa_get_jf_pass_through_type_preserved (struct ipa_jump_func *jfunc)
+{
+  gcc_checking_assert (jfunc->type == IPA_JF_PASS_THROUGH);
+  return jfunc->value.pass_through.type_preserved;
 }
 
 /* Return the offset of an ancestor jump function JFUNC.  */
@@ -281,7 +317,7 @@ ipa_get_jf_ancestor_formal_id (struct ipa_jump_func *jfunc)
   return jfunc->value.ancestor.formal_id;
 }
 
-/* Return the agg_preserved flag of an ancestor jump functin JFUNC.  */
+/* Return the agg_preserved flag of an ancestor jump function JFUNC.  */
 
 static inline bool
 ipa_get_jf_ancestor_agg_preserved (struct ipa_jump_func *jfunc)
@@ -290,12 +326,26 @@ ipa_get_jf_ancestor_agg_preserved (struct ipa_jump_func *jfunc)
   return jfunc->value.ancestor.agg_preserved;
 }
 
+/* Return the type_preserved flag of an ancestor jump function JFUNC.  */
+
+static inline bool
+ipa_get_jf_ancestor_type_preserved (struct ipa_jump_func *jfunc)
+{
+  gcc_checking_assert (jfunc->type == IPA_JF_ANCESTOR);
+  return jfunc->value.ancestor.type_preserved;
+}
+
 /* Summary describing a single formal parameter.  */
 
 struct ipa_param_descriptor
 {
   /* PARAM_DECL of this parameter.  */
   tree decl;
+  /* If all uses of the parameter are described by ipa-prop structures, this
+     says how many there are.  If any use could not be described by means of
+     ipa-prop structures, this is IPA_UNDESCRIBED_USE.  */
+  int controlled_uses;
+  unsigned int move_cost : 31;
   /* The parameter is used.  */
   unsigned used : 1;
 };
@@ -353,7 +403,17 @@ ipa_get_param_count (struct ipa_node_params *info)
 static inline tree
 ipa_get_param (struct ipa_node_params *info, int i)
 {
+  gcc_checking_assert (!flag_wpa);
   return info->descriptors[i].decl;
+}
+
+/* Return the move cost of Ith formal parameter of the function corresponding
+   to INFO.  */
+
+static inline int
+ipa_get_param_move_cost (struct ipa_node_params *info, int i)
+{
+  return info->descriptors[i].move_cost;
 }
 
 /* Set the used flag corresponding to the Ith formal parameter of the function
@@ -363,6 +423,23 @@ static inline void
 ipa_set_param_used (struct ipa_node_params *info, int i, bool val)
 {
   info->descriptors[i].used = val;
+}
+
+/* Return how many uses described by ipa-prop a parameter has or
+   IPA_UNDESCRIBED_USE if there is a use that is not described by these
+   structures.  */
+static inline int
+ipa_get_controlled_uses (struct ipa_node_params *info, int i)
+{
+  return info->descriptors[i].controlled_uses;
+}
+
+/* Set the controlled counter of a given parameter.  */
+
+static inline void
+ipa_set_controlled_uses (struct ipa_node_params *info, int i, int val)
+{
+  info->descriptors[i].controlled_uses = val;
 }
 
 /* Return the used flag corresponding to the Ith formal parameter of the
@@ -509,6 +586,8 @@ tree ipa_get_indirect_edge_target (struct cgraph_edge *ie,
 				   vec<tree> ,
 				   vec<ipa_agg_jump_function_p> );
 struct cgraph_edge *ipa_make_edge_direct_to_target (struct cgraph_edge *, tree);
+tree ipa_binfo_from_known_type_jfunc (struct ipa_jump_func *);
+tree ipa_intraprocedural_devirtualization (gimple);
 
 /* Functions related to both.  */
 void ipa_analyze_node (struct cgraph_node *);
@@ -610,6 +689,7 @@ int ipa_get_param_decl_index (struct ipa_node_params *, tree);
 tree ipa_value_from_jfunc (struct ipa_node_params *info,
 			   struct ipa_jump_func *jfunc);
 unsigned int ipcp_transform_function (struct cgraph_node *node);
+void ipa_dump_param (FILE *, struct ipa_node_params *info, int i);
 
 
 /* From tree-sra.c:  */

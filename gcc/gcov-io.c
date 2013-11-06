@@ -386,7 +386,7 @@ gcov_write_summary (gcov_unsigned_t tag, const struct gcov_summary *summary)
           h_cnt++;
         }
     }
-  gcov_write_tag_length (tag, GCOV_TAG_SUMMARY_LENGTH(h_cnt));
+  gcov_write_tag_length (tag, GCOV_TAG_SUMMARY_LENGTH (h_cnt));
   gcov_write_unsigned (summary->checksum);
   for (csum = summary->ctrs, ix = GCOV_COUNTERS_SUMMABLE; ix--; csum++)
     {
@@ -559,7 +559,7 @@ gcov_read_summary (struct gcov_summary *summary)
           while (!cur_bitvector)
             {
               h_ix = bv_ix * 32;
-              gcc_assert(bv_ix < GCOV_HISTOGRAM_BITVECTOR_SIZE);
+              gcc_assert (bv_ix < GCOV_HISTOGRAM_BITVECTOR_SIZE);
               cur_bitvector = histo_bitvector[bv_ix++];
             }
           while (!(cur_bitvector & 0x1))
@@ -567,7 +567,7 @@ gcov_read_summary (struct gcov_summary *summary)
               h_ix++;
               cur_bitvector >>= 1;
             }
-          gcc_assert(h_ix < GCOV_HISTOGRAM_SIZE);
+          gcc_assert (h_ix < GCOV_HISTOGRAM_SIZE);
 
           csum->histogram[h_ix].num_counters = gcov_read_unsigned ();
           csum->histogram[h_ix].min_value = gcov_read_counter ();
@@ -709,7 +709,7 @@ static void gcov_histogram_merge (gcov_bucket_type *tgt_histo,
   gcov_bucket_type tmp_histo[GCOV_HISTOGRAM_SIZE];
   int src_done = 0;
 
-  memset(tmp_histo, 0, sizeof (gcov_bucket_type) * GCOV_HISTOGRAM_SIZE);
+  memset (tmp_histo, 0, sizeof (gcov_bucket_type) * GCOV_HISTOGRAM_SIZE);
 
   /* Assume that the counters are in the same relative order in both
      histograms. Walk the histograms from largest to smallest entry,
@@ -797,7 +797,7 @@ static void gcov_histogram_merge (gcov_bucket_type *tgt_histo,
 
           /* The merged counters get placed in the new merged histogram
              at the entry for the merged min_value.  */
-          tmp_i = gcov_histo_index(merge_min);
+          tmp_i = gcov_histo_index (merge_min);
           gcc_assert (tmp_i < GCOV_HISTOGRAM_SIZE);
           tmp_histo[tmp_i].num_counters += merge_num;
           tmp_histo[tmp_i].cum_value += merge_cum;
@@ -829,11 +829,119 @@ static void gcov_histogram_merge (gcov_bucket_type *tgt_histo,
     }
   /* At this point, tmp_i should be the smallest non-zero entry in the
      tmp_histo.  */
-  gcc_assert(tmp_i >= 0 && tmp_i < GCOV_HISTOGRAM_SIZE
-             && tmp_histo[tmp_i].num_counters > 0);
+  gcc_assert (tmp_i >= 0 && tmp_i < GCOV_HISTOGRAM_SIZE
+	      && tmp_histo[tmp_i].num_counters > 0);
   tmp_histo[tmp_i].cum_value += src_cum;
 
   /* Finally, copy the merged histogram into tgt_histo.  */
-  memcpy(tgt_histo, tmp_histo, sizeof (gcov_bucket_type) * GCOV_HISTOGRAM_SIZE);
+  memcpy (tgt_histo, tmp_histo,
+	  sizeof (gcov_bucket_type) * GCOV_HISTOGRAM_SIZE);
 }
 #endif /* !IN_GCOV */
+
+/* This is used by gcov-dump (IN_GCOV == -1) and in the compiler
+   (!IN_GCOV && !IN_LIBGCOV).  */
+#if IN_GCOV <= 0 && !IN_LIBGCOV
+/* Compute the working set information from the counter histogram in
+   the profile summary. This is an array of information corresponding to a
+   range of percentages of the total execution count (sum_all), and includes
+   the number of counters required to cover that working set percentage and
+   the minimum counter value in that working set.  */
+
+GCOV_LINKAGE void
+compute_working_sets (const struct gcov_ctr_summary *summary,
+                      gcov_working_set_t *gcov_working_sets)
+{
+  gcov_type working_set_cum_values[NUM_GCOV_WORKING_SETS];
+  gcov_type ws_cum_hotness_incr;
+  gcov_type cum, tmp_cum;
+  const gcov_bucket_type *histo_bucket;
+  unsigned ws_ix, c_num, count;
+  int h_ix;
+
+  /* Compute the amount of sum_all that the cumulative hotness grows
+     by in each successive working set entry, which depends on the
+     number of working set entries.  */
+  ws_cum_hotness_incr = summary->sum_all / NUM_GCOV_WORKING_SETS;
+
+  /* Next fill in an array of the cumulative hotness values corresponding
+     to each working set summary entry we are going to compute below.
+     Skip 0% statistics, which can be extrapolated from the
+     rest of the summary data.  */
+  cum = ws_cum_hotness_incr;
+  for (ws_ix = 0; ws_ix < NUM_GCOV_WORKING_SETS;
+       ws_ix++, cum += ws_cum_hotness_incr)
+    working_set_cum_values[ws_ix] = cum;
+  /* The last summary entry is reserved for (roughly) 99.9% of the
+     working set. Divide by 1024 so it becomes a shift, which gives
+     almost exactly 99.9%.  */
+  working_set_cum_values[NUM_GCOV_WORKING_SETS-1]
+      = summary->sum_all - summary->sum_all/1024;
+
+  /* Next, walk through the histogram in decending order of hotness
+     and compute the statistics for the working set summary array.
+     As histogram entries are accumulated, we check to see which
+     working set entries have had their expected cum_value reached
+     and fill them in, walking the working set entries in increasing
+     size of cum_value.  */
+  ws_ix = 0; /* The current entry into the working set array.  */
+  cum = 0; /* The current accumulated counter sum.  */
+  count = 0; /* The current accumulated count of block counters.  */
+  for (h_ix = GCOV_HISTOGRAM_SIZE - 1;
+       h_ix >= 0 && ws_ix < NUM_GCOV_WORKING_SETS; h_ix--)
+    {
+      histo_bucket = &summary->histogram[h_ix];
+
+      /* If we haven't reached the required cumulative counter value for
+         the current working set percentage, simply accumulate this histogram
+         entry into the running sums and continue to the next histogram
+         entry.  */
+      if (cum + histo_bucket->cum_value < working_set_cum_values[ws_ix])
+        {
+          cum += histo_bucket->cum_value;
+          count += histo_bucket->num_counters;
+          continue;
+        }
+
+      /* If adding the current histogram entry's cumulative counter value
+         causes us to exceed the current working set size, then estimate
+         how many of this histogram entry's counter values are required to
+         reach the working set size, and fill in working set entries
+         as we reach their expected cumulative value.  */
+      for (c_num = 0, tmp_cum = cum;
+           c_num < histo_bucket->num_counters && ws_ix < NUM_GCOV_WORKING_SETS;
+           c_num++)
+        {
+          count++;
+          /* If we haven't reached the last histogram entry counter, add
+             in the minimum value again. This will underestimate the
+             cumulative sum so far, because many of the counter values in this
+             entry may have been larger than the minimum. We could add in the
+             average value every time, but that would require an expensive
+             divide operation.  */
+          if (c_num + 1 < histo_bucket->num_counters)
+            tmp_cum += histo_bucket->min_value;
+          /* If we have reached the last histogram entry counter, then add
+             in the entire cumulative value.  */
+          else
+            tmp_cum = cum + histo_bucket->cum_value;
+
+	  /* Next walk through successive working set entries and fill in
+	     the statistics for any whose size we have reached by accumulating
+	     this histogram counter.  */
+	  while (ws_ix < NUM_GCOV_WORKING_SETS
+		 && tmp_cum >= working_set_cum_values[ws_ix])
+            {
+              gcov_working_sets[ws_ix].num_counters = count;
+              gcov_working_sets[ws_ix].min_counter
+                  = histo_bucket->min_value;
+              ws_ix++;
+            }
+        }
+      /* Finally, update the running cumulative value since we were
+         using a temporary above.  */
+      cum += histo_bucket->cum_value;
+    }
+  gcc_assert (ws_ix == NUM_GCOV_WORKING_SETS);
+}
+#endif /* IN_GCOV <= 0 && !IN_LIBGCOV */

@@ -89,6 +89,7 @@ typedef struct GTY(()) cxx_saved_binding {
 extern tree identifier_type_value (tree);
 extern void set_identifier_type_value (tree, tree);
 extern void pop_binding (tree, tree);
+extern void pop_bindings_and_leave_scope (void);
 extern tree constructor_name (tree);
 extern bool constructor_name_p (tree, tree);
 
@@ -347,7 +348,7 @@ extern void cp_emit_debug_info_for_using (tree, tree);
 /* Set *DECL to the (non-hidden) declaration for ID at global scope,
    if present and return true; otherwise return false.  */
 
-static inline bool
+inline bool
 get_global_value_if_present (tree id, tree *decl)
 {
   tree global_value = namespace_binding (id, global_namespace);
@@ -358,7 +359,7 @@ get_global_value_if_present (tree id, tree *decl)
 
 /* True is the binding of IDENTIFIER at global scope names a type.  */
 
-static inline bool
+inline bool
 is_typename_at_global_scope (tree id)
 {
   tree global_value = namespace_binding (id, global_namespace);

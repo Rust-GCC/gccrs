@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -102,8 +102,8 @@ package Types is
    --  Graphic characters, as defined in ARM
 
    subtype Line_Terminator is Character range ASCII.LF .. ASCII.CR;
-   --  Line terminator characters (LF, VT, FF, CR). For further details,
-   --  see the extensive discussion of line termination in the Sinput spec.
+   --  Line terminator characters (LF, VT, FF, CR). For further details, see
+   --  the extensive discussion of line termination in the Sinput spec.
 
    subtype Upper_Half_Character is
      Character range Character'Val (16#80#) .. Character'Val (16#FF#);
@@ -172,7 +172,7 @@ package Types is
    for Physical_Line_Number'Size use 32;
    --  Line number type, used for storing physical line numbers (i.e. line
    --  numbers in the physical file being compiled, unaffected by the presence
-   --  of source reference pragmas.
+   --  of source reference pragmas).
 
    type Column_Number is range 0 .. 32767;
    for Column_Number'Size use 16;
@@ -183,11 +183,17 @@ package Types is
    No_Column_Number : constant Column_Number := 0;
    --  Special value used to indicate no column number
 
+   Source_Align : constant := 2 ** 12;
+   --  Alignment requirement for source buffers (by keeping source buffers
+   --  aligned, we can optimize the implementation of Get_Source_File_Index.
+   --  See this routine in Sinput for details.
+
    subtype Source_Buffer is Text_Buffer;
    --  Type used to store text of a source file. The buffer for the main
    --  source (the source specified on the command line) has a lower bound
    --  starting at zero. Subsequent subsidiary sources have lower bounds
-   --  which are one greater than the previous upper bound.
+   --  which are one greater than the previous upper bound, rounded up to
+   --  a multiple of Source_Align.
 
    subtype Big_Source_Buffer is Text_Buffer (0 .. Text_Ptr'Last);
    --  This is a virtual type used as the designated type of the access type
@@ -577,7 +583,7 @@ package Types is
    --  the source file (we assume that the host system has the concept of a
    --  file time stamp which is modified when a file is modified). These
    --  time stamps are used to ensure consistency of the set of units that
-   --  constitutes a library. Time stamps are 12 character strings with
+   --  constitutes a library. Time stamps are 14-character strings with
    --  with the following format:
 
    --     YYYYMMDDHHMMSS
@@ -666,15 +672,16 @@ package Types is
    Index_Check            : constant :=  8;
    Length_Check           : constant :=  9;
    Overflow_Check         : constant := 10;
-   Range_Check            : constant := 11;
-   Storage_Check          : constant := 12;
-   Tag_Check              : constant := 13;
-   Validity_Check         : constant := 14;
+   Predicate_Check        : constant := 11;
+   Range_Check            : constant := 12;
+   Storage_Check          : constant := 13;
+   Tag_Check              : constant := 14;
+   Validity_Check         : constant := 15;
    --  Values used to represent individual predefined checks (including the
    --  setting of Atomic_Synchronization, which is implemented internally using
-   --  a "check" whose name is Atomic_Synchronization.
+   --  a "check" whose name is Atomic_Synchronization).
 
-   All_Checks : constant := 15;
+   All_Checks : constant := 16;
    --  Value used to represent All_Checks value
 
    subtype Predefined_Check_Id is Check_Id range 1 .. All_Checks;
@@ -842,25 +849,26 @@ package Types is
       PE_Access_Before_Elaboration,      -- 14
       PE_Accessibility_Check_Failed,     -- 15
       PE_Address_Of_Intrinsic,           -- 16
-      PE_All_Guards_Closed,              -- 17
-      PE_Bad_Predicated_Generic_Type,    -- 18
-      PE_Current_Task_In_Entry_Body,     -- 19
-      PE_Duplicated_Entry_Address,       -- 20
-      PE_Explicit_Raise,                 -- 21
-      PE_Finalize_Raised_Exception,      -- 22
-      PE_Implicit_Return,                -- 23
-      PE_Misaligned_Address_Value,       -- 24
-      PE_Missing_Return,                 -- 25
-      PE_Overlaid_Controlled_Object,     -- 26
-      PE_Potentially_Blocking_Operation, -- 27
-      PE_Stubbed_Subprogram_Called,      -- 28
-      PE_Unchecked_Union_Restriction,    -- 29
-      PE_Non_Transportable_Actual,       -- 30
+      PE_Aliased_Parameters,             -- 17
+      PE_All_Guards_Closed,              -- 18
+      PE_Bad_Predicated_Generic_Type,    -- 19
+      PE_Current_Task_In_Entry_Body,     -- 20
+      PE_Duplicated_Entry_Address,       -- 21
+      PE_Explicit_Raise,                 -- 22
+      PE_Finalize_Raised_Exception,      -- 23
+      PE_Implicit_Return,                -- 24
+      PE_Misaligned_Address_Value,       -- 25
+      PE_Missing_Return,                 -- 26
+      PE_Overlaid_Controlled_Object,     -- 27
+      PE_Potentially_Blocking_Operation, -- 28
+      PE_Stubbed_Subprogram_Called,      -- 29
+      PE_Unchecked_Union_Restriction,    -- 30
+      PE_Non_Transportable_Actual,       -- 31
 
-      SE_Empty_Storage_Pool,             -- 31
-      SE_Explicit_Raise,                 -- 32
-      SE_Infinite_Recursion,             -- 33
-      SE_Object_Too_Large);              -- 34
+      SE_Empty_Storage_Pool,             -- 32
+      SE_Explicit_Raise,                 -- 33
+      SE_Infinite_Recursion,             -- 34
+      SE_Object_Too_Large);              -- 35
 
    subtype RT_CE_Exceptions is RT_Exception_Code range
      CE_Access_Check_Failed ..
@@ -873,5 +881,13 @@ package Types is
    subtype RT_SE_Exceptions is RT_Exception_Code range
      SE_Empty_Storage_Pool ..
      SE_Object_Too_Large;
+
+   ----------------------------------------
+   -- Types Used for SPARK Mode Handling --
+   ----------------------------------------
+
+   type SPARK_Mode_Id is (None, SPARK_Off, SPARK_Auto, SPARK_On);
+   --  Type used to represent all legal modes that can be set by aspect/pragma
+   --  SPARK_Mode.
 
 end Types;

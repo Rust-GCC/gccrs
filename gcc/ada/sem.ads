@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -177,7 +177,7 @@
 --  repeatedly (for instance in the above aggregate "new Thing (Function_Call)"
 --  needs to be called 100 times.)
 
---  The reason why this mechanism does not work is that, the expanded code for
+--  The reason why this mechanism does not work is that the expanded code for
 --  the children is typically inserted above the parent and thus when the
 --  father gets expanded no re-evaluation takes place. For instance in the case
 --  of aggregates if "new Thing (Function_Call)" is expanded before of the
@@ -429,11 +429,11 @@ package Sem is
    --  compilation unit. These sections are separated by distinct occurrences
    --  of package Standard. The currently active section of the scope stack
    --  goes from the current scope to the first (innermost) occurrence of
-   --  Standard, which is additionally marked with the flag
-   --  Is_Active_Stack_Base. The basic visibility routine (Find_Direct_Name, in
-   --  Sem_Ch8) uses this contiguous section of the scope stack to determine
-   --  whether a given entity is or is not visible at a point. In_Open_Scopes
-   --  only examines the currently active section of the scope stack.
+   --  Standard, which is additionally marked with flag Is_Active_Stack_Base.
+   --  The basic visibility routine (Find_Direct_Name, in Sem_Ch8) uses this
+   --  contiguous section of the scope stack to determine whether a given
+   --  entity is or is not visible at a point. In_Open_Scopes only examines
+   --  the currently active section of the scope stack.
 
    --  Similar complications arise when processing child instances. These
    --  must be compiled in the context of parent instances, and therefore the
@@ -464,7 +464,12 @@ package Sem is
       --  Save contents of Local_Suppress_Stack on entry to restore on exit
 
       Save_Check_Policy_List : Node_Id;
-      --  Save contents of Check_Policy_List on entry to restore on exit
+      --  Save contents of Check_Policy_List on entry to restore on exit. The
+      --  Check_Policy pragmas are chained with Check_Policy_List pointing to
+      --  the most recent entry. This list is searched starting here, so that
+      --  the search finds the most recent appicable entry. When we restore
+      --  Check_Policy_List on exit from the scope, the effect is to remove
+      --  all entries set in the scope being exited.
 
       Save_Default_Storage_Pool : Node_Id;
       --  Save contents of Default_Storage_Pool on entry to restore on exit
@@ -557,7 +562,7 @@ package Sem is
    --  Note: for integer and real literals, the analyzer sets the flag to
    --  indicate that the result is a static expression. If the expander
    --  generates a literal that does NOT correspond to a static expression,
-   --  e.g. by folding an expression whose value is known at compile-time,
+   --  e.g. by folding an expression whose value is known at compile time,
    --  but is not technically static, then the caller should reset the
    --  Is_Static_Expression flag after analyzing but before resolving.
    --
@@ -649,12 +654,12 @@ package Sem is
    generic
       with procedure Action (Item : Node_Id);
    procedure Walk_Library_Items;
-   --  Primarily for use by SofCheck Inspector. Must be called after semantic
-   --  analysis (and expansion) are complete. Walks each relevant library item,
-   --  calling Action for each, in an order such that one will not run across
-   --  forward references. Each Item passed to Action is the declaration or
-   --  body of a library unit, including generics and renamings. The first item
-   --  is the N_Package_Declaration node for package Standard. Bodies are not
+   --  Primarily for use by CodePeer. Must be called after semantic analysis
+   --  (and expansion) are complete. Walks each relevant library item, calling
+   --  Action for each, in an order such that one will not run across forward
+   --  references. Each Item passed to Action is the declaration or body of
+   --  a library unit, including generics and renamings. The first item is
+   --  the N_Package_Declaration node for package Standard. Bodies are not
    --  included, except for the main unit itself, which always comes last.
    --
    --  Item is never a subunit
@@ -662,7 +667,9 @@ package Sem is
    --  Item is never an instantiation. Instead, the instance declaration is
    --  passed, and (if the instantiation is the main unit), the instance body.
 
-   --  Debugging:
+   ------------------------
+   -- Debugging Routines --
+   ------------------------
 
    function ss (Index : Int) return Scope_Stack_Entry;
    pragma Export (Ada, ss);

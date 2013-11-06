@@ -22,6 +22,9 @@ along with GCC; see the file COPYING3.  If not see
 #define TARGET_OS_CPP_BUILTINS()		\
   do						\
     {						\
+	builtin_define ("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_1");	\
+	builtin_define ("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2");	\
+	builtin_define ("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4");	\
 	GNU_USER_TARGET_OS_CPP_BUILTINS();	\
 	builtin_assert ("machine=bigendian");	\
     }						\
@@ -78,17 +81,11 @@ along with GCC; see the file COPYING3.  If not see
 
 #undef ASM_OUTPUT_ADDR_VEC_ELT
 #define ASM_OUTPUT_ADDR_VEC_ELT(FILE, VALUE) \
-  if (TARGET_BIG_SWITCH)					\
-    fprintf (FILE, "\t.word .L%d\n", VALUE);			\
-  else								\
-    fprintf (FILE, "\tb .L%d\n\tnop\n", VALUE)
+  fprintf (FILE, "\t.word .L%d\n", VALUE)
 
 #undef ASM_OUTPUT_ADDR_DIFF_ELT
 #define ASM_OUTPUT_ADDR_DIFF_ELT(FILE, BODY, VALUE, REL) \
-  if (TARGET_BIG_SWITCH)					\
-    fprintf (FILE, "\t.word .L%d-.L%d\n", VALUE, REL);		\
-  else								\
-    fprintf (FILE, "\tb .L%d\n\tnop\n", VALUE)
+  fprintf (FILE, "\t.word .L%d-.L%d\n", VALUE, REL)
 
 /* Use the default.  */
 #undef ASM_OUTPUT_LABEL

@@ -34,10 +34,10 @@ extern tree analyze_scalar_evolution (struct loop *, tree);
 extern tree instantiate_scev (basic_block, struct loop *, tree);
 extern tree resolve_mixers (struct loop *, tree);
 extern void gather_stats_on_scev_database (void);
-extern void scev_analysis (void);
 extern unsigned int scev_const_prop (void);
 extern bool expression_expensive_p (tree);
-extern bool simple_iv (struct loop *, struct loop *, tree, affine_iv *, bool);
+extern bool simple_iv (struct loop *, struct loop *, tree, struct affine_iv_d *,
+		       bool);
 extern tree compute_overall_effect_of_inner_loop (struct loop *, tree);
 
 /* Returns the basic block preceding LOOP or ENTRY_BLOCK_PTR when the
@@ -65,7 +65,7 @@ instantiate_parameters (struct loop *loop, tree chrec)
 static inline struct loop *
 get_chrec_loop (const_tree chrec)
 {
-  return get_loop (CHREC_VARIABLE (chrec));
+  return get_loop (cfun, CHREC_VARIABLE (chrec));
 }
 
 #endif  /* GCC_TREE_SCALAR_EVOLUTION_H  */

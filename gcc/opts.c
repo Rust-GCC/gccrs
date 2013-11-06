@@ -30,6 +30,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "flags.h"
 #include "params.h"
 #include "diagnostic.h"
+#include "diagnostic-color.h"
 #include "opts-diagnostic.h"
 #include "insn-attr-common.h"
 #include "common/common-target.h"
@@ -168,7 +169,7 @@ base_of_path (const char *path, const char **base_out)
   char c = *p;
   while (c)
     {
-      if (IS_DIR_SEPARATOR(c))
+      if (IS_DIR_SEPARATOR (c))
         {
           base = p + 1;
           dot = 0;
@@ -278,10 +279,15 @@ init_options_struct (struct gcc_options *opts, struct gcc_options *opts_set)
   gcc_obstack_init (&opts_obstack);
 
   *opts = global_options_init;
-  memset (opts_set, 0, sizeof (*opts_set));
+
+  if (opts_set)
+    memset (opts_set, 0, sizeof (*opts_set));
 
   opts->x_param_values = XNEWVEC (int, num_params);
-  opts_set->x_param_values = XCNEWVEC (int, num_params);
+
+  if (opts_set)
+    opts_set->x_param_values = XCNEWVEC (int, num_params);
+
   init_param_values (opts->x_param_values);
 
   /* Initialize whether `char' is signed.  */
@@ -467,7 +473,6 @@ static const struct default_options default_options_table[] =
     { OPT_LEVELS_2_PLUS_SPEED_ONLY, OPT_fschedule_insns, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_fschedule_insns2, NULL, 1 },
 #endif
-    { OPT_LEVELS_2_PLUS, OPT_fregmove, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_fstrict_aliasing, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_fstrict_overflow, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_freorder_blocks, NULL, 1 },
@@ -478,14 +483,17 @@ static const struct default_options default_options_table[] =
     { OPT_LEVELS_2_PLUS, OPT_ftree_switch_conversion, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_fipa_cp, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_fdevirtualize, NULL, 1 },
+    { OPT_LEVELS_2_PLUS, OPT_fdevirtualize_speculatively, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_fipa_sra, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_falign_loops, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_falign_jumps, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_falign_labels, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_falign_functions, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_ftree_tail_merge, NULL, 1 },
+    { OPT_LEVELS_2_PLUS, OPT_fvect_cost_model_, NULL, VECT_COST_MODEL_CHEAP },
     { OPT_LEVELS_2_PLUS_SPEED_ONLY, OPT_foptimize_strlen, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_fhoist_adjacent_loads, NULL, 1 },
+    { OPT_LEVELS_2_PLUS, OPT_fisolate_erroneous_paths, NULL, 1 },
 
     /* -O3 optimizations.  */
     { OPT_LEVELS_3_PLUS, OPT_ftree_loop_distribute_patterns, NULL, 1 },
@@ -496,8 +504,9 @@ static const struct default_options default_options_table[] =
     { OPT_LEVELS_1_PLUS_NOT_DEBUG, OPT_finline_functions_called_once, NULL, 1 },
     { OPT_LEVELS_3_PLUS, OPT_funswitch_loops, NULL, 1 },
     { OPT_LEVELS_3_PLUS, OPT_fgcse_after_reload, NULL, 1 },
-    { OPT_LEVELS_3_PLUS, OPT_ftree_vectorize, NULL, 1 },
-    { OPT_LEVELS_3_PLUS, OPT_fvect_cost_model, NULL, 1 },
+    { OPT_LEVELS_3_PLUS, OPT_ftree_loop_vectorize, NULL, 1 },
+    { OPT_LEVELS_3_PLUS, OPT_ftree_slp_vectorize, NULL, 1 },
+    { OPT_LEVELS_3_PLUS, OPT_fvect_cost_model_, NULL, VECT_COST_MODEL_DYNAMIC },
     { OPT_LEVELS_3_PLUS, OPT_fipa_cp_clone, NULL, 1 },
     { OPT_LEVELS_3_PLUS, OPT_ftree_partial_pre, NULL, 1 },
 
@@ -822,9 +831,21 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set,
 	}
     }
 
+  /* Tune vectorization related parametees according to cost model.  */
+  if (opts->x_flag_vect_cost_model == VECT_COST_MODEL_CHEAP)
+    {
+      maybe_set_param_value (PARAM_VECT_MAX_VERSION_FOR_ALIAS_CHECKS,
+            6, opts->x_param_values, opts_set->x_param_values);
+      maybe_set_param_value (PARAM_VECT_MAX_VERSION_FOR_ALIGNMENT_CHECKS,
+            0, opts->x_param_values, opts_set->x_param_values);
+      maybe_set_param_value (PARAM_VECT_MAX_PEELING_FOR_ALIGNMENT,
+            0, opts->x_param_values, opts_set->x_param_values);
+    }
+
   /* Set PARAM_MAX_STORES_TO_SINK to 0 if either vectorization or if-conversion
      is disabled.  */
-  if (!opts->x_flag_tree_vectorize || !opts->x_flag_tree_loop_if_convert)
+  if ((!opts->x_flag_tree_loop_vectorize && !opts->x_flag_tree_slp_vectorize)
+       || !opts->x_flag_tree_loop_if_convert)
     maybe_set_param_value (PARAM_MAX_STORES_TO_SINK, 0,
                            opts->x_param_values, opts_set->x_param_values);
 
@@ -872,7 +893,7 @@ wrap_help (const char *help,
 	    }
 	}
 
-      printf( "  %-*.*s %.*s\n", col_width, item_width, item, len, help);
+      printf ("  %-*.*s %.*s\n", col_width, item_width, item, len, help);
       item_width = 0;
       while (help[len] == ' ')
 	len++;
@@ -1404,6 +1425,71 @@ common_handle_option (struct gcc_options *opts,
       opts->x_exit_after_options = true;
       break;
 
+    case OPT_fsanitize_:
+      {
+	const char *p = arg;
+	while (*p != 0)
+	  {
+	    static const struct
+	    {
+	      const char *const name;
+	      unsigned int flag;
+	      size_t len;
+	    } spec[] =
+	    {
+	      { "address", SANITIZE_ADDRESS, sizeof "address" - 1 },
+	      { "thread", SANITIZE_THREAD, sizeof "thread" - 1 },
+	      { "shift", SANITIZE_SHIFT, sizeof "shift" - 1 },
+	      { "integer-divide-by-zero", SANITIZE_DIVIDE,
+		sizeof "integer-divide-by-zero" - 1 },
+	      { "undefined", SANITIZE_UNDEFINED, sizeof "undefined" - 1 },
+	      { "unreachable", SANITIZE_UNREACHABLE,
+		sizeof "unreachable" - 1 },
+	      { "vla-bound", SANITIZE_VLA, sizeof "vla-bound" - 1 },
+	      { NULL, 0, 0 }
+	    };
+	    const char *comma;
+	    size_t len, i;
+	    bool found = false;
+
+	    comma = strchr (p, ',');
+	    if (comma == NULL)
+	      len = strlen (p);
+	    else
+	      len = comma - p;
+	    if (len == 0)
+	      {
+		p = comma + 1;
+		continue;
+	      }
+
+	    /* Check to see if the string matches an option class name.  */
+	    for (i = 0; spec[i].name != NULL; ++i)
+	      if (len == spec[i].len
+		  && memcmp (p, spec[i].name, len) == 0)
+		{
+		  /* Handle both -fsanitize and -fno-sanitize cases.  */
+		  if (value)
+		    flag_sanitize |= spec[i].flag;
+		  else
+		    flag_sanitize &= ~spec[i].flag;
+		  found = true;
+		  break;
+		}
+
+	    if (! found)
+	      warning_at (loc, 0,
+			  "unrecognized argument to -fsanitize= option: %q.*s",
+			  (int) len, p);
+
+	    if (comma == NULL)
+	      break;
+	    p = comma + 1;
+	  }
+
+	break;
+      }
+
     case OPT_O:
     case OPT_Os:
     case OPT_Ofast:
@@ -1495,6 +1581,11 @@ common_handle_option (struct gcc_options *opts,
  
     case OPT_fdiagnostics_show_caret:
       dc->show_caret = value;
+      break;
+
+    case OPT_fdiagnostics_color_:
+      pp_show_color (dc->printer)
+	= colorize_init ((diagnostic_color_rule_t) value);
       break;
 
     case OPT_fdiagnostics_show_option:
@@ -1589,12 +1680,21 @@ common_handle_option (struct gcc_options *opts,
 	opts->x_flag_unswitch_loops = value;
       if (!opts_set->x_flag_gcse_after_reload)
 	opts->x_flag_gcse_after_reload = value;
-      if (!opts_set->x_flag_tree_vectorize)
-	opts->x_flag_tree_vectorize = value;
+      if (!opts_set->x_flag_tree_loop_vectorize
+          && !opts_set->x_flag_tree_vectorize)
+	opts->x_flag_tree_loop_vectorize = value;
+      if (!opts_set->x_flag_tree_slp_vectorize
+          && !opts_set->x_flag_tree_vectorize)
+	opts->x_flag_tree_slp_vectorize = value;
       if (!opts_set->x_flag_vect_cost_model)
-	opts->x_flag_vect_cost_model = value;
+	opts->x_flag_vect_cost_model = VECT_COST_MODEL_DYNAMIC;
       if (!opts_set->x_flag_tree_loop_distribute_patterns)
 	opts->x_flag_tree_loop_distribute_patterns = value;
+      /* Indirect call profiling should do all useful transformations
+ 	 speculative devirutalization does.  */
+      if (!opts_set->x_flag_devirtualize_speculatively
+	  && opts->x_flag_value_profile_transformations)
+	opts->x_flag_devirtualize_speculatively = false;
       break;
 
     case OPT_fprofile_generate_:
@@ -1615,6 +1715,12 @@ common_handle_option (struct gcc_options *opts,
         opts->x_flag_ipa_reference = false;
       break;
 
+    case OPT_ftree_vectorize:
+      if (!opts_set->x_flag_tree_loop_vectorize)
+        opts->x_flag_tree_loop_vectorize = value;
+      if (!opts_set->x_flag_tree_slp_vectorize)
+        opts->x_flag_tree_slp_vectorize = value;
+      break;
     case OPT_fshow_column:
       dc->show_column = value;
       break;
@@ -1684,12 +1790,6 @@ common_handle_option (struct gcc_options *opts,
       opts->x_flag_stack_usage_info = value != 0;
       break;
 
-    case OPT_ftree_vectorizer_verbose_:
-      /* -ftree-vectorizer-verbose is deprecated. It is defined in
-         -terms of fopt-info=N. */
-      /* Deferred.  */
-      break;
-
     case OPT_g:
       set_debug_level (NO_DEBUG, DEFAULT_GDB_EXTENSIONS, arg, opts, opts_set,
 		       loc);
@@ -1699,6 +1799,18 @@ common_handle_option (struct gcc_options *opts,
       set_debug_level (SDB_DEBUG, false, arg, opts, opts_set, loc);
       break;
 
+    case OPT_gdwarf:
+      if (arg && strlen (arg) != 0)
+        {
+          error_at (loc, "%<-gdwarf%s%> is ambiguous; "
+                    "use %<-gdwarf-%s%> for DWARF version "
+                    "or %<-gdwarf -g%s%> for debug level", arg, arg, arg);
+          break;
+        }
+      else
+        value = opts->x_dwarf_version;
+      
+      /* FALLTHRU */
     case OPT_gdwarf_:
       if (value < 2 || value > 4)
 	error_at (loc, "dwarf version %d is not supported", value);

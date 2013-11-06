@@ -158,7 +158,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "intl.h"
 #include "obstack.h"
 #include "tree-pass.h"
-#include "hashtab.h"
+#include "hash-table.h"
 #include "df.h"
 #include "dbgcnt.h"
 #include "target.h"
@@ -359,8 +359,34 @@ struct ls_expr
 /* Head of the list of load/store memory refs.  */
 static struct ls_expr * pre_ldst_mems = NULL;
 
+struct pre_ldst_expr_hasher : typed_noop_remove <ls_expr>
+{
+  typedef ls_expr value_type;
+  typedef value_type compare_type;
+  static inline hashval_t hash (const value_type *);
+  static inline bool equal (const value_type *, const compare_type *);
+};
+
+/* Hashtable helpers.  */
+inline hashval_t
+pre_ldst_expr_hasher::hash (const value_type *x)
+{
+  int do_not_record_p = 0;
+  return
+    hash_rtx (x->pattern, GET_MODE (x->pattern), &do_not_record_p, NULL, false);
+}
+
+static int expr_equiv_p (const_rtx, const_rtx);
+
+inline bool
+pre_ldst_expr_hasher::equal (const value_type *ptr1,
+			     const compare_type *ptr2)
+{
+  return expr_equiv_p (ptr1->pattern, ptr2->pattern);
+}
+
 /* Hashtable for the load/store memory refs.  */
-static htab_t pre_ldst_table = NULL;
+static hash_table <pre_ldst_expr_hasher> pre_ldst_table;
 
 /* Bitmap containing one bit for each register in the program.
    Used when performing GCSE to track which registers have been set since
@@ -447,7 +473,6 @@ static int oprs_available_p (const_rtx, const_rtx);
 static void insert_expr_in_table (rtx, enum machine_mode, rtx, int, int, int,
 				  struct hash_table_d *);
 static unsigned int hash_expr (const_rtx, enum machine_mode, int *, int);
-static int expr_equiv_p (const_rtx, const_rtx);
 static void record_last_reg_set_info (rtx, int);
 static void record_last_mem_set_info (rtx);
 static void record_last_set_info (rtx, const_rtx, void *);
@@ -890,8 +915,9 @@ oprs_unchanged_p (const_rtx x, const_rtx insn, int avail_p)
       }
 
     case MEM:
-      if (load_killed_in_block_p (current_bb, DF_INSN_LUID (insn),
-				  x, avail_p))
+      if (! flag_gcse_lm
+	  || load_killed_in_block_p (current_bb, DF_INSN_LUID (insn),
+				     x, avail_p))
 	return 0;
       else
 	return oprs_unchanged_p (XEXP (x, 0), insn, avail_p);
@@ -1471,10 +1497,14 @@ canon_list_insert (rtx dest ATTRIBUTE_UNUSED, const_rtx x ATTRIBUTE_UNUSED,
 static void
 record_last_mem_set_info (rtx insn)
 {
-  int bb = BLOCK_FOR_INSN (insn)->index;
+  int bb;
+
+  if (! flag_gcse_lm)
+    return;
 
   /* load_killed_in_block_p will handle the case of calls clobbering
      everything.  */
+  bb = BLOCK_FOR_INSN (insn)->index;
   modify_mem_list[bb].safe_push (insn);
   bitmap_set_bit (modify_mem_list_set, bb);
 
@@ -2144,20 +2174,9 @@ insert_insn_end_basic_block (struct expr *expr, basic_block bb)
 	      || single_succ_edge (bb)->flags & EDGE_ABNORMAL)))
     {
 #ifdef HAVE_cc0
-      rtx note;
-#endif
-
-      /* If this is a jump table, then we can't insert stuff here.  Since
-	 we know the previous real insn must be the tablejump, we insert
-	 the new instruction just before the tablejump.  */
-      if (GET_CODE (PATTERN (insn)) == ADDR_VEC
-	  || GET_CODE (PATTERN (insn)) == ADDR_DIFF_VEC)
-	insn = prev_active_insn (insn);
-
-#ifdef HAVE_cc0
       /* FIXME: 'twould be nice to call prev_cc0_setter here but it aborts
 	 if cc0 isn't set.  */
-      note = find_reg_note (insn, REG_CC_SETTER, NULL_RTX);
+      rtx note = find_reg_note (insn, REG_CC_SETTER, NULL_RTX);
       if (note)
 	insn = XEXP (note, 0);
       else
@@ -2516,7 +2535,7 @@ gcse_emit_move_after (rtx dest, rtx src, rtx insn)
 /* Delete redundant computations.
    Deletion is done by changing the insn to copy the `reaching_reg' of
    the expression into the result of the SET.  It is left to later passes
-   (cprop, cse2, flow, combine, regmove) to propagate the copy or eliminate it.
+   to propagate the copy or eliminate it.
 
    Return nonzero if a change is made.  */
 
@@ -3304,7 +3323,7 @@ hoist_code (void)
 		    }
 		}
 	      else
-		/* Punt, no point hoisting a single occurence.  */
+		/* Punt, no point hoisting a single occurrence.  */
 		occrs_to_hoist.release ();
 
 	      if (flag_ira_hoist_pressure
@@ -3658,23 +3677,6 @@ one_code_hoisting_pass (void)
     load towards the exit, and we end up with no loads or stores of 'i'
     in the loop.  */
 
-static hashval_t
-pre_ldst_expr_hash (const void *p)
-{
-  int do_not_record_p = 0;
-  const struct ls_expr *const x = (const struct ls_expr *) p;
-  return
-    hash_rtx (x->pattern, GET_MODE (x->pattern), &do_not_record_p, NULL, false);
-}
-
-static int
-pre_ldst_expr_eq (const void *p1, const void *p2)
-{
-  const struct ls_expr *const ptr1 = (const struct ls_expr *) p1,
-    *const ptr2 = (const struct ls_expr *) p2;
-  return expr_equiv_p (ptr1->pattern, ptr2->pattern);
-}
-
 /* This will search the ldst list for a matching expression. If it
    doesn't find one, we create one and initialize it.  */
 
@@ -3684,16 +3686,16 @@ ldst_entry (rtx x)
   int do_not_record_p = 0;
   struct ls_expr * ptr;
   unsigned int hash;
-  void **slot;
+  ls_expr **slot;
   struct ls_expr e;
 
   hash = hash_rtx (x, GET_MODE (x), &do_not_record_p,
 		   NULL,  /*have_reg_qty=*/false);
 
   e.pattern = x;
-  slot = htab_find_slot_with_hash (pre_ldst_table, &e, hash, INSERT);
+  slot = pre_ldst_table.find_slot_with_hash (&e, hash, INSERT);
   if (*slot)
-    return (struct ls_expr *)*slot;
+    return *slot;
 
   ptr = XNEW (struct ls_expr);
 
@@ -3729,9 +3731,8 @@ free_ldst_entry (struct ls_expr * ptr)
 static void
 free_ld_motion_mems (void)
 {
-  if (pre_ldst_table)
-    htab_delete (pre_ldst_table);
-  pre_ldst_table = NULL;
+  if (pre_ldst_table.is_created ())
+    pre_ldst_table.dispose ();
 
   while (pre_ldst_mems)
     {
@@ -3786,14 +3787,14 @@ static struct ls_expr *
 find_rtx_in_ldst (rtx x)
 {
   struct ls_expr e;
-  void **slot;
-  if (!pre_ldst_table)
+  ls_expr **slot;
+  if (!pre_ldst_table.is_created ())
     return NULL;
   e.pattern = x;
-  slot = htab_find_slot (pre_ldst_table, &e, NO_INSERT);
-  if (!slot || ((struct ls_expr *)*slot)->invalid)
+  slot = pre_ldst_table.find_slot (&e, NO_INSERT);
+  if (!slot || (*slot)->invalid)
     return NULL;
-  return (struct ls_expr *) *slot;
+  return *slot;
 }
 
 /* Load Motion for loads which only kill themselves.  */
@@ -3881,8 +3882,7 @@ compute_ld_motion_mems (void)
   rtx insn;
 
   pre_ldst_mems = NULL;
-  pre_ldst_table
-    = htab_create (13, pre_ldst_expr_hash, pre_ldst_expr_eq, NULL);
+  pre_ldst_table.create (13);
 
   FOR_EACH_BB (bb)
     {
@@ -3894,6 +3894,8 @@ compute_ld_motion_mems (void)
 		{
 		  rtx src = SET_SRC (PATTERN (insn));
 		  rtx dest = SET_DEST (PATTERN (insn));
+		  rtx note = find_reg_equal_equiv_note (insn);
+		  rtx src_eq;
 
 		  /* Check for a simple LOAD...  */
 		  if (MEM_P (src) && simple_mem (src))
@@ -3909,6 +3911,15 @@ compute_ld_motion_mems (void)
 		      /* Make sure there isn't a buried load somewhere.  */
 		      invalidate_any_buried_refs (src);
 		    }
+
+		  if (note != 0 && REG_NOTE_KIND (note) == REG_EQUAL)
+		    src_eq = XEXP (note, 0);
+		  else
+		    src_eq = NULL_RTX;
+
+		  if (src_eq != NULL_RTX
+		      && !(MEM_P (src_eq) && simple_mem (src_eq)))
+		    invalidate_any_buried_refs (src_eq);
 
 		  /* Check for stores. Don't worry about aliased ones, they
 		     will block any movement we might do later. We only care
@@ -3973,7 +3984,7 @@ trim_ld_motion_mems (void)
       else
 	{
 	  *last = ptr->next;
-	  htab_remove_elt_with_hash (pre_ldst_table, ptr, ptr->hash_index);
+	  pre_ldst_table.remove_elt_with_hash (ptr, ptr->hash_index);
 	  free_ldst_entry (ptr);
 	  ptr = * last;
 	}
@@ -4137,46 +4148,82 @@ execute_rtl_hoist (void)
   return 0;
 }
 
-struct rtl_opt_pass pass_rtl_pre =
+namespace {
+
+const pass_data pass_data_rtl_pre =
 {
- {
-  RTL_PASS,
-  "rtl pre",                            /* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  gate_rtl_pre,                         /* gate */
-  execute_rtl_pre,    			/* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_PRE,                               /* tv_id */
-  PROP_cfglayout,                       /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  TODO_df_finish | TODO_verify_rtl_sharing |
-  TODO_verify_flow | TODO_ggc_collect   /* todo_flags_finish */
- }
+  RTL_PASS, /* type */
+  "rtl pre", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_PRE, /* tv_id */
+  PROP_cfglayout, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  ( TODO_df_finish | TODO_verify_rtl_sharing
+    | TODO_verify_flow ), /* todo_flags_finish */
 };
 
-struct rtl_opt_pass pass_rtl_hoist =
+class pass_rtl_pre : public rtl_opt_pass
 {
- {
-  RTL_PASS,
-  "hoist",                              /* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  gate_rtl_hoist,                       /* gate */
-  execute_rtl_hoist,  			/* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_HOIST,                             /* tv_id */
-  PROP_cfglayout,                       /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  TODO_df_finish | TODO_verify_rtl_sharing |
-  TODO_verify_flow | TODO_ggc_collect   /* todo_flags_finish */
- }
+public:
+  pass_rtl_pre (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_rtl_pre, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_rtl_pre (); }
+  unsigned int execute () { return execute_rtl_pre (); }
+
+}; // class pass_rtl_pre
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_rtl_pre (gcc::context *ctxt)
+{
+  return new pass_rtl_pre (ctxt);
+}
+
+namespace {
+
+const pass_data pass_data_rtl_hoist =
+{
+  RTL_PASS, /* type */
+  "hoist", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_HOIST, /* tv_id */
+  PROP_cfglayout, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  ( TODO_df_finish | TODO_verify_rtl_sharing
+    | TODO_verify_flow ), /* todo_flags_finish */
 };
+
+class pass_rtl_hoist : public rtl_opt_pass
+{
+public:
+  pass_rtl_hoist (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_rtl_hoist, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_rtl_hoist (); }
+  unsigned int execute () { return execute_rtl_hoist (); }
+
+}; // class pass_rtl_hoist
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_rtl_hoist (gcc::context *ctxt)
+{
+  return new pass_rtl_hoist (ctxt);
+}
 
 #include "gt-gcse.h"

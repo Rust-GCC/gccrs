@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1996-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1996-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -411,7 +411,6 @@ package body Exp_Dbug is
                Ren := Prefix (Ren);
 
             when N_Explicit_Dereference =>
-               Set_Materialize_Entity (Ent);
                Prepend_String_To_Buffer ("XA");
                Ren := Prefix (Ren);
 
@@ -1315,7 +1314,7 @@ package body Exp_Dbug is
       --  name as being qualified, as Qualify_Entity_Name may be called more
       --  than once on the same entity.
 
-      elsif Alfa_Mode then
+      elsif SPARK_Mode then
          if Has_Homonym (Ent) then
             Get_Name_String (Chars (Ent));
             Append_Homonym_Number (Ent);

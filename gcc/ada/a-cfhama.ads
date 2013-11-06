@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2004-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- This specification is derived from the Ada Reference Manual for use with --
 -- GNAT. The copyright notice above, and the license provisions that follow --
@@ -30,8 +30,10 @@
 ------------------------------------------------------------------------------
 
 --  This spec is derived from package Ada.Containers.Bounded_Hashed_Maps in the
---  Ada 2012 RM. The modifications are to facilitate formal proofs by making it
---  easier to express properties.
+--  Ada 2012 RM. The modifications are meant to facilitate formal proofs by
+--  making it easier to express properties, and by making the specification of
+--  this unit compatible with SPARK 2014. Note that the API of this unit may be
+--  subject to incompatible changes as SPARK 2014 evolves.
 
 --  The modifications are:
 
@@ -52,7 +54,6 @@
 --    See detailed specifications for these subprograms
 
 private with Ada.Containers.Hash_Tables;
-private with Ada.Streams;
 
 generic
    type Key_Type is private;
@@ -65,7 +66,7 @@ generic
 package Ada.Containers.Formal_Hashed_Maps is
    pragma Pure;
 
-   type Map (Capacity : Count_Type; Modulus : Hash_Type) is tagged private;
+   type Map (Capacity : Count_Type; Modulus : Hash_Type) is private;
    pragma Preelaborable_Initialization (Map);
 
    type Cursor is private;
@@ -81,92 +82,101 @@ package Ada.Containers.Formal_Hashed_Maps is
 
    procedure Reserve_Capacity
      (Container : in out Map;
-      Capacity  : Count_Type);
+      Capacity  : Count_Type)
+   with
+     Pre => Capacity <= Container.Capacity;
 
    function Length (Container : Map) return Count_Type;
 
    function Is_Empty (Container : Map) return Boolean;
 
-   --  ??? what does clear do to active elements?
    procedure Clear (Container : in out Map);
 
-   procedure Assign (Target : in out Map; Source : Map);
+   procedure Assign (Target : in out Map; Source : Map) with
+     Pre => Target.Capacity >= Length (Source);
 
-   --  ???
-   --  capacity=0 means use container.length as cap of tgt
-   --  modulos=0 means use default_modulous(container.length)
    function Copy
      (Source   : Map;
-      Capacity : Count_Type := 0) return Map;
+      Capacity : Count_Type := 0) return Map
+   with
+     Pre => Capacity >= Source.Capacity;
+   --  Copy returns a container stricty equal to Source. It must have
+   --  the same cursors associated with each element. Therefore:
+   --  - capacity=0 means use container.capacity as capacity of target
+   --  - the modulus cannot be changed.
 
-   function Key (Container : Map; Position : Cursor) return Key_Type;
+   function Key (Container : Map; Position : Cursor) return Key_Type with
+     Pre => Has_Element (Container, Position);
 
-   function Element (Container : Map; Position : Cursor) return Element_Type;
+   function Element
+     (Container : Map;
+      Position  : Cursor) return Element_Type
+   with
+     Pre => Has_Element (Container, Position);
 
    procedure Replace_Element
      (Container : in out Map;
       Position  : Cursor;
-      New_Item  : Element_Type);
+      New_Item  : Element_Type)
+   with
+     Pre => Has_Element (Container, Position);
 
-   procedure Query_Element
-     (Container : in out Map;
-      Position  : Cursor;
-      Process   : not null access
-                    procedure (Key : Key_Type; Element : Element_Type));
-
-   procedure Update_Element
-     (Container : in out Map;
-      Position  : Cursor;
-      Process   : not null access
-                    procedure (Key : Key_Type; Element : in out Element_Type));
-
-   procedure Move (Target : in out Map; Source : in out Map);
+   procedure Move (Target : in out Map; Source : in out Map) with
+     Pre => Target.Capacity >= Length (Source);
 
    procedure Insert
      (Container : in out Map;
       Key       : Key_Type;
       New_Item  : Element_Type;
       Position  : out Cursor;
-      Inserted  : out Boolean);
+      Inserted  : out Boolean)
+   with
+     Pre => Length (Container) < Container.Capacity;
 
    procedure Insert
      (Container : in out Map;
       Key       : Key_Type;
-      Position  : out Cursor;
-      Inserted  : out Boolean);
-
-   procedure Insert
-     (Container : in out Map;
-      Key       : Key_Type;
-      New_Item  : Element_Type);
+      New_Item  : Element_Type)
+   with
+     Pre => Length (Container) < Container.Capacity
+              and then (not Contains (Container, Key));
 
    procedure Include
      (Container : in out Map;
       Key       : Key_Type;
-      New_Item  : Element_Type);
+      New_Item  : Element_Type)
+   with
+     Pre => Length (Container) < Container.Capacity;
 
    procedure Replace
      (Container : in out Map;
       Key       : Key_Type;
-      New_Item  : Element_Type);
+      New_Item  : Element_Type)
+   with
+     Pre => Contains (Container, Key);
 
    procedure Exclude (Container : in out Map; Key : Key_Type);
 
-   procedure Delete (Container : in out Map; Key : Key_Type);
+   procedure Delete (Container : in out Map; Key : Key_Type) with
+     Pre => Contains (Container, Key);
 
-   procedure Delete (Container : in out Map; Position : in out Cursor);
+   procedure Delete (Container : in out Map; Position : in out Cursor) with
+     Pre => Has_Element (Container, Position);
 
    function First (Container : Map) return Cursor;
 
-   function Next (Container : Map; Position : Cursor) return Cursor;
+   function Next (Container : Map; Position : Cursor) return Cursor with
+     Pre => Has_Element (Container, Position) or else Position = No_Element;
 
-   procedure Next (Container : Map; Position : in out Cursor);
+   procedure Next (Container : Map; Position : in out Cursor) with
+     Pre => Has_Element (Container, Position) or else Position = No_Element;
 
    function Find (Container : Map; Key : Key_Type) return Cursor;
 
    function Contains (Container : Map; Key : Key_Type) return Boolean;
 
-   function Element (Container : Map; Key : Key_Type) return Element_Type;
+   function Element (Container : Map; Key : Key_Type) return Element_Type with
+     Pre => Contains (Container, Key);
 
    function Has_Element (Container : Map; Position : Cursor) return Boolean;
 
@@ -186,11 +196,6 @@ package Ada.Containers.Formal_Hashed_Maps is
       Right  : Map;
       CRight : Cursor) return Boolean;
 
-   procedure Iterate
-     (Container : Map;
-      Process   : not null access
-                    procedure (Container : Map; Position : Cursor));
-
    function Default_Modulus (Capacity : Count_Type) return Hash_Type;
 
    function Strict_Equal (Left, Right : Map) return Boolean;
@@ -198,8 +203,10 @@ package Ada.Containers.Formal_Hashed_Maps is
    --  they are structurally equal (function "=" returns True) and that they
    --  have the same set of cursors.
 
-   function Left  (Container : Map; Position : Cursor) return Map;
-   function Right (Container : Map; Position : Cursor) return Map;
+   function Left  (Container : Map; Position : Cursor) return Map with
+     Pre => Has_Element (Container, Position) or else Position = No_Element;
+   function Right (Container : Map; Position : Cursor) return Map with
+     Pre => Has_Element (Container, Position) or else Position = No_Element;
    --  Left returns a container containing all elements preceding Position
    --  (excluded) in Container. Right returns a container containing all
    --  elements following Position (included) in Container. These two new
@@ -237,38 +244,10 @@ private
       new HT_Types.Hash_Table_Type (Capacity, Modulus) with null record;
 
    use HT_Types;
-   use Ada.Streams;
-
-   procedure Write
-     (Stream    : not null access Root_Stream_Type'Class;
-      Container : Map);
-
-   for Map'Write use Write;
-
-   procedure Read
-     (Stream    : not null access Root_Stream_Type'Class;
-      Container : out Map);
-
-   for Map'Read use Read;
-
-   type Map_Access is access all Map;
-   for Map_Access'Storage_Size use 0;
 
    type Cursor is record
       Node : Count_Type;
    end record;
-
-   procedure Read
-     (Stream : not null access Root_Stream_Type'Class;
-      Item   : out Cursor);
-
-   for Cursor'Read use Read;
-
-   procedure Write
-     (Stream : not null access Root_Stream_Type'Class;
-      Item   : Cursor);
-
-   for Cursor'Write use Write;
 
    Empty_Map : constant Map := (Capacity => 0, Modulus => 0, others => <>);
 

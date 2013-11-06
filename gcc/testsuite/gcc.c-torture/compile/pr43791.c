@@ -18,4 +18,3 @@ void fasttrylock(void (*slowfn)()) {
 void trylock(void) {
      fasttrylock(slowtrylock);
 }
-

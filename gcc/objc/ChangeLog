@@ -1,14 +1,35 @@
-2013-10-16  Release Manager
+2013-09-25  Tom Tromey  <tromey@redhat.com>
 
-	* GCC 4.8.2 released.
+	* Make-lang.in (START_HDRS, cc1obj-checksum.o, objc/objc-lang.o)
+	(objc/objc-runtime-shared-support.o)
+	(objc/objc-gnu-runtime-abi-01.o, objc/objc-next-runtime-abi-01.o)
+	(objc/objc-next-runtime-abi-02.o, objc/objc-act.o)
+	(objc/objc-encoding.o, objc/objc-map.o): Remove.
 
-2013-05-31  Release Manager
+2013-09-14  Iain Sandoe  <iain@codesourcery.com>
 
-	* GCC 4.8.1 released.
+	PR target/48094
+	* objc-next-runtime-abi-01.c (generate_objc_image_info): Remove.
+	(objc_generate_v1_next_metadata): Remove generation of ImageInfo.
+	* objc-next-runtime-abi-02.c (generate_v2_objc_image_info): Remove.
+	(objc_generate_v2_next_metadata): Remove generation of ImageInfo.
 
-2013-03-22  Release Manager
+2013-07-21   OndÅej BÃ­lka  <neleai@seznam.cz>
 
-	* GCC 4.8.0 released.
+	* objc-act.c: Fix typos.
+	* objc-encoding.c: Likewise.
+	* objc-gnu-runtime-abi-01.c: Likewise.
+	* objc-next-runtime-abi-01.c: Likewise.
+	* objc-next-runtime-abi-02.c: Likewise.
+
+2013-05-22  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* objc-next-runtime-abi-02.c (build_v2_build_objc_method_call):
+	Fix build_conditional_expr call.
+
+2013-05-16  Jason Merrill  <jason@redhat.com>
+
+	* Make-lang.in (cc1obj$(exeext)): Use link mutex.
 
 2012-11-20  Diego Novillo  <dnovillo@google.com>
 

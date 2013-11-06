@@ -165,7 +165,8 @@ enum cpp_ttype
 /* C language kind, used when calling cpp_create_reader.  */
 enum c_lang {CLK_GNUC89 = 0, CLK_GNUC99, CLK_GNUC11,
 	     CLK_STDC89, CLK_STDC94, CLK_STDC99, CLK_STDC11,
-	     CLK_GNUCXX, CLK_CXX98, CLK_GNUCXX11, CLK_CXX11, CLK_ASM};
+	     CLK_GNUCXX, CLK_CXX98, CLK_GNUCXX11, CLK_CXX11,
+	     CLK_GNUCXX1Y, CLK_CXX1Y, CLK_ASM};
 
 /* Payload of a NUMBER, STRING, CHAR or COMMENT token.  */
 struct GTY(()) cpp_string {
@@ -247,7 +248,7 @@ struct GTY(()) cpp_token {
 };
 
 /* Say which field is in use.  */
-extern enum cpp_token_fld_kind cpp_token_val_index (cpp_token *tok);
+extern enum cpp_token_fld_kind cpp_token_val_index (const cpp_token *tok);
 
 /* A type wide enough to hold any multibyte source character.
    cpplib's character constant interpreter requires an unsigned type.
@@ -336,6 +337,9 @@ struct cpp_options
   /* Nonzero means warn if slash-star appears in a comment.  */
   unsigned char warn_comments;
 
+  /* Nonzero means to warn about __DATA__, __TIME__ and __TIMESTAMP__ usage.   */
+  unsigned char warn_date_time;
+
   /* Nonzero means warn if a user-supplied include directory does not
      exist.  */
   unsigned char warn_missing_include_dirs;
@@ -422,7 +426,7 @@ struct cpp_options
   /* True for traditional preprocessing.  */
   unsigned char traditional;
 
-  /* Nonzero for C++ 2011 Standard user-defnied literals.  */
+  /* Nonzero for C++ 2011 Standard user-defined literals.  */
   unsigned char user_literals;
 
   /* Nonzero means warn when a string or character literal is followed by a
@@ -432,6 +436,12 @@ struct cpp_options
   /* Nonzero means interpret imaginary, fixed-point, or other gnu extension
      literal number suffixes as user-defined literal number suffixes.  */
   unsigned char ext_numeric_literals;
+
+  /* Nonzero for C++ 2014 Standard binary constants.  */
+  unsigned char binary_constants;
+
+  /* Nonzero for C++ 2014 Standard digit separators.  */
+  unsigned char digit_separators;
 
   /* Holds the name of the target (execution) character set.  */
   const char *narrow_charset;
@@ -918,7 +928,8 @@ enum {
   CPP_W_NORMALIZE,
   CPP_W_INVALID_PCH,
   CPP_W_WARNING_DIRECTIVE,
-  CPP_W_LITERAL_SUFFIX
+  CPP_W_LITERAL_SUFFIX,
+  CPP_W_DATE_TIME
 };
 
 /* Output a diagnostic of some kind.  */

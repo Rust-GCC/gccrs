@@ -47,7 +47,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "target-def.h"
 #include "common/common-target.h"
 #include "tm_p.h"
-#include "hashtab.h"
+#include "hash-table.h"
 #include "langhooks.h"
 #include "gimple.h"
 #include "intl.h"
@@ -170,7 +170,7 @@ static ds_t ia64_get_insn_spec_ds (rtx);
 static ds_t ia64_get_insn_checked_ds (rtx);
 static bool ia64_skip_rtx_p (const_rtx);
 static int ia64_speculate_insn (rtx, ds_t, rtx *);
-static bool ia64_needs_block_p (int);
+static bool ia64_needs_block_p (ds_t);
 static rtx ia64_gen_spec_check (rtx, rtx, ds_t);
 static int ia64_spec_check_p (rtx);
 static int ia64_spec_check_src_p (rtx);
@@ -257,8 +257,6 @@ static struct bundle_state *get_free_bundle_state (void);
 static void free_bundle_state (struct bundle_state *);
 static void initiate_bundle_states (void);
 static void finish_bundle_states (void);
-static unsigned bundle_state_hash (const void *);
-static int bundle_state_eq_p (const void *, const void *);
 static int insert_bundle_state (struct bundle_state *);
 static void initiate_bundle_state_table (void);
 static void finish_bundle_state_table (void);
@@ -1756,7 +1754,7 @@ ia64_expand_compare (rtx *expr, rtx *op0, rtx *op1)
   else if (TARGET_HPUX && GET_MODE (*op0) == TFmode)
     {
       enum qfcmp_magic {
-	QCMP_INV = 1,	/* Raise FP_INVALID on SNaN as a side effect.  */
+	QCMP_INV = 1,	/* Raise FP_INVALID on NaNs as a side effect.  */
 	QCMP_UNORD = 2,
 	QCMP_EQ = 4,
 	QCMP_LT = 8,
@@ -1770,21 +1768,27 @@ ia64_expand_compare (rtx *expr, rtx *op0, rtx *op1)
       switch (code)
 	{
 	  /* 1 = equal, 0 = not equal.  Equality operators do
-	     not raise FP_INVALID when given an SNaN operand.  */
+	     not raise FP_INVALID when given a NaN operand.  */
 	case EQ:        magic = QCMP_EQ;                  ncode = NE; break;
 	case NE:        magic = QCMP_EQ;                  ncode = EQ; break;
 	  /* isunordered() from C99.  */
 	case UNORDERED: magic = QCMP_UNORD;               ncode = NE; break;
 	case ORDERED:   magic = QCMP_UNORD;               ncode = EQ; break;
 	  /* Relational operators raise FP_INVALID when given
-	     an SNaN operand.  */
+	     a NaN operand.  */
 	case LT:        magic = QCMP_LT        |QCMP_INV; ncode = NE; break;
 	case LE:        magic = QCMP_LT|QCMP_EQ|QCMP_INV; ncode = NE; break;
 	case GT:        magic = QCMP_GT        |QCMP_INV; ncode = NE; break;
 	case GE:        magic = QCMP_GT|QCMP_EQ|QCMP_INV; ncode = NE; break;
-	  /* FUTURE: Implement UNEQ, UNLT, UNLE, UNGT, UNGE, LTGT.
-	     Expanders for buneq etc. weuld have to be added to ia64.md
-	     for this to be useful.  */
+          /* Unordered relational operators do not raise FP_INVALID
+	     when given a NaN operand.  */
+	case UNLT:    magic = QCMP_LT        |QCMP_UNORD; ncode = NE; break;
+	case UNLE:    magic = QCMP_LT|QCMP_EQ|QCMP_UNORD; ncode = NE; break;
+	case UNGT:    magic = QCMP_GT        |QCMP_UNORD; ncode = NE; break;
+	case UNGE:    magic = QCMP_GT|QCMP_EQ|QCMP_UNORD; ncode = NE; break;
+	  /* Not supported.  */
+	case UNEQ:
+	case LTGT:
 	default: gcc_unreachable ();
 	}
 
@@ -3202,61 +3206,54 @@ gen_fr_restore_x (rtx dest, rtx src, rtx offset ATTRIBUTE_UNUSED)
 #define BACKING_STORE_SIZE(N) ((N) > 0 ? ((N) + (N)/63 + 1) * 8 : 0)
 
 /* Emit code to probe a range of stack addresses from FIRST to FIRST+SIZE,
-   inclusive.  These are offsets from the current stack pointer.  SOL is the
-   size of local registers.  ??? This clobbers r2 and r3.  */
+   inclusive.  These are offsets from the current stack pointer.  BS_SIZE
+   is the size of the backing store.  ??? This clobbers r2 and r3.  */
 
 static void
-ia64_emit_probe_stack_range (HOST_WIDE_INT first, HOST_WIDE_INT size, int sol)
+ia64_emit_probe_stack_range (HOST_WIDE_INT first, HOST_WIDE_INT size,
+			     int bs_size)
 {
- /* On the IA-64 there is a second stack in memory, namely the Backing Store
-    of the Register Stack Engine.  We also need to probe it after checking
-    that the 2 stacks don't overlap.  */
-  const int bs_size = BACKING_STORE_SIZE (sol);
   rtx r2 = gen_rtx_REG (Pmode, GR_REG (2));
   rtx r3 = gen_rtx_REG (Pmode, GR_REG (3));
+  rtx p6 = gen_rtx_REG (BImode, PR_REG (6));
 
-  /* Detect collision of the 2 stacks if necessary.  */
-  if (bs_size > 0 || size > 0)
-    {
-      rtx p6 = gen_rtx_REG (BImode, PR_REG (6));
+  /* On the IA-64 there is a second stack in memory, namely the Backing Store
+     of the Register Stack Engine.  We also need to probe it after checking
+     that the 2 stacks don't overlap.  */
+  emit_insn (gen_bsp_value (r3));
+  emit_move_insn (r2, GEN_INT (-(first + size)));
 
-      emit_insn (gen_bsp_value (r3));
-      emit_move_insn (r2, GEN_INT (-(first + size)));
+  /* Compare current value of BSP and SP registers.  */
+  emit_insn (gen_rtx_SET (VOIDmode, p6,
+			  gen_rtx_fmt_ee (LTU, BImode,
+					  r3, stack_pointer_rtx)));
 
-      /* Compare current value of BSP and SP registers.  */
-      emit_insn (gen_rtx_SET (VOIDmode, p6,
-			      gen_rtx_fmt_ee (LTU, BImode,
-					      r3, stack_pointer_rtx)));
+  /* Compute the address of the probe for the Backing Store (which grows
+     towards higher addresses).  We probe only at the first offset of
+     the next page because some OS (eg Linux/ia64) only extend the
+     backing store when this specific address is hit (but generate a SEGV
+     on other address).  Page size is the worst case (4KB).  The reserve
+     size is at least 4096 - (96 + 2) * 8 = 3312 bytes, which is enough.
+     Also compute the address of the last probe for the memory stack
+     (which grows towards lower addresses).  */
+  emit_insn (gen_rtx_SET (VOIDmode, r3, plus_constant (Pmode, r3, 4095)));
+  emit_insn (gen_rtx_SET (VOIDmode, r2,
+			  gen_rtx_PLUS (Pmode, stack_pointer_rtx, r2)));
 
-      /* Compute the address of the probe for the Backing Store (which grows
-	 towards higher addresses).  We probe only at the first offset of
-	 the next page because some OS (eg Linux/ia64) only extend the
-	 backing store when this specific address is hit (but generate a SEGV
-	 on other address).  Page size is the worst case (4KB).  The reserve
-	 size is at least 4096 - (96 + 2) * 8 = 3312 bytes, which is enough.
-	 Also compute the address of the last probe for the memory stack
-	 (which grows towards lower addresses).  */
-      emit_insn (gen_rtx_SET (VOIDmode, r3, plus_constant (Pmode, r3, 4095)));
-      emit_insn (gen_rtx_SET (VOIDmode, r2,
-			      gen_rtx_PLUS (Pmode, stack_pointer_rtx, r2)));
-
-      /* Compare them and raise SEGV if the former has topped the latter.  */
-      emit_insn (gen_rtx_COND_EXEC (VOIDmode,
-				    gen_rtx_fmt_ee (NE, VOIDmode, p6,
-						    const0_rtx),
-				    gen_rtx_SET (VOIDmode, p6,
-						 gen_rtx_fmt_ee (GEU, BImode,
-								 r3, r2))));
-      emit_insn (gen_rtx_SET (VOIDmode,
-			      gen_rtx_ZERO_EXTRACT (DImode, r3, GEN_INT (12),
-						    const0_rtx),
-			      const0_rtx));
-      emit_insn (gen_rtx_COND_EXEC (VOIDmode,
-				    gen_rtx_fmt_ee (NE, VOIDmode, p6,
-						    const0_rtx),
-				    gen_rtx_TRAP_IF (VOIDmode, const1_rtx,
-						     GEN_INT (11))));
-    }
+  /* Compare them and raise SEGV if the former has topped the latter.  */
+  emit_insn (gen_rtx_COND_EXEC (VOIDmode,
+				gen_rtx_fmt_ee (NE, VOIDmode, p6, const0_rtx),
+				gen_rtx_SET (VOIDmode, p6,
+					     gen_rtx_fmt_ee (GEU, BImode,
+							     r3, r2))));
+  emit_insn (gen_rtx_SET (VOIDmode,
+			  gen_rtx_ZERO_EXTRACT (DImode, r3, GEN_INT (12),
+						const0_rtx),
+			  const0_rtx));
+  emit_insn (gen_rtx_COND_EXEC (VOIDmode,
+				gen_rtx_fmt_ee (NE, VOIDmode, p6, const0_rtx),
+				gen_rtx_TRAP_IF (VOIDmode, const1_rtx,
+						 GEN_INT (11))));
 
   /* Probe the Backing Store if necessary.  */
   if (bs_size > 0)
@@ -3440,10 +3437,23 @@ ia64_expand_prologue (void)
     current_function_static_stack_size = current_frame_info.total_size;
 
   if (flag_stack_check == STATIC_BUILTIN_STACK_CHECK)
-    ia64_emit_probe_stack_range (STACK_CHECK_PROTECT,
-				 current_frame_info.total_size,
-				 current_frame_info.n_input_regs
-				   + current_frame_info.n_local_regs);
+    {
+      HOST_WIDE_INT size = current_frame_info.total_size;
+      int bs_size = BACKING_STORE_SIZE (current_frame_info.n_input_regs
+					  + current_frame_info.n_local_regs);
+
+      if (crtl->is_leaf && !cfun->calls_alloca)
+	{
+	  if (size > PROBE_INTERVAL && size > STACK_CHECK_PROTECT)
+	    ia64_emit_probe_stack_range (STACK_CHECK_PROTECT,
+					 size - STACK_CHECK_PROTECT,
+					 bs_size);
+	  else if (size + bs_size > STACK_CHECK_PROTECT)
+	    ia64_emit_probe_stack_range (STACK_CHECK_PROTECT, 0, bs_size);
+	}
+      else if (size + bs_size > 0)
+	ia64_emit_probe_stack_range (STACK_CHECK_PROTECT, size, bs_size);
+    }
 
   if (dump_file) 
     {
@@ -5279,6 +5289,9 @@ ia64_print_operand (FILE * file, rtx x, int code)
 	case UNGE:
 	  str = "nlt";
 	  break;
+	case UNEQ:
+	case LTGT:
+	  gcc_unreachable ();
 	default:
 	  str = GET_RTX_NAME (GET_CODE (x));
 	  break;
@@ -5456,7 +5469,7 @@ ia64_print_operand (FILE * file, rtx x, int code)
 	x = find_reg_note (current_output_insn, REG_BR_PROB, 0);
 	if (x)
 	  {
-	    int pred_val = INTVAL (XEXP (x, 0));
+	    int pred_val = XINT (x, 0);
 
 	    /* Guess top and bottom 10% statically predicted.  */
 	    if (pred_val < REG_BR_PROB_BASE / 50
@@ -5470,7 +5483,7 @@ ia64_print_operand (FILE * file, rtx x, int code)
 	    else
 	      which = ".sptk";
 	  }
-	else if (GET_CODE (current_output_insn) == CALL_INSN)
+	else if (CALL_P (current_output_insn))
 	  which = ".sptk";
 	else
 	  which = ".dptk";
@@ -6811,8 +6824,7 @@ group_barrier_needed (rtx insn)
       memset (rws_insn, 0, sizeof (rws_insn));
 
       /* Don't bundle a call following another call.  */
-      if ((pat = prev_active_insn (insn))
-	  && GET_CODE (pat) == CALL_INSN)
+      if ((pat = prev_active_insn (insn)) && CALL_P (pat))
 	{
 	  need_barrier = 1;
 	  break;
@@ -6826,8 +6838,7 @@ group_barrier_needed (rtx insn)
 	flags.is_branch = 1;
 
       /* Don't bundle a jump following a call.  */
-      if ((pat = prev_active_insn (insn))
-	  && GET_CODE (pat) == CALL_INSN)
+      if ((pat = prev_active_insn (insn)) && CALL_P (pat))
 	{
 	  need_barrier = 1;
 	  break;
@@ -6929,20 +6940,20 @@ emit_insn_group_barriers (FILE *dump)
 
   for (insn = get_insns (); insn; insn = NEXT_INSN (insn))
     {
-      if (GET_CODE (insn) == CODE_LABEL)
+      if (LABEL_P (insn))
 	{
 	  if (insns_since_last_label)
 	    last_label = insn;
 	  insns_since_last_label = 0;
 	}
-      else if (GET_CODE (insn) == NOTE
+      else if (NOTE_P (insn)
 	       && NOTE_KIND (insn) == NOTE_INSN_BASIC_BLOCK)
 	{
 	  if (insns_since_last_label)
 	    last_label = insn;
 	  insns_since_last_label = 0;
 	}
-      else if (GET_CODE (insn) == INSN
+      else if (NONJUMP_INSN_P (insn)
 	       && GET_CODE (PATTERN (insn)) == UNSPEC_VOLATILE
 	       && XINT (PATTERN (insn), 1) == UNSPECV_INSN_GROUP_BARRIER)
 	{
@@ -6983,14 +6994,13 @@ emit_all_insn_group_barriers (FILE *dump ATTRIBUTE_UNUSED)
 
   for (insn = get_insns (); insn; insn = NEXT_INSN (insn))
     {
-      if (GET_CODE (insn) == BARRIER)
+      if (BARRIER_P (insn))
 	{
 	  rtx last = prev_active_insn (insn);
 
 	  if (! last)
 	    continue;
-	  if (GET_CODE (last) == JUMP_INSN
-	      && GET_CODE (PATTERN (last)) == ADDR_DIFF_VEC)
+	  if (JUMP_TABLE_DATA_P (last))
 	    last = prev_active_insn (last);
 	  if (recog_memoized (last) != CODE_FOR_insn_group_barrier)
 	    emit_insn_after (gen_insn_group_barrier (GEN_INT (3)), last);
@@ -7487,7 +7497,7 @@ ia64_variable_issue (FILE *dump ATTRIBUTE_UNUSED,
       int needed = group_barrier_needed (insn);
       
       gcc_assert (!needed);
-      if (GET_CODE (insn) == CALL_INSN)
+      if (CALL_P (insn))
 	init_insn_group_barriers ();
       stops_p [INSN_UID (insn)] = stop_before_p;
       stop_before_p = 0;
@@ -7576,7 +7586,7 @@ ia64_dfa_new_cycle (FILE *dump, int verbose, rtx insn, int last_clock,
 	       && last_scheduled_insn
 	       && scheduled_good_insn (last_scheduled_insn))))
       || (last_scheduled_insn
-	  && (GET_CODE (last_scheduled_insn) == CALL_INSN
+	  && (CALL_P (last_scheduled_insn)
 	      || unknown_for_bundling_p (last_scheduled_insn))))
     {
       init_insn_group_barriers ();
@@ -7594,7 +7604,7 @@ ia64_dfa_new_cycle (FILE *dump, int verbose, rtx insn, int last_clock,
 	  state_transition (curr_state, dfa_stop_insn);
 	  if (TARGET_EARLY_STOP_BITS)
 	    *sort_p = (last_scheduled_insn == NULL_RTX
-		       || GET_CODE (last_scheduled_insn) != CALL_INSN);
+		       || ! CALL_P (last_scheduled_insn));
 	  else
 	    *sort_p = 0;
 	  return 1;
@@ -8344,9 +8354,7 @@ ia64_needs_block_p (ds_t ts)
   return !(mflag_sched_spec_control_ldc && mflag_sched_spec_ldc);
 }
 
-/* Generate (or regenerate, if (MUTATE_P)) recovery check for INSN.
-   If (LABEL != 0 || MUTATE_P), generate branchy recovery check.
-   Otherwise, generate a simple check.  */
+/* Generate (or regenerate) a recovery check for INSN.  */
 static rtx
 ia64_gen_spec_check (rtx insn, rtx label, ds_t ds)
 {
@@ -8531,18 +8539,21 @@ finish_bundle_states (void)
     }
 }
 
-/* Hash table of the bundle states.  The key is dfa_state and insn_num
-   of the bundle states.  */
+/* Hashtable helpers.  */
 
-static htab_t bundle_state_table;
+struct bundle_state_hasher : typed_noop_remove <bundle_state>
+{
+  typedef bundle_state value_type;
+  typedef bundle_state compare_type;
+  static inline hashval_t hash (const value_type *);
+  static inline bool equal (const value_type *, const compare_type *);
+};
 
 /* The function returns hash of BUNDLE_STATE.  */
 
-static unsigned
-bundle_state_hash (const void *bundle_state)
+inline hashval_t
+bundle_state_hasher::hash (const value_type *state)
 {
-  const struct bundle_state *const state
-    = (const struct bundle_state *) bundle_state;
   unsigned result, i;
 
   for (result = i = 0; i < dfa_state_size; i++)
@@ -8553,18 +8564,19 @@ bundle_state_hash (const void *bundle_state)
 
 /* The function returns nonzero if the bundle state keys are equal.  */
 
-static int
-bundle_state_eq_p (const void *bundle_state_1, const void *bundle_state_2)
+inline bool
+bundle_state_hasher::equal (const value_type *state1,
+			    const compare_type *state2)
 {
-  const struct bundle_state *const state1
-    = (const struct bundle_state *) bundle_state_1;
-  const struct bundle_state *const state2
-    = (const struct bundle_state *) bundle_state_2;
-
   return (state1->insn_num == state2->insn_num
 	  && memcmp (state1->dfa_state, state2->dfa_state,
 		     dfa_state_size) == 0);
 }
+
+/* Hash table of the bundle states.  The key is dfa_state and insn_num
+   of the bundle states.  */
+
+static hash_table <bundle_state_hasher> bundle_state_table;
 
 /* The function inserts the BUNDLE_STATE into the hash table.  The
    function returns nonzero if the bundle has been inserted into the
@@ -8573,39 +8585,35 @@ bundle_state_eq_p (const void *bundle_state_1, const void *bundle_state_2)
 static int
 insert_bundle_state (struct bundle_state *bundle_state)
 {
-  void **entry_ptr;
+  struct bundle_state **entry_ptr;
 
-  entry_ptr = htab_find_slot (bundle_state_table, bundle_state, INSERT);
+  entry_ptr = bundle_state_table.find_slot (bundle_state, INSERT);
   if (*entry_ptr == NULL)
     {
       bundle_state->next = index_to_bundle_states [bundle_state->insn_num];
       index_to_bundle_states [bundle_state->insn_num] = bundle_state;
-      *entry_ptr = (void *) bundle_state;
+      *entry_ptr = bundle_state;
       return TRUE;
     }
-  else if (bundle_state->cost < ((struct bundle_state *) *entry_ptr)->cost
-	   || (bundle_state->cost == ((struct bundle_state *) *entry_ptr)->cost
-	       && (((struct bundle_state *)*entry_ptr)->accumulated_insns_num
+  else if (bundle_state->cost < (*entry_ptr)->cost
+	   || (bundle_state->cost == (*entry_ptr)->cost
+	       && ((*entry_ptr)->accumulated_insns_num
 		   > bundle_state->accumulated_insns_num
-		   || (((struct bundle_state *)
-			*entry_ptr)->accumulated_insns_num
+		   || ((*entry_ptr)->accumulated_insns_num
 		       == bundle_state->accumulated_insns_num
-		       && (((struct bundle_state *)
-			    *entry_ptr)->branch_deviation
+		       && ((*entry_ptr)->branch_deviation
 			   > bundle_state->branch_deviation
-			   || (((struct bundle_state *)
-				*entry_ptr)->branch_deviation
+			   || ((*entry_ptr)->branch_deviation
 			       == bundle_state->branch_deviation
-			       && ((struct bundle_state *)
-				   *entry_ptr)->middle_bundle_stops
+			       && (*entry_ptr)->middle_bundle_stops
 			       > bundle_state->middle_bundle_stops))))))
 
     {
       struct bundle_state temp;
 
-      temp = *(struct bundle_state *) *entry_ptr;
-      *(struct bundle_state *) *entry_ptr = *bundle_state;
-      ((struct bundle_state *) *entry_ptr)->next = temp.next;
+      temp = **entry_ptr;
+      **entry_ptr = *bundle_state;
+      (*entry_ptr)->next = temp.next;
       *bundle_state = temp;
     }
   return FALSE;
@@ -8616,8 +8624,7 @@ insert_bundle_state (struct bundle_state *bundle_state)
 static void
 initiate_bundle_state_table (void)
 {
-  bundle_state_table = htab_create (50, bundle_state_hash, bundle_state_eq_p,
-				    (htab_del) 0);
+  bundle_state_table.create (50);
 }
 
 /* Finish work with the hash table.  */
@@ -8625,7 +8632,7 @@ initiate_bundle_state_table (void)
 static void
 finish_bundle_state_table (void)
 {
-  htab_delete (bundle_state_table);
+  bundle_state_table.dispose ();
 }
 
 
@@ -8936,9 +8943,9 @@ ia64_add_bundle_selector_before (int template0, rtx insn)
 	{
 	  do
 	    insn = next_active_insn (insn);
-	  while (GET_CODE (insn) == INSN
+	  while (NONJUMP_INSN_P (insn)
 		 && get_attr_empty (insn) == EMPTY_YES);
-	  if (GET_CODE (insn) == CALL_INSN)
+	  if (CALL_P (insn))
 	    note = find_reg_note (insn, REG_EH_REGION, NULL_RTX);
 	  else if (note)
 	    {
@@ -9372,14 +9379,13 @@ final_emit_insn_group_barriers (FILE *dump ATTRIBUTE_UNUSED)
        insn != current_sched_info->next_tail;
        insn = NEXT_INSN (insn))
     {
-      if (GET_CODE (insn) == BARRIER)
+      if (BARRIER_P (insn))
 	{
 	  rtx last = prev_active_insn (insn);
 
 	  if (! last)
 	    continue;
-	  if (GET_CODE (last) == JUMP_INSN
-	      && GET_CODE (PATTERN (last)) == ADDR_DIFF_VEC)
+	  if (JUMP_TABLE_DATA_P (last))
 	    last = prev_active_insn (last);
 	  if (recog_memoized (last) != CODE_FOR_insn_group_barrier)
 	    emit_insn_after (gen_insn_group_barrier (GEN_INT (3)), last);
@@ -9445,8 +9451,7 @@ final_emit_insn_group_barriers (FILE *dump ATTRIBUTE_UNUSED)
 	  else if (recog_memoized (insn) >= 0
 		   && important_for_bundling_p (insn))
 	    seen_good_insn = 1;
-	  need_barrier_p = (GET_CODE (insn) == CALL_INSN
-			    || unknown_for_bundling_p (insn));
+	  need_barrier_p = (CALL_P (insn) || unknown_for_bundling_p (insn));
 	}
     }
 }
@@ -9590,7 +9595,7 @@ emit_predicate_relation_info (void)
       rtx head = BB_HEAD (bb);
 
       /* We only need such notes at code labels.  */
-      if (GET_CODE (head) != CODE_LABEL)
+      if (! LABEL_P (head))
 	continue;
       if (NOTE_INSN_BASIC_BLOCK_P (NEXT_INSN (head)))
 	head = NEXT_INSN (head);
@@ -9618,7 +9623,7 @@ emit_predicate_relation_info (void)
 
       while (1)
 	{
-	  if (GET_CODE (insn) == CALL_INSN
+	  if (CALL_P (insn)
 	      && GET_CODE (PATTERN (insn)) == COND_EXEC
 	      && find_reg_note (insn, REG_NORETURN, NULL_RTX))
 	    {
@@ -9766,7 +9771,7 @@ ia64_reorg (void)
       if (insn)
 	{
 	  /* Skip over insns that expand to nothing.  */
-	  while (GET_CODE (insn) == INSN
+	  while (NONJUMP_INSN_P (insn)
 		 && get_attr_empty (insn) == EMPTY_YES)
 	    {
 	      if (GET_CODE (PATTERN (insn)) == UNSPEC_VOLATILE
@@ -9774,7 +9779,7 @@ ia64_reorg (void)
 		saw_stop = 1;
 	      insn = prev_active_insn (insn);
 	    }
-	  if (GET_CODE (insn) == CALL_INSN)
+	  if (CALL_P (insn))
 	    {
 	      if (! saw_stop)
 		emit_insn (gen_insn_group_barrier (GEN_INT (3)));
@@ -10184,7 +10189,7 @@ ia64_asm_unwind_emit (FILE *asm_out_file, rtx insn)
 	}
     }
 
-  if (GET_CODE (insn) == NOTE || ! RTX_FRAME_RELATED_P (insn))
+  if (NOTE_P (insn) || ! RTX_FRAME_RELATED_P (insn))
     return;
 
   /* Look for the ALLOC insn.  */

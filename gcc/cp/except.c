@@ -57,7 +57,8 @@ init_exception_processing (void)
   /* void std::terminate (); */
   push_namespace (std_identifier);
   tmp = build_function_type_list (void_type_node, NULL_TREE);
-  terminate_node = build_cp_library_fn_ptr ("terminate", tmp);
+  terminate_node = build_cp_library_fn_ptr ("terminate", tmp,
+					   ECF_NOTHROW | ECF_NORETURN);
   TREE_THIS_VOLATILE (terminate_node) = 1;
   TREE_NOTHROW (terminate_node) = 1;
   pop_namespace ();
@@ -149,12 +150,13 @@ build_exc_ptr (void)
    are consistent with the actual implementations in libsupc++.  */
 
 static tree
-declare_nothrow_library_fn (tree name, tree return_type, tree parm_type)
+declare_library_fn (tree name, tree return_type, tree parm_type, int ecf_flags)
 {
   return push_library_fn (name, build_function_type_list (return_type,
 							  parm_type,
 							  NULL_TREE),
-			  empty_except_spec);
+			  empty_except_spec,
+			  ecf_flags);
 }
 
 /* Build up a call to __cxa_get_exception_ptr so that we can build a
@@ -169,10 +171,8 @@ do_get_exception_ptr (void)
   if (!get_global_value_if_present (fn, &fn))
     {
       /* Declare void* __cxa_get_exception_ptr (void *) throw().  */
-      fn = declare_nothrow_library_fn (fn, ptr_type_node, ptr_type_node);
-
-      if (flag_tm)
-	apply_tm_attr (fn, get_identifier ("transaction_pure"));
+      fn = declare_library_fn (fn, ptr_type_node, ptr_type_node,
+			       ECF_NOTHROW | ECF_PURE | ECF_LEAF | ECF_TM_PURE);
     }
 
   return cp_build_function_call_nary (fn, tf_warning_or_error,
@@ -191,16 +191,15 @@ do_begin_catch (void)
   if (!get_global_value_if_present (fn, &fn))
     {
       /* Declare void* __cxa_begin_catch (void *) throw().  */
-      fn = declare_nothrow_library_fn (fn, ptr_type_node, ptr_type_node);
+      fn = declare_library_fn (fn, ptr_type_node, ptr_type_node, ECF_NOTHROW);
 
       /* Create its transactional-memory equivalent.  */
       if (flag_tm)
 	{
 	  tree fn2 = get_identifier ("_ITM_cxa_begin_catch");
 	  if (!get_global_value_if_present (fn2, &fn2))
-	    fn2 = declare_nothrow_library_fn (fn2, ptr_type_node,
-					      ptr_type_node);
-	  apply_tm_attr (fn2, get_identifier ("transaction_pure"));
+	    fn2 = declare_library_fn (fn2, ptr_type_node,
+				      ptr_type_node, ECF_NOTHROW | ECF_TM_PURE);
 	  record_tm_replacement (fn, fn2);
 	}
     }
@@ -238,21 +237,16 @@ do_end_catch (tree type)
   fn = get_identifier ("__cxa_end_catch");
   if (!get_global_value_if_present (fn, &fn))
     {
-      /* Declare void __cxa_end_catch ().  */
-      fn = push_void_library_fn (fn, void_list_node);
-      /* This can throw if the destructor for the exception throws.  */
-      TREE_NOTHROW (fn) = 0;
+      /* Declare void __cxa_end_catch ().
+         This can throw if the destructor for the exception throws.  */
+      fn = push_void_library_fn (fn, void_list_node, 0);
 
       /* Create its transactional-memory equivalent.  */
       if (flag_tm)
 	{
 	  tree fn2 = get_identifier ("_ITM_cxa_end_catch");
 	  if (!get_global_value_if_present (fn2, &fn2))
-	    {
-	      fn2 = push_void_library_fn (fn2, void_list_node);
-	      TREE_NOTHROW (fn2) = 0;
-	    }
-	  apply_tm_attr (fn2, get_identifier ("transaction_pure"));
+	    fn2 = push_void_library_fn (fn2, void_list_node, ECF_TM_PURE);
 	  record_tm_replacement (fn, fn2);
 	}
     }
@@ -277,7 +271,7 @@ push_eh_cleanup (tree type)
 static bool
 decl_is_java_type (tree decl, int err)
 {
-  bool r = (TREE_CODE (decl) == POINTER_TYPE
+  bool r = (TYPE_PTR_P (decl)
 	    && TREE_CODE (TREE_TYPE (decl)) == RECORD_TYPE
 	    && TYPE_FOR_JAVA (TREE_TYPE (decl)));
 
@@ -379,6 +373,9 @@ tree
 build_must_not_throw_expr (tree body, tree cond)
 {
   tree type = body ? TREE_TYPE (body) : void_type_node;
+
+  if (!flag_exceptions)
+    return body;
 
   if (cond && !value_dependent_expression_p (cond))
     {
@@ -490,6 +487,7 @@ expand_start_catch_block (tree decl)
 	decl = error_mark_node;
 
       type = prepare_eh_type (TREE_TYPE (decl));
+      mark_used (eh_type_info (type));
     }
   else
     type = NULL_TREE;
@@ -630,15 +628,16 @@ do_allocate_exception (tree type)
   if (!get_global_value_if_present (fn, &fn))
     {
       /* Declare void *__cxa_allocate_exception(size_t) throw().  */
-      fn = declare_nothrow_library_fn (fn, ptr_type_node, size_type_node);
+      fn = declare_library_fn (fn, ptr_type_node, size_type_node,
+			        ECF_NOTHROW | ECF_MALLOC);
 
       if (flag_tm)
 	{
 	  tree fn2 = get_identifier ("_ITM_cxa_allocate_exception");
 	  if (!get_global_value_if_present (fn2, &fn2))
-	    fn2 = declare_nothrow_library_fn (fn2, ptr_type_node,
-					      size_type_node);
-	  apply_tm_attr (fn2, get_identifier ("transaction_pure"));
+	    fn2 = declare_library_fn (fn2, ptr_type_node,
+				      size_type_node, 
+				      ECF_NOTHROW | ECF_MALLOC | ECF_TM_PURE);
 	  record_tm_replacement (fn, fn2);
 	}
     }
@@ -659,7 +658,8 @@ do_free_exception (tree ptr)
   if (!get_global_value_if_present (fn, &fn))
     {
       /* Declare void __cxa_free_exception (void *) throw().  */
-      fn = declare_nothrow_library_fn (fn, void_type_node, ptr_type_node);
+      fn = declare_library_fn (fn, void_type_node, ptr_type_node,
+			       ECF_NOTHROW | ECF_LEAF);
     }
 
   return cp_build_function_call_nary (fn, tf_warning_or_error, ptr, NULL_TREE);
@@ -828,7 +828,7 @@ build_throw (tree exp)
 	     treated as an rvalue for the purposes of overload resolution
 	     to favor move constructors over copy constructors.  */
 	  if (/* Must be a local, automatic variable.  */
-	      TREE_CODE (exp) == VAR_DECL
+	      VAR_P (exp)
 	      && DECL_CONTEXT (exp) == current_function_decl
 	      && ! TREE_STATIC (exp)
 	      /* The variable must not have the `volatile' qualifier.  */
@@ -868,17 +868,21 @@ build_throw (tree exp)
 
       throw_type = build_eh_type_type (prepare_eh_type (TREE_TYPE (object)));
 
-      if (TYPE_HAS_NONTRIVIAL_DESTRUCTOR (TREE_TYPE (object)))
+      cleanup = NULL_TREE;
+      if (type_build_dtor_call (TREE_TYPE (object)))
 	{
-	  cleanup = lookup_fnfields (TYPE_BINFO (TREE_TYPE (object)),
+	  tree fn = lookup_fnfields (TYPE_BINFO (TREE_TYPE (object)),
 				     complete_dtor_identifier, 0);
-	  cleanup = BASELINK_FUNCTIONS (cleanup);
-	  mark_used (cleanup);
-	  cxx_mark_addressable (cleanup);
-	  /* Pretend it's a normal function.  */
-	  cleanup = build1 (ADDR_EXPR, cleanup_type, cleanup);
+	  fn = BASELINK_FUNCTIONS (fn);
+	  mark_used (fn);
+	  if (TYPE_HAS_NONTRIVIAL_DESTRUCTOR (TREE_TYPE (object)))
+	    {
+	      cxx_mark_addressable (fn);
+	      /* Pretend it's a normal function.  */
+	      cleanup = build1 (ADDR_EXPR, cleanup_type, fn);
+	    }
 	}
-      else
+      if (cleanup == NULL_TREE)
 	cleanup = build_int_cst (cleanup_type, 0);
 
       /* ??? Indicate that this function call throws throw_type.  */
@@ -930,7 +934,7 @@ complete_ptr_ref_or_void_ptr_p (tree type, tree from)
     return 0;
 
   /* Or a pointer or ref to one, or cv void *.  */
-  is_ptr = TREE_CODE (type) == POINTER_TYPE;
+  is_ptr = TYPE_PTR_P (type);
   if (is_ptr || TREE_CODE (type) == REFERENCE_TYPE)
     {
       tree core = TREE_TYPE (type);
@@ -972,22 +976,24 @@ is_admissible_throw_operand_or_catch_parameter (tree t, bool is_throw)
   /* 10.4/3 An abstract class shall not be used as a parameter type,
 	    as a function return type or as type of an explicit
 	    conversion.  */
-  else if (ABSTRACT_CLASS_TYPE_P (type))
-    {
-      if (is_throw)
-	error ("expression %qE of abstract class type %qT cannot "
-	       "be used in throw-expression", expr, type);
-      else
-	error ("cannot declare catch parameter to be of abstract "
-	       "class type %qT", type);
-      return false;
-    }
+  else if (abstract_virtuals_error (is_throw ? ACU_THROW : ACU_CATCH, type))
+    return false;
   else if (!is_throw
 	   && TREE_CODE (type) == REFERENCE_TYPE
 	   && TYPE_REF_IS_RVALUE (type))
     {
       error ("cannot declare catch parameter to be of rvalue "
 	     "reference type %qT", type);
+      return false;
+    }
+  else if (variably_modified_type_p (type, NULL_TREE))
+    {
+      if (is_throw)
+	error ("cannot throw expression of type %qT because it involves "
+	       "types of variable size", type);
+      else
+	error ("cannot catch type %qT because it involves types of "
+	       "variable size", type);
       return false;
     }
 
@@ -1034,7 +1040,7 @@ can_convert_eh (tree to, tree from)
   to = non_reference (to);
   from = non_reference (from);
 
-  if (TREE_CODE (to) == POINTER_TYPE && TREE_CODE (from) == POINTER_TYPE)
+  if (TYPE_PTR_P (to) && TYPE_PTR_P (from))
     {
       to = TREE_TYPE (to);
       from = TREE_TYPE (from);
@@ -1042,7 +1048,7 @@ can_convert_eh (tree to, tree from)
       if (! at_least_as_qualified_p (to, from))
 	return 0;
 
-      if (TREE_CODE (to) == VOID_TYPE)
+      if (VOID_TYPE_P (to))
 	return 1;
 
       /* Else fall through.  */

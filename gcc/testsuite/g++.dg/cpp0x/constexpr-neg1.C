@@ -1,5 +1,5 @@
 // Negative examples from N3092 (FCD)
-// { dg-options -std=c++0x }
+// { dg-options -std=c++11 }
 
 // OK: declaration
 constexpr int square(int x);	// { dg-message "never defined" }
@@ -50,7 +50,7 @@ private:
   bool flag;
 };
 // OK
-constexpr int bar(int x, int y) // { dg-error "previously defined here" }
+constexpr int bar(int x, int y) // { dg-message "previously defined here" }
 { return x + y + x*y; }
 // ...
 // error: redefinition of bar

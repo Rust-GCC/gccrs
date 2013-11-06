@@ -26,7 +26,11 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm_p.h"
 #include "basic-block.h"
 #include "gimple-pretty-print.h"
-#include "tree-flow.h"
+#include "gimple.h"
+#include "gimple-ssa.h"
+#include "tree-phinodes.h"
+#include "ssa-iterators.h"
+#include "tree-ssanames.h"
 #include "tree-pass.h"
 #include "langhooks.h"
 #include "flags.h"
@@ -247,7 +251,6 @@ propagate_with_phi (basic_block bb, gimple phi, struct phiprop_d *phivn,
   ssa_op_iter i;
   bool phi_inserted;
   tree type = NULL_TREE;
-  bool one_invariant = false;
 
   if (!POINTER_TYPE_P (TREE_TYPE (ptr))
       || !is_gimple_reg_type (TREE_TYPE (TREE_TYPE (ptr))))
@@ -282,16 +285,7 @@ propagate_with_phi (basic_block bb, gimple phi, struct phiprop_d *phivn,
       if (!type
 	  && TREE_CODE (arg) == SSA_NAME)
 	type = TREE_TYPE (phivn[SSA_NAME_VERSION (arg)].value);
-      if (TREE_CODE (arg) == ADDR_EXPR
-	  && is_gimple_min_invariant (arg))
-	one_invariant = true;
     }
-
-  /* If we neither have an address of a decl nor can reuse a previously
-     inserted load, do not hoist anything.  */
-  if (!one_invariant
-      && !type)
-    return false;
 
   /* Find a dereferencing use.  First follow (single use) ssa
      copy chains for ptr.  */
@@ -404,24 +398,40 @@ gate_phiprop (void)
   return flag_tree_phiprop;
 }
 
-struct gimple_opt_pass pass_phiprop =
+namespace {
+
+const pass_data pass_data_phiprop =
 {
- {
-  GIMPLE_PASS,
-  "phiprop",			/* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  gate_phiprop,			/* gate */
-  tree_ssa_phiprop,		/* execute */
-  NULL,				/* sub */
-  NULL,				/* next */
-  0,				/* static_pass_number */
-  TV_TREE_PHIPROP,		/* tv_id */
-  PROP_cfg | PROP_ssa,		/* properties_required */
-  0,				/* properties_provided */
-  0,				/* properties_destroyed */
-  0,				/* todo_flags_start */
-  TODO_ggc_collect
-  | TODO_update_ssa
-  | TODO_verify_ssa		/* todo_flags_finish */
- }
+  GIMPLE_PASS, /* type */
+  "phiprop", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_TREE_PHIPROP, /* tv_id */
+  ( PROP_cfg | PROP_ssa ), /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  ( TODO_update_ssa | TODO_verify_ssa ), /* todo_flags_finish */
 };
+
+class pass_phiprop : public gimple_opt_pass
+{
+public:
+  pass_phiprop (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_phiprop, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_phiprop (); }
+  unsigned int execute () { return tree_ssa_phiprop (); }
+
+}; // class pass_phiprop
+
+} // anon namespace
+
+gimple_opt_pass *
+make_pass_phiprop (gcc::context *ctxt)
+{
+  return new pass_phiprop (ctxt);
+}

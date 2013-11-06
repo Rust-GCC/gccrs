@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -86,8 +86,12 @@ package body Sem_Aux is
 
          return Get_Full_View (Non_Limited_View (Typ));
 
+      --  If it is class_wide, check whether the specific type comes from
+      --  A limited_with.
+
       elsif Is_Class_Wide_Type (Typ)
         and then Is_Incomplete_Type (Etype (Typ))
+        and then From_Limited_With (Etype (Typ))
         and then Present (Non_Limited_View (Etype (Typ)))
       then
          return Class_Wide_Type (Non_Limited_View (Etype (Typ)));
@@ -150,25 +154,6 @@ package body Sem_Aux is
          return Empty;
       end if;
    end Constant_Value;
-
-   ----------------------------------------------
-   -- Effectively_Has_Constrained_Partial_View --
-   ----------------------------------------------
-
-   function Effectively_Has_Constrained_Partial_View
-     (Typ  : Entity_Id;
-      Scop : Entity_Id) return Boolean
-   is
-   begin
-      return Has_Constrained_Partial_View (Typ)
-        or else (In_Generic_Body (Scop)
-                   and then Is_Generic_Type (Base_Type (Typ))
-                   and then Is_Private_Type (Base_Type (Typ))
-                   and then not Is_Tagged_Type (Typ)
-                   and then not (Is_Array_Type (Typ)
-                                   and then not Is_Constrained (Typ))
-                   and then Has_Discriminants (Typ));
-   end Effectively_Has_Constrained_Partial_View;
 
    -----------------------------
    -- Enclosing_Dynamic_Scope --
@@ -467,8 +452,8 @@ package body Sem_Aux is
          elsif Nkind (N) = N_Attribute_Definition_Clause
            and then
              (Chars (N) = Nam
-                or else (Nam = Name_Priority
-                          and then Chars (N) = Name_Interrupt_Priority))
+               or else (Nam = Name_Priority
+                         and then Chars (N) = Name_Interrupt_Priority))
          then
             if Check_Parents or else Entity (N) = E then
                return N;
@@ -477,9 +462,9 @@ package body Sem_Aux is
          elsif Nkind (N) = N_Aspect_Specification
            and then
              (Chars (Identifier (N)) = Nam
-                or else (Nam = Name_Priority
-                          and then Chars (Identifier (N)) =
-                                     Name_Interrupt_Priority))
+               or else
+                 (Nam = Name_Priority
+                   and then Chars (Identifier (N)) = Name_Interrupt_Priority))
          then
             if Check_Parents then
                return N;
@@ -630,25 +615,6 @@ package body Sem_Aux is
       return Present (Get_Rep_Pragma (E, Nam1, Nam2, Check_Parents));
    end Has_Rep_Pragma;
 
-   -------------------------------
-   -- Initialization_Suppressed --
-   -------------------------------
-
-   function Initialization_Suppressed (Typ : Entity_Id) return Boolean is
-   begin
-      return Suppress_Initialization (Typ)
-        or else Suppress_Initialization (Base_Type (Typ));
-   end Initialization_Suppressed;
-
-   ----------------
-   -- Initialize --
-   ----------------
-
-   procedure Initialize is
-   begin
-      Obsolescent_Warnings.Init;
-   end Initialize;
-
    ---------------------
    -- In_Generic_Body --
    ---------------------
@@ -685,6 +651,25 @@ package body Sem_Aux is
 
       return False;
    end In_Generic_Body;
+
+   -------------------------------
+   -- Initialization_Suppressed --
+   -------------------------------
+
+   function Initialization_Suppressed (Typ : Entity_Id) return Boolean is
+   begin
+      return Suppress_Initialization (Typ)
+        or else Suppress_Initialization (Base_Type (Typ));
+   end Initialization_Suppressed;
+
+   ----------------
+   -- Initialize --
+   ----------------
+
+   procedure Initialize is
+   begin
+      Obsolescent_Warnings.Init;
+   end Initialize;
 
    ---------------------
    -- Is_By_Copy_Type --
@@ -828,38 +813,6 @@ package body Sem_Aux is
       end if;
    end Is_Generic_Formal;
 
-   ---------------------------
-   -- Is_Indefinite_Subtype --
-   ---------------------------
-
-   function Is_Indefinite_Subtype (Ent : Entity_Id) return Boolean is
-      K : constant Entity_Kind := Ekind (Ent);
-
-   begin
-      if Is_Constrained (Ent) then
-         return False;
-
-      elsif K in Array_Kind
-        or else K in Class_Wide_Kind
-        or else Has_Unknown_Discriminants (Ent)
-      then
-         return True;
-
-      --  Known discriminants: indefinite if there are no default values
-
-      elsif K in Record_Kind
-        or else Is_Incomplete_Or_Private_Type (Ent)
-        or else Is_Concurrent_Type (Ent)
-      then
-         return (Has_Discriminants (Ent)
-           and then
-             No (Discriminant_Default_Value (First_Discriminant (Ent))));
-
-      else
-         return False;
-      end if;
-   end Is_Indefinite_Subtype;
-
    -------------------------------
    -- Is_Immutably_Limited_Type --
    -------------------------------
@@ -912,52 +865,42 @@ package body Sem_Aux is
       elsif Is_Concurrent_Type (Btype) then
          return True;
 
-      elsif Is_Record_Type (Btype) then
-
-         --  Note that we return True for all limited interfaces, even though
-         --  (unsynchronized) limited interfaces can have descendants that are
-         --  nonlimited, because this is a predicate on the type itself, and
-         --  things like functions with limited interface results need to be
-         --  handled as build in place even though they might return objects
-         --  of a type that is not inherently limited.
-
-         if Is_Class_Wide_Type (Btype) then
-            return Is_Immutably_Limited_Type (Root_Type (Btype));
-
-         else
-            declare
-               C : Entity_Id;
-
-            begin
-               C := First_Component (Btype);
-               while Present (C) loop
-
-                  --  Don't consider components with interface types (which can
-                  --  only occur in the case of a _parent component anyway).
-                  --  They don't have any components, plus it would cause this
-                  --  function to return true for nonlimited types derived from
-                  --  limited interfaces.
-
-                  if not Is_Interface (Etype (C))
-                    and then Is_Immutably_Limited_Type (Etype (C))
-                  then
-                     return True;
-                  end if;
-
-                  C := Next_Component (C);
-               end loop;
-            end;
-
-            return False;
-         end if;
-
-      elsif Is_Array_Type (Btype) then
-         return Is_Immutably_Limited_Type (Component_Type (Btype));
-
       else
          return False;
       end if;
    end Is_Immutably_Limited_Type;
+
+   ---------------------------
+   -- Is_Indefinite_Subtype --
+   ---------------------------
+
+   function Is_Indefinite_Subtype (Ent : Entity_Id) return Boolean is
+      K : constant Entity_Kind := Ekind (Ent);
+
+   begin
+      if Is_Constrained (Ent) then
+         return False;
+
+      elsif K in Array_Kind
+        or else K in Class_Wide_Kind
+        or else Has_Unknown_Discriminants (Ent)
+      then
+         return True;
+
+      --  Known discriminants: indefinite if there are no default values
+
+      elsif K in Record_Kind
+        or else Is_Incomplete_Or_Private_Type (Ent)
+        or else Is_Concurrent_Type (Ent)
+      then
+         return (Has_Discriminants (Ent)
+           and then
+             No (Discriminant_Default_Value (First_Discriminant (Ent))));
+
+      else
+         return False;
+      end if;
+   end Is_Indefinite_Subtype;
 
    ---------------------
    -- Is_Limited_Type --
@@ -1038,6 +981,105 @@ package body Sem_Aux is
          return False;
       end if;
    end Is_Limited_Type;
+
+   ---------------------
+   -- Is_Limited_View --
+   ---------------------
+
+   function Is_Limited_View (Ent : Entity_Id) return Boolean is
+      Btype : constant Entity_Id := Available_View (Base_Type (Ent));
+
+   begin
+      if Is_Limited_Record (Btype) then
+         return True;
+
+      elsif Ekind (Btype) = E_Limited_Private_Type
+        and then Nkind (Parent (Btype)) = N_Formal_Type_Declaration
+      then
+         return not In_Package_Body (Scope ((Btype)));
+
+      elsif Is_Private_Type (Btype) then
+
+         --  AI05-0063: A type derived from a limited private formal type is
+         --  not immutably limited in a generic body.
+
+         if Is_Derived_Type (Btype)
+           and then Is_Generic_Type (Etype (Btype))
+         then
+            if not Is_Limited_Type (Etype (Btype)) then
+               return False;
+
+            --  A descendant of a limited formal type is not immutably limited
+            --  in the generic body, or in the body of a generic child.
+
+            elsif Ekind (Scope (Etype (Btype))) = E_Generic_Package then
+               return not In_Package_Body (Scope (Btype));
+
+            else
+               return False;
+            end if;
+
+         else
+            declare
+               Utyp : constant Entity_Id := Underlying_Type (Btype);
+            begin
+               if No (Utyp) then
+                  return False;
+               else
+                  return Is_Limited_View (Utyp);
+               end if;
+            end;
+         end if;
+
+      elsif Is_Concurrent_Type (Btype) then
+         return True;
+
+      elsif Is_Record_Type (Btype) then
+
+         --  Note that we return True for all limited interfaces, even though
+         --  (unsynchronized) limited interfaces can have descendants that are
+         --  nonlimited, because this is a predicate on the type itself, and
+         --  things like functions with limited interface results need to be
+         --  handled as build in place even though they might return objects
+         --  of a type that is not inherently limited.
+
+         if Is_Class_Wide_Type (Btype) then
+            return Is_Limited_View (Root_Type (Btype));
+
+         else
+            declare
+               C : Entity_Id;
+
+            begin
+               C := First_Component (Btype);
+               while Present (C) loop
+
+                  --  Don't consider components with interface types (which can
+                  --  only occur in the case of a _parent component anyway).
+                  --  They don't have any components, plus it would cause this
+                  --  function to return true for nonlimited types derived from
+                  --  limited interfaces.
+
+                  if not Is_Interface (Etype (C))
+                    and then Is_Limited_View (Etype (C))
+                  then
+                     return True;
+                  end if;
+
+                  C := Next_Component (C);
+               end loop;
+            end;
+
+            return False;
+         end if;
+
+      elsif Is_Array_Type (Btype) then
+         return Is_Limited_View (Component_Type (Btype));
+
+      else
+         return False;
+      end if;
+   end Is_Limited_View;
 
    ----------------------
    -- Nearest_Ancestor --
@@ -1146,6 +1188,45 @@ package body Sem_Aux is
 
       return N;
    end Number_Discriminants;
+
+   ----------------------------------------------
+   -- Object_Type_Has_Constrained_Partial_View --
+   ----------------------------------------------
+
+   function Object_Type_Has_Constrained_Partial_View
+     (Typ  : Entity_Id;
+      Scop : Entity_Id) return Boolean
+   is
+   begin
+      return Has_Constrained_Partial_View (Typ)
+        or else (In_Generic_Body (Scop)
+                  and then Is_Generic_Type (Base_Type (Typ))
+                  and then Is_Private_Type (Base_Type (Typ))
+                  and then not Is_Tagged_Type (Typ)
+                  and then not (Is_Array_Type (Typ)
+                                 and then not Is_Constrained (Typ))
+                  and then Has_Discriminants (Typ));
+   end Object_Type_Has_Constrained_Partial_View;
+
+   ---------------------------
+   -- Package_Specification --
+   ---------------------------
+
+   function Package_Specification (Pack_Id : Entity_Id) return Node_Id is
+      N : Node_Id;
+
+   begin
+      N := Parent (Pack_Id);
+      while Nkind (N) /= N_Package_Specification loop
+         N := Parent (N);
+
+         if No (N) then
+            raise Program_Error;
+         end if;
+      end loop;
+
+      return N;
+   end Package_Specification;
 
    ---------------
    -- Tree_Read --

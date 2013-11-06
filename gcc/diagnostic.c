@@ -31,6 +31,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "intl.h"
 #include "backtrace.h"
 #include "diagnostic.h"
+#include "diagnostic-color.h"
+
+#include <new>                     // For placement new.
 
 #define pedantic_warning_kind(DC)			\
   ((DC)->pedantic_errors ? DK_ERROR : DK_WARNING)
@@ -53,7 +56,6 @@ const char *progname;
 /* A diagnostic_context surrogate for stderr.  */
 static diagnostic_context global_diagnostic_context;
 diagnostic_context *global_dc = &global_diagnostic_context;
-
 
 /* Return a malloc'd string containing MSG formatted a la printf.  The
    caller is responsible for freeing the memory.  */
@@ -72,9 +74,12 @@ build_message_string (const char *msg, ...)
 
 /* Same as diagnostic_build_prefix, but only the source FILE is given.  */
 char *
-file_name_as_prefix (const char *f)
+file_name_as_prefix (diagnostic_context *context, const char *f)
 {
-  return build_message_string ("%s: ", f);
+  const char *locus_cs
+    = colorize_start (pp_show_color (context->printer), "locus");
+  const char *locus_ce = colorize_stop (pp_show_color (context->printer));
+  return build_message_string ("%s%s:%s ", locus_cs, f, locus_ce);
 }
 
 
@@ -99,7 +104,7 @@ diagnostic_set_caret_max_width (diagnostic_context *context, int value)
 {
   /* One minus to account for the leading empty space.  */
   value = value ? value - 1 
-    : (isatty (fileno (context->printer->buffer->stream))
+    : (isatty (fileno (pp_buffer (context->printer)->stream))
        ? getenv_columns () - 1: INT_MAX);
   
   if (value <= 0) 
@@ -117,11 +122,7 @@ diagnostic_initialize (diagnostic_context *context, int n_opts)
   /* Allocate a basic pretty-printer.  Clients will replace this a
      much more elaborated pretty-printer if they wish.  */
   context->printer = XNEW (pretty_printer);
-  pp_construct (context->printer, NULL, 0);
-  /* By default, diagnostics are sent to stderr.  */
-  context->printer->buffer->stream = stderr;
-  /* By default, we emit prefixes once per message.  */
-  context->printer->wrapping.rule = DIAGNOSTICS_SHOW_PREFIX_ONCE;
+  new (context->printer) pretty_printer ();
 
   memset (context->diagnostic_count, 0, sizeof context->diagnostic_count);
   context->some_warnings_are_errors = false;
@@ -210,12 +211,31 @@ diagnostic_build_prefix (diagnostic_context *context,
 			 const diagnostic_info *diagnostic)
 {
   static const char *const diagnostic_kind_text[] = {
-#define DEFINE_DIAGNOSTIC_KIND(K, T) (T),
+#define DEFINE_DIAGNOSTIC_KIND(K, T, C) (T),
 #include "diagnostic.def"
 #undef DEFINE_DIAGNOSTIC_KIND
     "must-not-happen"
   };
+  static const char *const diagnostic_kind_color[] = {
+#define DEFINE_DIAGNOSTIC_KIND(K, T, C) (C),
+#include "diagnostic.def"
+#undef DEFINE_DIAGNOSTIC_KIND
+    NULL
+  };
   const char *text = _(diagnostic_kind_text[diagnostic->kind]);
+  const char *text_cs = "", *text_ce = "";
+  const char *locus_cs, *locus_ce;
+  pretty_printer *pp = context->printer;
+
+  if (diagnostic_kind_color[diagnostic->kind])
+    {
+      text_cs = colorize_start (pp_show_color (pp),
+				diagnostic_kind_color[diagnostic->kind]);
+      text_ce = colorize_stop (pp_show_color (pp));
+    }
+  locus_cs = colorize_start (pp_show_color (pp), "locus");
+  locus_ce = colorize_stop (pp_show_color (pp));
+
   expanded_location s = expand_location_to_spelling_point (diagnostic->location);
   if (diagnostic->override_column)
     s.column = diagnostic->override_column;
@@ -223,25 +243,32 @@ diagnostic_build_prefix (diagnostic_context *context,
 
   return
     (s.file == NULL
-     ? build_message_string ("%s: %s", progname, text)
+     ? build_message_string ("%s%s:%s %s%s%s", locus_cs, progname, locus_ce,
+			     text_cs, text, text_ce)
+     : !strcmp (s.file, N_("<built-in>"))
+     ? build_message_string ("%s%s:%s %s%s%s", locus_cs, s.file, locus_ce,
+			     text_cs, text, text_ce)
      : context->show_column
-     ? build_message_string ("%s:%d:%d: %s", s.file, s.line, s.column, text)
-     : build_message_string ("%s:%d: %s", s.file, s.line, text));
+     ? build_message_string ("%s%s:%d:%d:%s %s%s%s", locus_cs, s.file, s.line,
+			     s.column, locus_ce, text_cs, text, text_ce)
+     : build_message_string ("%s%s:%d:%s %s%s%s", locus_cs, s.file, s.line, locus_ce,
+			     text_cs, text, text_ce));
 }
 
 /* If LINE is longer than MAX_WIDTH, and COLUMN is not smaller than
    MAX_WIDTH by some margin, then adjust the start of the line such
    that the COLUMN is smaller than MAX_WIDTH minus the margin.  The
    margin is either 10 characters or the difference between the column
-   and the length of the line, whatever is smaller.  */
+   and the length of the line, whatever is smaller.  The length of
+   LINE is given by LINE_WIDTH.  */
 static const char *
-adjust_line (const char *line, int max_width, int *column_p)
+adjust_line (const char *line, int line_width,
+	     int max_width, int *column_p)
 {
   int right_margin = 10;
-  int line_width = strlen (line);
   int column = *column_p;
 
-  right_margin = MIN(line_width - column, right_margin);
+  right_margin = MIN (line_width - column, right_margin);
   right_margin = max_width - right_margin;
   if (line_width >= max_width && column > right_margin)
     {
@@ -258,11 +285,12 @@ diagnostic_show_locus (diagnostic_context * context,
 		       const diagnostic_info *diagnostic)
 {
   const char *line;
+  int line_width;
   char *buffer;
   expanded_location s;
   int max_width;
   const char *saved_prefix;
-
+  const char *caret_cs, *caret_ce;
 
   if (!context->show_caret
       || diagnostic->location <= BUILTINS_LOCATION
@@ -271,28 +299,35 @@ diagnostic_show_locus (diagnostic_context * context,
 
   context->last_location = diagnostic->location;
   s = expand_location_to_spelling_point (diagnostic->location);
-  line = location_get_source_line (s);
+  line = location_get_source_line (s, &line_width);
   if (line == NULL)
     return;
 
   max_width = context->caret_max_width;
-  line = adjust_line (line, max_width, &(s.column));
+  line = adjust_line (line, line_width, max_width, &(s.column));
 
   pp_newline (context->printer);
   saved_prefix = pp_get_prefix (context->printer);
   pp_set_prefix (context->printer, NULL);
-  pp_character (context->printer, ' ');
-  while (max_width > 0 && *line != '\0')
+  pp_space (context->printer);
+  while (max_width > 0 && line_width > 0)
     {
       char c = *line == '\t' ? ' ' : *line;
+      if (c == '\0')
+	c = ' ';
       pp_character (context->printer, c);
       max_width--;
+      line_width--;
       line++;
     }
   pp_newline (context->printer);
+  caret_cs = colorize_start (pp_show_color (context->printer), "caret");
+  caret_ce = colorize_stop (pp_show_color (context->printer));
+
   /* pp_printf does not implement %*c.  */
-  buffer = XALLOCAVEC (char, s.column + 3);
-  snprintf (buffer, s.column + 3, " %*c", s.column, '^');
+  size_t len = s.column + 3 + strlen (caret_cs) + strlen (caret_ce);
+  buffer = XALLOCAVEC (char, len);
+  snprintf (buffer, len, "%s %*c%s", caret_cs, s.column, '^', caret_ce);
   pp_string (context->printer, buffer);
   pp_set_prefix (context->printer, saved_prefix);
 }
@@ -324,7 +359,7 @@ bt_callback (void *data, uintptr_t pc, const char *filename, int lineno,
   /* Skip functions in diagnostic.c.  */
   if (*pcount == 0
       && filename != NULL
-      && strcmp (lbasename(filename), "diagnostic.c") == 0)
+      && strcmp (lbasename (filename), "diagnostic.c") == 0)
     return 0;
 
   /* Print up to 20 functions.  We could make this a --param, but
@@ -488,18 +523,18 @@ diagnostic_report_current_module (diagnostic_context *context, location_t where)
 	  map = INCLUDED_FROM (line_table, map);
 	  if (context->show_column)
 	    pp_verbatim (context->printer,
-			 "In file included from %s:%d:%d",
+			 "In file included from %r%s:%d:%d%R", "locus",
 			 LINEMAP_FILE (map),
 			 LAST_SOURCE_LINE (map), LAST_SOURCE_COLUMN (map));
 	  else
 	    pp_verbatim (context->printer,
-			 "In file included from %s:%d",
+			 "In file included from %r%s:%d%R", "locus",
 			 LINEMAP_FILE (map), LAST_SOURCE_LINE (map));
 	  while (! MAIN_FILE_P (map))
 	    {
 	      map = INCLUDED_FROM (line_table, map);
 	      pp_verbatim (context->printer,
-			   ",\n                 from %s:%d",
+			   ",\n                 from %r%s:%d%R", "locus",
 			   LINEMAP_FILE (map), LAST_SOURCE_LINE (map));
 	    }
 	  pp_verbatim (context->printer, ":");
@@ -525,7 +560,8 @@ default_diagnostic_finalizer (diagnostic_context *context ATTRIBUTE_UNUSED,
 
 /* Interface to specify diagnostic kind overrides.  Returns the
    previous setting, or DK_UNSPECIFIED if the parameters are out of
-   range.  */
+   range.  If OPTION_INDEX is zero, the new setting is for all the
+   diagnostics.  */
 diagnostic_t
 diagnostic_classify_diagnostic (diagnostic_context *context,
 				int option_index,
@@ -534,7 +570,7 @@ diagnostic_classify_diagnostic (diagnostic_context *context,
 {
   diagnostic_t old_kind;
 
-  if (option_index <= 0
+  if (option_index < 0
       || option_index >= context->n_opts
       || new_kind >= DK_LAST_DIAGNOSTIC_KIND)
     return DK_UNSPECIFIED;
@@ -666,9 +702,8 @@ diagnostic_report_diagnostic (diagnostic_context *context,
       /* This tests for #pragma diagnostic changes.  */
       if (context->n_classification_history > 0)
 	{
-	  int i;
 	  /* FIXME: Stupid search.  Optimize later. */
-	  for (i = context->n_classification_history - 1; i >= 0; i --)
+	  for (int i = context->n_classification_history - 1; i >= 0; i --)
 	    {
 	      if (linemap_location_before_p
 		  (line_table,
@@ -680,7 +715,9 @@ diagnostic_report_diagnostic (diagnostic_context *context,
 		      i = context->classification_history[i].option;
 		      continue;
 		    }
-		  if (context->classification_history[i].option == diagnostic->option_index)
+		  int option = context->classification_history[i].option;
+		  /* The option 0 is for all the diagnostics.  */
+		  if (option == 0 || option == diagnostic->option_index)
 		    {
 		      diag_class = context->classification_history[i].kind;
 		      if (diag_class != DK_UNSPECIFIED)
@@ -729,7 +766,10 @@ diagnostic_report_diagnostic (diagnostic_context *context,
 				    diagnostic->message.format_spec,
 				    diagnostic->message.args_ptr);
     }
-  ++diagnostic_kind_count (context, diagnostic->kind);
+  if (diagnostic->kind == DK_ERROR && orig_diag_kind == DK_WARNING)
+    ++diagnostic_kind_count (context, DK_WERROR);
+  else
+    ++diagnostic_kind_count (context, diagnostic->kind);
 
   saved_format_spec = diagnostic->message.format_spec;
   if (context->show_option_requested)
@@ -846,7 +886,7 @@ diagnostic_append_note (diagnostic_context *context,
   pp_destroy_prefix (context->printer);
   pp_set_prefix (context->printer, saved_prefix);
   diagnostic_show_locus (context, &diagnostic);
-  va_end(ap);
+  va_end (ap);
 }
 
 bool

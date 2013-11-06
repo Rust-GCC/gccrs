@@ -30,6 +30,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "hard-reg-set.h"
+#include "tree.h"
 #include "rtl.h"
 #include "expr.h"
 #include "tm_p.h"
@@ -447,7 +448,7 @@ init_reg_sets_1 (void)
         }
     }
 
-  COPY_HARD_REG_SET(call_fixed_reg_set, fixed_reg_set);
+  COPY_HARD_REG_SET (call_fixed_reg_set, fixed_reg_set);
 
   /* Preserve global registers if called more than once.  */
   for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
@@ -495,7 +496,7 @@ init_reg_modes_target (void)
 
   for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
     for (j = 0; j < MAX_MACHINE_MODE; j++)
-      hard_regno_nregs[i][j] = HARD_REGNO_NREGS(i, (enum machine_mode)j);
+      hard_regno_nregs[i][j] = HARD_REGNO_NREGS (i, (enum machine_mode)j);
 
   for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
     {
@@ -620,40 +621,35 @@ choose_hard_reg_mode (unsigned int regno ATTRIBUTE_UNUSED,
        mode = GET_MODE_WIDER_MODE (mode))
     if ((unsigned) hard_regno_nregs[regno][mode] == nregs
 	&& HARD_REGNO_MODE_OK (regno, mode)
-	&& (! call_saved || ! HARD_REGNO_CALL_PART_CLOBBERED (regno, mode)))
+	&& (! call_saved || ! HARD_REGNO_CALL_PART_CLOBBERED (regno, mode))
+	&& GET_MODE_SIZE (mode) > GET_MODE_SIZE (found_mode))
       found_mode = mode;
-
-  if (found_mode != VOIDmode)
-    return found_mode;
 
   for (mode = GET_CLASS_NARROWEST_MODE (MODE_FLOAT);
        mode != VOIDmode;
        mode = GET_MODE_WIDER_MODE (mode))
     if ((unsigned) hard_regno_nregs[regno][mode] == nregs
 	&& HARD_REGNO_MODE_OK (regno, mode)
-	&& (! call_saved || ! HARD_REGNO_CALL_PART_CLOBBERED (regno, mode)))
+	&& (! call_saved || ! HARD_REGNO_CALL_PART_CLOBBERED (regno, mode))
+	&& GET_MODE_SIZE (mode) > GET_MODE_SIZE (found_mode))
       found_mode = mode;
-
-  if (found_mode != VOIDmode)
-    return found_mode;
 
   for (mode = GET_CLASS_NARROWEST_MODE (MODE_VECTOR_FLOAT);
        mode != VOIDmode;
        mode = GET_MODE_WIDER_MODE (mode))
     if ((unsigned) hard_regno_nregs[regno][mode] == nregs
 	&& HARD_REGNO_MODE_OK (regno, mode)
-	&& (! call_saved || ! HARD_REGNO_CALL_PART_CLOBBERED (regno, mode)))
+	&& (! call_saved || ! HARD_REGNO_CALL_PART_CLOBBERED (regno, mode))
+	&& GET_MODE_SIZE (mode) > GET_MODE_SIZE (found_mode))
       found_mode = mode;
-
-  if (found_mode != VOIDmode)
-    return found_mode;
 
   for (mode = GET_CLASS_NARROWEST_MODE (MODE_VECTOR_INT);
        mode != VOIDmode;
        mode = GET_MODE_WIDER_MODE (mode))
     if ((unsigned) hard_regno_nregs[regno][mode] == nregs
 	&& HARD_REGNO_MODE_OK (regno, mode)
-	&& (! call_saved || ! HARD_REGNO_CALL_PART_CLOBBERED (regno, mode)))
+	&& (! call_saved || ! HARD_REGNO_CALL_PART_CLOBBERED (regno, mode))
+	&& GET_MODE_SIZE (mode) > GET_MODE_SIZE (found_mode))
       found_mode = mode;
 
   if (found_mode != VOIDmode)
@@ -965,25 +961,42 @@ reginfo_init (void)
   return 1;
 }
 
-struct rtl_opt_pass pass_reginfo_init =
+namespace {
+
+const pass_data pass_data_reginfo_init =
 {
- {
-  RTL_PASS,
-  "reginfo",                            /* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  NULL,                                 /* gate */
-  reginfo_init,                         /* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_NONE,                              /* tv_id */
-  0,                                    /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  0                                     /* todo_flags_finish */
- }
+  RTL_PASS, /* type */
+  "reginfo", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  false, /* has_gate */
+  true, /* has_execute */
+  TV_NONE, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
 };
+
+class pass_reginfo_init : public rtl_opt_pass
+{
+public:
+  pass_reginfo_init (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_reginfo_init, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  unsigned int execute () { return reginfo_init (); }
+
+}; // class pass_reginfo_init
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_reginfo_init (gcc::context *ctxt)
+{
+  return new pass_reginfo_init (ctxt);
+}
 
 
 
@@ -1063,6 +1076,7 @@ reg_scan_mark_refs (rtx x, rtx insn)
       break;
 
     case INSN_LIST:
+    case INT_LIST:
       if (XEXP (x, 1))
 	reg_scan_mark_refs (XEXP (x, 1), insn);
       break;

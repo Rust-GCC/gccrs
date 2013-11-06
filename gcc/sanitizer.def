@@ -27,7 +27,7 @@ along with GCC; see the file COPYING3.  If not see
    for other FEs by asan.c.  */
 
 /* Address Sanitizer */
-DEF_SANITIZER_BUILTIN(BUILT_IN_ASAN_INIT, "__asan_init_v1",
+DEF_SANITIZER_BUILTIN(BUILT_IN_ASAN_INIT, "__asan_init_v3",
 		      BT_FN_VOID, ATTR_NOTHROW_LEAF_LIST)
 /* Do not reorder the BUILT_IN_ASAN_REPORT* builtins, e.g. cfgcleanup.c
    relies on this order.  */
@@ -283,3 +283,21 @@ DEF_SANITIZER_BUILTIN(BUILT_IN_TSAN_ATOMIC_THREAD_FENCE,
 DEF_SANITIZER_BUILTIN(BUILT_IN_TSAN_ATOMIC_SIGNAL_FENCE,
 		      "__tsan_atomic_signal_fence",
 		      BT_FN_VOID_INT, ATTR_NOTHROW_LEAF_LIST)
+
+/* Undefined Behavior Sanitizer */
+DEF_SANITIZER_BUILTIN(BUILT_IN_UBSAN_HANDLE_DIVREM_OVERFLOW,
+		      "__ubsan_handle_divrem_overflow",
+		      BT_FN_VOID_PTR_PTR_PTR,
+		      ATTR_COLD_NOTHROW_LEAF_LIST)
+DEF_SANITIZER_BUILTIN(BUILT_IN_UBSAN_HANDLE_SHIFT_OUT_OF_BOUNDS,
+		      "__ubsan_handle_shift_out_of_bounds",
+		      BT_FN_VOID_PTR_PTR_PTR,
+		      ATTR_COLD_NOTHROW_LEAF_LIST)
+DEF_SANITIZER_BUILTIN(BUILT_IN_UBSAN_HANDLE_BUILTIN_UNREACHABLE,
+		      "__ubsan_handle_builtin_unreachable",
+		      BT_FN_VOID_PTR,
+		      ATTR_COLD_NORETURN_NOTHROW_LEAF_LIST)
+DEF_SANITIZER_BUILTIN(BUILT_IN_UBSAN_HANDLE_VLA_BOUND_NOT_POSITIVE,
+		      "__ubsan_handle_vla_bound_not_positive",
+		      BT_FN_VOID_PTR_PTR,
+		      ATTR_COLD_NOTHROW_LEAF_LIST)

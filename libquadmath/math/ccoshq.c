@@ -89,9 +89,9 @@ ccoshq (__complex128 x)
 	  __imag__ retval = __real__ x == 0.0Q ? 0.0Q : nanq ("");
 	  __real__ retval = nanq ("") + nanq ("");
 
-#ifdef QUADMATH_FERAISEEXCEPT
+#ifdef HAVE_FENV_H
 	  if (icls == QUADFP_INFINITE)
-	    QUADMATH_FERAISEEXCEPT (FE_INVALID);
+	    feraiseexcept (FE_INVALID);
 #endif
         }
     }
@@ -129,9 +129,9 @@ ccoshq (__complex128 x)
 	  __real__ retval = HUGE_VALQ;
 	  __imag__ retval = nanq ("") + nanq ("");
 
-#ifdef QUADMATH_FERAISEEXCEPT
+#ifdef HAVE_FENV_H
 	  if (icls == QUADFP_INFINITE)
-	    QUADMATH_FERAISEEXCEPT (FE_INVALID);
+	    feraiseexcept (FE_INVALID);
 #endif
 	 }
     }

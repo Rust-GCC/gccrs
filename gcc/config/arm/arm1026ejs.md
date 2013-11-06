@@ -66,13 +66,21 @@
 ;; ALU operations with no shifted operand
 (define_insn_reservation "alu_op" 1 
  (and (eq_attr "tune" "arm1026ejs")
-      (eq_attr "type" "alu_reg,simple_alu_imm"))
+      (eq_attr "type" "alu_imm,alus_imm,logic_imm,logics_imm,\
+                       alu_reg,alus_reg,logic_reg,logics_reg,\
+                       adc_imm,adcs_imm,adc_reg,adcs_reg,\
+                       adr,bfm,rev,\
+                       shift_imm,shift_reg,\
+                       mov_imm,mov_reg,mvn_imm,mvn_reg,\
+                       multiple,no_insn"))
  "a_e,a_m,a_w")
 
 ;; ALU operations with a shift-by-constant operand
 (define_insn_reservation "alu_shift_op" 1 
  (and (eq_attr "tune" "arm1026ejs")
-      (eq_attr "type" "simple_alu_shift,alu_shift"))
+      (eq_attr "type" "alu_shift_imm,alus_shift_imm,\
+                       logic_shift_imm,logics_shift_imm,\
+                       extend,mov_shift,mvn_shift"))
  "a_e,a_m,a_w")
 
 ;; ALU operations with a shift-by-register operand
@@ -81,7 +89,9 @@
 ;; the execute stage.
 (define_insn_reservation "alu_shift_reg_op" 2 
  (and (eq_attr "tune" "arm1026ejs")
-      (eq_attr "type" "alu_shift_reg"))
+      (eq_attr "type" "alu_shift_reg,alus_shift_reg,\
+                       logic_shift_reg,logics_shift_reg,\
+                       mov_shift_reg,mvn_shift_reg"))
  "a_e*2,a_m,a_w")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -96,7 +106,7 @@
 ;; until after the memory stage.
 (define_insn_reservation "mult1" 2
  (and (eq_attr "tune" "arm1026ejs")
-      (eq_attr "insn" "smulxy,smulwy"))
+      (eq_attr "type" "smulxy,smulwy"))
  "a_e,a_m,a_w")
 
 ;; The "smlaxy" and "smlawx" instructions require two iterations through
@@ -104,7 +114,7 @@
 ;; the execute stage.
 (define_insn_reservation "mult2" 2
  (and (eq_attr "tune" "arm1026ejs")
-      (eq_attr "insn" "smlaxy,smlalxy,smlawx"))
+      (eq_attr "type" "smlaxy,smlalxy,smlawx"))
  "a_e*2,a_m,a_w")
 
 ;; The "smlalxy", "mul", and "mla" instructions require two iterations
@@ -112,7 +122,7 @@
 ;; the memory stage.
 (define_insn_reservation "mult3" 3
  (and (eq_attr "tune" "arm1026ejs")
-      (eq_attr "insn" "smlalxy,mul,mla"))
+      (eq_attr "type" "smlalxy,mul,mla"))
  "a_e*2,a_m,a_w")
 
 ;; The "muls" and "mlas" instructions loop in the execute stage for
@@ -120,7 +130,7 @@
 ;; available after three iterations.
 (define_insn_reservation "mult4" 3
  (and (eq_attr "tune" "arm1026ejs")
-      (eq_attr "insn" "muls,mlas"))
+      (eq_attr "type" "muls,mlas"))
  "a_e*4,a_m,a_w")
 
 ;; Long multiply instructions that produce two registers of
@@ -135,7 +145,7 @@
 ;; available after the memory cycle.
 (define_insn_reservation "mult5" 4
  (and (eq_attr "tune" "arm1026ejs")
-      (eq_attr "insn" "umull,umlal,smull,smlal"))
+      (eq_attr "type" "umull,umlal,smull,smlal"))
  "a_e*3,a_m,a_w")
 
 ;; The "umulls", "umlals", "smulls", and "smlals" instructions loop in
@@ -143,7 +153,7 @@
 ;; The value result is available after four iterations.
 (define_insn_reservation "mult6" 4
  (and (eq_attr "tune" "arm1026ejs")
-      (eq_attr "insn" "umulls,umlals,smulls,smlals"))
+      (eq_attr "type" "umulls,umlals,smulls,smlals"))
  "a_e*5,a_m,a_w")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

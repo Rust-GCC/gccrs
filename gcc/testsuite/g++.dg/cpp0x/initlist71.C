@@ -7,3 +7,4 @@ int main()
   int x = sizeof(int);
   int y { sizeof(int) };
 }
+

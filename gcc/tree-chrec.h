@@ -52,6 +52,8 @@ tree_is_chrec (const_tree expr)
 }
 
 
+enum ev_direction {EV_DIR_GROWS, EV_DIR_DECREASES, EV_DIR_UNKNOWN};
+enum ev_direction scev_direction (const_tree);
 
 /* Chrec folding functions.  */
 extern tree chrec_fold_plus (tree, tree, tree);
@@ -72,6 +74,8 @@ extern tree hide_evolution_in_other_loops_than_loop (tree, unsigned);
 extern tree reset_evolution_in_loop (unsigned, tree, tree);
 extern tree chrec_merge (tree, tree);
 extern void for_each_scev_op (tree *, bool (*) (tree *, void *), void *);
+extern bool convert_affine_scev (struct loop *, tree, tree *, tree *, gimple,
+				 bool);
 
 /* Observers.  */
 extern bool eq_evolutions_p (const_tree, const_tree);
@@ -137,15 +141,18 @@ build_polynomial_chrec (unsigned loop_num,
       || !val)
     return chrec_dont_know;
 
-  /* Pointer types should occur only on the left hand side, i.e. in
-     the base of the chrec, and not in the step.  */
-  gcc_assert (!POINTER_TYPE_P (TREE_TYPE (right)));
-
-  /* Types of left and right sides of a chrec should be compatible.  */
+  /* Types of left and right sides of a chrec should be compatible, but
+     pointer CHRECs are special in that the evolution is of ptroff type.  */
   if (POINTER_TYPE_P (TREE_TYPE (left)))
-    gcc_assert (ptrofftype_p (TREE_TYPE (right)));
+    gcc_checking_assert (ptrofftype_p (TREE_TYPE (right)));
   else
-    gcc_assert (TREE_TYPE (left) == TREE_TYPE (right));
+    {
+      /* Pointer types should occur only on the left hand side, i.e. in
+	 the base of the chrec, and not in the step.  */
+      gcc_checking_assert (!POINTER_TYPE_P (TREE_TYPE (right))
+			   && types_compatible_p (TREE_TYPE (left),
+						  TREE_TYPE (right)));
+    }
 
   if (chrec_zerop (right))
     return left;

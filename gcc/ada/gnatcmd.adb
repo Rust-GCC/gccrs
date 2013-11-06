@@ -59,7 +59,6 @@ with GNAT.OS_Lib; use GNAT.OS_Lib;
 
 procedure GNATCmd is
    Project_Node_Tree : Project_Node_Tree_Ref;
-   Root_Environment  : Prj.Tree.Environment;
    Project_File      : String_Access;
    Project           : Prj.Project_Id;
    Current_Verbosity : Prj.Verbosity := Prj.Default;
@@ -407,18 +406,19 @@ procedure GNATCmd is
          end if;
       end loop;
 
-      --  If all arguments are switches and there is no switch -files=, add
-      --  the path names of all the sources of the main project.
+      --  If all arguments are switches and there is no switch -files=, add the
+      --  path names of all the sources of the main project.
 
       if Add_Sources then
 
-         --  For gnatcheck, gnatpp, and gnatmetric, create a temporary file
-         --  and put the list of sources in it. For gnatstack create a
-         --  temporary file with the list of .ci files.
+         --  For gnatcheck, gnatpp, and gnatmetric, create a temporary file and
+         --  put the list of sources in it. For gnatstack create a temporary
+         --  file with the list of .ci files.
 
          if The_Command = Check  or else
             The_Command = Pretty or else
             The_Command = Metric or else
+            The_Command = List   or else
             The_Command = Stack
          then
             Tempdir.Create_Temp_File (FD, Temp_File_Name);
@@ -553,12 +553,10 @@ procedure GNATCmd is
                         end if;
 
                         if not Subunit then
-                           Last_Switches.Increment_Last;
-                           Last_Switches.Table (Last_Switches.Last) :=
-                             new String'
-                               (Get_Name_String
-                                    (Unit.File_Names
-                                         (Impl).Display_File));
+                           Add_To_Response_File
+                             (Get_Name_String
+                                (Unit.File_Names (Impl).Display_File),
+                              Check_File => False);
                         end if;
                      end if;
 
@@ -571,10 +569,10 @@ procedure GNATCmd is
                      if All_Projects or else
                         Unit.File_Names (Spec).Project = Project
                      then
-                        Last_Switches.Increment_Last;
-                        Last_Switches.Table (Last_Switches.Last) :=
-                          new String'(Get_Name_String
-                                       (Unit.File_Names (Spec).Display_File));
+                        Add_To_Response_File
+                          (Get_Name_String
+                             (Unit.File_Names (Spec).Display_File),
+                           Check_File => False);
                      end if;
                   end if;
 
@@ -1395,9 +1393,6 @@ begin
    Snames.Initialize;
 
    Prj.Tree.Initialize (Root_Environment, Gnatmake_Flags);
-   Prj.Env.Initialize_Default_Project_Path
-     (Root_Environment.Project_Path,
-      Target_Name => Sdefault.Target_Name.all);
 
    Project_Node_Tree := new Project_Node_Tree_Data;
    Prj.Tree.Initialize (Project_Node_Tree);
@@ -1769,7 +1764,13 @@ begin
                        (Root_Environment.Project_Path,
                         Argv (Argv'First + 3 .. Argv'Last));
 
-                     Remove_Switch (Arg_Num);
+                     --  Pass -aPdir to gnatls, but not to other tools
+
+                     if The_Command = List then
+                        Arg_Num := Arg_Num + 1;
+                     else
+                        Remove_Switch (Arg_Num);
+                     end if;
 
                   --  -eL  Follow links for files
 
@@ -1910,6 +1911,13 @@ begin
             end loop;
          end Inspect_Switches;
       end if;
+
+      --  Add the default project search directories now, after the directories
+      --  that have been specified by switches -aP<dir>.
+
+      Prj.Env.Initialize_Default_Project_Path
+        (Root_Environment.Project_Path,
+         Target_Name => Sdefault.Target_Name.all);
 
       --  If there is a project file specified, parse it, get the switches
       --  for the tool and setup PATH environment variables.

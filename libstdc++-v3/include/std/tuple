@@ -772,6 +772,33 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     { return std::forward<typename tuple_element<__i,
 	tuple<_Elements...>>::type&&>(get<__i>(__t)); }
 
+#if __cplusplus > 201103L
+  template<typename _Head, size_t __i, typename... _Tail>
+    constexpr typename __add_ref<_Head>::type
+    __get_helper2(_Tuple_impl<__i, _Head, _Tail...>& __t) noexcept
+    { return _Tuple_impl<__i, _Head, _Tail...>::_M_head(__t); }
+
+  template<typename _Head, size_t __i, typename... _Tail>
+    constexpr typename __add_c_ref<_Head>::type
+    __get_helper2(const _Tuple_impl<__i, _Head, _Tail...>& __t) noexcept
+    { return _Tuple_impl<__i, _Head, _Tail...>::_M_head(__t); }
+
+  template <typename _Tp, typename... _Types>
+    constexpr _Tp&
+    get(tuple<_Types...>& __t) noexcept
+    { return __get_helper2<_Tp>(__t); }
+
+  template <typename _Tp, typename... _Types>
+    constexpr _Tp&&
+    get(tuple<_Types...>&& __t) noexcept
+    { return std::move(__get_helper2<_Tp>(__t)); }
+
+  template <typename _Tp, typename... _Types>
+    constexpr const _Tp&
+    get(const tuple<_Types...>& __t) noexcept
+    { return __get_helper2<_Tp>(__t); }
+#endif
+
   // This class helps construct the various comparison operations on tuples
   template<std::size_t __check_equal_size, std::size_t __i, std::size_t __j,
 	   typename _Tp, typename _Up>
@@ -829,25 +856,25 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     }
 
   template<typename... _TElements, typename... _UElements>
-    inline constexpr bool
+    constexpr bool
     operator!=(const tuple<_TElements...>& __t,
 	       const tuple<_UElements...>& __u)
     { return !(__t == __u); }
 
   template<typename... _TElements, typename... _UElements>
-    inline constexpr bool
+    constexpr bool
     operator>(const tuple<_TElements...>& __t,
 	      const tuple<_UElements...>& __u)
     { return __u < __t; }
 
   template<typename... _TElements, typename... _UElements>
-    inline constexpr bool
+    constexpr bool
     operator<=(const tuple<_TElements...>& __t,
 	       const tuple<_UElements...>& __u)
     { return !(__u < __t); }
 
   template<typename... _TElements, typename... _UElements>
-    inline constexpr bool
+    constexpr bool
     operator>=(const tuple<_TElements...>& __t,
 	       const tuple<_UElements...>& __u)
     { return !(__t < __u); }
@@ -889,27 +916,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     : public __is_tuple_like_impl<typename std::remove_cv
             <typename std::remove_reference<_Tp>::type>::type>::type
     { };
-
-  // Stores a tuple of indices.  Also used by bind() to extract the elements
-  // in a tuple. 
-  template<std::size_t... _Indexes>
-    struct _Index_tuple
-    {
-      typedef _Index_tuple<_Indexes..., sizeof...(_Indexes)> __next;
-    };
-
-  // Builds an _Index_tuple<0, 1, 2, ..., _Num-1>.
-  template<std::size_t _Num>
-    struct _Build_index_tuple
-    {
-      typedef typename _Build_index_tuple<_Num - 1>::__type::__next __type;
-    };
-
-  template<>
-    struct _Build_index_tuple<0>
-    {
-      typedef _Index_tuple<> __type;
-    };
 
   template<std::size_t, typename, typename, std::size_t>
     struct __make_tuple_impl;

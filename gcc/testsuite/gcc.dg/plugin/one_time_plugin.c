@@ -3,23 +3,58 @@
 #include "gcc-plugin.h"
 #include "system.h"
 #include "coretypes.h"
+#include "tree.h"
 #include "tm.h"
 #include "toplev.h"
 #include "gimple.h"
 #include "tree-pass.h"
 #include "intl.h"
+#include "context.h"
 
 int plugin_is_GPL_compatible;
 
-static bool one_pass_gate (void)
+namespace {
+
+const pass_data pass_data_one_pass =
+{
+  GIMPLE_PASS, /* type */
+  "cfg", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_NONE, /* tv_id */
+  PROP_gimple_any, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
+};
+
+class one_pass : public gimple_opt_pass
+{
+public:
+  one_pass(gcc::context *ctxt)
+    : gimple_opt_pass(pass_data_one_pass, ctxt),
+      counter(0)
+  {}
+
+  /* opt_pass methods: */
+  bool gate ();
+  unsigned int execute ();
+
+private:
+  int counter;
+}; // class one_pass
+
+} // anon namespace
+
+bool one_pass::gate (void)
 {
   return true;
 }
 
-static unsigned int one_pass_exec (void)
+unsigned int one_pass::execute ()
 {
-  static int counter = 0;
-
   if (counter > 0) {
     printf ("Executed more than once \n");
  }
@@ -27,25 +62,11 @@ static unsigned int one_pass_exec (void)
  return 0;
 }
 
-struct gimple_opt_pass one_pass = 
+gimple_opt_pass *
+make_one_pass (gcc::context *ctxt)
 {
-  {
-  GIMPLE_PASS,
-  "cfg",                           /* name */
-  OPTGROUP_NONE,                         /* optinfo_flags */
-  one_pass_gate,                         /* gate */
-  one_pass_exec,       /* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_NONE,                              /* tv_id */
-  PROP_gimple_any,                      /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  0					/* todo_flags_finish */
-  }
-};
+  return new one_pass (ctxt);
+}
 
 
 int plugin_init (struct plugin_name_args *plugin_info,
@@ -53,7 +74,7 @@ int plugin_init (struct plugin_name_args *plugin_info,
 {
   struct register_pass_info p;
 
-  p.pass = &one_pass.pass;
+  p.pass = make_one_pass (g);
   p.reference_pass_name = "cfg";
   p.ref_pass_instance_number = 1;
   p.pos_op = PASS_POS_INSERT_AFTER;

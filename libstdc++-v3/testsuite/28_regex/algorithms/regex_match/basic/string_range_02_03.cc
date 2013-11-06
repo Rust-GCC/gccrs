@@ -1,5 +1,4 @@
 // { dg-options "-std=c++0x" }
-// { dg-do run { xfail *-*-* } }
 
 //
 // 2010-06-16  Stephen M. Webb <stephen.webb@bregmasoft.ca>
@@ -26,6 +25,10 @@
 
 #include <regex>
 #include <testsuite_hooks.h>
+#include <testsuite_regex.h>
+
+using namespace __gnu_test;
+using namespace std;
 
 void
 test01()
@@ -36,7 +39,7 @@ test01()
 	std::string target("aa");
 	std::smatch m;
 
-	VERIFY( std::regex_match(target, m, re) );
+	VERIFY( regex_match_debug(target, m, re) );
 
 	VERIFY( m.size()  == re.mark_count()+1 );
 	VERIFY( m.empty() == false );

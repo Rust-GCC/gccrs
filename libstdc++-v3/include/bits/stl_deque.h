@@ -108,7 +108,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       typedef _Deque_iterator<_Tp, _Tp&, _Tp*>             iterator;
       typedef _Deque_iterator<_Tp, const _Tp&, const _Tp*> const_iterator;
 
-      static size_t _S_buffer_size()
+      static size_t _S_buffer_size() _GLIBCXX_NOEXCEPT
       { return __deque_buf_size(sizeof(_Tp)); }
 
       typedef std::random_access_iterator_tag iterator_category;
@@ -125,27 +125,31 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       _Tp* _M_last;
       _Map_pointer _M_node;
 
-      _Deque_iterator(_Tp* __x, _Map_pointer __y)
+      _Deque_iterator(_Tp* __x, _Map_pointer __y) _GLIBCXX_NOEXCEPT
       : _M_cur(__x), _M_first(*__y),
         _M_last(*__y + _S_buffer_size()), _M_node(__y) { }
 
-      _Deque_iterator()
+      _Deque_iterator() _GLIBCXX_NOEXCEPT
       : _M_cur(0), _M_first(0), _M_last(0), _M_node(0) { }
 
-      _Deque_iterator(const iterator& __x)
+      _Deque_iterator(const iterator& __x) _GLIBCXX_NOEXCEPT
       : _M_cur(__x._M_cur), _M_first(__x._M_first),
         _M_last(__x._M_last), _M_node(__x._M_node) { }
 
+      iterator
+      _M_const_cast() const _GLIBCXX_NOEXCEPT
+      { return iterator(_M_cur, _M_node); }
+
       reference
-      operator*() const
+      operator*() const _GLIBCXX_NOEXCEPT
       { return *_M_cur; }
 
       pointer
-      operator->() const
+      operator->() const _GLIBCXX_NOEXCEPT
       { return _M_cur; }
 
       _Self&
-      operator++()
+      operator++() _GLIBCXX_NOEXCEPT
       {
 	++_M_cur;
 	if (_M_cur == _M_last)
@@ -157,7 +161,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       }
 
       _Self
-      operator++(int)
+      operator++(int) _GLIBCXX_NOEXCEPT
       {
 	_Self __tmp = *this;
 	++*this;
@@ -165,7 +169,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       }
 
       _Self&
-      operator--()
+      operator--() _GLIBCXX_NOEXCEPT
       {
 	if (_M_cur == _M_first)
 	  {
@@ -177,7 +181,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       }
 
       _Self
-      operator--(int)
+      operator--(int) _GLIBCXX_NOEXCEPT
       {
 	_Self __tmp = *this;
 	--*this;
@@ -185,7 +189,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       }
 
       _Self&
-      operator+=(difference_type __n)
+      operator+=(difference_type __n) _GLIBCXX_NOEXCEPT
       {
 	const difference_type __offset = __n + (_M_cur - _M_first);
 	if (__offset >= 0 && __offset < difference_type(_S_buffer_size()))
@@ -204,25 +208,25 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       }
 
       _Self
-      operator+(difference_type __n) const
+      operator+(difference_type __n) const _GLIBCXX_NOEXCEPT
       {
 	_Self __tmp = *this;
 	return __tmp += __n;
       }
 
       _Self&
-      operator-=(difference_type __n)
+      operator-=(difference_type __n) _GLIBCXX_NOEXCEPT
       { return *this += -__n; }
 
       _Self
-      operator-(difference_type __n) const
+      operator-(difference_type __n) const _GLIBCXX_NOEXCEPT
       {
 	_Self __tmp = *this;
 	return __tmp -= __n;
       }
 
       reference
-      operator[](difference_type __n) const
+      operator[](difference_type __n) const _GLIBCXX_NOEXCEPT
       { return *(*this + __n); }
 
       /** 
@@ -231,7 +235,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  immediately afterwards, based on _M_first and _M_last.
        */
       void
-      _M_set_node(_Map_pointer __new_node)
+      _M_set_node(_Map_pointer __new_node) _GLIBCXX_NOEXCEPT
       {
 	_M_node = __new_node;
 	_M_first = *__new_node;
@@ -245,33 +249,33 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
   template<typename _Tp, typename _Ref, typename _Ptr>
     inline bool
     operator==(const _Deque_iterator<_Tp, _Ref, _Ptr>& __x,
-	       const _Deque_iterator<_Tp, _Ref, _Ptr>& __y)
+	       const _Deque_iterator<_Tp, _Ref, _Ptr>& __y) _GLIBCXX_NOEXCEPT
     { return __x._M_cur == __y._M_cur; }
 
   template<typename _Tp, typename _RefL, typename _PtrL,
 	   typename _RefR, typename _PtrR>
     inline bool
     operator==(const _Deque_iterator<_Tp, _RefL, _PtrL>& __x,
-	       const _Deque_iterator<_Tp, _RefR, _PtrR>& __y)
+	       const _Deque_iterator<_Tp, _RefR, _PtrR>& __y) _GLIBCXX_NOEXCEPT
     { return __x._M_cur == __y._M_cur; }
 
   template<typename _Tp, typename _Ref, typename _Ptr>
     inline bool
     operator!=(const _Deque_iterator<_Tp, _Ref, _Ptr>& __x,
-	       const _Deque_iterator<_Tp, _Ref, _Ptr>& __y)
+	       const _Deque_iterator<_Tp, _Ref, _Ptr>& __y) _GLIBCXX_NOEXCEPT
     { return !(__x == __y); }
 
   template<typename _Tp, typename _RefL, typename _PtrL,
 	   typename _RefR, typename _PtrR>
     inline bool
     operator!=(const _Deque_iterator<_Tp, _RefL, _PtrL>& __x,
-	       const _Deque_iterator<_Tp, _RefR, _PtrR>& __y)
+	       const _Deque_iterator<_Tp, _RefR, _PtrR>& __y) _GLIBCXX_NOEXCEPT
     { return !(__x == __y); }
 
   template<typename _Tp, typename _Ref, typename _Ptr>
     inline bool
     operator<(const _Deque_iterator<_Tp, _Ref, _Ptr>& __x,
-	      const _Deque_iterator<_Tp, _Ref, _Ptr>& __y)
+	      const _Deque_iterator<_Tp, _Ref, _Ptr>& __y) _GLIBCXX_NOEXCEPT
     { return (__x._M_node == __y._M_node) ? (__x._M_cur < __y._M_cur)
                                           : (__x._M_node < __y._M_node); }
 
@@ -279,47 +283,47 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	   typename _RefR, typename _PtrR>
     inline bool
     operator<(const _Deque_iterator<_Tp, _RefL, _PtrL>& __x,
-	      const _Deque_iterator<_Tp, _RefR, _PtrR>& __y)
+	      const _Deque_iterator<_Tp, _RefR, _PtrR>& __y) _GLIBCXX_NOEXCEPT
     { return (__x._M_node == __y._M_node) ? (__x._M_cur < __y._M_cur)
 	                                  : (__x._M_node < __y._M_node); }
 
   template<typename _Tp, typename _Ref, typename _Ptr>
     inline bool
     operator>(const _Deque_iterator<_Tp, _Ref, _Ptr>& __x,
-	      const _Deque_iterator<_Tp, _Ref, _Ptr>& __y)
+	      const _Deque_iterator<_Tp, _Ref, _Ptr>& __y) _GLIBCXX_NOEXCEPT
     { return __y < __x; }
 
   template<typename _Tp, typename _RefL, typename _PtrL,
 	   typename _RefR, typename _PtrR>
     inline bool
     operator>(const _Deque_iterator<_Tp, _RefL, _PtrL>& __x,
-	      const _Deque_iterator<_Tp, _RefR, _PtrR>& __y)
+	      const _Deque_iterator<_Tp, _RefR, _PtrR>& __y) _GLIBCXX_NOEXCEPT
     { return __y < __x; }
 
   template<typename _Tp, typename _Ref, typename _Ptr>
     inline bool
     operator<=(const _Deque_iterator<_Tp, _Ref, _Ptr>& __x,
-	       const _Deque_iterator<_Tp, _Ref, _Ptr>& __y)
+	       const _Deque_iterator<_Tp, _Ref, _Ptr>& __y) _GLIBCXX_NOEXCEPT
     { return !(__y < __x); }
 
   template<typename _Tp, typename _RefL, typename _PtrL,
 	   typename _RefR, typename _PtrR>
     inline bool
     operator<=(const _Deque_iterator<_Tp, _RefL, _PtrL>& __x,
-	       const _Deque_iterator<_Tp, _RefR, _PtrR>& __y)
+	       const _Deque_iterator<_Tp, _RefR, _PtrR>& __y) _GLIBCXX_NOEXCEPT
     { return !(__y < __x); }
 
   template<typename _Tp, typename _Ref, typename _Ptr>
     inline bool
     operator>=(const _Deque_iterator<_Tp, _Ref, _Ptr>& __x,
-	       const _Deque_iterator<_Tp, _Ref, _Ptr>& __y)
+	       const _Deque_iterator<_Tp, _Ref, _Ptr>& __y) _GLIBCXX_NOEXCEPT
     { return !(__x < __y); }
 
   template<typename _Tp, typename _RefL, typename _PtrL,
 	   typename _RefR, typename _PtrR>
     inline bool
     operator>=(const _Deque_iterator<_Tp, _RefL, _PtrL>& __x,
-	       const _Deque_iterator<_Tp, _RefR, _PtrR>& __y)
+	       const _Deque_iterator<_Tp, _RefR, _PtrR>& __y) _GLIBCXX_NOEXCEPT
     { return !(__x < __y); }
 
   // _GLIBCXX_RESOLVE_LIB_DEFECTS
@@ -329,7 +333,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
   template<typename _Tp, typename _Ref, typename _Ptr>
     inline typename _Deque_iterator<_Tp, _Ref, _Ptr>::difference_type
     operator-(const _Deque_iterator<_Tp, _Ref, _Ptr>& __x,
-	      const _Deque_iterator<_Tp, _Ref, _Ptr>& __y)
+	      const _Deque_iterator<_Tp, _Ref, _Ptr>& __y) _GLIBCXX_NOEXCEPT
     {
       return typename _Deque_iterator<_Tp, _Ref, _Ptr>::difference_type
 	(_Deque_iterator<_Tp, _Ref, _Ptr>::_S_buffer_size())
@@ -341,7 +345,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	   typename _RefR, typename _PtrR>
     inline typename _Deque_iterator<_Tp, _RefL, _PtrL>::difference_type
     operator-(const _Deque_iterator<_Tp, _RefL, _PtrL>& __x,
-	      const _Deque_iterator<_Tp, _RefR, _PtrR>& __y)
+	      const _Deque_iterator<_Tp, _RefR, _PtrR>& __y) _GLIBCXX_NOEXCEPT
     {
       return typename _Deque_iterator<_Tp, _RefL, _PtrL>::difference_type
 	(_Deque_iterator<_Tp, _RefL, _PtrL>::_S_buffer_size())
@@ -352,6 +356,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
   template<typename _Tp, typename _Ref, typename _Ptr>
     inline _Deque_iterator<_Tp, _Ref, _Ptr>
     operator+(ptrdiff_t __n, const _Deque_iterator<_Tp, _Ref, _Ptr>& __x)
+    _GLIBCXX_NOEXCEPT
     { return __x + __n; }
 
   template<typename _Tp>
@@ -462,7 +467,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
       _Deque_base(const allocator_type& __a)
       : _M_impl(__a)
-      { }
+      { _M_initialize_map(0); }
 
 #if __cplusplus >= 201103L
       _Deque_base(_Deque_base&& __x)
@@ -479,7 +484,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       }
 #endif
 
-      ~_Deque_base();
+      ~_Deque_base() _GLIBCXX_NOEXCEPT;
 
     protected:
       //This struct encapsulates the implementation of the std::deque
@@ -502,13 +507,13 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	  _M_start(), _M_finish()
 	{ }
 
-	_Deque_impl(const _Tp_alloc_type& __a)
+	_Deque_impl(const _Tp_alloc_type& __a) _GLIBCXX_NOEXCEPT
 	: _Tp_alloc_type(__a), _M_map(0), _M_map_size(0),
 	  _M_start(), _M_finish()
 	{ }
 
 #if __cplusplus >= 201103L
-	_Deque_impl(_Tp_alloc_type&& __a)
+	_Deque_impl(_Tp_alloc_type&& __a) _GLIBCXX_NOEXCEPT
 	: _Tp_alloc_type(std::move(__a)), _M_map(0), _M_map_size(0),
 	  _M_start(), _M_finish()
 	{ }
@@ -534,7 +539,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       }
 
       void
-      _M_deallocate_node(_Tp* __p)
+      _M_deallocate_node(_Tp* __p) _GLIBCXX_NOEXCEPT
       {
 	_M_impl._Tp_alloc_type::deallocate(__p, __deque_buf_size(sizeof(_Tp)));
       }
@@ -544,13 +549,13 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       { return _M_get_map_allocator().allocate(__n); }
 
       void
-      _M_deallocate_map(_Tp** __p, size_t __n)
+      _M_deallocate_map(_Tp** __p, size_t __n) _GLIBCXX_NOEXCEPT
       { _M_get_map_allocator().deallocate(__p, __n); }
 
     protected:
       void _M_initialize_map(size_t);
       void _M_create_nodes(_Tp** __nstart, _Tp** __nfinish);
-      void _M_destroy_nodes(_Tp** __nstart, _Tp** __nfinish);
+      void _M_destroy_nodes(_Tp** __nstart, _Tp** __nfinish) _GLIBCXX_NOEXCEPT;
       enum { _S_initial_map_size = 8 };
 
       _Deque_impl _M_impl;
@@ -558,7 +563,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
   template<typename _Tp, typename _Alloc>
     _Deque_base<_Tp, _Alloc>::
-    ~_Deque_base()
+    ~_Deque_base() _GLIBCXX_NOEXCEPT
     {
       if (this->_M_impl._M_map)
 	{
@@ -636,7 +641,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
   template<typename _Tp, typename _Alloc>
     void
     _Deque_base<_Tp, _Alloc>::
-    _M_destroy_nodes(_Tp** __nstart, _Tp** __nfinish)
+    _M_destroy_nodes(_Tp** __nstart, _Tp** __nfinish) _GLIBCXX_NOEXCEPT
     {
       for (_Tp** __n = __nstart; __n < __nfinish; ++__n)
 	_M_deallocate_node(*__n);
@@ -754,7 +759,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
     protected:
       typedef pointer*                           _Map_pointer;
 
-      static size_t _S_buffer_size()
+      static size_t _S_buffer_size() _GLIBCXX_NOEXCEPT
       { return __deque_buf_size(sizeof(_Tp)); }
 
       // Functions controlling memory layout, and nothing else.
@@ -777,18 +782,12 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       // [23.2.1.1] construct/copy/destroy
       // (assign() and get_allocator() are also listed in this section)
       /**
-       *  @brief  Default constructor creates no elements.
-       */
-      deque()
-      : _Base() { }
-
-      /**
        *  @brief  Creates a %deque with no elements.
        *  @param  __a  An allocator object.
        */
       explicit
-      deque(const allocator_type& __a)
-      : _Base(__a, 0) { }
+      deque(const allocator_type& __a = allocator_type())
+      : _Base(__a) { }
 
 #if __cplusplus >= 201103L
       /**
@@ -936,7 +935,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  @a __x is a valid, but unspecified %deque.
        */
       deque&
-      operator=(deque&& __x)
+      operator=(deque&& __x) noexcept
       {
 	// NB: DR 1204.
 	// NB: DR 675.
@@ -1216,7 +1215,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 #if __cplusplus >= 201103L
       /**  A non-binding request to reduce memory use.  */
       void
-      shrink_to_fit()
+      shrink_to_fit() noexcept
       { _M_shrink_to_fit(); }
 #endif
 
@@ -1241,7 +1240,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  see at().)
        */
       reference
-      operator[](size_type __n)
+      operator[](size_type __n) _GLIBCXX_NOEXCEPT
       { return this->_M_impl._M_start[difference_type(__n)]; }
 
       /**
@@ -1256,7 +1255,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  see at().)
        */
       const_reference
-      operator[](size_type __n) const
+      operator[](size_type __n) const _GLIBCXX_NOEXCEPT
       { return this->_M_impl._M_start[difference_type(__n)]; }
 
     protected:
@@ -1265,7 +1264,10 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       _M_range_check(size_type __n) const
       {
 	if (__n >= this->size())
-	  __throw_out_of_range(__N("deque::_M_range_check"));
+	  __throw_out_of_range_fmt(__N("deque::_M_range_check: __n "
+				       "(which is %zu)>= this->size() "
+				       "(which is %zu)"),
+				   __n, this->size());
       }
 
     public:
@@ -1310,7 +1312,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  element of the %deque.
        */
       reference
-      front()
+      front() _GLIBCXX_NOEXCEPT
       { return *begin(); }
 
       /**
@@ -1318,7 +1320,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  element of the %deque.
        */
       const_reference
-      front() const
+      front() const _GLIBCXX_NOEXCEPT
       { return *begin(); }
 
       /**
@@ -1326,7 +1328,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  %deque.
        */
       reference
-      back()
+      back() _GLIBCXX_NOEXCEPT
       {
 	iterator __tmp = end();
 	--__tmp;
@@ -1338,7 +1340,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  element of the %deque.
        */
       const_reference
-      back() const
+      back() const _GLIBCXX_NOEXCEPT
       {
 	const_iterator __tmp = end();
 	--__tmp;
@@ -1418,7 +1420,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  needed, it should be retrieved before pop_front() is called.
        */
       void
-      pop_front()
+      pop_front() _GLIBCXX_NOEXCEPT
       {
 	if (this->_M_impl._M_start._M_cur
 	    != this->_M_impl._M_start._M_last - 1)
@@ -1439,7 +1441,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  needed, it should be retrieved before pop_back() is called.
        */
       void
-      pop_back()
+      pop_back() _GLIBCXX_NOEXCEPT
       {
 	if (this->_M_impl._M_finish._M_cur
 	    != this->_M_impl._M_finish._M_first)
@@ -1454,7 +1456,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 #if __cplusplus >= 201103L
       /**
        *  @brief  Inserts an object in %deque before specified iterator.
-       *  @param  __position  An iterator into the %deque.
+       *  @param  __position  A const_iterator into the %deque.
        *  @param  __args  Arguments.
        *  @return  An iterator that points to the inserted data.
        *
@@ -1463,9 +1465,20 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        */
       template<typename... _Args>
         iterator
-        emplace(iterator __position, _Args&&... __args);
-#endif
+        emplace(const_iterator __position, _Args&&... __args);
 
+      /**
+       *  @brief  Inserts given value into %deque before specified iterator.
+       *  @param  __position  A const_iterator into the %deque.
+       *  @param  __x  Data to be inserted.
+       *  @return  An iterator that points to the inserted data.
+       *
+       *  This function will insert a copy of the given value before the
+       *  specified location.
+       */
+      iterator
+      insert(const_iterator __position, const value_type& __x);
+#else
       /**
        *  @brief  Inserts given value into %deque before specified iterator.
        *  @param  __position  An iterator into the %deque.
@@ -1477,11 +1490,12 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        */
       iterator
       insert(iterator __position, const value_type& __x);
+#endif
 
 #if __cplusplus >= 201103L
       /**
        *  @brief  Inserts given rvalue into %deque before specified iterator.
-       *  @param  __position  An iterator into the %deque.
+       *  @param  __position  A const_iterator into the %deque.
        *  @param  __x  Data to be inserted.
        *  @return  An iterator that points to the inserted data.
        *
@@ -1489,7 +1503,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  specified location.
        */
       iterator
-      insert(iterator __position, value_type&& __x)
+      insert(const_iterator __position, value_type&& __x)
       { return emplace(__position, std::move(__x)); }
 
       /**
@@ -1501,11 +1515,30 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  initializer_list @a __l into the %deque before the location
        *  specified by @a __p.  This is known as <em>list insert</em>.
        */
-      void
-      insert(iterator __p, initializer_list<value_type> __l)
-      { this->insert(__p, __l.begin(), __l.end()); }
+      iterator
+      insert(const_iterator __p, initializer_list<value_type> __l)
+      { return this->insert(__p, __l.begin(), __l.end()); }
 #endif
 
+#if __cplusplus >= 201103L
+      /**
+       *  @brief  Inserts a number of copies of given data into the %deque.
+       *  @param  __position  A const_iterator into the %deque.
+       *  @param  __n  Number of elements to be inserted.
+       *  @param  __x  Data to be inserted.
+       *  @return  An iterator that points to the inserted data.
+       *
+       *  This function will insert a specified number of copies of the given
+       *  data before the location specified by @a __position.
+       */
+      iterator
+      insert(const_iterator __position, size_type __n, const value_type& __x)
+      {
+	difference_type __offset = __position - cbegin();
+	_M_fill_insert(__position._M_const_cast(), __n, __x);
+	return begin() + __offset;
+      }
+#else
       /**
        *  @brief  Inserts a number of copies of given data into the %deque.
        *  @param  __position  An iterator into the %deque.
@@ -1518,7 +1551,32 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       void
       insert(iterator __position, size_type __n, const value_type& __x)
       { _M_fill_insert(__position, __n, __x); }
+#endif
 
+#if __cplusplus >= 201103L
+      /**
+       *  @brief  Inserts a range into the %deque.
+       *  @param  __position  A const_iterator into the %deque.
+       *  @param  __first  An input iterator.
+       *  @param  __last   An input iterator.
+       *  @return  An iterator that points to the inserted data.
+       *
+       *  This function will insert copies of the data in the range
+       *  [__first,__last) into the %deque before the location specified
+       *  by @a __position.  This is known as <em>range insert</em>.
+       */
+      template<typename _InputIterator,
+	       typename = std::_RequireInputIter<_InputIterator>>
+        iterator
+        insert(const_iterator __position, _InputIterator __first,
+	       _InputIterator __last)
+        {
+	  difference_type __offset = __position - cbegin();
+	  _M_insert_dispatch(__position._M_const_cast(),
+			     __first, __last, __false_type());
+	  return begin() + __offset;
+	}
+#else
       /**
        *  @brief  Inserts a range into the %deque.
        *  @param  __position  An iterator into the %deque.
@@ -1529,14 +1587,6 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  [__first,__last) into the %deque before the location specified
        *  by @a __position.  This is known as <em>range insert</em>.
        */
-#if __cplusplus >= 201103L
-      template<typename _InputIterator,
-	       typename = std::_RequireInputIter<_InputIterator>>
-        void
-        insert(iterator __position, _InputIterator __first,
-	       _InputIterator __last)
-        { _M_insert_dispatch(__position, __first, __last, __false_type()); }
-#else
       template<typename _InputIterator>
         void
         insert(iterator __position, _InputIterator __first,
@@ -1562,7 +1612,12 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  Managing the pointer is the user's responsibility.
        */
       iterator
-      erase(iterator __position);
+#if __cplusplus >= 201103L
+      erase(const_iterator __position)
+#else
+      erase(iterator __position)
+#endif
+      { return _M_erase(__position._M_const_cast()); }
 
       /**
        *  @brief  Remove a range of elements.
@@ -1581,7 +1636,12 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  way.  Managing the pointer is the user's responsibility.
        */
       iterator
-      erase(iterator __first, iterator __last);
+#if __cplusplus >= 201103L
+      erase(const_iterator __first, const_iterator __last)
+#else
+      erase(iterator __first, iterator __last)
+#endif
+      { return _M_erase(__first._M_const_cast(), __last._M_const_cast()); }
 
       /**
        *  @brief  Swaps data with another %deque.
@@ -1593,7 +1653,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  std::swap(d1,d2) will feed to this function.
        */
       void
-      swap(deque& __x)
+      swap(deque& __x) _GLIBCXX_NOEXCEPT
       {
 	std::swap(this->_M_impl._M_start, __x._M_impl._M_start);
 	std::swap(this->_M_impl._M_finish, __x._M_impl._M_finish);
@@ -1872,6 +1932,12 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 			 this->_M_impl._M_finish._M_node + 1);
 	this->_M_impl._M_finish = __pos;
       }
+
+      iterator
+      _M_erase(iterator __pos);
+
+      iterator
+      _M_erase(iterator __first, iterator __last);
 
 #if __cplusplus >= 201103L
       // Called by resize(sz).

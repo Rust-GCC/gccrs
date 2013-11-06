@@ -24,7 +24,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "tm_p.h"
 #include "basic-block.h"
-#include "tree-flow.h"
+#include "gimple.h"
+#include "gimple-ssa.h"
+#include "tree-cfg.h"
+#include "tree-phinodes.h"
+#include "ssa-iterators.h"
+#include "tree-ssa-loop-niter.h"
+#include "tree-ssa-loop.h"
+#include "tree-into-ssa.h"
 #include "cfgloop.h"
 #include "params.h"
 #include "tree-pass.h"
@@ -388,3 +395,60 @@ tree_unswitch_loop (struct loop *loop,
 		       NULL, prob_true, prob_true,
 		       REG_BR_PROB_BASE - prob_true, false);
 }
+
+/* Loop unswitching pass.  */
+
+static unsigned int
+tree_ssa_loop_unswitch (void)
+{
+  if (number_of_loops (cfun) <= 1)
+    return 0;
+
+  return tree_ssa_unswitch_loops ();
+}
+
+static bool
+gate_tree_ssa_loop_unswitch (void)
+{
+  return flag_unswitch_loops != 0;
+}
+
+namespace {
+
+const pass_data pass_data_tree_unswitch =
+{
+  GIMPLE_PASS, /* type */
+  "unswitch", /* name */
+  OPTGROUP_LOOP, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_TREE_LOOP_UNSWITCH, /* tv_id */
+  PROP_cfg, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
+};
+
+class pass_tree_unswitch : public gimple_opt_pass
+{
+public:
+  pass_tree_unswitch (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_tree_unswitch, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_tree_ssa_loop_unswitch (); }
+  unsigned int execute () { return tree_ssa_loop_unswitch (); }
+
+}; // class pass_tree_unswitch
+
+} // anon namespace
+
+gimple_opt_pass *
+make_pass_tree_unswitch (gcc::context *ctxt)
+{
+  return new pass_tree_unswitch (ctxt);
+}
+
+

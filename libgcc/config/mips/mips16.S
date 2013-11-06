@@ -21,6 +21,10 @@ a copy of the GCC Runtime Library Exception along with this program;
 see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 <http://www.gnu.org/licenses/>.  */
 
+#ifdef __mips_micromips
+  /* DO NOTHING */
+#else
+
 /* This file contains mips16 floating point support functions.  These
    functions are called by mips16 code to handle floating point when
    -msoft-float is not used.  They accept the arguments and return
@@ -85,8 +89,13 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 	OPCODE, OP2;				\
 	.set	reorder
 
+#if __mips >= 4
+/* Coprocessor moves are interlocked from the MIPS IV ISA up.  */
+#define DELAYf(T, OPCODE, OP2) DELAYt (T, OPCODE, OP2)
+#else
 /* Use "OPCODE. OP2" and jump to T.  */
 #define DELAYf(T, OPCODE, OP2) OPCODE, OP2; jr T
+#endif
 
 /* MOVE_SF_BYTE0(D)
 	Move the first single-precision floating-point argument between
@@ -470,13 +479,35 @@ STARTFN (__mips16_fix_truncdfsi)
 #endif
 #endif /* !__mips_single_float */
 
+/* We don't export stubs from libgcc_s.so and always require static
+   versions to be pulled from libgcc.a as needed because they use $2
+   and possibly $3 as arguments, diverging from the standard SysV ABI,
+   and as such would require severe pessimisation of MIPS16 PLT entries
+   just for this single special case.
+
+   For compatibility with old binaries that used safe standard MIPS PLT
+   entries and referred to these functions we still export them at
+   version GCC_4.4.0 for run-time loading only.  */
+
+#ifdef SHARED
+#define CE_STARTFN(NAME)			\
+STARTFN (NAME##_compat);			\
+	.symver NAME##_compat, NAME@GCC_4.4.0
+#define CE_ENDFN(NAME) ENDFN (NAME##_compat)
+#else
+#define CE_STARTFN(NAME)			\
+STARTFN (NAME);					\
+	.hidden NAME
+#define CE_ENDFN(NAME) ENDFN (NAME)
+#endif
+
 /* Define a function NAME that moves a return value of mode MODE from
    FPRs to GPRs.  */
 
 #define RET_FUNCTION(NAME, MODE)	\
-STARTFN (NAME);				\
+CE_STARTFN (NAME);			\
 	MOVE_##MODE##_RET (t, $31);	\
-	ENDFN (NAME)
+	CE_ENDFN (NAME)
 
 #ifdef L_m16retsf
 RET_FUNCTION (__mips16_ret_sf, SF)
@@ -517,13 +548,13 @@ RET_FUNCTION (__mips16_ret_dc, DC)
    to FPRs and then call function $2.  */
 
 #define CALL_STUB_NO_RET(NAME, CODE)	\
-STARTFN (NAME);				\
+CE_STARTFN (NAME);			\
 	STUB_ARGS_##CODE;		\
 	.set	noreorder;		\
 	jr	$2;			\
 	move	$25,$2;			\
 	.set	reorder;		\
-	ENDFN (NAME)
+	CE_ENDFN (NAME)
 
 #ifdef L_m16stub1
 CALL_STUB_NO_RET (__mips16_call_stub_1, 1)
@@ -566,7 +597,7 @@ CALL_STUB_NO_RET (__mips16_call_stub_10, 10)
    however, it's faster to always do the copy.  */
 
 #define CALL_STUB_RET(NAME, CODE, MODE)					\
-STARTFN (NAME);								\
+CE_STARTFN (NAME);							\
 	.cfi_startproc;							\
 	/* Create a fake CFA 4 bytes below the stack pointer.  */	\
 	.cfi_def_cfa 29,-4;						\
@@ -582,7 +613,7 @@ STARTFN (NAME);								\
 	.set	reorder;						\
 	MOVE_##MODE##_RET (f, $18);					\
 	.cfi_endproc;							\
-	ENDFN (NAME)
+	CE_ENDFN (NAME)
 
 /* First, instantiate the single-float set.  */
 
@@ -718,3 +749,4 @@ CALL_STUB_RET (__mips16_call_stub_dc_10, 10, DC)
 #endif /* !__mips_single_float */
 
 #endif
+#endif /* __mips_micromips */

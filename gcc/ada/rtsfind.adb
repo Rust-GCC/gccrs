@@ -82,7 +82,7 @@ package body Rtsfind is
 
    --  A unit retrieved through rtsfind  may end up in the context of several
    --  other units, in addition to the main unit. These additional with_clauses
-   --  are needed to generate a proper traversal order for Inspector. To
+   --  are needed to generate a proper traversal order for CodePeer. To
    --  minimize somewhat the redundancy created by numerous calls to rtsfind
    --  from different units, we keep track of the list of implicit with_clauses
    --  already created for the current loaded unit.
@@ -123,7 +123,7 @@ package body Rtsfind is
    --  with_clauses to the extended main unit if needed, and also to whatever
    --  unit needs them, which is not necessarily the main unit. The former
    --  ensures that the object is correctly loaded by the binder. The latter
-   --  is necessary for SofCheck Inspector.
+   --  is necessary for CodePeer.
 
    --  The field First_Implicit_With in the unit table record are used to
    --  avoid creating duplicate with_clauses.
@@ -537,15 +537,11 @@ package body Rtsfind is
       return
         Nkind (Prf) = N_Identifier
           and then
-           (Chars (Prf) = Name_Text_IO
-              or else
-            Chars (Prf) = Name_Wide_Text_IO
-              or else
-            Chars (Prf) = Name_Wide_Wide_Text_IO)
-          and then
-        Nkind (Sel) = N_Identifier
-          and then
-        Chars (Sel) in Text_IO_Package_Name;
+            Nam_In (Chars (Prf), Name_Text_IO,
+                                 Name_Wide_Text_IO,
+                                 Name_Wide_Wide_Text_IO)
+          and then Nkind (Sel) = N_Identifier
+          and then Chars (Sel) in Text_IO_Package_Name;
    end Is_Text_IO_Kludge_Unit;
 
    ---------------
@@ -764,7 +760,7 @@ package body Rtsfind is
             --  a real semantic dependence when the purpose of the limited_with
             --  is precisely to avoid such.
 
-            if From_With_Type (Cunit_Entity (U.Unum)) then
+            if From_Limited_With (Cunit_Entity (U.Unum)) then
                null;
 
             else
@@ -831,10 +827,9 @@ package body Rtsfind is
       --  We do not need to generate a with_clause for a call issued from
       --  RTE_Component_Available. However, for CodePeer, we need these
       --  additional with's, because for a sequence like "if RTE_Available (X)
-      --  then ... RTE (X)" the RTE call fails to create some necessary
-      --  with's.
+      --  then ... RTE (X)" the RTE call fails to create some necessary with's.
 
-      if RTE_Available_Call and then not Generate_SCIL then
+      if RTE_Available_Call and not Generate_SCIL then
          return;
       end if;
 
@@ -844,8 +839,8 @@ package body Rtsfind is
          return;
       end if;
 
-      --  Add the with_clause, if not already in the context of the
-      --  current compilation unit.
+      --  Add the with_clause, if we have not already added an implicit with
+      --  for this unit to the current compilation unit.
 
       declare
          LibUnit : constant Node_Id := Unit (Cunit (U.Unum));
@@ -1125,7 +1120,7 @@ package body Rtsfind is
             --  only has a limited view, scan the corresponding list of
             --  incomplete types.
 
-            if From_With_Type (U.Entity) then
+            if From_Limited_With (U.Entity) then
                Pkg_Ent := First_Entity (Limited_View (U.Entity));
             else
                Pkg_Ent := First_Entity (U.Entity);

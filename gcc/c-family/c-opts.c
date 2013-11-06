@@ -827,6 +827,15 @@ c_common_post_options (const char **pfilename)
 				     ? EXCESS_PRECISION_STANDARD
 				     : EXCESS_PRECISION_FAST);
 
+  /* ISO C restricts floating-point expression contraction to within
+     source-language expressions (-ffp-contract=on, currently an alias
+     for -ffp-contract=off).  */
+  if (flag_iso
+      && !c_dialect_cxx ()
+      && (global_options_set.x_flag_fp_contract_mode
+	  == (enum fp_contract_mode) 0))
+    flag_fp_contract_mode = FP_CONTRACT_OFF;
+
   /* By default we use C99 inline semantics in GNU99 or C99 mode.  C99
      inline semantics are not supported in GNU89 or C89 mode.  */
   if (flag_gnu89_inline == -1)
@@ -889,7 +898,7 @@ c_common_post_options (const char **pfilename)
   if (warn_implicit_function_declaration == -1)
     warn_implicit_function_declaration = flag_isoc99;
 
-  if (cxx_dialect >= cxx0x)
+  if (cxx_dialect >= cxx11)
     {
       /* If we're allowing C++0x constructs, don't warn about C++98
 	 identifiers which are keywords in C++0x.  */
@@ -1198,6 +1207,7 @@ sanitize_cpp_opts (void)
 
   cpp_opts->unsigned_char = !flag_signed_char;
   cpp_opts->stdc_0_in_system_headers = STDC_0_IN_SYSTEM_HEADERS;
+  cpp_opts->warn_date_time = cpp_warn_date_time;
 
   /* Wlong-long is disabled by default. It is enabled by:
       [-Wpedantic | -Wtraditional] -std=[gnu|c]++98 ; or
@@ -1471,7 +1481,7 @@ set_std_cxx11 (int iso)
 static void
 set_std_cxx1y (int iso)
 {
-  cpp_set_lang (parse_in, iso ? CLK_CXX11: CLK_GNUCXX11);
+  cpp_set_lang (parse_in, iso ? CLK_CXX1Y: CLK_GNUCXX1Y);
   flag_no_gnu_keywords = iso;
   flag_no_nonansi_builtin = iso;
   flag_iso = iso;

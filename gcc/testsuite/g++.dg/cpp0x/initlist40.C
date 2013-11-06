@@ -1,4 +1,5 @@
-// { dg-options "-std=c++0x" }
+// PR c++/54835, DR 1518
+// { dg-options "-std=c++11" }
 
 struct A
 {
@@ -7,6 +8,6 @@ struct A
 
 int main()
 {
-  A a1 = { };
+  A a1 = { };			// { dg-error "explicit" }
   A a2 = { 24 };		// { dg-error "explicit" }
 }

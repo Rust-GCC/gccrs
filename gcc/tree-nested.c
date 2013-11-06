@@ -28,11 +28,13 @@
 #include "tree-inline.h"
 #include "gimple.h"
 #include "tree-iterator.h"
-#include "tree-flow.h"
+#include "bitmap.h"
 #include "cgraph.h"
+#include "tree-cfg.h"
 #include "expr.h"	/* FIXME: For STACK_SAVEAREA_MODE and SAVE_NONLOCAL.  */
 #include "langhooks.h"
 #include "pointer-set.h"
+#include "gimple-low.h"
 
 
 /* The object of this pass is to lower the representation of a set of nested
@@ -699,11 +701,11 @@ check_for_nested_with_variably_modified (tree fndecl, tree orig_fndecl)
 
   for (cgn = cgn->nested; cgn ; cgn = cgn->next_nested)
     {
-      for (arg = DECL_ARGUMENTS (cgn->symbol.decl); arg; arg = DECL_CHAIN (arg))
+      for (arg = DECL_ARGUMENTS (cgn->decl); arg; arg = DECL_CHAIN (arg))
 	if (variably_modified_type_p (TREE_TYPE (arg), orig_fndecl))
 	  return true;
 
-      if (check_for_nested_with_variably_modified (cgn->symbol.decl,
+      if (check_for_nested_with_variably_modified (cgn->decl,
 						   orig_fndecl))
 	return true;
     }
@@ -722,7 +724,7 @@ create_nesting_tree (struct cgraph_node *cgn)
   info->var_map = pointer_map_create ();
   info->mem_refs = pointer_set_create ();
   info->suppress_expansion = BITMAP_ALLOC (&nesting_info_bitmap_obstack);
-  info->context = cgn->symbol.decl;
+  info->context = cgn->decl;
 
   for (cgn = cgn->nested; cgn ; cgn = cgn->next_nested)
     {
@@ -1291,8 +1293,25 @@ convert_nonlocal_reference_stmt (gimple_stmt_iterator *gsi, bool *handled_ops_p,
       info->suppress_expansion = save_suppress;
       break;
 
+    case GIMPLE_OMP_TARGET:
+      save_suppress = info->suppress_expansion;
+      convert_nonlocal_omp_clauses (gimple_omp_target_clauses_ptr (stmt), wi);
+      walk_body (convert_nonlocal_reference_stmt, convert_nonlocal_reference_op,
+		 info, gimple_omp_body_ptr (stmt));
+      info->suppress_expansion = save_suppress;
+      break;
+
+    case GIMPLE_OMP_TEAMS:
+      save_suppress = info->suppress_expansion;
+      convert_nonlocal_omp_clauses (gimple_omp_teams_clauses_ptr (stmt), wi);
+      walk_body (convert_nonlocal_reference_stmt, convert_nonlocal_reference_op,
+		 info, gimple_omp_body_ptr (stmt));
+      info->suppress_expansion = save_suppress;
+      break;
+
     case GIMPLE_OMP_SECTION:
     case GIMPLE_OMP_MASTER:
+    case GIMPLE_OMP_TASKGROUP:
     case GIMPLE_OMP_ORDERED:
       walk_body (convert_nonlocal_reference_stmt, convert_nonlocal_reference_op,
 	         info, gimple_omp_body_ptr (stmt));
@@ -1714,8 +1733,25 @@ convert_local_reference_stmt (gimple_stmt_iterator *gsi, bool *handled_ops_p,
       info->suppress_expansion = save_suppress;
       break;
 
+    case GIMPLE_OMP_TARGET:
+      save_suppress = info->suppress_expansion;
+      convert_local_omp_clauses (gimple_omp_target_clauses_ptr (stmt), wi);
+      walk_body (convert_local_reference_stmt, convert_local_reference_op,
+		 info, gimple_omp_body_ptr (stmt));
+      info->suppress_expansion = save_suppress;
+      break;
+
+    case GIMPLE_OMP_TEAMS:
+      save_suppress = info->suppress_expansion;
+      convert_local_omp_clauses (gimple_omp_teams_clauses_ptr (stmt), wi);
+      walk_body (convert_local_reference_stmt, convert_local_reference_op,
+		 info, gimple_omp_body_ptr (stmt));
+      info->suppress_expansion = save_suppress;
+      break;
+
     case GIMPLE_OMP_SECTION:
     case GIMPLE_OMP_MASTER:
+    case GIMPLE_OMP_TASKGROUP:
     case GIMPLE_OMP_ORDERED:
       walk_body (convert_local_reference_stmt, convert_local_reference_op,
 		 info, gimple_omp_body_ptr (stmt));
@@ -2071,7 +2107,10 @@ convert_gimple_call (gimple_stmt_iterator *gsi, bool *handled_ops_p,
     case GIMPLE_OMP_SECTIONS:
     case GIMPLE_OMP_SECTION:
     case GIMPLE_OMP_SINGLE:
+    case GIMPLE_OMP_TARGET:
+    case GIMPLE_OMP_TEAMS:
     case GIMPLE_OMP_MASTER:
+    case GIMPLE_OMP_TASKGROUP:
     case GIMPLE_OMP_ORDERED:
     case GIMPLE_OMP_CRITICAL:
       walk_body (convert_gimple_call, NULL, info, gimple_omp_body_ptr (stmt));
@@ -2304,7 +2343,7 @@ remap_vla_decls (tree block, struct nesting_info *root)
 static bool
 fold_mem_refs (const void *e, void *data ATTRIBUTE_UNUSED)
 {
-  tree *ref_p = CONST_CAST2(tree *, const tree *, (const tree *)e);
+  tree *ref_p = CONST_CAST2 (tree *, const tree *, (const tree *)e);
   *ref_p = fold (*ref_p);
   return true;
 }
@@ -2591,8 +2630,8 @@ static void
 gimplify_all_functions (struct cgraph_node *root)
 {
   struct cgraph_node *iter;
-  if (!gimple_body (root->symbol.decl))
-    gimplify_function_tree (root->symbol.decl);
+  if (!gimple_body (root->decl))
+    gimplify_function_tree (root->decl);
   for (iter = root->nested; iter; iter = iter->next_nested)
     gimplify_all_functions (iter);
 }

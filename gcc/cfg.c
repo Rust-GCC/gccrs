@@ -446,6 +446,21 @@ check_bb_profile (basic_block bb, FILE * file, int indent, int flags)
 		 (flags & TDF_COMMENT) ? ";; " : "", s_indent,
 		 (int) lsum, (int) bb->count);
     }
+  if (BB_PARTITION (bb) == BB_COLD_PARTITION)
+    {
+      /* Warn about inconsistencies in the partitioning that are
+         currently caused by profile insanities created via optimization.  */
+      if (!probably_never_executed_bb_p (fun, bb))
+        fprintf (file, "%s%sBlock in cold partition with hot count\n",
+                 (flags & TDF_COMMENT) ? ";; " : "", s_indent);
+      FOR_EACH_EDGE (e, ei, bb->preds)
+        {
+          if (!probably_never_executed_edge_p (fun, e))
+            fprintf (file,
+                     "%s%sBlock in cold partition with incoming hot edge\n",
+                     (flags & TDF_COMMENT) ? ";; " : "", s_indent);
+        }
+    }
 }
 
 void
@@ -503,6 +518,23 @@ dump_edge_info (FILE *file, edge e, int flags, int do_succ)
 
       fputc (')', file);
     }
+}
+
+DEBUG_FUNCTION void
+debug (edge_def &ref)
+{
+  /* FIXME (crowl): Is this desireable?  */
+  dump_edge_info (stderr, &ref, 0, false);
+  dump_edge_info (stderr, &ref, 0, true);
+}
+
+DEBUG_FUNCTION void
+debug (edge_def *ptr)
+{
+  if (ptr)
+    debug (*ptr);
+  else
+    fprintf (stderr, "<nil>\n");
 }
 
 /* Simple routines to easily allocate AUX fields of basic blocks.  */
@@ -831,7 +863,7 @@ update_bb_profile_for_threading (basic_block bb, int edge_frequency,
   /* Compute the probability of TAKEN_EDGE being reached via threaded edge.
      Watch for overflows.  */
   if (bb->frequency)
-    prob = edge_frequency * REG_BR_PROB_BASE / bb->frequency;
+    prob = GCOV_COMPUTE_SCALE (edge_frequency, bb->frequency);
   else
     prob = 0;
   if (prob > taken_edge->probability)
@@ -1162,7 +1194,7 @@ get_loop_copy (struct loop *loop)
   key.index1 = loop->num;
   entry = loop_copy.find (&key);
   if (entry)
-    return get_loop (entry->index2);
+    return get_loop (cfun, entry->index2);
   else
     return NULL;
 }

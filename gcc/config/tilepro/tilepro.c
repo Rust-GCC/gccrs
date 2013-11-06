@@ -40,6 +40,7 @@
 #include "function.h"
 #include "dwarf2.h"
 #include "timevar.h"
+#include "tree.h"
 #include "gimple.h"
 #include "cfgloop.h"
 #include "tilepro-builtins.h"
@@ -1676,7 +1677,7 @@ tilepro_expand_unaligned_load (rtx dest_reg, rtx mem, HOST_WIDE_INT bitsize,
       rtx extracted =
 	extract_bit_field (gen_lowpart (SImode, wide_result),
 			   bitsize, bit_offset % BITS_PER_UNIT,
-			   !sign, false, gen_lowpart (SImode, dest_reg),
+			   !sign, gen_lowpart (SImode, dest_reg),
 			   SImode, SImode);
 
       if (extracted != dest_reg)
@@ -2411,7 +2412,7 @@ cbranch_predicted_p (rtx insn)
 
   if (x)
     {
-      int pred_val = INTVAL (XEXP (x, 0));
+      int pred_val = XINT (x, 0);
 
       return pred_val >= REG_BR_PROB_BASE / 2;
     }

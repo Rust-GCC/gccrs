@@ -46,7 +46,6 @@ with Sem;      use Sem;
 with Sem_Aux;  use Sem_Aux;
 with Sem_Ch8;  use Sem_Ch8;
 with Sem_Eval; use Sem_Eval;
-with Sem_Prag; use Sem_Prag;
 with Sem_Res;  use Sem_Res;
 with Sem_Type; use Sem_Type;
 with Sem_Util; use Sem_Util;
@@ -561,13 +560,6 @@ package body Exp_Util is
    --  Start of processing for Build_Allocate_Deallocate_Proc
 
    begin
-      --  Do not perform this expansion in Alfa mode because it is not
-      --  necessary.
-
-      if Alfa_Mode then
-         return;
-      end if;
-
       --  Obtain the attributes of the allocation / deallocation
 
       if Nkind (N) = N_Free_Statement then
@@ -1632,10 +1624,15 @@ package body Exp_Util is
             --  node to recognize this case.
 
            or else Present (Interface_List (Parent (Typ)))
-           or else
-             (((Has_Attach_Handler (Typ) and then not Restricted_Profile)
-                 or else Has_Interrupt_Handler (Typ))
-               and then not Restriction_Active (No_Dynamic_Attachment))
+
+            --  Protected types with interrupt handlers (when not using a
+            --  restricted profile) are also considered equivalent to
+            --  protected types with entries. The types which are used
+            --  (Static_Interrupt_Protection and Dynamic_Interrupt_Protection)
+            --  are derived from Protection_Entries.
+
+           or else (Has_Attach_Handler (Typ) and then not Restricted_Profile)
+           or else Has_Interrupt_Handler (Typ)
          then
             if Abort_Allowed
               or else Restriction_Active (No_Entry_Queue) = False
@@ -1913,6 +1910,69 @@ package body Exp_Util is
       end if;
    end Evolve_Or_Else;
 
+   -----------------------------------------
+   -- Expand_Static_Predicates_In_Choices --
+   -----------------------------------------
+
+   procedure Expand_Static_Predicates_In_Choices (N : Node_Id) is
+      pragma Assert (Nkind_In (N, N_Case_Statement_Alternative, N_Variant));
+
+      Choices : constant List_Id := Discrete_Choices (N);
+
+      Choice : Node_Id;
+      Next_C : Node_Id;
+      P      : Node_Id;
+      C      : Node_Id;
+
+   begin
+      Choice := First (Choices);
+      while Present (Choice) loop
+         Next_C := Next (Choice);
+
+         --  Check for name of subtype with static predicate
+
+         if Is_Entity_Name (Choice)
+           and then Is_Type (Entity (Choice))
+           and then Has_Predicates (Entity (Choice))
+         then
+            --  Loop through entries in predicate list, converting to choices
+            --  and inserting in the list before the current choice. Note that
+            --  if the list is empty, corresponding to a False predicate, then
+            --  no choices are inserted.
+
+            P := First (Static_Predicate (Entity (Choice)));
+            while Present (P) loop
+
+               --  If low bound and high bounds are equal, copy simple choice
+
+               if Expr_Value (Low_Bound (P)) = Expr_Value (High_Bound (P)) then
+                  C := New_Copy (Low_Bound (P));
+
+               --  Otherwise copy a range
+
+               else
+                  C := New_Copy (P);
+               end if;
+
+               --  Change Sloc to referencing choice (rather than the Sloc of
+               --  the predicate declaration element itself).
+
+               Set_Sloc (C, Sloc (Choice));
+               Insert_Before (Choice, C);
+               Next (P);
+            end loop;
+
+            --  Delete the predicated entry
+
+            Remove (Choice);
+         end if;
+
+         --  Move to next choice to check
+
+         Choice := Next_C;
+      end loop;
+   end Expand_Static_Predicates_In_Choices;
+
    ------------------------------
    -- Expand_Subtype_From_Expr --
    ------------------------------
@@ -2011,8 +2071,19 @@ package body Exp_Util is
                    Make_Literal_Range (Loc,
                      Literal_Typ => Exp_Typ)))));
 
+      --  If the type of the expression is an internally generated type it
+      --  may not be necessary to create a new subtype. However there are two
+      --  exceptions: references to the current instances, and aliased array
+      --  object declarations for which the backend needs to create a template.
+
       elsif Is_Constrained (Exp_Typ)
         and then not Is_Class_Wide_Type (Unc_Type)
+        and then
+          (Nkind (N) /= N_Object_Declaration
+            or else not Is_Entity_Name (Expression (N))
+            or else not Comes_From_Source (Entity (Expression (N)))
+            or else not Is_Array_Type (Exp_Typ)
+            or else not Aliased_Present (N))
       then
          if Is_Itype (Exp_Typ) then
 
@@ -2037,7 +2108,7 @@ package body Exp_Util is
                   end if;
                end;
 
-            --  No need to generate a new one (new what???)
+            --  No need to generate a new subtype
 
             else
                T := Exp_Typ;
@@ -2127,7 +2198,7 @@ package body Exp_Util is
       --  function being called is build-in-place. This will have to be revised
       --  when build-in-place functions are generalized to other types.
 
-      elsif Is_Immutably_Limited_Type (Exp_Typ)
+      elsif Is_Limited_View (Exp_Typ)
         and then
          (Is_Class_Wide_Type (Exp_Typ)
            or else Is_Interface (Exp_Typ)
@@ -2192,8 +2263,7 @@ package body Exp_Util is
          return First_Elmt (Access_Disp_Table (Typ));
 
       else
-         ADT :=
-           Next_Elmt (Next_Elmt (First_Elmt (Access_Disp_Table (Typ))));
+         ADT := Next_Elmt (Next_Elmt (First_Elmt (Access_Disp_Table (Typ))));
          while Present (ADT)
            and then Present (Related_Type (Node (ADT)))
            and then Related_Type (Node (ADT)) /= Iface
@@ -2496,7 +2566,10 @@ package body Exp_Util is
    -- Fully_Qualified_Name_String --
    ---------------------------------
 
-   function Fully_Qualified_Name_String (E : Entity_Id) return String_Id is
+   function Fully_Qualified_Name_String
+     (E          : Entity_Id;
+      Append_NUL : Boolean := True) return String_Id
+   is
       procedure Internal_Full_Qualified_Name (E : Entity_Id);
       --  Compute recursively the qualified name without NUL at the end, adding
       --  it to the currently started string being generated
@@ -2544,7 +2617,11 @@ package body Exp_Util is
    begin
       Start_String;
       Internal_Full_Qualified_Name (E);
-      Store_String_Char (Get_Char_Code (ASCII.NUL));
+
+      if Append_NUL then
+         Store_String_Char (Get_Char_Code (ASCII.NUL));
+      end if;
+
       return End_String;
    end Fully_Qualified_Name_String;
 
@@ -2600,18 +2677,36 @@ package body Exp_Util is
         (N : Node_Id;
          S : Boolean)
       is
-         Cond : Node_Id;
-         Sens : Boolean;
+         Cond      : Node_Id;
+         Prev_Cond : Node_Id;
+         Sens      : Boolean;
 
       begin
          Cond := N;
          Sens := S;
 
-         --  Deal with NOT operators, inverting sense
+         loop
+            Prev_Cond := Cond;
 
-         while Nkind (Cond) = N_Op_Not loop
-            Cond := Right_Opnd (Cond);
-            Sens := not Sens;
+            --  Deal with NOT operators, inverting sense
+
+            while Nkind (Cond) = N_Op_Not loop
+               Cond := Right_Opnd (Cond);
+               Sens := not Sens;
+            end loop;
+
+            --  Deal with conversions, qualifications, and expressions with
+            --  actions.
+
+            while Nkind_In (Cond,
+                    N_Type_Conversion,
+                    N_Qualified_Expression,
+                    N_Expression_With_Actions)
+            loop
+               Cond := Expression (Cond);
+            end loop;
+
+            exit when Cond = Prev_Cond;
          end loop;
 
          --  Deal with AND THEN and AND cases
@@ -2692,8 +2787,15 @@ package body Exp_Util is
 
             return;
 
-            --  Case of Boolean variable reference, return as though the
-            --  reference had said var = True.
+         elsif Nkind_In (Cond,
+                 N_Type_Conversion,
+                 N_Qualified_Expression,
+                 N_Expression_With_Actions)
+         then
+            Cond := Expression (Cond);
+
+         --  Case of Boolean variable reference, return as though the
+         --  reference had said var = True.
 
          else
             if Is_Entity_Name (Cond) and then Ent = Entity (Cond) then
@@ -3300,8 +3402,13 @@ package body Exp_Util is
 
             when N_Expression_With_Actions =>
                if N = Expression (P) then
-                  Insert_List_After_And_Analyze
-                    (Last (Actions (P)), Ins_Actions);
+                  if Is_Empty_List (Actions (P)) then
+                     Append_List_To (Actions (P), Ins_Actions);
+                     Analyze_List (Actions (P));
+                  else
+                     Insert_List_After_And_Analyze
+                       (Last (Actions (P)), Ins_Actions);
+                  end if;
                   return;
                end if;
 
@@ -3403,7 +3510,8 @@ package body Exp_Util is
 
                --  Freeze entity behaves like a declaration or statement
 
-               N_Freeze_Entity
+               N_Freeze_Entity                          |
+               N_Freeze_Generic_Entity
             =>
                --  Do not insert here if the item is not a list member (this
                --  happens for example with a triggering statement, and the
@@ -3674,6 +3782,7 @@ package body Exp_Util is
                N_Push_Storage_Error_Label               |
                N_Qualified_Expression                   |
                N_Quantified_Expression                  |
+               N_Raise_Expression                       |
                N_Range                                  |
                N_Range_Constraint                       |
                N_Real_Literal                           |
@@ -4268,7 +4377,7 @@ package body Exp_Util is
          --  Look for aspect Default_Iterator
 
          if Has_Aspects (Parent (Typ)) then
-            Aspect := Find_Aspect (Typ, Aspect_Default_Iterator);
+            Aspect := Find_Value_Of_Aspect (Typ, Aspect_Default_Iterator);
 
             if Present (Aspect) then
                Iter := Entity (Aspect);
@@ -5159,11 +5268,9 @@ package body Exp_Util is
       --  True if access attribute
 
       elsif Nkind (N) = N_Attribute_Reference
-        and then (Attribute_Name (N) = Name_Access
-                    or else
-                  Attribute_Name (N) = Name_Unchecked_Access
-                    or else
-                  Attribute_Name (N) = Name_Unrestricted_Access)
+        and then Nam_In (Attribute_Name (N), Name_Access,
+                                             Name_Unchecked_Access,
+                                             Name_Unrestricted_Access)
       then
          return True;
 
@@ -5422,26 +5529,29 @@ package body Exp_Util is
 
    function Make_Invariant_Call (Expr : Node_Id) return Node_Id is
       Loc : constant Source_Ptr := Sloc (Expr);
-      Typ : constant Entity_Id  := Etype (Expr);
+      Typ : Entity_Id;
 
    begin
+      Typ := Etype (Expr);
+
+      --  Subtypes may be subject to invariants coming from their respective
+      --  base types.
+
+      if Ekind_In (Typ, E_Array_Subtype,
+                        E_Private_Subtype,
+                        E_Record_Subtype)
+      then
+         Typ := Base_Type (Typ);
+      end if;
+
       pragma Assert
         (Has_Invariants (Typ) and then Present (Invariant_Procedure (Typ)));
 
-      if Check_Enabled (Name_Invariant)
-           or else
-         Check_Enabled (Name_Assertion)
-      then
-         return
-           Make_Procedure_Call_Statement (Loc,
-             Name                   =>
-               New_Occurrence_Of (Invariant_Procedure (Typ), Loc),
-             Parameter_Associations => New_List (Relocate_Node (Expr)));
-
-      else
-         return
-           Make_Null_Statement (Loc);
-      end if;
+      return
+        Make_Procedure_Call_Statement (Loc,
+          Name                   =>
+            New_Occurrence_Of (Invariant_Procedure (Typ), Loc),
+          Parameter_Associations => New_List (Relocate_Node (Expr)));
    end Make_Invariant_Call;
 
    ------------------------
@@ -5519,18 +5629,36 @@ package body Exp_Util is
 
    function Make_Predicate_Call
      (Typ  : Entity_Id;
-      Expr : Node_Id) return Node_Id
+      Expr : Node_Id;
+      Mem  : Boolean := False) return Node_Id
    is
       Loc : constant Source_Ptr := Sloc (Expr);
 
    begin
       pragma Assert (Present (Predicate_Function (Typ)));
 
+      --  Call special membership version if requested and available
+
+      if Mem then
+         declare
+            PFM : constant Entity_Id := Predicate_Function_M (Typ);
+         begin
+            if Present (PFM) then
+               return
+                 Make_Function_Call (Loc,
+                   Name                   => New_Occurrence_Of (PFM, Loc),
+                   Parameter_Associations => New_List (Relocate_Node (Expr)));
+            end if;
+         end;
+      end if;
+
+      --  Case of calling normal predicate function
+
       return
-        Make_Function_Call (Loc,
-          Name                   =>
-            New_Occurrence_Of (Predicate_Function (Typ), Loc),
-          Parameter_Associations => New_List (Relocate_Node (Expr)));
+          Make_Function_Call (Loc,
+            Name                   =>
+              New_Occurrence_Of (Predicate_Function (Typ), Loc),
+            Parameter_Associations => New_List (Relocate_Node (Expr)));
    end Make_Predicate_Call;
 
    --------------------------
@@ -5542,14 +5670,34 @@ package body Exp_Util is
       Expr : Node_Id) return Node_Id
    is
       Loc : constant Source_Ptr := Sloc (Expr);
+      Nam : Name_Id;
 
    begin
+      --  If predicate checks are suppressed, then return a null statement.
+      --  For this call, we check only the scope setting. If the caller wants
+      --  to check a specific entity's setting, they must do it manually.
+
+      if Predicate_Checks_Suppressed (Empty) then
+         return Make_Null_Statement (Loc);
+      end if;
+
+      --  Compute proper name to use, we need to get this right so that the
+      --  right set of check policies apply to the Check pragma we are making.
+
+      if Has_Dynamic_Predicate_Aspect (Typ) then
+         Nam := Name_Dynamic_Predicate;
+      elsif Has_Static_Predicate_Aspect (Typ) then
+         Nam := Name_Static_Predicate;
+      else
+         Nam := Name_Predicate;
+      end if;
+
       return
         Make_Pragma (Loc,
           Pragma_Identifier            => Make_Identifier (Loc, Name_Check),
           Pragma_Argument_Associations => New_List (
             Make_Pragma_Argument_Association (Loc,
-              Expression => Make_Identifier (Loc, Name_Predicate)),
+              Expression => Make_Identifier (Loc, Nam)),
             Make_Pragma_Argument_Association (Loc,
               Expression => Make_Predicate_Call (Typ, Expr))));
    end Make_Predicate_Check;
@@ -6555,6 +6703,14 @@ package body Exp_Util is
             when N_Explicit_Dereference =>
                return Safe_Prefixed_Reference (N);
 
+            --  An expression with action is side effect free if its expression
+            --  is side effect free and it has no actions.
+
+            when N_Expression_With_Actions =>
+               return Is_Empty_List (Actions (N))
+                        and then
+                      Side_Effect_Free (Expression (N));
+
             --  A call to _rep_to_pos is side effect free, since we generate
             --  this pure function call ourselves. Moreover it is critically
             --  important to make this exception, since otherwise we can have
@@ -6914,10 +7070,13 @@ package body Exp_Util is
       --  Otherwise we generate a reference to the value
 
       else
-         --  An expression which is in Alfa mode is considered side effect free
-         --  if the resulting value is captured by a variable or a constant.
+         --  An expression which is in SPARK mode is considered side effect
+         --  free if the resulting value is captured by a variable or a
+         --  constant.
 
-         if Alfa_Mode and then Nkind (Parent (Exp)) = N_Object_Declaration then
+         if SPARK_Mode
+           and then Nkind (Parent (Exp)) = N_Object_Declaration
+         then
             goto Leave;
          end if;
 
@@ -6931,7 +7090,7 @@ package body Exp_Util is
 
          if Ada_Version >= Ada_2005
            and then Nkind (Exp) = N_Function_Call
-           and then Is_Immutably_Limited_Type (Etype (Exp))
+           and then Is_Limited_View (Etype (Exp))
            and then Nkind (Parent (Exp)) /= N_Object_Declaration
          then
             declare
@@ -6953,15 +7112,14 @@ package body Exp_Util is
          end if;
 
          Def_Id := Make_Temporary (Loc, 'R', Exp);
-         Set_Etype (Def_Id, Exp_Type);
 
          --  The regular expansion of functions with side effects involves the
          --  generation of an access type to capture the return value found on
-         --  the secondary stack. Since Alfa (and why) cannot process access
+         --  the secondary stack. Since SPARK (and why) cannot process access
          --  types, use a different approach which ignores the secondary stack
          --  and "copies" the returned object.
 
-         if Alfa_Mode then
+         if SPARK_Mode then
             Res := New_Reference_To (Def_Id, Loc);
             Ref_Type := Exp_Type;
 
@@ -6995,10 +7153,10 @@ package body Exp_Util is
          else
             E := Relocate_Node (E);
 
-            --  Do not generate a 'reference in Alfa mode since the access type
-            --  is not created in the first place.
+            --  Do not generate a 'reference in SPARK mode since the access
+            --  type is not created in the first place.
 
-            if Alfa_Mode then
+            if SPARK_Mode then
                New_Exp := E;
 
             --  Otherwise generate reference, marking the value as non-null
@@ -7630,7 +7788,14 @@ package body Exp_Util is
                Set_Entity_Current_Value (Right_Opnd (Cond));
             end if;
 
-            --  Check possible boolean variable reference
+         elsif Nkind_In (Cond,
+                 N_Type_Conversion,
+                 N_Qualified_Expression,
+                 N_Expression_With_Actions)
+         then
+            Set_Expression_Current_Value (Expression (Cond));
+
+         --  Check possible boolean variable reference
 
          else
             Set_Entity_Current_Value (Cond);
@@ -7952,11 +8117,11 @@ package body Exp_Util is
       Par : Node_Id;
 
    begin
-      --  Locate an enclosing case or if expression. Note: these constructs can
-      --  get expanded into Expression_With_Actions, hence the need to test
-      --  using the original node.
+      --  Locate an enclosing case or if expression. Note that these constructs
+      --  can be expanded into Expression_With_Actions, hence the test of the
+      --  original node.
 
-      Par := N;
+      Par := Parent (N);
       while Present (Par) loop
          if Nkind_In (Original_Node (Par), N_Case_Expression,
                                            N_If_Expression)
@@ -7965,13 +8130,7 @@ package body Exp_Util is
 
          --  Prevent the search from going too far
 
-         elsif Nkind_In (Par, N_Entry_Body,
-                              N_Package_Body,
-                              N_Package_Declaration,
-                              N_Protected_Body,
-                              N_Subprogram_Body,
-                              N_Task_Body)
-         then
+         elsif Is_Body_Or_Package_Declaration (Par) then
             return False;
          end if;
 

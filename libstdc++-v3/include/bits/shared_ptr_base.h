@@ -49,6 +49,8 @@
 #ifndef _SHARED_PTR_BASE_H
 #define _SHARED_PTR_BASE_H 1
 
+#include <ext/aligned_buffer.h>
+
 namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
@@ -124,7 +126,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       { delete this; }
       
       virtual void*
-      _M_get_deleter(const std::type_info&) = 0;
+      _M_get_deleter(const std::type_info&) noexcept = 0;
 
       void
       _M_add_ref_copy()
@@ -282,7 +284,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     {
     public:
       explicit
-      _Sp_counted_ptr(_Ptr __p)
+      _Sp_counted_ptr(_Ptr __p) noexcept
       : _M_ptr(__p) { }
 
       virtual void
@@ -294,14 +296,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       { delete this; }
 
       virtual void*
-      _M_get_deleter(const std::type_info&)
-      { return 0; }
+      _M_get_deleter(const std::type_info&) noexcept
+      { return nullptr; }
 
       _Sp_counted_ptr(const _Sp_counted_ptr&) = delete;
       _Sp_counted_ptr& operator=(const _Sp_counted_ptr&) = delete;
 
-    protected:
-      _Ptr             _M_ptr;  // copy constructor must not throw
+    private:
+      _Ptr             _M_ptr;
     };
 
   template<>
@@ -316,59 +318,91 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     inline void
     _Sp_counted_ptr<nullptr_t, _S_atomic>::_M_dispose() noexcept { }
 
+  template<int _Nm, typename _Tp,
+	   bool __use_ebo = !__is_final(_Tp) && __is_empty(_Tp)>
+    struct _Sp_ebo_helper;
+
+  /// Specialization using EBO.
+  template<int _Nm, typename _Tp>
+    struct _Sp_ebo_helper<_Nm, _Tp, true> : private _Tp
+    {
+      explicit _Sp_ebo_helper(const _Tp& __tp) : _Tp(__tp) { }
+
+      static _Tp&
+      _S_get(_Sp_ebo_helper& __eboh) { return static_cast<_Tp&>(__eboh); }
+    };
+
+  /// Specialization not using EBO.
+  template<int _Nm, typename _Tp>
+    struct _Sp_ebo_helper<_Nm, _Tp, false>
+    {
+      explicit _Sp_ebo_helper(const _Tp& __tp) : _M_tp(__tp) { }
+
+      static _Tp&
+      _S_get(_Sp_ebo_helper& __eboh)
+      { return __eboh._M_tp; }
+
+    private:
+      _Tp _M_tp;
+    };
+
   // Support for custom deleter and/or allocator
   template<typename _Ptr, typename _Deleter, typename _Alloc, _Lock_policy _Lp>
     class _Sp_counted_deleter final : public _Sp_counted_base<_Lp>
     {
-      // Helper class that stores the Deleter and also acts as an allocator.
-      // Used to dispose of the owned pointer and the internal refcount
-      // Requires that copies of _Alloc can free each other's memory.
-      struct _My_Deleter
-      : public _Alloc           // copy constructor must not throw
+      class _Impl : _Sp_ebo_helper<0, _Deleter>, _Sp_ebo_helper<1, _Alloc>
       {
-	_Deleter _M_del;        // copy constructor must not throw
-	_My_Deleter(_Deleter __d, const _Alloc& __a)
-	: _Alloc(__a), _M_del(__d) { }
+	typedef _Sp_ebo_helper<0, _Deleter>	_Del_base;
+	typedef _Sp_ebo_helper<1, _Alloc>	_Alloc_base;
+
+      public:
+	_Impl(_Ptr __p, _Deleter __d, const _Alloc& __a) noexcept
+	: _M_ptr(__p), _Del_base(__d), _Alloc_base(__a)
+	{ }
+
+	_Deleter& _M_del() noexcept { return _Del_base::_S_get(*this); }
+	_Alloc& _M_alloc() noexcept { return _Alloc_base::_S_get(*this); }
+
+	_Ptr _M_ptr;
       };
 
     public:
       // __d(__p) must not throw.
-      _Sp_counted_deleter(_Ptr __p, _Deleter __d)
-      : _M_ptr(__p), _M_del(__d, _Alloc()) { }
+      _Sp_counted_deleter(_Ptr __p, _Deleter __d) noexcept
+      : _M_impl(__p, __d, _Alloc()) { }
 
       // __d(__p) must not throw.
-      _Sp_counted_deleter(_Ptr __p, _Deleter __d, const _Alloc& __a)
-      : _M_ptr(__p), _M_del(__d, __a) { }
+      _Sp_counted_deleter(_Ptr __p, _Deleter __d, const _Alloc& __a) noexcept
+      : _M_impl(__p, __d, __a) { }
 
       ~_Sp_counted_deleter() noexcept { }
 
       virtual void
       _M_dispose() noexcept
-      { _M_del._M_del(_M_ptr); }
+      { _M_impl._M_del()(_M_impl._M_ptr); }
 
       virtual void
       _M_destroy() noexcept
       {
 	typedef typename allocator_traits<_Alloc>::template
 	  rebind_traits<_Sp_counted_deleter> _Alloc_traits;
-	typename _Alloc_traits::allocator_type __a(_M_del);
+	typename _Alloc_traits::allocator_type __a(_M_impl._M_alloc());
 	_Alloc_traits::destroy(__a, this);
 	_Alloc_traits::deallocate(__a, this, 1);
       }
 
       virtual void*
-      _M_get_deleter(const std::type_info& __ti)
+      _M_get_deleter(const std::type_info& __ti) noexcept
       {
 #ifdef __GXX_RTTI
-        return __ti == typeid(_Deleter) ? &_M_del._M_del : 0;
+        return __ti == typeid(_Deleter) ? &_M_impl._M_del() : nullptr;
 #else
-        return 0;
+        return nullptr;
 #endif
       }
 
-    protected:
-      _Ptr             _M_ptr;  // copy constructor must not throw
-      _My_Deleter      _M_del;  // copy constructor must not throw
+    private:
+      _Impl _M_impl;
     };
 
   // helpers for make_shared / allocate_shared
@@ -378,25 +412,26 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _Tp, typename _Alloc, _Lock_policy _Lp>
     class _Sp_counted_ptr_inplace final : public _Sp_counted_base<_Lp>
     {
-      // Helper class that stores the pointer and also acts as an allocator.
-      // Used to dispose of the owned pointer and the internal refcount
-      // Requires that copies of _Alloc can free each other's memory.
-      struct _Impl
-      : public _Alloc           // copy constructor must not throw
+      class _Impl : _Sp_ebo_helper<0, _Alloc>
       {
-	_Impl(_Alloc __a) : _Alloc(__a), _M_ptr() { }
-	_Tp* _M_ptr;
+	typedef _Sp_ebo_helper<0, _Alloc>	_A_base;
+
+      public:
+	explicit _Impl(_Alloc __a) noexcept : _A_base(__a) { }
+
+	_Alloc& _M_alloc() noexcept { return _A_base::_S_get(*this); }
+
+	__gnu_cxx::__aligned_buffer<_Tp> _M_storage;
       };
 
     public:
       template<typename... _Args>
 	_Sp_counted_ptr_inplace(_Alloc __a, _Args&&... __args)
-	: _M_impl(__a), _M_storage()
+	: _M_impl(__a)
 	{
-	  _M_impl._M_ptr = static_cast<_Tp*>(static_cast<void*>(&_M_storage));
 	  // _GLIBCXX_RESOLVE_LIB_DEFECTS
 	  // 2070.  allocate_shared should use allocator_traits<A>::construct
-	  allocator_traits<_Alloc>::construct(__a, _M_impl._M_ptr,
+	  allocator_traits<_Alloc>::construct(__a, _M_ptr(),
 	      std::forward<_Args>(__args)...); // might throw
 	}
 
@@ -404,7 +439,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       virtual void
       _M_dispose() noexcept
-      { allocator_traits<_Alloc>::destroy(_M_impl, _M_impl._M_ptr); }
+      {
+	allocator_traits<_Alloc>::destroy(_M_impl._M_alloc(), _M_ptr());
+      }
 
       // Override because the allocator needs to know the dynamic type
       virtual void
@@ -412,7 +449,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       {
 	typedef typename allocator_traits<_Alloc>::template
 	  rebind_traits<_Sp_counted_ptr_inplace> _Alloc_traits;
-	typename _Alloc_traits::allocator_type __a(_M_impl);
+	typename _Alloc_traits::allocator_type __a(_M_impl._M_alloc());
 	_Alloc_traits::destroy(__a, this);
 	_Alloc_traits::deallocate(__a, this, 1);
       }
@@ -422,19 +459,18 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _M_get_deleter(const std::type_info& __ti) noexcept
       {
 #ifdef __GXX_RTTI
-	return __ti == typeid(_Sp_make_shared_tag)
-	       ? static_cast<void*>(&_M_storage)
-	       : 0;
-#else
-        return 0;
+	if (__ti == typeid(_Sp_make_shared_tag))
+	  return const_cast<typename remove_cv<_Tp>::type*>(_M_ptr());
 #endif
+	return nullptr;
       }
 
     private:
+      _Tp* _M_ptr() noexcept { return _M_impl._M_storage._M_ptr(); }
+
       _Impl _M_impl;
-      typename aligned_storage<sizeof(_Tp), alignment_of<_Tp>::value>::type
-	_M_storage;
     };
+
 
   template<_Lock_policy _Lp>
     class __shared_count
@@ -460,7 +496,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       template<typename _Ptr, typename _Deleter>
 	__shared_count(_Ptr __p, _Deleter __d)
-	: __shared_count(__p, std::move(__d), allocator<int>())
+	: __shared_count(__p, std::move(__d), allocator<void>())
 	{ }
 
       template<typename _Ptr, typename _Deleter, typename _Alloc>
@@ -586,7 +622,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       void*
       _M_get_deleter(const std::type_info& __ti) const noexcept
-      { return _M_pi ? _M_pi->_M_get_deleter(__ti) : 0; }
+      { return _M_pi ? _M_pi->_M_get_deleter(__ti) : nullptr; }
 
       bool
       _M_less(const __shared_count& __rhs) const noexcept
@@ -739,6 +775,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
         : _M_ptr(__p), _M_refcount(__p)
 	{
 	  __glibcxx_function_requires(_ConvertibleConcept<_Tp1*, _Tp*>)
+	  static_assert( !is_void<_Tp>::value, "incomplete type" );
 	  static_assert( sizeof(_Tp1) > 0, "incomplete type" );
 	  __enable_shared_from_this_helper(_M_refcount, __p, __p);
 	}
@@ -819,9 +856,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	: _M_ptr(__r.get()), _M_refcount()
 	{
 	  __glibcxx_function_requires(_ConvertibleConcept<_Tp1*, _Tp*>)
-	  auto __tmp = std::__addressof(*__r.get());
+	  auto __raw = _S_raw_ptr(__r.get());
 	  _M_refcount = __shared_count<_Lp>(std::move(__r));
-	  __enable_shared_from_this_helper(_M_refcount, __tmp, __tmp);
+	  __enable_shared_from_this_helper(_M_refcount, __raw, __raw);
 	}
 
 #if _GLIBCXX_USE_DEPRECATED
@@ -1012,6 +1049,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _M_get_deleter(const std::type_info& __ti) const noexcept
       { return _M_refcount._M_get_deleter(__ti); }
 
+      template<typename _Tp1>
+	static _Tp1*
+	_S_raw_ptr(_Tp1* __ptr)
+	{ return __ptr; }
+
+      template<typename _Tp1>
+	static auto
+	_S_raw_ptr(_Tp1 __ptr) -> decltype(std::__addressof(*__ptr))
+	{ return std::__addressof(*__ptr); }
+
       template<typename _Tp1, _Lock_policy _Lp1> friend class __shared_ptr;
       template<typename _Tp1, _Lock_policy _Lp1> friend class __weak_ptr;
 
@@ -1139,13 +1186,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     : public _Sp_less<__shared_ptr<_Tp, _Lp>>
     { };
 
-  // 2.2.3.8 shared_ptr specialized algorithms.
+  // 20.7.2.2.8 shared_ptr specialized algorithms.
   template<typename _Tp, _Lock_policy _Lp>
     inline void
     swap(__shared_ptr<_Tp, _Lp>& __a, __shared_ptr<_Tp, _Lp>& __b) noexcept
     { __a.swap(__b); }
 
-  // 2.2.3.9 shared_ptr casts
+  // 20.7.2.2.9 shared_ptr casts
 
   // The seemingly equivalent code:
   // shared_ptr<_Tp, _Lp>(static_cast<_Tp*>(__r.get()))

@@ -345,7 +345,7 @@ package Exp_Util is
    --  This procedure ensures that type referenced by Typ is defined. For the
    --  case of a type other than an Itype, nothing needs to be done, since
    --  all such types have declaration nodes. For Itypes, an N_Itype_Reference
-   --  node is generated and inserted at the given node N. This is typically
+   --  node is generated and inserted as an action on node N. This is typically
    --  used to ensure that an Itype is properly defined outside a conditional
    --  construct when it is referenced in more than one branch.
 
@@ -355,9 +355,9 @@ package Exp_Util is
    --  by the compiler and used by GDB.
 
    procedure Evaluate_Name (Nam : Node_Id);
-   --  Remove the all side effects from a name which appears as part of an
-   --  object renaming declaration. More comments are needed here that explain
-   --  how this differs from Force_Evaluation and Remove_Side_Effects ???
+   --  Remove all side effects from a name which appears as part of an object
+   --  renaming declaration. More comments are needed here that explain how
+   --  this differs from Force_Evaluation and Remove_Side_Effects ???
 
    procedure Evolve_And_Then (Cond : in out Node_Id; Cond1 : Node_Id);
    --  Rewrites Cond with the expression: Cond and then Cond1. If Cond is
@@ -372,6 +372,12 @@ package Exp_Util is
    --  series of checks evolved by this routine, with a final result of Empty
    --  indicating that no checks were required). The Sloc field of the
    --  constructed N_Or_Else node is copied from Cond1.
+
+   procedure Expand_Static_Predicates_In_Choices (N : Node_Id);
+   --  N is either a case alternative or a variant. The Discrete_Choices field
+   --  of N points to a list of choices. If any of these choices is the name
+   --  of a (statically) predicated subtype, then it is rewritten as the series
+   --  of choices that correspond to the values allowed for the subtype.
 
    procedure Expand_Subtype_From_Expr
      (N             : Node_Id;
@@ -438,9 +444,12 @@ package Exp_Util is
    --  Force_Evaluation further guarantees that all evaluations will yield
    --  the same result.
 
-   function Fully_Qualified_Name_String (E : Entity_Id) return String_Id;
+   function Fully_Qualified_Name_String
+     (E          : Entity_Id;
+      Append_NUL : Boolean := True) return String_Id;
    --  Generates the string literal corresponding to the fully qualified name
-   --  of entity E with an ASCII.NUL appended at the end of the name.
+   --  of entity E, in all upper case, with an ASCII.NUL appended at the end
+   --  of the name if Append_NUL is True.
 
    procedure Generate_Poll_Call (N : Node_Id);
    --  If polling is active, then a call to the Poll routine is built,
@@ -647,16 +656,20 @@ package Exp_Util is
 
    function Make_Predicate_Call
      (Typ  : Entity_Id;
-      Expr : Node_Id) return Node_Id;
+      Expr : Node_Id;
+      Mem  : Boolean := False) return Node_Id;
    --  Typ is a type with Predicate_Function set. This routine builds a call to
    --  this function passing Expr as the argument, and returns it unanalyzed.
+   --  If Mem is set True, this is the special call for the membership case,
+   --  and the function called is the Predicate_Function_M if present.
 
    function Make_Predicate_Check
      (Typ  : Entity_Id;
       Expr : Node_Id) return Node_Id;
    --  Typ is a type with Predicate_Function set. This routine builds a Check
-   --  pragma whose first argument is Predicate, and the second argument is a
-   --  call to the this predicate function with Expr as the argument.
+   --  pragma whose first argument is Predicate, and the second argument is
+   --  a call to the predicate function of Typ with Expr as the argument. If
+   --  Predicate_Check is suppressed then a null statement is returned instead.
 
    function Make_Subtype_From_Expr
      (E       : Node_Id;

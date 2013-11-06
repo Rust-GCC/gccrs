@@ -232,6 +232,11 @@ DEFTREECODE (QUAL_UNION_TYPE, "qual_union_type", tcc_type, 0)
 /* The void type in C */
 DEFTREECODE (VOID_TYPE, "void_type", tcc_type, 0)
 
+/* Type to hold bounds for a pointer.
+   Has TYPE_PRECISION component to specify number of bits used
+   by this type.  */
+DEFTREECODE (POINTER_BOUNDS_TYPE, "pointer_bounds_type", tcc_type, 0)
+
 /* Type of functions.  Special fields:
    TREE_TYPE		    type of value returned.
    TYPE_ARG_TYPES      list of types of arguments expected.
@@ -1030,6 +1035,29 @@ DEFTREECODE (OMP_TASK, "omp_task", tcc_statement, 2)
    unspecified by the standard.  */
 DEFTREECODE (OMP_FOR, "omp_for", tcc_statement, 6)
 
+/* OpenMP - #pragma omp simd [clause1 ... clauseN]
+   Operands like for OMP_FOR.  */
+DEFTREECODE (OMP_SIMD, "omp_simd", tcc_statement, 6)
+
+/* OpenMP - #pragma omp distribute [clause1 ... clauseN]
+   Operands like for OMP_FOR.  */
+DEFTREECODE (OMP_DISTRIBUTE, "omp_distribute", tcc_statement, 6)
+
+/* OpenMP - #pragma omp teams [clause1 ... clauseN]
+   Operand 0: OMP_TEAMS_BODY: Teams body.
+   Operand 1: OMP_TEAMS_CLAUSES: List of clauses.  */
+DEFTREECODE (OMP_TEAMS, "omp_teams", tcc_statement, 2)
+
+/* OpenMP - #pragma omp target data [clause1 ... clauseN]
+   Operand 0: OMP_TARGET_DATA_BODY: Target data construct body.
+   Operand 1: OMP_TARGET_DATA_CLAUSES: List of clauses.  */
+DEFTREECODE (OMP_TARGET_DATA, "omp_target_data", tcc_statement, 2)
+
+/* OpenMP - #pragma omp target [clause1 ... clauseN]
+   Operand 0: OMP_TARGET_BODY: Target construct body.
+   Operand 1: OMP_TARGET_CLAUSES: List of clauses.  */
+DEFTREECODE (OMP_TARGET, "omp_target", tcc_statement, 2)
+
 /* OpenMP - #pragma omp sections [clause1 ... clauseN]
    Operand 0: OMP_SECTIONS_BODY: Sections body.
    Operand 1: OMP_SECTIONS_CLAUSES: List of clauses.  */
@@ -1048,6 +1076,10 @@ DEFTREECODE (OMP_SECTION, "omp_section", tcc_statement, 1)
    Operand 0: OMP_MASTER_BODY: Master section body.  */
 DEFTREECODE (OMP_MASTER, "omp_master", tcc_statement, 1)
 
+/* OpenMP - #pragma omp taskgroup
+   Operand 0: OMP_TASKGROUP_BODY: Taskgroup body.  */
+DEFTREECODE (OMP_TASKGROUP, "omp_taskgroup", tcc_statement, 1)
+
 /* OpenMP - #pragma omp ordered
    Operand 0: OMP_ORDERED_BODY: Master section body.  */
 DEFTREECODE (OMP_ORDERED, "omp_ordered", tcc_statement, 1)
@@ -1056,6 +1088,13 @@ DEFTREECODE (OMP_ORDERED, "omp_ordered", tcc_statement, 1)
    Operand 0: OMP_CRITICAL_BODY: Critical section body.
    Operand 1: OMP_CRITICAL_NAME: Identifier for critical section.  */
 DEFTREECODE (OMP_CRITICAL, "omp_critical", tcc_statement, 2)
+
+/* OpenMP - #pragma omp target update [clause1 ... clauseN]
+   Operand 0: OMP_TARGET_UPDATE_CLAUSES: List of clauses.  */
+DEFTREECODE (OMP_TARGET_UPDATE, "omp_target_update", tcc_statement, 1)
+
+/* OMP_ATOMIC through OMP_ATOMIC_CAPTURE_NEW must be consecutive,
+   or OMP_ATOMIC_SEQ_CST needs adjusting.  */
 
 /* OpenMP - #pragma omp atomic
    Operand 0: The address at which the atomic operation is to be performed.
@@ -1226,6 +1265,18 @@ DEFTREECODE (OPTIMIZATION_NODE, "optimization_node", tcc_exceptional, 0)
 
 /* TARGET_OPTION_NODE.  Node to store the target specific options.  */
 DEFTREECODE (TARGET_OPTION_NODE, "target_option_node", tcc_exceptional, 0)
+
+/* ANNOTATE_EXPR.
+   Operand 0 is the expression to be annotated.
+   Operand 1 is the annotation id. */
+DEFTREECODE (ANNOTATE_EXPR, "annotate_expr", tcc_expression, 2)
+
+/* Cilk spawn statement
+   Operand 0 is the CALL_EXPR.  */
+DEFTREECODE (CILK_SPAWN_STMT, "cilk_spawn_stmt", tcc_statement, 1)
+
+/* Cilk Sync statement: Does not have any operands.  */
+DEFTREECODE (CILK_SYNC_STMT, "cilk_sync_stmt", tcc_statement, 0)
 
 /*
 Local variables:

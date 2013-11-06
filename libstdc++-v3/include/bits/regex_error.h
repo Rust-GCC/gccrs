@@ -45,7 +45,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    * @name 5.3 Error Types
    */
   //@{
- 
+
   enum error_type
     {
       _S_error_collate,
@@ -61,7 +61,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _S_error_badrepeat,
       _S_error_complexity,
       _S_error_stack,
-      _S_error_last
     };
 
   /** The expression contained an invalid collating element name. */

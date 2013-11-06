@@ -293,12 +293,14 @@ inline void dump_bitmap (FILE *file, const_bitmap map)
 {
   bitmap_print (file, map, "", "\n");
 }
+extern void debug (const bitmap_head_def &ref);
+extern void debug (const bitmap_head_def *ptr);
 
 extern unsigned bitmap_first_set_bit (const_bitmap);
 extern unsigned bitmap_last_set_bit (const_bitmap);
 
 /* Compute bitmap hash (for purposes of hashing etc.)  */
-extern hashval_t bitmap_hash(const_bitmap);
+extern hashval_t bitmap_hash (const_bitmap);
 
 /* Allocate a bitmap from a bit obstack.  */
 #define BITMAP_ALLOC(OBSTACK) bitmap_obstack_alloc (OBSTACK)

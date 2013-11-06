@@ -1,6 +1,6 @@
-// PR c++/58535
+// PR c++/57352
 
-struct A
+struct x
 {
-  template<int> virtual void foo(); // { dg-error "templates" }
+  operator class {} ();  // { dg-error "types|expected" }
 };

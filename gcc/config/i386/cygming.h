@@ -55,6 +55,9 @@ along with GCC; see the file COPYING3.  If not see
 #undef DEFAULT_ABI
 #define DEFAULT_ABI (TARGET_64BIT ? MS_ABI : SYSV_ABI)
 
+#undef TARGET_PECOFF
+#define TARGET_PECOFF 1
+
 #if ! defined (USE_MINGW64_LEADING_UNDERSCORES)
 #undef USER_LABEL_PREFIX
 #define USER_LABEL_PREFIX (TARGET_64BIT ? "" : "_")
@@ -167,6 +170,9 @@ along with GCC; see the file COPYING3.  If not see
 
 #undef MATH_LIBRARY
 #define MATH_LIBRARY ""
+
+#undef TARGET_LIBC_HAS_FUNCTION
+#define TARGET_LIBC_HAS_FUNCTION no_c99_libc_has_function
 
 #define SIZE_TYPE (TARGET_64BIT ? "long long unsigned int" : "unsigned int")
 #define PTRDIFF_TYPE (TARGET_64BIT ? "long long int" : "int")
@@ -473,6 +479,9 @@ do {						\
 
 #undef TARGET_ASM_ASSEMBLE_VISIBILITY
 #define TARGET_ASM_ASSEMBLE_VISIBILITY i386_pe_assemble_visibility
+
+#undef SUB_TARGET_RECORD_STUB
+#define SUB_TARGET_RECORD_STUB i386_pe_record_stub
 
 /* Static stack checking is supported by means of probes.  */
 #define STACK_CHECK_STATIC_BUILTIN 1

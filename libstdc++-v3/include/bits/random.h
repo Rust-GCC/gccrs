@@ -1638,9 +1638,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     union
     {
-    FILE*        _M_file;
-    mt19937      _M_mt;
-  };
+      void*      _M_file;
+      mt19937    _M_mt;
+    };
   };
 
   /* @} */ // group random_generators
@@ -3333,7 +3333,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     };
 
   /**
-   * @brief Return true if two Fisher f distributions are diferent.
+   * @brief Return true if two Fisher f distributions are different.
    */
   template<typename _RealType>
     inline bool

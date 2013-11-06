@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -62,7 +62,7 @@ package Restrict is
    --  since we want the binder to be able to accurately diagnose inter-unit
    --  restriction violations.
 
-   Restriction_Warnings : Rident.Restriction_Flags;
+   Restriction_Warnings : Rident.Restriction_Flags := (others => False);
    --  If one of these flags is set, then it means that violation of the
    --  corresponding restriction results only in a warning message, not
    --  in an error message, and the restriction is not otherwise enforced.
@@ -101,9 +101,9 @@ package Restrict is
      (No_Unchecked_Deallocation,   "a-uncdea"),
      (No_Unchecked_Deallocation,   "unchdeal"));
 
-   --  The following map has True for all GNAT pragmas. It is used to
-   --  implement pragma Restrictions (No_Implementation_Restrictions)
-   --  (which is why this restriction itself is excluded from the list).
+   --  The following map has True for all GNAT-defined Restrictions. It is used
+   --  to implement pragma Restrictions (No_Implementation_Restrictions) (which
+   --  is why this restriction itself is excluded from the list).
 
    Implementation_Restriction : array (All_Restrictions) of Boolean :=
      (Simple_Barriers                    => True,
@@ -142,7 +142,7 @@ package Restrict is
       No_Wide_Characters                 => True,
       Static_Priorities                  => True,
       Static_Storage_Size                => True,
-      SPARK                              => True,
+      SPARK_05                           => True,
       others                             => False);
 
    --  The following table records entries made by Restrictions pragmas
@@ -175,34 +175,6 @@ package Restrict is
      Table_Initial        => 200,
      Table_Increment      => 200,
      Table_Name           => "Name_No_Dependences");
-
-   -------------------------------
-   -- SPARK Restriction Control --
-   -------------------------------
-
-   --  SPARK HIDE directives allow the effect of the SPARK restriction to be
-   --  turned off for a specified region of code, and the following tables are
-   --  the data structures used to keep track of these regions.
-
-   --  The table contains pairs of source locations, the first being the start
-   --  location for hidden region, and the second being the end location.
-
-   --  Note that the start location is included in the hidden region, while
-   --  the end location is excluded from it. (It typically corresponds to the
-   --  next token during scanning.)
-
-   type SPARK_Hide_Entry is record
-      Start : Source_Ptr;
-      Stop  : Source_Ptr;
-   end record;
-
-   package SPARK_Hides is new Table.Table (
-     Table_Component_Type => SPARK_Hide_Entry,
-     Table_Index_Type     => Natural,
-     Table_Low_Bound      => 1,
-     Table_Initial        => 100,
-     Table_Increment      => 200,
-     Table_Name           => "SPARK Hides");
 
    -----------------
    -- Subprograms --
@@ -252,6 +224,16 @@ package Restrict is
    --  Wrapper on Check_Restriction with Msg_Issued, with the out-parameter
    --  being ignored here.
 
+   procedure Check_Restriction_No_Use_Of_Attribute (N : Node_Id);
+   --  N is the node of an attribute definition clause. An error message
+   --  (warning) will be issued if a restriction (warning) was previously set
+   --  for this attribute using Set_No_Use_Of_Attribute.
+
+   procedure Check_Restriction_No_Use_Of_Pragma (N : Node_Id);
+   --  N is the node of a pragma. An error message (warning) will be issued
+   --  if a restriction (warning) was previously set for this pragma using
+   --  Set_No_Use_Of_Pragma.
+
    procedure Check_Restriction_No_Dependence (U : Node_Id; Err : Node_Id);
    --  Called when a dependence on a unit is created (either implicitly, or by
    --  an explicit WITH clause). U is a node for the unit involved, and Err is
@@ -272,10 +254,10 @@ package Restrict is
      (Msg   : String;
       N     : Node_Id;
       Force : Boolean := False);
-   --  Node N represents a construct not allowed in formal mode. If this is a
-   --  source node, or if the restriction is forced (Force = True), and the
-   --  SPARK restriction is set, then an error is issued on N. Msg is appended
-   --  to the restriction failure message.
+   --  Node N represents a construct not allowed in formal mode. If this is
+   --  a source node, or if the restriction is forced (Force = True), and
+   --  the SPARK_05 restriction is set, then an error is issued on N. Msg
+   --  is appended to the restriction failure message.
 
    procedure Check_SPARK_Restriction (Msg1, Msg2 : String; N : Node_Id);
    --  Same as Check_SPARK_Restriction except there is a continuation message
@@ -319,6 +301,11 @@ package Restrict is
    --  Given an identifier name, determines if it is a valid restriction
    --  identifier, and if so returns the corresponding Restriction_Id value,
    --  otherwise returns Not_A_Restriction_Id.
+
+   function OK_No_Dependence_Unit_Name (N : Node_Id) return Boolean;
+   --  Used in checking No_Dependence argument of pragma Restrictions or
+   --  pragma Restrictions_Warning, or attribute Restriction_Set. Returns
+   --  True if N has the proper form for a unit name, False otherwise.
 
    function Is_In_Hidden_Part_In_SPARK (Loc : Source_Ptr) return Boolean;
    --  Determine if given location is covered by a hidden region range in the
@@ -370,7 +357,9 @@ package Restrict is
    --  restrictions are set.
 
    procedure Set_Hidden_Part_In_SPARK (Loc1, Loc2 : Source_Ptr);
-   --  Insert a new hidden region range in the SPARK hides table
+   --  Insert a new hidden region range in the SPARK hides table. The effect
+   --  is to hide any SPARK violation messages which are in the range Loc1 to
+   --  Loc2-1 (i.e. Loc2 is the first location for reenabling checks).
 
    procedure Set_Profile_Restrictions
      (P    : Profile_Name;
@@ -415,6 +404,19 @@ package Restrict is
    --  the identifier is not a valid aspect name. Warning is set True for the
    --  case of a Restriction_Warnings pragma specifying this restriction and
    --  False for a Restrictions pragma specifying this restriction.
+
+   procedure Set_Restriction_No_Use_Of_Attribute
+     (N       : Node_Id;
+      Warning : Boolean);
+   --  N is the node id for the identifier in a pragma Restrictions for
+   --  No_Use_Of_Attribute. Caller has verified that this is a valid attribute
+   --  designator.
+
+   procedure Set_Restriction_No_Use_Of_Pragma
+     (N       : Node_Id;
+      Warning : Boolean);
+   --  N is the node id for the identifier in a pragma Restrictions for
+   --  No_Use_Of_Pragma. Caller has verified that this is a valid pragma id.
 
    function Tasking_Allowed return Boolean;
    pragma Inline (Tasking_Allowed);

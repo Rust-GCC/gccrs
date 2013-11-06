@@ -18,25 +18,29 @@
 ;; along with GCC; see the file COPYING3.  If not see
 ;; <http://www.gnu.org/licenses/>.
 
-;; Use an artifial unit to model FPU.
-(define_cpu_unit "cortex_m4_v" "cortex_m4")
+;; Use two artificial units to model FPU.
+(define_cpu_unit "cortex_m4_v_a" "cortex_m4")
+(define_cpu_unit "cortex_m4_v_b" "cortex_m4")
 
+(define_reservation "cortex_m4_v" "cortex_m4_v_a+cortex_m4_v_b")
 (define_reservation "cortex_m4_ex_v" "cortex_m4_ex+cortex_m4_v")
+(define_reservation "cortex_m4_exa_va" "cortex_m4_a+cortex_m4_v_a")
+(define_reservation "cortex_m4_exb_vb" "cortex_m4_b+cortex_m4_v_b")
 
 ;; Integer instructions following VDIV or VSQRT complete out-of-order.
 (define_insn_reservation "cortex_m4_fdivs" 15
   (and (eq_attr "tune" "cortexm4")
-       (eq_attr "type" "fdivs"))
+       (eq_attr "type" "fdivs, fsqrts"))
   "cortex_m4_ex_v,cortex_m4_v*13")
 
 (define_insn_reservation "cortex_m4_vmov_1" 1
   (and (eq_attr "tune" "cortexm4")
-       (eq_attr "type" "fcpys,fconsts"))
+       (eq_attr "type" "fmov,fconsts"))
   "cortex_m4_ex_v")
 
 (define_insn_reservation "cortex_m4_vmov_2" 2
   (and (eq_attr "tune" "cortexm4")
-       (eq_attr "type" "f_2_r,r_2_f"))
+       (eq_attr "type" "f_mrc,f_mrrc,f_mcr,f_mcrr"))
   "cortex_m4_ex_v*2")
 
 (define_insn_reservation "cortex_m4_fmuls" 2
@@ -44,10 +48,12 @@
        (eq_attr "type" "fmuls"))
   "cortex_m4_ex_v")
 
+;; Integer instructions following multiply-accumulate instructions
+;; complete out-of-order.
 (define_insn_reservation "cortex_m4_fmacs" 4
   (and (eq_attr "tune" "cortexm4")
        (eq_attr "type" "fmacs,ffmas"))
-  "cortex_m4_ex_v*3")
+  "cortex_m4_ex_v,cortex_m4_v*2")
 
 (define_insn_reservation "cortex_m4_ffariths" 1
   (and (eq_attr "tune" "cortexm4")
@@ -71,18 +77,18 @@
 
 (define_insn_reservation "cortex_m4_f_cvt" 2
   (and (eq_attr "tune" "cortexm4")
-       (eq_attr "type" "f_cvt"))
+       (eq_attr "type" "f_cvt,f_cvtf2i,f_cvti2f"))
   "cortex_m4_ex_v")
 
 (define_insn_reservation "cortex_m4_f_load" 2
   (and (eq_attr "tune" "cortexm4")
        (eq_attr "type" "f_loads"))
-  "cortex_m4_ex_v*2")
+  "cortex_m4_exa_va,cortex_m4_exb_vb")
 
-(define_insn_reservation "cortex_m4_f_store" 2
+(define_insn_reservation "cortex_m4_f_store" 1
   (and (eq_attr "tune" "cortexm4")
        (eq_attr "type" "f_stores"))
-  "cortex_m4_ex_v*2")
+  "cortex_m4_exa_va")
 
 (define_insn_reservation "cortex_m4_f_loadd" 3
   (and (eq_attr "tune" "cortexm4")

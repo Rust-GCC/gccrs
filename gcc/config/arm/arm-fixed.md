@@ -19,12 +19,14 @@
 ;; This file contains ARM instructions that support fixed-point operations.
 
 (define_insn "add<mode>3"
-  [(set (match_operand:FIXED 0 "s_register_operand" "=r")
-	(plus:FIXED (match_operand:FIXED 1 "s_register_operand" "r")
-		    (match_operand:FIXED 2 "s_register_operand" "r")))]
+  [(set (match_operand:FIXED 0 "s_register_operand" "=l,r")
+	(plus:FIXED (match_operand:FIXED 1 "s_register_operand" "l,r")
+		    (match_operand:FIXED 2 "s_register_operand" "l,r")))]
   "TARGET_32BIT"
   "add%?\\t%0, %1, %2"
-  [(set_attr "predicable" "yes")])
+  [(set_attr "predicable" "yes")
+   (set_attr "predicable_short_it" "yes,no")
+   (set_attr "type" "alu_reg")])
 
 (define_insn "add<mode>3"
   [(set (match_operand:ADDSUB 0 "s_register_operand" "=r")
@@ -32,7 +34,9 @@
 		     (match_operand:ADDSUB 2 "s_register_operand" "r")))]
   "TARGET_INT_SIMD"
   "sadd<qaddsub_suf>%?\\t%0, %1, %2"
-  [(set_attr "predicable" "yes")])
+  [(set_attr "predicable" "yes")
+   (set_attr "predicable_short_it" "no")
+   (set_attr "type" "alu_reg")])
 
 (define_insn "usadd<mode>3"
   [(set (match_operand:UQADDSUB 0 "s_register_operand" "=r")
@@ -40,7 +44,9 @@
 			  (match_operand:UQADDSUB 2 "s_register_operand" "r")))]
   "TARGET_INT_SIMD"
   "uqadd<qaddsub_suf>%?\\t%0, %1, %2"
-  [(set_attr "predicable" "yes")])
+  [(set_attr "predicable" "yes")
+   (set_attr "predicable_short_it" "no")
+   (set_attr "type" "alu_reg")])
 
 (define_insn "ssadd<mode>3"
   [(set (match_operand:QADDSUB 0 "s_register_operand" "=r")
@@ -48,15 +54,19 @@
 			 (match_operand:QADDSUB 2 "s_register_operand" "r")))]
   "TARGET_INT_SIMD"
   "qadd<qaddsub_suf>%?\\t%0, %1, %2"
-  [(set_attr "predicable" "yes")])
+  [(set_attr "predicable" "yes")
+   (set_attr "predicable_short_it" "no")
+   (set_attr "type" "alu_reg")])
 
 (define_insn "sub<mode>3"
-  [(set (match_operand:FIXED 0 "s_register_operand" "=r")
-	(minus:FIXED (match_operand:FIXED 1 "s_register_operand" "r")
-		     (match_operand:FIXED 2 "s_register_operand" "r")))]
+  [(set (match_operand:FIXED 0 "s_register_operand" "=l,r")
+	(minus:FIXED (match_operand:FIXED 1 "s_register_operand" "l,r")
+		     (match_operand:FIXED 2 "s_register_operand" "l,r")))]
   "TARGET_32BIT"
   "sub%?\\t%0, %1, %2"
-  [(set_attr "predicable" "yes")])
+  [(set_attr "predicable" "yes")
+   (set_attr "predicable_short_it" "yes,no")
+   (set_attr "type" "alu_reg")])
 
 (define_insn "sub<mode>3"
   [(set (match_operand:ADDSUB 0 "s_register_operand" "=r")
@@ -64,7 +74,9 @@
 		      (match_operand:ADDSUB 2 "s_register_operand" "r")))]
   "TARGET_INT_SIMD"
   "ssub<qaddsub_suf>%?\\t%0, %1, %2"
-  [(set_attr "predicable" "yes")])
+  [(set_attr "predicable" "yes")
+   (set_attr "predicable_short_it" "no")
+   (set_attr "type" "alu_reg")])
 
 (define_insn "ussub<mode>3"
   [(set (match_operand:UQADDSUB 0 "s_register_operand" "=r")
@@ -73,7 +85,9 @@
 	  (match_operand:UQADDSUB 2 "s_register_operand" "r")))]
   "TARGET_INT_SIMD"
   "uqsub<qaddsub_suf>%?\\t%0, %1, %2"
-  [(set_attr "predicable" "yes")])
+  [(set_attr "predicable" "yes")
+   (set_attr "predicable_short_it" "no")
+   (set_attr "type" "alu_reg")])
 
 (define_insn "sssub<mode>3"
   [(set (match_operand:QADDSUB 0 "s_register_operand" "=r")
@@ -81,7 +95,9 @@
 			  (match_operand:QADDSUB 2 "s_register_operand" "r")))]
   "TARGET_INT_SIMD"
   "qsub<qaddsub_suf>%?\\t%0, %1, %2"
-  [(set_attr "predicable" "yes")])
+  [(set_attr "predicable" "yes")
+   (set_attr "predicable_short_it" "no")
+   (set_attr "type" "alu_reg")])
 
 ;; Fractional multiplies.
 
@@ -96,7 +112,7 @@
   rtx tmp1 = gen_reg_rtx (HImode);
   rtx tmp2 = gen_reg_rtx (HImode);
   rtx tmp3 = gen_reg_rtx (SImode);
-  
+
   emit_insn (gen_extendqihi2 (tmp1, gen_lowpart (QImode, operands[1])));
   emit_insn (gen_extendqihi2 (tmp2, gen_lowpart (QImode, operands[2])));
   emit_insn (gen_mulhisi3 (tmp3, tmp1, tmp2));
@@ -132,7 +148,7 @@
   rtx tmp1 = gen_reg_rtx (DImode);
   rtx tmp2 = gen_reg_rtx (SImode);
   rtx tmp3 = gen_reg_rtx (SImode);
-  
+
   /* s.31 * s.31 -> s.62 multiplication.  */
   emit_insn (gen_mulsidi3 (tmp1, gen_lowpart (SImode, operands[1]),
 			   gen_lowpart (SImode, operands[2])));
@@ -154,7 +170,7 @@
   rtx tmp1 = gen_reg_rtx (DImode);
   rtx tmp2 = gen_reg_rtx (SImode);
   rtx tmp3 = gen_reg_rtx (SImode);
-  
+
   emit_insn (gen_mulsidi3 (tmp1, gen_lowpart (SImode, operands[1]),
 			   gen_lowpart (SImode, operands[2])));
   emit_insn (gen_lshrsi3 (tmp2, gen_lowpart (SImode, tmp1), GEN_INT (15)));
@@ -173,13 +189,13 @@
   rtx tmp1 = gen_reg_rtx (DImode);
   rtx tmp2 = gen_reg_rtx (SImode);
   rtx tmp3 = gen_reg_rtx (SImode);
-  
+
   emit_insn (gen_umulsidi3 (tmp1, gen_lowpart (SImode, operands[1]),
 			    gen_lowpart (SImode, operands[2])));
   emit_insn (gen_lshrsi3 (tmp2, gen_lowpart (SImode, tmp1), GEN_INT (16)));
   emit_insn (gen_ashlsi3 (tmp3, gen_highpart (SImode, tmp1), GEN_INT (16)));
   emit_insn (gen_iorsi3 (gen_lowpart (SImode, operands[0]), tmp2, tmp3));
-  
+
   DONE;
 })
 
@@ -209,7 +225,7 @@
     }
 
   /* We have:
-      31  high word  0     31  low word  0 
+      31  high word  0     31  low word  0
 
     [ S i i .... i i i ] [ i f f f ... f f ]
                         |
@@ -221,17 +237,29 @@
   output_asm_insn ("ssat\\t%R3, #15, %R3", operands);
   output_asm_insn ("mrs\\t%4, APSR", operands);
   output_asm_insn ("tst\\t%4, #1<<27", operands);
-  if (TARGET_THUMB2)
-    output_asm_insn ("it\\tne", operands);
-  output_asm_insn ("mvnne\\t%Q3, %R3, asr #32", operands);
+  if (arm_restrict_it)
+    {
+      output_asm_insn ("mvn\\t%4, %R3, asr #32", operands);
+      output_asm_insn ("it\\tne", operands);
+      output_asm_insn ("movne\\t%Q3, %4", operands);
+    }
+  else
+    {
+      if (TARGET_THUMB2)
+        output_asm_insn ("it\\tne", operands);
+      output_asm_insn ("mvnne\\t%Q3, %R3, asr #32", operands);
+    }
   output_asm_insn ("mov\\t%0, %Q3, lsr #15", operands);
   output_asm_insn ("orr\\t%0, %0, %R3, asl #17", operands);
   return "";
 }
   [(set_attr "conds" "clob")
+   (set_attr "type" "multiple")
    (set (attr "length")
 	(if_then_else (eq_attr "is_thumb" "yes")
-		      (const_int 38)
+		      (if_then_else (match_test "arm_restrict_it")
+		                    (const_int 40)
+		                    (const_int 38))
 		      (const_int 32)))])
 
 ;; Same goes for this.
@@ -257,7 +285,7 @@
     }
 
   /* We have:
-      31  high word  0     31  low word  0 
+      31  high word  0     31  low word  0
 
     [ i i i .... i i i ] [ f f f f ... f f ]
                         |
@@ -269,17 +297,29 @@
   output_asm_insn ("usat\\t%R3, #16, %R3", operands);
   output_asm_insn ("mrs\\t%4, APSR", operands);
   output_asm_insn ("tst\\t%4, #1<<27", operands);
-  if (TARGET_THUMB2)
-    output_asm_insn ("it\\tne", operands);
-  output_asm_insn ("sbfxne\\t%Q3, %R3, #15, #1", operands);
+  if (arm_restrict_it)
+    {
+      output_asm_insn ("sbfx\\t%4, %R3, #15, #1", operands);
+      output_asm_insn ("it\\tne", operands);
+      output_asm_insn ("movne\\t%Q3, %4", operands);
+    }
+  else
+    {
+      if (TARGET_THUMB2)
+        output_asm_insn ("it\\tne", operands);
+      output_asm_insn ("sbfxne\\t%Q3, %R3, #15, #1", operands);
+    }
   output_asm_insn ("lsr\\t%0, %Q3, #16", operands);
   output_asm_insn ("orr\\t%0, %0, %R3, asl #16", operands);
   return "";
 }
   [(set_attr "conds" "clob")
+   (set_attr "type" "multiple")
    (set (attr "length")
 	(if_then_else (eq_attr "is_thumb" "yes")
-		      (const_int 38)
+		      (if_then_else (match_test "arm_restrict_it")
+		                    (const_int 40)
+		                    (const_int 38))
 		      (const_int 32)))])
 
 (define_expand "mulha3"
@@ -289,7 +329,7 @@
   "TARGET_DSP_MULTIPLY && arm_arch_thumb2"
 {
   rtx tmp = gen_reg_rtx (SImode);
-  
+
   emit_insn (gen_mulhisi3 (tmp, gen_lowpart (HImode, operands[1]),
 			   gen_lowpart (HImode, operands[2])));
   emit_insn (gen_extv (gen_lowpart (SImode, operands[0]), tmp, GEN_INT (16),
@@ -307,7 +347,7 @@
   rtx tmp1 = gen_reg_rtx (SImode);
   rtx tmp2 = gen_reg_rtx (SImode);
   rtx tmp3 = gen_reg_rtx (SImode);
-  
+
   /* 8.8 * 8.8 -> 16.16 multiply.  */
   emit_insn (gen_zero_extendhisi2 (tmp1, gen_lowpart (HImode, operands[1])));
   emit_insn (gen_zero_extendhisi2 (tmp2, gen_lowpart (HImode, operands[2])));
@@ -326,7 +366,7 @@
 {
   rtx tmp = gen_reg_rtx (SImode);
   rtx rshift;
-  
+
   emit_insn (gen_mulhisi3 (tmp, gen_lowpart (HImode, operands[1]),
 			   gen_lowpart (HImode, operands[2])));
 
@@ -348,12 +388,12 @@
   rtx tmp2 = gen_reg_rtx (SImode);
   rtx tmp3 = gen_reg_rtx (SImode);
   rtx rshift_tmp = gen_reg_rtx (SImode);
-  
+
   /* Note: there's no smul[bt][bt] equivalent for unsigned multiplies.  Use a
      normal 32x32->32-bit multiply instead.  */
   emit_insn (gen_zero_extendhisi2 (tmp1, gen_lowpart (HImode, operands[1])));
   emit_insn (gen_zero_extendhisi2 (tmp2, gen_lowpart (HImode, operands[2])));
-  
+
   emit_insn (gen_mulsi3 (tmp3, tmp1, tmp2));
 
   /* The operand to "usat" is signed, so we cannot use the "..., asr #8"
@@ -374,9 +414,9 @@
   "TARGET_32BIT && arm_arch6"
   "ssat%?\\t%0, #16, %2%S1"
   [(set_attr "predicable" "yes")
-   (set_attr "insn" "sat")
+   (set_attr "predicable_short_it" "no")
    (set_attr "shift" "1")
-   (set_attr "type" "alu_shift")])
+   (set_attr "type" "alu_shift_imm")])
 
 (define_insn "arm_usatsihi"
   [(set (match_operand:HI 0 "s_register_operand" "=r")
@@ -384,4 +424,6 @@
   "TARGET_INT_SIMD"
   "usat%?\\t%0, #16, %1"
   [(set_attr "predicable" "yes")
-   (set_attr "insn" "sat")])
+   (set_attr "predicable_short_it" "no")
+   (set_attr "type" "alu_imm")]
+)

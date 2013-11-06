@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -45,6 +45,22 @@ package Sem_Ch6 is
    procedure Analyze_Simple_Return_Statement         (N : Node_Id);
    procedure Analyze_Subprogram_Declaration          (N : Node_Id);
    procedure Analyze_Subprogram_Body                 (N : Node_Id);
+
+   procedure Analyze_Subprogram_Body_Contract (Body_Id : Entity_Id);
+   --  Analyze all delayed aspects chained on the contract of subprogram body
+   --  Body_Id as if they appeared at the end of a declarative region. The
+   --  aspects in question are:
+   --    Refined_Depends
+   --    Refined_Global
+
+   procedure Analyze_Subprogram_Contract (Subp : Entity_Id);
+   --  Analyze all delayed aspects chained on the contract of subprogram Subp
+   --  as if they appeared at the end of a declarative region. The aspects in
+   --  question are:
+   --    Contract_Cases
+   --    Postcondition
+   --    Precondition
+   --    Test_Case
 
    function Analyze_Subprogram_Specification (N : Node_Id) return Entity_Id;
    --  Analyze subprogram specification in both subprogram declarations
@@ -139,10 +155,6 @@ package Sem_Ch6 is
    --  type-conformant subprogram that becomes hidden by the new subprogram.
    --  Is_Primitive indicates whether the subprogram is primitive.
 
-   procedure Check_Subprogram_Contract (Spec_Id : Entity_Id);
-   --  Spec_Id is the spec entity for a subprogram. This routine issues
-   --  warnings on suspicious contracts if Warn_On_Suspicious_Contract is set.
-
    procedure Check_Subtype_Conformant
      (New_Id                   : Entity_Id;
       Old_Id                   : Entity_Id;
@@ -233,6 +245,13 @@ package Sem_Ch6 is
    procedure List_Inherited_Pre_Post_Aspects (E : Entity_Id);
    --  E is the entity for a subprogram or generic subprogram spec. This call
    --  lists all inherited Pre/Post aspects if List_Inherited_Pre_Post is True.
+
+   procedure May_Need_Actuals (Fun : Entity_Id);
+   --  Flag functions that can be called without parameters, i.e. those that
+   --  have no parameters, or those for which defaults exist for all parameters
+   --  Used for subprogram declarations and for access subprogram declarations,
+   --  where they apply to the anonymous designated type. On return the flag
+   --  Set_Needs_No_Actuals is set appropriately in Fun.
 
    function Mode_Conformant (New_Id, Old_Id : Entity_Id) return Boolean;
    --  Determine whether two callable entities (subprograms, entries,

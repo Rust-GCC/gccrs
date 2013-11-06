@@ -40,7 +40,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "cgraph.h"
 #include "except.h"
 #include "dbgcnt.h"
-#include "tree-flow.h"
 
 /* Like PREFERRED_STACK_BOUNDARY but in units of bytes, not bits.  */
 #define STACK_BYTES (PREFERRED_STACK_BOUNDARY / BITS_PER_UNIT)
@@ -545,7 +544,7 @@ special_function_p (const_tree fndecl, int flags)
 		  && ! strcmp (tname, "sigsetjmp"))
 	      || (tname[1] == 'a'
 		  && ! strcmp (tname, "savectx")))
-	    flags |= ECF_RETURNS_TWICE;
+	    flags |= ECF_RETURNS_TWICE | ECF_LEAF;
 
 	  if (tname[1] == 'i'
 	      && ! strcmp (tname, "siglongjmp"))
@@ -557,7 +556,7 @@ special_function_p (const_tree fndecl, int flags)
 		   && ! strcmp (tname, "vfork"))
 	       || (tname[0] == 'g' && tname[1] == 'e'
 		   && !strcmp (tname, "getcontext")))
-	flags |= ECF_RETURNS_TWICE;
+	flags |= ECF_RETURNS_TWICE | ECF_LEAF;
 
       else if (tname[0] == 'l' && tname[1] == 'o'
 	       && ! strcmp (tname, "longjmp"))
@@ -635,11 +634,10 @@ gimple_alloca_call_p (const_gimple stmt)
 bool
 alloca_call_p (const_tree exp)
 {
+  tree fndecl;
   if (TREE_CODE (exp) == CALL_EXPR
-      && TREE_CODE (CALL_EXPR_FN (exp)) == ADDR_EXPR
-      && (TREE_CODE (TREE_OPERAND (CALL_EXPR_FN (exp), 0)) == FUNCTION_DECL)
-      && (special_function_p (TREE_OPERAND (CALL_EXPR_FN (exp), 0), 0)
-	  & ECF_MAY_BE_ALLOCA))
+      && (fndecl = get_callee_fndecl (exp))
+      && (special_function_p (fndecl, 0) & ECF_MAY_BE_ALLOCA))
     return true;
   return false;
 }
@@ -1026,7 +1024,7 @@ store_unaligned_arguments_into_pseudos (struct arg_data *args, int num_actuals)
 	    int bitsize = MIN (bytes * BITS_PER_UNIT, BITS_PER_WORD);
 
 	    args[i].aligned_regs[j] = reg;
-	    word = extract_bit_field (word, bitsize, 0, 1, false, NULL_RTX,
+	    word = extract_bit_field (word, bitsize, 0, 1, NULL_RTX,
 				      word_mode, word_mode);
 
 	    /* There is no need to restrict this code to loading items
@@ -1732,7 +1730,8 @@ internal_arg_pointer_based_exp_scan (void)
 	  if (val != NULL_RTX)
 	    {
 	      if (idx >= internal_arg_pointer_exp_state.cache.length ())
-		internal_arg_pointer_exp_state.cache.safe_grow_cleared(idx + 1);
+		internal_arg_pointer_exp_state.cache
+		  .safe_grow_cleared (idx + 1);
 	      internal_arg_pointer_exp_state.cache[idx] = val;
 	    }
 	}
@@ -3171,7 +3170,9 @@ expand_call (tree exp, rtx target, int ignore)
 	 group load/store machinery below.  */
       if (!structure_value_addr
 	  && !pcc_struct_value
+	  && TYPE_MODE (rettype) != VOIDmode
 	  && TYPE_MODE (rettype) != BLKmode
+	  && REG_P (valreg)
 	  && targetm.calls.return_in_msb (rettype))
 	{
 	  if (shift_return_value (TYPE_MODE (rettype), false, valreg))
@@ -3186,7 +3187,7 @@ expand_call (tree exp, rtx target, int ignore)
 
 	  /* The return value from a malloc-like function is a pointer.  */
 	  if (TREE_CODE (rettype) == POINTER_TYPE)
-	    mark_reg_pointer (temp, BIGGEST_ALIGNMENT);
+	    mark_reg_pointer (temp, MALLOC_ABI_ALIGNMENT);
 
 	  emit_move_insn (temp, valreg);
 

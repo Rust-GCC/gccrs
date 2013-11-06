@@ -1,64 +1,121 @@
-2013-10-16  Release Manager
+2013-09-20  Alan Modra  <amodra@gmail.com>
 
-	* GCC 4.8.2 released.
+	* configure: Regenerate.
+
+2013-08-30  Torvald Riegel  <triegel@redhat.com>
+
+	* config/posix/rwlock.cc: Fix initialization order.
+
+2013-08-30  Torvald Riegel  <triegel@redhat.com>
+
+	* libitm_i.h (gtm_thread): Assign an asm name to serial_lock.
+	(htm_fastpath): Assign an asm name.
+	* libitm.h (_ITM_codeProperties): Add non-ABI flags used by custom
+	HTM fast paths.
+	(_ITM_actions): Likewise.
+	* config/x86/target.h (HTM_CUSTOM_FASTPATH): Enable custom fastpath on
+	x86_64.
+	* config/x86/sjlj.S (_ITM_beginTransaction): Add custom HTM fast path.
+	* config/posix/rwlock.h (gtm_rwlock): Update comments.  Move summary
+	field to the start of the structure.
+	* config/linux/rwlock.h (gtm_rwlock): Update comments.
+	* beginend.cc (gtm_thread::begin_transaction): Add retry policy
+	handling for custom HTM fast paths.
 
 2013-08-14  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
-
 	Revert:
 	2013-08-02  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
 
 	* configure.tgt: Add -msoft-float to XCFLAGS.
-	
 
-2013-08-14  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
-
-	* config/s390/sjlj.S: Add file missing from last commit.
-	* config/s390/target.h: Likewise.
-	
 2013-08-02  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
 
-	Backports from mainline:
-	2013-04-23  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
+	* configure.tgt: Add -msoft-float to XCFLAGS.
 
-	* config/s390/sjlj.S: New file.
-	* config/s390/target.h: New file.
-	* configure.tgt: Set options for S/390.
-
-	2013-06-27  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
-
-	* config/s390/target.h: Include htmintrin.h.
-	(_HTM_ITM_RETRIES): New macro definition.
-	(htm_available, htm_init, htm_begin, htm_begin_success)
-	(htm_commit, htm_abort, htm_abort_should_retry): New functions.
-
-	2013-07-17  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
-
-	* acinclude.m4: Add htm asm check for s390.
-	* configure.tgt: Add -mhtm and -Wa,-march=zEC12 to the
-	options.
-	* configure: Regenerate.
-	* config/s390/target.h: Remove __HTM__ check.
-	(htm_available): Call getauxval to get hwcaps and check
-	whether	HTM is available or not.
-
-	2013-07-29  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
+2013-07-29  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
 
 	* config/s390/target.h (htm_begin, htm_commit, htm_abort)
 	(htm_transaction_active): Enable zEC12 instructions in the
 	assembler.
 	* configure.tgt: Remove -Wa,-march=zEC12 from XCFLAGS.
 
-	2013-08-02  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
+2013-07-17  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
 
-	* configure.tgt: Add -msoft-float to XCFLAGS.
+	* acinclude.m4: Add htm asm check for s390.
+	* configure.tgt: Add -mhtm and -Wa,-march=zEC12 to the options.
+	* configure: Regenerate.
+	* config/s390/target.h: Remove __HTM__ check.
+	(htm_available): Call getauxval to get hwcaps and check whether
+	HTM is available or not.
 
-2013-05-31  Release Manager
+2013-07-15  Peter Bergner  <bergner@vnet.ibm.com>
 
-	* GCC 4.8.1 released.
+	* acinclude.m4 (LIBITM_CHECK_AS_HTM): New.
+	* configure.ac: Use it.
+	(AC_CHECK_HEADERS): Check for sys/auxv.h.
+	(AC_CHECK_FUNCS): Check for getauxval.
+	* config.h.in, configure: Rebuild.
+	* configure.tgt (target_cpu): Add -mhtm to XCFLAGS.
+	* config/powerpc/target.h: Include sys/auxv.h and htmintrin.h.
+	(USE_HTM_FASTPATH): Define.
+	(_TBEGIN_STARTED, _TBEGIN_INDETERMINATE, _TBEGIN_PERSISTENT,
+	_HTM_RETRIES) New macros.
+	(htm_abort, htm_abort_should_retry, htm_available, htm_begin, htm_init,
+	htm_begin_success, htm_commit, htm_transaction_active): New functions.
 
-2013-03-22  Release Manager
+2013-06-27  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
 
-	* GCC 4.8.0 released.
+	* config/s390/target.h: Include htmintrin.h.
+	(_HTM_ITM_RETRIES): New macro definition.
+	(htm_available, htm_init, htm_begin, htm_begin_success)
+	(htm_commit, htm_abort, htm_abort_should_retry): New functions.
+
+2013-06-20  Iain Sandoe  <iain@codesourcery.com>
+	    Cesar Philippidis  <cesar@codesourcery.com>
+
+	* testsuite/lib/libitm.exp: Reorder lib loads into dependency order.
+	Do not load_gcc_lib gcc-dg.exp and add a comment as to why.
+	* testsuite/libitm.c/c.exp: load_gcc_lib gcc-dg.exp.
+	* testsuite/libitm.c++/c++.exp: load_gcc_lib gcc-dg.exp.
+
+2013-06-20  Torvald Riegel  <triegel@redhat.com>
+
+	* query.cc (_ITM_inTransaction): Abort when using the HTM fastpath.
+	(_ITM_getTransactionId): Same.
+	* config/x86/target.h (htm_transaction_active): New.
+
+2013-06-20  Torvald Riegel  <triegel@redhat.com>
+
+	PR libitm/57643
+	* beginend.cc (gtm_thread::begin_transaction): Handle reentrancy in
+	the HTM fastpath.
+
+2013-03-31  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	PR bootstrap/56714
+	* local_atomic (__always_inline): Always define our version.
+	(__calculate_memory_order): Mark inline.
+	(atomic_thread_fence): Ditto.
+	(atomic_signal_fence): Ditto.
+	(atomic_bool::atomic_flag_test_and_set_explicit): Ditto.
+	(atomic_bool::atomic_flag_clear_explicit): Ditto.
+	(atomic_bool::atomic_flag_test_and_set): Ditto.
+	(atomic_bool::atomic_flag_clear): Ditto.
+
+2013-04-23  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
+
+	* config/s390/sjlj.S: New file.
+	* config/s390/target.h: New file.
+	* configure.tgt: Set options for S/390.
+
+2013-03-23  Andi Kleen  <ak@linux.intel.com>
+
+	* local_atomic (__always_inline): Add.
+	(__calculate_memory_order, atomic_thread_fence,
+	 atomic_signal_fence, test_and_set, clear, store, load,
+	 exchange, compare_exchange_weak, compare_exchange_strong,
+	 fetch_add, fetch_sub, fetch_and, fetch_or, fetch_xor):
+	Add __always_inline to force inlining.
 
 2013-02-11  Iain Sandoe  <iain@codesourcery.com>
 	    Jack Howarth  <howarth@bromo.med.uc.edu>

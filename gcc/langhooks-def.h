@@ -77,6 +77,7 @@ extern tree lhd_omp_assignment (tree, tree, tree);
 struct gimplify_omp_ctx;
 extern void lhd_omp_firstprivatize_type_sizes (struct gimplify_omp_ctx *,
 					       tree);
+extern bool lhd_omp_mappable_type (tree);
 
 #define LANG_HOOKS_NAME			"GNU unknown"
 #define LANG_HOOKS_IDENTIFIER_SIZE	sizeof (struct lang_identifier)
@@ -117,6 +118,7 @@ extern void lhd_omp_firstprivatize_type_sizes (struct gimplify_omp_ctx *,
 #define LANG_HOOKS_BLOCK_MAY_FALLTHRU	hook_bool_const_tree_true
 #define LANG_HOOKS_EH_USE_CXA_END_CLEANUP	false
 #define LANG_HOOKS_DEEP_UNSHARING	false
+#define LANG_HOOKS_CHKP_SUPPORTED	false
 
 /* Attribute hooks.  */
 #define LANG_HOOKS_ATTRIBUTE_TABLE		NULL
@@ -166,6 +168,7 @@ extern tree lhd_make_node (enum tree_code);
 #define LANG_HOOKS_TYPE_MAX_SIZE	lhd_return_null_const_tree
 #define LANG_HOOKS_OMP_FIRSTPRIVATIZE_TYPE_SIZES \
   lhd_omp_firstprivatize_type_sizes
+#define LANG_HOOKS_OMP_MAPPABLE_TYPE	lhd_omp_mappable_type
 #define LANG_HOOKS_TYPE_HASH_EQ		NULL
 #define LANG_HOOKS_GET_ARRAY_DESCR_INFO	NULL
 #define LANG_HOOKS_GET_SUBRANGE_BOUNDS	NULL
@@ -184,6 +187,7 @@ extern tree lhd_make_node (enum tree_code);
   LANG_HOOKS_INCOMPLETE_TYPE_ERROR, \
   LANG_HOOKS_TYPE_MAX_SIZE, \
   LANG_HOOKS_OMP_FIRSTPRIVATIZE_TYPE_SIZES, \
+  LANG_HOOKS_OMP_MAPPABLE_TYPE, \
   LANG_HOOKS_TYPE_HASH_EQ, \
   LANG_HOOKS_GET_ARRAY_DESCR_INFO, \
   LANG_HOOKS_GET_SUBRANGE_BOUNDS, \
@@ -210,6 +214,18 @@ extern tree lhd_make_node (enum tree_code);
 #define LANG_HOOKS_OMP_CLAUSE_ASSIGN_OP lhd_omp_assignment
 #define LANG_HOOKS_OMP_CLAUSE_DTOR hook_tree_tree_tree_null
 #define LANG_HOOKS_OMP_FINISH_CLAUSE hook_void_tree
+
+extern void lhd_install_body_with_frame_cleanup (tree, tree);
+extern bool lhd_cilk_detect_spawn (tree *);
+#define LANG_HOOKS_CILKPLUS_DETECT_SPAWN_AND_UNWRAP lhd_cilk_detect_spawn
+#define LANG_HOOKS_CILKPLUS_FRAME_CLEANUP lhd_install_body_with_frame_cleanup
+#define LANG_HOOKS_CILKPLUS_GIMPLIFY_SPAWN lhd_gimplify_expr
+
+#define LANG_HOOKS_CILKPLUS {			\
+  LANG_HOOKS_CILKPLUS_DETECT_SPAWN_AND_UNWRAP,	\
+  LANG_HOOKS_CILKPLUS_FRAME_CLEANUP,		\
+  LANG_HOOKS_CILKPLUS_GIMPLIFY_SPAWN            \
+}
 
 #define LANG_HOOKS_DECLS { \
   LANG_HOOKS_GLOBAL_BINDINGS_P, \
@@ -288,6 +304,7 @@ extern void lhd_end_section (void);
   LANG_HOOKS_TREE_DUMP_INITIALIZER, \
   LANG_HOOKS_DECLS, \
   LANG_HOOKS_FOR_TYPES_INITIALIZER, \
+  LANG_HOOKS_CILKPLUS, \
   LANG_HOOKS_LTO, \
   LANG_HOOKS_GET_INNERMOST_GENERIC_PARMS, \
   LANG_HOOKS_GET_INNERMOST_GENERIC_ARGS, \
@@ -302,7 +319,8 @@ extern void lhd_end_section (void);
   LANG_HOOKS_EH_PROTECT_CLEANUP_ACTIONS, \
   LANG_HOOKS_BLOCK_MAY_FALLTHRU, \
   LANG_HOOKS_EH_USE_CXA_END_CLEANUP, \
-  LANG_HOOKS_DEEP_UNSHARING \
+  LANG_HOOKS_DEEP_UNSHARING, \
+  LANG_HOOKS_CHKP_SUPPORTED \
 }
 
 #endif /* GCC_LANG_HOOKS_DEF_H */

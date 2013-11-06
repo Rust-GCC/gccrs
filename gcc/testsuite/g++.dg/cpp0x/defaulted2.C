@@ -1,18 +1,18 @@
 // Negative test for defaulted/deleted fns.
-// { dg-options "-std=c++0x" }
+// { dg-options "-std=c++11" }
 
 void f();			// { dg-error "previous" }
 void f() = delete;		// { dg-error "deleted" }
 
 struct A
 {
-  A() { }			// { dg-error "previous" }
+  A() { }			// { dg-message "previous" }
   void f() = default;		// { dg-error "default" }
 };
 
 A::A() = default;		// { dg-error "redefinition" }
 
-void g() {}			// { dg-error "previous" }
+void g() {}			// { dg-message "previous" }
 void g() = delete;		// { dg-error "redefinition" }
 
 struct B // { dg-message "user-provided default constructor" }
@@ -42,7 +42,7 @@ struct E
 struct F
 {
   F() = default;
-  F(const F&) = delete;		// { dg-error "declared" }
+  F(const F&) = delete;		// { dg-message "declared" }
 };
 
 struct G
@@ -62,7 +62,7 @@ int main()
 {
   F f;
   F f2(f);			// { dg-error "use" }
-  B* b = new const B;		// { dg-error "uninitialized const" }
+  const B* b = new const B;		// { dg-error "uninitialized const" }
   U u;				// { dg-error "deleted" }
 }
 

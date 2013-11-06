@@ -33,7 +33,8 @@ enum hist_type
   HIST_TYPE_INDIR_CALL,   /* Tries to identify the function that is (almost)
 			    called in indirect call */
   HIST_TYPE_AVERAGE,	/* Compute average value (sum of all values).  */
-  HIST_TYPE_IOR		/* Used to compute expected alignment.  */
+  HIST_TYPE_IOR,	/* Used to compute expected alignment.  */
+  HIST_TYPE_MAX
 };
 
 #define COUNTER_FOR_HIST_TYPE(TYPE) ((int) (TYPE) + GCOV_FIRST_VALUE_COUNTER)
@@ -85,6 +86,8 @@ void gimple_move_stmt_histograms (struct function *, gimple, gimple);
 void verify_histograms (void);
 void free_histograms (void);
 void stringop_block_profile (gimple, unsigned int *, HOST_WIDE_INT *);
+gimple gimple_ic (gimple, struct cgraph_node *, int, gcov_type, gcov_type);
+
 
 /* In tree-profile.c.  */
 extern void gimple_init_edge_profiler (void);
@@ -98,6 +101,10 @@ extern void gimple_gen_const_delta_profiler (histogram_value,
 					     unsigned, unsigned);
 extern void gimple_gen_average_profiler (histogram_value, unsigned, unsigned);
 extern void gimple_gen_ior_profiler (histogram_value, unsigned, unsigned);
+extern void stream_out_histogram_value (struct output_block *, histogram_value);
+extern void stream_in_histogram_value (struct lto_input_block *, gimple);
+extern struct cgraph_node* find_func_by_profile_id (int func_id);
+
 
 /* In profile.c.  */
 extern void init_branch_prob (void);

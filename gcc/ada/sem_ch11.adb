@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -199,6 +199,7 @@ package body Sem_Ch11 is
 
                if Comes_From_Source (Choice) then
                   Check_Restriction (No_Exception_Propagation, Choice);
+                  Set_Debug_Info_Needed (Choice);
                end if;
 
                if No (H_Scope) then
@@ -424,6 +425,60 @@ package body Sem_Ch11 is
       end if;
    end Analyze_Handled_Statements;
 
+   ------------------------------
+   -- Analyze_Raise_Expression --
+   ------------------------------
+
+   procedure Analyze_Raise_Expression (N : Node_Id) is
+      Exception_Id   : constant Node_Id := Name (N);
+      Exception_Name : Entity_Id        := Empty;
+
+   begin
+      Check_SPARK_Restriction ("raise expression is not allowed", N);
+
+      --  Check exception restrictions on the original source
+
+      if Comes_From_Source (N) then
+         Check_Restriction (No_Exceptions, N);
+      end if;
+
+      Analyze (Exception_Id);
+
+      if Is_Entity_Name (Exception_Id) then
+         Exception_Name := Entity (Exception_Id);
+      end if;
+
+      if No (Exception_Name)
+        or else Ekind (Exception_Name) /= E_Exception
+      then
+         Error_Msg_N
+           ("exception name expected in raise statement", Exception_Id);
+      else
+         Set_Is_Raised (Exception_Name);
+      end if;
+
+      --  Deal with RAISE WITH case
+
+      if Present (Expression (N)) then
+         Check_Compiler_Unit (Expression (N));
+         Analyze_And_Resolve (Expression (N), Standard_String);
+      end if;
+
+      --  Check obsolescent use of Numeric_Error
+
+      if Exception_Name = Standard_Numeric_Error then
+         Check_Restriction (No_Obsolescent_Features, Exception_Id);
+      end if;
+
+      --  Kill last assignment indication
+
+      Kill_Current_Values (Last_Assignment_Only => True);
+
+      --  Set type as Any_Type since we have no information at all on the type
+
+      Set_Etype (N, Any_Type);
+   end Analyze_Raise_Expression;
+
    -----------------------------
    -- Analyze_Raise_Statement --
    -----------------------------
@@ -435,7 +490,10 @@ package body Sem_Ch11 is
       Par            : Node_Id;
 
    begin
-      Check_SPARK_Restriction ("raise statement is not allowed", N);
+      if Comes_From_Source (N) then
+         Check_SPARK_Restriction ("raise statement is not allowed", N);
+      end if;
+
       Check_Unreachable_Code (N);
 
       --  Check exception restrictions on the original source
@@ -633,7 +691,9 @@ package body Sem_Ch11 is
    --  Start of processing for Analyze_Raise_xxx_Error
 
    begin
-      Check_SPARK_Restriction ("raise statement is not allowed", N);
+      if Nkind (Original_Node (N)) = N_Raise_Statement then
+         Check_SPARK_Restriction ("raise statement is not allowed", N);
+      end if;
 
       if No (Etype (N)) then
          Set_Etype (N, Standard_Void_Type);

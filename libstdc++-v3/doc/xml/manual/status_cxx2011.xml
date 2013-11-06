@@ -154,13 +154,10 @@ particular release.
       <entry>C library dependency for quick_exit, at_quick_exit</entry>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>18.6</entry>
       <entry>Dynamic memory management</entry>
-      <entry>Partial</entry>
-      <entry>Missing <code>get_new_handler</code>.
-             <code>set_new_handler</code> is not thread-safe.
-      </entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>18.7</entry>
@@ -205,13 +202,10 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>18.8.3</entry>
       <entry>Abnormal termination</entry>
-      <entry>Partial</entry>
-      <entry>Missing <code>get_terminate</code>.
-             <code>set_terminate</code> is not thread-safe.
-      </entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>18.8.4</entry>
@@ -877,10 +871,11 @@ particular release.
       <entry/>
     </row>
     <row>
+      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>20.9.7.6</entry>
       <entry>Other transformations</entry>
-      <entry>Y</entry>
-      <entry/>
+      <entry>Partial</entry>
+      <entry>Missing <code>aligned_union</code>.</entry>
     </row>
     <row>
       <entry>20.10</entry>
@@ -1271,16 +1266,18 @@ particular release.
       <entry/>
     </row>
     <row>
+      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>22.4.5.1</entry>
       <entry>Class template <code>time_get</code></entry>
-      <entry>Y</entry>
-      <entry/>
+      <entry>Partial</entry>
+      <entry>Missing <code>get</code> and <code>do_get</code></entry>
     </row>
     <row>
+      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>22.4.5.2</entry>
       <entry>Class template <code>time_get_byname</code></entry>
-      <entry>Y</entry>
-      <entry/>
+      <entry>Partial</entry>
+      <entry>Likewise</entry>
     </row>
     <row>
       <entry>22.4.5.3</entry>
@@ -2183,31 +2180,27 @@ particular release.
       </entry>
     </row>
     <row>
-      <?dbhtml bgcolor="#C8B0B0" ?>
       <entry>28.1</entry>
       <entry>General</entry>
-      <entry>N</entry>
+      <entry>Y</entry>
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#C8B0B0" ?>
       <entry>28.2</entry>
       <entry>Definitions</entry>
-      <entry>N</entry>
+      <entry>Y</entry>
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#C8B0B0" ?>
       <entry>28.3</entry>
       <entry>Requirements</entry>
-      <entry>N</entry>
+      <entry>Y</entry>
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#C8B0B0" ?>
       <entry>28.4</entry>
       <entry>Header <code>&lt;regex&gt;</code> synopsis</entry>
-      <entry>N</entry>
+      <entry>Y</entry>
       <entry/>
     </row>
     <row>
@@ -2227,48 +2220,43 @@ particular release.
       <entry>28.7</entry>
       <entry>Class template <code>regex_traits</code></entry>
       <entry>Partial</entry>
+      <entry><code>transform_primary</code> is not correctly implemented</entry>
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>28.8</entry>
       <entry>Class template <code>basic_regex</code></entry>
-      <entry>Partial</entry>
+      <entry>Y</entry>
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>28.9</entry>
       <entry>Class template <code>sub_match</code></entry>
-      <entry>Partial</entry>
+      <entry>Y</entry>
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>28.10</entry>
       <entry>Class template <code>match_results</code></entry>
-      <entry>Partial</entry>
+      <entry>Y</entry>
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#C8B0B0" ?>
       <entry>28.11</entry>
       <entry>Regular expression algorithms</entry>
-      <entry>N</entry>
+      <entry>Y</entry>
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#C8B0B0" ?>
       <entry>28.12</entry>
       <entry>Regular expression Iterators</entry>
-      <entry>N</entry>
+      <entry>Y</entry>
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#C8B0B0" ?>
       <entry>28.13</entry>
       <entry>Modified ECMAScript regular expression grammar</entry>
-      <entry>N</entry>
+      <entry>Y</entry>
       <entry/>
     </row>
     <row>
@@ -2616,13 +2604,10 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>D.11</entry>
       <entry>Violating exception-specifications</entry>
-      <entry>Partial</entry>
-      <entry>Missing <code>get_unexpected</code>.
-             <code>set_unexpected</code> is not thread-safe.
-      </entry>
+      <entry/>
+      <entry/>
     </row>
 
   </tbody>

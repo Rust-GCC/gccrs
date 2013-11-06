@@ -132,14 +132,24 @@ union_match_dups (rtx insn, struct web_entry *def_entry,
       ref = type == OP_IN ? use_link : def_link;
       entry = type == OP_IN ? use_entry : def_entry;
       for (; *ref; ref++)
-	if (DF_REF_LOC (*ref) == recog_data.operand_loc[op])
-	  break;
+	{
+	  rtx *l = DF_REF_LOC (*ref);
+	  if (l == recog_data.operand_loc[op])
+	    break;
+	  if (l && DF_REF_REAL_LOC (*ref) == recog_data.operand_loc[op])
+	    break;
+	}
 
       if (!*ref && type == OP_INOUT)
 	{
 	  for (ref = use_link, entry = use_entry; *ref; ref++)
-	    if (DF_REF_LOC (*ref) == recog_data.operand_loc[op])
-	      break;
+	    {
+	      rtx *l = DF_REF_LOC (*ref);
+	      if (l == recog_data.operand_loc[op])
+		break;
+	      if (l && DF_REF_REAL_LOC (*ref) == recog_data.operand_loc[op])
+		break;
+	    }
 	}
 
       gcc_assert (*ref);
@@ -364,7 +374,7 @@ web_main (void)
     }
 
   /* Record the number of uses and defs at the beginning of the optimization.  */
-  def_entry = XCNEWVEC (struct web_entry, DF_DEFS_TABLE_SIZE());
+  def_entry = XCNEWVEC (struct web_entry, DF_DEFS_TABLE_SIZE ());
   used = XCNEWVEC (unsigned, max);
   use_entry = XCNEWVEC (struct web_entry, uses_num);
 
@@ -439,22 +449,40 @@ web_main (void)
   return 0;
 }
 
-struct rtl_opt_pass pass_web =
+namespace {
+
+const pass_data pass_data_web =
 {
- {
-  RTL_PASS,
-  "web",                                /* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  gate_handle_web,                      /* gate */
-  web_main,		                /* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_WEB,                               /* tv_id */
-  0,                                    /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  TODO_df_finish | TODO_verify_rtl_sharing  /* todo_flags_finish */
- }
+  RTL_PASS, /* type */
+  "web", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_WEB, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  ( TODO_df_finish | TODO_verify_rtl_sharing ), /* todo_flags_finish */
 };
+
+class pass_web : public rtl_opt_pass
+{
+public:
+  pass_web (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_web, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_handle_web (); }
+  unsigned int execute () { return web_main (); }
+
+}; // class pass_web
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_web (gcc::context *ctxt)
+{
+  return new pass_web (ctxt);
+}

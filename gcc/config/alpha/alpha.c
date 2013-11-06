@@ -49,7 +49,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "langhooks.h"
 #include "splay-tree.h"
 #include "gimple.h"
-#include "tree-flow.h"
+#include "gimple-ssa.h"
+#include "tree-ssanames.h"
 #include "tree-stdarg.h"
 #include "tm-constrs.h"
 #include "df.h"
@@ -4227,12 +4228,12 @@ alpha_expand_builtin_vector_binop (rtx (*gen) (rtx, rtx, rtx),
 static void
 emit_unlikely_jump (rtx cond, rtx label)
 {
-  rtx very_unlikely = GEN_INT (REG_BR_PROB_BASE / 100 - 1);
+  int very_unlikely = REG_BR_PROB_BASE / 100 - 1;
   rtx x;
 
   x = gen_rtx_IF_THEN_ELSE (VOIDmode, cond, label, pc_rtx);
   x = emit_jump_insn (gen_rtx_SET (VOIDmode, pc_rtx, x));
-  add_reg_note (x, REG_BR_PROB, very_unlikely);
+  add_int_reg_note (x, REG_BR_PROB, very_unlikely);
 }
 
 /* A subroutine of the atomic operation splitters.  Emit a load-locked
@@ -7452,7 +7453,6 @@ alpha_does_function_need_gp (void)
 
   for (; insn; insn = NEXT_INSN (insn))
     if (NONDEBUG_INSN_P (insn)
-	&& ! JUMP_TABLE_DATA_P (insn)
 	&& GET_CODE (PATTERN (insn)) != USE
 	&& GET_CODE (PATTERN (insn)) != CLOBBER
 	&& get_attr_usegp (insn))

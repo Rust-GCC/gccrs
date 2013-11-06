@@ -24,7 +24,11 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "tm_p.h"
 #include "basic-block.h"
-#include "tree-flow.h"
+#include "gimple.h"
+#include "tree-ssa-loop-ivopts.h"
+#include "tree-ssa-loop-manip.h"
+#include "tree-ssa-loop-niter.h"
+#include "tree-ssa-loop.h"
 #include "tree-pass.h"
 #include "cfgloop.h"
 #include "flags.h"
@@ -41,25 +45,42 @@ gate_tree_loop (void)
   return flag_tree_loop_optimize != 0;
 }
 
-struct gimple_opt_pass pass_tree_loop =
+namespace {
+
+const pass_data pass_data_tree_loop =
 {
- {
-  GIMPLE_PASS,
-  "loop",				/* name */
-  OPTGROUP_LOOP,                        /* optinfo_flags */
-  gate_tree_loop,			/* gate */
-  NULL,					/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_TREE_LOOP,				/* tv_id */
-  PROP_cfg,				/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  TODO_ggc_collect,			/* todo_flags_start */
-  TODO_verify_ssa | TODO_ggc_collect	/* todo_flags_finish */
- }
+  GIMPLE_PASS, /* type */
+  "loop", /* name */
+  OPTGROUP_LOOP, /* optinfo_flags */
+  true, /* has_gate */
+  false, /* has_execute */
+  TV_TREE_LOOP, /* tv_id */
+  PROP_cfg, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  TODO_verify_ssa, /* todo_flags_finish */
 };
+
+class pass_tree_loop : public gimple_opt_pass
+{
+public:
+  pass_tree_loop (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_tree_loop, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_tree_loop (); }
+
+}; // class pass_tree_loop
+
+} // anon namespace
+
+gimple_opt_pass *
+make_pass_tree_loop (gcc::context *ctxt)
+{
+  return new pass_tree_loop (ctxt);
+}
 
 /* Loop optimizer initialization.  */
 
@@ -74,257 +95,110 @@ tree_ssa_loop_init (void)
      regions into reducible.  */
   scev_initialize ();
 
-  if (number_of_loops () <= 1)
+  if (number_of_loops (cfun) <= 1)
     return 0;
 
   return 0;
 }
 
-struct gimple_opt_pass pass_tree_loop_init =
+namespace {
+
+const pass_data pass_data_tree_loop_init =
 {
- {
-  GIMPLE_PASS,
-  "loopinit",				/* name */
-  OPTGROUP_LOOP,                        /* optinfo_flags */
-  NULL,					/* gate */
-  tree_ssa_loop_init,			/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_NONE,				/* tv_id */
-  PROP_cfg,				/* properties_required */
-  PROP_loops,				/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  0             			/* todo_flags_finish */
- }
+  GIMPLE_PASS, /* type */
+  "loopinit", /* name */
+  OPTGROUP_LOOP, /* optinfo_flags */
+  false, /* has_gate */
+  true, /* has_execute */
+  TV_NONE, /* tv_id */
+  PROP_cfg, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
 };
 
-/* Loop invariant motion pass.  */
-
-static unsigned int
-tree_ssa_loop_im (void)
+class pass_tree_loop_init : public gimple_opt_pass
 {
-  if (number_of_loops () <= 1)
-    return 0;
+public:
+  pass_tree_loop_init (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_tree_loop_init, ctxt)
+  {}
 
-  return tree_ssa_lim ();
+  /* opt_pass methods: */
+  unsigned int execute () { return tree_ssa_loop_init (); }
+
+}; // class pass_tree_loop_init
+
+} // anon namespace
+
+gimple_opt_pass *
+make_pass_tree_loop_init (gcc::context *ctxt)
+{
+  return new pass_tree_loop_init (ctxt);
 }
-
-static bool
-gate_tree_ssa_loop_im (void)
-{
-  return flag_tree_loop_im != 0;
-}
-
-struct gimple_opt_pass pass_lim =
-{
- {
-  GIMPLE_PASS,
-  "lim",				/* name */
-  OPTGROUP_LOOP,                        /* optinfo_flags */
-  gate_tree_ssa_loop_im,		/* gate */
-  tree_ssa_loop_im,			/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_LIM,				/* tv_id */
-  PROP_cfg,				/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  0             			/* todo_flags_finish */
- }
-};
-
-/* Loop unswitching pass.  */
-
-static unsigned int
-tree_ssa_loop_unswitch (void)
-{
-  if (number_of_loops () <= 1)
-    return 0;
-
-  return tree_ssa_unswitch_loops ();
-}
-
-static bool
-gate_tree_ssa_loop_unswitch (void)
-{
-  return flag_unswitch_loops != 0;
-}
-
-struct gimple_opt_pass pass_tree_unswitch =
-{
- {
-  GIMPLE_PASS,
-  "unswitch",				/* name */
-  OPTGROUP_LOOP,                        /* optinfo_flags */
-  gate_tree_ssa_loop_unswitch,		/* gate */
-  tree_ssa_loop_unswitch,		/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_TREE_LOOP_UNSWITCH,		/* tv_id */
-  PROP_cfg,				/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  TODO_ggc_collect                  	/* todo_flags_finish */
- }
-};
-
-/* Predictive commoning.  */
-
-static unsigned
-run_tree_predictive_commoning (void)
-{
-  if (!current_loops)
-    return 0;
-
-  return tree_predictive_commoning ();
-}
-
-static bool
-gate_tree_predictive_commoning (void)
-{
-  return flag_predictive_commoning != 0;
-}
-
-struct gimple_opt_pass pass_predcom =
-{
- {
-  GIMPLE_PASS,
-  "pcom",				/* name */
-  OPTGROUP_LOOP,                        /* optinfo_flags */
-  gate_tree_predictive_commoning,	/* gate */
-  run_tree_predictive_commoning,	/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_PREDCOM,				/* tv_id */
-  PROP_cfg,				/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  TODO_update_ssa_only_virtuals 	/* todo_flags_finish */
- }
-};
 
 /* Loop autovectorization.  */
 
 static unsigned int
-tree_vectorize (void)
+tree_loop_vectorize (void)
 {
-  if (number_of_loops () <= 1)
+  if (number_of_loops (cfun) <= 1)
     return 0;
 
   return vectorize_loops ();
 }
 
 static bool
-gate_tree_vectorize (void)
+gate_tree_loop_vectorize (void)
 {
-  return flag_tree_vectorize;
+  return flag_tree_loop_vectorize || cfun->has_force_vect_loops;
 }
 
-struct gimple_opt_pass pass_vectorize =
+namespace {
+
+const pass_data pass_data_vectorize =
 {
- {
-  GIMPLE_PASS,
-  "vect",                               /* name */
-  OPTGROUP_LOOP
-  | OPTGROUP_VEC,                       /* optinfo_flags */
-  gate_tree_vectorize,                  /* gate */
-  tree_vectorize,                       /* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_TREE_VECTORIZATION,                /* tv_id */
-  PROP_cfg | PROP_ssa,                  /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,					/* todo_flags_start */
-  TODO_update_ssa
-    | TODO_ggc_collect			/* todo_flags_finish */
- }
+  GIMPLE_PASS, /* type */
+  "vect", /* name */
+  OPTGROUP_LOOP | OPTGROUP_VEC, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_TREE_VECTORIZATION, /* tv_id */
+  ( PROP_cfg | PROP_ssa ), /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
 };
 
-/* GRAPHITE optimizations.  */
-
-static unsigned int
-graphite_transforms (void)
+class pass_vectorize : public gimple_opt_pass
 {
-  if (!current_loops)
-    return 0;
+public:
+  pass_vectorize (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_vectorize, ctxt)
+  {}
 
-  graphite_transform_loops ();
+  /* opt_pass methods: */
+  bool gate () { return gate_tree_loop_vectorize (); }
+  unsigned int execute () { return tree_loop_vectorize (); }
 
-  return 0;
+}; // class pass_vectorize
+
+} // anon namespace
+
+gimple_opt_pass *
+make_pass_vectorize (gcc::context *ctxt)
+{
+  return new pass_vectorize (ctxt);
 }
-
-static bool
-gate_graphite_transforms (void)
-{
-  /* Enable -fgraphite pass if any one of the graphite optimization flags
-     is turned on.  */
-  if (flag_loop_block
-      || flag_loop_interchange
-      || flag_loop_strip_mine
-      || flag_graphite_identity
-      || flag_loop_parallelize_all
-      || flag_loop_optimize_isl)
-    flag_graphite = 1;
-
-  return flag_graphite != 0;
-}
-
-struct gimple_opt_pass pass_graphite =
-{
- {
-  GIMPLE_PASS,
-  "graphite0",				/* name */
-  OPTGROUP_LOOP,                        /* optinfo_flags */
-  gate_graphite_transforms,		/* gate */
-  NULL,					/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_GRAPHITE,				/* tv_id */
-  PROP_cfg | PROP_ssa,			/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  0					/* todo_flags_finish */
- }
-};
-
-struct gimple_opt_pass pass_graphite_transforms =
-{
- {
-  GIMPLE_PASS,
-  "graphite",				/* name */
-  OPTGROUP_LOOP,                        /* optinfo_flags */
-  gate_graphite_transforms,		/* gate */
-  graphite_transforms,       		/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_GRAPHITE_TRANSFORMS,  		/* tv_id */
-  PROP_cfg | PROP_ssa,			/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  0             			/* todo_flags_finish */
- }
-};
 
 /* Check the correctness of the data dependence analyzers.  */
 
 static unsigned int
 check_data_deps (void)
 {
-  if (number_of_loops () <= 1)
+  if (number_of_loops (cfun) <= 1)
     return 0;
 
   tree_check_data_deps ();
@@ -337,62 +211,43 @@ gate_check_data_deps (void)
   return flag_check_data_deps != 0;
 }
 
-struct gimple_opt_pass pass_check_data_deps =
+namespace {
+
+const pass_data pass_data_check_data_deps =
 {
- {
-  GIMPLE_PASS,
-  "ckdd",				/* name */
-  OPTGROUP_LOOP,                        /* optinfo_flags */
-  gate_check_data_deps,	        	/* gate */
-  check_data_deps,       		/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_CHECK_DATA_DEPS,  	        	/* tv_id */
-  PROP_cfg | PROP_ssa,			/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  0                             	/* todo_flags_finish */
- }
+  GIMPLE_PASS, /* type */
+  "ckdd", /* name */
+  OPTGROUP_LOOP, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_CHECK_DATA_DEPS, /* tv_id */
+  ( PROP_cfg | PROP_ssa ), /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
 };
 
-/* Canonical induction variable creation pass.  */
-
-static unsigned int
-tree_ssa_loop_ivcanon (void)
+class pass_check_data_deps : public gimple_opt_pass
 {
-  if (number_of_loops () <= 1)
-    return 0;
+public:
+  pass_check_data_deps (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_check_data_deps, ctxt)
+  {}
 
-  return canonicalize_induction_variables ();
+  /* opt_pass methods: */
+  bool gate () { return gate_check_data_deps (); }
+  unsigned int execute () { return check_data_deps (); }
+
+}; // class pass_check_data_deps
+
+} // anon namespace
+
+gimple_opt_pass *
+make_pass_check_data_deps (gcc::context *ctxt)
+{
+  return new pass_check_data_deps (ctxt);
 }
-
-static bool
-gate_tree_ssa_loop_ivcanon (void)
-{
-  return flag_tree_loop_ivcanon != 0;
-}
-
-struct gimple_opt_pass pass_iv_canon =
-{
- {
-  GIMPLE_PASS,
-  "ivcanon",				/* name */
-  OPTGROUP_LOOP,                        /* optinfo_flags */
-  gate_tree_ssa_loop_ivcanon,		/* gate */
-  tree_ssa_loop_ivcanon,	       	/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_TREE_LOOP_IVCANON,	  		/* tv_id */
-  PROP_cfg | PROP_ssa,			/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  0             			/* todo_flags_finish */
- }
-};
 
 /* Propagation of constants using scev.  */
 
@@ -402,34 +257,51 @@ gate_scev_const_prop (void)
   return flag_tree_scev_cprop;
 }
 
-struct gimple_opt_pass pass_scev_cprop =
+namespace {
+
+const pass_data pass_data_scev_cprop =
 {
- {
-  GIMPLE_PASS,
-  "sccp",				/* name */
-  OPTGROUP_LOOP,                        /* optinfo_flags */
-  gate_scev_const_prop,			/* gate */
-  scev_const_prop,	       		/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_SCEV_CONST,	  		/* tv_id */
-  PROP_cfg | PROP_ssa,			/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  TODO_cleanup_cfg
-    | TODO_update_ssa_only_virtuals
-					/* todo_flags_finish */
- }
+  GIMPLE_PASS, /* type */
+  "sccp", /* name */
+  OPTGROUP_LOOP, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_SCEV_CONST, /* tv_id */
+  ( PROP_cfg | PROP_ssa ), /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  ( TODO_cleanup_cfg
+    | TODO_update_ssa_only_virtuals ), /* todo_flags_finish */
 };
+
+class pass_scev_cprop : public gimple_opt_pass
+{
+public:
+  pass_scev_cprop (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_scev_cprop, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_scev_const_prop (); }
+  unsigned int execute () { return scev_const_prop (); }
+
+}; // class pass_scev_cprop
+
+} // anon namespace
+
+gimple_opt_pass *
+make_pass_scev_cprop (gcc::context *ctxt)
+{
+  return new pass_scev_cprop (ctxt);
+}
 
 /* Record bounds on numbers of iterations of loops.  */
 
 static unsigned int
 tree_ssa_loop_bounds (void)
 {
-  if (number_of_loops () <= 1)
+  if (number_of_loops (cfun) <= 1)
     return 0;
 
   estimate_numbers_of_iterations ();
@@ -437,195 +309,49 @@ tree_ssa_loop_bounds (void)
   return 0;
 }
 
-struct gimple_opt_pass pass_record_bounds =
+namespace {
+
+const pass_data pass_data_record_bounds =
 {
- {
-  GIMPLE_PASS,
-  "*record_bounds",			/* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  NULL,					/* gate */
-  tree_ssa_loop_bounds,		       	/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_TREE_LOOP_BOUNDS,	  		/* tv_id */
-  PROP_cfg | PROP_ssa,			/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  0			              	/* todo_flags_finish */
- }
+  GIMPLE_PASS, /* type */
+  "*record_bounds", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  false, /* has_gate */
+  true, /* has_execute */
+  TV_TREE_LOOP_BOUNDS, /* tv_id */
+  ( PROP_cfg | PROP_ssa ), /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
 };
 
-/* Complete unrolling of loops.  */
-
-static unsigned int
-tree_complete_unroll (void)
+class pass_record_bounds : public gimple_opt_pass
 {
-  if (number_of_loops () <= 1)
-    return 0;
+public:
+  pass_record_bounds (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_record_bounds, ctxt)
+  {}
 
-  return tree_unroll_loops_completely (flag_unroll_loops
-				       || flag_peel_loops
-				       || optimize >= 3, true);
+  /* opt_pass methods: */
+  unsigned int execute () { return tree_ssa_loop_bounds (); }
+
+}; // class pass_record_bounds
+
+} // anon namespace
+
+gimple_opt_pass *
+make_pass_record_bounds (gcc::context *ctxt)
+{
+  return new pass_record_bounds (ctxt);
 }
-
-static bool
-gate_tree_complete_unroll (void)
-{
-  return true;
-}
-
-struct gimple_opt_pass pass_complete_unroll =
-{
- {
-  GIMPLE_PASS,
-  "cunroll",				/* name */
-  OPTGROUP_LOOP,                        /* optinfo_flags */
-  gate_tree_complete_unroll,		/* gate */
-  tree_complete_unroll,		       	/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_COMPLETE_UNROLL,	  		/* tv_id */
-  PROP_cfg | PROP_ssa,			/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  TODO_ggc_collect			/* todo_flags_finish */
- }
-};
-
-/* Complete unrolling of inner loops.  */
-
-static unsigned int
-tree_complete_unroll_inner (void)
-{
-  unsigned ret = 0;
-
-  loop_optimizer_init (LOOPS_NORMAL
-		       | LOOPS_HAVE_RECORDED_EXITS);
-  if (number_of_loops () > 1)
-    {
-      scev_initialize ();
-      ret = tree_unroll_loops_completely (optimize >= 3, false);
-      free_numbers_of_iterations_estimates ();
-      scev_finalize ();
-    }
-  loop_optimizer_finalize ();
-
-  return ret;
-}
-
-static bool
-gate_tree_complete_unroll_inner (void)
-{
-  return optimize >= 2;
-}
-
-struct gimple_opt_pass pass_complete_unrolli =
-{
- {
-  GIMPLE_PASS,
-  "cunrolli",				/* name */
-  OPTGROUP_LOOP,                        /* optinfo_flags */
-  gate_tree_complete_unroll_inner,	/* gate */
-  tree_complete_unroll_inner,	       	/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_COMPLETE_UNROLL,	  		/* tv_id */
-  PROP_cfg | PROP_ssa,			/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  TODO_verify_flow
-    | TODO_ggc_collect 			/* todo_flags_finish */
- }
-};
-
-/* Parallelization.  */
-
-static bool
-gate_tree_parallelize_loops (void)
-{
-  return flag_tree_parallelize_loops > 1;
-}
-
-static unsigned
-tree_parallelize_loops (void)
-{
-  if (number_of_loops () <= 1)
-    return 0;
-
-  if (parallelize_loops ())
-    return TODO_cleanup_cfg | TODO_rebuild_alias;
-  return 0;
-}
-
-struct gimple_opt_pass pass_parallelize_loops =
-{
- {
-  GIMPLE_PASS,
-  "parloops",				/* name */
-  OPTGROUP_LOOP,                        /* optinfo_flags */
-  gate_tree_parallelize_loops,		/* gate */
-  tree_parallelize_loops,      		/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_TREE_PARALLELIZE_LOOPS,  		/* tv_id */
-  PROP_cfg | PROP_ssa,			/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  0             			/* todo_flags_finish */
- }
-};
-
-/* Prefetching.  */
-
-static unsigned int
-tree_ssa_loop_prefetch (void)
-{
-  if (number_of_loops () <= 1)
-    return 0;
-
-  return tree_ssa_prefetch_arrays ();
-}
-
-static bool
-gate_tree_ssa_loop_prefetch (void)
-{
-  return flag_prefetch_loop_arrays > 0;
-}
-
-struct gimple_opt_pass pass_loop_prefetch =
-{
- {
-  GIMPLE_PASS,
-  "aprefetch",				/* name */
-  OPTGROUP_LOOP,                        /* optinfo_flags */
-  gate_tree_ssa_loop_prefetch,		/* gate */
-  tree_ssa_loop_prefetch,	       	/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_TREE_PREFETCH,	  		/* tv_id */
-  PROP_cfg | PROP_ssa,			/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  0             			/* todo_flags_finish */
- }
-};
 
 /* Induction variable optimizations.  */
 
 static unsigned int
 tree_ssa_loop_ivopts (void)
 {
-  if (number_of_loops () <= 1)
+  if (number_of_loops (cfun) <= 1)
     return 0;
 
   tree_ssa_iv_optimize ();
@@ -638,25 +364,43 @@ gate_tree_ssa_loop_ivopts (void)
   return flag_ivopts != 0;
 }
 
-struct gimple_opt_pass pass_iv_optimize =
+namespace {
+
+const pass_data pass_data_iv_optimize =
 {
- {
-  GIMPLE_PASS,
-  "ivopts",				/* name */
-  OPTGROUP_LOOP,                        /* optinfo_flags */
-  gate_tree_ssa_loop_ivopts,		/* gate */
-  tree_ssa_loop_ivopts,		       	/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_TREE_LOOP_IVOPTS,	  		/* tv_id */
-  PROP_cfg | PROP_ssa,			/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  TODO_update_ssa | TODO_ggc_collect	/* todo_flags_finish */
- }
+  GIMPLE_PASS, /* type */
+  "ivopts", /* name */
+  OPTGROUP_LOOP, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_TREE_LOOP_IVOPTS, /* tv_id */
+  ( PROP_cfg | PROP_ssa ), /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  TODO_update_ssa, /* todo_flags_finish */
 };
+
+class pass_iv_optimize : public gimple_opt_pass
+{
+public:
+  pass_iv_optimize (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_iv_optimize, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_tree_ssa_loop_ivopts (); }
+  unsigned int execute () { return tree_ssa_loop_ivopts (); }
+
+}; // class pass_iv_optimize
+
+} // anon namespace
+
+gimple_opt_pass *
+make_pass_iv_optimize (gcc::context *ctxt)
+{
+  return new pass_iv_optimize (ctxt);
+}
 
 /* Loop optimizer finalization.  */
 
@@ -669,23 +413,271 @@ tree_ssa_loop_done (void)
   return 0;
 }
 
-struct gimple_opt_pass pass_tree_loop_done =
+namespace {
+
+const pass_data pass_data_tree_loop_done =
 {
- {
-  GIMPLE_PASS,
-  "loopdone",				/* name */
-  OPTGROUP_LOOP,                        /* optinfo_flags */
-  NULL,					/* gate */
-  tree_ssa_loop_done,			/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_NONE,				/* tv_id */
-  PROP_cfg,				/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  TODO_cleanup_cfg
-    | TODO_verify_flow			/* todo_flags_finish */
- }
+  GIMPLE_PASS, /* type */
+  "loopdone", /* name */
+  OPTGROUP_LOOP, /* optinfo_flags */
+  false, /* has_gate */
+  true, /* has_execute */
+  TV_NONE, /* tv_id */
+  PROP_cfg, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  ( TODO_cleanup_cfg | TODO_verify_flow ), /* todo_flags_finish */
 };
+
+class pass_tree_loop_done : public gimple_opt_pass
+{
+public:
+  pass_tree_loop_done (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_tree_loop_done, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  unsigned int execute () { return tree_ssa_loop_done (); }
+
+}; // class pass_tree_loop_done
+
+} // anon namespace
+
+gimple_opt_pass *
+make_pass_tree_loop_done (gcc::context *ctxt)
+{
+  return new pass_tree_loop_done (ctxt);
+}
+
+/* Calls CBCK for each index in memory reference ADDR_P.  There are two
+   kinds situations handled; in each of these cases, the memory reference
+   and DATA are passed to the callback:
+
+   Access to an array: ARRAY_{RANGE_}REF (base, index).  In this case we also
+   pass the pointer to the index to the callback.
+
+   Pointer dereference: INDIRECT_REF (addr).  In this case we also pass the
+   pointer to addr to the callback.
+
+   If the callback returns false, the whole search stops and false is returned.
+   Otherwise the function returns true after traversing through the whole
+   reference *ADDR_P.  */
+
+bool
+for_each_index (tree *addr_p, bool (*cbck) (tree, tree *, void *), void *data)
+{
+  tree *nxt, *idx;
+
+  for (; ; addr_p = nxt)
+    {
+      switch (TREE_CODE (*addr_p))
+	{
+	case SSA_NAME:
+	  return cbck (*addr_p, addr_p, data);
+
+	case MEM_REF:
+	  nxt = &TREE_OPERAND (*addr_p, 0);
+	  return cbck (*addr_p, nxt, data);
+
+	case BIT_FIELD_REF:
+	case VIEW_CONVERT_EXPR:
+	case REALPART_EXPR:
+	case IMAGPART_EXPR:
+	  nxt = &TREE_OPERAND (*addr_p, 0);
+	  break;
+
+	case COMPONENT_REF:
+	  /* If the component has varying offset, it behaves like index
+	     as well.  */
+	  idx = &TREE_OPERAND (*addr_p, 2);
+	  if (*idx
+	      && !cbck (*addr_p, idx, data))
+	    return false;
+
+	  nxt = &TREE_OPERAND (*addr_p, 0);
+	  break;
+
+	case ARRAY_REF:
+	case ARRAY_RANGE_REF:
+	  nxt = &TREE_OPERAND (*addr_p, 0);
+	  if (!cbck (*addr_p, &TREE_OPERAND (*addr_p, 1), data))
+	    return false;
+	  break;
+
+	case VAR_DECL:
+	case PARM_DECL:
+	case CONST_DECL:
+	case STRING_CST:
+	case RESULT_DECL:
+	case VECTOR_CST:
+	case COMPLEX_CST:
+	case INTEGER_CST:
+	case REAL_CST:
+	case FIXED_CST:
+	case CONSTRUCTOR:
+	  return true;
+
+	case ADDR_EXPR:
+	  gcc_assert (is_gimple_min_invariant (*addr_p));
+	  return true;
+
+	case TARGET_MEM_REF:
+	  idx = &TMR_BASE (*addr_p);
+	  if (*idx
+	      && !cbck (*addr_p, idx, data))
+	    return false;
+	  idx = &TMR_INDEX (*addr_p);
+	  if (*idx
+	      && !cbck (*addr_p, idx, data))
+	    return false;
+	  idx = &TMR_INDEX2 (*addr_p);
+	  if (*idx
+	      && !cbck (*addr_p, idx, data))
+	    return false;
+	  return true;
+
+	default:
+    	  gcc_unreachable ();
+	}
+    }
+}
+
+
+/* The name and the length of the currently generated variable
+   for lsm.  */
+#define MAX_LSM_NAME_LENGTH 40
+static char lsm_tmp_name[MAX_LSM_NAME_LENGTH + 1];
+static int lsm_tmp_name_length;
+
+/* Adds S to lsm_tmp_name.  */
+
+static void
+lsm_tmp_name_add (const char *s)
+{
+  int l = strlen (s) + lsm_tmp_name_length;
+  if (l > MAX_LSM_NAME_LENGTH)
+    return;
+
+  strcpy (lsm_tmp_name + lsm_tmp_name_length, s);
+  lsm_tmp_name_length = l;
+}
+
+/* Stores the name for temporary variable that replaces REF to
+   lsm_tmp_name.  */
+
+static void
+gen_lsm_tmp_name (tree ref)
+{
+  const char *name;
+
+  switch (TREE_CODE (ref))
+    {
+    case MEM_REF:
+    case TARGET_MEM_REF:
+      gen_lsm_tmp_name (TREE_OPERAND (ref, 0));
+      lsm_tmp_name_add ("_");
+      break;
+
+    case ADDR_EXPR:
+      gen_lsm_tmp_name (TREE_OPERAND (ref, 0));
+      break;
+
+    case BIT_FIELD_REF:
+    case VIEW_CONVERT_EXPR:
+    case ARRAY_RANGE_REF:
+      gen_lsm_tmp_name (TREE_OPERAND (ref, 0));
+      break;
+
+    case REALPART_EXPR:
+      gen_lsm_tmp_name (TREE_OPERAND (ref, 0));
+      lsm_tmp_name_add ("_RE");
+      break;
+
+    case IMAGPART_EXPR:
+      gen_lsm_tmp_name (TREE_OPERAND (ref, 0));
+      lsm_tmp_name_add ("_IM");
+      break;
+
+    case COMPONENT_REF:
+      gen_lsm_tmp_name (TREE_OPERAND (ref, 0));
+      lsm_tmp_name_add ("_");
+      name = get_name (TREE_OPERAND (ref, 1));
+      if (!name)
+	name = "F";
+      lsm_tmp_name_add (name);
+      break;
+
+    case ARRAY_REF:
+      gen_lsm_tmp_name (TREE_OPERAND (ref, 0));
+      lsm_tmp_name_add ("_I");
+      break;
+
+    case SSA_NAME:
+    case VAR_DECL:
+    case PARM_DECL:
+      name = get_name (ref);
+      if (!name)
+	name = "D";
+      lsm_tmp_name_add (name);
+      break;
+
+    case STRING_CST:
+      lsm_tmp_name_add ("S");
+      break;
+
+    case RESULT_DECL:
+      lsm_tmp_name_add ("R");
+      break;
+
+    case INTEGER_CST:
+      /* Nothing.  */
+      break;
+
+    default:
+      gcc_unreachable ();
+    }
+}
+
+/* Determines name for temporary variable that replaces REF.
+   The name is accumulated into the lsm_tmp_name variable.
+   N is added to the name of the temporary.  */
+
+char *
+get_lsm_tmp_name (tree ref, unsigned n, const char *suffix)
+{
+  char ns[2];
+
+  lsm_tmp_name_length = 0;
+  gen_lsm_tmp_name (ref);
+  lsm_tmp_name_add ("_lsm");
+  if (n < 10)
+    {
+      ns[0] = '0' + n;
+      ns[1] = 0;
+      lsm_tmp_name_add (ns);
+    }
+  return lsm_tmp_name;
+  if (suffix != NULL)
+    lsm_tmp_name_add (suffix);
+}
+
+/* Computes an estimated number of insns in LOOP, weighted by WEIGHTS.  */
+
+unsigned
+tree_num_loop_insns (struct loop *loop, eni_weights *weights)
+{
+  basic_block *body = get_loop_body (loop);
+  gimple_stmt_iterator gsi;
+  unsigned size = 0, i;
+
+  for (i = 0; i < loop->num_nodes; i++)
+    for (gsi = gsi_start_bb (body[i]); !gsi_end_p (gsi); gsi_next (&gsi))
+      size += estimate_num_insns (gsi_stmt (gsi), weights);
+  free (body);
+
+  return size;
+}
+
+
+

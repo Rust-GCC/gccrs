@@ -28,7 +28,16 @@ along with GCC; see the file COPYING3.  If not see
 #include "function.h"
 #include "expr.h"
 #include "langhooks.h"
-#include "tree-flow.h"
+#include "bitmap.h"
+#include "gimple.h"
+#include "gimple-ssa.h"
+#include "cgraph.h"
+#include "tree-cfg.h"
+#include "tree-phinodes.h"
+#include "ssa-iterators.h"
+#include "tree-ssanames.h"
+#include "tree-dfa.h"
+#include "tree-ssa.h"
 #include "tree-pass.h"
 #include "except.h"
 #include "flags.h"
@@ -40,13 +49,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-inline.h"
 #include "value-prof.h"
 #include "target.h"
-#include "ssaexpand.h"
-#include "bitmap.h"
+#include "tree-ssa-live.h"
+#include "tree-outof-ssa.h"
 #include "sbitmap.h"
 #include "cfgloop.h"
 #include "regs.h" /* For reg_renumber.  */
 #include "insn-attr.h" /* For INSN_SCHEDULING.  */
 #include "asan.h"
+#include "tree-ssa-address.h"
 
 /* This variable holds information helping the rewriting of SSA trees
    into RTL.  */
@@ -569,7 +579,7 @@ add_partitioned_vars_to_ptset (struct pt_solution *pt,
       || pt->vars == NULL
       /* The pointed-to vars bitmap is shared, it is enough to
 	 visit it once.  */
-      || pointer_set_insert(visited, pt->vars))
+      || pointer_set_insert (visited, pt->vars))
     return;
 
   bitmap_clear (temp);
@@ -764,7 +774,7 @@ partition_stack_vars (void)
 	     sizes, as the shorter vars wouldn't be adequately protected.
 	     Don't do that for "large" (unsupported) alignment objects,
 	     those aren't protected anyway.  */
-	  if (flag_asan && isize != jsize
+	  if ((flag_sanitize & SANITIZE_ADDRESS) && isize != jsize
 	      && ialign * BITS_PER_UNIT <= MAX_SUPPORTED_STACK_ALIGNMENT)
 	    break;
 
@@ -940,7 +950,7 @@ expand_stack_vars (bool (*pred) (size_t), struct stack_vars_data *data)
       alignb = stack_vars[i].alignb;
       if (alignb * BITS_PER_UNIT <= MAX_SUPPORTED_STACK_ALIGNMENT)
 	{
-	  if (flag_asan && pred)
+	  if ((flag_sanitize & SANITIZE_ADDRESS) && pred)
 	    {
 	      HOST_WIDE_INT prev_offset = frame_offset;
 	      tree repr_decl = NULL_TREE;
@@ -1110,7 +1120,7 @@ defer_stack_allocation (tree var, bool toplevel)
   /* If stack protection is enabled, *all* stack variables must be deferred,
      so that we can re-order the strings to the top of the frame.
      Similarly for Address Sanitizer.  */
-  if (flag_stack_protect || flag_asan)
+  if (flag_stack_protect || (flag_sanitize & SANITIZE_ADDRESS))
     return true;
 
   /* We handle "large" alignment via dynamic allocation.  We want to handle
@@ -1131,7 +1141,9 @@ defer_stack_allocation (tree var, bool toplevel)
      other hand, we don't want the function's stack frame size to
      get completely out of hand.  So we avoid adding scalars and
      "small" aggregates to the list at all.  */
-  if (optimize == 0 && tree_low_cst (DECL_SIZE_UNIT (var), 1) < 32)
+  if (optimize == 0
+      && (tree_low_cst (DECL_SIZE_UNIT (var), 1)
+          < PARAM_VALUE (PARAM_MIN_SIZE_FOR_STACK_SHARING)))
     return false;
 
   return true;
@@ -1184,7 +1196,7 @@ expand_one_var (tree var, bool toplevel, bool really_expand)
     {
       /* stack_alignment_estimated shouldn't change after stack
          realign decision made */
-      gcc_assert(!crtl->stack_realign_processed);
+      gcc_assert (!crtl->stack_realign_processed);
       crtl->stack_alignment_estimated = align;
     }
 
@@ -1291,6 +1303,12 @@ clear_tree_used (tree block)
     clear_tree_used (t);
 }
 
+enum {
+  SPCT_FLAG_DEFAULT = 1,
+  SPCT_FLAG_ALL = 2,
+  SPCT_FLAG_STRONG = 3
+};
+
 /* Examine TYPE and determine a bit mask of the following features.  */
 
 #define SPCT_HAS_LARGE_CHAR_ARRAY	1
@@ -1360,7 +1378,8 @@ stack_protect_decl_phase (tree decl)
   if (bits & SPCT_HAS_SMALL_CHAR_ARRAY)
     has_short_buffer = true;
 
-  if (flag_stack_protect == 2)
+  if (flag_stack_protect == SPCT_FLAG_ALL
+      || flag_stack_protect == SPCT_FLAG_STRONG)
     {
       if ((bits & (SPCT_HAS_SMALL_CHAR_ARRAY | SPCT_HAS_LARGE_CHAR_ARRAY))
 	  && !(bits & SPCT_HAS_AGGREGATE))
@@ -1490,7 +1509,7 @@ estimated_stack_frame_size (struct cgraph_node *node)
   HOST_WIDE_INT size = 0;
   size_t i;
   tree var;
-  struct function *fn = DECL_STRUCT_FUNCTION (node->symbol.decl);
+  struct function *fn = DECL_STRUCT_FUNCTION (node->decl);
 
   push_cfun (fn);
 
@@ -1514,6 +1533,27 @@ estimated_stack_frame_size (struct cgraph_node *node)
   return size;
 }
 
+/* Helper routine to check if a record or union contains an array field. */
+
+static int
+record_or_union_type_has_array_p (const_tree tree_type)
+{
+  tree fields = TYPE_FIELDS (tree_type);
+  tree f;
+
+  for (f = fields; f; f = DECL_CHAIN (f))
+    if (TREE_CODE (f) == FIELD_DECL)
+      {
+	tree field_type = TREE_TYPE (f);
+	if (RECORD_OR_UNION_TYPE_P (field_type)
+	    && record_or_union_type_has_array_p (field_type))
+	  return 1;
+	if (TREE_CODE (field_type) == ARRAY_TYPE)
+	  return 1;
+      }
+  return 0;
+}
+
 /* Expand all variables used in the function.  */
 
 static rtx
@@ -1525,6 +1565,7 @@ expand_used_vars (void)
   struct pointer_map_t *ssa_name_decls;
   unsigned i;
   unsigned len;
+  bool gen_stack_protect_signal = false;
 
   /* Compute the phase of the stack frame for this function.  */
   {
@@ -1575,6 +1616,24 @@ expand_used_vars (void)
 	}
     }
   pointer_map_destroy (ssa_name_decls);
+
+  if (flag_stack_protect == SPCT_FLAG_STRONG)
+    FOR_EACH_LOCAL_DECL (cfun, i, var)
+      if (!is_global_var (var))
+	{
+	  tree var_type = TREE_TYPE (var);
+	  /* Examine local referenced variables that have their addresses taken,
+	     contain an array, or are arrays.  */
+	  if (TREE_CODE (var) == VAR_DECL
+	      && (TREE_CODE (var_type) == ARRAY_TYPE
+		  || TREE_ADDRESSABLE (var)
+		  || (RECORD_OR_UNION_TYPE_P (var_type)
+		      && record_or_union_type_has_array_p (var_type))))
+	    {
+	      gen_stack_protect_signal = true;
+	      break;
+	    }
+	}
 
   /* At this point all variables on the local_decls with TREE_USED
      set are not associated with any block scope.  Lay them out.  */
@@ -1662,12 +1721,26 @@ expand_used_vars (void)
 	dump_stack_var_partition ();
     }
 
-  /* There are several conditions under which we should create a
-     stack guard: protect-all, alloca used, protected decls present.  */
-  if (flag_stack_protect == 2
-      || (flag_stack_protect
-	  && (cfun->calls_alloca || has_protected_decls)))
-    create_stack_guard ();
+  switch (flag_stack_protect)
+    {
+    case SPCT_FLAG_ALL:
+      create_stack_guard ();
+      break;
+
+    case SPCT_FLAG_STRONG:
+      if (gen_stack_protect_signal
+	  || cfun->calls_alloca || has_protected_decls)
+	create_stack_guard ();
+      break;
+
+    case SPCT_FLAG_DEFAULT:
+      if (cfun->calls_alloca || has_protected_decls)
+	create_stack_guard ();
+      break;
+
+    default:
+      ;
+    }
 
   /* Assign rtl to each variable based on these partitions.  */
   if (stack_vars_num > 0)
@@ -1692,7 +1765,7 @@ expand_used_vars (void)
 	    expand_stack_vars (stack_protect_decl_phase_2, &data);
 	}
 
-      if (flag_asan)
+      if (flag_sanitize & SANITIZE_ADDRESS)
 	/* Phase 3, any partitions that need asan protection
 	   in addition to phase 1 and 2.  */
 	expand_stack_vars (asan_decl_phase_3, &data);
@@ -1709,7 +1782,7 @@ expand_used_vars (void)
 	  var_end_seq
 	    = asan_emit_stack_protection (virtual_stack_vars_rtx,
 					  data.asan_vec.address (),
-					  data.asan_decl_vec. address(),
+					  data.asan_decl_vec. address (),
 					  data.asan_vec.length ());
 	}
 
@@ -1886,9 +1959,14 @@ expand_gimple_cond (basic_block bb, gimple stmt)
      be cleaned up by combine.  But some pattern matchers like if-conversion
      work better when there's only one compare, so make up for this
      here as special exception if TER would have made the same change.  */
-  if (gimple_cond_single_var_p (stmt)
-      && SA.values
+  if (SA.values
       && TREE_CODE (op0) == SSA_NAME
+      && TREE_CODE (TREE_TYPE (op0)) == BOOLEAN_TYPE
+      && TREE_CODE (op1) == INTEGER_CST
+      && ((gimple_cond_code (stmt) == NE_EXPR
+	   && integer_zerop (op1))
+	  || (gimple_cond_code (stmt) == EQ_EXPR
+	      && integer_onep (op1)))
       && bitmap_bit_p (SA.values, SSA_NAME_VERSION (op0)))
     {
       gimple second = SSA_NAME_DEF_STMT (op0);
@@ -3088,7 +3166,12 @@ expand_debug_expr (tree exp)
 	  && GET_MODE (op0) != VOIDmode && GET_MODE (op1) != VOIDmode
 	  && GET_MODE (op0) != GET_MODE (op1))
 	{
-	  if (GET_MODE_BITSIZE (GET_MODE (op0)) < GET_MODE_BITSIZE (GET_MODE (op1)))
+	  if (GET_MODE_BITSIZE (GET_MODE (op0)) < GET_MODE_BITSIZE (GET_MODE (op1))
+	      /* If OP0 is a partial mode, then we must truncate, even if it has
+		 the same bitsize as OP1 as GCC's representation of partial modes
+		 is opaque.  */
+	      || (GET_MODE_CLASS (GET_MODE (op0)) == MODE_PARTIAL_INT
+		  && GET_MODE_BITSIZE (GET_MODE (op0)) == GET_MODE_BITSIZE (GET_MODE (op1))))
 	    op1 = simplify_gen_unary (TRUNCATE, GET_MODE (op0), op1,
 				      GET_MODE (op1));
 	  else
@@ -4707,14 +4790,18 @@ gimple_expand_cfg (void)
 	  if (e->insns.r)
 	    {
 	      rebuild_jump_labels_chain (e->insns.r);
-	      /* Avoid putting insns before parm_birth_insn.  */
+	      /* Put insns after parm birth, but before
+		 NOTE_INSNS_FUNCTION_BEG.  */
 	      if (e->src == ENTRY_BLOCK_PTR
-		  && single_succ_p (ENTRY_BLOCK_PTR)
-		  && parm_birth_insn)
+		  && single_succ_p (ENTRY_BLOCK_PTR))
 		{
 		  rtx insns = e->insns.r;
 		  e->insns.r = NULL_RTX;
-		  emit_insn_after_noloc (insns, parm_birth_insn, e->dest);
+		  if (NOTE_P (parm_birth_insn)
+		      && NOTE_KIND (parm_birth_insn) == NOTE_INSN_FUNCTION_BEG)
+		    emit_insn_before_noloc (insns, parm_birth_insn, e->dest);
+		  else
+		    emit_insn_after_noloc (insns, parm_birth_insn, e->dest);
 		}
 	      else
 		commit_one_edge_insertion (e);
@@ -4840,24 +4927,42 @@ gimple_expand_cfg (void)
   return 0;
 }
 
-struct rtl_opt_pass pass_expand =
+namespace {
+
+const pass_data pass_data_expand =
 {
- {
-  RTL_PASS,
-  "expand",				/* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  NULL,                                 /* gate */
-  gimple_expand_cfg,			/* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_EXPAND,				/* tv_id */
-  PROP_ssa | PROP_gimple_leh | PROP_cfg
-    | PROP_gimple_lcx,			/* properties_required */
-  PROP_rtl,                             /* properties_provided */
-  PROP_ssa | PROP_trees,		/* properties_destroyed */
-  TODO_verify_ssa | TODO_verify_flow
-    | TODO_verify_stmts,		/* todo_flags_start */
-  TODO_ggc_collect			/* todo_flags_finish */
- }
+  RTL_PASS, /* type */
+  "expand", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  false, /* has_gate */
+  true, /* has_execute */
+  TV_EXPAND, /* tv_id */
+  ( PROP_ssa | PROP_gimple_leh | PROP_cfg
+    | PROP_gimple_lcx
+    | PROP_gimple_lvec ), /* properties_required */
+  PROP_rtl, /* properties_provided */
+  ( PROP_ssa | PROP_trees ), /* properties_destroyed */
+  ( TODO_verify_ssa | TODO_verify_flow
+    | TODO_verify_stmts ), /* todo_flags_start */
+  0, /* todo_flags_finish */
 };
+
+class pass_expand : public rtl_opt_pass
+{
+public:
+  pass_expand (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_expand, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  unsigned int execute () { return gimple_expand_cfg (); }
+
+}; // class pass_expand
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_expand (gcc::context *ctxt)
+{
+  return new pass_expand (ctxt);
+}

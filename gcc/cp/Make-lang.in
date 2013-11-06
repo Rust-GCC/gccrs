@@ -51,14 +51,10 @@ c++: cc1plus$(exeext)
 # Tell GNU make to ignore these if they exist.
 .PHONY: c++
 
-g++spec.o: $(srcdir)/cp/g++spec.c $(SYSTEM_H) coretypes.h $(TM_H) $(GCC_H) \
-    $(CONFIG_H) $(OPTS_H)
-	(SHLIB='$(SHLIB)'; \
-	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(DRIVER_DEFINES) \
-		$(INCLUDES) $(srcdir)/cp/g++spec.c)
+CFLAGS-cp/g++spec.o += $(DRIVER_DEFINES)
 
 # Create the compiler driver for g++.
-GXX_OBJS = $(GCC_OBJS) g++spec.o
+GXX_OBJS = $(GCC_OBJS) cp/g++spec.o
 xg++$(exeext): $(GXX_OBJS) $(EXTRA_GCC_OBJS) libcommon-target.a $(LIBDEPS)
 	+$(LINKER) $(ALL_LINKERFLAGS) $(LDFLAGS) -o $@ \
 	  $(GXX_OBJS) $(EXTRA_GCC_OBJS) libcommon-target.a \
@@ -80,7 +76,8 @@ CXX_AND_OBJCXX_OBJS = cp/call.o cp/decl.o cp/expr.o cp/pt.o cp/typeck2.o \
  cp/typeck.o cp/cvt.o cp/except.o cp/friend.o cp/init.o cp/method.o \
  cp/search.o cp/semantics.o cp/tree.o cp/repo.o cp/dump.o cp/optimize.o \
  cp/mangle.o cp/cp-objcp-common.o cp/name-lookup.o cp/cxx-pretty-print.o \
- cp/cp-gimplify.o $(CXX_C_OBJS)
+ cp/cp-gimplify.o cp/cp-array-notation.o cp/lambda.o \
+ cp/vtable-class-hierarchy.o $(CXX_C_OBJS)
 
 # Language-specific object files for C++.
 CXX_OBJS = cp/cp-lang.o c-family/stub-objc.o $(CXX_AND_OBJCXX_OBJS)
@@ -97,10 +94,8 @@ cc1plus-checksum.c : build/genchecksum$(build_exeext) checksum-options \
                      checksum-options > cc1plus-checksum.c.tmp &&	   \
 	$(srcdir)/../move-if-change cc1plus-checksum.c.tmp cc1plus-checksum.c
 
-cc1plus-checksum.o : cc1plus-checksum.c $(CONFIG_H) $(SYSTEM_H)
-
 cc1plus$(exeext): $(CXX_OBJS) cc1plus-checksum.o $(BACKEND) $(LIBDEPS)
-	+$(LINKER) $(ALL_LINKERFLAGS) $(LDFLAGS) -o $@ \
+	+$(LLINKER) $(ALL_LINKERFLAGS) $(LDFLAGS) -o $@ \
 	      $(CXX_OBJS) cc1plus-checksum.o $(BACKEND) $(LIBS) $(BACKENDLIBS)
 
 ifeq ($(ENABLE_MAINTAINER_RULES), true)
@@ -166,8 +161,8 @@ check_g++_parallelize = old-deja.exp dg.exp dg-torture.exp
 # Install hooks:
 # cc1plus is installed elsewhere as part of $(COMPILERS).
 
-# Install the driver program as $(target)-g++
-# and also as either g++ (if native) or $(tooldir)/bin/g++.
+# Install the driver program as $(target)-g++ and $(target)-c++, and
+# also as g++ and c++ if native.
 c++.install-common: installdirs
 	-rm -f $(DESTDIR)$(bindir)/$(GXX_INSTALL_NAME)$(exeext)
 	-$(INSTALL_PROGRAM) xg++$(exeext) $(DESTDIR)$(bindir)/$(GXX_INSTALL_NAME)$(exeext)
@@ -176,15 +171,7 @@ c++.install-common: installdirs
 	-( cd $(DESTDIR)$(bindir) && \
 	      $(LN) $(GXX_INSTALL_NAME)$(exeext) $(CXX_INSTALL_NAME)$(exeext) )
 	-if [ -f cc1plus$(exeext) ] ; then \
-	  if [ -f g++-cross$(exeext) ] ; then \
-	    if [ -d $(DESTDIR)$(gcc_tooldir)/bin/. ] ; then \
-	      rm -f $(DESTDIR)$(gcc_tooldir)/bin/g++$(exeext); \
-	      $(INSTALL_PROGRAM) g++-cross$(exeext) $(DESTDIR)$(gcc_tooldir)/bin/g++$(exeext); \
-	      rm -f $(DESTDIR)$(gcc_tooldir)/bin/c++$(exeext); \
-	      ( cd $(DESTDIR)$(gcc_tooldir)/bin && \
-		$(LN) g++$(exeext) c++$(exeext) ); \
-	    else true; fi; \
-	  else \
+	  if [ ! -f g++-cross$(exeext) ] ; then \
 	    rm -f $(DESTDIR)$(bindir)/$(GXX_TARGET_INSTALL_NAME)$(exeext); \
 	    ( cd $(DESTDIR)$(bindir) && \
 	      $(LN) $(GXX_INSTALL_NAME)$(exeext) $(GXX_TARGET_INSTALL_NAME)$(exeext) ); \
@@ -253,95 +240,3 @@ c++.stageprofile: stageprofile-start
 	-mv cp/*$(objext) stageprofile/cp
 c++.stagefeedback: stagefeedback-start
 	-mv cp/*$(objext) stagefeedback/cp
-
-#
-# .o: .h dependencies.
-CXX_TREE_H = $(TREE_H) cp/name-lookup.h cp/cp-tree.h $(C_COMMON_H) \
-	$(FUNCTION_H) \
-	$(SYSTEM_H) coretypes.h $(CONFIG_H) $(TARGET_H) $(GGC_H) \
-	$(srcdir)/../include/hashtab.h
-CXX_PARSER_H = tree.h c-family/c-pragma.h cp/parser.h
-CXX_PRETTY_PRINT_H = cp/cxx-pretty-print.h $(C_PRETTY_PRINT_H)
-
-cp/lex.o: cp/lex.c $(CXX_TREE_H) $(TM_H) $(FLAGS_H) \
-  $(C_PRAGMA_H) input.h cp/operators.def $(TM_P_H) \
-  c-family/c-objc.h
-cp/cp-lang.o: cp/cp-lang.c $(CXX_TREE_H) $(TM_H) debug.h langhooks.h \
-  $(LANGHOOKS_DEF_H) $(C_COMMON_H) gtype-cp.h gt-cp-cp-lang.h \
-  cp/cp-objcp-common.h $(EXPR_H) $(TARGET_H) $(CXX_PARSER_H)
-cp/decl.o: cp/decl.c $(CXX_TREE_H) $(TM_H) $(FLAGS_H) cp/decl.h \
-  output.h toplev.h $(HASHTAB_H) $(RTL_H) \
-  cp/operators.def $(TM_P_H) $(TREE_INLINE_H) $(DIAGNOSTIC_H) $(C_PRAGMA_H) \
-  debug.h gt-cp-decl.h $(TIMEVAR_H) $(TARGET_H) $(PLUGIN_H) \
-  intl.h tree-iterator.h pointer-set.h $(SPLAY_TREE_H) \
-  c-family/c-objc.h
-cp/decl2.o: cp/decl2.c $(CXX_TREE_H) $(TM_H) $(FLAGS_H) cp/decl.h \
-  toplev.h $(C_COMMON_H) gt-cp-decl2.h $(CGRAPH_H) \
-  $(C_PRAGMA_H) dumpfile.h intl.h $(TARGET_H) $(GIMPLE_H) pointer-set.h \
-  $(SPLAY_TREE_H) c-family/c-ada-spec.h \
-  c-family/c-objc.h
-cp/cp-objcp-common.o : cp/cp-objcp-common.c $(CONFIG_H) $(SYSTEM_H) \
-  coretypes.h $(TM_H) $(TREE_H) $(CXX_TREE_H) $(C_COMMON_H) \
-  langhooks.h $(LANGHOOKS_DEF_H) $(DIAGNOSTIC_H) debug.h \
-  $(CXX_PRETTY_PRINT_H) cp/cp-objcp-common.h gt-cp-cp-objcp-common.h
-cp/typeck2.o: cp/typeck2.c $(CXX_TREE_H) $(TM_H) $(FLAGS_H) \
-  $(TM_P_H) $(DIAGNOSTIC_CORE_H) gt-cp-typeck2.h $(REAL_H) intl.h
-cp/typeck.o: cp/typeck.c $(CXX_TREE_H) $(TM_H) $(FLAGS_H) $(PARAMS_H) \
-  toplev.h $(DIAGNOSTIC_H) convert.h $(C_COMMON_H) $(TARGET_H) \
-  c-family/c-objc.h
-cp/class.o: cp/class.c $(CXX_TREE_H) $(TM_H) $(FLAGS_H) toplev.h \
-  $(TARGET_H) convert.h $(CGRAPH_H) dumpfile.h gt-cp-class.h \
-  $(SPLAY_TREE_H) pointer-set.h $(HASH_TABLE_H)
-cp/call.o: cp/call.c $(CXX_TREE_H) $(TM_H) $(FLAGS_H) toplev.h \
-  $(DIAGNOSTIC_CORE_H) intl.h gt-cp-call.h convert.h $(TARGET_H) langhooks.h \
-  $(TIMEVAR_H) c-family/c-objc.h
-cp/friend.o: cp/friend.c $(CXX_TREE_H) $(TM_H) $(FLAGS_H)
-cp/init.o: cp/init.c $(CXX_TREE_H) $(TM_H) $(FLAGS_H) \
-  $(EXCEPT_H) $(TARGET_H)
-cp/method.o: cp/method.c $(CXX_TREE_H) $(TM_H) toplev.h \
-  $(TM_P_H) $(TARGET_H) $(DIAGNOSTIC_H) gt-cp-method.h $(GIMPLE_H) \
-  $(COMMON_TARGET_H)
-cp/cvt.o: cp/cvt.c $(CXX_TREE_H) $(TM_H) cp/decl.h $(FLAGS_H) \
-  convert.h $(TARGET_H) intl.h
-cp/search.o: cp/search.c $(CXX_TREE_H) $(TM_H) $(FLAGS_H) toplev.h \
-  intl.h
-cp/tree.o: cp/tree.c $(CXX_TREE_H) $(TM_H) $(FLAGS_H) \
-  $(TREE_INLINE_H) $(REAL_H) gt-cp-tree.h \
-  $(TARGET_H) debug.h $(CGRAPH_H) $(SPLAY_TREE_H) $(GIMPLE_H) $(HASH_TABLE_H)
-cp/ptree.o: cp/ptree.c $(CXX_TREE_H) $(TM_H)
-cp/rtti.o: cp/rtti.c $(CXX_TREE_H) $(TM_H) $(FLAGS_H) convert.h \
-  $(TARGET_H) $(C_PRAGMA_H) gt-cp-rtti.h intl.h
-cp/except.o: cp/except.c $(CXX_TREE_H) $(TM_H) $(FLAGS_H) \
-  cp/cfns.h $(TREE_INLINE_H) $(TARGET_H) gt-cp-except.h
-cp/expr.o: cp/expr.c $(CXX_TREE_H) $(TM_H) $(FLAGS_H) $(TM_P_H)
-cp/pt.o: cp/pt.c $(CXX_TREE_H) $(TM_H) cp/decl.h cp/cp-objcp-common.h \
-  toplev.h $(TREE_INLINE_H) pointer-set.h gt-cp-pt.h intl.h \
-  c-family/c-objc.h
-cp/error.o: cp/error.c $(CXX_TREE_H) $(TM_H) $(DIAGNOSTIC_H) \
-  $(FLAGS_H) $(REAL_H) $(LANGHOOKS_DEF_H) $(CXX_PRETTY_PRINT_H) \
-  tree-diagnostic.h tree-pretty-print.h pointer-set.h c-family/c-objc.h
-cp/repo.o: cp/repo.c $(CXX_TREE_H) $(TM_H) toplev.h $(DIAGNOSTIC_CORE_H) \
-  gt-cp-repo.h
-cp/semantics.o: cp/semantics.c $(CXX_TREE_H) $(TM_H) toplev.h \
-  $(FLAGS_H) $(RTL_H) $(TIMEVAR_H) \
-  $(TREE_INLINE_H) $(CGRAPH_H) $(TARGET_H) $(C_COMMON_H) $(GIMPLE_H) \
-  bitmap.h gt-cp-semantics.h c-family/c-objc.h $(HASH_TABLE_H)
-cp/dump.o: cp/dump.c $(CXX_TREE_H) $(TM_H) $(TREE_DUMP_H)
-cp/optimize.o: cp/optimize.c $(CXX_TREE_H) $(TM_H) \
-  input.h $(PARAMS_H) debug.h $(TREE_INLINE_H) $(GIMPLE_H) \
-  $(TARGET_H) tree-iterator.h $(CGRAPH_H) $(DIAGNOSTIC_CORE_H) \
-  dumpfile.h
-cp/mangle.o: cp/mangle.c $(CXX_TREE_H) $(TM_H) $(REAL_H) \
-  gt-cp-mangle.h $(TARGET_H) $(TM_P_H) $(CGRAPH_H)
-cp/parser.o: cp/parser.c $(CXX_TREE_H) $(TM_H) $(DIAGNOSTIC_CORE_H) \
-  gt-cp-parser.h $(TARGET_H) $(PLUGIN_H) intl.h cp/decl.h \
-  c-family/c-objc.h tree-pretty-print.h $(CXX_PARSER_H) $(TIMEVAR_H)
-cp/cp-gimplify.o: cp/cp-gimplify.c $(CXX_TREE_H) $(C_COMMON_H) \
-	$(TM_H) coretypes.h pointer-set.h tree-iterator.h $(SPLAY_TREE_H)
-
-cp/name-lookup.o: cp/name-lookup.c $(CONFIG_H) $(SYSTEM_H) coretypes.h \
-	$(TM_H) $(CXX_TREE_H) $(TIMEVAR_H) gt-cp-name-lookup.h $(PARAMS_H) \
-	$(DIAGNOSTIC_CORE_H) $(FLAGS_H) debug.h pointer-set.h
-
-cp/cxx-pretty-print.o: cp/cxx-pretty-print.c $(CXX_PRETTY_PRINT_H) \
-  $(CONFIG_H) $(SYSTEM_H) $(TM_H) coretypes.h $(CXX_TREE_H) tree-pretty-print.h

@@ -79,6 +79,13 @@ int ira_objects_num;
 /* Map a conflict id to its conflict record.  */
 ira_object_t *ira_object_id_map;
 
+/* Array of references to all allocno preferences.  The order number
+   of the preference corresponds to the index in the array.  */
+ira_pref_t *ira_prefs;
+
+/* Size of the previous array.  */
+int ira_prefs_num;
+
 /* Array of references to all copies.  The order number of the copy
    corresponds to the index in the array.  Removed copies have NULL
    element value.  */
@@ -151,11 +158,11 @@ create_loop_tree_nodes (void)
       init_loop_tree_node (ira_loop_nodes, 0);
       return;
     }
-  ira_loop_nodes_count = number_of_loops ();
+  ira_loop_nodes_count = number_of_loops (cfun);
   ira_loop_nodes = ((struct ira_loop_tree_node *)
 		    ira_allocate (sizeof (struct ira_loop_tree_node)
 				  * ira_loop_nodes_count));
-  FOR_EACH_VEC_SAFE_ELT (get_loops (), i, loop)
+  FOR_EACH_VEC_SAFE_ELT (get_loops (cfun), i, loop)
     {
       if (loop_outer (loop) != NULL)
 	{
@@ -194,7 +201,7 @@ more_one_region_p (void)
   loop_p loop;
 
   if (current_loops != NULL)
-    FOR_EACH_VEC_SAFE_ELT (get_loops (), i, loop)
+    FOR_EACH_VEC_SAFE_ELT (get_loops (cfun), i, loop)
       if (ira_loop_nodes[i].regno_allocno_map != NULL
 	  && ira_loop_tree_root != &ira_loop_nodes[i])
 	return true;
@@ -379,7 +386,7 @@ rebuild_regno_allocno_maps (void)
 
   ira_assert (current_loops != NULL);
   max_regno = max_reg_num ();
-  FOR_EACH_VEC_SAFE_ELT (get_loops (), l, loop)
+  FOR_EACH_VEC_SAFE_ELT (get_loops (cfun), l, loop)
     if (ira_loop_nodes[l].regno_allocno_map != NULL)
       {
 	ira_free (ira_loop_nodes[l].regno_allocno_map);
@@ -515,6 +522,7 @@ ira_create_allocno (int regno, bool cap_p,
   ALLOCNO_BAD_SPILL_P (a) = false;
   ALLOCNO_ASSIGNED_P (a) = false;
   ALLOCNO_MODE (a) = (regno < 0 ? VOIDmode : PSEUDO_REGNO_MODE (regno));
+  ALLOCNO_PREFS (a) = NULL;
   ALLOCNO_COPIES (a) = NULL;
   ALLOCNO_HARD_REG_COSTS (a) = NULL;
   ALLOCNO_CONFLICT_HARD_REG_COSTS (a) = NULL;
@@ -1163,6 +1171,195 @@ finish_allocnos (void)
 
 
 
+/* Pools for allocno preferences.  */
+static alloc_pool pref_pool;
+
+/* Vec containing references to all created preferences.  It is a
+   container of array ira_prefs.  */
+static vec<ira_pref_t> pref_vec;
+
+/* The function initializes data concerning allocno prefs.  */
+static void
+initiate_prefs (void)
+{
+  pref_pool
+    = create_alloc_pool ("prefs", sizeof (struct ira_allocno_pref), 100);
+  pref_vec.create (get_max_uid ());
+  ira_prefs = NULL;
+  ira_prefs_num = 0;
+}
+
+/* Return pref for A and HARD_REGNO if any.  */
+static ira_pref_t
+find_allocno_pref (ira_allocno_t a, int hard_regno)
+{
+  ira_pref_t pref;
+
+  for (pref = ALLOCNO_PREFS (a); pref != NULL; pref = pref->next_pref)
+    if (pref->allocno == a && pref->hard_regno == hard_regno)
+      return pref;
+  return NULL;
+}
+
+/* Create and return pref with given attributes A, HARD_REGNO, and FREQ.  */
+ira_pref_t
+ira_create_pref (ira_allocno_t a, int hard_regno, int freq)
+{
+  ira_pref_t pref;
+
+  pref = (ira_pref_t) pool_alloc (pref_pool);
+  pref->num = ira_prefs_num;
+  pref->allocno = a;
+  pref->hard_regno = hard_regno;
+  pref->freq = freq;
+  pref_vec.safe_push (pref);
+  ira_prefs = pref_vec.address ();
+  ira_prefs_num = pref_vec.length ();
+  return pref;
+}
+
+/* Attach a pref PREF to the cooresponding allocno.  */
+static void
+add_allocno_pref_to_list (ira_pref_t pref)
+{
+  ira_allocno_t a = pref->allocno;
+
+  pref->next_pref = ALLOCNO_PREFS (a);
+  ALLOCNO_PREFS (a) = pref;
+}
+
+/* Create (or update frequency if the pref already exists) the pref of
+   allocnos A preferring HARD_REGNO with frequency FREQ.  */
+void
+ira_add_allocno_pref (ira_allocno_t a, int hard_regno, int freq)
+{
+  ira_pref_t pref;
+
+  if (freq <= 0)
+    return;
+  if ((pref = find_allocno_pref (a, hard_regno)) != NULL)
+    {
+      pref->freq += freq;
+      return;
+    }
+  pref = ira_create_pref (a, hard_regno, freq);
+  ira_assert (a != NULL);
+  add_allocno_pref_to_list (pref);
+}
+
+/* Print info about PREF into file F.  */
+static void
+print_pref (FILE *f, ira_pref_t pref)
+{
+  fprintf (f, "  pref%d:a%d(r%d)<-hr%d@%d\n", pref->num,
+	   ALLOCNO_NUM (pref->allocno), ALLOCNO_REGNO (pref->allocno),
+	   pref->hard_regno, pref->freq);
+}
+
+/* Print info about PREF into stderr.  */
+void
+ira_debug_pref (ira_pref_t pref)
+{
+  print_pref (stderr, pref);
+}
+
+/* Print info about all prefs into file F.  */
+static void
+print_prefs (FILE *f)
+{
+  ira_pref_t pref;
+  ira_pref_iterator pi;
+
+  FOR_EACH_PREF (pref, pi)
+    print_pref (f, pref);
+}
+
+/* Print info about all prefs into stderr.  */
+void
+ira_debug_prefs (void)
+{
+  print_prefs (stderr);
+}
+
+/* Print info about prefs involving allocno A into file F.  */
+static void
+print_allocno_prefs (FILE *f, ira_allocno_t a)
+{
+  ira_pref_t pref;
+
+  fprintf (f, " a%d(r%d):", ALLOCNO_NUM (a), ALLOCNO_REGNO (a));
+  for (pref = ALLOCNO_PREFS (a); pref != NULL; pref = pref->next_pref)
+    fprintf (f, " pref%d:hr%d@%d", pref->num, pref->hard_regno, pref->freq);
+  fprintf (f, "\n");
+}
+
+/* Print info about prefs involving allocno A into stderr.  */
+void
+ira_debug_allocno_prefs (ira_allocno_t a)
+{
+  print_allocno_prefs (stderr, a);
+}
+
+/* The function frees memory allocated for PREF.  */
+static void
+finish_pref (ira_pref_t pref)
+{
+  ira_prefs[pref->num] = NULL;
+  pool_free (pref_pool, pref);
+}
+
+/* Remove PREF from the list of allocno prefs and free memory for
+   it.  */
+void
+ira_remove_pref (ira_pref_t pref)
+{
+  ira_pref_t cpref, prev;
+
+  if (internal_flag_ira_verbose > 1 && ira_dump_file != NULL)
+    fprintf (ira_dump_file, " Removing pref%d:hr%d@%d\n",
+	     pref->num, pref->hard_regno, pref->freq);
+  for (prev = NULL, cpref = ALLOCNO_PREFS (pref->allocno);
+       cpref != NULL;
+       prev = cpref, cpref = cpref->next_pref)
+    if (cpref == pref)
+      break;
+  ira_assert (cpref != NULL);
+  if (prev == NULL)
+    ALLOCNO_PREFS (pref->allocno) = pref->next_pref;
+  else
+    prev->next_pref = pref->next_pref;
+  finish_pref (pref);
+}
+
+/* Remove all prefs of allocno A.  */
+void
+ira_remove_allocno_prefs (ira_allocno_t a)
+{
+  ira_pref_t pref, next_pref;
+
+  for (pref = ALLOCNO_PREFS (a); pref != NULL; pref = next_pref)
+    {
+      next_pref = pref->next_pref;
+      finish_pref (pref);
+    }
+  ALLOCNO_PREFS (a) = NULL;
+}
+
+/* Free memory allocated for all prefs.  */
+static void
+finish_prefs (void)
+{
+  ira_pref_t pref;
+  ira_pref_iterator pi;
+
+  FOR_EACH_PREF (pref, pi)
+    finish_pref (pref);
+  pref_vec.release ();
+  free_alloc_pool (pref_pool);
+}
+
+
+
 /* Pools for copies.  */
 static alloc_pool copy_pool;
 
@@ -1235,8 +1432,8 @@ ira_create_copy (ira_allocno_t first, ira_allocno_t second, int freq,
 }
 
 /* Attach a copy CP to allocnos involved into the copy.  */
-void
-ira_add_allocno_copy_to_list (ira_copy_t cp)
+static void
+add_allocno_copy_to_list (ira_copy_t cp)
 {
   ira_allocno_t first = cp->first, second = cp->second;
 
@@ -1264,8 +1461,8 @@ ira_add_allocno_copy_to_list (ira_copy_t cp)
 
 /* Make a copy CP a canonical copy where number of the
    first allocno is less than the second one.  */
-void
-ira_swap_allocno_copy_ends_if_necessary (ira_copy_t cp)
+static void
+swap_allocno_copy_ends_if_necessary (ira_copy_t cp)
 {
   ira_allocno_t temp;
   ira_copy_t temp_cp;
@@ -1305,8 +1502,8 @@ ira_add_allocno_copy (ira_allocno_t first, ira_allocno_t second, int freq,
   cp = ira_create_copy (first, second, freq, constraint_p, insn,
 			loop_tree_node);
   ira_assert (first != NULL && second != NULL);
-  ira_add_allocno_copy_to_list (cp);
-  ira_swap_allocno_copy_ends_if_necessary (cp);
+  add_allocno_copy_to_list (cp);
+  swap_allocno_copy_ends_if_necessary (cp);
   return cp;
 }
 
@@ -1319,6 +1516,21 @@ print_copy (FILE *f, ira_copy_t cp)
 	   ALLOCNO_NUM (cp->second), ALLOCNO_REGNO (cp->second), cp->freq,
 	   cp->insn != NULL
 	   ? "move" : cp->constraint_p ? "constraint" : "shuffle");
+}
+
+DEBUG_FUNCTION void
+debug (ira_allocno_copy &ref)
+{
+  print_copy (stderr, &ref);
+}
+
+DEBUG_FUNCTION void
+debug (ira_allocno_copy *ptr)
+{
+  if (ptr)
+    debug (*ptr);
+  else
+    fprintf (stderr, "<nil>\n");
 }
 
 /* Print info about copy CP into stderr.  */
@@ -1373,6 +1585,22 @@ print_allocno_copies (FILE *f, ira_allocno_t a)
     }
   fprintf (f, "\n");
 }
+
+DEBUG_FUNCTION void
+debug (ira_allocno &ref)
+{
+  print_allocno_copies (stderr, &ref);
+}
+
+DEBUG_FUNCTION void
+debug (ira_allocno *ptr)
+{
+  if (ptr)
+    debug (*ptr);
+  else
+    fprintf (stderr, "<nil>\n");
+}
+
 
 /* Print info about copies involving allocno A into stderr.  */
 void
@@ -2022,8 +2250,8 @@ mark_loops_for_removal (void)
   ira_assert (current_loops != NULL);
   sorted_loops
     = (ira_loop_tree_node_t *) ira_allocate (sizeof (ira_loop_tree_node_t)
-					     * number_of_loops ());
-  for (n = i = 0; vec_safe_iterate (get_loops (), i, &loop); i++)
+					     * number_of_loops (cfun));
+  for (n = i = 0; vec_safe_iterate (get_loops (cfun), i, &loop); i++)
     if (ira_loop_nodes[i].regno_allocno_map != NULL)
       {
 	if (ira_loop_nodes[i].parent == NULL)
@@ -2067,7 +2295,7 @@ mark_all_loops_for_removal (void)
   loop_p loop;
 
   ira_assert (current_loops != NULL);
-  FOR_EACH_VEC_SAFE_ELT (get_loops (), i, loop)
+  FOR_EACH_VEC_SAFE_ELT (get_loops (cfun), i, loop)
     if (ira_loop_nodes[i].regno_allocno_map != NULL)
       {
 	if (ira_loop_nodes[i].parent == NULL)
@@ -2274,6 +2502,7 @@ remove_unnecessary_allocnos (void)
 		     map to avoid info propagation of subsequent
 		     allocno into this already removed allocno.  */
 		  a_node->regno_allocno_map[regno] = NULL;
+		  ira_remove_allocno_prefs (a);
 		  finish_allocno (a);
 		}
 	    }
@@ -2357,7 +2586,10 @@ remove_low_level_allocnos (void)
 #endif
 	}
       else
-	finish_allocno (a);
+	{
+	  ira_remove_allocno_prefs (a);
+	  finish_allocno (a);
+	}
     }
   if (merged_p)
     ira_rebuild_start_finish_chains ();
@@ -2377,8 +2609,8 @@ remove_unnecessary_regions (bool all_p)
     mark_all_loops_for_removal ();
   else
     mark_loops_for_removal ();
-  children_vec.create(last_basic_block + number_of_loops ());
-  removed_loop_vec.create(last_basic_block + number_of_loops ());
+  children_vec.create (last_basic_block + number_of_loops (cfun));
+  removed_loop_vec.create (last_basic_block + number_of_loops (cfun));
   remove_uneccesary_loop_nodes_from_loop_tree (ira_loop_tree_root);
   children_vec.release ();
   if (all_p)
@@ -3074,6 +3306,7 @@ ira_flattening (int max_regno_before_emit, int ira_max_point_before_emit)
 	  if (internal_flag_ira_verbose > 4 && ira_dump_file != NULL)
 	    fprintf (ira_dump_file, "      Remove a%dr%d\n",
 		     ALLOCNO_NUM (a), REGNO (allocno_emit_reg (a)));
+	  ira_remove_allocno_prefs (a);
 	  finish_allocno (a);
 	  continue;
 	}
@@ -3100,8 +3333,8 @@ ira_flattening (int max_regno_before_emit, int ira_max_point_before_emit)
       ira_assert
 	(ALLOCNO_LOOP_TREE_NODE (cp->first) == ira_loop_tree_root
 	 && ALLOCNO_LOOP_TREE_NODE (cp->second) == ira_loop_tree_root);
-      ira_add_allocno_copy_to_list (cp);
-      ira_swap_allocno_copy_ends_if_necessary (cp);
+      add_allocno_copy_to_list (cp);
+      swap_allocno_copy_ends_if_necessary (cp);
     }
   rebuild_regno_allocno_maps ();
   if (ira_max_point != ira_max_point_before_emit)
@@ -3189,6 +3422,7 @@ ira_build (void)
   df_analyze ();
   initiate_cost_vectors ();
   initiate_allocnos ();
+  initiate_prefs ();
   initiate_copies ();
   create_loop_tree_nodes ();
   form_loop_tree ();
@@ -3234,6 +3468,8 @@ ira_build (void)
     }
   if (internal_flag_ira_verbose > 2 && ira_dump_file != NULL)
     print_copies (ira_dump_file);
+  if (internal_flag_ira_verbose > 2 && ira_dump_file != NULL)
+    print_prefs (ira_dump_file);
   if (internal_flag_ira_verbose > 0 && ira_dump_file != NULL)
     {
       int n, nr, nr_big;
@@ -3259,7 +3495,7 @@ ira_build (void)
 	    }
 	}
       fprintf (ira_dump_file, "  regions=%d, blocks=%d, points=%d\n",
-	       current_loops == NULL ? 1 : number_of_loops (),
+	       current_loops == NULL ? 1 : number_of_loops (cfun),
 	       n_basic_blocks, ira_max_point);
       fprintf (ira_dump_file,
 	       "    allocnos=%d (big %d), copies=%d, conflicts=%d, ranges=%d\n",
@@ -3273,6 +3509,7 @@ void
 ira_destroy (void)
 {
   finish_loop_tree_nodes ();
+  finish_prefs ();
   finish_copies ();
   finish_allocnos ();
   finish_cost_vectors ();

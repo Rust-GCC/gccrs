@@ -23,10 +23,11 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "tree-data-ref.h"
 #include "target.h"
+#include "hash-table.h"
 
 typedef source_location LOC;
 #define UNKNOWN_LOC UNKNOWN_LOCATION
-#define EXPR_LOC(e) EXPR_LOCATION(e)
+#define EXPR_LOC(e) EXPR_LOCATION (e)
 #define LOC_FILE(l) LOCATION_FILE (l)
 #define LOC_LINE(l) LOCATION_LINE (l)
 
@@ -97,15 +98,18 @@ add_stmt_info_to_vec (stmt_vector_for_cost *stmt_cost_vec, int count,
 /************************************************************************
   SLP
  ************************************************************************/
-typedef void *slp_void_p;
+typedef struct _slp_tree *slp_tree;
 
 /* A computation tree of an SLP instance.  Each node corresponds to a group of
    stmts to be packed in a SIMD stmt.  */
-typedef struct _slp_tree {
+struct _slp_tree {
   /* Nodes that contain def-stmts of this node statements operands.  */
-  vec<slp_void_p> children;
+  vec<slp_tree> children;
   /* A group of scalar stmts to be vectorized together.  */
   vec<gimple> stmts;
+  /* Load permutation relative to the stores, NULL if there is no
+     permutation.  */
+  vec<unsigned> load_permutation;
   /* Vectorized stmt/s.  */
   vec<gimple> vec_stmts;
   /* Number of vector stmts that are created to replace the group of scalar
@@ -113,7 +117,7 @@ typedef struct _slp_tree {
      scalar elements in one scalar iteration (GROUP_SIZE) multiplied by VF
      divided by vector size.  */
   unsigned int vec_stmts_size;
-} *slp_tree;
+};
 
 
 /* SLP instance is a sequence of stmts in a loop that can be packed into
@@ -131,10 +135,6 @@ typedef struct _slp_instance {
   /* Vectorization costs associated with SLP instance.  */
   stmt_vector_for_cost body_cost_vec;
 
-  /* Loads permutation relatively to the stores, NULL if there is no
-     permutation.  */
-  vec<int> load_permutation;
-
   /* The group of nodes that contain loads of this SLP instance.  */
   vec<slp_tree> loads;
 
@@ -149,7 +149,6 @@ typedef struct _slp_instance {
 #define SLP_INSTANCE_GROUP_SIZE(S)               (S)->group_size
 #define SLP_INSTANCE_UNROLLING_FACTOR(S)         (S)->unrolling_factor
 #define SLP_INSTANCE_BODY_COST_VEC(S)            (S)->body_cost_vec
-#define SLP_INSTANCE_LOAD_PERMUTATION(S)         (S)->load_permutation
 #define SLP_INSTANCE_LOADS(S)                    (S)->loads
 #define SLP_INSTANCE_FIRST_LOAD_STMT(S)          (S)->first_load
 
@@ -157,6 +156,7 @@ typedef struct _slp_instance {
 #define SLP_TREE_SCALAR_STMTS(S)                 (S)->stmts
 #define SLP_TREE_VEC_STMTS(S)                    (S)->vec_stmts
 #define SLP_TREE_NUMBER_OF_VEC_STMTS(S)          (S)->vec_stmts_size
+#define SLP_TREE_LOAD_PERMUTATION(S)             (S)->load_permutation
 
 /* This structure is used in creation of an SLP tree.  Each instance
    corresponds to the same operand in a group of scalar stmts in an SLP
@@ -169,8 +169,7 @@ typedef struct _slp_oprnd_info
      operand itself in case it's constant, and an indication if it's a pattern
      stmt.  */
   enum vect_def_type first_dt;
-  tree first_def_type;
-  tree first_const_oprnd;
+  tree first_op_type;
   bool first_pattern;
 } *slp_oprnd_info;
 
@@ -190,6 +189,30 @@ typedef struct _vect_peel_extended_info
   unsigned int outside_cost;
   stmt_vector_for_cost body_cost_vec;
 } *vect_peel_extended_info;
+
+
+/* Peeling hashtable helpers.  */
+
+struct peel_info_hasher : typed_free_remove <_vect_peel_info>
+{
+  typedef _vect_peel_info value_type;
+  typedef _vect_peel_info compare_type;
+  static inline hashval_t hash (const value_type *);
+  static inline bool equal (const value_type *, const compare_type *);
+};
+
+inline hashval_t
+peel_info_hasher::hash (const value_type *peel_info)
+{
+  return (hashval_t) peel_info->npeel;
+}
+
+inline bool
+peel_info_hasher::equal (const value_type *a, const compare_type *b)
+{
+  return (a->npeel == b->npeel);
+}
+
 
 /*-----------------------------------------------------------------*/
 /* Info on vectorized loops.                                       */
@@ -275,7 +298,7 @@ typedef struct _loop_vec_info {
   vec<gimple> reduction_chains;
 
   /* Hash table used to choose the best peeling option.  */
-  htab_t peeling_htab;
+  hash_table <peel_info_hasher> peeling_htab;
 
   /* Cost data used by the target cost model.  */
   void *target_cost_data;
@@ -333,7 +356,7 @@ typedef struct _loop_vec_info {
 && TREE_INT_CST_LOW ((n)) > 0)
 
 #define LOOP_VINFO_NITERS_KNOWN_P(L)          \
-NITERS_KNOWN_P((L)->num_iters)
+NITERS_KNOWN_P ((L)->num_iters)
 
 static inline loop_vec_info
 loop_vec_info_for_loop (struct loop *loop)
@@ -461,10 +484,6 @@ typedef struct _stmt_vec_info {
   /* Stmt is part of some pattern (computation idiom)  */
   bool in_pattern_p;
 
-  /* For loads only, if there is a store with the same location, this field is
-     TRUE.  */
-  bool read_write_dep;
-
   /* The stmt to which this info struct refers to.  */
   gimple stmt;
 
@@ -557,6 +576,9 @@ typedef struct _stmt_vec_info {
   /* For loads only, true if this is a gather load.  */
   bool gather_p;
   bool stride_load_p;
+
+  /* For both loads and stores.  */
+  bool simd_lane_access_p;
 } *stmt_vec_info;
 
 /* Access Functions.  */
@@ -572,6 +594,7 @@ typedef struct _stmt_vec_info {
 #define STMT_VINFO_DATA_REF(S)             (S)->data_ref_info
 #define STMT_VINFO_GATHER_P(S)		   (S)->gather_p
 #define STMT_VINFO_STRIDE_LOAD_P(S)	   (S)->stride_load_p
+#define STMT_VINFO_SIMD_LANE_ACCESS_P(S)   (S)->simd_lane_access_p
 
 #define STMT_VINFO_DR_BASE_ADDRESS(S)      (S)->dr_base_address
 #define STMT_VINFO_DR_INIT(S)              (S)->dr_init
@@ -590,7 +613,6 @@ typedef struct _stmt_vec_info {
 #define STMT_VINFO_GROUP_STORE_COUNT(S)    (S)->store_count
 #define STMT_VINFO_GROUP_GAP(S)            (S)->gap
 #define STMT_VINFO_GROUP_SAME_DR_STMT(S)   (S)->same_dr_stmt
-#define STMT_VINFO_GROUP_READ_WRITE_DEPENDENCE(S)  (S)->read_write_dep
 #define STMT_VINFO_GROUPED_ACCESS(S)      ((S)->first_element != NULL && (S)->data_ref_info)
 #define STMT_VINFO_LOOP_PHI_EVOLUTION_PART(S) (S)->loop_phi_evolution_part
 
@@ -600,13 +622,18 @@ typedef struct _stmt_vec_info {
 #define GROUP_STORE_COUNT(S)            (S)->store_count
 #define GROUP_GAP(S)                    (S)->gap
 #define GROUP_SAME_DR_STMT(S)           (S)->same_dr_stmt
-#define GROUP_READ_WRITE_DEPENDENCE(S)  (S)->read_write_dep
 
 #define STMT_VINFO_RELEVANT_P(S)          ((S)->relevant != vect_unused_in_scope)
 
 #define HYBRID_SLP_STMT(S)                ((S)->slp_type == hybrid)
 #define PURE_SLP_STMT(S)                  ((S)->slp_type == pure_slp)
 #define STMT_SLP_TYPE(S)                   (S)->slp_type
+
+struct dataref_aux {
+  tree base_decl;
+  bool base_misaligned;
+  int misalignment;
+};
 
 #define VECT_MAX_COST 1000
 
@@ -810,11 +837,31 @@ destroy_cost_data (void *data)
 /*-----------------------------------------------------------------*/
 /* Info on data references alignment.                              */
 /*-----------------------------------------------------------------*/
+inline void
+set_dr_misalignment (struct data_reference *dr, int val)
+{
+  dataref_aux *data_aux = (dataref_aux *) dr->aux;
+
+  if (!data_aux)
+    {
+      data_aux = XCNEW (dataref_aux);
+      dr->aux = data_aux;
+    }
+
+  data_aux->misalignment = val;
+}
+
+inline int
+dr_misalignment (struct data_reference *dr)
+{
+  gcc_assert (dr->aux);
+  return ((dataref_aux *) dr->aux)->misalignment;
+}
 
 /* Reflects actual alignment of first access in the vectorized loop,
    taking into account peeling/versioning if applied.  */
-#define DR_MISALIGNMENT(DR)   ((int) (size_t) (DR)->aux)
-#define SET_DR_MISALIGNMENT(DR, VAL)   ((DR)->aux = (void *) (size_t) (VAL))
+#define DR_MISALIGNMENT(DR) dr_misalignment (DR)
+#define SET_DR_MISALIGNMENT(DR, VAL) set_dr_misalignment (DR, VAL)
 
 /* Return TRUE if the data access is aligned, and FALSE otherwise.  */
 
@@ -833,6 +880,14 @@ known_alignment_for_access_p (struct data_reference *data_ref_info)
   return (DR_MISALIGNMENT (data_ref_info) != -1);
 }
 
+
+/* Return true if the vect cost model is unlimited.  */
+static inline bool
+unlimited_cost_model ()
+{
+  return flag_vect_cost_model == VECT_COST_MODEL_UNLIMITED;
+}
+
 /* Source location */
 extern LOC vect_location;
 
@@ -844,7 +899,10 @@ extern LOC vect_location;
    in tree-vect-loop-manip.c.  */
 extern void slpeel_make_loop_iterate_ntimes (struct loop *, tree);
 extern bool slpeel_can_duplicate_loop_p (const struct loop *, const_edge);
+struct loop *slpeel_tree_duplicate_loop_to_edge_cfg (struct loop *, edge);
 extern void vect_loop_versioning (loop_vec_info, unsigned int, bool);
+extern void vect_generate_tmps_on_preheader (loop_vec_info, tree *, tree *,
+					     tree *, gimple_seq);
 extern void vect_do_peeling_for_loop_bound (loop_vec_info, tree *,
 					    unsigned int, bool);
 extern void vect_do_peeling_for_alignment (loop_vec_info, unsigned int, bool);
@@ -914,8 +972,8 @@ extern enum dr_alignment_support vect_supportable_dr_alignment
                                            (struct data_reference *, bool);
 extern tree vect_get_smallest_scalar_type (gimple, HOST_WIDE_INT *,
                                            HOST_WIDE_INT *);
-extern bool vect_analyze_data_ref_dependences (loop_vec_info, bb_vec_info,
-					       int *);
+extern bool vect_analyze_data_ref_dependences (loop_vec_info, int *);
+extern bool vect_slp_analyze_data_ref_dependences (bb_vec_info);
 extern bool vect_enhance_data_refs_alignment (loop_vec_info);
 extern bool vect_analyze_data_refs_alignment (loop_vec_info, bb_vec_info);
 extern bool vect_verify_datarefs_alignment (loop_vec_info, bb_vec_info);
@@ -941,7 +999,6 @@ extern tree vect_setup_realignment (gimple, gimple_stmt_iterator *, tree *,
 extern void vect_transform_grouped_load (gimple, vec<tree> , int,
                                          gimple_stmt_iterator *);
 extern void vect_record_grouped_load_vectors (gimple, vec<tree> );
-extern int vect_get_place_in_interleaving_chain (gimple, gimple);
 extern tree vect_get_new_vect_var (tree, enum vect_var_kind, const char *);
 extern tree vect_create_addr_base_for_vector_ref (gimple, gimple_seq *,
                                                   tree, struct loop *);
@@ -969,7 +1026,7 @@ extern int vect_get_single_scalar_iteration_cost (loop_vec_info);
 
 /* In tree-vect-slp.c.  */
 extern void vect_free_slp_instance (slp_instance);
-extern bool vect_transform_slp_perm_load (gimple, vec<tree> ,
+extern bool vect_transform_slp_perm_load (slp_tree, vec<tree> ,
                                           gimple_stmt_iterator *, int,
                                           slp_instance, bool);
 extern bool vect_schedule_slp (loop_vec_info, bb_vec_info);
@@ -989,10 +1046,11 @@ extern void vect_slp_transform_bb (basic_block);
    Additional pattern recognition functions can (and will) be added
    in the future.  */
 typedef gimple (* vect_recog_func_ptr) (vec<gimple> *, tree *, tree *);
-#define NUM_PATTERNS 10
+#define NUM_PATTERNS 11
 void vect_pattern_recog (loop_vec_info, bb_vec_info);
 
 /* In tree-vectorizer.c.  */
 unsigned vectorize_loops (void);
+void vect_destroy_datarefs (loop_vec_info, bb_vec_info);
 
 #endif  /* GCC_TREE_VECTORIZER_H  */

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2004-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- This specification is derived from the Ada Reference Manual for use with --
 -- GNAT. The copyright notice above, and the license provisions that follow --
@@ -30,8 +30,10 @@
 ------------------------------------------------------------------------------
 
 --  This spec is derived from Ada.Containers.Bounded_Doubly_Linked_Lists in the
---  Ada 2012 RM. The modifications are to facilitate formal proofs by making it
---  easier to express properties.
+--  Ada 2012 RM. The modifications are meant to facilitate formal proofs by
+--  making it easier to express properties, and by making the specification of
+--  this unit compatible with SPARK 2014. Note that the API of this unit may be
+--  subject to incompatible changes as SPARK 2014 evolves.
 
 --  The modifications are:
 
@@ -49,11 +51,7 @@
 --      function Left  (Container : List; Position : Cursor) return List;
 --      function Right (Container : List; Position : Cursor) return List;
 
---    See detailed specifications for these subprograms
-
-private with Ada.Streams;
-with Ada.Containers;
-with Ada.Iterator_Interfaces;
+--    See subprogram specifications that follow for details
 
 generic
    type Element_Type is private;
@@ -64,11 +62,8 @@ generic
 package Ada.Containers.Formal_Doubly_Linked_Lists is
    pragma Pure;
 
-   type List (Capacity : Count_Type) is tagged private with
-      Constant_Indexing => Constant_Reference,
-      Default_Iterator  => Iterate,
-      Iterator_Element  => Element_Type;
-   --  pragma Preelaborable_Initialization (List);
+   type List (Capacity : Count_Type) is private;
+   pragma Preelaborable_Initialization (List);
 
    type Cursor is private;
    pragma Preelaborable_Initialization (Cursor);
@@ -76,17 +71,6 @@ package Ada.Containers.Formal_Doubly_Linked_Lists is
    Empty_List : constant List;
 
    No_Element : constant Cursor;
-
-   function Not_No_Element (Position : Cursor) return Boolean;
-
-   package List_Iterator_Interfaces is new
-     Ada.Iterator_Interfaces (Cursor => Cursor, Has_Element => Not_No_Element);
-
-   function Iterate (Container : List; Start : Cursor)
-      return List_Iterator_Interfaces.Reversible_Iterator'Class;
-
-   function Iterate (Container : List)
-      return List_Iterator_Interfaces.Reversible_Iterator'Class;
 
    function "=" (Left, Right : List) return Boolean;
 
@@ -96,61 +80,78 @@ package Ada.Containers.Formal_Doubly_Linked_Lists is
 
    procedure Clear (Container : in out List);
 
-   procedure Assign (Target : in out List; Source : List);
+   procedure Assign (Target : in out List; Source : List) with
+     Pre => Target.Capacity >= Length (Source);
 
    function Copy (Source : List; Capacity : Count_Type := 0) return List;
 
-   function Element (Container : List; Position : Cursor) return Element_Type;
+   function Element
+     (Container : List;
+      Position : Cursor) return Element_Type
+   with
+     Pre => Has_Element (Container, Position);
 
    procedure Replace_Element
      (Container : in out List;
       Position  : Cursor;
-      New_Item  : Element_Type);
+      New_Item  : Element_Type)
+   with
+     Pre => Has_Element (Container, Position);
 
-   procedure Query_Element
-     (Container : List; Position : Cursor;
-      Process   : not null access procedure (Element : Element_Type));
-
-   procedure Update_Element
-     (Container : in out List;
-      Position  : Cursor;
-      Process   : not null access procedure (Element : in out Element_Type));
-
-   procedure Move (Target : in out List; Source : in out List);
+   procedure Move (Target : in out List; Source : in out List) with
+     Pre => Target.Capacity >= Length (Source);
 
    procedure Insert
      (Container : in out List;
       Before    : Cursor;
       New_Item  : Element_Type;
-      Count     : Count_Type := 1);
+      Count     : Count_Type := 1)
+   with
+     Pre => Length (Container) + Count <= Container.Capacity
+              and then (Has_Element (Container, Before)
+                         or else Before = No_Element);
 
    procedure Insert
      (Container : in out List;
       Before    : Cursor;
       New_Item  : Element_Type;
       Position  : out Cursor;
-      Count     : Count_Type := 1);
+      Count     : Count_Type := 1)
+   with
+     Pre => Length (Container) + Count <= Container.Capacity
+              and then (Has_Element (Container, Before)
+                         or else Before = No_Element);
 
    procedure Insert
      (Container : in out List;
       Before    : Cursor;
       Position  : out Cursor;
-      Count     : Count_Type := 1);
+      Count     : Count_Type := 1)
+   with
+     Pre => Length (Container) + Count <= Container.Capacity
+              and then (Has_Element (Container, Before)
+                         or else Before = No_Element);
 
    procedure Prepend
      (Container : in out List;
       New_Item  : Element_Type;
-      Count     : Count_Type := 1);
+      Count     : Count_Type := 1)
+   with
+     Pre => Length (Container) + Count <= Container.Capacity;
 
    procedure Append
      (Container : in out List;
       New_Item  : Element_Type;
-      Count     : Count_Type := 1);
+      Count     : Count_Type := 1)
+   with
+     Pre => Length (Container) + Count <= Container.Capacity;
 
    procedure Delete
      (Container : in out List;
       Position  : in out Cursor;
-      Count     : Count_Type := 1);
+      Count     : Count_Type := 1)
+   with
+     Pre => Has_Element (Container, Position);
 
    procedure Delete_First
      (Container : in out List;
@@ -164,69 +165,87 @@ package Ada.Containers.Formal_Doubly_Linked_Lists is
 
    procedure Swap
      (Container : in out List;
-      I, J      : Cursor);
+      I, J      : Cursor)
+   with
+     Pre => Has_Element (Container, I) and then Has_Element (Container, J);
 
    procedure Swap_Links
      (Container : in out List;
-      I, J      : Cursor);
+      I, J      : Cursor)
+   with
+     Pre => Has_Element (Container, I) and then Has_Element (Container, J);
 
    procedure Splice
      (Target : in out List;
       Before : Cursor;
-      Source : in out List);
+      Source : in out List)
+   with
+     Pre => Length (Source) + Length (Target) <= Target.Capacity
+              and then (Has_Element (Target, Before)
+                         or else Before = No_Element);
 
    procedure Splice
      (Target   : in out List;
       Before   : Cursor;
       Source   : in out List;
-      Position : in out Cursor);
+      Position : in out Cursor)
+   with
+     Pre => Length (Source) + Length (Target) <= Target.Capacity
+              and then (Has_Element (Target, Before)
+                         or else Before = No_Element)
+              and then Has_Element (Source, Position);
 
    procedure Splice
      (Container : in out List;
       Before    : Cursor;
-      Position  : Cursor);
+      Position  : Cursor)
+   with
+     Pre => 2 * Length (Container) <= Container.Capacity
+              and then (Has_Element (Container, Before)
+                         or else Before = No_Element)
+              and then Has_Element (Container, Position);
 
    function First (Container : List) return Cursor;
 
-   function First_Element (Container : List) return Element_Type;
+   function First_Element (Container : List) return Element_Type with
+     Pre => not Is_Empty (Container);
 
    function Last (Container : List) return Cursor;
 
-   function Last_Element (Container : List) return Element_Type;
+   function Last_Element (Container : List) return Element_Type with
+     Pre => not Is_Empty (Container);
 
-   function Next (Container : List; Position : Cursor) return Cursor;
+   function Next (Container : List; Position : Cursor) return Cursor with
+     Pre => Has_Element (Container, Position) or else Position = No_Element;
 
-   procedure Next (Container : List; Position : in out Cursor);
+   procedure Next (Container : List; Position : in out Cursor) with
+     Pre => Has_Element (Container, Position) or else Position = No_Element;
 
-   function Previous (Container : List; Position : Cursor) return Cursor;
+   function Previous (Container : List; Position : Cursor) return Cursor with
+     Pre => Has_Element (Container, Position) or else Position = No_Element;
 
-   procedure Previous (Container : List; Position : in out Cursor);
+   procedure Previous (Container : List; Position : in out Cursor) with
+     Pre => Has_Element (Container, Position) or else Position = No_Element;
 
    function Find
      (Container : List;
       Item      : Element_Type;
-      Position  : Cursor := No_Element) return Cursor;
+      Position  : Cursor := No_Element) return Cursor
+   with
+     Pre => Has_Element (Container, Position) or else Position = No_Element;
 
    function Reverse_Find
      (Container : List;
       Item      : Element_Type;
-      Position  : Cursor := No_Element) return Cursor;
+      Position  : Cursor := No_Element) return Cursor
+   with
+     Pre => Has_Element (Container, Position) or else Position = No_Element;
 
    function Contains
      (Container : List;
       Item      : Element_Type) return Boolean;
 
    function Has_Element (Container : List; Position : Cursor) return Boolean;
-
-   procedure Iterate
-     (Container : List;
-      Process   :
-      not null access procedure (Container : List; Position : Cursor));
-
-   procedure Reverse_Iterate
-     (Container : List;
-      Process   :
-      not null access procedure (Container : List; Position : Cursor));
 
    generic
       with function "<" (Left, Right : Element_Type) return Boolean is <>;
@@ -240,22 +259,15 @@ package Ada.Containers.Formal_Doubly_Linked_Lists is
 
    end Generic_Sorting;
 
-   type Constant_Reference_Type
-      (Element : not null access constant Element_Type) is private
-   with
-      Implicit_Dereference => Element;
-
-   function Constant_Reference
-     (Container : List;      --  SHOULD BE ALIASED ???
-      Position  : Cursor)   return Constant_Reference_Type;
-
    function Strict_Equal (Left, Right : List) return Boolean;
    --  Strict_Equal returns True if the containers are physically equal, i.e.
    --  they are structurally equal (function "=" returns True) and that they
    --  have the same set of cursors.
 
-   function Left  (Container : List; Position : Cursor) return List;
-   function Right (Container : List; Position : Cursor) return List;
+   function Left  (Container : List; Position : Cursor) return List with
+     Pre => Has_Element (Container, Position) or else Position = No_Element;
+   function Right (Container : List; Position : Cursor) return List with
+     Pre => Has_Element (Container, Position) or else Position = No_Element;
    --  Left returns a container containing all elements preceding Position
    --  (excluded) in Container. Right returns a container containing all
    --  elements following Position (included) in Container. These two new
@@ -268,7 +280,7 @@ private
    type Node_Type is record
       Prev    : Count_Type'Base := -1;
       Next    : Count_Type;
-      Element : aliased Element_Type;
+      Element : Element_Type;
    end record;
 
    function "=" (L, R : Node_Type) return Boolean is abstract;
@@ -279,48 +291,14 @@ private
    type List (Capacity : Count_Type) is tagged record
       Nodes  : Node_Array (1 .. Capacity) := (others => <>);
       Free   : Count_Type'Base := -1;
-      Busy   : Natural := 0;
-      Lock   : Natural := 0;
       Length : Count_Type := 0;
       First  : Count_Type := 0;
       Last   : Count_Type := 0;
    end record;
 
-   use Ada.Streams;
-
-   procedure Read
-     (Stream : not null access Root_Stream_Type'Class;
-      Item   : out List);
-
-   for List'Read use Read;
-
-   procedure Write
-     (Stream : not null access Root_Stream_Type'Class;
-      Item   : List);
-
-   for List'Write use Write;
-
-   type List_Access is access all List;
-   for List_Access'Storage_Size use 0;
-
    type Cursor is record
       Node : Count_Type := 0;
    end record;
-
-   type Constant_Reference_Type
-      (Element : not null access constant Element_Type) is null record;
-
-   procedure Read
-     (Stream : not null access Root_Stream_Type'Class;
-      Item   : out Cursor);
-
-   for Cursor'Read use Read;
-
-   procedure Write
-     (Stream : not null access Root_Stream_Type'Class;
-      Item   : Cursor);
-
-   for Cursor'Write use Write;
 
    Empty_List : constant List := (0, others => <>);
 
