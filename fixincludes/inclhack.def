@@ -4768,6 +4768,7 @@ fix = {
     hackname  = feraiseexcept_nosse_invalid;
     mach      = 'i[34567]86-*-linux*', 'x86*-linux*', 'amd64-*-linux*';
     files     = bits/fenv.h;
+    files     = "*/bits/fenv.h";
     select    = "^([\t ]*)__asm__ __volatile__ \\(\"divss %0, %0 *\" : "
 		": \"x\" \\(__f\\)\\);$";
     bypass    = "\"fdiv .*; fwait\"";
@@ -4795,6 +4796,7 @@ fix = {
     hackname  = feraiseexcept_nosse_divbyzero;
     mach      = 'i[34567]86-*-linux*', 'x86*-linux*', 'amd64-*-linux*';
     files     = bits/fenv.h;
+    files     = "*/bits/fenv.h";
     select    = "^([\t ]*)__asm__ __volatile__ \\(\"divss %1, %0 *\" : "
 		": \"x\" \\(__f\\), \"x\" \\(__g\\)\\);$";
     bypass    = "\"fdivp .*; fwait\"";
