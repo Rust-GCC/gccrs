@@ -1,3 +1,48 @@
+2013-11-08  Jeff Law  <law@redhat.com>
+
+	* tree-ssa-threadupdate.h (delete_thread_path): Declare.
+	* tree-ssa-threadupdate.c (delete_thread_path): New function.
+	(ssa_redirect_edges, thread_block_1): Use it.
+	(thread_through_loop_header, mark_threaded_blocks): Likewise.
+	(thread_through_all_blocks, register_jump_thread): Likewise.
+	* tree-ssa-threadedge.c (thread_across_edge): Likewise.
+
+2013-11-08  James Greenhalgh  <james.greenhalgh@arm.com>
+
+	* config/arm/aarch-common.c
+	(search_term): New typedef.
+	(shift_rtx_costs): New array.
+	(arm_rtx_shift_left_p): New.
+	(arm_find_sub_rtx_with_search_term): Likewise.
+	(arm_find_sub_rtx_with_code): Likewise.
+	(arm_early_load_addr_dep): Add sanity checking.
+	(arm_no_early_alu_shift_dep): Likewise.
+	(arm_no_early_alu_shift_value_dep): Likewise.
+	(arm_no_early_mul_dep): Likewise.
+	(arm_no_early_store_addr_dep): Likewise.
+
+2013-11-08  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/59047
+	* tree-predcom.c (ref_at_iteration): Handle bitfield accesses
+	properly.
+
+2013-11-08  Ilya Enkovich  <ilya.enkovich@intel.com>
+
+	* common.opt (fcheck-pointer-bounds): Move to ...
+	* c-family/c.opt: ... here.
+	* langhooks-def.h (LANG_HOOKS_CHKP_SUPPORTED): Remove.
+	(LANG_HOOKS_INITIALIZER): Remove LANG_HOOKS_CHKP_SUPPORTED.
+	* langhooks.h (lang_hooks): Remove chkp_supported field.
+	* toplev.c (process_options): Remove chkp_supported check.
+
+2013-11-08  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/59038
+	PR tree-optimization/58955
+	* tree-loop-distribution.c (pg_add_dependence_edges): Revert
+	previous change.  Handle known dependences correctly.
+
 2013-11-08  Tom de Vries  <tom@codesourcery.com>
 
 	* config/rs6000/t-xilinx: Remove duplicate contents.
