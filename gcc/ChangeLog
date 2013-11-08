@@ -1,3 +1,216 @@
+2013-11-08  Tom de Vries  <tom@codesourcery.com>
+
+	* config/rs6000/t-xilinx: Remove duplicate contents.
+
+2013-11-07  Andrew MacLeod  <amacleod@redhat.com>
+	    Joseph Myers  <joseph@codesourcery.com>
+
+	* tree-core.h (enum cv_qualifier): Add TYPE_QUAL_ATOMIC.
+	(enum tree_index): Add TI_ATOMICQI_TYPE, TI_ATOMICHI_TYPE,
+	TI_ATOMICSI_TYPE, TI_ATOMICDI_TYPE and TI_ATOMICTI_TYPE.
+	(struct tree_base): Add atomic_flag field.
+	* tree.h (TYPE_ATOMIC): New accessor macro.
+	(TYPE_QUALS, TYPE_QUALS_NO_ADDR_SPACE): Add TYPE_QUAL_ATOMIC.
+	(TYPE_QUALS_NO_ADDR_SPACE_NO_ATOMIC): New macro.
+	(atomicQI_type_node, atomicHI_type_node, atomicSI_type_node)
+	(atomicDI_type_node, atomicTI_type_node): New macros for type
+	nodes.
+	* tree.c (set_type_quals): Set TYPE_ATOMIC.
+	(find_atomic_core_type): New function.
+	(build_qualified_type): Adjust alignment for qualified types.
+	(build_atomic_base): New function
+	(build_common_tree_nodes): Build atomicQI_type_node,
+	atomicHI_type_node, atomicSI_type_node, atomicDI_type_node and
+	atomicTI_type_node.
+	* print-tree.c (print_node): Print atomic qualifier.
+	* tree-pretty-print.c (dump_generic_node): Print atomic type
+	attribute.
+	* target.def (atomic_assign_expand_fenv): New hook.
+	* doc/tm.texi.in (TARGET_ATOMIC_ASSIGN_EXPAND_FENV): New @hook.
+	* doc/tm.texi: Regenerate.
+	* targhooks.c (default_atomic_assign_expand_fenv): New function.
+	* targhooks.h (default_atomic_assign_expand_fenv): Declare.
+	* sync-builtins.def (__atomic_feraiseexcept): New built-in
+	function.
+	* config/i386/i386-builtin-types.def (VOID_FTYPE_PUSHORT): New
+	function type.
+	* config/i386/i386.c (enum ix86_builtins): Add
+	IX86_BUILTIN_FNSTENV, IX86_BUILTIN_FLDENV, IX86_BUILTIN_FNSTSW and
+	IX86_BUILTIN_FNCLEX.
+	(bdesc_special_args): Add __builtin_ia32_fnstenv,
+	__builtin_ia32_fldenv, __builtin_ia32_fnstsw and
+	__builtin_ia32_fnclex.
+	(ix86_expand_builtin): Handle the new built-in functions.
+	(ix86_atomic_assign_expand_fenv): New function.
+	(TARGET_ATOMIC_ASSIGN_EXPAND_FENV): New macro.
+	* config/i386/i386.md (UNSPECV_FNSTENV, UNSPECV_FLDENV)
+	(UNSPECV_FNSTSW, UNSPECV_FNCLEX): New unspecs.
+	(fnstenv, fldenv, fnstsw, fnclex): New insns.
+
+2013-11-07  Steve Ellcey  <sellcey@mips.com>
+
+	* config/mips/mti-linux.h (SYSROOT_SUFFIX_SPEC): Add fp64 directory.
+	* config/mips/t-mti-linux (MULTILIB_OPTIONS): Add -mfp64 flag.
+	(MULTILIB_DIRNAMES): Add fp64 directory.
+	(MULTILIB_EXCEPTIONS): Add new exclusions.
+
+2013-11-07  Aldy Hernandez  <aldyh@redhat.com>
+
+	* gimplify.c (gimple_regimplify_operands): Do not set
+	SSA_NAME_DEF_STMT.
+	* graphite-sese-to-poly.c (remove_simple_copy_phi): Same.
+	(rewrite_close_phi_out_of_ssa): Same.
+	(rewrite_phi_out_of_ssa): Same.
+	(rewrite_degenerate_phi): Same.
+	(handle_scalar_deps_crossing_scop_limits): Same.
+	* tree-if-conv.c (predicate_scalar_phi): Same.
+	* tree-parloops.c (create_loads_for_reductions): Same.
+	(create_final_loads_for_reduction): Same.
+	(create_loads_and_stores_for_name): Same.
+	(transform_to_exit_first_loop): Same.
+	(create_parallel_loop): Same.
+	* tree-ssa-loop-im.c
+	(move_computations_dom_walker::before_dom_children): Same.
+	* tree-ssa-loop-manip.c (rewrite_phi_with_iv): Same.
+	* tree-ssa-pre.c (eliminate_dom_walker::before_dom_children):
+	Same.
+	* tree-ssa-propagate.c (substitute_and_fold): Same.
+	* tree-vect-loop.c (vect_finalize_reduction): Same.
+	* tree-vect-stmts.c (vectorizable_call): Same.
+
+2013-11-07  Mike Stump  <mikestump@comcast.net>
+
+	* config/pdp11/pdp11.c: Include dbxout.h.
+	* config/picochip/picochip.c: Likewise.
+
+2013-11-07  Cong Hou  <congh@google.com>
+
+	PR tree-optimization/56764
+	* tree-vect-loop-manip.c (vect_create_cond_for_alias_checks):
+	Combine alias checks if it is possible to amortize the runtime
+	overhead.  Return the number of alias checks after merging.
+	* tree-vect-data-refs.c (vect_prune_runtime_alias_test_list):
+	Use the function vect_create_cond_for_alias_checks () to check
+	the number of alias checks.
+
+2013-11-07  Jeff Law  <law@redhat.com>
+
+	* varpool.c (ctor_for_folding): Fix typo in comment.
+
+2013-11-07  Joern Rennecke  <joern.rennecke@embecosm.com>
+
+	* config/arc/arc.c (arc_ifcvt): Use commutativity, e.g.:
+	reg_a := reg_b + reg_a  ==>  reg_a := reg_a + reg_b
+
+2013-11-07  Jeff Law  <law@redhat.com>
+
+	* doc/invoke.texi (-fisolate-erroneous-paths): Document.
+
+	* gimple-ssa-isolate-paths.c (gate_isolate_erroneous_paths):
+	No longer check if we have __builtin_trap, assume it's
+	available.
+
+2013-11-07  Thomas Schwinge  <thomas@codesourcery.com>
+
+	* doc/sourcebuild.texi (Top Level) <lto-plugin>: GNU ld can use
+	linker plugins, too.
+
+	* config/arc/arc.h (LINK_COMMAND_SPEC): For
+	-ftree-parallelize-loops=*, link to libgomp and its dependencies.
+	* config/ia64/hpux.h (LIB_SPEC): Likewise.
+	* config/pa/pa-hpux11.h (LIB_SPEC): Likewise.
+	* config/pa/pa64-hpux.h (LIB_SPEC): Likewise.
+	* gcc.c (GOMP_SELF_SPECS): Update comment about libgomp's
+	dependencies.
+
+2013-11-07  Jakub Jelinek  <jakub@redhat.com>
+
+	* tree-ssa-loop-niter.c: Include tree-ssanames.h.
+	(determine_value_range): Add loop argument.  Use get_range_info to
+	improve range.
+	(bound_difference): Adjust caller.
+
+2013-11-07  Richard Biener  <rguenther@suse.de>
+	    Jakub Jelinek  <jakub@redhat.com>
+
+	* tree-vrp.c (find_assert_locations): Pre-seed live bitmaps for loop
+	latches from header PHI arguments from the latch edge.
+
+2013-11-07  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/58176
+	* varasm.c (output_constant): Handle NULLPTR_TYPE.
+
+2013-11-07  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* config/i386/i386.c (ix86_expand_set_or_movmem): Don't set
+	misaligned_prologue_used when it has been set.
+
+2013-11-07  Yury Gribov  <y.gribov@samsung.com>
+	    Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/59029
+	* asan.c (get_mem_refs_of_builtin_call): Allow
+	integer literals as addresses in instrumented builtins.
+
+2013-11-07  Kyrylo Tkachov  <kyrylo.tkachov@arm.com>
+
+	* config/aarch64/aarch64.c (aarch64_legitimize_reload_address):
+	Explain why plus_constant is not used.
+
+2013-11-07  Richard Biener  <rguenther@suse.de>
+
+	* tree-ssa-ccp.c (canonicalize_float_value): Rename to ...
+	(canonicalize_value): ... this.  Also handle stripping of
+	TREE_OVERFLOW.
+	(get_value, set_lattice_value, get_value_for_expr): Adjust.
+	* gimple-fold.c (canonicalize_constructor_val): Strip
+	TREE_OVERFLOW.
+	* tree-ssa-threadedge.c (set_ssa_name_value): Likewise.
+
+2013-11-07  Richard Biener  <rguenther@suse.de>
+
+	* tree-dfa.c (get_ref_base_and_extent): Fix casting.
+
+2013-11-07  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR target/59034
+	* config/i386/i386.md (push peepholer/splitter): Use Pmode
+	with stack_pointer_rtx.
+
+2013-11-07  Bin Cheng  <bin.cheng@arm.com>
+
+	* tree-ssa-loop-ivopts.c (get_shiftadd_cost): Check equality
+	using operand_equal_p.
+
+2013-11-07  Bin Cheng  <bin.cheng@arm.com>
+
+	* tree-ssa-loop-ivopts.c (alloc_iv): Lower address expressions.
+	* tree-affine.c (get_inner_reference_aff): Return base.
+	* tree-affine.h (get_inner_reference_aff): Change prototype.
+
+2013-11-06  Tobias Burnus  <burnus@net-b.de>
+
+	* doc/invoke.texi (Wdate-time): Fix typo.
+
+2013-11-06  Oleg Endo  <olegendo@gcc.gnu.org>
+
+	* config/sh/sh.md (addsf3, divsf3, divsf3_i, rsqrtsf2, cmpgtdf_t,
+	cmpeqdf_t, *ieee_ccmpeqdf_t, negdf2, sqrtdf2, absdf2): Use
+	fp_arith_reg_operand instead of arith_reg_operand.
+
+2013-11-06  Oleg Endo  <olegendo@gcc.gnu.org>
+
+	* config/sh/sh.md (adddi3): Remove empty constraints.
+	Remove can_create_pseudo_p and arith_reg_operand check.
+	(adddi3_compact, subdi3_compact, *negdi2): Remove constraints.
+	Split before reload.
+
+2013-11-06  Jeff Law  <law@redhat.com>
+	    Tom Tromey  <tromey@redhat.com>
+
+	* gdbinit.in: Disable strict type checking.
+
 2013-11-06  Vladimir Makarov  <vmakarov@redhat.com>
 
 	* tree-pass.h (make_pass_live_range_shrinkage): New external.
@@ -57,27 +270,6 @@
 	(extract_range_basic): Likewise.
 	(register_new_assert_for): Use drop_tree_overflow.
 	(vrp_visit_phi_node): Likewise.
-
-2013-11-06  Dodji Seketeli  <dodji@redhat.com>
-
-	preprocessor/58580
-	* input.h (location_get_source_line): Take an additional line_size
-	parameter.
-	* input.c (get_line): New static function definition.
-	(read_line): Take an additional line_length output parameter to be
-	set to the size of the line.  Use the new get_line function do the
-	actual line reading.
-	(location_get_source_line): Take an additional output line_len
-	parameter.  Update the use of read_line to pass it the line_len
-	parameter.
-	* diagnostic.c (adjust_line): Take an additional input parameter
-	for the length of the line, rather than calculating it with
-	strlen.
-	(diagnostic_show_locus): Adjust the use of
-	location_get_source_line and adjust_line with respect to their new
-	signature.  While displaying a line now, do not stop at the first
-	null byte.  Rather, display the zero byte as a space and keep
-	going until we reach the size of the line.
 
 2013-11-06  Eric Botcazou  <ebotcazou@adacore.com>
 
@@ -8322,7 +8514,6 @@
 	* config/i386/winnt-cxx.c (i386_pe_type_dllexport_p): Don't
 	dll-export inline-functions.
 	* config/i386/winnt.c (i386_pe_determine_dllexport_p): Likewise.
-
 
 2013-09-13  Jeff Law  <law@redhat.com>
 
@@ -23935,7 +24126,6 @@
 	(debug_ivtype_map_1): Removed unused.
 	(debug_ivtype_elt): Remove unused.
 	(eq_ivtype_map_elts): Remove unused.
-
 
 2013-04-02  Kai Tietz  <ktietz@redhat.com>
 
