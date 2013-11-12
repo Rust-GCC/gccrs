@@ -102,7 +102,7 @@ uint                    {  return TYPE_UINT; }
 
 .           {  }
 \t          {  }
-\n          { yylineno++; }
+\n          {  }
 
 %%
 

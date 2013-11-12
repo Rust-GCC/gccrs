@@ -16,6 +16,8 @@
 
 #include "rust.h"
 
+/* The guts of interesting code in gcc rust will end up being here i imagine */
+
 vec<rdot,va_gc> * dot_pass_inferTypes (vec<rdot,va_gc> * decls)
 {
     return decls;

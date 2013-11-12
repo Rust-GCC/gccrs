@@ -16,8 +16,58 @@
 
 #include "rust.h"
 
+static bool _no_infer = false;
+
 #define RDOT_PREFIX_PRE      "pre-rdot"
 #define RDOT_PREFIX_POST     "post-rdot"
+
+static const char * typeStrings [] = {
+    "bool",
+    "int",
+    "float",
+    "unsigned_int",
+    "__infer_me",
+    "void"
+};
+
+static const char * typeStringNode (rdot node)
+{
+    const char * retval = typeStrings [5];
+    if (node != NULL_DOT)
+    {
+	switch (RDOT_TYPE (node))
+	{
+	case RTYPE_BOOL:
+	    retval = typeStrings [0];
+	    break;
+
+	case RTYPE_INT:
+	    retval = typeStrings [1];
+	    break;
+
+	case RTYPE_FLOAT:
+	    retval = typeStrings [2];
+	    break;
+
+	case RTYPE_UINT:
+	    retval = typeStrings [3];
+	    break;
+
+	case RTYPE_INFER:
+	    if (_no_infer) {
+		retval = xstrdup ("The Compiler Failed to infer this type!");
+		error ("gcc-rust has failed to infer a type and cannot continue");
+	    }
+	    else
+		retval = typeStrings [4];
+	    break;
+
+	default:
+	    break;
+	}
+    }
+    return retval;
+}
 
 static void dot_pass_dump_node (FILE *, rdot, size_t);
 static void dot_pass_dump_method (FILE *, rdot, size_t);
@@ -36,34 +86,7 @@ void dot_pass_dump_method (FILE * fd, rdot node, size_t indents)
     fprintf (fd, "  ");
 
   const char * method_id = RDOT_IDENTIFIER_POINTER (RDOT_FIELD (node));
-  const char * rtype;
-  if (RDOT_FIELD2 (node) == NULL_DOT)
-      rtype = "void";
-  else
-  {
-      switch (RDOT_TYPE (RDOT_FIELD2 (node)))
-      {
-      case RTYPE_BOOL:
-	  rtype = "bool";
-	  break;
-
-      case RTYPE_INT:
-	  rtype = "int";
-	  break;
-
-      case RTYPE_FLOAT:
-	  rtype = "float";
-	  break;
-
-      case RTYPE_UINT:
-	  rtype = "uint";
-	  break;
-
-      default:
-	  rtype = "void";
-	  break;
-      }
-  }
+  const char * rtype = typeStringNode (RDOT_FIELD2 (node));
 
   fprintf (fd, "fn %s ( void ) -> %s {\n", method_id, rtype);
 
@@ -126,8 +149,22 @@ void dot_pass_dumpExprNode (FILE * fd, rdot node)
     }
     break;
 
+    case D_VAR_DECL:
+    {
+	const char * mut;
+	if (RDOT_qual (node))
+	    mut = "_final_";
+	else
+	    mut = "_mut_";
+
+	fprintf (fd, "let [%s] ", mut);
+	dot_pass_dumpExprNode (fd, RDOT_lhs_TT (node));
+	fprintf (fd, " -> [%s]", typeStringNode (RDOT_rhs_TT (node)));
+    }
+    break;
+
     default:
-	dot_pass_dump_expr (fd, node);
+	fatal_error ("unhandled dumpExprNode!\n");
 	break;
     }
 }
@@ -135,6 +172,10 @@ void dot_pass_dumpExprNode (FILE * fd, rdot node)
 static
 void dot_pass_dump_expr (FILE * fd, rdot node)
 {
+    if (DOT_RETVAL (node)) {
+	fprintf (fd, "_rust_retval:\n");
+    }
+
     switch (RDOT_TYPE (node))
     {
     case D_PRIMITIVE:
@@ -209,6 +250,10 @@ void dot_pass_dump_node (FILE * fd, rdot node, size_t indents)
     {
 	switch (RDOT_TYPE (node))
 	{
+	case D_PRIMITIVE:
+	    dot_pass_dump_expr (fd, node);
+	    break;
+
 	case D_STRUCT_METHOD:
 	    dot_pass_dump_method (fd, node, indents);
 	    break;
@@ -235,12 +280,15 @@ vec<rdot,va_gc> * dot_pass_PrettyPrint (vec<rdot,va_gc> * decls)
 	    first = false;
 	}
 	else
+	{
 	    strncat (outfile, RDOT_PREFIX_POST, sizeof (RDOT_PREFIX_POST));
+	    _no_infer = true;
+	}
 
 	FILE * fd = fopen (outfile, "w");
 	if (!fd)
 	{
-	    error ("Unable to open %s for write\n", dump_file);
+	    error ("Unable to open %s for write\n", outfile);
 	    goto exit;
 	}
 

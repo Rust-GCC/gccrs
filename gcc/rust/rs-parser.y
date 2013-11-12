@@ -86,6 +86,7 @@ extern void yyerror (const char *);
 %type<symbol> suite
 %type<symbol> statement_list
 %type<symbol> statement
+%type<symbol> delimstatement
 %type<symbol> primary
 %type<symbol> type
 %type<symbol> call
@@ -122,20 +123,29 @@ suite: statement_list
      { $$ = symStack->pop () }
      ;
 
-statement_list: statement_list statement
+statement_list: statement_list delimstatement
               {
 		  RDOT_CHAIN ($1) = $2;
 		  $$ = $2;
 	      }
-              | statement
+              | delimstatement
               {
 		  vec_safe_push (symStack, $1);
 		  $$ = $1;
 	      }
               ;
 
-statement: expression ';'
-         | vardecl ';'
+delimstatement: statement ';'
+              { $$ = $1; }
+              | statement
+              {
+		  MAYBE_RETVAL ($1);
+		  $$ = $1;
+	      }
+              ;
+
+statement: expression
+         | vardecl
          ;
 
 expression: expression_stmt

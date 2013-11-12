@@ -18,7 +18,7 @@ along with GCC; see the file COPYING3.  If not see
 #define __GCC_RDOT_IMPL_H__
 
 typedef enum {
-    D_IDENTIFIER = 0,
+    D_IDENTIFIER,
     D_T_INTEGER,
     D_T_FLOAT,
     D_T_STRING,
@@ -56,13 +56,12 @@ typedef enum {
     D_STRUCT_ELSE,
     D_STRUCT_CONDITIONAL,
 
-    RTYPE_BOOL,
-    RTYPE_INT,
-    RTYPE_FLOAT,
-    RTYPE_UINT,
-
+    RTYPE_BOOL = 0,
+    RTYPE_INT = 1,
+    RTYPE_FLOAT = 2,
+    RTYPE_UINT = 3,
     // infer the type please...
-    RTYPE_INFER
+    RTYPE_INFER = 4
 } opcode_t ;
 
 typedef enum {
@@ -82,6 +81,7 @@ typedef struct GTY(()) grs_rdot_tree_common {
 typedef struct GTY(()) grs_tree_dot {
     opcode_t T, FT, opaT, opbT;
     qualified qual;
+    bool retval;
     /* location_t loc; */
     struct grs_tree_dot * field1;
     struct grs_tree_dot * field2;
@@ -112,6 +112,8 @@ typedef struct GTY(()) grs_tree_dot {
 #define RDOT_alloc                   rdot_alloc ()
 #define RDOT_CM_alloc                rdot_cm_alloc ()
 #define RDOT_IDENTIFIER_POINTER(x_)  RDOT_lhs_TC (x_)->o.string
+#define DOT_RETVAL(x_)               x_->retval
+#define MAYBE_RETVAL(x_)	     DOT_RETVAL(x_) = true
 
 extern rdot D_MAYBE_TYPE;
 

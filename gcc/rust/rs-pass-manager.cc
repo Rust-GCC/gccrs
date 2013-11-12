@@ -19,6 +19,14 @@
 tree cstring_type_node;
 rdot D_MAYBE_TYPE;
 
+#define MAYBE_BOMB_OUT						    \
+    do								    \
+	if (seen_error ()) {					    \
+	    error ("GCC rust failing out due to previous errors!"); \
+	    return;						    \
+	}							    \
+    while (0);
+
 static vec<rdot,va_gc> * rust_decls;
 typedef vec<rdot,va_gc> * (*dot_pass)(vec<rdot,va_gc> *);
 static dot_pass dot_pass_mngr[] =
@@ -48,8 +56,14 @@ void dot_pass_WriteGlobals (void)
 
     /* walk the passes */
     for (p = dot_pass_mngr; *p != NULL; ++p)
+    {
+	MAYBE_BOMB_OUT;
  	dot_decls = (*p)(dot_decls);
-      
+    }
+    
+    /* check errors */
+    MAYBE_BOMB_OUT;
+
     /* lower the decls from DOT -> GENERIC */
     vec<tree,va_gc> * globals = dot_pass_Genericify (dot_decls);
 
