@@ -51,7 +51,7 @@ namespace __profile
       static std::size_t
       bucket(const _UnorderedCont& __uc,
 	     const __detail::_Hash_node<_Value, false>* __node)
-      { return __uc.bucket(__node->_M_v); }
+      { return __uc.bucket(__node->_M_v()); }
     };
 
   template<typename _UnorderedCont, typename _Key, typename _Mapped>
@@ -63,7 +63,7 @@ namespace __profile
       static std::size_t
       bucket(const _UnorderedCont& __uc,
 	     const __detail::_Hash_node<_Value, false>* __node)
-      { return __uc.bucket(__node->_M_v.first); }
+      { return __uc.bucket(__node->_M_v().first); }
     };
 
   template<typename _UnorderedCont, typename _Value, bool _Cache_hash_code>
@@ -89,7 +89,7 @@ namespace __profile
 		const __detail::_Hash_node<_Value, true>* __rhs)
       {
 	return __lhs->_M_hash_code == __rhs->_M_hash_code
-	  && __uc.key_eq()(__lhs->_M_v, __rhs->_M_v);
+	  && __uc.key_eq()(__lhs->_M_v(), __rhs->_M_v());
       }
     };
 
@@ -101,7 +101,7 @@ namespace __profile
       are_equal(const _UnorderedCont& __uc,
 		const __detail::_Hash_node<_Value, false>* __lhs,
 		const __detail::_Hash_node<_Value, false>* __rhs)
-      { return __uc.key_eq()(__lhs->_M_v, __rhs->_M_v); }
+      { return __uc.key_eq()(__lhs->_M_v(), __rhs->_M_v()); }
     };
 
   template<typename _UnorderedCont,
@@ -116,7 +116,7 @@ namespace __profile
 		const __detail::_Hash_node<_Value, true>* __rhs)
       {
 	return __lhs->_M_hash_code == __rhs->_M_hash_code
-	  && __uc.key_eq()(__lhs->_M_v.first, __rhs->_M_v.first);
+	  && __uc.key_eq()(__lhs->_M_v().first, __rhs->_M_v().first);
       }
     };
 
@@ -130,7 +130,7 @@ namespace __profile
       are_equal(const _UnorderedCont& __uc,
 		const __detail::_Hash_node<_Value, false>* __lhs,
 		const __detail::_Hash_node<_Value, false>* __rhs)
-      { return __uc.key_eq()(__lhs->_M_v.first, __rhs->_M_v.first); }
+      { return __uc.key_eq()(__lhs->_M_v().first, __rhs->_M_v().first); }
     };
 
   template<typename _UnorderedCont, typename _Value, bool _Cache_hash_code>

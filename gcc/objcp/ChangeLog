@@ -1,10 +1,16 @@
-2013-05-31  Release Manager
+2013-09-25  Tom Tromey  <tromey@redhat.com>
 
-	* GCC 4.8.1 released.
+	* Make-lang.in (START_HDRS, cc1objplus-checksum.o)
+	(objcp/objcp-lang.o, objcp/objcp-decl.o
+	(objcp/objc-runtime-shared-support.o)
+	(objcp/objc-gnu-runtime-abi-01.o objcp/objc-next-runtime-abi-01.o)
+	(objcp/objc-next-runtime-abi-02.o, objcp/objcp-act.o)
+	(objcp/objc-encoding.o, objcp/objc-map.o): Use COMPILE and
+	POSTCOMPILE.  Remove explicit dependencies.
 
-2013-03-22  Release Manager
+2013-05-16  Jason Merrill  <jason@redhat.com>
 
-	* GCC 4.8.0 released.
+	* Make-lang.in (cc1objplus$(exeext)): Use link mutex.
 
 2012-06-02  Jason Merrill  <jason@redhat.com>
 

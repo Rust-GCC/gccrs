@@ -1,4 +1,4 @@
-// { dg-do run { xfail *-*-* } }
+// { dg-do run }
 // { dg-options "-std=c++0x" }
 
 //
@@ -35,12 +35,9 @@ test01()
   typedef char CharT;
   typedef std::regex_traits<CharT> traits;
 
-	char name[] = "ll";
-	traits t;
-
-	traits::string_type sname = t.lookup_collatename(name, name+sizeof(name)-1);
-
-  VERIFY( !sname.empty() );
+  traits t;
+  CharT name[] = "tilde";
+  VERIFY(t.lookup_collatename(name, name+sizeof(name)-1) == "~");
 }
 
 int main()

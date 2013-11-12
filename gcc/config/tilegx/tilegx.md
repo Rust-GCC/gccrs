@@ -2129,6 +2129,108 @@
   ""
   "rotl\t%0, %r1, %r2")
 
+;; Integer to floating point conversions
+
+(define_expand "floatsisf2"
+  [(set (match_operand:SF 0 "register_operand" "")
+	(float:SI (match_operand:SI 1 "register_operand" "")))]
+  ""
+{
+  rtx result = gen_lowpart (DImode, operands[0]);
+  rtx a = operands[1];
+
+  rtx nega = gen_reg_rtx (SImode);
+  rtx exp = gen_reg_rtx (DImode);
+  rtx sign = gen_reg_rtx (DImode);
+  rtx abs = gen_reg_rtx (DImode);
+  rtx flags = gen_reg_rtx (DImode);
+  rtx tmp1 = gen_reg_rtx (DImode);
+  rtx tmp2 = gen_reg_rtx (DImode);
+
+  emit_move_insn (exp, GEN_INT (0x9e));
+
+  emit_insn (gen_negsi2 (nega, a));
+
+  emit_insn (gen_insn_cmplts_sisi (gen_lowpart (SImode, sign), a, const0_rtx));
+  emit_insn (gen_insn_cmoveqz (abs, gen_lowpart (DImode, nega), sign,
+			       gen_lowpart (DImode, a)));
+
+  emit_insn (gen_insn_bfins (tmp1, exp, sign, GEN_INT (10), GEN_INT (10)));
+  emit_insn (gen_insn_bfins (tmp2, tmp1, abs, GEN_INT (32), GEN_INT (63)));
+  emit_insn (gen_insn_fsingle_pack1 (flags, tmp2));
+  emit_insn (gen_insn_fsingle_pack2 (result, tmp2, flags));
+  DONE;
+})
+  
+(define_expand "floatunssisf2"
+  [(set (match_operand:SF 0 "register_operand" "")
+	(float:SI (match_operand:SI 1 "register_operand" "")))]
+  ""
+{
+  rtx result = gen_lowpart (DImode, operands[0]);
+  rtx a = operands[1];
+
+  rtx exp = gen_reg_rtx (DImode);
+  rtx flags = gen_reg_rtx (DImode);
+  rtx tmp = gen_reg_rtx (DImode);
+
+  emit_move_insn (exp, GEN_INT (0x9e));
+  emit_insn (gen_insn_bfins (tmp, exp, gen_lowpart (DImode, a),
+                             GEN_INT (32), GEN_INT (63)));
+  emit_insn (gen_insn_fsingle_pack1 (flags, tmp));
+  emit_insn (gen_insn_fsingle_pack2 (result, tmp, flags));
+  DONE;
+})
+
+(define_expand "floatsidf2"
+  [(set (match_operand:DF 0 "register_operand" "")
+	(float:SI (match_operand:SI 1 "register_operand" "")))]
+  ""
+{
+  rtx result = gen_lowpart (DImode, operands[0]);
+  rtx a = gen_lowpart (DImode, operands[1]);
+
+  rtx nega = gen_reg_rtx (DImode);
+  rtx exp = gen_reg_rtx (DImode);
+  rtx sign = gen_reg_rtx (DImode);
+  rtx abs = gen_reg_rtx (DImode);
+  rtx tmp1 = gen_reg_rtx (DImode);
+  rtx tmp2 = gen_reg_rtx (DImode);
+  rtx tmp3 = gen_reg_rtx (DImode);
+
+  emit_move_insn (exp, GEN_INT (0x21b00));
+
+  emit_insn (gen_negdi2 (nega, a));
+
+  emit_insn (gen_insn_cmplts_didi (sign, a, const0_rtx));
+  emit_insn (gen_insn_cmovnez (abs, a, sign, nega));
+
+  emit_insn (gen_ashldi3 (tmp1, abs, GEN_INT (4)));
+  emit_insn (gen_insn_bfins (tmp2, exp, sign, GEN_INT (20), GEN_INT (20)));
+  emit_insn (gen_insn_fdouble_pack1 (tmp3, tmp1, tmp2));
+  emit_insn (gen_insn_fdouble_pack2 (result, tmp3, tmp1, const0_rtx));
+  DONE;
+})
+  
+(define_expand "floatunssidf2"
+  [(set (match_operand:DF 0 "register_operand" "")
+	(float:SI (match_operand:SI 1 "register_operand" "")))]
+  ""
+{
+  rtx result = gen_lowpart (DImode, operands[0]);
+  rtx a = gen_lowpart (DImode, operands[1]);
+
+  rtx exp = gen_reg_rtx (DImode);
+  rtx tmp1 = gen_reg_rtx (DImode);
+  rtx tmp2 = gen_reg_rtx (DImode);
+
+  emit_move_insn (exp, GEN_INT (0x21b00));
+  emit_insn (gen_insn_bfins (tmp1, const0_rtx, a, GEN_INT (4), GEN_INT (35)));
+  emit_insn (gen_insn_fdouble_pack1 (tmp2, tmp1, exp));
+  emit_insn (gen_insn_fdouble_pack2 (result, tmp2, tmp1, const0_rtx));
+  DONE;
+})
+  
 
 ;;
 ;; Multiplies
@@ -2312,11 +2414,7 @@
 ;; generate.
 (define_expand "doloop_end"
   [(use (match_operand 0 "" ""))    ;; loop pseudo
-   (use (match_operand 1 "" ""))    ;; iterations; zero if unknown
-   (use (match_operand 2 "" ""))    ;; max iterations
-   (use (match_operand 3 "" ""))    ;; loop level
-   (use (match_operand 4 "" ""))    ;; label
-   (use (match_operand 5 "" ""))]   ;; flag: 1 if loop entered at top, else 0
+   (use (match_operand 1 "" ""))]   ;; label
    ""
 {
   if (optimize > 0 && flag_modulo_sched)
@@ -2326,9 +2424,6 @@
      rtx loc_ref;
      enum machine_mode mode = GET_MODE (operands[0]);
 
-     /* only do inner loop  */
-     if (INTVAL (operands[3]) > 1)
-       FAIL;
      /* only deal with loop counters in SImode or DImode  */
      if (mode != SImode && mode != DImode)
        FAIL;
@@ -2336,7 +2431,7 @@
      s0 = operands [0];
      emit_move_insn (s0, gen_rtx_PLUS (mode, s0, GEN_INT (-1)));
      bcomp = gen_rtx_NE(mode, s0, const0_rtx);
-     loc_ref = gen_rtx_LABEL_REF (VOIDmode, operands [4]);
+     loc_ref = gen_rtx_LABEL_REF (VOIDmode, operands [1]);
      emit_jump_insn (gen_rtx_SET (VOIDmode, pc_rtx,
                                   gen_rtx_IF_THEN_ELSE (VOIDmode, bcomp,
                                                         loc_ref, pc_rtx)));

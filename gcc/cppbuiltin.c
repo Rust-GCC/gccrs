@@ -90,7 +90,7 @@ define_builtin_macros_for_compilation_flags (cpp_reader *pfile)
       cpp_define_formatted (pfile, "__PIE__=%d", flag_pie);
     }
 
-  if (flag_asan)
+  if (flag_sanitize & SANITIZE_ADDRESS)
     cpp_define (pfile, "__SANITIZE_ADDRESS__");
 
   if (optimize_size)
@@ -105,6 +105,8 @@ define_builtin_macros_for_compilation_flags (cpp_reader *pfile)
 
   cpp_define_formatted (pfile, "__FINITE_MATH_ONLY__=%d",
 			flag_finite_math_only);
+  if (flag_enable_cilkplus)
+    cpp_define (pfile, "__cilk=200");
 }
 
 

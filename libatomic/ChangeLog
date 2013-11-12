@@ -1,10 +1,21 @@
-2013-05-31  Release Manager
+2013-11-07  Joseph Myers  <joseph@codesourcery.com>
 
-	* GCC 4.8.1 released.
+	* fenv.c: New file.
+	* libatomic.map (LIBATOMIC_1.1): New symbol version.  Include
+	__atomic_feraiseexcept.
+	* configure.ac (libtool_VERSION): Change to 2:0:1.
+	(fenv.h): Test for header.
+	* Makefile.am (libatomic_la_SOURCES): Add fenv.c.
+	* Makefile.in, auto-config.h.in, configure: Regenerate.
 
-2013-03-22  Release Manager
+2013-10-17  Michael Hudson-Doyle  <michael.hudson@linaro.org>
 
-	* GCC 4.8.0 released.
+	* libatomic/configure.tgt (aarch64*): Remove code preventing
+	build.
+
+2013-09-20  Alan Modra  <amodra@gmail.com>
+
+	* configure: Regenerate.
 
 2013-01-14  Richard Sandiford  <rdsandiford@googlemail.com>
 

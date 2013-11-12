@@ -22,7 +22,13 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
-#include "tree-flow.h"
+#include "gimple.h"
+#include "gimple-ssa.h"
+#include "tree-phinodes.h"
+#include "ssa-iterators.h"
+#include "tree-ssanames.h"
+#include "tree-into-ssa.h"
+#include "tree-ssa.h"
 #include "tree-pass.h"
 
 /* Rewriting a function into SSA form can create a huge number of SSA_NAMEs,
@@ -59,6 +65,9 @@ along with GCC; see the file COPYING3.  If not see
 
 unsigned int ssa_name_nodes_reused;
 unsigned int ssa_name_nodes_created;
+
+#define FREE_SSANAMES(fun) (fun)->gimple_df->free_ssanames
+
 
 /* Initialize management of SSA_NAMEs to default SIZE.  If SIZE is
    zero use default.  */
@@ -151,7 +160,11 @@ make_ssa_name_fn (struct function *fn, tree var, gimple stmt)
       SET_SSA_NAME_VAR_OR_IDENTIFIER (t, var);
     }
   SSA_NAME_DEF_STMT (t) = stmt;
-  SSA_NAME_PTR_INFO (t) = NULL;
+  if (POINTER_TYPE_P (TREE_TYPE (t)))
+    SSA_NAME_PTR_INFO (t) = NULL;
+  else
+    SSA_NAME_RANGE_INFO (t) = NULL;
+
   SSA_NAME_IN_FREE_LIST (t) = 0;
   SSA_NAME_IS_DEFAULT_DEF (t) = 0;
   imm = &(SSA_NAME_IMM_USE_NODE (t));
@@ -163,6 +176,122 @@ make_ssa_name_fn (struct function *fn, tree var, gimple stmt)
   return t;
 }
 
+/* Store range information MIN, and MAX to tree ssa_name NAME.  */
+
+void
+set_range_info (tree name, double_int min, double_int max)
+{
+  gcc_assert (!POINTER_TYPE_P (TREE_TYPE (name)));
+  range_info_def *ri = SSA_NAME_RANGE_INFO (name);
+
+  /* Allocate if not available.  */
+  if (ri == NULL)
+    {
+      ri = ggc_alloc_cleared_range_info_def ();
+      SSA_NAME_RANGE_INFO (name) = ri;
+      ri->nonzero_bits = double_int::mask (TYPE_PRECISION (TREE_TYPE (name)));
+    }
+
+  /* Set the values.  */
+  ri->min = min;
+  ri->max = max;
+
+  /* If it is a range, try to improve nonzero_bits from the min/max.  */
+  if (min.cmp (max, TYPE_UNSIGNED (TREE_TYPE (name))) != 1)
+    {
+      int prec = TYPE_PRECISION (TREE_TYPE (name));
+      double_int xorv;
+
+      min = min.zext (prec);
+      max = max.zext (prec);
+      xorv = min ^ max;
+      if (xorv.high)
+	xorv = double_int::mask (2 * HOST_BITS_PER_WIDE_INT
+				 - clz_hwi (xorv.high));
+      else if (xorv.low)
+	xorv = double_int::mask (HOST_BITS_PER_WIDE_INT
+				 - clz_hwi (xorv.low));
+      ri->nonzero_bits = ri->nonzero_bits & (min | xorv);
+    }
+}
+
+
+/* Gets range information MIN, MAX and returns enum value_range_type
+   corresponding to tree ssa_name NAME.  enum value_range_type returned
+   is used to determine if MIN and MAX are valid values.  */
+
+enum value_range_type
+get_range_info (const_tree name, double_int *min, double_int *max)
+{
+  enum value_range_type range_type;
+  gcc_assert (!POINTER_TYPE_P (TREE_TYPE (name)));
+  gcc_assert (min && max);
+  range_info_def *ri = SSA_NAME_RANGE_INFO (name);
+
+  /* Return VR_VARYING for SSA_NAMEs with NULL RANGE_INFO or SSA_NAMEs
+     with integral types width > 2 * HOST_BITS_PER_WIDE_INT precision.  */
+  if (!ri || (GET_MODE_PRECISION (TYPE_MODE (TREE_TYPE (name)))
+	      > 2 * HOST_BITS_PER_WIDE_INT))
+    return VR_VARYING;
+
+  /* If min > max, it is VR_ANTI_RANGE.  */
+  if (ri->min.cmp (ri->max, TYPE_UNSIGNED (TREE_TYPE (name))) == 1)
+    {
+      /* VR_ANTI_RANGE ~[min, max] is encoded as [max + 1, min - 1].  */
+      range_type = VR_ANTI_RANGE;
+      *min = ri->max + double_int_one;
+      *max = ri->min - double_int_one;
+    }
+  else
+  {
+    /* Otherwise (when min <= max), it is VR_RANGE.  */
+    range_type = VR_RANGE;
+    *min = ri->min;
+    *max = ri->max;
+  }
+  return range_type;
+}
+
+/* Change non-zero bits bitmask of NAME.  */
+
+void
+set_nonzero_bits (tree name, double_int mask)
+{
+  gcc_assert (!POINTER_TYPE_P (TREE_TYPE (name)));
+  if (SSA_NAME_RANGE_INFO (name) == NULL)
+    set_range_info (name,
+		    tree_to_double_int (TYPE_MIN_VALUE (TREE_TYPE (name))),
+		    tree_to_double_int (TYPE_MAX_VALUE (TREE_TYPE (name))));
+  range_info_def *ri = SSA_NAME_RANGE_INFO (name);
+  ri->nonzero_bits
+    = mask & double_int::mask (TYPE_PRECISION (TREE_TYPE (name)));
+}
+
+/* Return a double_int with potentially non-zero bits in SSA_NAME
+   NAME, or double_int_minus_one if unknown.  */
+
+double_int
+get_nonzero_bits (const_tree name)
+{
+  if (POINTER_TYPE_P (TREE_TYPE (name)))
+    {
+      struct ptr_info_def *pi = SSA_NAME_PTR_INFO (name);
+      if (pi && pi->align)
+	{
+	  double_int al = double_int::from_uhwi (pi->align - 1);
+	  return ((double_int::mask (TYPE_PRECISION (TREE_TYPE (name))) & ~al)
+		  | double_int::from_uhwi (pi->misalign));
+	}
+      return double_int_minus_one;
+    }
+
+  range_info_def *ri = SSA_NAME_RANGE_INFO (name);
+  if (!ri || (GET_MODE_PRECISION (TYPE_MODE (TREE_TYPE (name)))
+	      > 2 * HOST_BITS_PER_WIDE_INT))
+    return double_int_minus_one;
+
+  return ri->nonzero_bits;
+}
 
 /* We no longer need the SSA_NAME expression VAR, release it so that
    it may be reused.
@@ -359,6 +488,26 @@ duplicate_ssa_name_ptr_info (tree name, struct ptr_info_def *ptr_info)
   SSA_NAME_PTR_INFO (name) = new_ptr_info;
 }
 
+/* Creates a duplicate of the range_info_def at RANGE_INFO for use by
+   the SSA name NAME.  */
+void
+duplicate_ssa_name_range_info (tree name, struct range_info_def *range_info)
+{
+  struct range_info_def *new_range_info;
+
+  gcc_assert (!POINTER_TYPE_P (TREE_TYPE (name)));
+  gcc_assert (!SSA_NAME_RANGE_INFO (name));
+
+  if (!range_info)
+    return;
+
+  new_range_info = ggc_alloc_range_info_def ();
+  *new_range_info = *range_info;
+
+  SSA_NAME_RANGE_INFO (name) = new_range_info;
+}
+
+
 
 /* Creates a duplicate of a ssa name NAME tobe defined by statement STMT
    in function FN.  */
@@ -367,10 +516,20 @@ tree
 duplicate_ssa_name_fn (struct function *fn, tree name, gimple stmt)
 {
   tree new_name = copy_ssa_name_fn (fn, name, stmt);
-  struct ptr_info_def *old_ptr_info = SSA_NAME_PTR_INFO (name);
+  if (POINTER_TYPE_P (TREE_TYPE (name)))
+    {
+      struct ptr_info_def *old_ptr_info = SSA_NAME_PTR_INFO (name);
 
-  if (old_ptr_info)
-    duplicate_ssa_name_ptr_info (new_name, old_ptr_info);
+      if (old_ptr_info)
+	duplicate_ssa_name_ptr_info (new_name, old_ptr_info);
+    }
+  else
+    {
+      struct range_info_def *old_range_info = SSA_NAME_RANGE_INFO (name);
+
+      if (old_range_info)
+	duplicate_ssa_name_range_info (new_name, old_range_info);
+    }
 
   return new_name;
 }
@@ -440,22 +599,39 @@ release_dead_ssa_names (void)
   return 0;
 }
 
-struct gimple_opt_pass pass_release_ssa_names =
+namespace {
+
+const pass_data pass_data_release_ssa_names =
 {
- {
-  GIMPLE_PASS,
-  "release_ssa",			/* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  NULL,					/* gate */
-  release_dead_ssa_names,		/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_TREE_SSA_OTHER,			/* tv_id */
-  PROP_ssa,				/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  TODO_remove_unused_locals,		/* todo_flags_start */
-  0					/* todo_flags_finish */
- }
+  GIMPLE_PASS, /* type */
+  "release_ssa", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  false, /* has_gate */
+  true, /* has_execute */
+  TV_TREE_SSA_OTHER, /* tv_id */
+  PROP_ssa, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  TODO_remove_unused_locals, /* todo_flags_start */
+  0, /* todo_flags_finish */
 };
+
+class pass_release_ssa_names : public gimple_opt_pass
+{
+public:
+  pass_release_ssa_names (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_release_ssa_names, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  unsigned int execute () { return release_dead_ssa_names (); }
+
+}; // class pass_release_ssa_names
+
+} // anon namespace
+
+gimple_opt_pass *
+make_pass_release_ssa_names (gcc::context *ctxt)
+{
+  return new pass_release_ssa_names (ctxt);
+}

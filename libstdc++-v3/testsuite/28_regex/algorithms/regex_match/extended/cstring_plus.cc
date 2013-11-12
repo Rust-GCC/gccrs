@@ -1,5 +1,4 @@
 // { dg-options "-std=c++0x" }
-// { dg-do run { xfail *-*-* } }
 
 //
 // 2010-06-21  Stephen M. Webb <stephen.webb@bregmasoft.ca>
@@ -26,33 +25,41 @@
 
 #include <regex>
 #include <testsuite_hooks.h>
+#include <testsuite_regex.h>
+
+using namespace __gnu_test;
+using namespace std;
 
 void
 test01()
 {
   bool test __attribute__((unused)) = true;
 
-	std::regex  re("(a+)", std::regex::extended);
-	const char target[] = "aa";
-	std::cmatch m;
+  std::regex  re("(a+)", std::regex::extended);
+  const char target[] = "aa";
+  std::cmatch m;
 
-	VERIFY( std::regex_match(target, m, re) );
+  VERIFY( regex_match_debug(target, m, re) );
 
-	VERIFY( re.mark_count() == 1 );
-	VERIFY( m.size()  == re.mark_count()+1 );
-	VERIFY( m.empty() == false );
-	VERIFY( m.prefix().first == target );
-	VERIFY( m.prefix().second == target );
-	VERIFY( m.prefix().matched == false );
-	VERIFY( m.suffix().first == target+sizeof(target) );
-	VERIFY( m.suffix().second == target+sizeof(target) );
-	VERIFY( m.suffix().matched == false );
-	VERIFY( m[0].first == target );
-	VERIFY( m[0].second == target+sizeof(target) );
-	VERIFY( m[0].matched == true );
-	VERIFY( m[1].first == target );
-	VERIFY( m[1].second == target+sizeof(target) );
-	VERIFY( m[1].matched == true );
+  VERIFY( re.mark_count() == 1 );
+  VERIFY( m.size()  == re.mark_count()+1 );
+  VERIFY( m.empty() == false );
+  VERIFY( m.prefix().first == target );
+  VERIFY( m.prefix().second == target );
+  VERIFY( m.prefix().matched == false );
+  VERIFY( m.suffix().first == target+sizeof(target)-1 );
+  VERIFY( m.suffix().second == target+sizeof(target)-1 );
+  VERIFY( m.suffix().matched == false );
+  VERIFY( m[0].first == target );
+  VERIFY( m[0].second == target+sizeof(target)-1 );
+  VERIFY( m[0].matched == true );
+  VERIFY( m[1].first == target );
+  VERIFY( m[1].second == target+sizeof(target)-1 );
+  VERIFY( m[1].matched == true );
+
+  VERIFY(!regex_match_debug("", std::regex("a+", std::regex::extended)));
+  VERIFY(regex_match_debug("a", std::regex("a+", std::regex::extended)));
+  VERIFY(regex_match_debug("aa", std::regex("a+", std::regex::extended)));
 }
 
 

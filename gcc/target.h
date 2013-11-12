@@ -49,6 +49,8 @@
 #define GCC_TARGET_H
 
 #include "insn-modes.h"
+#include "insn-codes.h"
+#include "double-int.h"
 
 #ifdef ENABLE_CHECKING
 

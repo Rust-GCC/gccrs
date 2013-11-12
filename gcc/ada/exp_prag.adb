@@ -287,10 +287,13 @@ package body Exp_Prag is
       Msg  : Node_Id;
 
    begin
-      --  We already know that this check is enabled, because otherwise the
-      --  semantic pass dealt with rewriting the assertion (see Sem_Prag)
+      --  Nothing to do if pragma is ignored
 
-      --  Since this check is enabled, we rewrite the pragma into a
+      if Is_Ignored (N) then
+         return;
+      end if;
+
+      --  Since this check is active, we rewrite the pragma into a
       --  corresponding if statement, and then analyze the statement
 
       --  The normal case expansion transforms:
@@ -307,6 +310,10 @@ package body Exp_Prag is
       --  name failed at file:line if no message is given (the "name failed
       --  at" is omitted for name = Assertion, since it is redundant, given
       --  that the name of the exception is Assert_Failure.)
+
+      --  Also, instead of "XXX failed at", we generate slightly
+      --  different messages for some of the contract assertions (see
+      --  code below for details).
 
       --  An alternative expansion is used when the No_Exception_Propagation
       --  restriction is active and there is a local Assert_Failure handler.
@@ -377,7 +384,7 @@ package body Exp_Prag is
 
                --  For Assert, we just use the location
 
-               if Nam = Name_Assertion then
+               if Nam = Name_Assert then
                   null;
 
                --  For predicate, we generate the string "predicate failed
@@ -392,13 +399,19 @@ package body Exp_Prag is
                --  that the failure is not at the point of occurrence of the
                --  pragma, unlike the other Check cases.
 
-               elsif Nam = Name_Precondition
-                       or else
-                     Nam = Name_Postcondition
-               then
+               elsif Nam_In (Nam, Name_Precondition, Name_Postcondition) then
                   Get_Name_String (Nam);
                   Insert_Str_In_Name_Buffer ("failed ", 1);
                   Add_Str_To_Name_Buffer (" from ");
+
+               --  For special case of Invariant, the string is "failed
+               --  invariant from yy", to be consistent with the string that is
+               --  generated for the aspect case (the code later on checks for
+               --  this specific string to modify it in some cases, so this is
+               --  functionally important).
+
+               elsif Nam = Name_Invariant then
+                  Add_Str_To_Name_Buffer ("failed invariant from ");
 
                --  For all other checks, the string is "xxx failed at yyy"
                --  where xxx is the check name with current source file casing.
@@ -449,7 +462,7 @@ package body Exp_Prag is
          then
             return;
 
-         elsif Nam = Name_Assertion then
+         elsif Nam = Name_Assert then
             Error_Msg_N ("?A?assertion will fail at run time", N);
          else
 
@@ -530,30 +543,34 @@ package body Exp_Prag is
    -- Expand_Pragma_Import_Or_Interface --
    ---------------------------------------
 
-   --  When applied to a variable, the default initialization must not be done.
-   --  As it is already done when the pragma is found, we just get rid of the
-   --  call the initialization procedure which followed the object declaration.
-   --  The call is inserted after the declaration, but validity checks may
-   --  also have been inserted and the initialization call does not necessarily
-   --  appear immediately after the object declaration.
-
-   --  We can't use the freezing mechanism for this purpose, since we have to
-   --  elaborate the initialization expression when it is first seen (i.e. this
-   --  elaboration cannot be deferred to the freeze point).
-
    procedure Expand_Pragma_Import_Or_Interface (N : Node_Id) is
       Def_Id    : Entity_Id;
       Init_Call : Node_Id;
 
    begin
       Def_Id := Entity (Arg2 (N));
+
+      --  Variable case
+
       if Ekind (Def_Id) = E_Variable then
+
+         --  When applied to a variable, the default initialization must not be
+         --  done. As it is already done when the pragma is found, we just get
+         --  rid of the call the initialization procedure which followed the
+         --  object declaration. The call is inserted after the declaration,
+         --  but validity checks may also have been inserted and thus the
+         --  initialization call does not necessarily appear immediately
+         --  after the object declaration.
+
+         --  We can't use the freezing mechanism for this purpose, since we
+         --  have to elaborate the initialization expression when it is first
+         --  seen (so this elaboration cannot be deferred to the freeze point).
 
          --  Find and remove generated initialization call for object, if any
 
          Init_Call := Remove_Init_Call (Def_Id, Rep_Clause => N);
 
-         --  Any default initialization expression should be removed (e.g.,
+         --  Any default initialization expression should be removed (e.g.
          --  null defaults for access objects, zero initialization of packed
          --  bit arrays). Imported objects aren't allowed to have explicit
          --  initialization, so the expression must have been generated by
@@ -562,6 +579,71 @@ package body Exp_Prag is
          if No (Init_Call) and then Present (Expression (Parent (Def_Id))) then
             Set_Expression (Parent (Def_Id), Empty);
          end if;
+
+      --  Case of exception with convention C++
+
+      elsif Ekind (Def_Id) = E_Exception
+        and then Convention (Def_Id) = Convention_CPP
+      then
+         --  Import a C++ convention
+
+         declare
+            Loc          : constant Source_Ptr := Sloc (N);
+            Rtti_Name    : constant Node_Id    := Arg3 (N);
+            Dum          : constant Entity_Id  := Make_Temporary (Loc, 'D');
+            Exdata       : List_Id;
+            Lang_Char    : Node_Id;
+            Foreign_Data : Node_Id;
+
+         begin
+            Exdata := Component_Associations (Expression (Parent (Def_Id)));
+
+            Lang_Char := Next (First (Exdata));
+
+            --  Change the one-character language designator to 'C'
+
+            Rewrite (Expression (Lang_Char),
+              Make_Character_Literal (Loc,
+                Chars              => Name_uC,
+                Char_Literal_Value => UI_From_Int (Character'Pos ('C'))));
+            Analyze (Expression (Lang_Char));
+
+            --  Change the value of Foreign_Data
+
+            Foreign_Data := Next (Next (Next (Next (Lang_Char))));
+
+            Insert_Actions (Def_Id, New_List (
+              Make_Object_Declaration (Loc,
+                Defining_Identifier => Dum,
+                Object_Definition   =>
+                  New_Occurrence_Of (Standard_Character, Loc)),
+
+              Make_Pragma (Loc,
+                Chars                        => Name_Import,
+                Pragma_Argument_Associations => New_List (
+                  Make_Pragma_Argument_Association (Loc,
+                    Expression => Make_Identifier (Loc, Name_Ada)),
+
+                  Make_Pragma_Argument_Association (Loc,
+                    Expression => Make_Identifier (Loc, Chars (Dum))),
+
+                  Make_Pragma_Argument_Association (Loc,
+                    Chars => Name_External_Name,
+                    Expression => Relocate_Node (Rtti_Name))))));
+
+            Rewrite (Expression (Foreign_Data),
+              Unchecked_Convert_To (Standard_A_Char,
+                Make_Attribute_Reference (Loc,
+                  Prefix         => Make_Identifier (Loc, Chars (Dum)),
+                  Attribute_Name => Name_Address)));
+            Analyze (Expression (Foreign_Data));
+         end;
+
+      --  No special expansion required for any other case
+
+      else
+         null;
+
       end if;
    end Expand_Pragma_Import_Or_Interface;
 
@@ -603,6 +685,8 @@ package body Exp_Prag is
                Code           : Node_Id;
 
             begin
+               --  Compute the symbol for the code of the condition
+
                if Present (Interface_Name (Id)) then
                   Excep_Image := Strval (Interface_Name (Id));
                else
@@ -626,22 +710,34 @@ package body Exp_Prag is
                   Analyze (Expression (Lang_Char));
 
                   if Exception_Code (Id) /= No_Uint then
+
+                     --  The code for the exception is present. Create a linker
+                     --  alias to define the symbol.
+
                      Code :=
-                       Make_Integer_Literal (Loc,
-                         Intval => Exception_Code (Id));
+                       Unchecked_Convert_To (RTE (RE_Address),
+                         Make_Integer_Literal (Loc,
+                           Intval => Exception_Code (Id)));
+
+                     --  Declare a dummy object
 
                      Excep_Object :=
                        Make_Object_Declaration (Loc,
                          Defining_Identifier => Excep_Internal,
                          Object_Definition   =>
-                           New_Reference_To (RTE (RE_Exception_Code), Loc));
+                           New_Reference_To (RTE (RE_Address), Loc));
 
                      Insert_Action (N, Excep_Object);
                      Analyze (Excep_Object);
 
+                     --  Clear severity bits
+
                      Start_String;
                      Store_String_Int
                        (UI_To_Int (Exception_Code (Id)) / 8 * 8);
+
+                     --  Insert a pragma Linker_Alias to set the value of the
+                     --  dummy object symbol.
 
                      Excep_Alias :=
                        Make_Pragma (Loc,
@@ -657,6 +753,9 @@ package body Exp_Prag is
 
                      Insert_Action (N, Excep_Alias);
                      Analyze (Excep_Alias);
+
+                     --  Insert a pragma Export to give a Linker_Name to the
+                     --  dummy object.
 
                      Export_Pragma :=
                        Make_Pragma (Loc,
@@ -682,14 +781,15 @@ package body Exp_Prag is
 
                   else
                      Code :=
-                        Unchecked_Convert_To (RTE (RE_Exception_Code),
-                          Make_Function_Call (Loc,
-                            Name =>
-                              New_Reference_To (RTE (RE_Import_Value), Loc),
-                            Parameter_Associations => New_List
-                              (Make_String_Literal (Loc,
-                                Strval => Excep_Image))));
+                        Make_Function_Call (Loc,
+                          Name                   =>
+                            New_Reference_To (RTE (RE_Import_Address), Loc),
+                          Parameter_Associations => New_List
+                            (Make_String_Literal (Loc,
+                              Strval => Excep_Image)));
                   end if;
+
+                  --  Generate the call to Register_VMS_Exception
 
                   Rewrite (Call,
                     Make_Procedure_Call_Statement (Loc,
@@ -702,7 +802,7 @@ package body Exp_Prag is
                             Prefix         => New_Occurrence_Of (Id, Loc),
                             Attribute_Name => Name_Unrestricted_Access)))));
 
-                  Analyze_And_Resolve (Code, RTE (RE_Exception_Code));
+                  Analyze_And_Resolve (Code, RTE (RE_Address));
                   Analyze (Call);
                end if;
 
@@ -833,9 +933,9 @@ package body Exp_Prag is
 
    --        if Flag then
    --           if Curr_1 /= Old_1 then
-   --              pragma Assert (Curr_1 > Old_1);
+   --              pragma Check (Loop_Variant, Curr_1 > Old_1);
    --           else
-   --              pragma Assert (Curr_2 < Old_2);
+   --              pragma Check (Loop_Variant, Curr_2 < Old_2);
    --           end if;
    --        else
    --           Flag := True;
@@ -1002,12 +1102,14 @@ package body Exp_Prag is
          --  Step 5: Create corresponding assertion to verify change of value
 
          --  Generate:
-         --    pragma Assert (Curr <|> Old);
+         --    pragma Check (Loop_Variant, Curr <|> Old);
 
          Prag :=
            Make_Pragma (Loc,
-             Chars                        => Name_Assert,
+             Chars                        => Name_Check,
              Pragma_Argument_Associations => New_List (
+               Make_Pragma_Argument_Association (Loc,
+                 Expression => Make_Identifier (Loc, Name_Loop_Variant)),
                Make_Pragma_Argument_Association (Loc,
                  Expression =>
                    Make_Op (Loc,
@@ -1062,9 +1164,18 @@ package body Exp_Prag is
          end if;
       end Process_Variant;
 
-   --  Start of processing for Expand_Pragma_Loop_Assertion
+   --  Start of processing for Expand_Pragma_Loop_Variant
 
    begin
+      --  If pragma is not enabled, rewrite as Null statement. If pragma is
+      --  disabled, it has already been rewritten as a Null statement.
+
+      if Is_Ignored (N) then
+         Rewrite (N, Make_Null_Statement (Loc));
+         Analyze (N);
+         return;
+      end if;
+
       --  Locate the enclosing loop for which this assertion applies. In the
       --  case of Ada 2012 array iteration, we might be dealing with nested
       --  loops. Only the outermost loop has an identifier.

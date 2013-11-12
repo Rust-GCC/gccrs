@@ -233,7 +233,7 @@ read_sf_internal (st_parameter_dt *dtp, int * length)
     {
       *length = 0;
       /* Just return something that isn't a NULL pointer, otherwise the
-         caller thinks an error occured.  */
+         caller thinks an error occurred.  */
       return (char*) empty_string;
     }
 
@@ -292,7 +292,7 @@ read_sf (st_parameter_dt *dtp, int * length)
     {
       *length = 0;
       /* Just return something that isn't a NULL pointer, otherwise the
-         caller thinks an error occured.  */
+         caller thinks an error occurred.  */
       return (char*) empty_string;
     }
 
@@ -401,7 +401,7 @@ read_sf (st_parameter_dt *dtp, int * length)
 
 
 /* Function for reading the next couple of bytes from the current
-   file, advancing the current position. We return FAILURE on end of record or
+   file, advancing the current position. We return NULL on end of record or
    end of file. This function is only for formatted I/O, unformatted uses
    read_block_direct.
 
@@ -512,7 +512,7 @@ read_block_form4 (st_parameter_dt *dtp, int * nbytes)
     {
       *nbytes = 0;
       /* Just return something that isn't a NULL pointer, otherwise the
-         caller thinks an error occured.  */
+         caller thinks an error occurred.  */
       return empty_string;
     }
 
@@ -774,7 +774,7 @@ write_block (st_parameter_dt *dtp, int length)
    called for unformatted files.  There are three cases to consider:
    Stream I/O, unformatted direct, unformatted sequential.  */
 
-static try
+static bool
 write_buf (st_parameter_dt *dtp, void *buf, size_t nbytes)
 {
 
@@ -790,12 +790,12 @@ write_buf (st_parameter_dt *dtp, void *buf, size_t nbytes)
       if (unlikely (have_written < 0))
 	{
 	  generate_error (&dtp->common, LIBERROR_OS, NULL);
-	  return FAILURE;
+	  return false;
 	}
 
       dtp->u.p.current_unit->strm_pos += (gfc_offset) have_written; 
 
-      return SUCCESS;
+      return true;
     }
 
   /* Unformatted direct access.  */
@@ -805,23 +805,23 @@ write_buf (st_parameter_dt *dtp, void *buf, size_t nbytes)
       if (unlikely (dtp->u.p.current_unit->bytes_left < (gfc_offset) nbytes))
 	{
 	  generate_error (&dtp->common, LIBERROR_DIRECT_EOR, NULL);
-	  return FAILURE;
+	  return false;
 	}
 
       if (buf == NULL && nbytes == 0)
-	return SUCCESS;
+	return true;
 
       have_written = swrite (dtp->u.p.current_unit->s, buf, nbytes); 
       if (unlikely (have_written < 0))
 	{
 	  generate_error (&dtp->common, LIBERROR_OS, NULL);
-	  return FAILURE;
+	  return false;
 	}
 
       dtp->u.p.current_unit->strm_pos += (gfc_offset) have_written;
       dtp->u.p.current_unit->bytes_left -= (gfc_offset) have_written;
 
-      return SUCCESS;
+      return true;
     }
 
   /* Unformatted sequential.  */
@@ -854,7 +854,7 @@ write_buf (st_parameter_dt *dtp, void *buf, size_t nbytes)
       if (unlikely (to_write_subrecord < 0))
 	{
 	  generate_error (&dtp->common, LIBERROR_OS, NULL);
-	  return FAILURE;
+	  return false;
 	}
 
       dtp->u.p.current_unit->strm_pos += (gfc_offset) to_write_subrecord; 
@@ -871,9 +871,9 @@ write_buf (st_parameter_dt *dtp, void *buf, size_t nbytes)
   if (unlikely (short_record))
     {
       generate_error (&dtp->common, LIBERROR_SHORT_RECORD, NULL);
-      return FAILURE;
+      return false;
     }
-  return SUCCESS;
+  return true;
 }
 
 
@@ -3207,17 +3207,6 @@ next_record_w_unf (st_parameter_dt *dtp, int next_subrecord)
   m = dtp->u.p.current_unit->recl_subrecord
     - dtp->u.p.current_unit->bytes_left_subrecord;
 
-  /* Write the length tail.  If we finish a record containing
-     subrecords, we write out the negative length.  */
-
-  if (dtp->u.p.current_unit->continued)
-    m_write = -m;
-  else
-    m_write = m;
-
-  if (unlikely (write_us_marker (dtp, m_write) < 0))
-    goto io_error;
-
   if (compile_options.record_marker == 0)
     record_marker = sizeof (GFC_INTEGER_4);
   else
@@ -3226,7 +3215,7 @@ next_record_w_unf (st_parameter_dt *dtp, int next_subrecord)
   /* Seek to the head and overwrite the bogus length with the real
      length.  */
 
-  if (unlikely (sseek (dtp->u.p.current_unit->s, - m - 2 * record_marker, 
+  if (unlikely (sseek (dtp->u.p.current_unit->s, - m - record_marker, 
 		       SEEK_CUR) < 0))
     goto io_error;
 
@@ -3240,8 +3229,18 @@ next_record_w_unf (st_parameter_dt *dtp, int next_subrecord)
 
   /* Seek past the end of the current record.  */
 
-  if (unlikely (sseek (dtp->u.p.current_unit->s, m + record_marker, 
-		       SEEK_CUR) < 0))
+  if (unlikely (sseek (dtp->u.p.current_unit->s, m, SEEK_CUR) < 0))
+    goto io_error;
+
+  /* Write the length tail.  If we finish a record containing
+     subrecords, we write out the negative length.  */
+
+  if (dtp->u.p.current_unit->continued)
+    m_write = -m;
+  else
+    m_write = m;
+
+  if (unlikely (write_us_marker (dtp, m_write) < 0))
     goto io_error;
 
   return;
@@ -3503,6 +3502,7 @@ next_record (st_parameter_dt *dtp, int done)
     pre_position (dtp);
 
   fbuf_flush (dtp->u.p.current_unit, dtp->u.p.mode);
+  flush_if_unbuffered (dtp->u.p.current_unit->s);
 }
 
 

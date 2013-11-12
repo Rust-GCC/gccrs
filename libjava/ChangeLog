@@ -1,17 +1,38 @@
-2013-06-19  Matthias Klose  <doko@ubuntu.com>
+2013-09-20  Alan Modra  <amodra@gmail.com>
+
+	* configure: Regenerate.
+
+2013-06-20  Roland Lutz  <rlutz@hedmen.org>
+
+ 	* contrib/aot-compile.in: Fix typo in option list.
+
+2013-06-20  Matthias Klose  <doko@ubuntu.com>
 
 	* pkg.m4 (PKG_CHECK_MODULES): Use AC_PATH_TOOL to check for pkg-config.
 	* classpath/m4/pkg.m4 (PKG_CHECK_MODULES): Likewise.
 	* configure: Regenerate.
 	* classpath/configure: Regenerate.
 
-2013-05-31  Release Manager
+2013-06-20  Matthias Klose  <doko@ubuntu.com>
 
-	* GCC 4.8.1 released.
+	* libtool-version: Bump soversion.
 
-2013-03-22  Release Manager
+2013-05-22  Mark Mitchell  <mark@codesourcery.com>
+	    Sandra Loosemore  <sandra@codesourcery.com>
 
-	* GCC 4.8.0 released.
+	* configure.ac (dbexecdir): Base on $(toolexeclibdir), not
+	$(libdir).
+	* Makefile.am (pkgconfigdir): Likewise.
+	* configure: Regenerated.
+	* Makefile.in: Regenerated.
+	* gcj/Makefile.in: Regenerated.
+	* include/Makefile.in: Regenerated.
+	* testsuite/Makefile.in: Regenerated.
+
+2013-04-16  Andreas Schwab  <schwab@suse.de>
+
+	* configure.host: Add support for aarch64.
+	* sysdep/aarch64/locks.h: New file.
 
 2013-03-12  Andrew John Hughes  <gnu.andrew@redhat.com>
 

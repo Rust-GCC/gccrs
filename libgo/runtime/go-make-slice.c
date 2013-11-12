@@ -34,7 +34,10 @@ __go_make_slice2 (const struct __go_type_descriptor *td, uintptr_t len,
   std = (const struct __go_slice_type *) td;
 
   ilen = (intgo) len;
-  if (ilen < 0 || (uintptr_t) ilen != len)
+  if (ilen < 0
+      || (uintptr_t) ilen != len
+      || (std->__element_type->__size > 0
+	  && len > MaxMem / std->__element_type->__size))
     runtime_panicstring ("makeslice: len out of range");
 
   icap = (intgo) cap;
@@ -52,15 +55,15 @@ __go_make_slice2 (const struct __go_type_descriptor *td, uintptr_t len,
   if (size == 0)
     ret.__values = &runtime_zerobase;
   else if ((std->__element_type->__code & GO_NO_POINTERS) != 0)
-    ret.__values = runtime_mallocgc (size, FlagNoPointers, 1, 1);
+    ret.__values =
+      runtime_mallocgc (size,
+			(uintptr) std->__element_type | TypeInfo_Array,
+			FlagNoScan);
   else
-    {
-      ret.__values = runtime_mallocgc (size, 0, 1, 1);
-
-      if (UseSpanType)
-	runtime_settype (ret.__values,
-			 (uintptr) std->__element_type | TypeInfo_Array);
-    }
+    ret.__values =
+      runtime_mallocgc (size,
+			(uintptr) std->__element_type | TypeInfo_Array,
+			0);
 
   return ret;
 }

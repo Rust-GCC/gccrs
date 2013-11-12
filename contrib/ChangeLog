@@ -1,10 +1,77 @@
-2013-05-31  Release Manager
+2013-10-31  Chung-Ju Wu  <jasonwucj@gmail.com>
 
-	* GCC 4.8.1 released.
+	* config-list.mk (nds32le-elf, nds32be-elf): Add nds32 target.
 
-2013-03-22  Release Manager
+2013-10-29  Tobias Burnus  <burnus@net-b.de>
 
-	* GCC 4.8.0 released.
+	* gcc_update (files_and_dependencies): Add rules for
+	libcilkrts.
+
+2013-10-11  Thomas Schwinge  <thomas@codesourcery.com>
+
+	* gcc_update (files_and_dependencies): Fix rule for
+	libgomp/testsuite/Makefile.in.
+
+2013-10-01  Joern Rennecke  <joern.rennecke@embecosm.com>
+
+	* config-list.mk: Add arc configurations.
+
+2013-09-27  Diego Novillo  <dnovillo@google.com>
+
+	* testsuite-management/x86_64-unknown-linux-gnu.xfail: Update.
+
+2013-09-12  DJ Delorie  <dj@redhat.com>
+
+	* config-list.mk: Add msp430-elf.
+
+2013-08-31  Diego Novillo  <dnovillo@google.com>
+
+	* testsuite-management/x86_64-unknown-linux-gnu.xfail: Update.
+
+2013-08-29  Mike Stump  <mikestump@comcast.net>
+
+	* gcc_update (configure): Update to handle svn 1.8.1.
+
+2013-08-03  Caroline Tice  <cmtice@google.com>
+
+	* gcc_update: Add libvtv files.
+	
+2013-06-06  Brooks Moses  <bmoses@google.com>
+
+	* testsuite-management/validate_failures.py: Fix handling of
+	summary lines with "|" characters or empty description fields.
+
+2013-05-24  Chung-Ju Wu  <jasonwucj@gmail.com>
+
+	* download_prerequisites: Download isl and cloog conditionally.
+
+2013-05-21  David Malcolm  <dmalcolm@redhat.com>
+
+	* repro_fail: Filter out "-ignore SIGHUP" from the spawn lines.
+
+2013-05-16  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config-list.mk (LIST): Add -enable-obsolete for
+	sparc-sun-solaris2.9, i686-solaris2.9.
+
+2013-05-13  Mike Stump  <mikestump@comcast.net>
+
+	* compare_tests: Limit lines to 2000 characters as comm on Mac OS
+	X 10.8.3 doesn't like long lines (those 2055 characters or more).
+
+2013-04-22  Sofiane Naci  <sofiane.naci@arm.com>
+
+	* config-list.mk (LIST): Add aarch64-elf and aarch64-linux-gnu.
+
+2013-04-18  Diego Novillo  <dnovillo@google.com>
+
+	* validate_failures.py: Fix typo.
+
+2013-04-18  Diego Novillo  <dnovillo@google.com>
+
+	* validate_failures.py: Loosen check for build directory.
+	State what failed if we couldn't find the source tree or
+	the target triplet.
 
 2013-03-22  Jakub Jelinek  <jakub@redhat.com>
 

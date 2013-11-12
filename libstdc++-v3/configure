@@ -664,6 +664,11 @@ LIBICONV
 OPT_LDFLAGS
 SECTION_LDFLAGS
 GLIBCXX_LIBS
+ENABLE_VTABLE_VERIFY_FALSE
+ENABLE_VTABLE_VERIFY_TRUE
+VTV_CXXLINKFLAGS
+VTV_PCH_CXXFLAGS
+VTV_CXXFLAGS
 ENABLE_WERROR_FALSE
 ENABLE_WERROR_TRUE
 ENABLE_PYTHONDIR_FALSE
@@ -866,6 +871,7 @@ enable_fully_dynamic_string
 enable_extern_template
 with_python_dir
 enable_werror
+enable_vtable_verify
 enable_libstdcxx_time
 enable_tls
 enable_rpath
@@ -1558,8 +1564,9 @@ Optional Features:
   --enable-extern-template
                           enable extern template [default=yes]
   --enable-werror         turns on -Werror [default=yes]
+  --enable-vtable-verify  enable vtable verify [default=no]
   --enable-libstdcxx-time[=KIND]
-                          use KIND for check type [default=no]
+                          use KIND for check type [default=auto]
   --enable-tls            Use thread-local storage [default=yes]
   --disable-rpath         do not hardcode runtime library paths
   --enable-linux-futex    use the Linux futex system call [default=default]
@@ -7111,7 +7118,7 @@ ia64-*-hpux*)
   rm -rf conftest*
   ;;
 
-x86_64-*kfreebsd*-gnu|x86_64-*linux*|ppc*-*linux*|powerpc*-*linux*| \
+x86_64-*kfreebsd*-gnu|x86_64-*linux*|powerpc*-*linux*| \
 s390*-*linux*|s390*-*tpf*|sparc*-*linux*)
   # Find out which ABI we are using.
   echo 'int i;' > conftest.$ac_ext
@@ -7136,7 +7143,10 @@ s390*-*linux*|s390*-*tpf*|sparc*-*linux*)
 		;;
 	    esac
 	    ;;
-	  ppc64-*linux*|powerpc64-*linux*)
+	  powerpc64le-*linux*)
+	    LD="${LD-ld} -m elf32lppclinux"
+	    ;;
+	  powerpc64-*linux*)
 	    LD="${LD-ld} -m elf32ppclinux"
 	    ;;
 	  s390x-*linux*)
@@ -7155,7 +7165,10 @@ s390*-*linux*|s390*-*tpf*|sparc*-*linux*)
 	  x86_64-*linux*)
 	    LD="${LD-ld} -m elf_x86_64"
 	    ;;
-	  ppc*-*linux*|powerpc*-*linux*)
+	  powerpcle-*linux*)
+	    LD="${LD-ld} -m elf64lppc"
+	    ;;
+	  powerpc-*linux*)
 	    LD="${LD-ld} -m elf64ppc"
 	    ;;
 	  s390*-*linux*|s390*-*tpf*)
@@ -11513,7 +11526,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11516 "configure"
+#line 11529 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11619,7 +11632,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11622 "configure"
+#line 11635 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -14906,6 +14919,12 @@ esac
 
 
 
+if test "$enable_vtable_verify" = yes; then
+  predep_objects_CXX="${predep_objects_CXX} ${glibcxx_builddir}/../libgcc/vtv_start.o"
+  postdep_objects_CXX="${postdep_objects_CXX} ${glibcxx_builddir}/../libgcc/vtv_end.o"
+fi
+
+
 # libtool variables for C++ shared and position-independent compiles.
 #
 # Use glibcxx_lt_pic_flag to designate the automake variable
@@ -15033,7 +15052,7 @@ fi
     #
     # Fake what AC_TRY_COMPILE does.  XXX Look at redoing this new-style.
     cat > conftest.$ac_ext << EOF
-#line 15036 "configure"
+#line 15055 "configure"
 struct S { ~S(); };
 void bar();
 void foo()
@@ -15050,6 +15069,8 @@ EOF
   $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
   test $ac_status = 0; }; then
       if grep _Unwind_SjLj_Resume conftest.s >/dev/null 2>&1 ; then
+	enable_sjlj_exceptions=yes
+      elif grep _Unwind_SjLj_Register conftest.s >/dev/null 2>&1 ; then
 	enable_sjlj_exceptions=yes
       elif grep _Unwind_Resume conftest.s >/dev/null 2>&1 ; then
 	enable_sjlj_exceptions=no
@@ -15383,7 +15404,7 @@ $as_echo "$glibcxx_cv_atomic_long_long" >&6; }
   # Fake what AC_TRY_COMPILE does.
 
     cat > conftest.$ac_ext << EOF
-#line 15386 "configure"
+#line 15407 "configure"
 int main()
 {
   typedef bool atomic_type;
@@ -15418,7 +15439,7 @@ $as_echo "$glibcxx_cv_atomic_bool" >&6; }
     rm -f conftest*
 
     cat > conftest.$ac_ext << EOF
-#line 15421 "configure"
+#line 15442 "configure"
 int main()
 {
   typedef short atomic_type;
@@ -15453,7 +15474,7 @@ $as_echo "$glibcxx_cv_atomic_short" >&6; }
     rm -f conftest*
 
     cat > conftest.$ac_ext << EOF
-#line 15456 "configure"
+#line 15477 "configure"
 int main()
 {
   // NB: _Atomic_word not necessarily int.
@@ -15489,7 +15510,7 @@ $as_echo "$glibcxx_cv_atomic_int" >&6; }
     rm -f conftest*
 
     cat > conftest.$ac_ext << EOF
-#line 15492 "configure"
+#line 15513 "configure"
 int main()
 {
   typedef long long atomic_type;
@@ -15568,7 +15589,7 @@ $as_echo "$as_me: WARNING: Performance of certain classes will degrade as a resu
   # unnecessary for this test.
 
     cat > conftest.$ac_ext << EOF
-#line 15571 "configure"
+#line 15592 "configure"
 int main()
 {
   _Decimal32 d1;
@@ -15610,7 +15631,7 @@ ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
   # unnecessary for this test.
 
     cat > conftest.$ac_ext << EOF
-#line 15613 "configure"
+#line 15634 "configure"
 template<typename T1, typename T2>
   struct same
   { typedef T2 type; };
@@ -15644,7 +15665,7 @@ $as_echo "$enable_int128" >&6; }
     rm -f conftest*
 
     cat > conftest.$ac_ext << EOF
-#line 15647 "configure"
+#line 15668 "configure"
 template<typename T1, typename T2>
   struct same
   { typedef T2 type; };
@@ -17379,6 +17400,42 @@ $as_echo "$enable_werror" >&6; }
 
 
 
+
+   # Check whether --enable-vtable-verify was given.
+if test "${enable_vtable_verify+set}" = set; then :
+  enableval=$enable_vtable_verify;
+      case "$enableval" in
+       yes|no) ;;
+       *) as_fn_error "Argument to enable/disable vtable-verify must be yes or no" "$LINENO" 5 ;;
+      esac
+
+else
+  enable_vtable_verify=no
+fi
+
+
+
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for vtable verify support" >&5
+$as_echo_n "checking for vtable verify support... " >&6; }
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $enable_vtable_verify" >&5
+$as_echo "$enable_vtable_verify" >&6; }
+
+  if test $enable_vtable_verify = yes; then
+    VTV_CXXFLAGS="-fvtable-verify=std -Wl,-u_vtable_map_vars_start,-u_vtable_map_vars_end"
+    VTV_PCH_CXXFLAGS="-fvtable-verify=std"
+    VTV_CXXLINKFLAGS="-L${toplevel_builddir}/libvtv/.libs -Wl,--rpath -Wl,${toplevel_builddir}/libvtv/.libs"
+  else
+    VTV_CXXFLAGS=
+    VTV_PCH_CXXFLAGS=
+    VTV_CXXLINKFLAGS=
+  fi
+
+
+
+
+
+
+
 # Checks for operating systems support that doesn't require linking.
 
 
@@ -18620,6 +18677,25 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
 
+# Check for fenv.h and complex.h before GLIBCXX_CHECK_C99_TR1
+# so that the check is done with the C compiler (not C++).
+# Checking with C++ can break a canadian cross build if either
+# file does not exist in C but does in C++.
+for ac_header in fenv.h complex.h
+do :
+  as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
+ac_fn_c_check_header_mongrel "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default"
+eval as_val=\$$as_ac_Header
+   if test "x$as_val" = x""yes; then :
+  cat >>confdefs.h <<_ACEOF
+#define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
+_ACEOF
+
+fi
+
+done
+
+
 # For C99 support to TR1.
 
 
@@ -19343,11 +19419,8 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
 # For clock_gettime, nanosleep and sched_yield support.
-# NB: The default is [no], because otherwise it requires linking.
 
 
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for clock_gettime, nanosleep and sched_yield" >&5
-$as_echo_n "checking for clock_gettime, nanosleep and sched_yield... " >&6; }
    # Check whether --enable-libstdcxx-time was given.
 if test "${enable_libstdcxx_time+set}" = set; then :
   enableval=$enable_libstdcxx_time;
@@ -19357,7 +19430,7 @@ if test "${enable_libstdcxx_time+set}" = set; then :
 	  	        esac
 
 else
-  enable_libstdcxx_time=no
+  enable_libstdcxx_time=auto
 fi
 
 
@@ -19375,10 +19448,74 @@ ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
 
   ac_has_clock_monotonic=no
   ac_has_clock_realtime=no
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $enable_libstdcxx_time" >&5
-$as_echo "$enable_libstdcxx_time" >&6; }
+  ac_has_nanosleep=no
+  ac_has_sched_yield=no
 
-  if test x"$enable_libstdcxx_time" != x"no"; then
+  if test x"$enable_libstdcxx_time" = x"auto"; then
+
+    case "${target_os}" in
+      cygwin*)
+        ac_has_nanosleep=yes
+        ;;
+      darwin*)
+        ac_has_nanosleep=yes
+        ac_has_sched_yield=yes
+        ;;
+      gnu* | linux* | kfreebsd*-gnu | knetbsd*-gnu)
+        { $as_echo "$as_me:${as_lineno-$LINENO}: checking for at least GNU libc 2.17" >&5
+$as_echo_n "checking for at least GNU libc 2.17... " >&6; }
+        cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include <features.h>
+int
+main ()
+{
+
+          #if ! __GLIBC_PREREQ(2, 17)
+          #error
+          #endif
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_cxx_try_compile "$LINENO"; then :
+  glibcxx_glibc217=yes
+else
+  glibcxx_glibc217=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+        { $as_echo "$as_me:${as_lineno-$LINENO}: result: $glibcxx_glibc217" >&5
+$as_echo "$glibcxx_glibc217" >&6; }
+
+        if test x"$glibcxx_glibc217" = x"yes"; then
+          ac_has_clock_monotonic=yes
+          ac_has_clock_realtime=yes
+        fi
+        ac_has_nanosleep=yes
+        ac_has_sched_yield=yes
+        ;;
+      freebsd*|netbsd*)
+        ac_has_clock_monotonic=yes
+        ac_has_clock_realtime=yes
+        ac_has_nanosleep=yes
+        ac_has_sched_yield=yes
+        ;;
+      openbsd*)
+        ac_has_clock_monotonic=yes
+        ac_has_clock_realtime=yes
+        ac_has_nanosleep=yes
+        ;;
+      solaris*)
+        GLIBCXX_LIBS="$GLIBCXX_LIBS -lrt"
+        ac_has_clock_monotonic=yes
+        ac_has_clock_realtime=yes
+        ac_has_nanosleep=yes
+        ac_has_sched_yield=yes
+        ;;
+    esac
+
+  elif test x"$enable_libstdcxx_time" != x"no"; then
 
     if test x"$enable_libstdcxx_time" = x"rt"; then
       { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing clock_gettime" >&5
@@ -19692,22 +19829,16 @@ fi
     case "$ac_cv_search_sched_yield" in
       -lposix4*)
       GLIBCXX_LIBS="$GLIBCXX_LIBS $ac_cv_search_sched_yield"
-
-$as_echo "#define _GLIBCXX_USE_SCHED_YIELD 1" >>confdefs.h
-
+      ac_has_sched_yield=yes
       ;;
       -lrt*)
       if test x"$enable_libstdcxx_time" = x"rt"; then
 	GLIBCXX_LIBS="$GLIBCXX_LIBS $ac_cv_search_sched_yield"
-
-$as_echo "#define _GLIBCXX_USE_SCHED_YIELD 1" >>confdefs.h
-
+        ac_has_sched_yield=yes
       fi
       ;;
       *)
-
-$as_echo "#define _GLIBCXX_USE_SCHED_YIELD 1" >>confdefs.h
-
+      ac_has_sched_yield=yes
       ;;
     esac
 
@@ -19879,6 +20010,12 @@ $as_echo "#define _GLIBCXX_USE_CLOCK_MONOTONIC 1" >>confdefs.h
   if test x"$ac_has_clock_realtime" = x"yes"; then
 
 $as_echo "#define _GLIBCXX_USE_CLOCK_REALTIME 1" >>confdefs.h
+
+  fi
+
+  if test x"$ac_has_sched_yield" = x"yes"; then
+
+$as_echo "#define _GLIBCXX_USE_SCHED_YIELD 1" >>confdefs.h
 
   fi
 
@@ -46113,7 +46250,7 @@ $as_echo "#define HAVE_TLS 1" >>confdefs.h
 	;;
     esac
     ;;
-  *-linux* | *-uclinux* | *-gnu* | *-kfreebsd*-gnu | *-knetbsd*-gnu)
+  *-linux* | *-uclinux* | *-gnu* | *-kfreebsd*-gnu | *-knetbsd*-gnu | *-cygwin*)
 
   # All these tests are for C++; save the language and the compiler flags.
   # The CXXFLAGS thing is suspicious, but based on similar bits previously
@@ -71573,7 +71710,7 @@ $as_echo "$as_me: WARNING: === Symbol versioning will be disabled." >&2;}
 fi
 
 # For libtool versioning info, format is CURRENT:REVISION:AGE
-libtool_VERSION=6:18:0
+libtool_VERSION=6:19:0
 
 # Everything parsed; figure out what files and settings to use.
 case $enable_symvers in
@@ -72899,6 +73036,15 @@ else
 fi
 
 
+    if test $enable_vtable_verify = yes; then
+  ENABLE_VTABLE_VERIFY_TRUE=
+  ENABLE_VTABLE_VERIFY_FALSE='#'
+else
+  ENABLE_VTABLE_VERIFY_TRUE='#'
+  ENABLE_VTABLE_VERIFY_FALSE=
+fi
+
+
     if test $enable_symvers != no; then
   ENABLE_SYMVERS_TRUE=
   ENABLE_SYMVERS_FALSE='#'
@@ -73340,6 +73486,10 @@ Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${ENABLE_WERROR_TRUE}" && test -z "${ENABLE_WERROR_FALSE}"; then
   as_fn_error "conditional \"ENABLE_WERROR\" was never defined.
+Usually this means the macro was only invoked conditionally." "$LINENO" 5
+fi
+if test -z "${ENABLE_VTABLE_VERIFY_TRUE}" && test -z "${ENABLE_VTABLE_VERIFY_FALSE}"; then
+  as_fn_error "conditional \"ENABLE_VTABLE_VERIFY\" was never defined.
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${ENABLE_SYMVERS_TRUE}" && test -z "${ENABLE_SYMVERS_FALSE}"; then

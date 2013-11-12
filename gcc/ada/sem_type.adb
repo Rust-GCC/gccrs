@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -780,7 +780,7 @@ package body Sem_Type is
          RA  : Entity_Id;
 
       begin
-         --  Retrieve parent subtype from subtype declaration for actual.
+         --  Retrieve parent subtype from subtype declaration for actual
 
          if Nkind (Par) = N_Subtype_Declaration
            and then not Comes_From_Source (Par)
@@ -793,7 +793,7 @@ package body Sem_Type is
             end if;
          end if;
 
-         --  Otherwise actual is not the actual of an enclosing instance.
+         --  Otherwise actual is not the actual of an enclosing instance
 
          return T;
       end Real_Actual;
@@ -1127,7 +1127,7 @@ package body Sem_Type is
       then
          return Covers (Designated_Type (T1), Designated_Type (T2))
           or else
-            (From_With_Type (Designated_Type (T1))
+            (From_Limited_With (Designated_Type (T1))
               and then Covers (Designated_Type (T2), Designated_Type (T1)));
 
       --  A boolean operation on integer literals is compatible with modular
@@ -1205,7 +1205,7 @@ package body Sem_Type is
       --  Ada 2005 (AI-50217): Additional branches to make the shadow entity
       --  obtained through a limited_with compatible with its real entity.
 
-      elsif From_With_Type (T1) then
+      elsif From_Limited_With (T1) then
 
          --  If the expected type is the non-limited view of a type, the
          --  expression may have the limited view. If that one in turn is
@@ -1221,7 +1221,7 @@ package body Sem_Type is
             return False;
          end if;
 
-      elsif From_With_Type (T2) then
+      elsif From_Limited_With (T2) then
 
          --  If units in the context have Limited_With clauses on each other,
          --  either type might have a limited view. Checks performed elsewhere
@@ -1313,7 +1313,7 @@ package body Sem_Type is
       --  Determine whether a subprogram is an actual in an enclosing instance.
       --  An overloading between such a subprogram and one declared outside the
       --  instance is resolved in favor of the first, because it resolved in
-      --  the generic. Within the instance the eactual is represented by a
+      --  the generic. Within the instance the actual is represented by a
       --  constructed subprogram renaming.
 
       function Matches (Actual, Formal : Node_Id) return Boolean;
@@ -2028,7 +2028,7 @@ package body Sem_Type is
       elsif (Nkind (N) = N_Function_Call
               and then Nkind (Name (N)) = N_Expanded_Name
               and then (Chars (Predef_Subp) /= Name_Op_Expon
-                          or else Hides_Op (User_Subp, Predef_Subp))
+                         or else Hides_Op (User_Subp, Predef_Subp))
               and then Scope (User_Subp) = Entity (Prefix (Name (N))))
         or else Hides_Op (User_Subp, Predef_Subp)
       then
@@ -2048,8 +2048,8 @@ package body Sem_Type is
       --  Ditto in Ada 2012, where an ambiguity may arise for an operation
       --  on a partial view that is completed with a fixed point type. See
       --  AI05-0020 and AI05-0209. The ambiguity is resolved in favor of the
-      --  user-defined subprogram so that a client of the package has the
-      --  same resulution as the body of the package.
+      --  user-defined type and subprogram, so that a client of the package
+      --  has the same resolution as the body of the package.
 
       else
          if (In_Open_Scopes (Scope (User_Subp))
@@ -2057,15 +2057,13 @@ package body Sem_Type is
            and then not In_Instance
          then
             if Is_Fixed_Point_Type (Typ)
-              and then (Chars (Nam1) = Name_Op_Multiply
-                          or else Chars (Nam1) = Name_Op_Divide)
+              and then Nam_In (Chars (Nam1), Name_Op_Multiply, Name_Op_Divide)
               and then
                 (Ada_Version = Ada_83
-                  or else
-                   (Ada_Version >= Ada_2012
-                     and then
-                       In_Same_Declaration_List
-                         (Typ, Unit_Declaration_Node (User_Subp))))
+                  or else (Ada_Version >= Ada_2012
+                            and then In_Same_Declaration_List
+                                       (First_Subtype (Typ),
+                                          Unit_Declaration_Node (User_Subp))))
             then
                if It2.Nam = Predef_Subp then
                   return It1;
@@ -2079,9 +2077,7 @@ package body Sem_Type is
             --  declared in the same declarative list as the type. The node
             --  may be an operator or a function call.
 
-            elsif (Chars (Nam1) = Name_Op_Eq
-                     or else
-                   Chars (Nam1) = Name_Op_Ne)
+            elsif Nam_In (Chars (Nam1), Name_Op_Eq, Name_Op_Ne)
               and then Ada_Version >= Ada_2005
               and then Etype (User_Subp) = Standard_Boolean
               and then Ekind (Operand_Type) = E_Anonymous_Access_Type
@@ -2615,8 +2611,13 @@ package body Sem_Type is
 
             begin
                AI := First (Interface_List (Parent (Target_Typ)));
+
+               --  The progenitor itself may be a subtype of an interface type.
+
                while Present (AI) loop
-                  if Etype (AI) = Iface_Typ then
+                  if Etype (AI) = Iface_Typ
+                    or else Base_Type (Etype (AI)) = Iface_Typ
+                  then
                      return True;
 
                   elsif Present (Interfaces (Etype (AI)))
@@ -3059,10 +3060,7 @@ package body Sem_Type is
       elsif Num = 1 then
          T1 := Etype (First_Formal (New_S));
 
-         if Op_Name = Name_Op_Subtract
-           or else Op_Name = Name_Op_Add
-           or else Op_Name = Name_Op_Abs
-         then
+         if Nam_In (Op_Name, Name_Op_Subtract, Name_Op_Add, Name_Op_Abs) then
             return Base_Type (T1) = Base_Type (T)
               and then Is_Numeric_Type (T);
 
@@ -3080,26 +3078,24 @@ package body Sem_Type is
          T1 := Etype (First_Formal (New_S));
          T2 := Etype (Next_Formal (First_Formal (New_S)));
 
-         if Op_Name =  Name_Op_And or else Op_Name = Name_Op_Or
-           or else Op_Name = Name_Op_Xor
-         then
+         if Nam_In (Op_Name, Name_Op_And, Name_Op_Or, Name_Op_Xor) then
             return Base_Type (T1) = Base_Type (T2)
               and then Base_Type (T1) = Base_Type (T)
               and then Valid_Boolean_Arg (Base_Type (T));
 
-         elsif Op_Name = Name_Op_Eq or else Op_Name = Name_Op_Ne then
+         elsif Nam_In (Op_Name, Name_Op_Eq, Name_Op_Ne) then
             return Base_Type (T1) = Base_Type (T2)
               and then not Is_Limited_Type (T1)
               and then Is_Boolean_Type (T);
 
-         elsif Op_Name = Name_Op_Lt or else Op_Name = Name_Op_Le
-           or else Op_Name = Name_Op_Gt or else Op_Name = Name_Op_Ge
+         elsif Nam_In (Op_Name, Name_Op_Lt, Name_Op_Le,
+                                Name_Op_Gt, Name_Op_Ge)
          then
             return Base_Type (T1) = Base_Type (T2)
               and then Valid_Comparison_Arg (T1)
               and then Is_Boolean_Type (T);
 
-         elsif Op_Name = Name_Op_Add or else Op_Name = Name_Op_Subtract then
+         elsif Nam_In (Op_Name, Name_Op_Add, Name_Op_Subtract) then
             return Base_Type (T1) = Base_Type (T2)
               and then Base_Type (T1) = Base_Type (T)
               and then Is_Numeric_Type (T);
@@ -3152,7 +3148,7 @@ package body Sem_Type is
                         and then Is_Floating_Point_Type (T2)
                         and then Base_Type (T2) = Base_Type (T));
 
-         elsif Op_Name = Name_Op_Mod or else Op_Name = Name_Op_Rem then
+         elsif Nam_In (Op_Name, Name_Op_Mod, Name_Op_Rem) then
             return Base_Type (T1) = Base_Type (T2)
               and then Base_Type (T1) = Base_Type (T)
               and then Is_Integer_Type (T);
@@ -3213,6 +3209,8 @@ package body Sem_Type is
 
    begin
       if Is_Overloaded (Old_N) then
+         Set_Is_Overloaded (New_N);
+
          if Nkind (Old_N) = N_Selected_Component
            and then Is_Overloaded (Selector_Name (Old_N))
          then

@@ -183,13 +183,11 @@ vec_prefix::calculate_allocation (vec_prefix *pfx, unsigned reserve,
 
   if (pfx)
     {
-      alloc = pfx->alloc_;
-      num = pfx->num_;
+      alloc = pfx->m_alloc;
+      num = pfx->m_num;
     }
   else if (!reserve)
-    /* If there's no vector, and we've not requested anything, then we
-       will create a NULL vector.  */
-    return 0;
+    gcc_unreachable ();
 
   /* We must have run out of room.  */
   gcc_assert (alloc - num < reserve);
@@ -214,49 +212,6 @@ vec_prefix::calculate_allocation (vec_prefix *pfx, unsigned reserve,
 	alloc = num + reserve;
     }
   return alloc;
-}
-
-
-/* Stack vectors are a little different.  VEC_alloc turns into a call
-   to vec<T, A>::stack_reserve and passes in space allocated via a
-   call to alloca.  We record that pointer so that we know that we
-   shouldn't free it.  If the vector is resized, we resize it on the
-   heap.  We record the pointers in a vector and search it in LIFO
-   order--i.e., we look for the newest stack vectors first.  We don't
-   expect too many stack vectors at any one level, and searching from
-   the end should normally be efficient even if they are used in a
-   recursive function.  */
-
-static vec<void *> stack_vecs;
-
-/* Add a stack vector to STACK_VECS.  */
-
-void
-register_stack_vec (void *vec)
-{
-  stack_vecs.safe_push (vec);
-}
-
-
-/* If VEC is registered in STACK_VECS, return its index.
-   Otherwise, return -1.  */
-
-int
-stack_vec_register_index (void *vec)
-{
-  for (unsigned ix = stack_vecs.length (); ix > 0; --ix)
-    if (stack_vecs[ix - 1] == vec)
-      return static_cast<int> (ix - 1);
-  return -1;
-}
-
-
-/* Remove vector at slot IX from the list of registered stack vectors.  */
-
-void
-unregister_stack_vec (unsigned ix)
-{
-  stack_vecs.unordered_remove (ix);
 }
 
 

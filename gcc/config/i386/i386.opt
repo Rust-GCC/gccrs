@@ -61,8 +61,12 @@ TargetSave
 HOST_WIDE_INT x_ix86_isa_flags_explicit
 
 ;; which flags were passed by the user
-TargetSave
+Variable
 int ix86_target_flags_explicit
+
+;; which flags were passed by the user
+TargetSave
+HOST_WIDE_INT x_ix86_target_flags_explicit
 
 ;; whether -mtune was not specified
 TargetSave
@@ -316,6 +320,14 @@ mstack-arg-probe
 Target Report Mask(STACK_PROBE) Save
 Enable stack probing
 
+mmemcpy-strategy=
+Target RejectNegative Joined Var(ix86_tune_memcpy_strategy)
+Specify memcpy expansion strategy when expected size is known
+
+mmemset-strategy=
+Target RejectNegative Joined Var(ix86_tune_memset_strategy)
+Specify memset expansion strategy when expected size is known
+
 mstringop-strategy=
 Target RejectNegative Joined Enum(stringop_alg) Var(ix86_stringop_alg) Init(no_stringop)
 Chose strategy to generate stringop using
@@ -345,6 +357,9 @@ Enum(stringop_alg) String(loop) Value(loop)
 EnumValue
 Enum(stringop_alg) String(unrolled_loop) Value(unrolled_loop)
 
+EnumValue
+Enum(stringop_alg) String(vector_loop) Value(vector_loop)
+
 mtls-dialect=
 Target RejectNegative Joined Var(ix86_tls_dialect) Enum(tls_dialect) Init(TLS_DIALECT_GNU)
 Use given thread-local storage dialect
@@ -366,6 +381,17 @@ Use direct references against %gs when accessing tls data
 mtune=
 Target RejectNegative Joined Var(ix86_tune_string)
 Schedule code for given CPU
+
+mtune-ctrl=
+Target RejectNegative Joined Var(ix86_tune_ctrl_string)
+Fine grain control of tune features
+
+mno-default
+Target RejectNegative Var(ix86_tune_no_default) Init(0)
+Clear all tune features
+
+mdump-tune-features
+Target RejectNegative Var(ix86_dump_tunes) Init(0)
 
 mabi=
 Target RejectNegative Joined Var(ix86_abi) Enum(calling_abi) Init(SYSV_ABI)
@@ -494,6 +520,22 @@ Support MMX, SSE, SSE2, SSE3, SSSE3, SSE4.1, SSE4.2 and AVX built-in functions a
 mavx2
 Target Report Mask(ISA_AVX2) Var(ix86_isa_flags) Save
 Support MMX, SSE, SSE2, SSE3, SSSE3, SSE4.1, SSE4.2, AVX and AVX2 built-in functions and code generation
+
+mavx512f
+Target Report Mask(ISA_AVX512F) Var(ix86_isa_flags) Save
+Support MMX, SSE, SSE2, SSE3, SSSE3, SSE4.1, SSE4.2, AVX, AVX2 and AVX512F built-in functions and code generation
+
+mavx512pf
+Target Report Mask(ISA_AVX512PF) Var(ix86_isa_flags) Save
+Support MMX, SSE, SSE2, SSE3, SSSE3, SSE4.1, SSE4.2, AVX, AVX2 and AVX512F and AVX512PF built-in functions and code generation
+
+mavx512er
+Target Report Mask(ISA_AVX512ER) Var(ix86_isa_flags) Save
+Support MMX, SSE, SSE2, SSE3, SSSE3, SSE4.1, SSE4.2, AVX, AVX2 and AVX512F and AVX512ER built-in functions and code generation
+
+mavx512cd
+Target Report Mask(ISA_AVX512CD) Var(ix86_isa_flags) Save
+Support MMX, SSE, SSE2, SSE3, SSSE3, SSE4.1, SSE4.2, AVX, AVX2 and AVX512F and AVX512CD built-in functions and code generation
 
 mfma
 Target Report Mask(ISA_FMA) Var(ix86_isa_flags) Save
@@ -626,3 +668,21 @@ Split 32-byte AVX unaligned store
 mrtm
 Target Report Mask(ISA_RTM) Var(ix86_isa_flags) Save
 Support RTM built-in functions and code generation
+
+mmpx
+Target Report Mask(ISA_MPX) Var(ix86_isa_flags) Save
+Support MPX code generation
+
+mstack-protector-guard=
+Target RejectNegative Joined Enum(stack_protector_guard) Var(ix86_stack_protector_guard) Init(SSP_TLS)
+Use given stack-protector guard
+
+Enum
+Name(stack_protector_guard) Type(enum stack_protector_guard)
+Known stack protector guard (for use with the -mstack-protector-guard= option):
+
+EnumValue
+Enum(stack_protector_guard) String(tls) Value(SSP_TLS)
+
+EnumValue
+Enum(stack_protector_guard) String(global) Value(SSP_GLOBAL)

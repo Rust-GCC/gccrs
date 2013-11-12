@@ -22,8 +22,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "tm.h"
 #include "diagnostic.h"
 #include "tree.h"
+#include "gimple.h"
 #include "tree-streamer.h"
 #include "data-streamer.h"
 #include "streamer-hooks.h"
@@ -87,17 +89,18 @@ pack_ts_base_value_fields (struct bitpack_d *bp, tree expr)
     bp_pack_value (bp, TYPE_UNSIGNED (expr), 1);
   else
     bp_pack_value (bp, 0, 1);
-  /* We write debug info two times, do not confuse the second one.  */
-  bp_pack_value (bp, ((TYPE_P (expr) || TREE_CODE (expr) == TYPE_DECL)
+  /* We write debug info two times, do not confuse the second one.
+     The only relevant TREE_ASM_WRITTEN use is on SSA names.  */
+  bp_pack_value (bp, (TREE_CODE (expr) != SSA_NAME
 		      ? 0 : TREE_ASM_WRITTEN (expr)), 1);
   if (TYPE_P (expr))
     bp_pack_value (bp, TYPE_ARTIFICIAL (expr), 1);
   else
     bp_pack_value (bp, TREE_NO_WARNING (expr), 1);
-  bp_pack_value (bp, TREE_USED (expr), 1);
   bp_pack_value (bp, TREE_NOTHROW (expr), 1);
   bp_pack_value (bp, TREE_STATIC (expr), 1);
-  bp_pack_value (bp, TREE_PRIVATE (expr), 1);
+  if (TREE_CODE (expr) != TREE_BINFO)
+    bp_pack_value (bp, TREE_PRIVATE (expr), 1);
   bp_pack_value (bp, TREE_PROTECTED (expr), 1);
   bp_pack_value (bp, TREE_DEPRECATED (expr), 1);
   if (TYPE_P (expr))
@@ -170,7 +173,6 @@ pack_ts_decl_common_value_fields (struct bitpack_d *bp, tree expr)
   bp_pack_value (bp, DECL_ARTIFICIAL (expr), 1);
   bp_pack_value (bp, DECL_USER_ALIGN (expr), 1);
   bp_pack_value (bp, DECL_PRESERVE_P (expr), 1);
-  bp_pack_value (bp, DECL_DEBUG_EXPR_IS_FROM (expr), 1);
   bp_pack_value (bp, DECL_EXTERNAL (expr), 1);
   bp_pack_value (bp, DECL_GIMPLE_REG_P (expr), 1);
   bp_pack_var_len_unsigned (bp, DECL_ALIGN (expr));
@@ -180,7 +182,6 @@ pack_ts_decl_common_value_fields (struct bitpack_d *bp, tree expr)
       /* Note that we do not write LABEL_DECL_UID.  The reader will
 	 always assume an initial value of -1 so that the
 	 label_to_block_map is recreated by gimple_set_bb.  */
-      bp_pack_value (bp, DECL_ERROR_ISSUED (expr), 1);
       bp_pack_var_len_unsigned (bp, EH_LANDING_PAD_NR (expr));
     }
 
@@ -192,7 +193,10 @@ pack_ts_decl_common_value_fields (struct bitpack_d *bp, tree expr)
     }
 
   if (TREE_CODE (expr) == VAR_DECL)
-    bp_pack_value (bp, DECL_NONLOCAL_FRAME (expr), 1);
+    {
+      bp_pack_value (bp, DECL_HAS_DEBUG_EXPR_P (expr), 1);
+      bp_pack_value (bp, DECL_NONLOCAL_FRAME (expr), 1);
+    }
 
   if (TREE_CODE (expr) == RESULT_DECL
       || TREE_CODE (expr) == PARM_DECL
@@ -222,7 +226,6 @@ pack_ts_decl_wrtl_value_fields (struct bitpack_d *bp, tree expr)
 static void
 pack_ts_decl_with_vis_value_fields (struct bitpack_d *bp, tree expr)
 {
-  bp_pack_value (bp, DECL_DEFER_OUTPUT (expr), 1);
   bp_pack_value (bp, DECL_COMMON (expr), 1);
   bp_pack_value (bp, DECL_DLLIMPORT_P (expr), 1);
   bp_pack_value (bp, DECL_WEAK (expr), 1);
@@ -234,11 +237,17 @@ pack_ts_decl_with_vis_value_fields (struct bitpack_d *bp, tree expr)
   if (TREE_CODE (expr) == VAR_DECL)
     {
       bp_pack_value (bp, DECL_HARD_REGISTER (expr), 1);
-      bp_pack_value (bp, DECL_IN_TEXT_SECTION (expr), 1);
+      /* DECL_IN_TEXT_SECTION is set during final asm output only. */
       bp_pack_value (bp, DECL_IN_CONSTANT_POOL (expr), 1);
       bp_pack_value (bp, DECL_TLS_MODEL (expr),  3);
     }
 
+  if (TREE_CODE (expr) == FUNCTION_DECL)
+    {
+      bp_pack_value (bp, DECL_FINAL_P (expr), 1);
+      bp_pack_value (bp, DECL_CXX_CONSTRUCTOR_P (expr), 1);
+      bp_pack_value (bp, DECL_CXX_DESTRUCTOR_P (expr), 1);
+    }
   if (VAR_OR_FUNCTION_DECL_P (expr))
     bp_pack_var_len_unsigned (bp, DECL_INIT_PRIORITY (expr));
 }
@@ -290,17 +299,23 @@ pack_ts_type_common_value_fields (struct bitpack_d *bp, tree expr)
   bp_pack_value (bp, TYPE_NO_FORCE_BLK (expr), 1);
   bp_pack_value (bp, TYPE_NEEDS_CONSTRUCTING (expr), 1);
   if (RECORD_OR_UNION_TYPE_P (expr))
-    bp_pack_value (bp, TYPE_TRANSPARENT_AGGR (expr), 1);
+    {
+      bp_pack_value (bp, TYPE_TRANSPARENT_AGGR (expr), 1);
+      bp_pack_value (bp, TYPE_FINAL_P (expr), 1);
+    }
   else if (TREE_CODE (expr) == ARRAY_TYPE)
     bp_pack_value (bp, TYPE_NONALIASED_COMPONENT (expr), 1);
   bp_pack_value (bp, TYPE_PACKED (expr), 1);
   bp_pack_value (bp, TYPE_RESTRICT (expr), 1);
-  bp_pack_value (bp, TYPE_CONTAINS_PLACEHOLDER_INTERNAL (expr), 2);
   bp_pack_value (bp, TYPE_USER_ALIGN (expr), 1);
   bp_pack_value (bp, TYPE_READONLY (expr), 1);
   bp_pack_var_len_unsigned (bp, TYPE_PRECISION (expr));
   bp_pack_var_len_unsigned (bp, TYPE_ALIGN (expr));
-  bp_pack_var_len_int (bp, TYPE_ALIAS_SET (expr) == 0 ? 0 : -1);
+  /* Make sure to preserve the fact whether the frontend would assign
+     alias-set zero to this type.  */
+  bp_pack_var_len_int (bp, (TYPE_ALIAS_SET (expr) == 0
+			    || (!in_lto_p
+				&& get_alias_set (expr) == 0)) ? 0 : -1);
 }
 
 
@@ -488,9 +503,10 @@ streamer_write_chain (struct output_block *ob, tree t, bool ref_p)
 	 to the global decls section as we do not want to have them
 	 enter decl merging.  This is, of course, only for the call
 	 for streaming BLOCK_VARS, but other callers are safe.  */
+      /* ???  FIXME wrt SCC streaming.  Drop these for now.  */
       if (VAR_OR_FUNCTION_DECL_P (t)
 	  && DECL_EXTERNAL (t))
-	stream_write_tree_shallow_non_ref (ob, t, ref_p);
+	; /* stream_write_tree_shallow_non_ref (ob, t, ref_p); */
       else
 	stream_write_tree (ob, t, ref_p);
 
@@ -550,7 +566,13 @@ static void
 write_ts_decl_minimal_tree_pointers (struct output_block *ob, tree expr,
 				     bool ref_p)
 {
-  stream_write_tree (ob, DECL_NAME (expr), ref_p);
+  /* Drop names that were created for anonymous entities.  */
+  if (DECL_NAME (expr)
+      && TREE_CODE (DECL_NAME (expr)) == IDENTIFIER_NODE
+      && ANON_AGGRNAME_P (DECL_NAME (expr)))
+    stream_write_tree (ob, NULL_TREE, ref_p);
+  else
+    stream_write_tree (ob, DECL_NAME (expr), ref_p);
   stream_write_tree (ob, DECL_CONTEXT (expr), ref_p);
 }
 
@@ -593,12 +615,7 @@ static void
 write_ts_decl_non_common_tree_pointers (struct output_block *ob, tree expr,
 				        bool ref_p)
 {
-  if (TREE_CODE (expr) == FUNCTION_DECL)
-    {
-      streamer_write_chain (ob, DECL_ARGUMENTS (expr), ref_p);
-      stream_write_tree (ob, DECL_RESULT (expr), ref_p);
-    }
-  else if (TREE_CODE (expr) == TYPE_DECL)
+  if (TREE_CODE (expr) == TYPE_DECL)
     stream_write_tree (ob, DECL_ORIGINAL_TYPE (expr), ref_p);
   stream_write_tree (ob, DECL_VINDEX (expr), ref_p);
 }
@@ -713,7 +730,7 @@ write_ts_list_tree_pointers (struct output_block *ob, tree expr, bool ref_p)
 {
   stream_write_tree (ob, TREE_PURPOSE (expr), ref_p);
   stream_write_tree (ob, TREE_VALUE (expr), ref_p);
-  streamer_write_chain (ob, TREE_CHAIN (expr), ref_p);
+  stream_write_tree (ob, TREE_CHAIN (expr), ref_p);
 }
 
 
@@ -807,9 +824,8 @@ write_ts_binfo_tree_pointers (struct output_block *ob, tree expr, bool ref_p)
   FOR_EACH_VEC_SAFE_ELT (BINFO_BASE_ACCESSES (expr), i, t)
     stream_write_tree (ob, t, ref_p);
 
-  stream_write_tree (ob, BINFO_INHERITANCE_CHAIN (expr), ref_p);
-  stream_write_tree (ob, BINFO_SUBVTT_INDEX (expr), ref_p);
-  stream_write_tree (ob, BINFO_VPTR_INDEX (expr), ref_p);
+  /* Do not walk BINFO_INHERITANCE_CHAIN, BINFO_SUBVTT_INDEX
+     and BINFO_VPTR_INDEX; these are used by C++ FE only.  */
 }
 
 
@@ -838,6 +854,8 @@ void
 streamer_write_tree_body (struct output_block *ob, tree expr, bool ref_p)
 {
   enum tree_code code;
+
+  lto_stats.num_tree_bodies_output++;
 
   code = TREE_CODE (expr);
 

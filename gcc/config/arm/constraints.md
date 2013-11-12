@@ -21,7 +21,7 @@
 ;; The following register constraints have been used:
 ;; - in ARM/Thumb-2 state: t, w, x, y, z
 ;; - in Thumb state: h, b
-;; - in both states: l, c, k
+;; - in both states: l, c, k, q, US
 ;; In ARM state, 'l' is an alias for 'r'
 ;; 'f' and 'v' were previously used for FPA and MAVERICK registers.
 
@@ -86,12 +86,18 @@
 (define_register_constraint "k" "STACK_REG"
  "@internal The stack register.")
 
+(define_register_constraint "q" "(TARGET_ARM && TARGET_LDRD) ? CORE_REGS : GENERAL_REGS"
+  "@internal In ARM state with LDRD support, core registers, otherwise general registers.")
+
 (define_register_constraint "b" "TARGET_THUMB ? BASE_REGS : NO_REGS"
  "@internal
   Thumb only.  The union of the low registers and the stack register.")
 
 (define_register_constraint "c" "CC_REG"
  "@internal The condition code register.")
+
+(define_register_constraint "Cs" "CALLER_SAVE_REGS"
+ "@internal The caller save registers.  Useful for sibcalls.")
 
 (define_constraint "I"
  "In ARM/Thumb-2 state a constant that can be used as an immediate value in a
@@ -164,9 +170,9 @@
   		    && ival > 1020 && ival <= 1275")))
 
 (define_constraint "Pd"
-  "@internal In Thumb-1 state a constant in the range 0 to 7"
+  "@internal In Thumb state a constant in the range 0 to 7"
   (and (match_code "const_int")
-       (match_test "TARGET_THUMB1 && ival >= 0 && ival <= 7")))
+       (match_test "TARGET_THUMB && ival >= 0 && ival <= 7")))
 
 (define_constraint "Pe"
   "@internal In Thumb-1 state a constant in the range 256 to +510"
@@ -208,6 +214,11 @@
   (and (match_code "const_int")
        (match_test "TARGET_THUMB2 && ival >= 0 && ival <= 255")))
 
+(define_constraint "Pz"
+  "@internal In Thumb-2 state the constant 0"
+  (and (match_code "const_int")
+       (match_test "TARGET_THUMB2 && (ival == 0)")))
+
 (define_constraint "G"
  "In ARM/Thumb-2 state the floating-point constant 0."
  (and (match_code "const_double")
@@ -247,6 +258,24 @@
   In ARM/Thumb-2 state a const_int that can be used by insn adddi."
  (and (match_code "const_int")
       (match_test "TARGET_32BIT && const_ok_for_dimode_op (ival, PLUS)")))
+
+(define_constraint "De"
+ "@internal
+  In ARM/Thumb-2 state a const_int that can be used by insn anddi."
+ (and (match_code "const_int")
+      (match_test "TARGET_32BIT && const_ok_for_dimode_op (ival, AND)")))
+
+(define_constraint "Df"
+ "@internal
+  In ARM/Thumb-2 state a const_int that can be used by insn iordi."
+ (and (match_code "const_int")
+      (match_test "TARGET_32BIT && const_ok_for_dimode_op (ival, IOR)")))
+
+(define_constraint "Dg"
+ "@internal
+  In ARM/Thumb-2 state a const_int that can be used by insn xordi."
+ (and (match_code "const_int")
+      (match_test "TARGET_32BIT && const_ok_for_dimode_op (ival, XOR)")))
 
 (define_constraint "Di"
  "@internal
@@ -305,6 +334,9 @@
   (and (match_code "const_double")
        (match_test "TARGET_32BIT && TARGET_VFP && vfp3_const_double_for_fract_bits (op)")))
 
+(define_register_constraint "Ts" "(arm_restrict_it) ? LO_REGS : GENERAL_REGS"
+ "For arm_restrict_it the core registers @code{r0}-@code{r7}.  GENERAL_REGS otherwise.")
+
 (define_memory_constraint "Ua"
  "@internal
   An address valid for loading/storing register exclusive"
@@ -334,21 +366,21 @@
   In ARM/Thumb-2 state a valid address for Neon doubleword vector
   load/store instructions."
  (and (match_code "mem")
-      (match_test "TARGET_32BIT && neon_vector_mem_operand (op, 0)")))
+      (match_test "TARGET_32BIT && neon_vector_mem_operand (op, 0, true)")))
 
 (define_memory_constraint "Um"
  "@internal
   In ARM/Thumb-2 state a valid address for Neon element and structure
   load/store instructions."
  (and (match_code "mem")
-      (match_test "TARGET_32BIT && neon_vector_mem_operand (op, 2)")))
+      (match_test "TARGET_32BIT && neon_vector_mem_operand (op, 2, true)")))
 
 (define_memory_constraint "Us"
  "@internal
   In ARM/Thumb-2 state a valid address for non-offset loads/stores of
   quad-word values in four ARM registers."
  (and (match_code "mem")
-      (match_test "TARGET_32BIT && neon_vector_mem_operand (op, 1)")))
+      (match_test "TARGET_32BIT && neon_vector_mem_operand (op, 1, true)")))
 
 (define_memory_constraint "Uq"
  "@internal
@@ -385,9 +417,16 @@
 						   0)
 		   && GET_CODE (XEXP (op, 0)) != POST_INC")))
 
+(define_constraint "US"
+ "@internal
+  US is a symbol reference."
+ (match_code "symbol_ref")
+)
+
 ;; We used to have constraint letters for S and R in ARM state, but
 ;; all uses of these now appear to have been removed.
 
 ;; Additionally, we used to have a Q constraint in Thumb state, but
 ;; this wasn't really a valid memory constraint.  Again, all uses of
 ;; this now seem to have been removed.
+

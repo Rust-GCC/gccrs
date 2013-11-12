@@ -45,6 +45,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "ggc.h"
 #include "tm-constrs.h"
 #include "tree-pass.h"	/* for current_pass */
+#include "context.h"
+#include "pass_manager.h"
 
 /* Which cpu we're compiling for.  */
 int epiphany_cpu_type;
@@ -58,6 +60,9 @@ char epiphany_punct_chars[256];
 
 /* The rounding mode that we generally use for floating point.  */
 int epiphany_normal_fp_rounding;
+
+/* The pass instance, for use in epiphany_optimize_mode_switching. */
+static opt_pass *pass_mode_switch_use;
 
 static void epiphany_init_reg_tables (void);
 static int get_epiphany_condition_code (rtx);
@@ -165,20 +170,26 @@ epiphany_init (void)
      pass because of the side offect of epiphany_mode_needed on
      MACHINE_FUNCTION(cfun)->unknown_mode_uses.  But it must run before
      pass_resolve_sw_modes.  */
-  static struct register_pass_info insert_use_info
-    = { &pass_mode_switch_use.pass, "mode_sw",
+  pass_mode_switch_use = make_pass_mode_switch_use (g);
+  struct register_pass_info insert_use_info
+    = { pass_mode_switch_use, "mode_sw",
 	1, PASS_POS_INSERT_AFTER
       };
-  static struct register_pass_info mode_sw2_info
-    = { &pass_mode_switching.pass, "mode_sw",
+  opt_pass *mode_sw2
+    = g->get_passes()->get_pass_mode_switching ()->clone ();
+  struct register_pass_info mode_sw2_info
+    = { mode_sw2, "mode_sw",
 	1, PASS_POS_INSERT_AFTER
       };
-  static struct register_pass_info mode_sw3_info
-    = { &pass_resolve_sw_modes.pass, "mode_sw",
+  opt_pass *mode_sw3 = make_pass_resolve_sw_modes (g);
+  struct register_pass_info mode_sw3_info
+    = { mode_sw3, "mode_sw",
 	1, PASS_POS_INSERT_AFTER
       };
-  static struct register_pass_info mode_sw4_info
-    = { &pass_split_all_insns.pass, "mode_sw",
+  opt_pass *mode_sw4
+    = g->get_passes()->get_pass_split_all_insns ()->clone ();
+  struct register_pass_info mode_sw4_info
+    = { mode_sw4, "mode_sw",
 	1, PASS_POS_INSERT_AFTER
       };
   static const int num_modes[] = NUM_MODES_FOR_MODE_SWITCHING;
@@ -205,8 +216,10 @@ epiphany_init (void)
          (see http://gcc.gnu.org/ml/gcc-patches/2011-10/msg02819.html,)
          we need a second peephole2 pass to get reasonable code.  */
   {
-    static struct register_pass_info peep2_2_info
-      = { &pass_peephole2.pass, "peephole2",
+    opt_pass *extra_peephole2
+      = g->get_passes ()->get_pass_peephole2 ()->clone ();
+    struct register_pass_info peep2_2_info
+      = { extra_peephole2, "peephole2",
 	  1, PASS_POS_INSERT_AFTER
 	};
 
@@ -339,7 +352,8 @@ epiphany_select_cc_mode (enum rtx_code op,
 {
   if (GET_MODE_CLASS (GET_MODE (x)) == MODE_FLOAT)
     {
-      if (TARGET_SOFT_CMPSF)
+      if (TARGET_SOFT_CMPSF
+	  || op == ORDERED || op == UNORDERED)
 	{
 	  if (op == EQ || op == NE)
 	    return CC_FP_EQmode;
@@ -541,24 +555,47 @@ gen_compare_reg (enum machine_mode cmode, enum rtx_code code,
       if (mode == CC_FP_GTEmode
 	  && (code == LE || code == LT || code == UNGT || code == UNGE))
 	{
-	  rtx tmp = x; x = y; y = tmp;
-	  code = swap_condition (code);
+	  if (flag_finite_math_only
+	      && ((REG_P (x) && REGNO (x) == GPR_0)
+		  || (REG_P (y) && REGNO (y) == GPR_1)))
+	    switch (code)
+	      {
+	      case LE: code = UNLE; break;
+	      case LT: code = UNLT; break;
+	      case UNGT: code = GT; break;
+	      case UNGE: code = GE; break;
+	      default: gcc_unreachable ();
+	      }
+	  else
+	    {
+	      rtx tmp = x; x = y; y = tmp;
+	      code = swap_condition (code);
+	    }
 	}
       cc_reg = gen_rtx_REG (mode, CC_REGNUM);
     }
   if ((mode == CC_FP_EQmode || mode == CC_FP_GTEmode
        || mode == CC_FP_ORDmode || mode == CC_FP_UNEQmode)
       /* mov<mode>cc might want to re-emit a comparison during ifcvt.  */
-      && (!REG_P (x) || REGNO (x) != 0 || !REG_P (y) || REGNO (y) != 1))
+      && (!REG_P (x) || REGNO (x) != GPR_0
+	  || !REG_P (y) || REGNO (y) != GPR_1))
     {
       rtx reg;
 
+#if 0
+      /* ??? We should really do the r0/r1 clobber only during rtl expansion,
+	 but just like the flag clobber of movsicc, we have to allow
+	 this for ifcvt to work, on the assumption that we'll only want
+	 to do this if these registers have been used before by the
+	 pre-ifcvt  code.  */
       gcc_assert (currently_expanding_to_rtl);
-      reg = gen_rtx_REG (in_mode, 0);
-      gcc_assert (!reg_overlap_mentioned_p (reg, y));
+#endif
+      reg = gen_rtx_REG (in_mode, GPR_0);
+      if (reg_overlap_mentioned_p (reg, y))
+	return 0;
       emit_move_insn (reg, x);
       x = reg;
-      reg = gen_rtx_REG (in_mode, 1);
+      reg = gen_rtx_REG (in_mode, GPR_1);
       emit_move_insn (reg, y);
       y = reg;
     }
@@ -860,6 +897,11 @@ struct epiphany_frame_info
   int      stld_sz;             /* Current load/store data size for offset
 				   adjustment. */
   int      need_fp;             /* value to override "frame_pointer_needed */
+  /* FIRST_SLOT is the slot that is saved first, at the very start of
+     the frame, with a POST_MODIFY to allocate the frame, if the size fits,
+     or at least the parm and register save areas, otherwise.
+     In the case of a large frame, LAST_SLOT is the slot that is saved last,
+     with a POST_MODIFY to allocate the rest of the frame.  */
   int first_slot, last_slot, first_slot_offset, last_slot_offset;
   int first_slot_size;
   int small_threshold;
@@ -968,7 +1010,6 @@ epiphany_compute_frame_size (int size /* # of var. bytes allocated.  */)
   int first_slot, last_slot, first_slot_offset, last_slot_offset;
   int first_slot_size;
   int small_slots = 0;
-  long lr_slot_offset;
 
   var_size	= size;
   args_size	= crtl->outgoing_args_size;
@@ -1025,7 +1066,7 @@ epiphany_compute_frame_size (int size /* # of var. bytes allocated.  */)
 	    first_slot = regno;
 	  else if (last_slot < 0
 		   && (first_slot ^ regno) != 1
-		   && (!interrupt_p || regno > GPR_0 + 1))
+		   && (!interrupt_p || regno > GPR_1))
 	    last_slot = regno;
 	}
     }
@@ -1046,7 +1087,10 @@ epiphany_compute_frame_size (int size /* # of var. bytes allocated.  */)
 	 to be a lot of code complexity for little gain.  */
       || (reg_size > 8 && optimize))
     reg_size = EPIPHANY_STACK_ALIGN (reg_size);
-  if (total_size + reg_size <= (unsigned) epiphany_stack_offset
+  if (((total_size + reg_size
+	/* Reserve space for UNKNOWN_REGNUM.  */
+	+ EPIPHANY_STACK_ALIGN (4))
+       <= (unsigned) epiphany_stack_offset)
       && !interrupt_p
       && crtl->is_leaf && !frame_pointer_needed)
     {
@@ -1085,7 +1129,7 @@ epiphany_compute_frame_size (int size /* # of var. bytes allocated.  */)
       if (total_size + reg_size <= (unsigned) epiphany_stack_offset)
 	{
 	  gcc_assert (first_slot < 0);
-	  gcc_assert (reg_size == 0);
+	  gcc_assert (reg_size == 0 || reg_size == epiphany_stack_offset);
 	  last_slot_offset = EPIPHANY_STACK_ALIGN (total_size + reg_size);
 	}
       else
@@ -1120,28 +1164,6 @@ epiphany_compute_frame_size (int size /* # of var. bytes allocated.  */)
     }
   total_size = first_slot_offset + last_slot_offset;
 
-  lr_slot_offset
-    = (frame_pointer_needed ? first_slot_offset : (long) total_size);
-  if (first_slot != GPR_LR)
-    {
-      int stack_offset = epiphany_stack_offset - UNITS_PER_WORD;
-
-      for (regno = 0; ; regno++)
-	{
-	  if (stack_offset + UNITS_PER_WORD - first_slot_size == 0
-	      && first_slot >= 0)
-	    {
-	      stack_offset -= first_slot_size;
-	      regno--;
-	    }
-	  else if (regno == GPR_LR)
-	    break;
-	  else if TEST_HARD_REG_BIT (gmask, regno)
-	    stack_offset -= UNITS_PER_WORD;
-	}
-      lr_slot_offset += stack_offset;
-    }
-
   /* Save computed information.  */
   current_frame_info.total_size   = total_size;
   current_frame_info.pretend_size = pretend_size;
@@ -1154,7 +1176,6 @@ epiphany_compute_frame_size (int size /* # of var. bytes allocated.  */)
   current_frame_info.first_slot_offset	= first_slot_offset;
   current_frame_info.first_slot_size	= first_slot_size;
   current_frame_info.last_slot_offset	= last_slot_offset;
-  MACHINE_FUNCTION (cfun)->lr_slot_offset = lr_slot_offset;
 
   current_frame_info.initialized  = reload_completed;
 
@@ -1626,6 +1647,28 @@ epiphany_emit_save_restore (int min, int limit, rtx addr, int epilogue_p)
 	mem = skipped_mem;
       else
 	mem = gen_mem (mode, addr);
+
+      /* If we are loading / storing LR, note the offset that
+	 gen_reload_insi_ra requires.  Since GPR_LR is even,
+	 we only need to test n, even if mode is DImode.  */
+      gcc_assert ((GPR_LR & 1) == 0);
+      if (n == GPR_LR)
+	{
+	  long lr_slot_offset = 0;
+	  rtx m_addr = XEXP (mem, 0);
+
+	  if (GET_CODE (m_addr) == PLUS)
+	    lr_slot_offset = INTVAL (XEXP (m_addr, 1));
+	  if (frame_pointer_needed)
+	    lr_slot_offset += (current_frame_info.first_slot_offset
+			       - current_frame_info.total_size);
+	  if (MACHINE_FUNCTION (cfun)->lr_slot_known)
+	    gcc_assert (MACHINE_FUNCTION (cfun)->lr_slot_offset
+			== lr_slot_offset);
+	  MACHINE_FUNCTION (cfun)->lr_slot_offset = lr_slot_offset;
+	  MACHINE_FUNCTION (cfun)->lr_slot_known = 1;
+	}
+
       if (!epilogue_p)
 	frame_move_insn (mem, reg);
       else if (n >= MAX_EPIPHANY_PARM_REGS || !crtl->args.pretend_args_size)
@@ -1671,7 +1714,7 @@ epiphany_expand_prologue (void)
 			 gen_rtx_REG (DImode, GPR_0));
       frame_move_insn (gen_rtx_REG (SImode, GPR_0),
 		       gen_rtx_REG (word_mode, STATUS_REGNUM));
-      frame_move_insn (gen_rtx_REG (SImode, GPR_0+1),
+      frame_move_insn (gen_rtx_REG (SImode, GPR_1),
 		       gen_rtx_REG (word_mode, IRET_REGNUM));
       mem = gen_frame_mem (BLKmode, stack_pointer_rtx);
       off = GEN_INT (-current_frame_info.first_slot_offset);
@@ -1819,7 +1862,7 @@ epiphany_expand_epilogue (int sibcall_p)
       emit_move_insn (gen_rtx_REG (word_mode, STATUS_REGNUM),
 		      gen_rtx_REG (SImode, GPR_0));
       emit_move_insn (gen_rtx_REG (word_mode, IRET_REGNUM),
-		      gen_rtx_REG (SImode, GPR_0+1));
+		      gen_rtx_REG (SImode, GPR_1));
       addr = plus_constant (Pmode, stack_pointer_rtx,
 			    - (HOST_WIDE_INT) 2 * UNITS_PER_WORD);
       emit_move_insn (gen_rtx_REG (DImode, GPR_0),
@@ -2226,7 +2269,7 @@ epiphany_optimize_mode_switching (int entity)
       return (MACHINE_FUNCTION (cfun)->sw_entities_processed
 	      & (1 << EPIPHANY_MSW_ENTITY_ROUND_UNKNOWN)) != 0;
     case EPIPHANY_MSW_ENTITY_FPU_OMNIBUS:
-      return optimize == 0 || current_pass == &pass_mode_switch_use.pass;
+      return optimize == 0 || current_pass == pass_mode_switch_use;
     }
   gcc_unreachable ();
 }
@@ -2384,7 +2427,7 @@ epiphany_mode_after (int entity, int last_mode, rtx insn)
      calls.  */
   if (entity == EPIPHANY_MSW_ENTITY_AND || entity == EPIPHANY_MSW_ENTITY_OR)
     {
-      if (GET_CODE (insn) == CALL_INSN)
+      if (CALL_P (insn))
 	return 0;
       return last_mode;
     }

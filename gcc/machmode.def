@@ -121,11 +121,11 @@ along with GCC; see the file COPYING3.  If not see
 	to FORMAT.  Use in an ARCH-modes.def to reset the format
 	of one of the float modes defined in this file.
 
-     PARTIAL_INT_MODE (MODE);
+     PARTIAL_INT_MODE (MODE, PRECISION, NAME);
         declares a mode of class PARTIAL_INT with the same size as
-	MODE (which must be an INT mode).  The name of the new mode
-	is made by prefixing a P to the name MODE.  This statement
-	may grow a PRECISION argument in the future.
+	MODE (which must be an INT mode) and precision PREC.
+	Optionally, NAME is the new name of the mode.  NAME is the
+	name of the mode.
 
      VECTOR_MODE (CLASS, MODE, COUNT);
         Declare a vector mode whose component mode is MODE (of class
@@ -179,8 +179,11 @@ RANDOM_MODE (BLK);
 FRACTIONAL_INT_MODE (BI, 1, 1);
 
 /* Basic integer modes.  We go up to TI in generic code (128 bits).
-   The name OI is reserved for a 256-bit type (needed by some back ends).
-   FIXME TI shouldn't be generically available either.  */
+   TImode is needed here because the some front ends now genericly
+   support __int128.  If the front ends decide to generically support
+   larger types, then corresponding modes must be added here.  The
+   name OI is reserved for a 256-bit type (needed by some back ends).
+    */
 INT_MODE (QI, 1);
 INT_MODE (HI, 2);
 INT_MODE (SI, 4);

@@ -103,10 +103,6 @@ The runtime support library for transactional memory.
 @item libjava
 The Java runtime library.
 
-@item libmudflap
-The @code{libmudflap} library, used for instrumenting pointer and array
-dereferencing operations.
-
 @item libobjc
 The Objective-C and Objective-C++ runtime library.
 
@@ -120,7 +116,7 @@ The Stack protector runtime library.
 The C++ runtime library.
 
 @item lto-plugin
-Plugin used by @command{gold} if link-time optimizations are enabled.
+Plugin used by the linker if link-time optimizations are enabled.
 
 @item maintainer-scripts
 Scripts used by the @code{gccadmin} account on @code{gcc.gnu.org}.

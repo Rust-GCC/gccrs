@@ -1,5 +1,5 @@
 // PR c++/37860
-// { dg-options "-std=c++0x" }
+// { dg-options "-std=c++11" }
 
 struct b
 {
@@ -8,7 +8,7 @@ struct b
   b() = default;
   ~b() = default;
   b& operator=(const b&) = delete;
-  b(const b&) = delete;		// { dg-error "declared" }
+  b(const b&) = delete;		// { dg-message "declared" }
 
   b(bool _t): t (_t) { }
 };

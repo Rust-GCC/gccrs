@@ -80,18 +80,24 @@ cortex_a9_p1_e2 + cortex_a9_p0_e1 + cortex_a9_p1_e1")
 ;; which can go down E2 without any problem.
 (define_insn_reservation "cortex_a9_dp" 2
   (and (eq_attr "tune" "cortexa9")
-         (ior (and (eq_attr "type" "alu_reg,simple_alu_imm")
-                        (eq_attr "neon_type" "none"))
-	      (and (and (eq_attr "type" "alu_shift_reg, simple_alu_shift,alu_shift")
-			(eq_attr "insn" "mov"))
-                 (eq_attr "neon_type" "none"))))
+       (eq_attr "type" "alu_imm,alus_imm,logic_imm,logics_imm,\
+                        alu_reg,alus_reg,logic_reg,logics_reg,\
+                        adc_imm,adcs_imm,adc_reg,adcs_reg,\
+                        adr,bfm,rev,\
+                        shift_imm,shift_reg,\
+                        mov_imm,mov_reg,mvn_imm,mvn_reg,\
+                        mov_shift_reg,mov_shift,\
+                        mrs,multiple,no_insn"))
   "cortex_a9_p0_default|cortex_a9_p1_default")
 
 ;; An instruction using the shifter will go down E1.
 (define_insn_reservation "cortex_a9_dp_shift" 3
    (and (eq_attr "tune" "cortexa9")
-	(and (eq_attr "type" "alu_shift_reg, simple_alu_shift,alu_shift")
-	     (not (eq_attr "insn" "mov"))))
+        (eq_attr "type" "alu_shift_imm,alus_shift_imm,\
+                         logic_shift_imm,logics_shift_imm,\
+                         alu_shift_reg,alus_shift_reg,\
+                         logic_shift_reg,logics_shift_reg,\
+                         extend,mvn_shift,mvn_shift_reg"))
    "cortex_a9_p0_shift | cortex_a9_p1_shift")
 
 ;; Loads have a latency of 4 cycles.
@@ -130,29 +136,29 @@ cortex_a9_p1_e2 + cortex_a9_p0_e1 + cortex_a9_p1_e1")
 ;; We get 16*16 multiply / mac results in 3 cycles.
 (define_insn_reservation "cortex_a9_mult16" 3
   (and (eq_attr "tune" "cortexa9")
-       (eq_attr "insn" "smulxy"))
+       (eq_attr "type" "smulxy"))
        "cortex_a9_mult16")
 
 ;; The 16*16 mac is slightly different that it
 ;; reserves M1 and M2 in the same cycle.
 (define_insn_reservation "cortex_a9_mac16" 3
   (and (eq_attr "tune" "cortexa9")
-       (eq_attr "insn" "smlaxy"))
+       (eq_attr "type" "smlaxy"))
   "cortex_a9_mac16")
 
 (define_insn_reservation "cortex_a9_multiply" 4
   (and (eq_attr "tune" "cortexa9")
-       (eq_attr "insn" "mul,smmul,smmulr"))
+       (eq_attr "type" "mul,smmul,smmulr"))
        "cortex_a9_mult")
 
 (define_insn_reservation "cortex_a9_mac" 4
   (and (eq_attr "tune" "cortexa9")
-       (eq_attr "insn" "mla,smmla"))
+       (eq_attr "type" "mla,smmla"))
        "cortex_a9_mac")
 
 (define_insn_reservation "cortex_a9_multiply_long" 5
   (and (eq_attr "tune" "cortexa9")
-       (eq_attr "insn" "smull,umull,smulls,umulls,smlal,smlals,umlal,umlals"))
+       (eq_attr "type" "smull,umull,smulls,umulls,smlal,smlals,umlal,umlals"))
        "cortex_a9_mult_long")
 
 ;; An instruction with a result in E2 can be forwarded
@@ -201,7 +207,7 @@ cortex_a9_store3_4, cortex_a9_store1_2,  cortex_a9_load3_4")
 ;; Pipelining for VFP instructions.
 ;; Issue happens either along load store unit or the VFP / Neon unit.
 ;; Pipeline   Instruction Classification.
-;; FPS - fcpys, ffariths, ffarithd,r_2_f,f_2_r
+;; FPS - fmov, ffariths, ffarithd,f_mcr,f_mcrr,f_mrc,f_mrrc
 ;; FP_ADD   - fadds, faddd, fcmps (1)
 ;; FPMUL   - fmul{s,d}, fmac{s,d}, ffma{s,d}
 ;; FPDIV - fdiv{s,d}
@@ -214,7 +220,8 @@ cortex_a9_store3_4, cortex_a9_store1_2,  cortex_a9_load3_4")
 ;; fmrs, fmrrd, fmstat and fmrx - The data is available after 1 cycle.
 (define_insn_reservation "cortex_a9_fps" 2
  (and (eq_attr "tune" "cortexa9")
-      (eq_attr "type" "fcpys, fconsts, fconstd, ffariths, ffarithd, r_2_f, f_2_r, f_flag"))
+      (eq_attr "type" "fmov, fconsts, fconstd, ffariths, ffarithd,\
+                       f_mcr, f_mcrr, f_mrc, f_mrrc, f_flag"))
  "ca9_issue_vfp_neon + ca9fps")
 
 (define_bypass 1
@@ -226,7 +233,7 @@ cortex_a9_store3_4, cortex_a9_store1_2,  cortex_a9_load3_4")
 
 (define_insn_reservation "cortex_a9_fadd" 4
   (and (eq_attr "tune" "cortexa9")
-       (eq_attr "type" "fadds, faddd, f_cvt"))
+       (eq_attr "type" "fadds, faddd, f_cvt, f_cvtf2i, f_cvti2f"))
   "ca9fp_add")
 
 (define_insn_reservation "cortex_a9_fcmp" 1
@@ -264,12 +271,12 @@ cortex_a9_store3_4, cortex_a9_store1_2,  cortex_a9_load3_4")
 ;; Division pipeline description.
 (define_insn_reservation "cortex_a9_fdivs" 15
   (and (eq_attr "tune" "cortexa9")
-       (eq_attr "type" "fdivs"))
+       (eq_attr "type" "fdivs, fsqrts"))
   "ca9fp_ds1 + ca9_issue_vfp_neon, nothing*14")
 
 (define_insn_reservation "cortex_a9_fdivd" 25
   (and (eq_attr "tune" "cortexa9")
-       (eq_attr "type" "fdivd"))
+       (eq_attr "type" "fdivd, fsqrtd"))
   "ca9fp_ds1 + ca9_issue_vfp_neon, nothing*24")
 
 ;; Include Neon pipeline description

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -59,6 +59,7 @@ with Sem_Util; use Sem_Util;
 with Sinfo;    use Sinfo;
 with Snames;   use Snames;
 with Stand;    use Stand;
+with Stringt;  use Stringt;
 with Targparm; use Targparm;
 with Tbuild;   use Tbuild;
 with Uintp;    use Uintp;
@@ -312,31 +313,11 @@ package body Exp_Aggr is
       Lov  : Uint;
       Hiv  : Uint;
 
-      --  The following constant determines the maximum size of an array
-      --  aggregate produced by converting named to positional notation (e.g.
-      --  from others clauses). This avoids running away with attempts to
-      --  convert huge aggregates, which hit memory limits in the backend.
-
-      --  The normal limit is 5000, but we increase this limit to 2**24 (about
-      --  16 million) if Restrictions (No_Elaboration_Code) or Restrictions
-      --  (No_Implicit_Loops) is specified, since in either case we are at
-      --  risk of declaring the program illegal because of this limit. We also
-      --  increase the limit when Static_Elaboration_Desired, given that this
-      --  means that objects are intended to be placed in data memory.
-
-      --  We also increase the limit if the aggregate is for a packed two-
-      --  dimensional array, because if components are static it is much more
-      --  efficient to construct a one-dimensional equivalent array with static
-      --  components.
-
-      Max_Aggr_Size : constant Nat :=
-        5000 + (2 ** 24 - 5000) *
-          Boolean'Pos
-            (Restriction_Active (No_Elaboration_Code)
-             or else Restriction_Active (No_Implicit_Loops)
-             or else Is_Two_Dim_Packed_Array (Typ)
-             or else ((Ekind (Current_Scope) = E_Package
-                       and then Static_Elaboration_Desired (Current_Scope))));
+      Max_Aggr_Size : Nat;
+      --  Determines the maximum size of an array aggregate produced by
+      --  converting named to positional notation (e.g. from others clauses).
+      --  This avoids running away with attempts to convert huge aggregates,
+      --  which hit memory limits in the backend.
 
       function Component_Count (T : Entity_Id) return Int;
       --  The limit is applied to the total number of components that the
@@ -395,6 +376,45 @@ package body Exp_Aggr is
    --  Start of processing for Aggr_Size_OK
 
    begin
+      --  The normal aggregate limit is 50000, but we increase this limit to
+      --  2**24 (about 16 million) if Restrictions (No_Elaboration_Code) or
+      --  Restrictions (No_Implicit_Loops) is specified, since in either case
+      --  we are at risk of declaring the program illegal because of this
+      --  limit. We also increase the limit when Static_Elaboration_Desired,
+      --  given that this means that objects are intended to be placed in data
+      --  memory.
+
+      --  We also increase the limit if the aggregate is for a packed two-
+      --  dimensional array, because if components are static it is much more
+      --  efficient to construct a one-dimensional equivalent array with static
+      --  components.
+
+      --  Conversely, we decrease the maximum size if none of the above
+      --  requirements apply, and if the aggregate has a single component
+      --  association, which will be more efficient if implemented with a loop.
+
+      --  Finally, we use a small limit in CodePeer mode where we favor loops
+      --  instead of thousands of single assignments (from large aggregates).
+
+      Max_Aggr_Size := 50000;
+
+      if CodePeer_Mode then
+         Max_Aggr_Size := 100;
+
+      elsif Restriction_Active (No_Elaboration_Code)
+        or else Restriction_Active (No_Implicit_Loops)
+        or else Is_Two_Dim_Packed_Array (Typ)
+        or else ((Ekind (Current_Scope) = E_Package
+                 and then Static_Elaboration_Desired (Current_Scope)))
+      then
+         Max_Aggr_Size := 2 ** 24;
+
+      elsif No (Expressions (N))
+        and then No (Next (First (Component_Associations (N))))
+      then
+         Max_Aggr_Size := 5000;
+      end if;
+
       Siz  := Component_Count (Component_Type (Typ));
 
       Indx := First_Index (Typ);
@@ -608,7 +628,7 @@ package body Exp_Aggr is
       --  If component is limited, aggregate must be expanded because each
       --  component assignment must be built in place.
 
-      if Is_Immutably_Limited_Type (Component_Type (Typ)) then
+      if Is_Limited_View (Component_Type (Typ)) then
          return False;
       end if;
 
@@ -1830,6 +1850,11 @@ package body Exp_Aggr is
       --  these discriminants are not components of the aggregate, and must be
       --  initialized. The assignments are appended to List.
 
+      function Get_Explicit_Discriminant_Value (D : Entity_Id) return Node_Id;
+      --  If the ancestor part is an unconstrained type and further ancestors
+      --  do not provide discriminants for it, check aggregate components for
+      --  values of the discriminants.
+
       function Is_Int_Range_Bounds (Bounds : Node_Id) return Boolean;
       --  Check whether Bounds is a range node and its lower and higher bounds
       --  are integers literals.
@@ -2047,6 +2072,37 @@ package body Exp_Aggr is
 
          return Empty;
       end Get_Constraint_Association;
+
+      -------------------------------------
+      -- Get_Explicit_Discriminant_Value --
+      -------------------------------------
+
+      function Get_Explicit_Discriminant_Value
+        (D : Entity_Id) return Node_Id
+      is
+         Assoc  : Node_Id;
+         Choice : Node_Id;
+         Val    : Node_Id;
+
+      begin
+         --  The aggregate has been normalized and all associations have a
+         --  single choice.
+
+         Assoc := First (Component_Associations (N));
+         while Present (Assoc) loop
+            Choice := First (Choices (Assoc));
+
+            if Chars (Choice) = Chars (D) then
+               Val := Expression (Assoc);
+               Remove (Assoc);
+               return Val;
+            end if;
+
+            Next (Assoc);
+         end loop;
+
+         return Empty;
+      end Get_Explicit_Discriminant_Value;
 
       -------------------------------
       -- Init_Hidden_Discriminants --
@@ -2285,6 +2341,15 @@ package body Exp_Aggr is
                      Discrim := First_Discriminant (Anc_Typ);
                      while Present (Discrim) loop
                         Disc_Value := Ancestor_Discriminant_Value (Discrim);
+
+                        --  If no usable discriminant in ancestors, check
+                        --  whether aggregate has an explicit value for it.
+
+                        if No (Disc_Value) then
+                           Disc_Value :=
+                             Get_Explicit_Discriminant_Value (Discrim);
+                        end if;
+
                         Append_To (Anc_Constr, Disc_Value);
                         Next_Discriminant (Discrim);
                      end loop;
@@ -3282,7 +3347,7 @@ package body Exp_Aggr is
          --  in place within the caller's scope).
 
          or else
-           (Is_Immutably_Limited_Type (Typ)
+           (Is_Limited_View (Typ)
              and then
                (Nkind (Parent (Parent_Node)) = N_Extended_Return_Statement
                  or else Nkind (Parent_Node) = N_Simple_Return_Statement))
@@ -4822,6 +4887,43 @@ package body Exp_Aggr is
          Check_Same_Aggr_Bounds (N, 1);
       end if;
 
+      --  STEP 1d
+
+      --  If we have a default component value, or simple initialization is
+      --  required for the component type, then we replace <> in component
+      --  associations by the required default value.
+
+      declare
+         Default_Val : Node_Id;
+         Assoc       : Node_Id;
+
+      begin
+         if (Present (Default_Aspect_Component_Value (Typ))
+              or else Needs_Simple_Initialization (Ctyp))
+           and then Present (Component_Associations (N))
+         then
+            Assoc := First (Component_Associations (N));
+            while Present (Assoc) loop
+               if Nkind (Assoc) = N_Component_Association
+                 and then Box_Present (Assoc)
+               then
+                  Set_Box_Present (Assoc, False);
+
+                  if Present (Default_Aspect_Component_Value (Typ)) then
+                     Default_Val := Default_Aspect_Component_Value (Typ);
+                  else
+                     Default_Val := Get_Simple_Init_Val (Ctyp, N);
+                  end if;
+
+                  Set_Expression (Assoc, New_Copy_Tree (Default_Val));
+                  Analyze_And_Resolve (Expression (Assoc), Ctyp);
+               end if;
+
+               Next (Assoc);
+            end loop;
+         end if;
+      end;
+
       --  STEP 2
 
       --  Here we test for is packed array aggregate that we can handle at
@@ -5160,9 +5262,102 @@ package body Exp_Aggr is
 
    procedure Expand_N_Aggregate (N : Node_Id) is
    begin
+      --  Record aggregate case
+
       if Is_Record_Type (Etype (N)) then
          Expand_Record_Aggregate (N);
+
+      --  Array aggregate case
+
       else
+         --  A special case, if we have a string subtype with bounds 1 .. N,
+         --  where N is known at compile time, and the aggregate is of the
+         --  form (others => 'x'), with a single choice and no expressions,
+         --  and N is less than 80 (an arbitrary limit for now), then replace
+         --  the aggregate by the equivalent string literal (but do not mark
+         --  it as static since it is not!)
+
+         --  Note: this entire circuit is redundant with respect to code in
+         --  Expand_Array_Aggregate that collapses others choices to positional
+         --  form, but there are two problems with that circuit:
+
+         --    a) It is limited to very small cases due to ill-understood
+         --       interations with bootstrapping. That limit is removed by
+         --       use of the No_Implicit_Loops restriction.
+
+         --    b) It erroneously ends up with the resulting expressions being
+         --       considered static when they are not. For example, the
+         --       following test should fail:
+
+         --           pragma Restrictions (No_Implicit_Loops);
+         --           package NonSOthers4 is
+         --              B  : constant String (1 .. 6) := (others => 'A');
+         --              DH : constant String (1 .. 8) := B & "BB";
+         --              X : Integer;
+         --              pragma Export (C, X, Link_Name => DH);
+         --           end;
+
+         --       But it succeeds (DH looks static to pragma Export)
+
+         --    To be sorted out! ???
+
+         if Present (Component_Associations (N)) then
+            declare
+               CA : constant Node_Id := First (Component_Associations (N));
+               MX : constant         := 80;
+
+            begin
+               if Nkind (First (Choices (CA))) = N_Others_Choice
+                 and then Nkind (Expression (CA)) = N_Character_Literal
+                 and then No (Expressions (N))
+               then
+                  declare
+                     T  : constant Entity_Id := Etype (N);
+                     X  : constant Node_Id   := First_Index (T);
+                     EC : constant Node_Id   := Expression (CA);
+                     CV : constant Uint      := Char_Literal_Value (EC);
+                     CC : constant Int       := UI_To_Int (CV);
+
+                  begin
+                     if Nkind (X) = N_Range
+                       and then Compile_Time_Known_Value (Low_Bound (X))
+                       and then Expr_Value (Low_Bound (X)) = 1
+                       and then Compile_Time_Known_Value (High_Bound (X))
+                     then
+                        declare
+                           Hi : constant Uint := Expr_Value (High_Bound (X));
+
+                        begin
+                           if Hi <= MX then
+                              Start_String;
+
+                              for J in 1 .. UI_To_Int (Hi) loop
+                                 Store_String_Char (Char_Code (CC));
+                              end loop;
+
+                              Rewrite (N,
+                                Make_String_Literal (Sloc (N),
+                                  Strval => End_String));
+
+                              if CC >= Int (2 ** 16) then
+                                 Set_Has_Wide_Wide_Character (N);
+                              elsif CC >= Int (2 ** 8) then
+                                 Set_Has_Wide_Character (N);
+                              end if;
+
+                              Analyze_And_Resolve (N, T);
+                              Set_Is_Static_Expression (N, False);
+                              return;
+                           end if;
+                        end;
+                     end if;
+                  end;
+               end if;
+            end;
+         end if;
+
+         --  Not that special case, so normal expansion of array aggregate
+
          Expand_Array_Aggregate (N);
       end if;
    exception
@@ -5473,7 +5668,7 @@ package body Exp_Aggr is
       --  Extension aggregates, aggregates in extended return statements, and
       --  aggregates for C++ imported types must be expanded.
 
-      if Ada_Version >= Ada_2005 and then Is_Immutably_Limited_Type (Typ) then
+      if Ada_Version >= Ada_2005 and then Is_Limited_View (Typ) then
          if not Nkind_In (Parent (N), N_Object_Declaration,
                                       N_Component_Association)
          then

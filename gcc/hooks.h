@@ -23,6 +23,7 @@
 #define GCC_HOOKS_H
 
 #include "machmode.h"
+#include "double-int.h"
 
 extern bool hook_bool_void_false (void);
 extern bool hook_bool_void_true (void);
@@ -42,6 +43,7 @@ extern bool hook_bool_tree_false (tree);
 extern bool hook_bool_const_tree_false (const_tree);
 extern bool hook_bool_tree_true (tree);
 extern bool hook_bool_const_tree_true (const_tree);
+extern bool hook_bool_gsiptr_false (gimple_stmt_iterator *);
 extern bool hook_bool_const_tree_hwi_hwi_const_tree_false (const_tree,
 							   HOST_WIDE_INT,
 							   HOST_WIDE_INT,
@@ -59,6 +61,8 @@ extern bool hook_bool_rtx_int_int_int_intp_bool_false (rtx, int, int, int,
 extern bool hook_bool_tree_tree_false (tree, tree);
 extern bool hook_bool_tree_tree_true (tree, tree);
 extern bool hook_bool_tree_bool_false (tree, bool);
+extern bool hook_bool_dint_dint_uint_bool_true (double_int, double_int,
+						unsigned int, bool);
 
 extern void hook_void_void (void);
 extern void hook_void_constcharptr (const char *);

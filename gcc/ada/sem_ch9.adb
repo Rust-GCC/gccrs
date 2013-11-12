@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1734,6 +1734,22 @@ package body Sem_Ch9 is
       Set_Ekind (Body_Id, E_Protected_Body);
       Spec_Id := Find_Concurrent_Spec (Body_Id);
 
+      --  Protected bodies are currently removed by the expander. Since there
+      --  are no language-defined aspects that apply to a protected body, it is
+      --  not worth changing the whole expansion to accomodate implementation-
+      --  defined aspects. Plus we cannot possibly known the semantics of such
+      --  future implementation defined aspects in order to plan ahead.
+
+      if Has_Aspects (N) then
+         Error_Msg_N
+           ("aspects on protected bodies are not allowed",
+            First (Aspect_Specifications (N)));
+
+         --  Remove illegal aspects to prevent cascaded errors later on
+
+         Remove_Aspects (N);
+      end if;
+
       if Present (Spec_Id)
         and then Ekind (Spec_Id) = E_Protected_Type
       then
@@ -2606,6 +2622,10 @@ package body Sem_Ch9 is
       --  disastrous result.
 
       Analyze_Protected_Type_Declaration (N);
+
+      if Has_Aspects (N) then
+         Analyze_Aspect_Specifications (N, Id);
+      end if;
    end Analyze_Single_Protected_Declaration;
 
    -------------------------------------
@@ -2703,6 +2723,22 @@ package body Sem_Ch9 is
       Set_Scope (Body_Id, Current_Scope);
       Spec_Id := Find_Concurrent_Spec (Body_Id);
 
+      --  Task bodies are transformed into a subprogram spec and body pair by
+      --  the expander. Since there are no language-defined aspects that apply
+      --  to a task body, it is not worth changing the whole expansion to
+      --  accomodate implementation-defined aspects. Plus we cannot possibly
+      --  know semantics of such aspects in order to plan ahead.
+
+      if Has_Aspects (N) then
+         Error_Msg_N
+           ("aspects on task bodies are not allowed",
+            First (Aspect_Specifications (N)));
+
+         --  Remove illegal aspects to prevent cascaded errors later on
+
+         Remove_Aspects (N);
+      end if;
+
       --  The spec is either a task type declaration, or a single task
       --  declaration for which we have created an anonymous type.
 
@@ -2727,7 +2763,6 @@ package body Sem_Ch9 is
       then
          if Nkind (Parent (Spec_Id)) = N_Task_Type_Declaration then
             Error_Msg_NE ("duplicate body for task type&", N, Spec_Id);
-
          else
             Error_Msg_NE ("duplicate body for task&", N, Spec_Id);
          end if;
@@ -3053,8 +3088,9 @@ package body Sem_Ch9 is
            and then not Is_Controlling_Limited_Procedure
                           (Entity (Name (Trigger)))
          then
-            Error_Msg_N ("triggering statement must be delay, procedure " &
-                         "or entry call", Trigger);
+            Error_Msg_N
+              ("triggering statement must be procedure_or_entry_call " &
+               "('R'M 9.7.2) or delay statement", Trigger);
          end if;
       end if;
 

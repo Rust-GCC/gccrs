@@ -1,7 +1,13 @@
 /* { dg-do compile } */
-/* { dg-options "-O2" } */
+/* { dg-options "-O2 -dp" } */
 
-#include "../../../config/aarch64/arm_neon.h"
+#include <arm_neon.h>
+
+/* Used to force a variable to a SIMD register.  */
+#define force_simd(V1)   asm volatile ("mov %d0, %1.d[0]"	\
+	   : "=w"(V1)						\
+	   : "w"(V1)						\
+	   : /* No clobbers */);
 
 /* { dg-final { scan-assembler-times "\\tadd\\tx\[0-9\]+" 2 } } */
 
@@ -26,12 +32,29 @@ test_vaddd_s64_2 (int64x1_t a, int64x1_t b, int64x1_t c, int64x1_t d)
 		     vqaddd_s64 (a, d));
 }
 
+/* { dg-final { scan-assembler-times "\\tabs\\td\[0-9\]+, d\[0-9\]+" 1 } } */
+
+int64x1_t
+test_vabs_s64 (int64x1_t a)
+{
+  uint64x1_t res;
+  force_simd (a);
+  res = vabs_s64 (a);
+  force_simd (res);
+  return res;
+}
+
 /* { dg-final { scan-assembler-times "\\tcmeq\\td\[0-9\]+, d\[0-9\]+, d\[0-9\]+" 1 } } */
 
 uint64x1_t
 test_vceqd_s64 (int64x1_t a, int64x1_t b)
 {
-  return vceqd_s64 (a, b);
+  uint64x1_t res;
+  force_simd (a);
+  force_simd (b);
+  res = vceqd_s64 (a, b);
+  force_simd (res);
+  return res;
 }
 
 /* { dg-final { scan-assembler-times "\\tcmeq\\td\[0-9\]+, d\[0-9\]+, #?0" 1 } } */
@@ -39,7 +62,11 @@ test_vceqd_s64 (int64x1_t a, int64x1_t b)
 uint64x1_t
 test_vceqzd_s64 (int64x1_t a)
 {
-  return vceqzd_s64 (a);
+  uint64x1_t res;
+  force_simd (a);
+  res = vceqzd_s64 (a);
+  force_simd (res);
+  return res;
 }
 
 /* { dg-final { scan-assembler-times "\\tcmge\\td\[0-9\]+, d\[0-9\]+, d\[0-9\]+" 2 } } */
@@ -47,21 +74,36 @@ test_vceqzd_s64 (int64x1_t a)
 uint64x1_t
 test_vcged_s64 (int64x1_t a, int64x1_t b)
 {
-  return vcged_s64 (a, b);
+  uint64x1_t res;
+  force_simd (a);
+  force_simd (b);
+  res = vcged_s64 (a, b);
+  force_simd (res);
+  return res;
 }
 
 uint64x1_t
 test_vcled_s64 (int64x1_t a, int64x1_t b)
 {
-  return vcled_s64 (a, b);
+  uint64x1_t res;
+  force_simd (a);
+  force_simd (b);
+  res = vcled_s64 (a, b);
+  force_simd (res);
+  return res;
 }
 
-/* { dg-final { scan-assembler-times "\\tcmge\\td\[0-9\]+, d\[0-9\]+, #?0" 1 } } */
+/* Idiom recognition will cause this testcase not to generate
+   the expected cmge instruction, so do not check for it.  */
 
 uint64x1_t
 test_vcgezd_s64 (int64x1_t a)
 {
-  return vcgezd_s64 (a);
+  uint64x1_t res;
+  force_simd (a);
+  res = vcgezd_s64 (a);
+  force_simd (res);
+  return res;
 }
 
 /* { dg-final { scan-assembler-times "\\tcmhs\\td\[0-9\]+, d\[0-9\]+, d\[0-9\]+" 1 } } */
@@ -69,7 +111,12 @@ test_vcgezd_s64 (int64x1_t a)
 uint64x1_t
 test_vcged_u64 (uint64x1_t a, uint64x1_t b)
 {
-  return vcged_u64 (a, b);
+  uint64x1_t res;
+  force_simd (a);
+  force_simd (b);
+  res = vcged_u64 (a, b);
+  force_simd (res);
+  return res;
 }
 
 /* { dg-final { scan-assembler-times "\\tcmgt\\td\[0-9\]+, d\[0-9\]+, d\[0-9\]+" 2 } } */
@@ -77,13 +124,23 @@ test_vcged_u64 (uint64x1_t a, uint64x1_t b)
 uint64x1_t
 test_vcgtd_s64 (int64x1_t a, int64x1_t b)
 {
-  return vcgtd_s64 (a, b);
+  uint64x1_t res;
+  force_simd (a);
+  force_simd (b);
+  res = vcgtd_s64 (a, b);
+  force_simd (res);
+  return res;
 }
 
 uint64x1_t
 test_vcltd_s64 (int64x1_t a, int64x1_t b)
 {
-  return vcltd_s64 (a, b);
+  uint64x1_t res;
+  force_simd (a);
+  force_simd (b);
+  res = vcltd_s64 (a, b);
+  force_simd (res);
+  return res;
 }
 
 /* { dg-final { scan-assembler-times "\\tcmgt\\td\[0-9\]+, d\[0-9\]+, #?0" 1 } } */
@@ -91,7 +148,11 @@ test_vcltd_s64 (int64x1_t a, int64x1_t b)
 uint64x1_t
 test_vcgtzd_s64 (int64x1_t a)
 {
-  return vcgtzd_s64 (a);
+  uint64x1_t res;
+  force_simd (a);
+  res = vcgtzd_s64 (a);
+  force_simd (res);
+  return res;
 }
 
 /* { dg-final { scan-assembler-times "\\tcmhi\\td\[0-9\]+, d\[0-9\]+, d\[0-9\]+" 1 } } */
@@ -99,7 +160,12 @@ test_vcgtzd_s64 (int64x1_t a)
 uint64x1_t
 test_vcgtd_u64 (uint64x1_t a, uint64x1_t b)
 {
-  return vcgtd_u64 (a, b);
+  uint64x1_t res;
+  force_simd (a);
+  force_simd (b);
+  res = vcgtd_u64 (a, b);
+  force_simd (res);
+  return res;
 }
 
 /* { dg-final { scan-assembler-times "\\tcmle\\td\[0-9\]+, d\[0-9\]+, #?0" 1 } } */
@@ -107,71 +173,112 @@ test_vcgtd_u64 (uint64x1_t a, uint64x1_t b)
 uint64x1_t
 test_vclezd_s64 (int64x1_t a)
 {
-  return vclezd_s64 (a);
+  uint64x1_t res;
+  force_simd (a);
+  res = vclezd_s64 (a);
+  force_simd (res);
+  return res;
 }
 
-/* { dg-final { scan-assembler-times "\\tcmlt\\td\[0-9\]+, d\[0-9\]+, #?0" 1 } } */
+/* Idiom recognition will cause this testcase not to generate
+   the expected cmlt instruction, so do not check for it.  */
 
 uint64x1_t
 test_vcltzd_s64 (int64x1_t a)
 {
-  return vcltzd_s64 (a);
+  uint64x1_t res;
+  force_simd (a);
+  res = vcltzd_s64 (a);
+  force_simd (res);
+  return res;
 }
 
-/* { dg-final { scan-assembler-times "\\tdup\\tb\[0-9\]+, v\[0-9\]+\.b" 2 } } */
+/* { dg-final { scan-assembler-times "aarch64_get_lanev16qi" 2 } } */
 
 int8x1_t
 test_vdupb_lane_s8 (int8x16_t a)
 {
-  return vdupb_lane_s8 (a, 2);
+  int8x1_t res;
+  force_simd (a);
+  res = vdupb_laneq_s8 (a, 2);
+  force_simd (res);
+  return res;
 }
 
 uint8x1_t
 test_vdupb_lane_u8 (uint8x16_t a)
 {
-  return vdupb_lane_u8 (a, 2);
+  uint8x1_t res;
+  force_simd (a);
+  res = vdupb_laneq_u8 (a, 2);
+  force_simd (res);
+  return res;
 }
 
-/* { dg-final { scan-assembler-times "\\tdup\\th\[0-9\]+, v\[0-9\]+\.h" 2 } } */
+/* { dg-final { scan-assembler-times "aarch64_get_lanev8hi" 2 } } */
 
 int16x1_t
 test_vduph_lane_s16 (int16x8_t a)
 {
-  return vduph_lane_s16 (a, 2);
+  int16x1_t res;
+  force_simd (a);
+  res = vduph_laneq_s16 (a, 2);
+  force_simd (res);
+  return res;
 }
 
 uint16x1_t
 test_vduph_lane_u16 (uint16x8_t a)
 {
-  return vduph_lane_u16 (a, 2);
+  uint16x1_t res;
+  force_simd (a);
+  res = vduph_laneq_u16 (a, 2);
+  force_simd (res);
+  return res;
 }
 
-/* { dg-final { scan-assembler-times "\\tdup\\ts\[0-9\]+, v\[0-9\]+\.s" 2 } } */
+/* { dg-final { scan-assembler-times "aarch64_get_lanev4si" 2 } } */
 
 int32x1_t
 test_vdups_lane_s32 (int32x4_t a)
 {
-  return vdups_lane_s32 (a, 2);
+  int32x1_t res;
+  force_simd (a);
+  res = vdups_laneq_s32 (a, 2);
+  force_simd (res);
+  return res;
 }
 
 uint32x1_t
 test_vdups_lane_u32 (uint32x4_t a)
 {
-  return vdups_lane_u32 (a, 2);
+  uint32x1_t res;
+  force_simd (a);
+  res = vdups_laneq_u32 (a, 2);
+  force_simd (res);
+  return res;
 }
 
-/* { dg-final { scan-assembler-times "\\tdup\\td\[0-9\]+, v\[0-9\]+\.d" 2 } } */
+/* { dg-final { scan-assembler-times "aarch64_get_lanev2di" 2 } } */
 
 int64x1_t
 test_vdupd_lane_s64 (int64x2_t a)
 {
-  return vdupd_lane_s64 (a, 2);
+  int64x1_t res;
+  force_simd (a);
+  res = vdupd_laneq_s64 (a, 1);
+  force_simd (res);
+  return res;
 }
 
 uint64x1_t
 test_vdupd_lane_u64 (uint64x2_t a)
 {
-  return vdupd_lane_u64 (a, 2);
+  uint64x1_t res;
+  force_simd (a);
+  res = vdupd_laneq_u64 (a, 1);
+  force_simd (res);
+  return res;
 }
 
 /* { dg-final { scan-assembler-times "\\tcmtst\\td\[0-9\]+, d\[0-9\]+, d\[0-9\]+" 2 } } */
@@ -179,13 +286,23 @@ test_vdupd_lane_u64 (uint64x2_t a)
 int64x1_t
 test_vtst_s64 (int64x1_t a, int64x1_t b)
 {
-  return vtstd_s64 (a, b);
+  uint64x1_t res;
+  force_simd (a);
+  force_simd (b);
+  res = vtstd_s64 (a, b);
+  force_simd (res);
+  return res;
 }
 
 uint64x1_t
 test_vtst_u64 (uint64x1_t a, uint64x1_t b)
 {
-  return vtstd_u64 (a, b);
+  uint64x1_t res;
+  force_simd (a);
+  force_simd (b);
+  res = vtstd_s64 (a, b);
+  force_simd (res);
+  return res;
 }
 
 /* { dg-final { scan-assembler-times "\\taddp\\td\[0-9\]+, v\[0-9\]+\.2d" 1 } } */
@@ -722,7 +839,10 @@ test_vrshld_u64 (uint64x1_t a, uint64x1_t b)
   return vrshld_u64 (a, b);
 }
 
-/* { dg-final { scan-assembler-times "\\tasr\\tx\[0-9\]+" 1 } } */
+/* Other intrinsics can generate an asr instruction (vcltzd, vcgezd),
+   so we cannot check scan-assembler-times.  */
+
+/* { dg-final { scan-assembler "\\tasr\\tx\[0-9\]+" } } */
 
 int64x1_t
 test_vshrd_n_s64 (int64x1_t a)

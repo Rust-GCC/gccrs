@@ -20,16 +20,19 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
 #include "tree.h"
 #include "flags.h"
-#include "tm_p.h"
 #include "basic-block.h"
 #include "function.h"
-#include "tree-flow.h"
+#include "gimple.h"
+#include "gimple-ssa.h"
+#include "tree-phinodes.h"
+#include "tree-ssa.h"
+#include "tree-ssa-threadupdate.h"
 #include "dumpfile.h"
 #include "cfgloop.h"
 #include "hash-table.h"
+#include "dbgcnt.h"
 
 /* Given a block B, update the CFG and SSA graph to reflect redirecting
    one or more in-edges to B to instead reach the destination of an
@@ -69,14 +72,14 @@ along with GCC; see the file COPYING3.  If not see
    set of unique destination blocks that the incoming edges should
    be threaded to.
 
-   Block duplication can be further minimized by using B instead of 
+   Block duplication can be further minimized by using B instead of
    creating B' for one destination if all edges into B are going to be
    threaded to a successor of B.  We had code to do this at one time, but
    I'm not convinced it is correct with the changes to avoid mucking up
    the loop structure (which may cancel threading requests, thus a block
    which we thought was going to become unreachable may still be reachable).
    This code was also going to get ugly with the introduction of the ability
-   for a single jump thread request to bypass multiple blocks. 
+   for a single jump thread request to bypass multiple blocks.
 
    We further reduce the number of edges and statements we create by
    not copying all the outgoing edges and the control statement in
@@ -115,14 +118,11 @@ struct redirection_data : typed_free_remove<redirection_data>
      targets a single successor of B.  */
   basic_block dup_block;
 
-  /* An outgoing edge from B.  DUP_BLOCK will have OUTGOING_EDGE->dest as
-     its single successor.  */
-  edge outgoing_edge;
+  /* The jump threading path.  */
+  vec<jump_thread_edge *> *path;
 
-  edge intermediate_edge;
-
-  /* A list of incoming edges which we want to thread to
-     OUTGOING_EDGE->dest.  */
+  /* A list of incoming edges which we want to thread to the
+     same path.  */
   struct el *incoming_edges;
 
   /* hash_table support.  */
@@ -132,21 +132,36 @@ struct redirection_data : typed_free_remove<redirection_data>
   static inline int equal (const value_type *, const compare_type *);
 };
 
+/* Simple hashing function.  For any given incoming edge E, we're going
+   to be most concerned with the final destination of its jump thread
+   path.  So hash on the block index of the final edge in the path.  */
+
 inline hashval_t
 redirection_data::hash (const value_type *p)
 {
-  edge e = p->outgoing_edge;
-  return e->dest->index;
+  vec<jump_thread_edge *> *path = p->path;
+  return path->last ()->e->dest->index;
 }
 
+/* Given two hash table entries, return true if they have the same
+   jump threading path.  */
 inline int
 redirection_data::equal (const value_type *p1, const compare_type *p2)
 {
-  edge e1 = p1->outgoing_edge;
-  edge e2 = p2->outgoing_edge;
-  edge e3 = p1->intermediate_edge;
-  edge e4 = p2->intermediate_edge;
-  return e1 == e2 && e3 == e4;
+  vec<jump_thread_edge *> *path1 = p1->path;
+  vec<jump_thread_edge *> *path2 = p2->path;
+
+  if (path1->length () != path2->length ())
+    return false;
+
+  for (unsigned int i = 1; i < path1->length (); i++)
+    {
+      if ((*path1)[i]->type != (*path2)[i]->type
+	  || (*path1)[i]->e != (*path2)[i]->e)
+	return false;
+    }
+
+  return true;
 }
 
 /* Data structure of information to pass to hash table traversal routines.  */
@@ -167,13 +182,12 @@ struct ssa_local_info_t
    opportunities as they are discovered.  We keep the registered
    jump threading opportunities in this vector as edge pairs
    (original_edge, target_edge).  */
-static vec<edge> threaded_edges;
+static vec<vec<jump_thread_edge *> *> paths;
 
 /* When we start updating the CFG for threading, data necessary for jump
    threading is attached to the AUX field for the incoming edge.  Use these
    macros to access the underlying structure attached to the AUX field.  */
-#define THREAD_TARGET(E) ((edge *)(E)->aux)[0]
-#define THREAD_TARGET2(E) ((edge *)(E)->aux)[1]
+#define THREAD_PATH(E) ((vec<jump_thread_edge *> *)(E)->aux)
 
 /* Jump threading statistics.  */
 
@@ -254,13 +268,12 @@ lookup_redirection_data (edge e, enum insert_option insert)
 {
   struct redirection_data **slot;
   struct redirection_data *elt;
+  vec<jump_thread_edge *> *path = THREAD_PATH (e);
 
  /* Build a hash table element so we can see if E is already
      in the table.  */
   elt = XNEW (struct redirection_data);
-  elt->intermediate_edge = THREAD_TARGET2 (e) ? THREAD_TARGET (e) : NULL;
-  elt->outgoing_edge = THREAD_TARGET2 (e) ? THREAD_TARGET2 (e) 
-					  : THREAD_TARGET (e);
+  elt->path = path;
   elt->dup_block = NULL;
   elt->incoming_edges = NULL;
 
@@ -354,17 +367,28 @@ static void
 create_edge_and_update_destination_phis (struct redirection_data *rd,
 					 basic_block bb)
 {
-  edge e = make_edge (bb, rd->outgoing_edge->dest, EDGE_FALLTHRU);
+  edge e = make_edge (bb, rd->path->last ()->e->dest, EDGE_FALLTHRU);
 
   rescan_loop_exit (e, true, false);
   e->probability = REG_BR_PROB_BASE;
   e->count = bb->count;
 
-  if (rd->outgoing_edge->aux)
+  /* We have to copy path -- which means creating a new vector as well
+     as all the jump_thread_edge entries.  */
+  if (rd->path->last ()->e->aux)
     {
-      e->aux = XNEWVEC (edge, 2);
-      THREAD_TARGET(e) = THREAD_TARGET (rd->outgoing_edge);
-      THREAD_TARGET2(e) = THREAD_TARGET2 (rd->outgoing_edge);
+      vec<jump_thread_edge *> *path = THREAD_PATH (rd->path->last ()->e);
+      vec<jump_thread_edge *> *copy = new vec<jump_thread_edge *> ();
+
+      /* Sadly, the elements of the vector are pointers and need to
+	 be copied as well.  */
+      for (unsigned int i = 0; i < path->length (); i++)
+	{
+	  jump_thread_edge *x
+	    = new jump_thread_edge ((*path)[i]->e, (*path)[i]->type);
+	  copy->safe_push (x);
+	}
+     e->aux = (void *)copy;
     }
   else
     {
@@ -375,7 +399,7 @@ create_edge_and_update_destination_phis (struct redirection_data *rd,
      from the duplicate block, then we will need to add a new argument
      to them.  The argument should have the same value as the argument
      associated with the outgoing edge stored in RD.  */
-  copy_phi_args (e->dest, rd->outgoing_edge, e);
+  copy_phi_args (e->dest, rd->path->last ()->e, e);
 }
 
 /* Wire up the outgoing edges from the duplicate block and
@@ -384,15 +408,17 @@ void
 ssa_fix_duplicate_block_edges (struct redirection_data *rd,
 			       ssa_local_info_t *local_info)
 {
+  edge e = rd->incoming_edges->e;
+  vec<jump_thread_edge *> *path = THREAD_PATH (e);
+
   /* If we were threading through an joiner block, then we want
      to keep its control statement and redirect an outgoing edge.
      Else we want to remove the control statement & edges, then create
      a new outgoing edge.  In both cases we may need to update PHIs.  */
-  if (THREAD_TARGET2 (rd->incoming_edges->e))
+  if ((*path)[1]->type == EDGE_COPY_SRC_JOINER_BLOCK)
     {
       edge victim;
       edge e2;
-      edge e = rd->incoming_edges->e;
 
       /* This updates the PHIs at the destination of the duplicate
 	 block.  */
@@ -400,14 +426,15 @@ ssa_fix_duplicate_block_edges (struct redirection_data *rd,
 
       /* Find the edge from the duplicate block to the block we're
 	 threading through.  That's the edge we want to redirect.  */
-      victim = find_edge (rd->dup_block, THREAD_TARGET (e)->dest);
-      e2 = redirect_edge_and_branch (victim, THREAD_TARGET2 (e)->dest);
+      victim = find_edge (rd->dup_block, (*path)[1]->e->dest);
+      e2 = redirect_edge_and_branch (victim, path->last ()->e->dest);
+      e2->count = path->last ()->e->count;
 
       /* If we redirected the edge, then we need to copy PHI arguments
 	 at the target.  If the edge already existed (e2 != victim case),
 	 then the PHIs in the target already have the correct arguments.  */
       if (e2 == victim)
-	copy_phi_args (e2->dest, THREAD_TARGET2 (e), e2);
+	copy_phi_args (e2->dest, path->last ()->e, e2);
     }
   else
     {
@@ -488,6 +515,7 @@ ssa_redirect_edges (struct redirection_data **slot,
   for (el = rd->incoming_edges; el; el = next)
     {
       edge e = el->e;
+      vec<jump_thread_edge *> *path = THREAD_PATH (e);
 
       /* Go ahead and free this element from the list.  Doing this now
 	 avoids the need for another list walk when we destroy the hash
@@ -496,18 +524,8 @@ ssa_redirect_edges (struct redirection_data **slot,
       free (el);
 
       thread_stats.num_threaded_edges++;
-      /* If we are threading through a joiner block, then we have to
-	 find the edge we want to redirect and update some PHI nodes.  */
-      if (THREAD_TARGET2 (e))
-	{
-	  edge e2;
 
-	  /* We want to redirect the incoming edge to the joiner block (E)
-	     to instead reach the duplicate of the joiner block.  */
-	  e2 = redirect_edge_and_branch (e, rd->dup_block);
-	  flush_pending_stmts (e2);
-	}
-      else if (rd->dup_block)
+      if (rd->dup_block)
 	{
 	  edge e2;
 
@@ -521,9 +539,15 @@ ssa_redirect_edges (struct redirection_data **slot,
 	     the computation overflows.  */
 	  if (rd->dup_block->frequency < BB_FREQ_MAX * 2)
 	    rd->dup_block->frequency += EDGE_FREQUENCY (e);
-	  EDGE_SUCC (rd->dup_block, 0)->count += e->count;
-	  /* Redirect the incoming edge to the appropriate duplicate
-	     block.  */
+
+	  /* In the case of threading through a joiner block, the outgoing
+	     edges from the duplicate block were updated when they were
+	     redirected during ssa_fix_duplicate_block_edges.  */
+	  if ((*path)[1]->type != EDGE_COPY_SRC_JOINER_BLOCK)
+	    EDGE_SUCC (rd->dup_block, 0)->count += e->count;
+
+	  /* Redirect the incoming edge (possibly to the joiner block) to the
+	     appropriate duplicate block.  */
 	  e2 = redirect_edge_and_branch (e, rd->dup_block);
 	  gcc_assert (e == e2);
 	  flush_pending_stmts (e2);
@@ -531,7 +555,7 @@ ssa_redirect_edges (struct redirection_data **slot,
 
       /* Go ahead and clear E->aux.  It's not needed anymore and failure
          to clear it will cause all kinds of unpleasant problems later.  */
-      free (e->aux);
+      delete_jump_thread_path (path);
       e->aux = NULL;
 
     }
@@ -590,10 +614,12 @@ redirection_block_p (basic_block bb)
    the appropriate duplicate of BB.
 
    If NOLOOP_ONLY is true, we only perform the threading as long as it
-   does not affect the structure of the loops in a nontrivial way.  */
+   does not affect the structure of the loops in a nontrivial way. 
+
+   If JOINERS is true, then thread through joiner blocks as well.  */
 
 static bool
-thread_block (basic_block bb, bool noloop_only)
+thread_block_1 (basic_block bb, bool noloop_only, bool joiners)
 {
   /* E is an incoming edge into BB that we may or may not want to
      redirect to a duplicate of BB.  */
@@ -614,17 +640,23 @@ thread_block (basic_block bb, bool noloop_only)
   if (loop->header == bb)
     {
       e = loop_latch_edge (loop);
+      vec<jump_thread_edge *> *path = THREAD_PATH (e);
 
-      if (e->aux)
-	e2 = THREAD_TARGET (e);
-      else
-	e2 = NULL;
-
-      if (e2 && loop_exit_edge_p (loop, e2))
+      if (path
+	  && (((*path)[1]->type == EDGE_COPY_SRC_JOINER_BLOCK && joiners)
+	      || ((*path)[1]->type == EDGE_COPY_SRC_BLOCK && !joiners)))
 	{
-	  loop->header = NULL;
-	  loop->latch = NULL;
-	  loops_state_set (LOOPS_NEED_FIXUP);
+	  for (unsigned int i = 1; i < path->length (); i++)
+	    {
+	      edge e2 = (*path)[i]->e;
+
+	      if (loop_exit_edge_p (loop, e2))
+		{
+		  loop->header = NULL;
+		  loop->latch = NULL;
+		  loops_state_set (LOOPS_NEED_FIXUP);
+		}
+	    }
 	}
     }
 
@@ -635,23 +667,49 @@ thread_block (basic_block bb, bool noloop_only)
       if (e->aux == NULL)
 	continue;
 
-      if (THREAD_TARGET2 (e))
-	e2 = THREAD_TARGET2 (e);
-      else
-	e2 = THREAD_TARGET (e);
+      vec<jump_thread_edge *> *path = THREAD_PATH (e);
 
-      if (!e2
-	  /* If NOLOOP_ONLY is true, we only allow threading through the
-	     header of a loop to exit edges.  */
-	  || (noloop_only
-	      && bb == bb->loop_father->header
-	      && (!loop_exit_edge_p (bb->loop_father, e2)
-		  || THREAD_TARGET2 (e))))
+      if (((*path)[1]->type == EDGE_COPY_SRC_JOINER_BLOCK && !joiners)
+	  || ((*path)[1]->type == EDGE_COPY_SRC_BLOCK && joiners))
 	continue;
+
+      e2 = path->last ()->e;
+      if (!e2 || noloop_only)
+	{
+	  /* If NOLOOP_ONLY is true, we only allow threading through the
+	     header of a loop to exit edges.
+
+	     There are two cases to consider.  The first when BB is the
+	     loop header.  We will attempt to thread this elsewhere, so
+	     we can just continue here.  */
+
+	  if (bb == bb->loop_father->header
+	      && (!loop_exit_edge_p (bb->loop_father, e2)
+		  || (*path)[1]->type == EDGE_COPY_SRC_JOINER_BLOCK))
+	    continue;
+
+
+	  /* The second occurs when there was loop header buried in a jump
+	     threading path.  We do not try and thread this elsewhere, so
+	     just cancel the jump threading request by clearing the AUX
+	     field now.  */
+	  if ((bb->loop_father != e2->src->loop_father
+	       && !loop_exit_edge_p (e2->src->loop_father, e2))
+	      || (e2->src->loop_father != e2->dest->loop_father
+		  && !loop_exit_edge_p (e2->src->loop_father, e2)))
+	    {
+	      /* Since this case is not handled by our special code
+		 to thread through a loop header, we must explicitly
+		 cancel the threading request here.  */
+	      delete_jump_thread_path (path);
+	      e->aux = NULL;
+	      continue;
+	    }
+	}
 
       if (e->dest == e2->src)
 	update_bb_profile_for_threading (e->dest, EDGE_FREQUENCY (e),
-				         e->count, THREAD_TARGET (e));
+				         e->count, (*THREAD_PATH (e))[1]->e);
 
       /* Insert the outgoing edge into the hash table if it is not
 	 already in the hash table.  */
@@ -709,6 +767,24 @@ thread_block (basic_block bb, bool noloop_only)
   return local_info.jumps_threaded;
 }
 
+/* Wrapper for thread_block_1 so that we can first handle jump
+   thread paths which do not involve copying joiner blocks, then
+   handle jump thread paths which have joiner blocks.
+
+   By doing things this way we can be as aggressive as possible and
+   not worry that copying a joiner block will create a jump threading
+   opportunity.  */
+  
+static bool
+thread_block (basic_block bb, bool noloop_only)
+{
+  bool retval;
+  retval = thread_block_1 (bb, noloop_only, false);
+  retval |= thread_block_1 (bb, noloop_only, true);
+  return retval;
+}
+
+
 /* Threads edge E through E->dest to the edge THREAD_TARGET (E).  Returns the
    copy of E->dest created during threading, or E->dest if it was not necessary
    to copy it (E is its single predecessor).  */
@@ -717,10 +793,13 @@ static basic_block
 thread_single_edge (edge e)
 {
   basic_block bb = e->dest;
-  edge eto = THREAD_TARGET (e);
   struct redirection_data rd;
+  vec<jump_thread_edge *> *path = THREAD_PATH (e);
+  edge eto = (*path)[1]->e;
 
-  free (e->aux);
+  for (unsigned int i = 0; i < path->length (); i++)
+    delete (*path)[i];
+  delete path;
   e->aux = NULL;
 
   thread_stats.num_threaded_edges++;
@@ -742,7 +821,13 @@ thread_single_edge (edge e)
   if (e->dest == eto->src)
     update_bb_profile_for_threading (bb, EDGE_FREQUENCY (e), e->count, eto);
 
-  rd.outgoing_edge = eto;
+  vec<jump_thread_edge *> *npath = new vec<jump_thread_edge *> ();
+  jump_thread_edge *x = new jump_thread_edge (e, EDGE_START_JUMP_THREAD);
+  npath->safe_push (x);
+
+  x = new jump_thread_edge (eto, EDGE_COPY_SRC_BLOCK);
+  npath->safe_push (x);
+  rd.path = npath;
 
   create_block_for_threading (bb, &rd);
   remove_ctrl_stmt_and_useless_edges (rd.dup_block, NULL);
@@ -941,9 +1026,10 @@ thread_through_loop_header (struct loop *loop, bool may_peel_loop_headers)
 
   if (latch->aux)
     {
-      if (THREAD_TARGET2 (latch))
+      vec<jump_thread_edge *> *path = THREAD_PATH (latch);
+      if ((*path)[1]->type == EDGE_COPY_SRC_JOINER_BLOCK)
 	goto fail;
-      tgt_edge = THREAD_TARGET (latch);
+      tgt_edge = (*path)[1]->e;
       tgt_bb = tgt_edge->dest;
     }
   else if (!may_peel_loop_headers
@@ -966,9 +1052,11 @@ thread_through_loop_header (struct loop *loop, bool may_peel_loop_headers)
 	      goto fail;
 	    }
 
-	  if (THREAD_TARGET2 (e))
+	  vec<jump_thread_edge *> *path = THREAD_PATH (e);
+
+	  if ((*path)[1]->type == EDGE_COPY_SRC_JOINER_BLOCK)
 	    goto fail;
-	  tgt_edge = THREAD_TARGET (e);
+	  tgt_edge = (*path)[1]->e;
 	  atgt_bb = tgt_edge->dest;
 	  if (!tgt_bb)
 	    tgt_bb = atgt_bb;
@@ -1063,15 +1151,13 @@ thread_through_loop_header (struct loop *loop, bool may_peel_loop_headers)
 	  if (e->aux == NULL)
 	    continue;
 
-	  if (THREAD_TARGET2 (e))
-	    e2 = THREAD_TARGET2 (e);
-	  else
-	    e2 = THREAD_TARGET (e);
+	  vec<jump_thread_edge *> *path = THREAD_PATH (e);
+	  e2 = path->last ()->e;
 
 	  if (e->src->loop_father != e2->dest->loop_father
 	      && e2->dest != loop->header)
 	    {
-	      free (e->aux);
+	      delete_jump_thread_path (path);
 	      e->aux = NULL;
 	    }
 	}
@@ -1117,10 +1203,37 @@ fail:
   /* We failed to thread anything.  Cancel the requests.  */
   FOR_EACH_EDGE (e, ei, header->preds)
     {
-      free (e->aux);
-      e->aux = NULL;
+      vec<jump_thread_edge *> *path = THREAD_PATH (e);
+
+      if (path)
+	{
+	  delete_jump_thread_path (path);
+	  e->aux = NULL;
+	}
     }
   return false;
+}
+
+/* E1 and E2 are edges into the same basic block.  Return TRUE if the
+   PHI arguments associated with those edges are equal or there are no
+   PHI arguments, otherwise return FALSE.  */
+
+static bool
+phi_args_equal_on_edges (edge e1, edge e2)
+{
+  gimple_stmt_iterator gsi;
+  int indx1 = e1->dest_idx;
+  int indx2 = e2->dest_idx;
+
+  for (gsi = gsi_start_phis (e1->dest); !gsi_end_p (gsi); gsi_next (&gsi))
+    {
+      gimple phi = gsi_stmt (gsi);
+
+      if (!operand_equal_p (gimple_phi_arg_def (phi, indx1),
+			    gimple_phi_arg_def (phi, indx2), 0))
+	return false;
+    }
+  return true;
 }
 
 /* Walk through the registered jump threads and convert them into a
@@ -1146,16 +1259,57 @@ mark_threaded_blocks (bitmap threaded_blocks)
   edge e;
   edge_iterator ei;
 
-  for (i = 0; i < threaded_edges.length (); i += 3)
+  /* Move the jump threading requests from PATHS to each edge
+     which starts a jump thread path.  */
+  for (i = 0; i < paths.length (); i++)
     {
-      edge e = threaded_edges[i];
-      edge *x = XNEWVEC (edge, 2);
-
-      e->aux = x;
-      THREAD_TARGET (e) = threaded_edges[i + 1];
-      THREAD_TARGET2 (e) = threaded_edges[i + 2];
+      vec<jump_thread_edge *> *path = paths[i];
+      edge e = (*path)[0]->e;
+      e->aux = (void *)path;
       bitmap_set_bit (tmp, e->dest->index);
     }
+
+  /* If we have a joiner block (J) which has two successors S1 and S2 and
+     we are threading though S1 and the final destination of the thread
+     is S2, then we must verify that any PHI nodes in S2 have the same
+     PHI arguments for the edge J->S2 and J->S1->...->S2.
+
+     We used to detect this prior to registering the jump thread, but
+     that prohibits propagation of edge equivalences into non-dominated
+     PHI nodes as the equivalency test might occur before propagation.
+
+     This works for now, but will need improvement as part of the FSA
+     optimization.
+
+     Note since we've moved the thread request data to the edges,
+     we have to iterate on those rather than the threaded_edges vector.  */
+  EXECUTE_IF_SET_IN_BITMAP (tmp, 0, i, bi)
+    {
+      bb = BASIC_BLOCK (i);
+      FOR_EACH_EDGE (e, ei, bb->preds)
+	{
+	  if (e->aux)
+	    {
+	      vec<jump_thread_edge *> *path = THREAD_PATH (e);
+	      bool have_joiner = ((*path)[1]->type == EDGE_COPY_SRC_JOINER_BLOCK);
+
+	      if (have_joiner)
+		{
+		  basic_block joiner = e->dest;
+		  edge final_edge = path->last ()->e;
+		  basic_block final_dest = final_edge->dest;
+		  edge e2 = find_edge (joiner, final_dest);
+
+		  if (e2 && !phi_args_equal_on_edges (e2, final_edge))
+		    {
+		      delete_jump_thread_path (path);
+		      e->aux = NULL;
+		    }
+		}
+	    }
+	}
+    }
+
 
   /* If optimizing for size, only thread through block if we don't have
      to duplicate it or it's an otherwise empty redirection block.  */
@@ -1169,8 +1323,12 @@ mark_threaded_blocks (bitmap threaded_blocks)
 	    {
 	      FOR_EACH_EDGE (e, ei, bb->preds)
 		{
-		  free (e->aux);
-		  e->aux = NULL;
+		  if (e->aux)
+		    {
+		      vec<jump_thread_edge *> *path = THREAD_PATH (e);
+		      delete_jump_thread_path (path);
+		      e->aux = NULL;
+		    }
 		}
 	    }
 	  else
@@ -1180,7 +1338,67 @@ mark_threaded_blocks (bitmap threaded_blocks)
   else
     bitmap_copy (threaded_blocks, tmp);
 
-  BITMAP_FREE(tmp);
+  /* Look for jump threading paths which cross multiple loop headers.
+
+     The code to thread through loop headers will change the CFG in ways
+     that break assumptions made by the loop optimization code.
+
+     We don't want to blindly cancel the requests.  We can instead do better
+     by trimming off the end of the jump thread path.  */
+  EXECUTE_IF_SET_IN_BITMAP (tmp, 0, i, bi)
+    {
+      basic_block bb = BASIC_BLOCK (i);
+      FOR_EACH_EDGE (e, ei, bb->preds)
+	{
+	  if (e->aux)
+	    {
+	      vec<jump_thread_edge *> *path = THREAD_PATH (e);
+
+	      /* Basically we're looking for a situation where we can see
+	  	 3 or more loop structures on a jump threading path.  */
+
+	      struct loop *first_father = (*path)[0]->e->src->loop_father;
+	      struct loop *second_father = NULL;
+	      for (unsigned int i = 0; i < path->length (); i++)
+		{
+		  /* See if this is a loop father we have not seen before.  */
+		  if ((*path)[i]->e->dest->loop_father != first_father
+		      && (*path)[i]->e->dest->loop_father != second_father)
+		    {
+		      /* We've already seen two loop fathers, so we
+			 need to trim this jump threading path.  */
+		      if (second_father != NULL)
+			{
+			  /* Trim from entry I onwards.  */
+			  for (unsigned int j = i; j < path->length (); j++)
+			    delete (*path)[j];
+			  path->truncate (i);
+
+			  /* Now that we've truncated the path, make sure
+			     what's left is still valid.   We need at least
+			     two edges on the path and the last edge can not
+			     be a joiner.  This should never happen, but let's
+			     be safe.  */
+			  if (path->length () < 2
+			      || (path->last ()->type
+				  == EDGE_COPY_SRC_JOINER_BLOCK))
+			    {
+			      delete_jump_thread_path (path);
+			      e->aux = NULL;
+			    }
+			  break;
+			}
+		      else
+			{
+			  second_father = (*path)[i]->e->dest->loop_father;
+			}
+		    }
+		}
+	    }
+	}
+    }
+
+  BITMAP_FREE (tmp);
 }
 
 
@@ -1208,7 +1426,7 @@ thread_through_all_blocks (bool may_peel_loop_headers)
   /* We must know about loops in order to preserve them.  */
   gcc_assert (current_loops != NULL);
 
-  if (!threaded_edges.exists ())
+  if (!paths.exists ())
     return false;
 
   threaded_blocks = BITMAP_ALLOC (NULL);
@@ -1240,6 +1458,37 @@ thread_through_all_blocks (bool may_peel_loop_headers)
       retval |= thread_through_loop_header (loop, may_peel_loop_headers);
     }
 
+  /* Assume we had a jump thread path which went from the latch to the exit
+     and a path which goes from outside to inside the same loop.  
+
+     If the latch to exit was handled first, we will thread it and clear
+     loop->header.
+
+     The second path will be ignored by thread_block because we're going
+     through a loop header.  It will also be ignored by the loop above
+     because loop->header is NULL.
+
+     This results in the second path never being threaded.  The failure
+     mode is a dangling AUX field.
+
+     This is inherently a bit of a pain to fix, so we just walk all the
+     blocks and all the incoming edges to those blocks and clear their
+     AUX fields.  */
+  basic_block bb;
+  edge_iterator ei;
+  edge e;
+  FOR_EACH_BB (bb)
+    {
+      FOR_EACH_EDGE (e, ei, bb->preds)
+	if (e->aux)
+	  {
+	    vec<jump_thread_edge *> *path = THREAD_PATH (e);
+
+	    delete_jump_thread_path (path);
+	    e->aux = NULL;
+ 	  }
+    }
+
   statistics_counter_event (cfun, "Jumps threaded",
 			    thread_stats.num_threaded_edges);
 
@@ -1247,12 +1496,55 @@ thread_through_all_blocks (bool may_peel_loop_headers)
 
   BITMAP_FREE (threaded_blocks);
   threaded_blocks = NULL;
-  threaded_edges.release ();
+  paths.release ();
 
   if (retval)
     loops_state_set (LOOPS_NEED_FIXUP);
 
   return retval;
+}
+
+/* Delete the jump threading path PATH.  We have to explcitly delete
+   each entry in the vector, then the container.  */
+
+void
+delete_jump_thread_path (vec<jump_thread_edge *> *path)
+{
+  for (unsigned int i = 0; i < path->length (); i++)
+    delete (*path)[i];
+  path->release();
+}
+
+/* Dump a jump threading path, including annotations about each
+   edge in the path.  */
+
+static void
+dump_jump_thread_path (FILE *dump_file, vec<jump_thread_edge *> path)
+{
+  fprintf (dump_file,
+	   "  Registering jump thread: (%d, %d) incoming edge; ",
+	   path[0]->e->src->index, path[0]->e->dest->index);
+
+  for (unsigned int i = 1; i < path.length (); i++)
+    {
+      /* We can get paths with a NULL edge when the final destination
+	 of a jump thread turns out to be a constant address.  We dump
+	 those paths when debugging, so we have to be prepared for that
+	 possibility here.  */
+      if (path[i]->e == NULL)
+	continue;
+
+      if (path[i]->type == EDGE_COPY_SRC_JOINER_BLOCK)
+	fprintf (dump_file, " (%d, %d) joiner; ",
+		 path[i]->e->src->index, path[i]->e->dest->index);
+      if (path[i]->type == EDGE_COPY_SRC_BLOCK)
+       fprintf (dump_file, " (%d, %d) normal;",
+		 path[i]->e->src->index, path[i]->e->dest->index);
+      if (path[i]->type == EDGE_NO_COPY_SRC_BLOCK)
+       fprintf (dump_file, " (%d, %d) nocopy;",
+		 path[i]->e->src->index, path[i]->e->dest->index);
+    }
+  fputc ('\n', dump_file);
 }
 
 /* Register a jump threading opportunity.  We queue up all the jump
@@ -1264,22 +1556,35 @@ thread_through_all_blocks (bool may_peel_loop_headers)
    after fixing the SSA graph.  */
 
 void
-register_jump_thread (edge e, edge e2, edge e3)
+register_jump_thread (vec<jump_thread_edge *> *path)
 {
-  /* This can occur if we're jumping to a constant address or
-     or something similar.  Just get out now.  */
-  if (e2 == NULL)
-    return;
+  if (!dbg_cnt (registered_jump_thread))
+    {
+      delete_jump_thread_path (path);
+      return;
+    }
 
-  if (!threaded_edges.exists ())
-    threaded_edges.create (15);
+  /* First make sure there are no NULL outgoing edges on the jump threading
+     path.  That can happen for jumping to a constant address.  */
+  for (unsigned int i = 0; i < path->length (); i++)
+    if ((*path)[i]->e == NULL)
+      {
+	if (dump_file && (dump_flags & TDF_DETAILS))
+	  {
+	    fprintf (dump_file,
+		     "Found NULL edge in jump threading path.  Cancelling jump thread:\n");
+	    dump_jump_thread_path (dump_file, *path);
+	  }
 
-  if (dump_file && (dump_flags & TDF_DETAILS)
-      && e->dest != e2->src)
-    fprintf (dump_file,
-	     "  Registering jump thread around one or more intermediate blocks\n");
+	delete_jump_thread_path (path);
+	return;
+      }
 
-  threaded_edges.safe_push (e);
-  threaded_edges.safe_push (e2);
-  threaded_edges.safe_push (e3);
+  if (dump_file && (dump_flags & TDF_DETAILS))
+    dump_jump_thread_path (dump_file, *path);
+
+  if (!paths.exists ())
+    paths.create (5);
+
+  paths.safe_push (path);
 }

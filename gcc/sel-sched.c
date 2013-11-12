@@ -509,12 +509,12 @@ typedef vec<vinsn_t> vinsn_vec_t;
    can't be moved up due to bookkeeping created during code motion to another
    fence.  See comment near the call to update_and_record_unavailable_insns
    for the detailed explanations.  */
-static vinsn_vec_t vec_bookkeeping_blocked_vinsns = vinsn_vec_t();
+static vinsn_vec_t vec_bookkeeping_blocked_vinsns = vinsn_vec_t ();
 
 /* This vector has vinsns which are scheduled with renaming on the first fence
    and then seen on the second.  For expressions with such vinsns, target
    availability information may be wrong.  */
-static vinsn_vec_t vec_target_unavailable_vinsns = vinsn_vec_t();
+static vinsn_vec_t vec_target_unavailable_vinsns = vinsn_vec_t ();
 
 /* Vector to store temporary nops inserted in move_op to prevent removal
    of empty bbs.  */
@@ -809,7 +809,7 @@ count_occurrences_1 (rtx *cur_rtx, void *arg)
       /* Bail out if mode is different or more than one register is used.  */
       if (GET_MODE (*cur_rtx) != GET_MODE (p->x)
           || (HARD_REGISTER_P (*cur_rtx)
-	      && hard_regno_nregs[REGNO(*cur_rtx)][GET_MODE (*cur_rtx)] > 1))
+	      && hard_regno_nregs[REGNO (*cur_rtx)][GET_MODE (*cur_rtx)] > 1))
         {
           p->n = 0;
           return 1;
@@ -6051,14 +6051,13 @@ move_op_orig_expr_found (insn_t insn, expr_t expr,
                          cmpd_local_params_p lparams ATTRIBUTE_UNUSED,
                          void *static_params)
 {
-  bool only_disconnect, insn_emitted;
+  bool only_disconnect;
   moveop_static_params_p params = (moveop_static_params_p) static_params;
 
   copy_expr_onside (params->c_expr, INSN_EXPR (insn));
   track_scheduled_insns_and_blocks (insn);
-  insn_emitted = handle_emitting_transformations (insn, expr, params);
-  only_disconnect = (params->uid == INSN_UID (insn)
-                     && ! insn_emitted  && ! EXPR_WAS_CHANGED (expr));
+  handle_emitting_transformations (insn, expr, params);
+  only_disconnect = params->uid == INSN_UID (insn);
 
   /* Mark that we've disconnected an insn.  */
   if (only_disconnect)
@@ -6425,10 +6424,23 @@ code_motion_process_successors (insn_t insn, av_set_t orig_ops,
         res = b;
 
       /* We have simplified the control flow below this point.  In this case,
-         the iterator becomes invalid.  We need to try again.  */
+         the iterator becomes invalid.  We need to try again.
+	 If we have removed the insn itself, it could be only an
+	 unconditional jump.  Thus, do not rescan but break immediately --
+	 we have already visited the only successor block.  */
+      if (!BLOCK_FOR_INSN (insn))
+	{
+	  if (sched_verbose >= 6)
+	    sel_print ("Not doing rescan: already visited the only successor"
+		       " of block %d\n", old_index);
+	  break;
+	}
       if (BLOCK_FOR_INSN (insn)->index != old_index
           || EDGE_COUNT (bb->succs) != old_succs)
         {
+	  if (sched_verbose >= 6)
+	    sel_print ("Rescan: CFG was simplified below insn %d, block %d\n",
+		       INSN_UID (insn), BLOCK_FOR_INSN (insn)->index);
           insn = sel_bb_end (BLOCK_FOR_INSN (insn));
           goto rescan;
         }

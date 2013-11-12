@@ -20,34 +20,34 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "hash-table.h"
 #include "tm.h"
 #include "tree.h"
 #include "flags.h"
 #include "function.h"
 #include "except.h"
 #include "pointer-set.h"
-#include "tree-flow.h"
+#include "gimple.h"
+#include "gimple-ssa.h"
+#include "cgraph.h"
+#include "tree-cfg.h"
+#include "tree-phinodes.h"
+#include "ssa-iterators.h"
+#include "tree-ssanames.h"
+#include "tree-into-ssa.h"
+#include "tree-ssa.h"
 #include "tree-inline.h"
 #include "tree-pass.h"
 #include "langhooks.h"
 #include "ggc.h"
 #include "diagnostic-core.h"
-#include "gimple.h"
 #include "target.h"
 #include "cfgloop.h"
+#include "gimple-low.h"
 
 /* In some instances a tree and a gimple need to be stored in a same table,
    i.e. in hash tables. This is a structure to do this. */
 typedef union {tree *tp; tree t; gimple g;} treemple;
-
-/* Nonzero if we are using EH to handle cleanups.  */
-static int using_eh_for_cleanups_p = 0;
-
-void
-using_eh_for_cleanups (void)
-{
-  using_eh_for_cleanups_p = 1;
-}
 
 /* Misc functions used in this file.  */
 
@@ -65,7 +65,7 @@ using_eh_for_cleanups (void)
 
 /* Add statement T in function IFUN to landing pad NUM.  */
 
-void
+static void
 add_stmt_to_eh_lp_fn (struct function *ifun, gimple t, int num)
 {
   struct throw_stmt_node *n;
@@ -193,20 +193,42 @@ struct finally_tree_node
   gimple parent;
 };
 
+/* Hashtable helpers.  */
+
+struct finally_tree_hasher : typed_free_remove <finally_tree_node>
+{
+  typedef finally_tree_node value_type;
+  typedef finally_tree_node compare_type;
+  static inline hashval_t hash (const value_type *);
+  static inline bool equal (const value_type *, const compare_type *);
+};
+
+inline hashval_t
+finally_tree_hasher::hash (const value_type *v)
+{
+  return (intptr_t)v->child.t >> 4;
+}
+
+inline bool
+finally_tree_hasher::equal (const value_type *v, const compare_type *c)
+{
+  return v->child.t == c->child.t;
+}
+
 /* Note that this table is *not* marked GTY.  It is short-lived.  */
-static htab_t finally_tree;
+static hash_table <finally_tree_hasher> finally_tree;
 
 static void
 record_in_finally_tree (treemple child, gimple parent)
 {
   struct finally_tree_node *n;
-  void **slot;
+  finally_tree_node **slot;
 
   n = XNEW (struct finally_tree_node);
   n->child = child;
   n->parent = parent;
 
-  slot = htab_find_slot (finally_tree, n, INSERT);
+  slot = finally_tree.find_slot (n, INSERT);
   gcc_assert (!*slot);
   *slot = n;
 }
@@ -285,7 +307,7 @@ outside_finally_tree (treemple start, gimple target)
   do
     {
       n.child = start;
-      p = (struct finally_tree_node *) htab_find (finally_tree, &n);
+      p = finally_tree.find (&n);
       if (!p)
 	return true;
       start.g = p->parent;
@@ -1632,7 +1654,7 @@ lower_try_finally (struct leh_state *state, gimple tp)
   this_tf.try_finally_expr = tp;
   this_tf.top_p = tp;
   this_tf.outer = state;
-  if (using_eh_for_cleanups_p && !cleanup_is_dead_in (state->cur_region))
+  if (using_eh_for_cleanups_p () && !cleanup_is_dead_in (state->cur_region))
     {
       this_tf.region = gen_eh_region_cleanup (state->cur_region);
       this_state.cur_region = this_tf.region;
@@ -1714,7 +1736,7 @@ lower_try_finally (struct leh_state *state, gimple tp)
 	{
 	  gimple_seq new_eh_seq = eh_seq;
 	  eh_seq = old_eh_seq;
-	  gimple_seq_add_seq(&eh_seq, new_eh_seq);
+	  gimple_seq_add_seq (&eh_seq, new_eh_seq);
 	}
     }
 
@@ -2102,7 +2124,7 @@ lower_eh_constructs (void)
   if (bodyp == NULL)
     return 0;
 
-  finally_tree = htab_create (31, struct_ptr_hash, struct_ptr_eq, free);
+  finally_tree.create (31);
   eh_region_may_contain_throw_map = BITMAP_ALLOC (NULL);
   memset (&null_state, 0, sizeof (null_state));
 
@@ -2120,7 +2142,7 @@ lower_eh_constructs (void)
      didn't change its value, and we don't have to re-set the function.  */
   gcc_assert (bodyp == gimple_body (current_function_decl));
 
-  htab_delete (finally_tree);
+  finally_tree.dispose ();
   BITMAP_FREE (eh_region_may_contain_throw_map);
   eh_seq = NULL;
 
@@ -2134,25 +2156,42 @@ lower_eh_constructs (void)
   return 0;
 }
 
-struct gimple_opt_pass pass_lower_eh =
+namespace {
+
+const pass_data pass_data_lower_eh =
 {
- {
-  GIMPLE_PASS,
-  "eh",					/* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  NULL,					/* gate */
-  lower_eh_constructs,			/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_TREE_EH,				/* tv_id */
-  PROP_gimple_lcf,			/* properties_required */
-  PROP_gimple_leh,			/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  0             			/* todo_flags_finish */
- }
+  GIMPLE_PASS, /* type */
+  "eh", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  false, /* has_gate */
+  true, /* has_execute */
+  TV_TREE_EH, /* tv_id */
+  PROP_gimple_lcf, /* properties_required */
+  PROP_gimple_leh, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
 };
+
+class pass_lower_eh : public gimple_opt_pass
+{
+public:
+  pass_lower_eh (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_lower_eh, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  unsigned int execute () { return lower_eh_constructs (); }
+
+}; // class pass_lower_eh
+
+} // anon namespace
+
+gimple_opt_pass *
+make_pass_lower_eh (gcc::context *ctxt)
+{
+  return new pass_lower_eh (ctxt);
+}
 
 /* Create the multiple edges from an EH_DISPATCH statement to all of
    the possible handlers for its EH region.  Return true if there's
@@ -2467,6 +2506,68 @@ operation_could_trap_p (enum tree_code op, bool fp_operation, bool honor_trapv,
 					&handled);
 }
 
+
+/* Returns true if it is possible to prove that the index of
+   an array access REF (an ARRAY_REF expression) falls into the
+   array bounds.  */
+
+static bool
+in_array_bounds_p (tree ref)
+{
+  tree idx = TREE_OPERAND (ref, 1);
+  tree min, max;
+
+  if (TREE_CODE (idx) != INTEGER_CST)
+    return false;
+
+  min = array_ref_low_bound (ref);
+  max = array_ref_up_bound (ref);
+  if (!min
+      || !max
+      || TREE_CODE (min) != INTEGER_CST
+      || TREE_CODE (max) != INTEGER_CST)
+    return false;
+
+  if (tree_int_cst_lt (idx, min)
+      || tree_int_cst_lt (max, idx))
+    return false;
+
+  return true;
+}
+
+/* Returns true if it is possible to prove that the range of
+   an array access REF (an ARRAY_RANGE_REF expression) falls
+   into the array bounds.  */
+
+static bool
+range_in_array_bounds_p (tree ref)
+{
+  tree domain_type = TYPE_DOMAIN (TREE_TYPE (ref));
+  tree range_min, range_max, min, max;
+
+  range_min = TYPE_MIN_VALUE (domain_type);
+  range_max = TYPE_MAX_VALUE (domain_type);
+  if (!range_min
+      || !range_max
+      || TREE_CODE (range_min) != INTEGER_CST
+      || TREE_CODE (range_max) != INTEGER_CST)
+    return false;
+
+  min = array_ref_low_bound (ref);
+  max = array_ref_up_bound (ref);
+  if (!min
+      || !max
+      || TREE_CODE (min) != INTEGER_CST
+      || TREE_CODE (max) != INTEGER_CST)
+    return false;
+
+  if (tree_int_cst_lt (range_min, min)
+      || tree_int_cst_lt (max, range_max))
+    return false;
+
+  return true;
+}
+
 /* Return true if EXPR can trap, as in dereferencing an invalid pointer
    location or floating point arithmetic.  C.f. the rtl version, may_trap_p.
    This routine expects only GIMPLE lhs or rhs input.  */
@@ -2557,13 +2658,13 @@ tree_could_trap_p (tree expr)
       /* Assume that accesses to weak functions may trap, unless we know
 	 they are certainly defined in current TU or in some other
 	 LTO partition.  */
-      if (DECL_WEAK (expr))
+      if (DECL_WEAK (expr) && !DECL_COMDAT (expr))
 	{
 	  struct cgraph_node *node;
 	  if (!DECL_EXTERNAL (expr))
 	    return false;
 	  node = cgraph_function_node (cgraph_get_node (expr), NULL);
-	  if (node && node->symbol.in_other_partition)
+	  if (node && node->in_other_partition)
 	    return false;
 	  return true;
 	}
@@ -2573,13 +2674,13 @@ tree_could_trap_p (tree expr)
       /* Assume that accesses to weak vars may trap, unless we know
 	 they are certainly defined in current TU or in some other
 	 LTO partition.  */
-      if (DECL_WEAK (expr))
+      if (DECL_WEAK (expr) && !DECL_COMDAT (expr))
 	{
 	  struct varpool_node *node;
 	  if (!DECL_EXTERNAL (expr))
 	    return false;
 	  node = varpool_variable_node (varpool_get_node (expr), NULL);
-	  if (node && node->symbol.in_other_partition)
+	  if (node && node->in_other_partition)
 	    return false;
 	  return true;
 	}
@@ -2994,25 +3095,43 @@ gate_refactor_eh (void)
   return flag_exceptions != 0;
 }
 
-struct gimple_opt_pass pass_refactor_eh =
+namespace {
+
+const pass_data pass_data_refactor_eh =
 {
- {
-  GIMPLE_PASS,
-  "ehopt",				/* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  gate_refactor_eh,			/* gate */
-  refactor_eh,				/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_TREE_EH,				/* tv_id */
-  PROP_gimple_lcf,			/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  0             			/* todo_flags_finish */
- }
+  GIMPLE_PASS, /* type */
+  "ehopt", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_TREE_EH, /* tv_id */
+  PROP_gimple_lcf, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
 };
+
+class pass_refactor_eh : public gimple_opt_pass
+{
+public:
+  pass_refactor_eh (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_refactor_eh, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_refactor_eh (); }
+  unsigned int execute () { return refactor_eh (); }
+
+}; // class pass_refactor_eh
+
+} // anon namespace
+
+gimple_opt_pass *
+make_pass_refactor_eh (gcc::context *ctxt)
+{
+  return new pass_refactor_eh (ctxt);
+}
 
 /* At the end of gimple optimization, we can lower RESX.  */
 
@@ -3203,25 +3322,43 @@ gate_lower_resx (void)
   return flag_exceptions != 0;
 }
 
-struct gimple_opt_pass pass_lower_resx =
+namespace {
+
+const pass_data pass_data_lower_resx =
 {
- {
-  GIMPLE_PASS,
-  "resx",				/* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  gate_lower_resx,			/* gate */
-  execute_lower_resx,			/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_TREE_EH,				/* tv_id */
-  PROP_gimple_lcf,			/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  TODO_verify_flow	                /* todo_flags_finish */
- }
+  GIMPLE_PASS, /* type */
+  "resx", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_TREE_EH, /* tv_id */
+  PROP_gimple_lcf, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  TODO_verify_flow, /* todo_flags_finish */
 };
+
+class pass_lower_resx : public gimple_opt_pass
+{
+public:
+  pass_lower_resx (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_lower_resx, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_lower_resx (); }
+  unsigned int execute () { return execute_lower_resx (); }
+
+}; // class pass_lower_resx
+
+} // anon namespace
+
+gimple_opt_pass *
+make_pass_lower_resx (gcc::context *ctxt)
+{
+  return new pass_lower_resx (ctxt);
+}
 
 /* Try to optimize var = {v} {CLOBBER} stmts followed just by
    external throw.  */
@@ -3230,14 +3367,48 @@ static void
 optimize_clobbers (basic_block bb)
 {
   gimple_stmt_iterator gsi = gsi_last_bb (bb);
+  bool any_clobbers = false;
+  bool seen_stack_restore = false;
+  edge_iterator ei;
+  edge e;
+
+  /* Only optimize anything if the bb contains at least one clobber,
+     ends with resx (checked by caller), optionally contains some
+     debug stmts or labels, or at most one __builtin_stack_restore
+     call, and has an incoming EH edge.  */
   for (gsi_prev (&gsi); !gsi_end_p (gsi); gsi_prev (&gsi))
     {
       gimple stmt = gsi_stmt (gsi);
       if (is_gimple_debug (stmt))
 	continue;
-      if (!gimple_clobber_p (stmt)
-	  || TREE_CODE (gimple_assign_lhs (stmt)) == SSA_NAME)
-	return;
+      if (gimple_clobber_p (stmt))
+	{
+	  any_clobbers = true;
+	  continue;
+	}
+      if (!seen_stack_restore
+	  && gimple_call_builtin_p (stmt, BUILT_IN_STACK_RESTORE))
+	{
+	  seen_stack_restore = true;
+	  continue;
+	}
+      if (gimple_code (stmt) == GIMPLE_LABEL)
+	break;
+      return;
+    }
+  if (!any_clobbers)
+    return;
+  FOR_EACH_EDGE (e, ei, bb->preds)
+    if (e->flags & EDGE_EH)
+      break;
+  if (e == NULL)
+    return;
+  gsi = gsi_last_bb (bb);
+  for (gsi_prev (&gsi); !gsi_end_p (gsi); gsi_prev (&gsi))
+    {
+      gimple stmt = gsi_stmt (gsi);
+      if (!gimple_clobber_p (stmt))
+	continue;
       unlink_stmt_vdef (stmt);
       gsi_remove (&gsi, true);
       release_defs (stmt);
@@ -3255,6 +3426,7 @@ sink_clobbers (basic_block bb)
   gimple_stmt_iterator gsi, dgsi;
   basic_block succbb;
   bool any_clobbers = false;
+  unsigned todo = 0;
 
   /* Only optimize if BB has a single EH successor and
      all predecessor edges are EH too.  */
@@ -3278,36 +3450,97 @@ sink_clobbers (basic_block bb)
 	continue;
       if (gimple_code (stmt) == GIMPLE_LABEL)
 	break;
-      if (!gimple_clobber_p (stmt)
-	  || TREE_CODE (gimple_assign_lhs (stmt)) == SSA_NAME)
+      if (!gimple_clobber_p (stmt))
 	return 0;
       any_clobbers = true;
     }
   if (!any_clobbers)
     return 0;
 
-  succbb = single_succ (bb);
+  edge succe = single_succ_edge (bb);
+  succbb = succe->dest;
+
+  /* See if there is a virtual PHI node to take an updated virtual
+     operand from.  */
+  gimple vphi = NULL;
+  tree vuse = NULL_TREE;
+  for (gsi = gsi_start_phis (succbb); !gsi_end_p (gsi); gsi_next (&gsi))
+    {
+      tree res = gimple_phi_result (gsi_stmt (gsi));
+      if (virtual_operand_p (res))
+	{
+	  vphi = gsi_stmt (gsi);
+	  vuse = res;
+	  break;
+	}
+    }
+
   dgsi = gsi_after_labels (succbb);
   gsi = gsi_last_bb (bb);
   for (gsi_prev (&gsi); !gsi_end_p (gsi); gsi_prev (&gsi))
     {
       gimple stmt = gsi_stmt (gsi);
+      tree lhs;
       if (is_gimple_debug (stmt))
 	continue;
       if (gimple_code (stmt) == GIMPLE_LABEL)
 	break;
-      unlink_stmt_vdef (stmt);
+      lhs = gimple_assign_lhs (stmt);
+      /* Unfortunately we don't have dominance info updated at this
+	 point, so checking if
+	 dominated_by_p (CDI_DOMINATORS, succbb,
+			 gimple_bb (SSA_NAME_DEF_STMT (TREE_OPERAND (lhs, 0)))
+	 would be too costly.  Thus, avoid sinking any clobbers that
+	 refer to non-(D) SSA_NAMEs.  */
+      if (TREE_CODE (lhs) == MEM_REF
+	  && TREE_CODE (TREE_OPERAND (lhs, 0)) == SSA_NAME
+	  && !SSA_NAME_IS_DEFAULT_DEF (TREE_OPERAND (lhs, 0)))
+	{
+	  unlink_stmt_vdef (stmt);
+	  gsi_remove (&gsi, true);
+	  release_defs (stmt);
+	  continue;
+	}
+
+      /* As we do not change stmt order when sinking across a
+         forwarder edge we can keep virtual operands in place.  */
       gsi_remove (&gsi, false);
-      /* Trigger the operand scanner to cause renaming for virtual
-         operands for this statement.
-	 ???  Given the simple structure of this code manually
-	 figuring out the reaching definition should not be too hard.  */
-      if (gimple_vuse (stmt))
-	gimple_set_vuse (stmt, NULL_TREE);
-      gsi_insert_before (&dgsi, stmt, GSI_SAME_STMT);
+      gsi_insert_before (&dgsi, stmt, GSI_NEW_STMT);
+
+      /* But adjust virtual operands if we sunk across a PHI node.  */
+      if (vuse)
+	{
+	  gimple use_stmt;
+	  imm_use_iterator iter;
+	  use_operand_p use_p;
+	  FOR_EACH_IMM_USE_STMT (use_stmt, iter, vuse)
+	    FOR_EACH_IMM_USE_ON_STMT (use_p, iter)
+	      SET_USE (use_p, gimple_vdef (stmt));
+	  if (SSA_NAME_OCCURS_IN_ABNORMAL_PHI (vuse))
+	    {
+	      SSA_NAME_OCCURS_IN_ABNORMAL_PHI (gimple_vdef (stmt)) = 1;
+	      SSA_NAME_OCCURS_IN_ABNORMAL_PHI (vuse) = 0;
+	    }
+	  /* Adjust the incoming virtual operand.  */
+	  SET_USE (PHI_ARG_DEF_PTR_FROM_EDGE (vphi, succe), gimple_vuse (stmt));
+	  SET_USE (gimple_vuse_op (stmt), vuse);
+	}
+      /* If there isn't a single predecessor but no virtual PHI node
+         arrange for virtual operands to be renamed.  */
+      else if (gimple_vuse_op (stmt) != NULL_USE_OPERAND_P
+	       && !single_pred_p (succbb))
+	{
+	  /* In this case there will be no use of the VDEF of this stmt. 
+	     ???  Unless this is a secondary opportunity and we have not
+	     removed unreachable blocks yet, so we cannot assert this.  
+	     Which also means we will end up renaming too many times.  */
+	  SET_USE (gimple_vuse_op (stmt), gimple_vop (cfun));
+	  mark_virtual_operands_for_renaming (cfun);
+	  todo |= TODO_update_ssa_only_virtuals;
+	}
     }
 
-  return TODO_update_ssa_only_virtuals;
+  return todo;
 }
 
 /* At the end of inlining, we can lower EH_DISPATCH.  Return true when 
@@ -3500,25 +3733,43 @@ gate_lower_eh_dispatch (void)
   return cfun->eh->region_tree != NULL;
 }
 
-struct gimple_opt_pass pass_lower_eh_dispatch =
+namespace {
+
+const pass_data pass_data_lower_eh_dispatch =
 {
- {
-  GIMPLE_PASS,
-  "ehdisp",				/* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  gate_lower_eh_dispatch,		/* gate */
-  execute_lower_eh_dispatch,		/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_TREE_EH,				/* tv_id */
-  PROP_gimple_lcf,			/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  TODO_verify_flow	                /* todo_flags_finish */
- }
+  GIMPLE_PASS, /* type */
+  "ehdisp", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_TREE_EH, /* tv_id */
+  PROP_gimple_lcf, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  TODO_verify_flow, /* todo_flags_finish */
 };
+
+class pass_lower_eh_dispatch : public gimple_opt_pass
+{
+public:
+  pass_lower_eh_dispatch (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_lower_eh_dispatch, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_lower_eh_dispatch (); }
+  unsigned int execute () { return execute_lower_eh_dispatch (); }
+
+}; // class pass_lower_eh_dispatch
+
+} // anon namespace
+
+gimple_opt_pass *
+make_pass_lower_eh_dispatch (gcc::context *ctxt)
+{
+  return new pass_lower_eh_dispatch (ctxt);
+}
 
 /* Walk statements, see what regions and, optionally, landing pads
    are really referenced.
@@ -3737,10 +3988,10 @@ unsplit_eh (eh_landing_pad lp)
   edge e_in, e_out;
 
   /* Quickly check the edge counts on BB for singularity.  */
-  if (EDGE_COUNT (bb->preds) != 1 || EDGE_COUNT (bb->succs) != 1)
+  if (!single_pred_p (bb) || !single_succ_p (bb))
     return false;
-  e_in = EDGE_PRED (bb, 0);
-  e_out = EDGE_SUCC (bb, 0);
+  e_in = single_pred_edge (bb);
+  e_out = single_succ_edge (bb);
 
   /* Input edge must be EH and output edge must be normal.  */
   if ((e_in->flags & EDGE_EH) == 0 || (e_out->flags & EDGE_EH) != 0)
@@ -3849,7 +4100,6 @@ cleanup_empty_eh_merge_phis (basic_block new_bb, basic_block old_bb,
   gimple_stmt_iterator ngsi, ogsi;
   edge_iterator ei;
   edge e;
-  bitmap rename_virts;
   bitmap ophi_handled;
 
   /* The destination block must not be a regular successor for any
@@ -3872,7 +4122,6 @@ cleanup_empty_eh_merge_phis (basic_block new_bb, basic_block old_bb,
     redirect_edge_var_map_clear (e);
 
   ophi_handled = BITMAP_ALLOC (NULL);
-  rename_virts = BITMAP_ALLOC (NULL);
 
   /* First, iterate through the PHIs on NEW_BB and set up the edge_var_map
      for the edges we're going to move.  */
@@ -3925,11 +4174,7 @@ cleanup_empty_eh_merge_phis (basic_block new_bb, basic_block old_bb,
 	      redirect_edge_var_map_add (e, nresult, oop, oloc);
 	    }
 	}
-      /* If we didn't find the PHI, but it's a VOP, remember to rename
-	 it later, assuming all other tests succeed.  */
-      else if (virtual_operand_p (nresult))
-	bitmap_set_bit (rename_virts, SSA_NAME_VERSION (nresult));
-      /* If we didn't find the PHI, and it's a real variable, we know
+      /* If we didn't find the PHI, if it's a real variable or a VOP, we know
 	 from the fact that OLD_BB is tree_empty_eh_handler_p that the
 	 variable is unchanged from input to the block and we can simply
 	 re-use the input to NEW_BB from the OLD_BB_OUT edge.  */
@@ -3950,24 +4195,6 @@ cleanup_empty_eh_merge_phis (basic_block new_bb, basic_block old_bb,
       tree oresult = gimple_phi_result (ophi);
       if (!bitmap_bit_p (ophi_handled, SSA_NAME_VERSION (oresult)))
 	goto fail;
-    }
-
-  /* At this point we know that the merge will succeed.  Remove the PHI
-     nodes for the virtuals that we want to rename.  */
-  if (!bitmap_empty_p (rename_virts))
-    {
-      for (ngsi = gsi_start_phis (new_bb); !gsi_end_p (ngsi); )
-	{
-	  gimple nphi = gsi_stmt (ngsi);
-	  tree nresult = gimple_phi_result (nphi);
-	  if (bitmap_bit_p (rename_virts, SSA_NAME_VERSION (nresult)))
-	    {
-	      mark_virtual_phi_result_for_renaming (nphi);
-	      remove_phi_node (&ngsi, true);
-	    }
-	  else
-	    gsi_next (&ngsi);
-	}
     }
 
   /* Finally, move the edges and update the PHIs.  */
@@ -3997,14 +4224,12 @@ cleanup_empty_eh_merge_phis (basic_block new_bb, basic_block old_bb,
       ei_next (&ei);
 
   BITMAP_FREE (ophi_handled);
-  BITMAP_FREE (rename_virts);
   return true;
 
  fail:
   FOR_EACH_EDGE (e, ei, old_bb->preds)
     redirect_edge_var_map_clear (e);
   BITMAP_FREE (ophi_handled);
-  BITMAP_FREE (rename_virts);
   return false;
 }
 
@@ -4142,7 +4367,7 @@ cleanup_empty_eh (eh_landing_pad lp)
       e_out = NULL;
       break;
     case 1:
-      e_out = EDGE_SUCC (bb, 0);
+      e_out = single_succ_edge (bb);
       break;
     default:
       return false;
@@ -4290,7 +4515,7 @@ cleanup_all_empty_eh (void)
     2) MUST_NOT_THROW regions that became dead because of 1) are optimized out
     3) Info about regions that are containing instructions, and regions
        reachable via local EH edges is collected
-    4) Eh tree is pruned for regions no longer neccesary.
+    4) Eh tree is pruned for regions no longer necessary.
 
    TODO: Push MUST_NOT_THROW regions to the root of the EH tree.
 	 Unify those that have the same failure decl and locus.
@@ -4352,24 +4577,44 @@ gate_cleanup_eh (void)
   return cfun->eh != NULL && cfun->eh->region_tree != NULL;
 }
 
-struct gimple_opt_pass pass_cleanup_eh = {
-  {
-   GIMPLE_PASS,
-   "ehcleanup",			/* name */
-   OPTGROUP_NONE,               /* optinfo_flags */
-   gate_cleanup_eh,		/* gate */
-   execute_cleanup_eh,		/* execute */
-   NULL,			/* sub */
-   NULL,			/* next */
-   0,				/* static_pass_number */
-   TV_TREE_EH,			/* tv_id */
-   PROP_gimple_lcf,		/* properties_required */
-   0,				/* properties_provided */
-   0,				/* properties_destroyed */
-   0,				/* todo_flags_start */
-   0             		/* todo_flags_finish */
-   }
+namespace {
+
+const pass_data pass_data_cleanup_eh =
+{
+  GIMPLE_PASS, /* type */
+  "ehcleanup", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_TREE_EH, /* tv_id */
+  PROP_gimple_lcf, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  TODO_verify_ssa, /* todo_flags_finish */
 };
+
+class pass_cleanup_eh : public gimple_opt_pass
+{
+public:
+  pass_cleanup_eh (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_cleanup_eh, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  opt_pass * clone () { return new pass_cleanup_eh (m_ctxt); }
+  bool gate () { return gate_cleanup_eh (); }
+  unsigned int execute () { return execute_cleanup_eh (); }
+
+}; // class pass_cleanup_eh
+
+} // anon namespace
+
+gimple_opt_pass *
+make_pass_cleanup_eh (gcc::context *ctxt)
+{
+  return new pass_cleanup_eh (ctxt);
+}
 
 /* Verify that BB containing STMT as the last statement, has precisely the
    edge that make_eh_edges would create.  */

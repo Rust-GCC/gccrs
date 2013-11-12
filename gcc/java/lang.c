@@ -42,6 +42,7 @@ The Free Software Foundation is independent of Sun Microsystems, Inc.  */
 #include "opts.h"
 #include "options.h"
 #include "target.h"
+#include "context.h"
 
 static bool java_init (void);
 static void java_finish (void);
@@ -271,7 +272,7 @@ java_handle_option (size_t scode, const char *arg, int value,
       break;
 
     case OPT_fdump_:
-      if (!dump_switch_p (arg))
+      if (!g->get_dumps ()->dump_switch_p (arg))
 	return false;
       break;
 
@@ -419,7 +420,8 @@ put_decl_node (tree node, int verbosity)
 	      if (TREE_CODE (TREE_TYPE (node)) == METHOD_TYPE)
 		args = TREE_CHAIN (args);
 	      put_decl_string ("(", 1);
-	      for ( ; args != end_params_node;  args = TREE_CHAIN (args), i++)
+	      for ( ; args != NULL_TREE && args != end_params_node;
+		   args = TREE_CHAIN (args), i++)
 		{
 		  if (i > 0)
 		    put_decl_string (",", 1);

@@ -9,6 +9,8 @@
 
 #if defined(__aarch64__)
 #  define SIZE 256 /* No frame pointer for leaf functions (default) */
+#elif defined(__arc__)
+#  define SIZE (256-4)
 #elif defined(__i386__)
 #  define SIZE 248
 #elif defined(__x86_64__)
@@ -47,6 +49,8 @@
 #    else
 #      define SIZE 220
 #    endif
+#  elif defined (_AIX)
+#    define SIZE 208
 #  else
 #    define SIZE 240
 #  endif

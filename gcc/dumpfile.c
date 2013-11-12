@@ -22,8 +22,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "diagnostic-core.h"
 #include "dumpfile.h"
-#include "gimple-pretty-print.h"
 #include "tree.h"
+#include "gimple-pretty-print.h"
+#include "context.h"
 
 /* If non-NULL, return one past-the-end of the matching SUBPART of
    the WHOLE string.  */
@@ -34,7 +35,6 @@ static int pflags;                   /* current dump_flags */
 static int alt_flags;                /* current opt_info flags */
 
 static void dump_loc (int, FILE *, source_location);
-static int dump_phase_enabled_p (int);
 static FILE *dump_open_alternate_stream (struct dump_file_info *);
 
 /* These are currently used for communicating between passes.
@@ -51,6 +51,8 @@ static struct dump_file_info dump_files[TDI_end] =
 {
   {NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 0, 0, 0},
   {".cgraph", "ipa-cgraph", NULL, NULL, NULL, NULL, NULL, TDF_IPA,
+   0, 0, 0, 0, 0},
+  {".type-inheritance", "ipa-type-inheritance", NULL, NULL, NULL, NULL, NULL, TDF_IPA,
    0, 0, 0, 0, 0},
   {".tu", "translation-unit", NULL, NULL, NULL, NULL, NULL, TDF_TREE,
    0, 0, 0, 0, 1},
@@ -71,11 +73,6 @@ static struct dump_file_info dump_files[TDI_end] =
   {NULL, "ipa-all", NULL, NULL, NULL, NULL, NULL, TDF_IPA,
    0, 0, 0, 0, 0},
 };
-
-/* Dynamically registered tree dump files and switches.  */
-static struct dump_file_info *extra_dump_files;
-static size_t extra_dump_files_in_use;
-static size_t extra_dump_files_alloced;
 
 /* Define a name->number mapping for a dump flag value.  */
 struct dump_option_value_info
@@ -139,33 +136,41 @@ static const struct dump_option_value_info optgroup_options[] =
   {NULL, 0}
 };
 
+gcc::dump_manager::dump_manager ():
+  m_next_dump (FIRST_AUTO_NUMBERED_DUMP),
+  m_extra_dump_files (NULL),
+  m_extra_dump_files_in_use (0),
+  m_extra_dump_files_alloced (0)
+{
+}
+
 unsigned int
+gcc::dump_manager::
 dump_register (const char *suffix, const char *swtch, const char *glob,
 	       int flags, int optgroup_flags)
 {
-  static int next_dump = FIRST_AUTO_NUMBERED_DUMP;
-  int num = next_dump++;
+  int num = m_next_dump++;
 
-  size_t count = extra_dump_files_in_use++;
+  size_t count = m_extra_dump_files_in_use++;
 
-  if (count >= extra_dump_files_alloced)
+  if (count >= m_extra_dump_files_alloced)
     {
-      if (extra_dump_files_alloced == 0)
-	extra_dump_files_alloced = 32;
+      if (m_extra_dump_files_alloced == 0)
+	m_extra_dump_files_alloced = 32;
       else
-	extra_dump_files_alloced *= 2;
-      extra_dump_files = XRESIZEVEC (struct dump_file_info,
-				     extra_dump_files,
-				     extra_dump_files_alloced);
+	m_extra_dump_files_alloced *= 2;
+      m_extra_dump_files = XRESIZEVEC (struct dump_file_info,
+				       m_extra_dump_files,
+				       m_extra_dump_files_alloced);
     }
 
-  memset (&extra_dump_files[count], 0, sizeof (struct dump_file_info));
-  extra_dump_files[count].suffix = suffix;
-  extra_dump_files[count].swtch = swtch;
-  extra_dump_files[count].glob = glob;
-  extra_dump_files[count].pflags = flags;
-  extra_dump_files[count].optgroup_flags = optgroup_flags;
-  extra_dump_files[count].num = num;
+  memset (&m_extra_dump_files[count], 0, sizeof (struct dump_file_info));
+  m_extra_dump_files[count].suffix = suffix;
+  m_extra_dump_files[count].swtch = swtch;
+  m_extra_dump_files[count].glob = glob;
+  m_extra_dump_files[count].pflags = flags;
+  m_extra_dump_files[count].optgroup_flags = optgroup_flags;
+  m_extra_dump_files[count].num = num;
 
   return count + TDI_end;
 }
@@ -174,14 +179,15 @@ dump_register (const char *suffix, const char *swtch, const char *glob,
 /* Return the dump_file_info for the given phase.  */
 
 struct dump_file_info *
-get_dump_file_info (int phase)
+gcc::dump_manager::
+get_dump_file_info (int phase) const
 {
   if (phase < TDI_end)
     return &dump_files[phase];
-  else if ((size_t) (phase - TDI_end) >= extra_dump_files_in_use)
+  else if ((size_t) (phase - TDI_end) >= m_extra_dump_files_in_use)
     return NULL;
   else
-    return extra_dump_files + (phase - TDI_end);
+    return m_extra_dump_files + (phase - TDI_end);
 }
 
 
@@ -189,7 +195,8 @@ get_dump_file_info (int phase)
    If the dump is not enabled, returns NULL.  */
 
 char *
-get_dump_file_name (int phase)
+gcc::dump_manager::
+get_dump_file_name (int phase) const
 {
   char dump_id[10];
   struct dump_file_info *dfi;
@@ -238,10 +245,10 @@ dump_open_alternate_stream (struct dump_file_info *dfi)
   if (dfi->alt_stream)
     return dfi->alt_stream;
 
-  stream = strcmp("stderr", dfi->alt_filename) == 0
+  stream = strcmp ("stderr", dfi->alt_filename) == 0
     ? stderr
-    : strcmp("stdout", dfi->alt_filename) == 0
-    ?  stdout
+    : strcmp ("stdout", dfi->alt_filename) == 0
+    ? stdout
     : fopen (dfi->alt_filename, dfi->alt_state < 0 ? "w" : "a");
 
   if (!stream)
@@ -257,16 +264,16 @@ dump_open_alternate_stream (struct dump_file_info *dfi)
 void
 dump_loc (int dump_kind, FILE *dfile, source_location loc)
 {
-  /* Currently vectorization passes print location information.  */
   if (dump_kind)
     {
       if (LOCATION_LOCUS (loc) > BUILTINS_LOCATION)
-        fprintf (dfile, "\n%s:%d: note: ", LOCATION_FILE (loc),
-                 LOCATION_LINE (loc));
+        fprintf (dfile, "%s:%d:%d: note: ", LOCATION_FILE (loc),
+                 LOCATION_LINE (loc), LOCATION_COLUMN (loc));
       else if (current_function_decl)
-        fprintf (dfile, "\n%s:%d: note: ",
+        fprintf (dfile, "%s:%d:%d: note: ",
                  DECL_SOURCE_FILE (current_function_decl),
-                 DECL_SOURCE_LINE (current_function_decl));
+                 DECL_SOURCE_LINE (current_function_decl),
+                 DECL_SOURCE_COLUMN (current_function_decl));
     }
 }
 
@@ -389,6 +396,7 @@ dump_printf_loc (int dump_kind, source_location loc, const char *format, ...)
    -fopt-info stream. */
 
 int
+gcc::dump_manager::
 dump_start (int phase, int *flag_ptr)
 {
   int count = 0;
@@ -402,10 +410,10 @@ dump_start (int phase, int *flag_ptr)
   name = get_dump_file_name (phase);
   if (name)
     {
-      stream = strcmp("stderr", name) == 0
+      stream = strcmp ("stderr", name) == 0
           ? stderr
-          : strcmp("stdout", name) == 0
-          ?  stdout
+          : strcmp ("stdout", name) == 0
+          ? stdout
           : fopen (name, dfi->pstate < 0 ? "w" : "a");
       if (!stream)
         error ("could not open dump file %qs: %m", name);
@@ -441,6 +449,7 @@ dump_start (int phase, int *flag_ptr)
    reset the globals DUMP_FILE, ALT_DUMP_FILE, and DUMP_FLAGS.  */
 
 void
+gcc::dump_manager::
 dump_finish (int phase)
 {
   struct dump_file_info *dfi;
@@ -448,11 +457,13 @@ dump_finish (int phase)
   if (phase < 0)
     return;
   dfi = get_dump_file_info (phase);
-  if (dfi->pstream)
+  if (dfi->pstream && (!dfi->pfilename
+                       || (strcmp ("stderr", dfi->pfilename) != 0
+                           && strcmp ("stdout", dfi->pfilename) != 0)))
     fclose (dfi->pstream);
 
-  if (dfi->alt_stream && strcmp("stderr", dfi->alt_filename) != 0
-      && strcmp("stdout", dfi->alt_filename) != 0)
+  if (dfi->alt_stream && strcmp ("stderr", dfi->alt_filename) != 0
+      && strcmp ("stdout", dfi->alt_filename) != 0)
     fclose (dfi->alt_stream);
 
   dfi->alt_stream = NULL;
@@ -472,6 +483,13 @@ dump_finish (int phase)
 FILE *
 dump_begin (int phase, int *flag_ptr)
 {
+  return g->get_dumps ()->dump_begin (phase, flag_ptr);
+}
+
+FILE *
+gcc::dump_manager::
+dump_begin (int phase, int *flag_ptr)
+{
   char *name;
   struct dump_file_info *dfi;
   FILE *stream;
@@ -484,10 +502,10 @@ dump_begin (int phase, int *flag_ptr)
     return NULL;
   dfi = get_dump_file_info (phase);
 
-  stream = strcmp("stderr", name) == 0
+  stream = strcmp ("stderr", name) == 0
     ? stderr
-    : strcmp("stdout", name) == 0
-    ?  stdout
+    : strcmp ("stdout", name) == 0
+    ? stdout
     : fopen (name, dfi->pstate < 0 ? "w" : "a");
 
   if (!stream)
@@ -508,8 +526,9 @@ dump_begin (int phase, int *flag_ptr)
    If PHASE is TDI_tree_all, return nonzero if any dump is enabled for
    any phase.  */
 
-static int
-dump_phase_enabled_p (int phase)
+int
+gcc::dump_manager::
+dump_phase_enabled_p (int phase) const
 {
   if (phase == TDI_tree_all)
     {
@@ -517,8 +536,8 @@ dump_phase_enabled_p (int phase)
       for (i = TDI_none + 1; i < (size_t) TDI_end; i++)
 	if (dump_files[i].pstate || dump_files[i].alt_state)
 	  return 1;
-      for (i = 0; i < extra_dump_files_in_use; i++)
-	if (extra_dump_files[i].pstate || extra_dump_files[i].alt_state)
+      for (i = 0; i < m_extra_dump_files_in_use; i++)
+	if (m_extra_dump_files[i].pstate || m_extra_dump_files[i].alt_state)
 	  return 1;
       return 0;
     }
@@ -532,7 +551,8 @@ dump_phase_enabled_p (int phase)
 /* Returns nonzero if tree dump PHASE has been initialized.  */
 
 int
-dump_initialized_p (int phase)
+gcc::dump_manager::
+dump_initialized_p (int phase) const
 {
   struct dump_file_info *dfi = get_dump_file_info (phase);
   return dfi->pstate > 0 || dfi->alt_state > 0;
@@ -542,6 +562,13 @@ dump_initialized_p (int phase)
 
 const char *
 dump_flag_name (int phase)
+{
+  return g->get_dumps ()->dump_flag_name (phase);
+}
+
+const char *
+gcc::dump_manager::
+dump_flag_name (int phase) const
 {
   struct dump_file_info *dfi = get_dump_file_info (phase);
   return dfi->swtch;
@@ -560,7 +587,8 @@ dump_end (int phase ATTRIBUTE_UNUSED, FILE *stream)
 /* Enable all tree dumps with FLAGS on FILENAME.  Return number of
    enabled tree dumps.  */
 
-static int
+int
+gcc::dump_manager::
 dump_enable_all (int flags, const char *filename)
 {
   int ir_dump_type = (flags & (TDF_TREE | TDF_RTL | TDF_IPA));
@@ -588,21 +616,21 @@ dump_enable_all (int flags, const char *filename)
         }
     }
 
-  for (i = 0; i < extra_dump_files_in_use; i++)
+  for (i = 0; i < m_extra_dump_files_in_use; i++)
     {
-      if ((extra_dump_files[i].pflags & ir_dump_type))
+      if ((m_extra_dump_files[i].pflags & ir_dump_type))
         {
-          const char *old_filename = extra_dump_files[i].pfilename;
-          extra_dump_files[i].pstate = -1;
-          extra_dump_files[i].pflags |= flags;
+          const char *old_filename = m_extra_dump_files[i].pfilename;
+          m_extra_dump_files[i].pstate = -1;
+          m_extra_dump_files[i].pflags |= flags;
           n++;
           /* Override the existing filename.  */
           if (filename)
             {
-              extra_dump_files[i].pfilename = xstrdup (filename);
+              m_extra_dump_files[i].pfilename = xstrdup (filename);
               /* Since it is a command-line provided file, which is
                  common to all the phases, use it in append mode.  */
-              extra_dump_files[i].pstate = 1;
+              m_extra_dump_files[i].pstate = 1;
             }
           if (old_filename && filename != old_filename)
             free (CONST_CAST (char *, old_filename));
@@ -616,7 +644,8 @@ dump_enable_all (int flags, const char *filename)
    Enable dumps with FLAGS on FILENAME.  Return the number of enabled
    dumps.  */
 
-static int
+int
+gcc::dump_manager::
 opt_info_enable_passes (int optgroup_flags, int flags, const char *filename)
 {
   int n = 0;
@@ -640,19 +669,19 @@ opt_info_enable_passes (int optgroup_flags, int flags, const char *filename)
         }
     }
 
-  for (i = 0; i < extra_dump_files_in_use; i++)
+  for (i = 0; i < m_extra_dump_files_in_use; i++)
     {
-      if ((extra_dump_files[i].optgroup_flags & optgroup_flags))
+      if ((m_extra_dump_files[i].optgroup_flags & optgroup_flags))
         {
-          const char *old_filename = extra_dump_files[i].alt_filename;
+          const char *old_filename = m_extra_dump_files[i].alt_filename;
           /* Since this file is shared among different passes, it
              should be opened in append mode.  */
-          extra_dump_files[i].alt_state = 1;
-          extra_dump_files[i].alt_flags |= flags;
+          m_extra_dump_files[i].alt_state = 1;
+          m_extra_dump_files[i].alt_flags |= flags;
           n++;
           /* Override the existing filename.  */
           if (filename)
-            extra_dump_files[i].alt_filename = xstrdup (filename);
+            m_extra_dump_files[i].alt_filename = xstrdup (filename);
           if (old_filename && filename != old_filename)
             free (CONST_CAST (char *, old_filename));
         }
@@ -664,7 +693,8 @@ opt_info_enable_passes (int optgroup_flags, int flags, const char *filename)
 /* Parse ARG as a dump switch. Return nonzero if it is, and store the
    relevant details in the dump_files array.  */
 
-static int
+int
+gcc::dump_manager::
 dump_switch_p_1 (const char *arg, struct dump_file_info *dfi, bool doglob)
 {
   const char *option_value;
@@ -739,6 +769,7 @@ dump_switch_p_1 (const char *arg, struct dump_file_info *dfi, bool doglob)
 }
 
 int
+gcc::dump_manager::
 dump_switch_p (const char *arg)
 {
   size_t i;
@@ -752,12 +783,12 @@ dump_switch_p (const char *arg)
     for (i = TDI_none + 1; i != TDI_end; i++)
       any |= dump_switch_p_1 (arg, &dump_files[i], true);
 
-  for (i = 0; i < extra_dump_files_in_use; i++)
-    any |= dump_switch_p_1 (arg, &extra_dump_files[i], false);
+  for (i = 0; i < m_extra_dump_files_in_use; i++)
+    any |= dump_switch_p_1 (arg, &m_extra_dump_files[i], false);
 
   if (!any)
-    for (i = 0; i < extra_dump_files_in_use; i++)
-      any |= dump_switch_p_1 (arg, &extra_dump_files[i], true);
+    for (i = 0; i < m_extra_dump_files_in_use; i++)
+      any |= dump_switch_p_1 (arg, &m_extra_dump_files[i], true);
 
 
   return any;
@@ -849,6 +880,7 @@ opt_info_switch_p (const char *arg)
   int optgroup_flags;
   char *filename;
   static char *file_seen = NULL;
+  gcc::dump_manager *dumps = g->get_dumps ();
 
   if (!opt_info_switch_p_1 (arg, &flags, &optgroup_flags, &filename))
     return 0;
@@ -866,11 +898,11 @@ opt_info_switch_p (const char *arg)
 
   file_seen = xstrdup (filename);
   if (!flags)
-    flags = MSG_ALL;
+    flags = MSG_OPTIMIZED_LOCATIONS;
   if (!optgroup_flags)
     optgroup_flags = OPTGROUP_ALL;
 
-  return opt_info_enable_passes (optgroup_flags, flags, filename);
+  return dumps->opt_info_enable_passes (optgroup_flags, flags, filename);
 }
 
 /* Print basic block on the dump streams.  */
@@ -898,5 +930,8 @@ print_combine_total_stats (void)
 bool
 enable_rtl_dump_file (void)
 {
-  return dump_enable_all (TDF_RTL | TDF_DETAILS | TDF_BLOCKS, NULL) > 0;
+  gcc::dump_manager *dumps = g->get_dumps ();
+  int num_enabled =
+    dumps->dump_enable_all (TDF_RTL | TDF_DETAILS | TDF_BLOCKS, NULL);
+  return num_enabled > 0;
 }

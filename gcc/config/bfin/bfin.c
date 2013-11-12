@@ -46,6 +46,7 @@
 #include "cgraph.h"
 #include "langhooks.h"
 #include "bfin-protos.h"
+#include "tm_p.h"
 #include "tm-preds.h"
 #include "tm-constrs.h"
 #include "gt-bfin.h"
@@ -2437,7 +2438,7 @@ cbranch_predicted_taken_p (rtx insn)
 
   if (x)
     {
-      int pred_val = INTVAL (XEXP (x, 0));
+      int pred_val = XINT (x, 0);
 
       return pred_val >= REG_BR_PROB_BASE / 2;
     }
@@ -3365,6 +3366,22 @@ find_prev_insn_start (rtx insn)
   return insn;
 }
 
+/* Implement TARGET_CAN_USE_DOLOOP_P.  */
+
+static bool
+bfin_can_use_doloop_p (double_int, double_int iterations_max,
+		       unsigned int, bool)
+{
+  /* Due to limitations in the hardware (an initial loop count of 0
+     does not loop 2^32 times) we must avoid to generate a hardware
+     loops when we cannot rule out this case.  */
+  if (!flag_unsafe_loop_optimizations
+      && (iterations_max.high != 0
+	  || iterations_max.low >= 0xFFFFFFFF))
+    return false;
+  return true;
+}
+
 /* Increment the counter for the number of loop instructions in the
    current function.  */
 
@@ -3887,8 +3904,7 @@ gen_one_bundle (rtx slot[3])
       rtx t = NEXT_INSN (slot[0]);
       while (t != slot[1])
 	{
-	  if (GET_CODE (t) != NOTE
-	      || NOTE_KIND (t) != NOTE_INSN_DELETED)
+	  if (! NOTE_P (t) || NOTE_KIND (t) != NOTE_INSN_DELETED)
 	    return false;
 	  t = NEXT_INSN (t);
 	}
@@ -3898,8 +3914,7 @@ gen_one_bundle (rtx slot[3])
       rtx t = NEXT_INSN (slot[1]);
       while (t != slot[2])
 	{
-	  if (GET_CODE (t) != NOTE
-	      || NOTE_KIND (t) != NOTE_INSN_DELETED)
+	  if (! NOTE_P (t) || NOTE_KIND (t) != NOTE_INSN_DELETED)
 	    return false;
 	  t = NEXT_INSN (t);
 	}
@@ -4086,12 +4101,15 @@ workaround_rts_anomaly (void)
       if (NOTE_P (insn) || LABEL_P (insn))
 	continue;
 
+      if (JUMP_TABLE_DATA_P (insn))
+	continue;
+
       if (first_insn == NULL_RTX)
 	first_insn = insn;
       pat = PATTERN (insn);
       if (GET_CODE (pat) == USE || GET_CODE (pat) == CLOBBER
-	  || GET_CODE (pat) == ASM_INPUT || GET_CODE (pat) == ADDR_VEC
-	  || GET_CODE (pat) == ADDR_DIFF_VEC || asm_noperands (pat) >= 0)
+	  || GET_CODE (pat) == ASM_INPUT
+	  || asm_noperands (pat) >= 0)
 	continue;
 
       if (CALL_P (insn))
@@ -4279,6 +4297,8 @@ workaround_speculation (void)
       
       if (NOTE_P (insn) || BARRIER_P (insn))
 	continue;
+      if (JUMP_TABLE_DATA_P (insn))
+	continue;
 
       if (LABEL_P (insn))
 	{
@@ -4287,8 +4307,7 @@ workaround_speculation (void)
 	}
 
       pat = PATTERN (insn);
-      if (GET_CODE (pat) == USE || GET_CODE (pat) == CLOBBER
-	  || GET_CODE (pat) == ADDR_VEC || GET_CODE (pat) == ADDR_DIFF_VEC)
+      if (GET_CODE (pat) == USE || GET_CODE (pat) == CLOBBER)
 	continue;
       
       if (GET_CODE (pat) == ASM_INPUT || asm_noperands (pat) >= 0)
@@ -4436,10 +4455,13 @@ workaround_speculation (void)
 	      if (NOTE_P (target) || BARRIER_P (target) || LABEL_P (target))
 		continue;
 
+	      if (JUMP_TABLE_DATA_P (target))
+		continue;
+
 	      pat = PATTERN (target);
 	      if (GET_CODE (pat) == USE || GET_CODE (pat) == CLOBBER
-		  || GET_CODE (pat) == ASM_INPUT || GET_CODE (pat) == ADDR_VEC
-		  || GET_CODE (pat) == ADDR_DIFF_VEC || asm_noperands (pat) >= 0)
+		  || GET_CODE (pat) == ASM_INPUT
+		  || asm_noperands (pat) >= 0)
 		continue;
 
 	      if (NONDEBUG_INSN_P (target))
@@ -4512,11 +4534,13 @@ add_sched_insns_for_speculation (void)
 
       if (NOTE_P (insn) || BARRIER_P (insn) || LABEL_P (insn))
 	continue;
+      if (JUMP_TABLE_DATA_P (insn))
+	continue;
 
       pat = PATTERN (insn);
       if (GET_CODE (pat) == USE || GET_CODE (pat) == CLOBBER
-	  || GET_CODE (pat) == ASM_INPUT || GET_CODE (pat) == ADDR_VEC
-	  || GET_CODE (pat) == ADDR_DIFF_VEC || asm_noperands (pat) >= 0)
+	  || GET_CODE (pat) == ASM_INPUT
+	  || asm_noperands (pat) >= 0)
 	continue;
 
       if (JUMP_P (insn))
@@ -5801,5 +5825,8 @@ bfin_conditional_register_usage (void)
    change order of insns.  It also needs a valid CFG.  */
 #undef TARGET_DELAY_VARTRACK
 #define TARGET_DELAY_VARTRACK true
+
+#undef TARGET_CAN_USE_DOLOOP_P
+#define TARGET_CAN_USE_DOLOOP_P bfin_can_use_doloop_p
 
 struct gcc_target targetm = TARGET_INITIALIZER;

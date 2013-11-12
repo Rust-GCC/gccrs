@@ -21,18 +21,24 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "hash-table.h"
 #include "tm.h"
 #include "tree.h"
 #include "gimple-pretty-print.h"
 #include "bitmap.h"
-#include "tree-flow.h"
+#include "sbitmap.h"
+#include "gimple.h"
+#include "gimple-ssa.h"
+#include "tree-phinodes.h"
+#include "ssa-iterators.h"
+#include "tree-ssanames.h"
+#include "tree-dfa.h"
 #include "timevar.h"
 #include "dumpfile.h"
 #include "tree-ssa-live.h"
 #include "diagnostic-core.h"
 #include "debug.h"
 #include "flags.h"
-#include "gimple.h"
 
 #ifdef ENABLE_CHECKING
 static void  verify_live_on_entry (tree_live_info_p);
@@ -53,6 +59,29 @@ static void  verify_live_on_entry (tree_live_info_p);
    ssa_name or variable, and vice versa.  */
 
 
+/* Hashtable helpers.  */
+
+struct tree_int_map_hasher : typed_noop_remove <tree_int_map>
+{
+  typedef tree_int_map value_type;
+  typedef tree_int_map compare_type;
+  static inline hashval_t hash (const value_type *);
+  static inline bool equal (const value_type *, const compare_type *);
+};
+
+inline hashval_t
+tree_int_map_hasher::hash (const value_type *v)
+{
+  return tree_map_base_hash (v);
+}
+
+inline bool
+tree_int_map_hasher::equal (const value_type *v, const compare_type *c)
+{
+  return tree_int_map_eq (v, c);
+}
+
+
 /* This routine will initialize the basevar fields of MAP.  */
 
 static void
@@ -60,12 +89,11 @@ var_map_base_init (var_map map)
 {
   int x, num_part;
   tree var;
-  htab_t tree_to_index;
+  hash_table <tree_int_map_hasher> tree_to_index;
   struct tree_int_map *m, *mapstorage;
 
   num_part = num_var_partitions (map);
-  tree_to_index = htab_create (num_part, tree_map_base_hash,
-			       tree_int_map_eq, NULL);
+  tree_to_index.create (num_part);
   /* We can have at most num_part entries in the hash tables, so it's
      enough to allocate so many map elements once, saving some malloc
      calls.  */
@@ -81,18 +109,23 @@ var_map_base_init (var_map map)
       struct tree_int_map **slot;
       unsigned baseindex;
       var = partition_to_var (map, x);
-      if (SSA_NAME_VAR (var))
+      if (SSA_NAME_VAR (var)
+	  && (!VAR_P (SSA_NAME_VAR (var))
+	      || !DECL_IGNORED_P (SSA_NAME_VAR (var))))
 	m->base.from = SSA_NAME_VAR (var);
       else
 	/* This restricts what anonymous SSA names we can coalesce
 	   as it restricts the sets we compute conflicts for.
 	   Using TREE_TYPE to generate sets is the easies as
 	   type equivalency also holds for SSA names with the same
-	   underlying decl.  */
-	m->base.from = TREE_TYPE (var);
+	   underlying decl. 
+
+	   Check gimple_can_coalesce_p when changing this code.  */
+	m->base.from = (TYPE_CANONICAL (TREE_TYPE (var))
+			? TYPE_CANONICAL (TREE_TYPE (var))
+			: TREE_TYPE (var));
       /* If base variable hasn't been seen, set it up.  */
-      slot = (struct tree_int_map **) htab_find_slot (tree_to_index,
-						      m, INSERT);
+      slot = tree_to_index.find_slot (m, INSERT);
       if (!*slot)
 	{
 	  baseindex = m - mapstorage;
@@ -108,7 +141,7 @@ var_map_base_init (var_map map)
   map->num_basevars = m - mapstorage;
 
   free (mapstorage);
-  htab_delete (tree_to_index);
+  tree_to_index. dispose ();
 }
 
 
@@ -620,31 +653,17 @@ clear_unused_block_pointer_1 (tree *tp, int *, void *)
   if (EXPR_P (*tp) && TREE_BLOCK (*tp)
       && !TREE_USED (TREE_BLOCK (*tp)))
     TREE_SET_BLOCK (*tp, NULL);
-  if (TREE_CODE (*tp) == VAR_DECL && DECL_DEBUG_EXPR_IS_FROM (*tp))
-    {
-      tree debug_expr = DECL_DEBUG_EXPR (*tp);
-      walk_tree (&debug_expr, clear_unused_block_pointer_1, NULL, NULL);
-    }
   return NULL_TREE;
 }
 
-/* Set all block pointer in debug stmt to NULL if the block is unused,
-   so that they will not be streamed out.  */
+/* Set all block pointer in debug or clobber stmt to NULL if the block
+   is unused, so that they will not be streamed out.  */
 
 static void
 clear_unused_block_pointer (void)
 {
   basic_block bb;
   gimple_stmt_iterator gsi;
-  tree t;
-  unsigned i;
-
-  FOR_EACH_LOCAL_DECL (cfun, i, t)
-    if (TREE_CODE (t) == VAR_DECL && DECL_DEBUG_EXPR_IS_FROM (t))
-      {
-	tree debug_expr = DECL_DEBUG_EXPR (t);
-	walk_tree (&debug_expr, clear_unused_block_pointer_1, NULL, NULL);
-      }
 
   FOR_EACH_BB (bb)
     for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
@@ -653,7 +672,7 @@ clear_unused_block_pointer (void)
 	tree b;
 	gimple stmt = gsi_stmt (gsi);
 
-	if (!is_gimple_debug (stmt))
+	if (!is_gimple_debug (stmt) && !gimple_clobber_p (stmt))
 	  continue;
 	b = gimple_block (stmt);
 	if (b && !TREE_USED (b))
@@ -841,7 +860,15 @@ remove_unused_locals (void)
 	    if (gimple_clobber_p (stmt))
 	      {
 		tree lhs = gimple_assign_lhs (stmt);
-		if (TREE_CODE (lhs) == VAR_DECL && !is_used_p (lhs))
+		tree base = get_base_address (lhs);
+		/* Remove clobbers referencing unused vars, or clobbers
+		   with MEM_REF lhs referencing uninitialized pointers.  */
+		if ((TREE_CODE (base) == VAR_DECL && !is_used_p (base))
+		    || (TREE_CODE (lhs) == MEM_REF
+			&& TREE_CODE (TREE_OPERAND (lhs, 0)) == SSA_NAME
+			&& SSA_NAME_IS_DEFAULT_DEF (TREE_OPERAND (lhs, 0))
+			&& (TREE_CODE (SSA_NAME_VAR (TREE_OPERAND (lhs, 0)))
+			    != PARM_DECL)))
 		  {
 		    unlink_stmt_vdef (stmt);
 		    gsi_remove (&gsi, true);
@@ -970,9 +997,10 @@ loe_visit_block (tree_live_info_p live, basic_block bb, sbitmap visited,
   edge_iterator ei;
   basic_block pred_bb;
   bitmap loe;
-  gcc_assert (!bitmap_bit_p (visited, bb->index));
 
+  gcc_checking_assert (!bitmap_bit_p (visited, bb->index));
   bitmap_set_bit (visited, bb->index);
+
   loe = live_on_entry (live, bb);
 
   FOR_EACH_EDGE (e, ei, bb->preds)
@@ -1214,7 +1242,7 @@ dump_var_map (FILE *f, var_map map)
 	    {
 	      if (t++ == 0)
 	        {
-		  fprintf(f, "Partition %d (", x);
+		  fprintf (f, "Partition %d (", x);
 		  print_generic_expr (f, partition_to_var (map, p), TDF_SLIM);
 		  fprintf (f, " - ");
 		}
@@ -1225,6 +1253,24 @@ dump_var_map (FILE *f, var_map map)
 	fprintf (f, ")\n");
     }
   fprintf (f, "\n");
+}
+
+
+/* Generic dump for the above.  */
+
+DEBUG_FUNCTION void
+debug (_var_map &ref)
+{
+  dump_var_map (stderr, &ref);
+}
+
+DEBUG_FUNCTION void
+debug (_var_map *ptr)
+{
+  if (ptr)
+    debug (*ptr);
+  else
+    fprintf (stderr, "<nil>\n");
 }
 
 
@@ -1266,6 +1312,25 @@ dump_live_info (FILE *f, tree_live_info_p live, int flag)
 	}
     }
 }
+
+
+/* Generic dump for the above.  */
+
+DEBUG_FUNCTION void
+debug (tree_live_info_d &ref)
+{
+  dump_live_info (stderr, &ref, 0);
+}
+
+DEBUG_FUNCTION void
+debug (tree_live_info_d *ptr)
+{
+  if (ptr)
+    debug (*ptr);
+  else
+    fprintf (stderr, "<nil>\n");
+}
+
 
 #ifdef ENABLE_CHECKING
 /* Verify that SSA_VAR is a non-virtual SSA_NAME.  */

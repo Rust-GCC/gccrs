@@ -1,4 +1,5 @@
 load_lib libgomp-dg.exp
+load_gcc_lib gcc-dg.exp
 
 global shlib_ext
 
@@ -9,6 +10,9 @@ set lang_library_path "../libstdc++-v3/src/.libs"
 
 # Initialize dg.
 dg-init
+
+# Turn on OpenMP.
+lappend ALWAYS_CFLAGS "additional_flags=-fopenmp"
 
 set blddir [lookfor_file [get_multilibs] libgomp]
 
@@ -53,7 +57,7 @@ if { $lang_test_file_found } {
     }
 
     # Main loop.
-    gfortran-dg-runtest $tests $libstdcxx_includes
+    dg-runtest $tests "" $libstdcxx_includes
 }
 
 # All done.

@@ -1,0 +1,277 @@
+<section xmlns="http://docbook.org/ns/docbook" version="5.0" 
+	 xml:id="status.iso.2014" xreflabel="Status C++ 2014">
+<?dbhtml filename="status_iso_cxx2014.html"?>
+
+<info><title>C++ 2014</title>
+  <keywordset>
+    <keyword>ISO C++</keyword>
+    <keyword>2014</keyword>
+  </keywordset>
+</info>
+
+<para>
+In this implementation <literal>-std=gnu++1y</literal> or
+<literal>-std=c++1y</literal> flags must be used to enable language
+and library
+features. See <link linkend="manual.intro.using.flags">dialect</link>
+options. The pre-defined symbol
+<constant>__cplusplus</constant> is used to check for the
+presence of the required flag.
+</para>
+
+<para>
+This page describes the C++14 support in mainline GCC SVN, not in any
+particular release.
+</para>
+
+<table frame="all">
+<title>C++ 2014 Implementation Status</title>
+
+<tgroup cols="4" align="left" colsep="0" rowsep="1">
+<colspec colname="c1"/>
+<colspec colname="c2"/>
+<colspec colname="c3"/>
+<colspec colname="c4"/>
+  <thead>
+    <row>
+      <entry>Paper</entry>
+      <entry>Title</entry>
+      <entry>Status</entry>
+      <entry>Comments</entry>
+    </row>
+  </thead>
+
+  <tbody>
+
+    <row>
+      <entry>
+	<link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.open-std.org/JTC1/sc22/WG21/docs/papers/2013/n3669.pdf">
+	  N3669
+	</link>
+      </entry>
+      <entry>Fixing constexpr member functions without const</entry>
+      <entry>Y</entry>
+      <entry/>
+    </row>
+
+    <row>
+      <entry>
+	<link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.open-std.org/JTC1/sc22/WG21/docs/papers/2013/n3668.html">
+	  N3668
+	</link>
+      </entry>
+      <entry><code>exchange()</code> utility function</entry>
+      <entry>Y</entry>
+      <entry/>
+    </row>
+
+    <row>
+      <entry>
+	<link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.open-std.org/JTC1/sc22/WG21/docs/papers/2013/n3670.html">
+	  N3670
+	</link>
+      </entry>
+      <entry>Wording for Addressing Tuples by Type</entry>
+      <entry>Y</entry>
+      <entry/>
+    </row>
+
+    <row>
+      <entry>
+	<link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.open-std.org/JTC1/sc22/WG21/docs/papers/2013/n3656.htm">
+	  N3656
+	</link>
+      </entry>
+      <entry><code>make_unique</code></entry>
+      <entry>Y</entry>
+      <entry/>
+    </row>
+
+    <row>
+      <entry>
+	<link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.open-std.org/JTC1/sc22/WG21/docs/papers/2012/n3462.html">
+	  N3462
+	</link>
+      </entry>
+      <entry><code>std::result_of</code> and SFINAE</entry>
+      <entry>Y</entry>
+      <entry/>
+    </row>
+
+    <row>
+      <entry>
+	<link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.open-std.org/JTC1/sc22/WG21/docs/papers/2013/n3545.pdf">
+	  N3545
+	</link>
+      </entry>
+      <entry>An Incremental Improvement to <code>integral_constant</code></entry>
+      <entry>Y</entry>
+      <entry/>
+    </row>
+
+    <row>
+      <entry>
+	<link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.open-std.org/JTC1/sc22/WG21/docs/papers/2013/n3642.pdf">
+	  N3642
+	</link>
+      </entry>
+      <entry>User-defined Literals for Standard Library Types</entry>
+      <entry>Y</entry>
+      <entry/>
+    </row>
+
+    <row>
+      <entry>
+	<link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.open-std.org/JTC1/sc22/WG21/docs/papers/2013/n3671.html">
+	  N3671
+	</link>
+      </entry>
+      <entry>Making non-modifying sequence operations more robust</entry>
+      <entry>Y</entry>
+      <entry/>
+    </row>
+
+    <row>
+      <entry>
+	<link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.open-std.org/JTC1/sc22/WG21/docs/papers/2013/n3654.html">
+	  N3654
+	</link>
+      </entry>
+      <entry>Quoted Strings Library Proposal</entry>
+      <entry>Y</entry>
+      <entry/>
+    </row>
+
+
+    <row>
+      <entry>
+	<link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.open-std.org/JTC1/sc22/WG21/docs/papers/2012/n3469.html">
+	  N3469
+	</link>
+      </entry>
+      <entry>Constexpr Library Additions: chrono</entry>
+      <entry>Y</entry>
+      <entry/>
+    </row>
+
+    <row>
+      <entry>
+	<link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.open-std.org/JTC1/sc22/WG21/docs/papers/2012/n3470.html">
+	  N3470
+	</link>
+      </entry>
+      <entry>Constexpr Library Additions: containers</entry>
+      <entry>Y</entry>
+      <entry/>
+    </row>
+
+    <row>
+      <entry>
+	<link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.open-std.org/JTC1/sc22/WG21/docs/papers/2012/n3471.html">
+	  N3471
+	</link>
+      </entry>
+      <entry>Constexpr Library Additions: utilities</entry>
+      <entry>Y</entry>
+      <entry/>
+    </row>
+
+
+    <row>
+      <entry>
+	<link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.open-std.org/JTC1/sc22/WG21/docs/papers/2013/n3658.html">
+	  N3658
+	</link>
+      </entry>
+      <entry>Compile-time integer sequences</entry>
+      <entry>Y</entry>
+      <entry/>
+    </row>
+
+    <row>
+      <entry>
+	<link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.open-std.org/JTC1/sc22/WG21/docs/papers/2013/n3659.html">
+	  N3659
+	</link>
+      </entry>
+      <entry>Shared Locking in C++</entry>
+      <entry>Y</entry>
+      <entry>Need tests</entry>
+    </row>
+
+
+    <row>
+      <entry>
+	<link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.open-std.org/JTC1/sc22/WG21/docs/papers/2012/n3421.htm">
+	  N3421
+	</link>
+      </entry>
+      <entry>Making Operator Functors greater&lt;&gt;</entry>
+      <entry>Y</entry>
+      <entry/>
+    </row>
+
+    <row>
+      <?dbhtml bgcolor="#C8C8B0" ?>
+      <entry>
+	<link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.open-std.org/JTC1/sc22/WG21/docs/papers/2013/n3657.htm">
+	  N3657
+	</link>
+      </entry>
+      <entry>Adding heterogeneous comparison lookup to associative containers</entry>
+      <entry>WIP</entry>
+      <entry/>
+    </row>
+
+
+    <row>
+      <entry>
+	<link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.open-std.org/JTC1/sc22/WG21/docs/papers/2013/n3793.html">
+	  N3672
+	</link>
+      </entry>
+      <entry>A proposal to add a utility class to represent optional objects</entry>
+      <entry>Y</entry>
+      <entry>Moved from C++14 to Library Fundamentals TS</entry>
+    </row>
+
+    <row>
+      <entry>
+	<link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.open-std.org/JTC1/sc22/WG21/docs/papers/2013/n3655.pdf">
+	  N3655
+	</link>
+      </entry>
+      <entry>TransformationTraits Redux</entry>
+      <entry>Y</entry>
+      <entry/>
+    </row>
+
+    <row>
+      <?dbhtml bgcolor="#C8B0B0" ?>
+      <entry>
+	<link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.open-std.org/JTC1/sc22/WG21/docs/papers/2013/n3662.html">
+	  N3662
+	</link>
+      </entry>
+      <entry>C++ Dynamic Arrays</entry>
+      <entry>N</entry>
+      <entry>Moved from C++14 to Library Fundamentals TS</entry>
+    </row>
+
+    <row>
+      <?dbhtml bgcolor="#C8B0B0" ?>
+      <entry>
+	<link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.open-std.org/JTC1/sc22/WG21/docs/papers/2013/n3644.pdf">
+	  N3644
+	</link>
+      </entry>
+      <entry>Null Forward Iterators</entry>
+      <entry>N</entry>
+      <entry/>
+    </row>
+
+  </tbody>
+</tgroup>
+</table>
+
+</section>

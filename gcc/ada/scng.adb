@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -592,14 +592,12 @@ package body Scng is
          --  which the digit was expected on input, and is unchanged on return.
 
          procedure Scan_Integer;
-         --  Procedure to scan integer literal. On entry, Scan_Ptr points to a
-         --  digit, on exit Scan_Ptr points past the last character of the
-         --  integer.
+         --  Scan integer literal. On entry, Scan_Ptr points to a digit, on
+         --  exit Scan_Ptr points past the last character of the integer.
          --
          --  For each digit encountered, UI_Int_Value is multiplied by 10, and
-         --  the value of the digit added to the result. In addition, the
-         --  value in Scale is decremented by one for each actual digit
-         --  scanned.
+         --  the value of the digit added to the result. In addition, the value
+         --  in Scale is decremented by one for each actual digit scanned.
 
          --------------------------
          -- Error_Digit_Expected --
@@ -1796,7 +1794,7 @@ package body Scng is
                --  If the SPARK restriction is set for this unit, then generate
                --  a token Tok_SPARK_Hide for a SPARK HIDE directive.
 
-               if Restriction_Check_Required (SPARK)
+               if Restriction_Check_Required (SPARK_05)
                  and then Source (Start_Of_Comment) = '#'
                then
                   declare

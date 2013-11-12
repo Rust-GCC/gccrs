@@ -471,6 +471,7 @@ lra_eliminate_regs_1 (rtx x, enum machine_mode mem_mode,
       /* ... fall through ...  */
 
     case INSN_LIST:
+    case INT_LIST:
       /* Now do eliminations in the rest of the chain.	If this was
 	 an EXPR_LIST, this might result in allocating more memory than is
 	 strictly needed, but it simplifies the code.  */
@@ -745,13 +746,42 @@ mark_not_eliminable (rtx x)
 
 
 
+#ifdef HARD_FRAME_POINTER_REGNUM
+
+/* Find offset equivalence note for reg WHAT in INSN and return the
+   found elmination offset.  If the note is not found, return NULL.
+   Remove the found note.  */
+static rtx
+remove_reg_equal_offset_note (rtx insn, rtx what)
+{
+  rtx link, *link_loc;
+
+  for (link_loc = &REG_NOTES (insn);
+       (link = *link_loc) != NULL_RTX;
+       link_loc = &XEXP (link, 1))
+    if (REG_NOTE_KIND (link) == REG_EQUAL
+	&& GET_CODE (XEXP (link, 0)) == PLUS
+	&& XEXP (XEXP (link, 0), 0) == what
+	&& CONST_INT_P (XEXP (XEXP (link, 0), 1)))
+      {
+	*link_loc = XEXP (link, 1);
+	return XEXP (XEXP (link, 0), 1);
+      }
+  return NULL_RTX;
+}
+
+#endif
+
 /* Scan INSN and eliminate all eliminable hard registers in it.
 
    If REPLACE_P is true, do the replacement destructively.  Also
    delete the insn as dead it if it is setting an eliminable register.
 
    If REPLACE_P is false, just update the offsets while keeping the
-   base register the same.  */
+   base register the same.  Attach the note about used elimination for
+   insns setting frame pointer to update elimination easy (without
+   parsing already generated elimination insns to find offset
+   previously used) in future.  */
 
 static void
 eliminate_regs_in_insn (rtx insn, bool replace_p)
@@ -771,8 +801,6 @@ eliminate_regs_in_insn (rtx insn, bool replace_p)
     {
       lra_assert (GET_CODE (PATTERN (insn)) == USE
 		  || GET_CODE (PATTERN (insn)) == CLOBBER
-		  || GET_CODE (PATTERN (insn)) == ADDR_VEC
-		  || GET_CODE (PATTERN (insn)) == ADDR_DIFF_VEC
 		  || GET_CODE (PATTERN (insn)) == ASM_INPUT);
       return;
     }
@@ -781,84 +809,69 @@ eliminate_regs_in_insn (rtx insn, bool replace_p)
   if (old_set != 0 && REG_P (SET_DEST (old_set))
       && (ep = get_elimination (SET_DEST (old_set))) != NULL)
     {
-      bool delete_p = replace_p;
-
+      for (ep = reg_eliminate; ep < &reg_eliminate[NUM_ELIMINABLE_REGS]; ep++)
+	if (ep->from_rtx == SET_DEST (old_set) && ep->can_eliminate)
+	  {
+	    bool delete_p = replace_p;
+	    
 #ifdef HARD_FRAME_POINTER_REGNUM
-      /* If this is setting the frame pointer register to the hardware
-	 frame pointer register and this is an elimination that will
-	 be done (tested above), this insn is really adjusting the
-	 frame pointer downward to compensate for the adjustment done
-	 before a nonlocal goto.  */
-      if (ep->from == FRAME_POINTER_REGNUM
-	  && ep->to == HARD_FRAME_POINTER_REGNUM)
-	{
-	  if (replace_p)
-	    {
-	      SET_DEST (old_set) = ep->to_rtx;
-	      lra_update_insn_recog_data (insn);
-	      return;
-	    }
-	  else
-	    {
-	      rtx base = SET_SRC (old_set);
-	      HOST_WIDE_INT offset = 0;
-	      rtx base_insn = insn;
-
-	      while (base != ep->to_rtx)
-		{
-		  rtx prev_insn, prev_set;
-
-		  if (GET_CODE (base) == PLUS && CONST_INT_P (XEXP (base, 1)))
-		    {
-		      offset += INTVAL (XEXP (base, 1));
-		      base = XEXP (base, 0);
-		    }
-		  else if ((prev_insn = prev_nonnote_insn (base_insn)) != 0
-			   && (prev_set = single_set (prev_insn)) != 0
-			   && rtx_equal_p (SET_DEST (prev_set), base))
-		    {
-		      base = SET_SRC (prev_set);
-		      base_insn = prev_insn;
-		    }
-		  else
-		    break;
-		}
-
-	      if (base == ep->to_rtx)
-		{
-		  rtx src;
-
-		  offset -= (ep->offset - ep->previous_offset);
-		  src = plus_constant (Pmode, ep->to_rtx, offset);
-
-		  /* First see if this insn remains valid when we make
-		     the change.  If not, keep the INSN_CODE the same
-		     and let the constraint pass fit it up.  */
-		  validate_change (insn, &SET_SRC (old_set), src, 1);
-		  validate_change (insn, &SET_DEST (old_set),
-				   ep->from_rtx, 1);
-		  if (! apply_change_group ())
-		    {
-		      SET_SRC (old_set) = src;
-		      SET_DEST (old_set) = ep->from_rtx;
-		    }
-		  lra_update_insn_recog_data (insn);
-		  return;
-		}
-	    }
-
-
-	  /* We can't delete this insn, but needn't process it
-	     since it won't be used unless something changes.  */
-	  delete_p = false;
-	}
+	    if (ep->from == FRAME_POINTER_REGNUM
+		&& ep->to == HARD_FRAME_POINTER_REGNUM)
+	      /* If this is setting the frame pointer register to the
+		 hardware frame pointer register and this is an
+		 elimination that will be done (tested above), this
+		 insn is really adjusting the frame pointer downward
+		 to compensate for the adjustment done before a
+		 nonlocal goto.  */
+	      {
+		rtx src = SET_SRC (old_set);
+		rtx off = remove_reg_equal_offset_note (insn, ep->to_rtx);
+		
+		if (off != NULL_RTX
+		    || src == ep->to_rtx
+		    || (GET_CODE (src) == PLUS
+			&& XEXP (src, 0) == ep->to_rtx
+			&& CONST_INT_P (XEXP (src, 1))))
+		  {
+		    HOST_WIDE_INT offset;
+		    
+		    if (replace_p)
+		      {
+			SET_DEST (old_set) = ep->to_rtx;
+			lra_update_insn_recog_data (insn);
+			return;
+		      }
+		    offset = (off != NULL_RTX ? INTVAL (off)
+			      : src == ep->to_rtx ? 0 : INTVAL (XEXP (src, 1)));
+		    offset -= (ep->offset - ep->previous_offset);
+		    src = plus_constant (Pmode, ep->to_rtx, offset);
+		    
+		    /* First see if this insn remains valid when we
+		       make the change.  If not, keep the INSN_CODE
+		       the same and let the constraint pass fit it
+		       up.  */
+		    validate_change (insn, &SET_SRC (old_set), src, 1);
+		    validate_change (insn, &SET_DEST (old_set),
+				     ep->from_rtx, 1);
+		    if (! apply_change_group ())
+		      {
+			SET_SRC (old_set) = src;
+			SET_DEST (old_set) = ep->from_rtx;
+		      }
+		    lra_update_insn_recog_data (insn);
+		    /* Add offset note for future updates.  */
+		    add_reg_note (insn, REG_EQUAL, src);
+		    return;
+		  }
+	      }
 #endif
-
-      /* This insn isn't serving a useful purpose.  We delete it
-	 when REPLACE is set.  */
-      if (delete_p)
-	lra_delete_dead_insn (insn);
-      return;
+	    
+	    /* This insn isn't serving a useful purpose.  We delete it
+	       when REPLACE is set.  */
+	    if (delete_p)
+	      lra_delete_dead_insn (insn);
+	    return;
+	  }
     }
 
   /* We allow one special case which happens to work on all machines we
@@ -979,6 +992,9 @@ eliminate_regs_in_insn (rtx insn, bool replace_p)
 	}
     }
 
+  if (! validate_p)
+    return;
+
   /* Substitute the operands; the new values are in the substed_operand
      array.  */
   for (i = 0; i < static_id->n_operands; i++)
@@ -986,16 +1002,13 @@ eliminate_regs_in_insn (rtx insn, bool replace_p)
   for (i = 0; i < static_id->n_dups; i++)
     *id->dup_loc[i] = substed_operand[(int) static_id->dup_num[i]];
 
-  if (validate_p)
-    {
-      /* If we had a move insn but now we don't, re-recognize it.
-	 This will cause spurious re-recognition if the old move had a
-	 PARALLEL since the new one still will, but we can't call
-	 single_set without having put new body into the insn and the
-	 re-recognition won't hurt in this rare case.  */
-      id = lra_update_insn_recog_data (insn);
-      static_id = id->insn_static_data;
-    }
+  /* If we had a move insn but now we don't, re-recognize it.
+     This will cause spurious re-recognition if the old move had a
+     PARALLEL since the new one still will, but we can't call
+     single_set without having put new body into the insn and the
+     re-recognition won't hurt in this rare case.  */
+  id = lra_update_insn_recog_data (insn);
+  static_id = id->insn_static_data;
 }
 
 /* Spill pseudos which are assigned to hard registers in SET.  Add
@@ -1044,11 +1057,12 @@ spill_pseudos (HARD_REG_SET set)
    registers.  Spill pseudos assigned to registers which became
    uneliminable, update LRA_NO_ALLOC_REGS and ELIMINABLE_REG_SET.  Add
    insns to INSNS_WITH_CHANGED_OFFSETS containing eliminable hard
-   registers whose offsets should be changed.  */
-static void
+   registers whose offsets should be changed.  Return true if any
+   elimination offset changed.  */
+static bool
 update_reg_eliminate (bitmap insns_with_changed_offsets)
 {
-  bool prev;
+  bool prev, result;
   struct elim_table *ep, *ep1;
   HARD_REG_SET temp_hard_reg_set;
 
@@ -1124,10 +1138,20 @@ update_reg_eliminate (bitmap insns_with_changed_offsets)
   AND_COMPL_HARD_REG_SET (eliminable_regset, temp_hard_reg_set);
   spill_pseudos (temp_hard_reg_set);
   setup_elimination_map ();
+  result = false;
   for (ep = reg_eliminate; ep < &reg_eliminate[NUM_ELIMINABLE_REGS]; ep++)
     if (elimination_map[ep->from] == ep && ep->previous_offset != ep->offset)
-      bitmap_ior_into (insns_with_changed_offsets,
-		       &lra_reg_info[ep->from].insn_bitmap);
+      {
+	bitmap_ior_into (insns_with_changed_offsets,
+			 &lra_reg_info[ep->from].insn_bitmap);
+
+	/* Update offset when the eliminate offset have been
+	   changed.  */
+	lra_update_reg_val_offset (lra_reg_info[ep->from].val,
+				   ep->offset - ep->previous_offset);
+	result = true;
+      }
+  return result;
 }
 
 /* Initialize the table of hard registers to eliminate.
@@ -1136,9 +1160,9 @@ update_reg_eliminate (bitmap insns_with_changed_offsets)
 static void
 init_elim_table (void)
 {
-  bool value_p;
   struct elim_table *ep;
 #ifdef ELIMINABLE_REGS
+  bool value_p;
   const struct elim_table_1 *ep1;
 #endif
 
@@ -1268,12 +1292,8 @@ lra_eliminate (bool final_p)
 	  bitmap_ior_into (&insns_with_changed_offsets,
 			   &lra_reg_info[ep->from].insn_bitmap);
     }
-  else
-    {
-      update_reg_eliminate (&insns_with_changed_offsets);
-      if (bitmap_empty_p (&insns_with_changed_offsets))
-	goto lra_eliminate_done;
-    }
+  else if (! update_reg_eliminate (&insns_with_changed_offsets))
+    goto lra_eliminate_done;
   if (lra_dump_file != NULL)
     {
       fprintf (lra_dump_file, "New elimination table:\n");
@@ -1298,7 +1318,9 @@ lra_eliminate (bool final_p)
 		   "Updating elimination of equiv for reg %d\n", i);
       }
   EXECUTE_IF_SET_IN_BITMAP (&insns_with_changed_offsets, 0, uid, bi)
-    process_insn_for_elimination (lra_insn_recog_data[uid]->insn, final_p);
+    /* A dead insn can be deleted in process_insn_for_elimination.  */
+    if (lra_insn_recog_data[uid] != NULL)
+      process_insn_for_elimination (lra_insn_recog_data[uid]->insn, final_p);
   bitmap_clear (&insns_with_changed_offsets);
 
 lra_eliminate_done:

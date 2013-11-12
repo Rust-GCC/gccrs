@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2004-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- This specification is derived from the Ada Reference Manual for use with --
 -- GNAT. The copyright notice above, and the license provisions that follow --
@@ -30,8 +30,10 @@
 ------------------------------------------------------------------------------
 
 --  This spec is derived from package Ada.Containers.Bounded_Vectors in the Ada
---  2012 RM. The modifications are to facilitate formal proofs by making it
---  easier to express properties.
+--  2012 RM. The modifications are meant to facilitate formal proofs by making
+--  it easier to express properties, and by making the specification of this
+--  unit compatible with SPARK 2014. Note that the API of this unit may be
+--  subject to incompatible changes as SPARK 2014 evolves.
 
 --  The modifications are:
 
@@ -48,14 +50,8 @@
 --      function Left  (Container : Vector; Position : Cursor) return Vector;
 --      function Right (Container : Vector; Position : Cursor) return Vector;
 
---      Left returns a container containing all elements preceding Position
---      (excluded) in Container. Right returns a container containing all
---      elements following Position (included) in Container. These two new
---      functions are useful to express invariant properties in loops which
---      iterate over containers. Left returns the part of the container already
---      scanned and Right the part not scanned yet.
+--    See detailed specifications for these subprograms
 
-private with Ada.Streams;
 with Ada.Containers;
 use Ada.Containers;
 
@@ -72,21 +68,9 @@ package Ada.Containers.Formal_Vectors is
    range Index_Type'First - 1 ..
      Index_Type'Min (Index_Type'Base'Last - 1, Index_Type'Last) + 1;
 
-   --  ??? i don't think we can do this...
-   --  TODO: we need the ARG to either figure out how to declare this subtype,
-   --  or eliminate the requirement that it be present.
-   --  subtype Capacity_Subtype is Count_Type -- correct name???
-   --  range 0 .. Count_Type'Max (0,
-   --                             Index_Type'Pos (Index_Type'Last) -
-   --                             Index_Type'Pos (Index_Type'First) + 1);
-   --
-   --  so for now:
-   subtype Capacity_Subtype is Count_Type;
-
    No_Index : constant Extended_Index := Extended_Index'First;
 
-   type Vector (Capacity : Capacity_Subtype) is tagged private;
-   --  pragma Preelaborable_Initialization (Vector);
+   type Vector (Capacity : Count_Type) is private;
 
    type Cursor is private;
    pragma Preelaborable_Initialization (Cursor);
@@ -97,11 +81,9 @@ package Ada.Containers.Formal_Vectors is
 
    function "=" (Left, Right : Vector) return Boolean;
 
-   function To_Vector (Length : Capacity_Subtype) return Vector;
-
    function To_Vector
      (New_Item : Element_Type;
-      Length   : Capacity_Subtype) return Vector;
+      Length   : Count_Type) return Vector;
 
    function "&" (Left, Right : Vector) return Vector;
 
@@ -111,27 +93,34 @@ package Ada.Containers.Formal_Vectors is
 
    function "&" (Left, Right : Element_Type) return Vector;
 
-   function Capacity (Container : Vector) return Capacity_Subtype;
+   function Capacity (Container : Vector) return Count_Type;
 
    procedure Reserve_Capacity
      (Container : in out Vector;
-      Capacity  : Capacity_Subtype);
+      Capacity  : Count_Type)
+   with
+     Pre => Capacity <= Container.Capacity;
 
-   function Length (Container : Vector) return Capacity_Subtype;
+   function Length (Container : Vector) return Count_Type;
 
    procedure Set_Length
      (Container : in out Vector;
-      Length    : Capacity_Subtype);
+      New_Length    : Count_Type)
+   with
+     Pre => New_Length <= Length (Container);
 
    function Is_Empty (Container : Vector) return Boolean;
 
    procedure Clear (Container : in out Vector);
 
-   procedure Assign (Target : in out Vector; Source : Vector);
+   procedure Assign (Target : in out Vector; Source : Vector) with
+     Pre => Length (Source) <= Target.Capacity;
 
    function Copy
      (Source   : Vector;
-      Capacity : Capacity_Subtype := 0) return Vector;
+      Capacity : Count_Type := 0) return Vector
+   with
+     Pre => Length (Source) <= Capacity;
 
    function To_Cursor
      (Container : Vector;
@@ -141,128 +130,134 @@ package Ada.Containers.Formal_Vectors is
 
    function Element
      (Container : Vector;
-      Index     : Index_Type) return Element_Type;
+      Index     : Index_Type) return Element_Type
+   with
+     Pre => First_Index (Container) <= Index
+              and then Index <= Last_Index (Container);
 
    function Element
      (Container : Vector;
-      Position  : Cursor) return Element_Type;
+      Position  : Cursor) return Element_Type
+   with
+     Pre => Has_Element (Container, Position);
 
    procedure Replace_Element
      (Container : in out Vector;
       Index     : Index_Type;
-      New_Item  : Element_Type);
+      New_Item  : Element_Type)
+   with
+     Pre => First_Index (Container) <= Index
+              and then Index <= Last_Index (Container);
 
    procedure Replace_Element
      (Container : in out Vector;
       Position  : Cursor;
-      New_Item  : Element_Type);
+      New_Item  : Element_Type)
+   with
+     Pre => Has_Element (Container, Position);
 
-   procedure Query_Element
-     (Container : Vector;
-      Index     : Index_Type;
-      Process   : not null access procedure (Element : Element_Type));
-
-   procedure Query_Element
-     (Container : Vector;
-      Position  : Cursor;
-      Process   : not null access procedure (Element : Element_Type));
-
-   procedure Update_Element
-     (Container : in out Vector;
-      Index     : Index_Type;
-      Process   : not null access procedure (Element : in out Element_Type));
-
-   procedure Update_Element
-     (Container : in out Vector;
-      Position  : Cursor;
-      Process   : not null access procedure (Element : in out Element_Type));
-
-   procedure Move (Target : in out Vector; Source : in out Vector);
+   procedure Move (Target : in out Vector; Source : in out Vector) with
+     Pre => Length (Source) <= Target.Capacity;
 
    procedure Insert
      (Container : in out Vector;
       Before    : Extended_Index;
-      New_Item  : Vector);
+      New_Item  : Vector)
+   with
+     Pre => First_Index (Container) <= Before
+              and then Before <= Last_Index (Container) + 1
+              and then Length (Container) < Container.Capacity;
 
    procedure Insert
      (Container : in out Vector;
       Before    : Cursor;
-      New_Item  : Vector);
+      New_Item  : Vector)
+   with
+     Pre => Length (Container) < Container.Capacity
+              and then (Has_Element (Container, Before)
+                         or else Before = No_Element);
 
    procedure Insert
      (Container : in out Vector;
       Before    : Cursor;
       New_Item  : Vector;
-      Position  : out Cursor);
+      Position  : out Cursor)
+   with
+     Pre => Length (Container) < Container.Capacity
+              and then (Has_Element (Container, Before)
+                         or else Before = No_Element);
 
    procedure Insert
      (Container : in out Vector;
       Before    : Extended_Index;
       New_Item  : Element_Type;
-      Count     : Count_Type := 1);
+      Count     : Count_Type := 1)
+   with
+     Pre => First_Index (Container) <= Before
+              and then Before <= Last_Index (Container) + 1
+              and then Length (Container) + Count <= Container.Capacity;
 
    procedure Insert
      (Container : in out Vector;
       Before    : Cursor;
       New_Item  : Element_Type;
-      Count     : Count_Type := 1);
+      Count     : Count_Type := 1)
+   with
+     Pre => Length (Container) + Count <= Container.Capacity
+              and then (Has_Element (Container, Before)
+                         or else Before = No_Element);
 
    procedure Insert
      (Container : in out Vector;
       Before    : Cursor;
       New_Item  : Element_Type;
       Position  : out Cursor;
-      Count     : Count_Type := 1);
-
-   procedure Insert
-     (Container : in out Vector;
-      Before    : Extended_Index;
-      Count     : Count_Type := 1);
-
-   procedure Insert
-     (Container : in out Vector;
-      Before    : Cursor;
-      Position  : out Cursor;
-      Count     : Count_Type := 1);
+      Count     : Count_Type := 1)
+   with
+     Pre => Length (Container) + Count <= Container.Capacity
+              and then (Has_Element (Container, Before)
+                         or else Before = No_Element);
 
    procedure Prepend
      (Container : in out Vector;
-      New_Item  : Vector);
+      New_Item  : Vector)
+   with
+     Pre => Length (Container) < Container.Capacity;
 
    procedure Prepend
      (Container : in out Vector;
       New_Item  : Element_Type;
-      Count     : Count_Type := 1);
+      Count     : Count_Type := 1)
+   with
+     Pre => Length (Container) + Count <= Container.Capacity;
 
    procedure Append
      (Container : in out Vector;
-      New_Item  : Vector);
+      New_Item  : Vector)
+   with
+     Pre => Length (Container) < Container.Capacity;
 
    procedure Append
      (Container : in out Vector;
       New_Item  : Element_Type;
-      Count     : Count_Type := 1);
-
-   procedure Insert_Space
-     (Container : in out Vector;
-      Before    : Extended_Index;
-      Count     : Count_Type := 1);
-
-   procedure Insert_Space
-     (Container : in out Vector;
-      Before    : Cursor;
-      Position  : out Cursor;
-      Count     : Count_Type := 1);
+      Count     : Count_Type := 1)
+   with
+     Pre => Length (Container) + Count <= Container.Capacity;
 
    procedure Delete
      (Container : in out Vector;
       Index     : Extended_Index;
-      Count     : Count_Type := 1);
+      Count     : Count_Type := 1)
+   with
+     Pre => First_Index (Container) <= Index
+              and then Index <= Last_Index (Container) + 1;
 
    procedure Delete
      (Container : in out Vector;
       Position  : in out Cursor;
-      Count     : Count_Type := 1);
+      Count     : Count_Type := 1)
+   with
+     Pre => Has_Element (Container, Position);
 
    procedure Delete_First
      (Container : in out Vector;
@@ -274,29 +269,39 @@ package Ada.Containers.Formal_Vectors is
 
    procedure Reverse_Elements (Container : in out Vector);
 
-   procedure Swap (Container : in out Vector; I, J : Index_Type);
+   procedure Swap (Container : in out Vector; I, J : Index_Type) with
+     Pre => First_Index (Container) <= I and then I <= Last_Index (Container)
+              and then First_Index (Container) <= J
+              and then J <= Last_Index (Container);
 
-   procedure Swap (Container : in out Vector; I, J : Cursor);
+   procedure Swap (Container : in out Vector; I, J : Cursor) with
+     Pre => Has_Element (Container, I) and then Has_Element (Container, J);
 
    function First_Index (Container : Vector) return Index_Type;
 
    function First (Container : Vector) return Cursor;
 
-   function First_Element (Container : Vector) return Element_Type;
+   function First_Element (Container : Vector) return Element_Type with
+     Pre => not Is_Empty (Container);
 
    function Last_Index (Container : Vector) return Extended_Index;
 
    function Last (Container : Vector) return Cursor;
 
-   function Last_Element (Container : Vector) return Element_Type;
+   function Last_Element (Container : Vector) return Element_Type with
+     Pre => not Is_Empty (Container);
 
-   function Next (Container : Vector; Position : Cursor) return Cursor;
+   function Next (Container : Vector; Position : Cursor) return Cursor with
+     Pre => Has_Element (Container, Position) or else Position = No_Element;
 
-   procedure Next (Container : Vector; Position : in out Cursor);
+   procedure Next (Container : Vector; Position : in out Cursor) with
+     Pre => Has_Element (Container, Position) or else Position = No_Element;
 
-   function Previous (Container : Vector; Position : Cursor) return Cursor;
+   function Previous (Container : Vector; Position : Cursor) return Cursor with
+     Pre => Has_Element (Container, Position) or else Position = No_Element;
 
-   procedure Previous (Container : Vector; Position : in out Cursor);
+   procedure Previous (Container : Vector; Position : in out Cursor) with
+     Pre => Has_Element (Container, Position) or else Position = No_Element;
 
    function Find_Index
      (Container : Vector;
@@ -306,7 +311,9 @@ package Ada.Containers.Formal_Vectors is
    function Find
      (Container : Vector;
       Item      : Element_Type;
-      Position  : Cursor := No_Element) return Cursor;
+      Position  : Cursor := No_Element) return Cursor
+   with
+     Pre => Has_Element (Container, Position) or else Position = No_Element;
 
    function Reverse_Find_Index
      (Container : Vector;
@@ -316,23 +323,15 @@ package Ada.Containers.Formal_Vectors is
    function Reverse_Find
      (Container : Vector;
       Item      : Element_Type;
-      Position  : Cursor := No_Element) return Cursor;
+      Position  : Cursor := No_Element) return Cursor
+   with
+     Pre => Has_Element (Container, Position) or else Position = No_Element;
 
    function Contains
      (Container : Vector;
       Item      : Element_Type) return Boolean;
 
    function Has_Element (Container : Vector; Position : Cursor) return Boolean;
-
-   procedure Iterate
-     (Container : Vector;
-      Process   : not null access
-                    procedure (Container : Vector; Position : Cursor));
-
-   procedure Reverse_Iterate
-     (Container : Vector;
-      Process   : not null access
-                    procedure (Container : Vector; Position : Cursor));
 
    generic
       with function "<" (Left, Right : Element_Type) return Boolean is <>;
@@ -346,9 +345,16 @@ package Ada.Containers.Formal_Vectors is
 
    end Generic_Sorting;
 
-   function Left (Container : Vector; Position : Cursor) return Vector;
-
-   function Right (Container : Vector; Position : Cursor) return Vector;
+   function Left (Container : Vector; Position : Cursor) return Vector with
+     Pre => Has_Element (Container, Position) or else Position = No_Element;
+   function Right (Container : Vector; Position : Cursor) return Vector with
+     Pre => Has_Element (Container, Position) or else Position = No_Element;
+   --  Left returns a container containing all elements preceding Position
+   --  (excluded) in Container. Right returns a container containing all
+   --  elements following Position (included) in Container. These two new
+   --  functions can be used to express invariant properties in loops which
+   --  iterate over containers. Left returns the part of the container already
+   --  scanned and Right the part not scanned yet.
 
 private
 
@@ -357,8 +363,6 @@ private
    pragma Inline (Element);
    pragma Inline (First_Element);
    pragma Inline (Last_Element);
-   pragma Inline (Query_Element);
-   pragma Inline (Update_Element);
    pragma Inline (Replace_Element);
    pragma Inline (Contains);
    pragma Inline (Next);
@@ -367,43 +371,15 @@ private
    type Elements_Array is array (Count_Type range <>) of Element_Type;
    function "=" (L, R : Elements_Array) return Boolean is abstract;
 
-   type Vector (Capacity : Capacity_Subtype) is tagged record
+   type Vector (Capacity : Count_Type) is record
       Elements : Elements_Array (1 .. Capacity);
       Last     : Extended_Index := No_Index;
-      Busy     : Natural := 0;
-      Lock     : Natural := 0;
    end record;
-
-   use Ada.Streams;
-
-   procedure Write
-     (Stream    : not null access Root_Stream_Type'Class;
-      Container : Vector);
-
-   for Vector'Write use Write;
-
-   procedure Read
-     (Stream    : not null access Root_Stream_Type'Class;
-      Container : out Vector);
-
-   for Vector'Read use Read;
 
    type Cursor is record
       Valid : Boolean    := True;
       Index : Index_Type := Index_Type'First;
    end record;
-
-   procedure Write
-     (Stream   : not null access Root_Stream_Type'Class;
-      Position : Cursor);
-
-   for Cursor'Write use Write;
-
-   procedure Read
-     (Stream   : not null access Root_Stream_Type'Class;
-      Position : out Cursor);
-
-   for Cursor'Read use Read;
 
    Empty_Vector : constant Vector := (Capacity => 0, others => <>);
 

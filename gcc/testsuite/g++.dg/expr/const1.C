@@ -1,6 +1,6 @@
 // PR c++/57551
 
-extern unsigned long ADDR;   
+extern unsigned long ADDR;
 
 unsigned long f(){
   const unsigned long* const var=&ADDR;

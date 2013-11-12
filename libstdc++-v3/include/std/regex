@@ -44,6 +44,8 @@
 #include <iterator>
 #include <locale>
 #include <memory>
+#include <map>
+#include <queue>
 #include <set>
 #include <sstream>
 #include <stack>
@@ -52,13 +54,12 @@
 #include <utility>
 #include <vector>
 
-#include <bits/range_access.h>
 #include <bits/regex_constants.h>
 #include <bits/regex_error.h>
-#include <bits/regex_cursor.h>
-#include <bits/regex_nfa.h>
+#include <bits/regex_scanner.h>
+#include <bits/regex_automaton.h>
 #include <bits/regex_compiler.h>
-#include <bits/regex_grep_matcher.h>
+#include <bits/regex_executor.h>
 #include <bits/regex.h>
 
 #endif // C++11

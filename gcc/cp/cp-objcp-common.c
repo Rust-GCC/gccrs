@@ -32,6 +32,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "cxx-pretty-print.h"
 #include "cp-objcp-common.h"
 
+#include <new>                       // For placement new.
+
 /* Special routine to get the alias set for C++.  */
 
 alias_set_type
@@ -62,7 +64,7 @@ cxx_warn_unused_global_decl (const_tree decl)
     return false;
 
   /* Const variables take the place of #defines in C++.  */
-  if (TREE_CODE (decl) == VAR_DECL && TREE_READONLY (decl))
+  if (VAR_P (decl) && TREE_READONLY (decl))
     return false;
 
   return true;
@@ -131,19 +133,15 @@ cp_var_mod_type_p (tree type, tree fn)
 void
 cxx_initialize_diagnostics (diagnostic_context *context)
 {
-  pretty_printer *base;
-  cxx_pretty_printer *pp;
-
   c_common_initialize_diagnostics (context);
 
-  base = context->printer;
-  pp = XNEW (cxx_pretty_printer);
-  memcpy (pp_base (pp), base, sizeof (pretty_printer));
-  pp_cxx_pretty_printer_init (pp);
-  context->printer = (pretty_printer *) pp;
+  pretty_printer *base = context->printer;
+  cxx_pretty_printer *pp = XNEW (cxx_pretty_printer);
+  context->printer = new (pp) cxx_pretty_printer ();
 
-  /* It is safe to free this object because it was previously malloc()'d.  */
-  free (base);
+  /* It is safe to free this object because it was previously XNEW()'d.  */
+  base->~pretty_printer ();
+  XDELETE (base);
 }
 
 /* This compares two types for equivalence ("compatible" in C-based languages).
@@ -226,7 +224,7 @@ init_shadowed_var_for_decl (void)
 					   tree_decl_map_eq, 0);
 }
 
-/* Return true if stmt can fall thru.  Used by block_may_fallthru
+/* Return true if stmt can fall through.  Used by block_may_fallthru
    default case.  */
 
 bool
@@ -321,6 +319,7 @@ cp_common_init_ts (void)
   MARK_TS_TYPED (USING_STMT);
   MARK_TS_TYPED (LAMBDA_EXPR);
   MARK_TS_TYPED (CTOR_INITIALIZER);
+  MARK_TS_TYPED (ARRAY_NOTATION_REF);
 }
 
 #include "gt-cp-cp-objcp-common.h"

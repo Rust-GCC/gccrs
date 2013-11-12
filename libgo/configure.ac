@@ -11,7 +11,7 @@ AC_INIT(package-unused, version-unused,, libgo)
 AC_CONFIG_SRCDIR(Makefile.am)
 AC_CONFIG_HEADER(config.h)
 
-libtool_VERSION=4:0:0
+libtool_VERSION=5:0:0
 AC_SUBST(libtool_VERSION)
 
 AM_ENABLE_MULTILIB(, ..)
@@ -133,6 +133,7 @@ is_irix=no
 is_linux=no
 is_netbsd=no
 is_openbsd=no
+is_dragonfly=no
 is_rtems=no
 is_solaris=no
 GOOS=unknown
@@ -143,6 +144,7 @@ case ${host} in
   *-*-linux*)    is_linux=yes;   GOOS=linux ;;
   *-*-netbsd*)	 is_netbsd=yes;  GOOS=netbsd ;;
   *-*-openbsd*)  is_openbsd=yes; GOOS=openbsd ;;
+  *-*-dragonfly*) is_dragonfly=yes; GOOS=dragonfly ;;
   *-*-rtems*)    is_rtems=yes;   GOOS=rtems ;;
   *-*-solaris2*) is_solaris=yes; GOOS=solaris ;;
 esac
@@ -152,6 +154,7 @@ AM_CONDITIONAL(LIBGO_IS_IRIX, test $is_irix = yes)
 AM_CONDITIONAL(LIBGO_IS_LINUX, test $is_linux = yes)
 AM_CONDITIONAL(LIBGO_IS_NETBSD, test $is_netbsd = yes)
 AM_CONDITIONAL(LIBGO_IS_OPENBSD, test $is_openbsd = yes)
+AM_CONDITIONAL(LIBGO_IS_DRAGONFLY, test $is_dragonly = yes)
 AM_CONDITIONAL(LIBGO_IS_RTEMS, test $is_rtems = yes)
 AM_CONDITIONAL(LIBGO_IS_SOLARIS, test $is_solaris = yes)
 AC_SUBST(GOOS)
@@ -471,7 +474,7 @@ no)
   ;;
 esac
 
-AC_CHECK_HEADERS(sys/file.h sys/mman.h syscall.h sys/epoll.h sys/inotify.h sys/ptrace.h sys/syscall.h sys/user.h sys/utsname.h sys/select.h sys/socket.h net/if.h net/if_arp.h net/route.h netpacket/packet.h sys/prctl.h sys/mount.h sys/vfs.h sys/statfs.h sys/timex.h sys/sysinfo.h utime.h linux/ether.h linux/fs.h linux/reboot.h netinet/in_syst.h netinet/ip.h netinet/ip_mroute.h netinet/if_ether.h)
+AC_CHECK_HEADERS(sys/file.h sys/mman.h syscall.h sys/epoll.h sys/inotify.h sys/ptrace.h sys/syscall.h sys/user.h sys/utsname.h sys/select.h sys/socket.h net/if.h net/if_arp.h net/route.h netpacket/packet.h sys/prctl.h sys/mount.h sys/vfs.h sys/statfs.h sys/timex.h sys/sysinfo.h utime.h linux/ether.h linux/fs.h linux/reboot.h netinet/icmp6.h netinet/in_syst.h netinet/ip.h netinet/ip_mroute.h netinet/if_ether.h)
 
 AC_CHECK_HEADERS([linux/filter.h linux/if_addr.h linux/if_ether.h linux/if_tun.h linux/netlink.h linux/rtnetlink.h], [], [],
 [#ifdef HAVE_SYS_SOCKET_H
@@ -503,7 +506,7 @@ AC_CHECK_FUNCS(strerror_r strsignal wait4 mincore setenv dl_iterate_phdr)
 AM_CONDITIONAL(HAVE_STRERROR_R, test "$ac_cv_func_strerror_r" = yes)
 AM_CONDITIONAL(HAVE_WAIT4, test "$ac_cv_func_wait4" = yes)
 
-AC_CHECK_FUNCS(accept4 epoll_create1 faccessat fallocate fchmodat fchownat futimesat inotify_add_watch inotify_init inotify_init1 inotify_rm_watch mkdirat mknodat openat pipe2 renameat sync_file_range splice tee unlinkat unshare utimensat)
+AC_CHECK_FUNCS(accept4 dup3 epoll_create1 faccessat fallocate fchmodat fchownat futimesat getxattr inotify_add_watch inotify_init inotify_init1 inotify_rm_watch listxattr mkdirat mknodat openat pipe2 removexattr renameat setxattr sync_file_range splice tee unlinkat unshare utimensat)
 AC_TYPE_OFF_T
 AC_CHECK_TYPES([loff_t])
 
@@ -755,6 +758,68 @@ LIBS="$LIBS_hold"
 if test "$libgo_cv_lib_setcontext_clobbers_tls" = "yes"; then
   AC_DEFINE(SETCONTEXT_CLOBBERS_TLS, 1,
 	    [Define if setcontext clobbers TLS variables])
+fi
+
+AC_CACHE_CHECK([whether .eh_frame section should be read-only],
+libgo_cv_ro_eh_frame, [
+libgo_cv_ro_eh_frame=no
+echo 'extern void foo (void); void bar (void) { foo (); foo (); }' > conftest.c
+if $CC $CFLAGS -S -fpic -fexceptions -o conftest.s conftest.c > /dev/null 2>&1; then
+  if grep '.section.*eh_frame.*"a"' conftest.s > /dev/null; then
+    libgo_cv_ro_eh_frame=yes
+  elif grep '.section.*eh_frame.*#alloc' conftest.c \
+       | grep -v '#write' > /dev/null; then
+    libgo_cv_ro_eh_frame=yes
+  fi
+fi
+rm -f conftest.*
+])
+if test "x$libgo_cv_ro_eh_frame" = xyes; then
+  AC_DEFINE(EH_FRAME_FLAGS, "a",
+	    [Define to the flags needed for the .section .eh_frame directive.])
+else
+  AC_DEFINE(EH_FRAME_FLAGS, "aw",
+	    [Define to the flags needed for the .section .eh_frame directive.])
+fi
+
+AC_CACHE_CHECK([if assembler supports GNU comdat group syntax],
+libgo_cv_as_comdat_gnu, [
+echo '.section .text,"axG",@progbits,.foo,comdat' > conftest.s
+if $CC $CFLAGS -c conftest.s > /dev/null 2>&1; then
+  libgo_cv_as_comdat_gnu=yes
+else
+  libgo_cv_as_comdat_gnu=no
+fi
+])
+if test "x$libgo_cv_as_comdat_gnu" = xyes; then
+  AC_DEFINE(HAVE_AS_COMDAT_GAS, 1,
+	    [Define if your assembler supports GNU comdat group syntax.])
+fi
+
+AC_CACHE_CHECK([assembler supports pc related relocs],
+libgo_cv_as_x86_pcrel, [
+libgo_cv_as_x86_pcrel=yes
+echo '.text; foo: nop; .data; .long foo-.; .text' > conftest.s
+if $CC $CFLAGS -c conftest.s 2>&1 | $EGREP -i 'illegal|warning' > /dev/null; then
+    libgo_cv_as_x86_pcrel=no
+fi
+])
+if test "x$libgo_cv_as_x86_pcrel" = xyes; then
+  AC_DEFINE(HAVE_AS_X86_PCREL, 1,
+	    [Define if your assembler supports PC relative relocs.])
+fi
+
+AC_CACHE_CHECK([assembler supports unwind section type],
+libgo_cv_as_x86_64_unwind_section_type, [
+libgo_cv_as_x86_64_unwind_section_type=yes
+echo '.section .eh_frame,"a",@unwind' > conftest.s
+if $CC $CFLAGS -c conftest.s 2>&1 | grep -i warning > /dev/null; then
+    libgo_cv_as_x86_64_unwind_section_type=no
+fi
+])
+if test "x$libgo_cv_as_x86_64_unwind_section_type" = xyes; then
+  AC_DEFINE(HAVE_AS_X86_64_UNWIND_SECTION_TYPE, 1,
+	    [Define if your assembler supports unwind section type.])
 fi
 
 AC_CACHE_SAVE

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1996-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1996-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1802,6 +1802,13 @@ package VMS_Data is
    --   otherwise ignored. Allows style checks to be fully controlled by
    --   command line qualifiers.
 
+   S_GCC_IgnoreU : aliased constant S := "/IGNORE_UNRECOGNIZED "           &
+                                             "-gnateu";
+   --        /IGNORE_UNRECOGNIZED
+   --
+   --   Causes unrecognized style switches, validity switches, and warning
+   --   switches to be ignored rather than generating an error message.
+
    S_GCC_Immed   : aliased constant S := "/IMMEDIATE_ERRORS "              &
                                              "-gnatdO";
    --        /NOIMMEDIATE_ERRORS (D)
@@ -2299,7 +2306,11 @@ package VMS_Data is
                                             "SYMBOLIC "                    &
                                                "-gnatR3 "                  &
                                             "SYMBOLIC_FILE "               &
-                                               "-gnatR3s";
+                                               "-gnatR3s "                 &
+                                            "MECHANISMS "                  &
+                                               "-gnatRm "                  &
+                                            "MECHANISMS_FILE "             &
+                                               "-gnatRms";
    --        /NOREPRESENTATION_INFO (D)
    --        /REPRESENTATION_INFO[=(keyword[,...])]
    --
@@ -2328,6 +2339,13 @@ package VMS_Data is
    --
    --        SYMBOLIC_FILE   Similar to SYMBOLIC, but the output is to a file
    --                        with the name 'file_rep' where 'file' is the name
+   --                        of the corresponding source file.
+   --
+   --        MECHANISMS      List convention and argument passing mechanisms
+   --                        for all subprograms
+   --
+   --        MECHANISMS_FILE Similar to MECHANISMS, but the output is to a file
+   --                        with the name 'file_rep' where file is the name
    --                        of the corresponding source file.
    --
    --        DEFAULT         Equivalent to ARRAYS.
@@ -2491,7 +2509,7 @@ package VMS_Data is
                                             "XTRA_PARENS "                 &
                                                "-gnaty-x "                 &
                                             "NOXTRA_PARENS "               &
-                                               "-gnaty-x ";
+                                               "-gnaty-x";
    --        /NOSTYLE_CHECKS (D)
    --        /STYLE_CHECKS[=(keyword,[...])]
    --
@@ -2874,12 +2892,17 @@ package VMS_Data is
    --
    --   All compiler tables start at nnn times usual starting size.
 
-   S_GCC_Target  : aliased constant S := "/TARGET_DEPENDENT_INFO "         &
-                                             "-gnatet";
-   --        /NOTARGET_DEPENDENT_INFO (D)
-   --        /TARGET_DEPENDENT_INFO
+   S_GCC_Target_W  : aliased constant S := "/WRITE_TARGET_DEPENDENT_INFO=<" &
+                                             "-gnatet=>";
+   --        /WRITE_TARGET_DEPENDENT_INFO=file
    --
-   --   Generate target dependent information.
+   --   Generate target dependent information to file.
+
+   S_GCC_Target_R  : aliased constant S := "/READ_TARGET_DEPENDENT_INFO=<"  &
+                                             "-gnateT=>";
+   --        /READ_TARGET_DEPENDENT_INFO=file
+   --
+   --   Read target dependent information from file.
 
    S_GCC_Trace   : aliased constant S := "/TRACE_UNITS "                   &
                                             "-gnatdc";
@@ -3083,6 +3106,10 @@ package VMS_Data is
                                                "-gnatwd "                  &
                                             "NO_IMPLICIT_DEREFERENCE "     &
                                                "-gnatwD "                  &
+                                            "TAG_WARNINGS "                &
+                                               "-gnatw.d "                 &
+                                            "NOTAG_WARNINGS "              &
+                                               "-gnatw.D "                 &
                                             "ERRORS "                      &
                                                "-gnatwe "                  &
                                             "UNREFERENCED_FORMALS "        &
@@ -3207,6 +3234,10 @@ package VMS_Data is
                                                "-gnatwy "                  &
                                             "NOADA_2005_COMPATIBILITY "    &
                                                "-gnatwY "                  &
+                                            "WHY_SPEC_NEEDS_BODY "         &
+                                               "-gnatw.y "                 &
+                                            "NO_WHY_SPEC_NEEDS_BODY "      &
+                                               "-gnatw.Y "                 &
                                             "UNCHECKED_CONVERSIONS "       &
                                                "-gnatwz "                  &
                                             "NOUNCHECKED_CONVERSIONS "     &
@@ -3472,12 +3503,24 @@ package VMS_Data is
    --   VARIABLES_UNINITIALIZED Activates warnings on unassigned variables.
    --                           Causes warnings to be generated when a variable
    --                           is accessed which may not be properly
-   --                           uninitialized.
-   --                           The default is that such warnings are
-   --                           generated.
+   --                           uninitialized. The default is that such
+   --                           warnings are generated.
    --
-   --   NOVARIABLES_UNINITIALIZED       Suppress warnings for uninitialized
-   --                                   variables.
+   --   NOVARIABLES_UNINITIALIZED
+   --                           Suppress warnings for uninitialized variables.
+   --
+   --   TAG_WARNINGS            Causes the string [xxx] to be added to warnings
+   --                           that are controlled by the warning string xxx,
+   --                           e.g. [REDUNDANT], or if the warning is enabled
+   --                           by default, the tag is [enabled by default].
+   --
+   --   NOTAG_WARNINGS          Turns off warning tag output (default setting).
+   --
+   --   WHY_SPEC_NEEDS_BODY     Generates information messages showing why a
+   --                           package specification requires a body.
+   --
+   --   NO_WHY_SPEC_NEEDS_BODY  Turns off information messages showing why a
+   --                           package specification requires a body.
 
    S_GCC_WarnX   : aliased constant S := "/NOWARNINGS "                    &
                                             "-gnatws";
@@ -3670,6 +3713,7 @@ package VMS_Data is
                      S_GCC_IdentX  'Access,
                      S_GCC_IgnoreR 'Access,
                      S_GCC_IgnoreS 'Access,
+                     S_GCC_IgnoreU 'Access,
                      S_GCC_Immed   'Access,
                      S_GCC_Inline  'Access,
                      S_GCC_InlineX 'Access,
@@ -3712,7 +3756,8 @@ package VMS_Data is
                      S_GCC_Symbol  'Access,
                      S_GCC_Syntax  'Access,
                      S_GCC_Table   'Access,
-                     S_GCC_Target  'Access,
+                     S_GCC_Target_W'Access,
+                     S_GCC_Target_R'Access,
                      S_GCC_Trace   'Access,
                      S_GCC_Tree    'Access,
                      S_GCC_Trys    'Access,
@@ -4287,6 +4332,18 @@ package VMS_Data is
    --   ification field in the image header. It overrides any pragma Ident
    --   specified string.
 
+   S_Link_NoInhib : aliased constant S := "/NOINHIBIT-EXEC "               &
+                                            "--for-linker=--noinhibit-exec";
+   --        /NOINHIBIT-EXEC (D)
+   --
+   --   Preserve executable if there are warnings. This is the default.
+
+   S_Link_Inhib : aliased constant S := "/INHIBIT-EXEC "                   &
+                                            "--for-linker=--inhibit-exec";
+   --        /INHIBIT-EXEC
+   --
+   --   Remove executable if there are warnings.
+
    S_Link_Libdir  : aliased constant S := "/LIBDIR=*"                      &
                                             "-L*";
    --        /LIBDIR=(directory, ...)
@@ -4325,12 +4382,6 @@ package VMS_Data is
    --   Do not compile the file generated by the binder.
    --   This may be used when a link is rerun with different options,
    --   but there is no need to recompile the binder generated file.
-
-   S_Link_Noinhib : aliased constant S := "/NOINHIBIT-EXEC "               &
-                                            "--for-linker=--noinhibit-exec";
-   --        /NOINHIBIT-EXEC
-   --
-   --   Delete executable if there are errors or warnings.
 
    S_Link_Nofiles : aliased constant S := "/NOSTART_FILES "                &
                                             "-nostartfiles";
@@ -4407,12 +4458,13 @@ package VMS_Data is
                       S_Link_Forlink 'Access,
                       S_Link_Force   'Access,
                       S_Link_Ident   'Access,
+                      S_Link_NoInhib 'Access,
+                      S_Link_Inhib   'Access,
                       S_Link_Libdir  'Access,
                       S_Link_Library 'Access,
                       S_Link_Mess    'Access,
                       S_Link_Nocomp  'Access,
                       S_Link_Nofiles 'Access,
-                      S_Link_Noinhib 'Access,
                       S_Link_Project 'Access,
                       S_Link_Return  'Access,
                       S_Link_Static  'Access,
@@ -6636,17 +6688,23 @@ package VMS_Data is
    --   ification field in the image header. It overrides any pragma Ident
    --   specified string.
 
+   S_Shared_NoInhib : aliased constant S := "/NOINHIBIT-IMAGE "            &
+                                            "--for-linker=--noinhibit-exec";
+   --        /NOINHIBIT-EXEC (D)
+   --
+   --   Preserve image if there are warnings. This is the default.
+
+   S_Shared_Inhib : aliased constant S := "/INHIBIT-IMAGE "                &
+                                            "--for-linker=--inhibit-exec";
+   --        /INHIBIT-EXEC
+   --
+   --   Remove image if there are warnings.
+
    S_Shared_Nofiles : aliased constant S := "/NOSTART_FILES "              &
                                             "-nostartfiles";
    --        /NOSTART_FILES
    --
    --   Link in default image initialization and startup functions.
-
-   S_Shared_Noinhib : aliased constant S := "/NOINHIBIT-IMAGE "            &
-                                            "--for-linker=--noinhibit-exec";
-   --        /NOINHIBIT-IMAGE
-   --
-   --   Delete image if there are errors or warnings.
 
    S_Shared_Verb    : aliased constant S := "/VERBOSE "                    &
                                             "-v";
@@ -6667,8 +6725,9 @@ package VMS_Data is
                        (S_Shared_Debug   'Access,
                         S_Shared_Image   'Access,
                         S_Shared_Ident   'Access,
+                        S_Shared_NoInhib 'Access,
+                        S_Shared_Inhib   'Access,
                         S_Shared_Nofiles 'Access,
-                        S_Shared_Noinhib 'Access,
                         S_Shared_Verb    'Access,
                         S_Shared_ZZZZZ   'Access);
 

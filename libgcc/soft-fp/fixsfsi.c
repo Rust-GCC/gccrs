@@ -1,6 +1,6 @@
 /* Software floating-point emulation.
    Convert a to 32bit signed integer
-   Copyright (C) 1997,1999,2006 Free Software Foundation, Inc.
+   Copyright (C) 1997-2013 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
    Contributed by Richard Henderson (rth@cygnus.com) and
 		  Jakub Jelinek (jj@ultra.linux.cz).
@@ -31,14 +31,16 @@
 #include "soft-fp.h"
 #include "single.h"
 
-SItype __fixsfsi(SFtype a)
+SItype
+__fixsfsi (SFtype a)
 {
   FP_DECL_EX;
-  FP_DECL_S(A);
+  FP_DECL_S (A);
   USItype r;
 
-  FP_UNPACK_RAW_S(A, a);
-  FP_TO_INT_S(r, A, SI_BITS, 1);
+  FP_INIT_EXCEPTIONS;
+  FP_UNPACK_RAW_S (A, a);
+  FP_TO_INT_S (r, A, SI_BITS, 1);
   FP_HANDLE_EXCEPTIONS;
 
   return r;

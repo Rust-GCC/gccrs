@@ -18,9 +18,9 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 /* This file defines all the codes that may appear on individual
-   EXPR_LIST rtxes in the REG_NOTES chain of an insn.  The codes are
-   stored in the mode field of the EXPR_LIST.  Source files define
-   DEF_REG_NOTE appropriately before including this file.  */
+   EXPR_LIST, INSN_LIST and INT_LIST rtxes in the REG_NOTES chain of an insn.
+   The codes are stored in the mode field of the rtx.  Source files
+   define DEF_REG_NOTE appropriately before including this file.  */
 
 /* Shorthand.  */
 #define REG_NOTE(NAME) DEF_REG_NOTE (REG_##NAME)
@@ -94,9 +94,9 @@ REG_NOTE (DEP_ANTI)
 REG_NOTE (DEP_CONTROL)
 
 /* REG_BR_PROB is attached to JUMP_INSNs and CALL_INSNs.  It has an
-   integer value.  For jumps, it is the probability that this is a
-   taken branch.  For calls, it is the probability that this call
-   won't return.  */
+   integer value (in an INT_LIST).  For jumps, it is the probability
+   that this is a taken branch.  For calls, it is the probability that
+   this call won't return.  */
 REG_NOTE (BR_PROB)
 
 /* Attached to a call insn; indicates that the call is malloc-like and
@@ -171,11 +171,6 @@ REG_NOTE (CFA_WINDOW_SAVE)
    This is normally used for a call instruction which is not exposed to
    the rest of the compiler as a CALL_INSN.  */
 REG_NOTE (CFA_FLUSH_QUEUE)
-
-/* Indicates that REG holds the exception context for the function.
-   This context is shared by inline functions, so the code to acquire
-   the real exception context is delayed until after inlining.  */
-REG_NOTE (EH_CONTEXT)
 
 /* Indicates what exception region an INSN belongs in.  This is used
    to indicate what region to which a call may throw.  REGION 0

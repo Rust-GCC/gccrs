@@ -43,10 +43,10 @@ void tfun ()
     B<> b_defaulted;
     B<scoped_enum::scoped1> b_explicited;
 
-    b_defaulted.fun<char>();          //<------------ UNEXPECTED: THIS FAILS
+    b_defaulted.fun<char>();          //<------------ UNEXPECTED: THIS FAILS 
     b_defaulted.template fun<char>(); //<------------ THIS IS FINE
 
-    b_explicited.fun<char>();         //<------------ UNEXPECTED: THIS FAILS
+    b_explicited.fun<char>();         //<------------ UNEXPECTED: THIS FAILS 
     b_explicited.template fun<char>();//<------------ THIS IS FINE
 }
 

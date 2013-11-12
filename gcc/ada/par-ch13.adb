@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -78,15 +78,19 @@ package body Ch13 is
       --  are in Ada 2012 mode, Strict is False, and we consider that we have
       --  an aspect specification if the identifier is an aspect name (even if
       --  not followed by =>) or the identifier is not an aspect name but is
-      --  followed by =>. P_Aspect_Specifications will generate messages if the
-      --  aspect specification is ill-formed.
+      --  followed by =>, by a comma, or by a semicolon. The last two cases
+      --  correspond to (misspelled) Boolean aspects with a defaulted value of
+      --  True. P_Aspect_Specifications will generate messages if the aspect
+      --  specification is ill-formed.
 
       elsif not Strict then
          if Get_Aspect_Id (Token_Name) /= No_Aspect then
             Result := True;
          else
             Scan; -- past identifier
-            Result := Token = Tok_Arrow;
+            Result := Token = Tok_Arrow or else
+                      Token = Tok_Comma or else
+                      Token = Tok_Semicolon;
          end if;
 
       --  If earlier than Ada 2012, check for valid aspect identifier (possibly
@@ -107,9 +111,9 @@ package body Ch13 is
 
             --  The identifier may be the name of a boolean aspect with a
             --  defaulted True value. Further checks when analyzing aspect
-            --  specification.
+            --  specification, which may include further aspects.
 
-            elsif Token = Tok_Comma then
+            elsif Token = Tok_Comma or else Token = Tok_Semicolon then
                Result := True;
 
             elsif Token = Tok_Apostrophe then
@@ -128,8 +132,7 @@ package body Ch13 is
 
             if Result then
                Restore_Scan_State (Scan_State);
-               Error_Msg_SC ("|aspect specification is an Ada 2012 feature");
-               Error_Msg_SC ("\|unit must be compiled with -gnat2012 switch");
+               Error_Msg_Ada_2012_Feature ("|aspect specification", Token_Ptr);
                return True;
             end if;
          end if;
@@ -266,15 +269,20 @@ package body Ch13 is
             if Token = Tok_Comma
               or else Token = Tok_Semicolon
             then
-               if Aspect_Argument (A_Id) /= Optional then
+               if Aspect_Argument (A_Id) /= Optional_Expression
+                    and then
+                  Aspect_Argument (A_Id) /= Optional_Name
+               then
                   Error_Msg_Node_1 := Identifier (Aspect);
                   Error_Msg_AP ("aspect& requires an aspect definition");
                   OK := False;
                end if;
 
             elsif not Semicolon and then Token /= Tok_Arrow then
-               if Aspect_Argument (A_Id) /= Optional then
-
+               if Aspect_Argument (A_Id) /= Optional_Expression
+                    and then
+                  Aspect_Argument (A_Id) /= Optional_Name
+               then
                   --  The name or expression may be there, but the arrow is
                   --  missing. Skip to the end of the declaration.
 
@@ -292,9 +300,17 @@ package body Ch13 is
                   OK := False;
                end if;
 
-               if Aspect_Argument (A_Id) = Name then
+               if Aspect_Argument (A_Id) = Name
+                    or else
+                  Aspect_Argument (A_Id) = Optional_Name
+               then
                   Set_Expression (Aspect, P_Name);
+
                else
+                  pragma Assert
+                    (Aspect_Argument (A_Id) = Expression
+                       or else
+                     Aspect_Argument (A_Id) = Optional_Expression);
                   Set_Expression (Aspect, P_Expression);
                end if;
             end if;

@@ -238,6 +238,7 @@ output_prologue (void)
   printf ("#include \"tm.h\"\n");
   printf ("#include \"flags.h\"\n");
   printf ("#include \"ggc.h\"\n");
+  printf ("#include \"tree.h\"\n");
   printf ("#include \"rtl.h\"\n");
   printf ("#include \"expr.h\"\n");
   printf ("#include \"insn-codes.h\"\n");
@@ -286,9 +287,9 @@ output_operand_data (void)
 	pred = lookup_predicate (d->predicate);
       printf ("    %d\n", pred && pred->codes[MEM]);
 
-      printf("  },\n");
+      printf ("  },\n");
     }
-  printf("};\n\n\n");
+  printf ("};\n\n\n");
 }
 
 static void
@@ -415,7 +416,7 @@ output_insn_data (void)
       printf ("    %d,\n", d->n_alternatives);
       printf ("    %d\n", d->output_format);
 
-      printf("  },\n");
+      printf ("  },\n");
     }
   printf ("};\n\n\n");
 }
@@ -1112,7 +1113,7 @@ main (int argc, char **argv)
       next_index_number++;
     }
 
-  printf("\n\n");
+  printf ("\n\n");
   output_operand_data ();
   output_insn_data ();
   output_get_insn_name ();
@@ -1223,7 +1224,7 @@ note_constraint (rtx exp, int lineno)
 	}
     }
   new_cdata = XNEWVAR (struct constraint_data, sizeof (struct constraint_data) + namelen);
-  strcpy (CONST_CAST(char *, new_cdata->name), name);
+  strcpy (CONST_CAST (char *, new_cdata->name), name);
   new_cdata->namelen = namelen;
   new_cdata->lineno = lineno;
   new_cdata->next_this_letter = *slot;

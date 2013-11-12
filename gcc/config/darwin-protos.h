@@ -26,6 +26,7 @@ extern void machopic_output_function_base_name (FILE *);
 extern const char *machopic_indirection_name (rtx, bool);
 extern const char *machopic_mcount_stub_name (void);
 extern bool machopic_should_output_picbase_label (void);
+extern const char *machopic_get_function_picbase (void);
 
 #ifdef RTX_CODE
 
@@ -123,3 +124,4 @@ extern bool darwin_kextabi_p (void);
 extern void darwin_override_options (void);
 extern void darwin_patch_builtins (void);
 extern void darwin_rename_builtins (void);
+extern bool darwin_libc_has_function (enum function_class fn_class);

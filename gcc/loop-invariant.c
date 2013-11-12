@@ -50,7 +50,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "function.h"
 #include "flags.h"
 #include "df.h"
-#include "hashtab.h"
+#include "hash-table.h"
 #include "except.h"
 #include "params.h"
 #include "regs.h"
@@ -180,7 +180,7 @@ static vec<invariant_p> invariants;
 static void
 check_invariant_table_size (void)
 {
-  if (invariant_table_size < DF_DEFS_TABLE_SIZE())
+  if (invariant_table_size < DF_DEFS_TABLE_SIZE ())
     {
       unsigned int new_size = DF_DEFS_TABLE_SIZE () + (DF_DEFS_TABLE_SIZE () / 4);
       invariant_table = XRESIZEVEC (struct invariant *, invariant_table, new_size);
@@ -274,13 +274,13 @@ invariant_for_use (df_ref use)
     return NULL;
   def = defs->ref;
   check_invariant_table_size ();
-  if (!invariant_table[DF_REF_ID(def)])
+  if (!invariant_table[DF_REF_ID (def)])
     return NULL;
 
   def_bb = DF_REF_BB (def);
   if (!dominated_by_p (CDI_DOMINATORS, bb, def_bb))
     return NULL;
-  return invariant_table[DF_REF_ID(def)];
+  return invariant_table[DF_REF_ID (def)];
 }
 
 /* Computes hash value for invariant expression X in INSN.  */
@@ -424,27 +424,28 @@ invariant_expr_equal_p (rtx insn1, rtx e1, rtx insn2, rtx e2)
   return true;
 }
 
-/* Returns hash value for invariant expression entry E.  */
-
-static hashval_t
-hash_invariant_expr (const void *e)
+struct invariant_expr_hasher : typed_free_remove <invariant_expr_entry>
 {
-  const struct invariant_expr_entry *const entry =
-    (const struct invariant_expr_entry *) e;
+  typedef invariant_expr_entry value_type;
+  typedef invariant_expr_entry compare_type;
+  static inline hashval_t hash (const value_type *);
+  static inline bool equal (const value_type *, const compare_type *);
+};
 
+/* Returns hash value for invariant expression entry ENTRY.  */
+
+inline hashval_t
+invariant_expr_hasher::hash (const value_type *entry)
+{
   return entry->hash;
 }
 
-/* Compares invariant expression entries E1 and E2.  */
+/* Compares invariant expression entries ENTRY1 and ENTRY2.  */
 
-static int
-eq_invariant_expr (const void *e1, const void *e2)
+inline bool
+invariant_expr_hasher::equal (const value_type *entry1,
+			      const compare_type *entry2)
 {
-  const struct invariant_expr_entry *const entry1 =
-    (const struct invariant_expr_entry *) e1;
-  const struct invariant_expr_entry *const entry2 =
-    (const struct invariant_expr_entry *) e2;
-
   if (entry1->mode != entry2->mode)
     return 0;
 
@@ -452,24 +453,26 @@ eq_invariant_expr (const void *e1, const void *e2)
 				 entry2->inv->insn, entry2->expr);
 }
 
+typedef hash_table <invariant_expr_hasher> invariant_htab_type;
+
 /* Checks whether invariant with value EXPR in machine mode MODE is
    recorded in EQ.  If this is the case, return the invariant.  Otherwise
    insert INV to the table for this expression and return INV.  */
 
 static struct invariant *
-find_or_insert_inv (htab_t eq, rtx expr, enum machine_mode mode,
+find_or_insert_inv (invariant_htab_type eq, rtx expr, enum machine_mode mode,
 		    struct invariant *inv)
 {
   hashval_t hash = hash_invariant_expr_1 (inv->insn, expr);
   struct invariant_expr_entry *entry;
   struct invariant_expr_entry pentry;
-  PTR *slot;
+  invariant_expr_entry **slot;
 
   pentry.expr = expr;
   pentry.inv = inv;
   pentry.mode = mode;
-  slot = htab_find_slot_with_hash (eq, &pentry, hash, INSERT);
-  entry = (struct invariant_expr_entry *) *slot;
+  slot = eq.find_slot_with_hash (&pentry, hash, INSERT);
+  entry = *slot;
 
   if (entry)
     return entry->inv;
@@ -488,7 +491,7 @@ find_or_insert_inv (htab_t eq, rtx expr, enum machine_mode mode,
    hash table of the invariants.  */
 
 static void
-find_identical_invariants (htab_t eq, struct invariant *inv)
+find_identical_invariants (invariant_htab_type eq, struct invariant *inv)
 {
   unsigned depno;
   bitmap_iterator bi;
@@ -525,13 +528,13 @@ merge_identical_invariants (void)
 {
   unsigned i;
   struct invariant *inv;
-  htab_t eq = htab_create (invariants.length (),
-			   hash_invariant_expr, eq_invariant_expr, free);
+  invariant_htab_type eq;
+  eq.create (invariants.length ());
 
   FOR_EACH_VEC_ELT (invariants, i, inv)
     find_identical_invariants (eq, inv);
 
-  htab_delete (eq);
+  eq.dispose ();
 }
 
 /* Determines the basic blocks inside LOOP that are always executed and
@@ -804,7 +807,7 @@ check_dependency (basic_block bb, df_ref use, bitmap depends_on)
 
   def = defs->ref;
   check_invariant_table_size ();
-  inv = invariant_table[DF_REF_ID(def)];
+  inv = invariant_table[DF_REF_ID (def)];
   if (!inv)
     return false;
 
@@ -905,7 +908,7 @@ find_invariant_insn (rtx insn, bool always_reached, bool always_executed)
     {
       ref = df_find_def (insn, dest);
       check_invariant_table_size ();
-      invariant_table[DF_REF_ID(ref)] = inv;
+      invariant_table[DF_REF_ID (ref)] = inv;
     }
 }
 

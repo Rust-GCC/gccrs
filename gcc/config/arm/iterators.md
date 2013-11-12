@@ -355,6 +355,12 @@
                              (DI   "64") (V2DI  "64")
                  (V2SF "32") (V4SF  "32")])
 
+(define_mode_attr V_elem_ch [(V8QI "b")  (V16QI "b")
+                             (V4HI "h") (V8HI  "h")
+                             (V2SI "s") (V4SI  "s")
+                             (DI   "d") (V2DI  "d")
+                             (V2SF "s") (V4SF  "s")])
+
 ;; Element sizes for duplicating ARM registers to all elements of a vector.
 (define_mode_attr VD_dup [(V8QI "8") (V4HI "16") (V2SI "32") (V2SF "32")])
 
@@ -391,7 +397,7 @@
 (define_mode_attr scalar_mul_constraint [(V4HI "x") (V2SI "t") (V2SF "t")
                                          (V8HI "x") (V4SI "t") (V4SF "t")])
 
-;; Predicates used for setting neon_type
+;; Predicates used for setting type for neon instructions
 
 (define_mode_attr Is_float_mode [(V8QI "false") (V16QI "false")
                  (V4HI "false") (V8HI "false")
@@ -452,6 +458,14 @@
 (define_mode_attr vfp_type [(SF "s") (DF "d")])
 (define_mode_attr vfp_double_cond [(SF "") (DF "&& TARGET_VFP_DOUBLE")])
 
+;; Mode attribute used to build the "type" attribute.
+(define_mode_attr q [(V8QI "") (V16QI "_q")
+                     (V4HI "") (V8HI "_q")
+                     (V2SI "") (V4SI "_q")
+                     (V2SF "") (V4SF "_q")
+                     (DI "")   (V2DI "_q")
+                     (DF "")   (V2DF "_q")])
+
 ;;----------------------------------------------------------------------------
 ;; Code attributes
 ;;----------------------------------------------------------------------------
@@ -459,6 +473,10 @@
 ;; Assembler mnemonics for vqh_ops and vqhs_ops iterators.
 (define_code_attr VQH_mnem [(plus "vadd") (smin "vmin") (smax "vmax")
                 (umin "vmin") (umax "vmax")])
+
+;; Type attributes for vqh_ops and vqhs_ops iterators.
+(define_code_attr VQH_type [(plus "add") (smin "minmax") (smax "minmax")
+                (umin "minmax") (umax "minmax")])
 
 ;; Signs of above, where relevant.
 (define_code_attr VQH_sign [(plus "i") (smin "s") (smax "s") (umin "u")
@@ -496,3 +514,11 @@
 (define_int_attr nvrint_variant [(UNSPEC_NVRINTZ "z") (UNSPEC_NVRINTP "p")
                                 (UNSPEC_NVRINTA "a") (UNSPEC_NVRINTM "m")
                                 (UNSPEC_NVRINTX "x") (UNSPEC_NVRINTN "n")])
+;; Both kinds of return insn.
+(define_code_iterator returns [return simple_return])
+(define_code_attr return_str [(return "") (simple_return "simple_")])
+(define_code_attr return_simple_p [(return "false") (simple_return "true")])
+(define_code_attr return_cond_false [(return " && USE_RETURN_INSN (FALSE)")
+                               (simple_return " && use_simple_return_p ()")])
+(define_code_attr return_cond_true [(return " && USE_RETURN_INSN (TRUE)")
+                               (simple_return " && use_simple_return_p ()")])

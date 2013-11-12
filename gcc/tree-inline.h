@@ -97,6 +97,10 @@ typedef struct copy_body_data
      by manipulating the CFG rather than a statement.  */
   bool transform_return_to_modify;
 
+  /* True if the parameters of the source function are transformed.
+     Only true for inlining.  */
+  bool transform_parameter;
+
   /* True if this statement will need to be regimplified.  */
   bool regimplify;
 
@@ -115,6 +119,10 @@ typedef struct copy_body_data
   /* Entry basic block to currently copied body.  */
   basic_block entry_bb;
 
+  /* For partial function versioning, bitmap of bbs to be copied,
+     otherwise NULL.  */
+  bitmap blocks_to_copy;
+
   /* Debug statements that need processing.  */
   vec<gimple> debug_stmts;
 
@@ -123,6 +131,10 @@ typedef struct copy_body_data
      the originals have been mapped to a value rather than to a
      variable.  */
   struct pointer_map_t *debug_map;
+ 
+  /* Cilk keywords currently need to replace some variables that
+     ordinary nested functions do not.  */ 
+  bool remap_var_for_cilk;
 } copy_body_data;
 
 /* Weights of constructions for estimate_num_insns.  */

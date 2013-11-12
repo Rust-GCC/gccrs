@@ -307,7 +307,7 @@ maybe_apply_pending_pragma_weaks (void)
   tree alias_id, id, decl;
   int i;
   pending_weak *pe;
-  symtab_node target;
+  symtab_node *target;
 
   if (!pending_weaks)
     return;
@@ -322,7 +322,7 @@ maybe_apply_pending_pragma_weaks (void)
 
       target = symtab_node_for_asm (id);
       decl = build_decl (UNKNOWN_LOCATION,
-			 target ? TREE_CODE (target->symbol.decl) : FUNCTION_DECL,
+			 target ? TREE_CODE (target->decl) : FUNCTION_DECL,
 			 alias_id, default_function_type);
 
       DECL_ARTIFICIAL (decl) = 1;
@@ -367,7 +367,12 @@ handle_pragma_weak (cpp_reader * ARG_UNUSED (dummy))
     {
       apply_pragma_weak (decl, value);
       if (value)
-	assemble_alias (decl, value);
+	{
+	  DECL_EXTERNAL (decl) = 0;
+	  if (TREE_CODE (decl) == VAR_DECL)
+	    TREE_STATIC (decl) = 1;
+	  assemble_alias (decl, value);
+	}
     }
   else
     {
@@ -478,7 +483,7 @@ handle_pragma_redefine_extname (cpp_reader * ARG_UNUSED (dummy))
     add_to_renaming_pragma_list (oldname, newname);
 }
 
-/* This is called from here and from ia64.c.  */
+/* This is called from here and from ia64-c.c.  */
 void
 add_to_renaming_pragma_list (tree oldname, tree newname)
 {
@@ -867,7 +872,7 @@ handle_pragma_optimize (cpp_reader *ARG_UNUSED(dummy))
 
       parse_optimize_options (args, false);
       current_optimize_pragma = chainon (current_optimize_pragma, args);
-      optimization_current_node = build_optimization_node ();
+      optimization_current_node = build_optimization_node (&global_options);
       c_cpp_builtins_optimize_pragma (parse_in,
 				      optimization_previous_node,
 				      optimization_current_node);
@@ -909,8 +914,8 @@ handle_pragma_push_options (cpp_reader *ARG_UNUSED(dummy))
   options_stack = p;
 
   /* Save optimization and target flags in binary format.  */
-  p->optimize_binary = build_optimization_node ();
-  p->target_binary = build_target_option_node ();
+  p->optimize_binary = build_optimization_node (&global_options);
+  p->target_binary = build_target_option_node (&global_options);
 
   /* Save optimization and target flags in string list format.  */
   p->optimize_strings = copy_list (current_optimize_pragma);
@@ -1162,25 +1167,38 @@ struct omp_pragma_def { const char *name; unsigned int id; };
 static const struct omp_pragma_def omp_pragmas[] = {
   { "atomic", PRAGMA_OMP_ATOMIC },
   { "barrier", PRAGMA_OMP_BARRIER },
+  { "cancel", PRAGMA_OMP_CANCEL },
+  { "cancellation", PRAGMA_OMP_CANCELLATION_POINT },
   { "critical", PRAGMA_OMP_CRITICAL },
+  { "end", PRAGMA_OMP_END_DECLARE_TARGET },
   { "flush", PRAGMA_OMP_FLUSH },
-  { "for", PRAGMA_OMP_FOR },
   { "master", PRAGMA_OMP_MASTER },
   { "ordered", PRAGMA_OMP_ORDERED },
-  { "parallel", PRAGMA_OMP_PARALLEL },
   { "section", PRAGMA_OMP_SECTION },
   { "sections", PRAGMA_OMP_SECTIONS },
   { "single", PRAGMA_OMP_SINGLE },
-  { "task", PRAGMA_OMP_TASK },
+  { "taskgroup", PRAGMA_OMP_TASKGROUP },
   { "taskwait", PRAGMA_OMP_TASKWAIT },
   { "taskyield", PRAGMA_OMP_TASKYIELD },
   { "threadprivate", PRAGMA_OMP_THREADPRIVATE }
+};
+static const struct omp_pragma_def omp_pragmas_simd[] = {
+  { "declare", PRAGMA_OMP_DECLARE_REDUCTION },
+  { "distribute", PRAGMA_OMP_DISTRIBUTE },
+  { "for", PRAGMA_OMP_FOR },
+  { "parallel", PRAGMA_OMP_PARALLEL },
+  { "simd", PRAGMA_OMP_SIMD },
+  { "target", PRAGMA_OMP_TARGET },
+  { "task", PRAGMA_OMP_TASK },
+  { "teams", PRAGMA_OMP_TEAMS },
 };
 
 void
 c_pp_lookup_pragma (unsigned int id, const char **space, const char **name)
 {
   const int n_omp_pragmas = sizeof (omp_pragmas) / sizeof (*omp_pragmas);
+  const int n_omp_pragmas_simd = sizeof (omp_pragmas_simd)
+				 / sizeof (*omp_pragmas);
   int i;
 
   for (i = 0; i < n_omp_pragmas; ++i)
@@ -1188,6 +1206,14 @@ c_pp_lookup_pragma (unsigned int id, const char **space, const char **name)
       {
 	*space = "omp";
 	*name = omp_pragmas[i].name;
+	return;
+      }
+
+  for (i = 0; i < n_omp_pragmas_simd; ++i)
+    if (omp_pragmas_simd[i].id == id)
+      {
+	*space = "omp";
+	*name = omp_pragmas_simd[i].name;
 	return;
       }
 
@@ -1343,11 +1369,23 @@ init_pragma (void)
 	cpp_register_deferred_pragma (parse_in, "omp", omp_pragmas[i].name,
 				      omp_pragmas[i].id, true, true);
     }
+  if (flag_openmp || flag_openmp_simd)
+    {
+      const int n_omp_pragmas_simd = sizeof (omp_pragmas_simd)
+				     / sizeof (*omp_pragmas);
+      int i;
+
+      for (i = 0; i < n_omp_pragmas_simd; ++i)
+	cpp_register_deferred_pragma (parse_in, "omp", omp_pragmas_simd[i].name,
+				      omp_pragmas_simd[i].id, true, true);
+    }
 
   if (!flag_preprocess_only)
     cpp_register_deferred_pragma (parse_in, "GCC", "pch_preprocess",
 				  PRAGMA_GCC_PCH_PREPROCESS, false, false);
 
+  cpp_register_deferred_pragma (parse_in, "GCC", "ivdep", PRAGMA_IVDEP, false,
+				false);
 #ifdef HANDLE_PRAGMA_PACK_WITH_EXPANSION
   c_register_pragma_with_expansion (0, "pack", handle_pragma_pack);
 #else

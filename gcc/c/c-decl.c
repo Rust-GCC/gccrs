@@ -45,6 +45,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "c-family/c-common.h"
 #include "c-family/c-objc.h"
 #include "c-family/c-pragma.h"
+#include "c-family/c-ubsan.h"
 #include "c-lang.h"
 #include "langhooks.h"
 #include "tree-iterator.h"
@@ -56,6 +57,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "pointer-set.h"
 #include "plugin.h"
 #include "c-family/c-ada-spec.h"
+#include "cilk.h"
 
 /* In grokdeclarator, distinguish syntactic contexts of declarators.  */
 enum decl_context
@@ -147,6 +149,9 @@ static bool undef_nested_function;
 
 enum machine_mode c_default_pointer_mode = VOIDmode;
 
+/* If non-zero, implicit "omp declare target" attribute is added into the
+   attribute lists.  */
+int current_omp_declare_target_attribute;
 
 /* Each c_binding structure describes one binding of an identifier to
    a decl.  All the decls in a scope - irrespective of namespace - are
@@ -1579,8 +1584,14 @@ validate_proto_after_old_defn (tree newdecl, tree newtype, tree oldtype)
       if (oldargtype == error_mark_node || newargtype == error_mark_node)
 	return false;
 
-      oldargtype = TYPE_MAIN_VARIANT (oldargtype);
-      newargtype = TYPE_MAIN_VARIANT (newargtype);
+      oldargtype = (TYPE_ATOMIC (oldargtype)
+		    ? c_build_qualified_type (TYPE_MAIN_VARIANT (oldargtype),
+					      TYPE_QUAL_ATOMIC)
+		    : TYPE_MAIN_VARIANT (oldargtype));
+      newargtype = (TYPE_ATOMIC (newargtype)
+		    ? c_build_qualified_type (TYPE_MAIN_VARIANT (newargtype),
+					      TYPE_QUAL_ATOMIC)
+		    : TYPE_MAIN_VARIANT (newargtype));
 
       if (END_OF_ARGLIST (oldargtype) && END_OF_ARGLIST (newargtype))
 	break;
@@ -1629,7 +1640,8 @@ validate_proto_after_old_defn (tree newdecl, tree newtype, tree oldtype)
 static void
 locate_old_decl (tree decl)
 {
-  if (TREE_CODE (decl) == FUNCTION_DECL && DECL_BUILT_IN (decl))
+  if (TREE_CODE (decl) == FUNCTION_DECL && DECL_BUILT_IN (decl)
+      && !C_DECL_DECLARED_BUILTIN (decl))
     ;
   else if (DECL_INITIAL (decl))
     inform (input_location, "previous definition of %q+D was here", decl);
@@ -3629,9 +3641,6 @@ c_builtin_function_ext_scope (tree decl)
   const char *name = IDENTIFIER_POINTER (id);
   C_DECL_BUILTIN_PROTOTYPE (decl) = prototype_p (type);
 
-  /* Should never be called on a symbol with a preexisting meaning.  */
-  gcc_assert (!I_SYMBOL_BINDING (id));
-
   bind (id, decl, external_scope, /*invisible=*/false, /*nested=*/false,
 	UNKNOWN_LOCATION);
 
@@ -3712,6 +3721,7 @@ shadow_tag_warned (const struct c_declspecs *declspecs, int warned)
                    && declspecs->typespec_kind != ctsk_tagfirstref
 		   && (declspecs->const_p
 		       || declspecs->volatile_p
+		       || declspecs->atomic_p
 		       || declspecs->restrict_p
 		       || declspecs->address_space))
 	    {
@@ -3801,6 +3811,7 @@ shadow_tag_warned (const struct c_declspecs *declspecs, int warned)
 
   if (!warned && !in_system_header && (declspecs->const_p
 				       || declspecs->volatile_p
+				       || declspecs->atomic_p
 				       || declspecs->restrict_p
 				       || declspecs->address_space))
     {
@@ -3832,6 +3843,7 @@ quals_from_declspecs (const struct c_declspecs *specs)
   int quals = ((specs->const_p ? TYPE_QUAL_CONST : 0)
 	       | (specs->volatile_p ? TYPE_QUAL_VOLATILE : 0)
 	       | (specs->restrict_p ? TYPE_QUAL_RESTRICT : 0)
+	       | (specs->atomic_p ? TYPE_QUAL_ATOMIC : 0)
 	       | (ENCODE_QUAL_ADDR_SPACE (specs->address_space)));
   gcc_assert (!specs->type
 	      && !specs->decl_attr
@@ -3974,6 +3986,35 @@ groktypename (struct c_type_name *type_name, tree *expr,
   return type;
 }
 
+/* Wrapper for decl_attributes that adds some implicit attributes
+   to VAR_DECLs or FUNCTION_DECLs.  */
+
+static tree
+c_decl_attributes (tree *node, tree attributes, int flags)
+{
+  /* Add implicit "omp declare target" attribute if requested.  */
+  if (current_omp_declare_target_attribute
+      && ((TREE_CODE (*node) == VAR_DECL && TREE_STATIC (*node))
+	  || TREE_CODE (*node) == FUNCTION_DECL))
+    {
+      if (TREE_CODE (*node) == VAR_DECL
+	  && ((DECL_CONTEXT (*node)
+	       && TREE_CODE (DECL_CONTEXT (*node)) == FUNCTION_DECL)
+	      || (current_function_decl && !DECL_EXTERNAL (*node))))
+	error ("%q+D in block scope inside of declare target directive",
+	       *node);
+      else if (TREE_CODE (*node) == VAR_DECL
+	       && !COMPLETE_TYPE_P (TREE_TYPE (*node)))
+	error ("%q+D in declare target directive does not have mappable type",
+	       *node);
+      else
+	attributes = tree_cons (get_identifier ("omp declare target"),
+				NULL_TREE, attributes);
+    }
+  return decl_attributes (node, attributes, flags);
+}
+
+
 /* Decode a declarator in an ordinary declaration or data definition.
    This is called as soon as the type information and variable name
    have been parsed, before parsing the initializer if any.
@@ -4108,7 +4149,7 @@ start_decl (struct c_declarator *declarator, struct c_declspecs *declspecs,
     DECL_COMMON (decl) = 1;
 
   /* Set attributes here so if duplicate decl, will have proper attributes.  */
-  decl_attributes (&decl, attributes, 0);
+  c_decl_attributes (&decl, attributes, 0);
 
   /* Handle gnu_inline attribute.  */
   if (declspecs->inline_p
@@ -4138,7 +4179,7 @@ start_decl (struct c_declarator *declarator, struct c_declspecs *declspecs,
 	      tree type = TREE_TYPE (args);
 	      if (type && INTEGRAL_TYPE_P (type)
 		  && TYPE_PRECISION (type) < TYPE_PRECISION (integer_type_node))
-		DECL_ARG_TYPE (args) = integer_type_node;
+		DECL_ARG_TYPE (args) = c_type_promotes_to (type);
 	    }
 	}
     }
@@ -4911,6 +4952,7 @@ grokdeclarator (const struct c_declarator *declarator,
   int constp;
   int restrictp;
   int volatilep;
+  int atomicp;
   int type_quals = TYPE_UNQUALIFIED;
   tree name = NULL_TREE;
   bool funcdef_flag = false;
@@ -5065,6 +5107,7 @@ grokdeclarator (const struct c_declarator *declarator,
   constp = declspecs->const_p + TYPE_READONLY (element_type);
   restrictp = declspecs->restrict_p + TYPE_RESTRICT (element_type);
   volatilep = declspecs->volatile_p + TYPE_VOLATILE (element_type);
+  atomicp = declspecs->atomic_p + TYPE_ATOMIC (element_type);
   as1 = declspecs->address_space;
   as2 = TYPE_ADDR_SPACE (element_type);
   address_space = ADDR_SPACE_GENERIC_P (as1)? as2 : as1;
@@ -5077,6 +5120,9 @@ grokdeclarator (const struct c_declarator *declarator,
 	pedwarn (loc, OPT_Wpedantic, "duplicate %<restrict%>");
       if (volatilep > 1)
 	pedwarn (loc, OPT_Wpedantic, "duplicate %<volatile%>");
+      if (atomicp > 1)
+	pedwarn (loc, OPT_Wpedantic, "duplicate %<_Atomic%>");
+
     }
 
   if (!ADDR_SPACE_GENERIC_P (as1) && !ADDR_SPACE_GENERIC_P (as2) && as1 != as2)
@@ -5090,7 +5136,15 @@ grokdeclarator (const struct c_declarator *declarator,
   type_quals = ((constp ? TYPE_QUAL_CONST : 0)
 		| (restrictp ? TYPE_QUAL_RESTRICT : 0)
 		| (volatilep ? TYPE_QUAL_VOLATILE : 0)
+		| (atomicp ? TYPE_QUAL_ATOMIC : 0)
 		| ENCODE_QUAL_ADDR_SPACE (address_space));
+
+  /* Applying the _Atomic qualifier to an array type (through the use
+     of typedefs or typeof) must be detected here.  If the qualifier
+     is introduced later, any appearance of applying it to an array is
+     actually applying it to an element of that array.  */
+  if (atomicp && TREE_CODE (type) == ARRAY_TYPE)
+    error_at (loc, "%<_Atomic%>-qualified array type");
 
   /* Warn about storage classes that are invalid for certain
      kinds of declarations (parameters, typenames, etc.).  */
@@ -5381,6 +5435,16 @@ grokdeclarator (const struct c_declarator *declarator,
 		       with known value.  */
 		    this_size_varies = size_varies = true;
 		    warn_variable_length_array (name, size);
+		    if (flag_sanitize & SANITIZE_VLA
+		        && decl_context == NORMAL)
+		      {
+			/* Evaluate the array size only once.  */
+			size = c_save_expr (size);
+			size = c_fully_fold (size, false, NULL);
+		        size = fold_build2 (COMPOUND_EXPR, TREE_TYPE (size),
+					    ubsan_instrument_vla (loc, size),
+					    size);
+		      }
 		  }
 
 		if (integer_zerop (size) && !this_size_varies)
@@ -5657,9 +5721,15 @@ grokdeclarator (const struct c_declarator *declarator,
 	  {
 	    /* Merge any constancy or volatility into the target type
 	       for the pointer.  */
-
-	    if (pedantic && TREE_CODE (type) == FUNCTION_TYPE
-		&& type_quals)
+	    if ((type_quals & TYPE_QUAL_ATOMIC)
+		&& TREE_CODE (type) == FUNCTION_TYPE)
+	      {
+		error_at (loc,
+			  "%<_Atomic%>-qualified function type");
+		type_quals &= ~TYPE_QUAL_ATOMIC;
+	      }
+	    else if (pedantic && TREE_CODE (type) == FUNCTION_TYPE
+		     && type_quals)
 	      pedwarn (loc, OPT_Wpedantic,
 		       "ISO C forbids qualified function types");
 	    if (type_quals)
@@ -5773,7 +5843,20 @@ grokdeclarator (const struct c_declarator *declarator,
 
   /* Check the type and width of a bit-field.  */
   if (bitfield)
-    check_bitfield_type_and_width (&type, width, name);
+    {
+      check_bitfield_type_and_width (&type, width, name);
+      /* C11 makes it implementation-defined (6.7.2.1#5) whether
+	 atomic types are permitted for bit-fields; we have no code to
+	 make bit-field accesses atomic, so disallow them.  */
+      if (type_quals & TYPE_QUAL_ATOMIC)
+	{
+	  if (name)
+	    error ("bit-field %qE has atomic type", name);
+	  else
+	    error ("bit-field has atomic type");
+	  type_quals &= ~TYPE_QUAL_ATOMIC;
+	}
+    }
 
   /* Reject invalid uses of _Alignas.  */
   if (declspecs->alignas_p)
@@ -5836,8 +5919,15 @@ grokdeclarator (const struct c_declarator *declarator,
   if (storage_class == csc_typedef)
     {
       tree decl;
-      if (pedantic && TREE_CODE (type) == FUNCTION_TYPE
-	  && type_quals)
+      if ((type_quals & TYPE_QUAL_ATOMIC)
+	  && TREE_CODE (type) == FUNCTION_TYPE)
+	{
+	  error_at (loc,
+		    "%<_Atomic%>-qualified function type");
+	  type_quals &= ~TYPE_QUAL_ATOMIC;
+	}
+      else if (pedantic && TREE_CODE (type) == FUNCTION_TYPE
+	       && type_quals)
 	pedwarn (loc, OPT_Wpedantic,
 		 "ISO C forbids qualified function types");
       if (type_quals)
@@ -5882,8 +5972,15 @@ grokdeclarator (const struct c_declarator *declarator,
 	 and fields.  */
       gcc_assert (storage_class == csc_none && !threadp
 		  && !declspecs->inline_p && !declspecs->noreturn_p);
-      if (pedantic && TREE_CODE (type) == FUNCTION_TYPE
-	  && type_quals)
+      if ((type_quals & TYPE_QUAL_ATOMIC)
+	  && TREE_CODE (type) == FUNCTION_TYPE)
+	{
+	  error_at (loc,
+		    "%<_Atomic%>-qualified function type");
+	  type_quals &= ~TYPE_QUAL_ATOMIC;
+	}
+      else if (pedantic && TREE_CODE (type) == FUNCTION_TYPE
+	       && type_quals)
 	pedwarn (loc, OPT_Wpedantic,
 		 "ISO C forbids const or volatile function types");
       if (type_quals)
@@ -5949,7 +6046,13 @@ grokdeclarator (const struct c_declarator *declarator,
 	  }
 	else if (TREE_CODE (type) == FUNCTION_TYPE)
 	  {
-	    if (type_quals)
+	    if (type_quals & TYPE_QUAL_ATOMIC)
+	      {
+		error_at (loc,
+			  "%<_Atomic%>-qualified function type");
+		type_quals &= ~TYPE_QUAL_ATOMIC;
+	      }
+	    else if (type_quals)
 	      pedwarn (loc, OPT_Wpedantic,
 		       "ISO C forbids qualified function types");
 	    if (type_quals)
@@ -6044,7 +6147,13 @@ grokdeclarator (const struct c_declarator *declarator,
 			   FUNCTION_DECL, declarator->u.id, type);
 	decl = build_decl_attribute_variant (decl, decl_attr);
 
-	if (pedantic && type_quals && !DECL_IN_SYSTEM_HEADER (decl))
+	if (type_quals & TYPE_QUAL_ATOMIC)
+	  {
+	    error_at (loc,
+		      "%<_Atomic%>-qualified function type");
+	    type_quals &= ~TYPE_QUAL_ATOMIC;
+	  }
+	else if (pedantic && type_quals && !DECL_IN_SYSTEM_HEADER (decl))
 	  pedwarn (loc, OPT_Wpedantic,
 		   "ISO C forbids qualified function types");
 
@@ -6417,8 +6526,7 @@ get_parm_info (bool ellipsis, tree expr)
       && !DECL_NAME (b->decl)               /* anonymous */
       && VOID_TYPE_P (TREE_TYPE (b->decl))) /* of void type */
     {
-      if (TREE_THIS_VOLATILE (b->decl)
-	  || TREE_READONLY (b->decl)
+      if (TYPE_QUALS (TREE_TYPE (b->decl)) != TYPE_UNQUALIFIED
 	  || C_DECL_REGISTER (b->decl))
 	error ("%<void%> as only parameter may not be qualified");
 
@@ -7210,6 +7318,12 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
 
   layout_type (t);
 
+  if (TYPE_SIZE_UNIT (t)
+      && TREE_CODE (TYPE_SIZE_UNIT (t)) == INTEGER_CST
+      && !TREE_OVERFLOW (TYPE_SIZE_UNIT (t))
+      && !valid_constant_size_p (TYPE_SIZE_UNIT (t)))
+    error ("type %qT is too large", t);
+
   /* Give bit-fields their proper types.  */
   {
     tree *fieldlistp = &fieldlist;
@@ -7724,7 +7838,7 @@ start_function (struct c_declspecs *declspecs, struct c_declarator *declarator,
 
   loc = DECL_SOURCE_LOCATION (decl1);
 
-  decl_attributes (&decl1, attributes, 0);
+  c_decl_attributes (&decl1, attributes, 0);
 
   if (DECL_DECLARED_INLINE_P (decl1)
       && DECL_UNINLINABLE (decl1)
@@ -8165,11 +8279,15 @@ store_parm_decls_oldstyle (tree fndecl, const struct c_arg_info *arg_info)
 	     type for parameters declared with qualified type.  */
 	  if (TREE_TYPE (parm) != error_mark_node
 	      && TREE_TYPE (type) != error_mark_node
-	      && !comptypes (TYPE_MAIN_VARIANT (DECL_ARG_TYPE (parm)),
-			     TYPE_MAIN_VARIANT (TREE_VALUE (type))))
+	      && ((TYPE_ATOMIC (DECL_ARG_TYPE (parm))
+		   != TYPE_ATOMIC (TREE_VALUE (type)))
+		  || !comptypes (TYPE_MAIN_VARIANT (DECL_ARG_TYPE (parm)),
+				 TYPE_MAIN_VARIANT (TREE_VALUE (type)))))
 	    {
-	      if (TYPE_MAIN_VARIANT (TREE_TYPE (parm))
-		  == TYPE_MAIN_VARIANT (TREE_VALUE (type)))
+	      if ((TYPE_ATOMIC (DECL_ARG_TYPE (parm))
+		   == TYPE_ATOMIC (TREE_VALUE (type)))
+		  && (TYPE_MAIN_VARIANT (TREE_TYPE (parm))
+		      == TYPE_MAIN_VARIANT (TREE_VALUE (type))))
 		{
 		  /* Adjust argument to match prototype.  E.g. a previous
 		     `int foo(float);' prototype causes
@@ -8182,7 +8300,8 @@ store_parm_decls_oldstyle (tree fndecl, const struct c_arg_info *arg_info)
 		      && INTEGRAL_TYPE_P (TREE_TYPE (parm))
 		      && TYPE_PRECISION (TREE_TYPE (parm))
 		      < TYPE_PRECISION (integer_type_node))
-		    DECL_ARG_TYPE (parm) = integer_type_node;
+		    DECL_ARG_TYPE (parm)
+		      = c_type_promotes_to (TREE_TYPE (parm));
 
 		  /* ??? Is it possible to get here with a
 		     built-in prototype or will it always have
@@ -8321,6 +8440,44 @@ store_parm_decls (void)
   if (arg_info->pending_sizes)
     add_stmt (arg_info->pending_sizes);
 }
+
+/* Store PARM_DECLs in PARMS into scope temporarily.  Used for
+   c_finish_omp_declare_simd for function prototypes.  No diagnostics
+   should be done.  */
+
+void
+temp_store_parm_decls (tree fndecl, tree parms)
+{
+  push_scope ();
+  for (tree p = parms; p; p = DECL_CHAIN (p))
+    {
+      DECL_CONTEXT (p) = fndecl;
+      if (DECL_NAME (p))
+	bind (DECL_NAME (p), p, current_scope,
+	      /*invisible=*/false, /*nested=*/false,
+	      UNKNOWN_LOCATION);
+    }
+}
+
+/* Undo what temp_store_parm_decls did.  */
+
+void
+temp_pop_parm_decls (void)
+{
+  /* Clear all bindings in this temporary scope, so that
+     pop_scope doesn't create a BLOCK.  */
+  struct c_binding *b = current_scope->bindings;
+  current_scope->bindings = NULL;
+  for (; b; b = free_binding_and_advance (b))
+    {
+      gcc_assert (TREE_CODE (b->decl) == PARM_DECL);
+      gcc_assert (I_SYMBOL_BINDING (b->id) == b);
+      I_SYMBOL_BINDING (b->id) = b->shadowed;
+      if (b->shadowed && b->shadowed->u.type)
+	TREE_TYPE (b->shadowed->decl) = b->shadowed->u.type;
+    }
+  pop_scope ();
+}
 
 
 /* Finish up a function declaration and compile that function
@@ -8346,7 +8503,7 @@ finish_function (void)
 	  tree type = TREE_TYPE (args);
 	  if (INTEGRAL_TYPE_P (type)
 	      && TYPE_PRECISION (type) < TYPE_PRECISION (integer_type_node))
-	    DECL_ARG_TYPE (args) = integer_type_node;
+	    DECL_ARG_TYPE (args) = c_type_promotes_to (type);
 	}
     }
 
@@ -8373,6 +8530,12 @@ finish_function (void)
 
   /* Tie off the statement tree for this function.  */
   DECL_SAVED_TREE (fndecl) = pop_stmt_list (DECL_SAVED_TREE (fndecl));
+
+  /* If the function has _Cilk_spawn in front of a function call inside it
+     i.e. it is a spawning function, then add the appropriate Cilk plus
+     functions inside.  */
+  if (fn_contains_cilk_spawn_p (cfun))
+    cfun->cilk_frame_decl = insert_cilk_frame (fndecl);
 
   finish_fname_decls ();
 
@@ -8503,11 +8666,12 @@ check_for_loop_decls (location_t loc, bool turn_off_iso_c99_error)
 	 the C99 for loop scope.  This doesn't make much sense, so don't
 	 allow it.  */
       error_at (loc, "%<for%> loop initial declarations "
-		"are only allowed in C99 mode");
+		"are only allowed in C99 or C11 mode");
       if (hint)
 	{
 	  inform (loc,
-		  "use option -std=c99 or -std=gnu99 to compile your code");
+		  "use option -std=c99, -std=gnu99, -std=c11 or -std=gnu11 "
+		  "to compile your code");
 	  hint = false;
 	}
       return NULL_TREE;
@@ -8818,6 +8982,7 @@ build_null_declspecs (void)
   ret->thread_p = false;
   ret->const_p = false;
   ret->volatile_p = false;
+  ret->atomic_p = false;
   ret->restrict_p = false;
   ret->saturating_p = false;
   ret->alignas_p = false;
@@ -8878,6 +9043,10 @@ declspecs_add_qual (source_location loc,
       dupe = specs->restrict_p;
       specs->restrict_p = true;
       specs->locations[cdw_restrict] = loc;
+      break;
+    case RID_ATOMIC:
+      dupe = specs->atomic_p;
+      specs->atomic_p = true;
       break;
     default:
       gcc_unreachable ();
@@ -10152,6 +10321,108 @@ c_register_addr_space (const char *word, addr_space_t as)
   C_SET_RID_CODE (id, rid);
   C_IS_RESERVED_WORD (id) = 1;
   ridpointers [rid] = id;
+}
+
+/* Return identifier to look up for omp declare reduction.  */
+
+tree
+c_omp_reduction_id (enum tree_code reduction_code, tree reduction_id)
+{
+  const char *p = NULL;
+  switch (reduction_code)
+    {
+    case PLUS_EXPR: p = "+"; break;
+    case MULT_EXPR: p = "*"; break;
+    case MINUS_EXPR: p = "-"; break;
+    case BIT_AND_EXPR: p = "&"; break;
+    case BIT_XOR_EXPR: p = "^"; break;
+    case BIT_IOR_EXPR: p = "|"; break;
+    case TRUTH_ANDIF_EXPR: p = "&&"; break;
+    case TRUTH_ORIF_EXPR: p = "||"; break;
+    case MIN_EXPR: p = "min"; break;
+    case MAX_EXPR: p = "max"; break;
+    default:
+      break;
+    }
+
+  if (p == NULL)
+    {
+      if (TREE_CODE (reduction_id) != IDENTIFIER_NODE)
+	return error_mark_node;
+      p = IDENTIFIER_POINTER (reduction_id);
+    }
+
+  const char prefix[] = "omp declare reduction ";
+  size_t lenp = sizeof (prefix);
+  size_t len = strlen (p);
+  char *name = XALLOCAVEC (char, lenp + len);
+  memcpy (name, prefix, lenp - 1);
+  memcpy (name + lenp - 1, p, len + 1);
+  return get_identifier (name);
+}
+
+/* Lookup REDUCTION_ID in the current scope, or create an artificial
+   VAR_DECL, bind it into the current scope and return it.  */
+
+tree
+c_omp_reduction_decl (tree reduction_id)
+{
+  struct c_binding *b = I_SYMBOL_BINDING (reduction_id);
+  if (b != NULL && B_IN_CURRENT_SCOPE (b))
+    return b->decl;
+
+  tree decl = build_decl (BUILTINS_LOCATION, VAR_DECL,
+			  reduction_id, integer_type_node);
+  DECL_ARTIFICIAL (decl) = 1;
+  DECL_EXTERNAL (decl) = 1;
+  TREE_STATIC (decl) = 1;
+  TREE_PUBLIC (decl) = 0;
+  bind (reduction_id, decl, current_scope, true, false, BUILTINS_LOCATION);
+  return decl;
+}
+
+/* Lookup REDUCTION_ID in the first scope where it has entry for TYPE.  */
+
+tree
+c_omp_reduction_lookup (tree reduction_id, tree type)
+{
+  struct c_binding *b = I_SYMBOL_BINDING (reduction_id);
+  while (b)
+    {
+      tree t;
+      for (t = DECL_INITIAL (b->decl); t; t = TREE_CHAIN (t))
+	if (comptypes (TREE_PURPOSE (t), type))
+	  return TREE_VALUE (t);
+      b = b->shadowed;
+    }
+  return error_mark_node;
+}
+
+/* Helper function called via walk_tree, to diagnose invalid
+   #pragma omp declare reduction combiners or initializers.  */
+
+tree
+c_check_omp_declare_reduction_r (tree *tp, int *, void *data)
+{
+  tree *vars = (tree *) data;
+  if (SSA_VAR_P (*tp)
+      && !DECL_ARTIFICIAL (*tp)
+      && *tp != vars[0]
+      && *tp != vars[1])
+    {
+      location_t loc = DECL_SOURCE_LOCATION (vars[0]);
+      if (strcmp (IDENTIFIER_POINTER (DECL_NAME (vars[0])), "omp_out") == 0)
+	error_at (loc, "%<#pragma omp declare reduction%> combiner refers to "
+		       "variable %qD which is not %<omp_out%> nor %<omp_in%>",
+		  *tp);
+      else
+	error_at (loc, "%<#pragma omp declare reduction%> initializer refers "
+		       "to variable %qD which is not %<omp_priv%> nor "
+		       "%<omp_orig%>",
+		  *tp);
+      return *tp;
+    }
+  return NULL_TREE;
 }
 
 #include "gt-c-c-decl.h"

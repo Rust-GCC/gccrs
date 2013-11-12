@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -242,6 +242,9 @@ package body Sem is
          when N_Freeze_Entity =>
             Analyze_Freeze_Entity (N);
 
+         when N_Freeze_Generic_Entity =>
+            Analyze_Freeze_Generic_Entity (N);
+
          when N_Full_Type_Declaration =>
             Analyze_Full_Type_Declaration (N);
 
@@ -469,6 +472,9 @@ package body Sem is
 
          when N_Quantified_Expression =>
             Analyze_Quantified_Expression (N);
+
+         when N_Raise_Expression =>
+            Analyze_Raise_Expression (N);
 
          when N_Raise_Statement =>
             Analyze_Raise_Statement (N);
@@ -1308,12 +1314,17 @@ package body Sem is
       S_In_Spec_Expr      : constant Boolean          := In_Spec_Expression;
       S_Inside_A_Generic  : constant Boolean          := Inside_A_Generic;
       S_Outer_Gen_Scope   : constant Entity_Id        := Outer_Generic_Scope;
+      S_Style_Check       : constant Boolean          := Style_Check;
 
       Generic_Main : constant Boolean :=
                        Nkind (Unit (Cunit (Main_Unit)))
                          in N_Generic_Declaration;
       --  If the main unit is generic, every compiled unit, including its
       --  context, is compiled with expansion disabled.
+
+      Ext_Main_Source_Unit : constant Boolean :=
+                               In_Extended_Main_Source_Unit (Comp_Unit);
+      --  Determine if unit is in extended main source unit
 
       Save_Config_Switches : Config_Switches_Type;
       --  Variable used to save values of config switches while we analyze the
@@ -1332,8 +1343,10 @@ package body Sem is
       ----------------
 
       procedure Do_Analyze is
+         List : Elist_Id;
+
       begin
-         Save_Scope_Stack;
+         List := Save_Scope_Stack;
          Push_Scope (Standard_Standard);
          Scope_Suppress := Suppress_Options;
          Scope_Stack.Table
@@ -1354,7 +1367,7 @@ package body Sem is
          --  Then pop entry for Standard, and pop implicit types
 
          Pop_Scope;
-         Restore_Scope_Stack;
+         Restore_Scope_Stack (List);
       end Do_Analyze;
 
       Already_Analyzed : constant Boolean := Analyzed (Comp_Unit);
@@ -1382,9 +1395,6 @@ package body Sem is
       --  to True for the renamings units (Text_IO, IO_Exceptions, Direct_IO,
       --  Sequential_IO) as this would prevent pragma Extend_System from being
       --  taken into account, for example when Text_IO is renaming DEC.Text_IO.
-
-      --  Cleaner might be to do the kludge at the point of excluding the
-      --  pragma (do not exclude for renamings ???)
 
       if Is_Predefined_File_Name
            (Unit_File_Name (Current_Sem_Unit), Renamings_Included => False)
@@ -1420,10 +1430,26 @@ package body Sem is
       --  For unit in main extended unit, we reset the configuration values
       --  for the non-partition-wide restrictions. For other units reset them.
 
-      if In_Extended_Main_Source_Unit (Comp_Unit) then
+      if Ext_Main_Source_Unit then
          Restore_Config_Cunit_Boolean_Restrictions;
       else
          Reset_Cunit_Boolean_Restrictions;
+      end if;
+
+      --  Turn off style checks for unit that is not in the extended main
+      --  source unit. This improves processing efficiency for such units
+      --  (for which we don't want style checks anyway, and where they will
+      --  get suppressed), and is definitely needed to stop some style checks
+      --  from invading the run-time units (e.g. overriding checks).
+
+      if not Ext_Main_Source_Unit then
+         Style_Check := False;
+
+      --  If this is part of the extended main source unit, set style check
+      --  mode to match the style check mode of the main source unit itself.
+
+      else
+         Style_Check := Style_Check_Main;
       end if;
 
       --  Only do analysis of unit that has not already been analyzed
@@ -1479,6 +1505,7 @@ package body Sem is
       In_Spec_Expression   := S_In_Spec_Expr;
       Inside_A_Generic     := S_Inside_A_Generic;
       Outer_Generic_Scope  := S_Outer_Gen_Scope;
+      Style_Check          := S_Style_Check;
 
       Restore_Opt_Config_Switches (Save_Config_Switches);
 

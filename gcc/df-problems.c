@@ -115,7 +115,7 @@ df_print_bb_index (basic_block bb, FILE *file)
    block.  The id field in the ref is used to index into these sets.
    See df.h for details.
 
-   If the DF_RD_PRUNE_DEAD_DEFS changable flag is set, only DEFs reaching
+   If the DF_RD_PRUNE_DEAD_DEFS changeable flag is set, only DEFs reaching
    existing uses are included in the global reaching DEFs set, or in other
    words only DEFs that are still live.  This is a kind of pruned version
    of the traditional reaching definitions problem that is much less
@@ -326,7 +326,7 @@ df_rd_bb_local_compute_process_def (struct df_rd_bb_info *bb_info,
 		      if (n_defs > DF_SPARSE_THRESHOLD)
 			{
 			  bitmap_set_bit (&bb_info->sparse_kill, regno);
-			  bitmap_clear_range(&bb_info->gen, begin, n_defs);
+			  bitmap_clear_range (&bb_info->gen, begin, n_defs);
 			}
 		      else
 			{
@@ -594,7 +594,7 @@ df_rd_start_dump (FILE *file)
 {
   struct df_rd_problem_data *problem_data
     = (struct df_rd_problem_data *) df_rd->problem_data;
-  unsigned int m = DF_REG_SIZE(df);
+  unsigned int m = DF_REG_SIZE (df);
   unsigned int regno;
 
   if (!df_rd->block_info)
@@ -622,7 +622,7 @@ df_rd_dump_defs_set (bitmap defs_set, const char *prefix, FILE *file)
 {
   bitmap_head tmp;
   unsigned int regno;
-  unsigned int m = DF_REG_SIZE(df);
+  unsigned int m = DF_REG_SIZE (df);
   bool first_reg = true;
 
   fprintf (file, "%s\t(%d) ", prefix, (int) bitmap_count_bits (defs_set));
@@ -4040,7 +4040,10 @@ can_move_insns_across (rtx from, rtx to, rtx across_from, rtx across_to,
 	  if (i < FIRST_PSEUDO_REGISTER
 	      && ! fixed_regs[i]
 	      && ! global_regs[i])
-	    fail = 1;
+	    {
+	      fail = 1;
+	      break;
+	    }
 	}
     }
 

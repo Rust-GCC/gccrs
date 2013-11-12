@@ -237,7 +237,6 @@ discover_loop (hwloop_info loop, basic_block tail_bb, rtx tail_insn, rtx reg)
   bool found_tail;
   unsigned dwork = 0;
   basic_block bb;
-  vec<basic_block> works;
 
   loop->tail = tail_bb;
   loop->loop_end = tail_insn;
@@ -253,7 +252,7 @@ discover_loop (hwloop_info loop, basic_block tail_bb, rtx tail_insn, rtx reg)
   loop->head = BRANCH_EDGE (tail_bb)->dest;
   loop->successor = FALLTHRU_EDGE (tail_bb)->dest;
 
-  works.create (20);
+  stack_vec<basic_block, 20> works;
   works.safe_push (loop->head);
 
   found_tail = false;
@@ -340,8 +339,6 @@ discover_loop (hwloop_info loop, basic_block tail_bb, rtx tail_insn, rtx reg)
 	    }
 	}
     }
-
-  works.release ();
 }
 
 /* Analyze the structure of the loops in the current function.  Use
@@ -365,7 +362,7 @@ discover_loops (bitmap_obstack *loop_stack, struct hw_doloop_hooks *hooks)
       rtx tail = BB_END (bb);
       rtx insn, reg;
 
-      while (tail && GET_CODE (tail) == NOTE && tail != BB_HEAD (bb))
+      while (tail && NOTE_P (tail) && tail != BB_HEAD (bb))
 	tail = PREV_INSN (tail);
 
       if (tail == NULL_RTX)

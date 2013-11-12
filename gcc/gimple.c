@@ -30,18 +30,13 @@ along with GCC; see the file COPYING3.  If not see
 #include "basic-block.h"
 #include "gimple.h"
 #include "diagnostic.h"
-#include "tree-flow.h"
 #include "value-prof.h"
 #include "flags.h"
 #include "alias.h"
 #include "demangle.h"
 #include "langhooks.h"
+#include "bitmap.h"
 
-/* Global canonical type table.  */
-static GTY((if_marked ("ggc_marked_p"), param_is (union tree_node)))
-  htab_t gimple_canonical_types;
-static GTY((if_marked ("tree_int_map_marked_p"), param_is (struct tree_int_map)))
-  htab_t canonical_type_hash_cache;
 
 /* All the tuples have their operand vector (if present) at the very bottom
    of the structure.  Therefore, the offset required to find the
@@ -54,7 +49,7 @@ EXPORTED_CONST size_t gimple_ops_offset_[] = {
 };
 #undef DEFGSSTRUCT
 
-#define DEFGSSTRUCT(SYM, STRUCT, HAS_TREE_OP) sizeof(struct STRUCT),
+#define DEFGSSTRUCT(SYM, STRUCT, HAS_TREE_OP) sizeof (struct STRUCT),
 static const size_t gsstruct_code_size[] = {
 #include "gsstruct.def"
 };
@@ -157,7 +152,7 @@ gimple_set_subcode (gimple g, unsigned subcode)
 
 
 /* Build a tuple with operands.  CODE is the statement to build (which
-   must be one of the GIMPLE_WITH_OPS tuples).  SUBCODE is the sub-code
+   must be one of the GIMPLE_WITH_OPS tuples).  SUBCODE is the subcode
    for the new tuple.  NUM_OPS is the number of operands to allocate.  */
 
 #define gimple_build_with_ops(c, s, n) \
@@ -179,7 +174,7 @@ gimple_build_with_ops_stat (enum gimple_code code, unsigned subcode,
 gimple
 gimple_build_return (tree retval)
 {
-  gimple s = gimple_build_with_ops (GIMPLE_RETURN, ERROR_MARK, 1);
+  gimple s = gimple_build_with_ops (GIMPLE_RETURN, ERROR_MARK, 2);
   if (retval)
     gimple_return_set_retval (s, retval);
   return s;
@@ -371,44 +366,23 @@ gimple_build_call_from_tree (tree t)
 }
 
 
-/* Extract the operands and code for expression EXPR into *SUBCODE_P,
-   *OP1_P, *OP2_P and *OP3_P respectively.  */
+/* Return index of INDEX's non bound argument of the call.  */
 
-void
-extract_ops_from_tree_1 (tree expr, enum tree_code *subcode_p, tree *op1_p,
-			 tree *op2_p, tree *op3_p)
+unsigned
+gimple_call_get_nobnd_arg_index (const_gimple gs, unsigned index)
 {
-  enum gimple_rhs_class grhs_class;
+  unsigned num_args = gimple_call_num_args (gs);
+  for (unsigned n = 0; n < num_args; n++)
+    {
+      if (POINTER_BOUNDS_P (gimple_call_arg (gs, n)))
+	continue;
+      else if (index)
+	index--;
+      else
+	return n;
+    }
 
-  *subcode_p = TREE_CODE (expr);
-  grhs_class = get_gimple_rhs_class (*subcode_p);
-
-  if (grhs_class == GIMPLE_TERNARY_RHS)
-    {
-      *op1_p = TREE_OPERAND (expr, 0);
-      *op2_p = TREE_OPERAND (expr, 1);
-      *op3_p = TREE_OPERAND (expr, 2);
-    }
-  else if (grhs_class == GIMPLE_BINARY_RHS)
-    {
-      *op1_p = TREE_OPERAND (expr, 0);
-      *op2_p = TREE_OPERAND (expr, 1);
-      *op3_p = NULL_TREE;
-    }
-  else if (grhs_class == GIMPLE_UNARY_RHS)
-    {
-      *op1_p = TREE_OPERAND (expr, 0);
-      *op2_p = NULL_TREE;
-      *op3_p = NULL_TREE;
-    }
-  else if (grhs_class == GIMPLE_SINGLE_RHS)
-    {
-      *op1_p = expr;
-      *op2_p = NULL_TREE;
-      *op3_p = NULL_TREE;
-    }
-  else
-    gcc_unreachable ();
+  gcc_unreachable ();
 }
 
 
@@ -429,7 +403,7 @@ gimple_build_assign_stat (tree lhs, tree rhs MEM_STAT_DECL)
 }
 
 
-/* Build a GIMPLE_ASSIGN statement with sub-code SUBCODE and operands
+/* Build a GIMPLE_ASSIGN statement with subcode SUBCODE and operands
    OP1 and OP2.  If OP2 is NULL then SUBCODE must be of class
    GIMPLE_UNARY_RHS or GIMPLE_SINGLE_RHS.  */
 
@@ -510,37 +484,6 @@ gimple_build_cond (enum tree_code pred_code, tree lhs, tree rhs,
   gimple_cond_set_false_label (p, f_label);
   return p;
 }
-
-
-/* Extract operands for a GIMPLE_COND statement out of COND_EXPR tree COND.  */
-
-void
-gimple_cond_get_ops_from_tree (tree cond, enum tree_code *code_p,
-                               tree *lhs_p, tree *rhs_p)
-{
-  gcc_assert (TREE_CODE_CLASS (TREE_CODE (cond)) == tcc_comparison
-	      || TREE_CODE (cond) == TRUTH_NOT_EXPR
-	      || is_gimple_min_invariant (cond)
-	      || SSA_VAR_P (cond));
-
-  extract_ops_from_tree (cond, code_p, lhs_p, rhs_p);
-
-  /* Canonicalize conditionals of the form 'if (!VAL)'.  */
-  if (*code_p == TRUTH_NOT_EXPR)
-    {
-      *code_p = EQ_EXPR;
-      gcc_assert (*lhs_p && *rhs_p == NULL_TREE);
-      *rhs_p = build_zero_cst (TREE_TYPE (*lhs_p));
-    }
-  /* Canonicalize conditionals of the form 'if (VAL)'  */
-  else if (TREE_CODE_CLASS (*code_p) != tcc_comparison)
-    {
-      *code_p = NE_EXPR;
-      gcc_assert (*lhs_p && *rhs_p == NULL_TREE);
-      *rhs_p = build_zero_cst (TREE_TYPE (*lhs_p));
-    }
-}
-
 
 /* Build a GIMPLE_COND statement from the conditional expression tree
    COND.  T_LABEL and F_LABEL are as in gimple_build_cond.  */
@@ -902,19 +845,21 @@ gimple_build_omp_critical (gimple_seq body, tree name)
 /* Build a GIMPLE_OMP_FOR statement.
 
    BODY is sequence of statements inside the for loop.
+   KIND is the `for' variant.
    CLAUSES, are any of the OMP loop construct's clauses: private, firstprivate,
    lastprivate, reductions, ordered, schedule, and nowait.
    COLLAPSE is the collapse count.
    PRE_BODY is the sequence of statements that are loop invariant.  */
 
 gimple
-gimple_build_omp_for (gimple_seq body, tree clauses, size_t collapse,
+gimple_build_omp_for (gimple_seq body, int kind, tree clauses, size_t collapse,
 		      gimple_seq pre_body)
 {
   gimple p = gimple_alloc (GIMPLE_OMP_FOR, 0);
   if (body)
     gimple_omp_set_body (p, body);
   gimple_omp_for_set_clauses (p, clauses);
+  gimple_omp_for_set_kind (p, kind);
   p->gimple_omp_for.collapse = collapse;
   p->gimple_omp_for.iter
       = ggc_alloc_cleared_vec_gimple_omp_for_iter (collapse);
@@ -998,6 +943,22 @@ gimple
 gimple_build_omp_master (gimple_seq body)
 {
   gimple p = gimple_alloc (GIMPLE_OMP_MASTER, 0);
+  if (body)
+    gimple_omp_set_body (p, body);
+
+  return p;
+}
+
+
+/* Build a GIMPLE_OMP_TASKGROUP statement.
+
+   BODY is the sequence of statements to be executed by the taskgroup
+   construct.  */
+
+gimple
+gimple_build_omp_taskgroup (gimple_seq body)
+{
+  gimple p = gimple_alloc (GIMPLE_OMP_TASKGROUP, 0);
   if (body)
     gimple_omp_set_body (p, body);
 
@@ -1094,6 +1055,41 @@ gimple_build_omp_single (gimple_seq body, tree clauses)
 }
 
 
+/* Build a GIMPLE_OMP_TARGET statement.
+
+   BODY is the sequence of statements that will be executed.
+   CLAUSES are any of the OMP target construct's clauses.  */
+
+gimple
+gimple_build_omp_target (gimple_seq body, int kind, tree clauses)
+{
+  gimple p = gimple_alloc (GIMPLE_OMP_TARGET, 0);
+  if (body)
+    gimple_omp_set_body (p, body);
+  gimple_omp_target_set_clauses (p, clauses);
+  gimple_omp_target_set_kind (p, kind);
+
+  return p;
+}
+
+
+/* Build a GIMPLE_OMP_TEAMS statement.
+
+   BODY is the sequence of statements that will be executed.
+   CLAUSES are any of the OMP teams construct's clauses.  */
+
+gimple
+gimple_build_omp_teams (gimple_seq body, tree clauses)
+{
+  gimple p = gimple_alloc (GIMPLE_OMP_TEAMS, 0);
+  if (body)
+    gimple_omp_set_body (p, body);
+  gimple_omp_teams_set_clauses (p, clauses);
+
+  return p;
+}
+
+
 /* Build a GIMPLE_OMP_ATOMIC_LOAD statement.  */
 
 gimple
@@ -1152,10 +1148,10 @@ gimple_check_failed (const_gimple gs, const char *file, int line,
 {
   internal_error ("gimple check: expected %s(%s), have %s(%s) in %s, at %s:%d",
       		  gimple_code_name[code],
-		  tree_code_name[subcode],
+		  get_tree_code_name (subcode),
 		  gimple_code_name[gimple_code (gs)],
 		  gs->gsbase.subcode > 0
-		    ? tree_code_name[gs->gsbase.subcode]
+		    ? get_tree_code_name ((enum tree_code) gs->gsbase.subcode)
 		    : "",
 		  function, trim_filename (file), line);
 }
@@ -1610,6 +1606,20 @@ walk_gimple_op (gimple stmt, walk_tree_fn callback_op,
 	return ret;
       break;
 
+    case GIMPLE_OMP_TARGET:
+      ret = walk_tree (gimple_omp_target_clauses_ptr (stmt), callback_op, wi,
+		       pset);
+      if (ret)
+	return ret;
+      break;
+
+    case GIMPLE_OMP_TEAMS:
+      ret = walk_tree (gimple_omp_teams_clauses_ptr (stmt), callback_op, wi,
+		       pset);
+      if (ret)
+	return ret;
+      break;
+
     case GIMPLE_OMP_ATOMIC_LOAD:
       ret = walk_tree (gimple_omp_atomic_load_lhs_ptr (stmt), callback_op, wi,
 		       pset);
@@ -1636,10 +1646,16 @@ walk_gimple_op (gimple stmt, walk_tree_fn callback_op,
 	return ret;
       break;
 
+    case GIMPLE_OMP_RETURN:
+      ret = walk_tree (gimple_omp_return_lhs_ptr (stmt), callback_op, wi,
+		       pset);
+      if (ret)
+	return ret;
+      break;
+
       /* Tuples that do not have operands.  */
     case GIMPLE_NOP:
     case GIMPLE_RESX:
-    case GIMPLE_OMP_RETURN:
     case GIMPLE_PREDICT:
       break;
 
@@ -1780,12 +1796,15 @@ walk_gimple_stmt (gimple_stmt_iterator *gsi, walk_stmt_fn callback_stmt,
       /* FALL THROUGH.  */
     case GIMPLE_OMP_CRITICAL:
     case GIMPLE_OMP_MASTER:
+    case GIMPLE_OMP_TASKGROUP:
     case GIMPLE_OMP_ORDERED:
     case GIMPLE_OMP_SECTION:
     case GIMPLE_OMP_PARALLEL:
     case GIMPLE_OMP_TASK:
     case GIMPLE_OMP_SECTIONS:
     case GIMPLE_OMP_SINGLE:
+    case GIMPLE_OMP_TARGET:
+    case GIMPLE_OMP_TEAMS:
       ret = walk_gimple_seq_mod (gimple_omp_body_ptr (stmt), callback_stmt,
 			     callback_op, wi);
       if (ret)
@@ -1814,45 +1833,6 @@ walk_gimple_stmt (gimple_stmt_iterator *gsi, walk_stmt_fn callback_stmt,
   return NULL;
 }
 
-
-/* Set sequence SEQ to be the GIMPLE body for function FN.  */
-
-void
-gimple_set_body (tree fndecl, gimple_seq seq)
-{
-  struct function *fn = DECL_STRUCT_FUNCTION (fndecl);
-  if (fn == NULL)
-    {
-      /* If FNDECL still does not have a function structure associated
-	 with it, then it does not make sense for it to receive a
-	 GIMPLE body.  */
-      gcc_assert (seq == NULL);
-    }
-  else
-    fn->gimple_body = seq;
-}
-
-
-/* Return the body of GIMPLE statements for function FN.  After the
-   CFG pass, the function body doesn't exist anymore because it has
-   been split up into basic blocks.  In this case, it returns
-   NULL.  */
-
-gimple_seq
-gimple_body (tree fndecl)
-{
-  struct function *fn = DECL_STRUCT_FUNCTION (fndecl);
-  return fn ? fn->gimple_body : NULL;
-}
-
-/* Return true when FNDECL has Gimple body either in unlowered
-   or CFG form.  */
-bool
-gimple_has_body_p (tree fndecl)
-{
-  struct function *fn = DECL_STRUCT_FUNCTION (fndecl);
-  return (gimple_body (fndecl) || (fn && fn->cfg));
-}
 
 /* Return true if calls C1 and C2 are known to go to the same function.  */
 
@@ -2151,42 +2131,9 @@ gimple_set_lhs (gimple stmt, tree lhs)
   else if (code == GIMPLE_CALL)
     gimple_call_set_lhs (stmt, lhs);
   else
-    gcc_unreachable();
+    gcc_unreachable ();
 }
 
-/* Replace the LHS of STMT, an assignment, either a GIMPLE_ASSIGN or a
-   GIMPLE_CALL, with NLHS, in preparation for modifying the RHS to an
-   expression with a different value.
-
-   This will update any annotations (say debug bind stmts) referring
-   to the original LHS, so that they use the RHS instead.  This is
-   done even if NLHS and LHS are the same, for it is understood that
-   the RHS will be modified afterwards, and NLHS will not be assigned
-   an equivalent value.
-
-   Adjusting any non-annotation uses of the LHS, if needed, is a
-   responsibility of the caller.
-
-   The effect of this call should be pretty much the same as that of
-   inserting a copy of STMT before STMT, and then removing the
-   original stmt, at which time gsi_remove() would have update
-   annotations, but using this function saves all the inserting,
-   copying and removing.  */
-
-void
-gimple_replace_lhs (gimple stmt, tree nlhs)
-{
-  if (MAY_HAVE_DEBUG_STMTS)
-    {
-      tree lhs = gimple_get_lhs (stmt);
-
-      gcc_assert (SSA_NAME_DEF_STMT (lhs) == stmt);
-
-      insert_debug_temp_for_var_def (NULL, lhs);
-    }
-
-  gimple_set_lhs (stmt, nlhs);
-}
 
 /* Return a deep copy of statement STMT.  All the operands from STMT
    are reallocated and copied using unshare_expr.  The DEF, USE, VDEF
@@ -2308,8 +2255,11 @@ gimple_copy (gimple stmt)
 	  /* FALLTHRU  */
 
 	case GIMPLE_OMP_SINGLE:
+	case GIMPLE_OMP_TARGET:
+	case GIMPLE_OMP_TEAMS:
 	case GIMPLE_OMP_SECTION:
 	case GIMPLE_OMP_MASTER:
+	case GIMPLE_OMP_TASKGROUP:
 	case GIMPLE_OMP_ORDERED:
 	copy_omp_body:
 	  new_seq = gimple_seq_copy (gimple_omp_body (stmt));
@@ -2541,313 +2491,6 @@ const unsigned char gimple_rhs_class_table[] = {
 #undef DEFTREECODE
 #undef END_OF_BASE_TREE_CODES
 
-/* For the definitive definition of GIMPLE, see doc/tree-ssa.texi.  */
-
-/* Validation of GIMPLE expressions.  */
-
-/*  Return true if T is a valid LHS for a GIMPLE assignment expression.  */
-
-bool
-is_gimple_lvalue (tree t)
-{
-  return (is_gimple_addressable (t)
-	  || TREE_CODE (t) == WITH_SIZE_EXPR
-	  /* These are complex lvalues, but don't have addresses, so they
-	     go here.  */
-	  || TREE_CODE (t) == BIT_FIELD_REF);
-}
-
-/*  Return true if T is a GIMPLE condition.  */
-
-bool
-is_gimple_condexpr (tree t)
-{
-  return (is_gimple_val (t) || (COMPARISON_CLASS_P (t)
-				&& !tree_could_throw_p (t)
-				&& is_gimple_val (TREE_OPERAND (t, 0))
-				&& is_gimple_val (TREE_OPERAND (t, 1))));
-}
-
-/*  Return true if T is something whose address can be taken.  */
-
-bool
-is_gimple_addressable (tree t)
-{
-  return (is_gimple_id (t) || handled_component_p (t)
-	  || TREE_CODE (t) == MEM_REF);
-}
-
-/* Return true if T is a valid gimple constant.  */
-
-bool
-is_gimple_constant (const_tree t)
-{
-  switch (TREE_CODE (t))
-    {
-    case INTEGER_CST:
-    case REAL_CST:
-    case FIXED_CST:
-    case STRING_CST:
-    case COMPLEX_CST:
-    case VECTOR_CST:
-      return true;
-
-    /* Vector constant constructors are gimple invariant.  */
-    case CONSTRUCTOR:
-      if (TREE_TYPE (t) && TREE_CODE (TREE_TYPE (t)) == VECTOR_TYPE)
-	return TREE_CONSTANT (t);
-      else
-	return false;
-
-    default:
-      return false;
-    }
-}
-
-/* Return true if T is a gimple address.  */
-
-bool
-is_gimple_address (const_tree t)
-{
-  tree op;
-
-  if (TREE_CODE (t) != ADDR_EXPR)
-    return false;
-
-  op = TREE_OPERAND (t, 0);
-  while (handled_component_p (op))
-    {
-      if ((TREE_CODE (op) == ARRAY_REF
-	   || TREE_CODE (op) == ARRAY_RANGE_REF)
-	  && !is_gimple_val (TREE_OPERAND (op, 1)))
-	    return false;
-
-      op = TREE_OPERAND (op, 0);
-    }
-
-  if (CONSTANT_CLASS_P (op) || TREE_CODE (op) == MEM_REF)
-    return true;
-
-  switch (TREE_CODE (op))
-    {
-    case PARM_DECL:
-    case RESULT_DECL:
-    case LABEL_DECL:
-    case FUNCTION_DECL:
-    case VAR_DECL:
-    case CONST_DECL:
-      return true;
-
-    default:
-      return false;
-    }
-}
-
-/* Return true if T is a gimple invariant address.  */
-
-bool
-is_gimple_invariant_address (const_tree t)
-{
-  const_tree op;
-
-  if (TREE_CODE (t) != ADDR_EXPR)
-    return false;
-
-  op = strip_invariant_refs (TREE_OPERAND (t, 0));
-  if (!op)
-    return false;
-
-  if (TREE_CODE (op) == MEM_REF)
-    {
-      const_tree op0 = TREE_OPERAND (op, 0);
-      return (TREE_CODE (op0) == ADDR_EXPR
-	      && (CONSTANT_CLASS_P (TREE_OPERAND (op0, 0))
-		  || decl_address_invariant_p (TREE_OPERAND (op0, 0))));
-    }
-
-  return CONSTANT_CLASS_P (op) || decl_address_invariant_p (op);
-}
-
-/* Return true if T is a gimple invariant address at IPA level
-   (so addresses of variables on stack are not allowed).  */
-
-bool
-is_gimple_ip_invariant_address (const_tree t)
-{
-  const_tree op;
-
-  if (TREE_CODE (t) != ADDR_EXPR)
-    return false;
-
-  op = strip_invariant_refs (TREE_OPERAND (t, 0));
-  if (!op)
-    return false;
-
-  if (TREE_CODE (op) == MEM_REF)
-    {
-      const_tree op0 = TREE_OPERAND (op, 0);
-      return (TREE_CODE (op0) == ADDR_EXPR
-	      && (CONSTANT_CLASS_P (TREE_OPERAND (op0, 0))
-		  || decl_address_ip_invariant_p (TREE_OPERAND (op0, 0))));
-    }
-
-  return CONSTANT_CLASS_P (op) || decl_address_ip_invariant_p (op);
-}
-
-/* Return true if T is a GIMPLE minimal invariant.  It's a restricted
-   form of function invariant.  */
-
-bool
-is_gimple_min_invariant (const_tree t)
-{
-  if (TREE_CODE (t) == ADDR_EXPR)
-    return is_gimple_invariant_address (t);
-
-  return is_gimple_constant (t);
-}
-
-/* Return true if T is a GIMPLE interprocedural invariant.  It's a restricted
-   form of gimple minimal invariant.  */
-
-bool
-is_gimple_ip_invariant (const_tree t)
-{
-  if (TREE_CODE (t) == ADDR_EXPR)
-    return is_gimple_ip_invariant_address (t);
-
-  return is_gimple_constant (t);
-}
-
-/* Return true if T is a variable.  */
-
-bool
-is_gimple_variable (tree t)
-{
-  return (TREE_CODE (t) == VAR_DECL
-	  || TREE_CODE (t) == PARM_DECL
-	  || TREE_CODE (t) == RESULT_DECL
-	  || TREE_CODE (t) == SSA_NAME);
-}
-
-/*  Return true if T is a GIMPLE identifier (something with an address).  */
-
-bool
-is_gimple_id (tree t)
-{
-  return (is_gimple_variable (t)
-	  || TREE_CODE (t) == FUNCTION_DECL
-	  || TREE_CODE (t) == LABEL_DECL
-	  || TREE_CODE (t) == CONST_DECL
-	  /* Allow string constants, since they are addressable.  */
-	  || TREE_CODE (t) == STRING_CST);
-}
-
-/* Return true if T is a non-aggregate register variable.  */
-
-bool
-is_gimple_reg (tree t)
-{
-  if (virtual_operand_p (t))
-    return false;
-
-  if (TREE_CODE (t) == SSA_NAME)
-    return true;
-
-  if (!is_gimple_variable (t))
-    return false;
-
-  if (!is_gimple_reg_type (TREE_TYPE (t)))
-    return false;
-
-  /* A volatile decl is not acceptable because we can't reuse it as
-     needed.  We need to copy it into a temp first.  */
-  if (TREE_THIS_VOLATILE (t))
-    return false;
-
-  /* We define "registers" as things that can be renamed as needed,
-     which with our infrastructure does not apply to memory.  */
-  if (needs_to_live_in_memory (t))
-    return false;
-
-  /* Hard register variables are an interesting case.  For those that
-     are call-clobbered, we don't know where all the calls are, since
-     we don't (want to) take into account which operations will turn
-     into libcalls at the rtl level.  For those that are call-saved,
-     we don't currently model the fact that calls may in fact change
-     global hard registers, nor do we examine ASM_CLOBBERS at the tree
-     level, and so miss variable changes that might imply.  All around,
-     it seems safest to not do too much optimization with these at the
-     tree level at all.  We'll have to rely on the rtl optimizers to
-     clean this up, as there we've got all the appropriate bits exposed.  */
-  if (TREE_CODE (t) == VAR_DECL && DECL_HARD_REGISTER (t))
-    return false;
-
-  /* Complex and vector values must have been put into SSA-like form.
-     That is, no assignments to the individual components.  */
-  if (TREE_CODE (TREE_TYPE (t)) == COMPLEX_TYPE
-      || TREE_CODE (TREE_TYPE (t)) == VECTOR_TYPE)
-    return DECL_GIMPLE_REG_P (t);
-
-  return true;
-}
-
-
-/* Return true if T is a GIMPLE rvalue, i.e. an identifier or a constant.  */
-
-bool
-is_gimple_val (tree t)
-{
-  /* Make loads from volatiles and memory vars explicit.  */
-  if (is_gimple_variable (t)
-      && is_gimple_reg_type (TREE_TYPE (t))
-      && !is_gimple_reg (t))
-    return false;
-
-  return (is_gimple_variable (t) || is_gimple_min_invariant (t));
-}
-
-/* Similarly, but accept hard registers as inputs to asm statements.  */
-
-bool
-is_gimple_asm_val (tree t)
-{
-  if (TREE_CODE (t) == VAR_DECL && DECL_HARD_REGISTER (t))
-    return true;
-
-  return is_gimple_val (t);
-}
-
-/* Return true if T is a GIMPLE minimal lvalue.  */
-
-bool
-is_gimple_min_lval (tree t)
-{
-  if (!(t = CONST_CAST_TREE (strip_invariant_refs (t))))
-    return false;
-  return (is_gimple_id (t) || TREE_CODE (t) == MEM_REF);
-}
-
-/* Return true if T is a valid function operand of a CALL_EXPR.  */
-
-bool
-is_gimple_call_addr (tree t)
-{
-  return (TREE_CODE (t) == OBJ_TYPE_REF || is_gimple_val (t));
-}
-
-/* Return true if T is a valid address operand of a MEM_REF.  */
-
-bool
-is_gimple_mem_ref_addr (tree t)
-{
-  return (is_gimple_reg (t)
-	  || TREE_CODE (t) == INTEGER_CST
-	  || (TREE_CODE (t) == ADDR_EXPR
-	      && (CONSTANT_CLASS_P (TREE_OPERAND (t, 0))
-		  || decl_address_invariant_p (TREE_OPERAND (t, 0)))));
-}
-
-
 /* Given a memory reference expression T, return its base address.
    The base address of a memory reference expression is the main
    object being referenced.  For instance, the base address for
@@ -2958,7 +2601,11 @@ canonicalize_cond_expr_cond (tree t)
       t = build2 (TREE_CODE (top0), TREE_TYPE (t),
 		  TREE_OPERAND (top0, 0), TREE_OPERAND (top0, 1));
     }
-
+  /* For x ^ y use x != y.  */
+  else if (TREE_CODE (t) == BIT_XOR_EXPR)
+    t = build2 (NE_EXPR, TREE_TYPE (t),
+		TREE_OPERAND (t, 0), TREE_OPERAND (t, 1));
+  
   if (is_gimple_condexpr (t))
     return t;
 
@@ -3054,448 +2701,6 @@ gimple_compare_field_offset (tree f1, tree f2)
     }
 
   return false;
-}
-
-/* Returning a hash value for gimple type TYPE combined with VAL.
-
-   The hash value returned is equal for types considered compatible
-   by gimple_canonical_types_compatible_p.  */
-
-static hashval_t
-iterative_hash_canonical_type (tree type, hashval_t val)
-{
-  hashval_t v;
-  void **slot;
-  struct tree_int_map *mp, m;
-
-  m.base.from = type;
-  if ((slot = htab_find_slot (canonical_type_hash_cache, &m, INSERT))
-      && *slot)
-    return iterative_hash_hashval_t (((struct tree_int_map *) *slot)->to, val);
-
-  /* Combine a few common features of types so that types are grouped into
-     smaller sets; when searching for existing matching types to merge,
-     only existing types having the same features as the new type will be
-     checked.  */
-  v = iterative_hash_hashval_t (TREE_CODE (type), 0);
-  v = iterative_hash_hashval_t (TREE_ADDRESSABLE (type), v);
-  v = iterative_hash_hashval_t (TYPE_ALIGN (type), v);
-  v = iterative_hash_hashval_t (TYPE_MODE (type), v);
-
-  /* Incorporate common features of numerical types.  */
-  if (INTEGRAL_TYPE_P (type)
-      || SCALAR_FLOAT_TYPE_P (type)
-      || FIXED_POINT_TYPE_P (type)
-      || TREE_CODE (type) == VECTOR_TYPE
-      || TREE_CODE (type) == COMPLEX_TYPE
-      || TREE_CODE (type) == OFFSET_TYPE
-      || POINTER_TYPE_P (type))
-    {
-      v = iterative_hash_hashval_t (TYPE_PRECISION (type), v);
-      v = iterative_hash_hashval_t (TYPE_UNSIGNED (type), v);
-    }
-
-  /* For pointer and reference types, fold in information about the type
-     pointed to but do not recurse to the pointed-to type.  */
-  if (POINTER_TYPE_P (type))
-    {
-      v = iterative_hash_hashval_t (TYPE_REF_CAN_ALIAS_ALL (type), v);
-      v = iterative_hash_hashval_t (TYPE_ADDR_SPACE (TREE_TYPE (type)), v);
-      v = iterative_hash_hashval_t (TYPE_RESTRICT (type), v);
-      v = iterative_hash_hashval_t (TREE_CODE (TREE_TYPE (type)), v);
-    }
-
-  /* For integer types hash only the string flag.  */
-  if (TREE_CODE (type) == INTEGER_TYPE)
-    v = iterative_hash_hashval_t (TYPE_STRING_FLAG (type), v);
-
-  /* For array types hash the domain bounds and the string flag.  */
-  if (TREE_CODE (type) == ARRAY_TYPE && TYPE_DOMAIN (type))
-    {
-      v = iterative_hash_hashval_t (TYPE_STRING_FLAG (type), v);
-      /* OMP lowering can introduce error_mark_node in place of
-	 random local decls in types.  */
-      if (TYPE_MIN_VALUE (TYPE_DOMAIN (type)) != error_mark_node)
-	v = iterative_hash_expr (TYPE_MIN_VALUE (TYPE_DOMAIN (type)), v);
-      if (TYPE_MAX_VALUE (TYPE_DOMAIN (type)) != error_mark_node)
-	v = iterative_hash_expr (TYPE_MAX_VALUE (TYPE_DOMAIN (type)), v);
-    }
-
-  /* Recurse for aggregates with a single element type.  */
-  if (TREE_CODE (type) == ARRAY_TYPE
-      || TREE_CODE (type) == COMPLEX_TYPE
-      || TREE_CODE (type) == VECTOR_TYPE)
-    v = iterative_hash_canonical_type (TREE_TYPE (type), v);
-
-  /* Incorporate function return and argument types.  */
-  if (TREE_CODE (type) == FUNCTION_TYPE || TREE_CODE (type) == METHOD_TYPE)
-    {
-      unsigned na;
-      tree p;
-
-      /* For method types also incorporate their parent class.  */
-      if (TREE_CODE (type) == METHOD_TYPE)
-	v = iterative_hash_canonical_type (TYPE_METHOD_BASETYPE (type), v);
-
-      v = iterative_hash_canonical_type (TREE_TYPE (type), v);
-
-      for (p = TYPE_ARG_TYPES (type), na = 0; p; p = TREE_CHAIN (p))
-	{
-	  v = iterative_hash_canonical_type (TREE_VALUE (p), v);
-	  na++;
-	}
-
-      v = iterative_hash_hashval_t (na, v);
-    }
-
-  if (RECORD_OR_UNION_TYPE_P (type))
-    {
-      unsigned nf;
-      tree f;
-
-      for (f = TYPE_FIELDS (type), nf = 0; f; f = TREE_CHAIN (f))
-	if (TREE_CODE (f) == FIELD_DECL)
-	  {
-	    v = iterative_hash_canonical_type (TREE_TYPE (f), v);
-	    nf++;
-	  }
-
-      v = iterative_hash_hashval_t (nf, v);
-    }
-
-  /* Cache the just computed hash value.  */
-  mp = ggc_alloc_cleared_tree_int_map ();
-  mp->base.from = type;
-  mp->to = v;
-  *slot = (void *) mp;
-
-  return iterative_hash_hashval_t (v, val);
-}
-
-static hashval_t
-gimple_canonical_type_hash (const void *p)
-{
-  if (canonical_type_hash_cache == NULL)
-    canonical_type_hash_cache = htab_create_ggc (512, tree_int_map_hash,
-						 tree_int_map_eq, NULL);
-
-  return iterative_hash_canonical_type (CONST_CAST_TREE ((const_tree) p), 0);
-}
-
-
-
-
-/* The TYPE_CANONICAL merging machinery.  It should closely resemble
-   the middle-end types_compatible_p function.  It needs to avoid
-   claiming types are different for types that should be treated
-   the same with respect to TBAA.  Canonical types are also used
-   for IL consistency checks via the useless_type_conversion_p
-   predicate which does not handle all type kinds itself but falls
-   back to pointer-comparison of TYPE_CANONICAL for aggregates
-   for example.  */
-
-/* Return true iff T1 and T2 are structurally identical for what
-   TBAA is concerned.  */
-
-static bool
-gimple_canonical_types_compatible_p (tree t1, tree t2)
-{
-  /* Before starting to set up the SCC machinery handle simple cases.  */
-
-  /* Check first for the obvious case of pointer identity.  */
-  if (t1 == t2)
-    return true;
-
-  /* Check that we have two types to compare.  */
-  if (t1 == NULL_TREE || t2 == NULL_TREE)
-    return false;
-
-  /* If the types have been previously registered and found equal
-     they still are.  */
-  if (TYPE_CANONICAL (t1)
-      && TYPE_CANONICAL (t1) == TYPE_CANONICAL (t2))
-    return true;
-
-  /* Can't be the same type if the types don't have the same code.  */
-  if (TREE_CODE (t1) != TREE_CODE (t2))
-    return false;
-
-  if (TREE_ADDRESSABLE (t1) != TREE_ADDRESSABLE (t2))
-    return false;
-
-  /* Qualifiers do not matter for canonical type comparison purposes.  */
-
-  /* Void types and nullptr types are always the same.  */
-  if (TREE_CODE (t1) == VOID_TYPE
-      || TREE_CODE (t1) == NULLPTR_TYPE)
-    return true;
-
-  /* Can't be the same type if they have different alignment, or mode.  */
-  if (TYPE_ALIGN (t1) != TYPE_ALIGN (t2)
-      || TYPE_MODE (t1) != TYPE_MODE (t2))
-    return false;
-
-  /* Non-aggregate types can be handled cheaply.  */
-  if (INTEGRAL_TYPE_P (t1)
-      || SCALAR_FLOAT_TYPE_P (t1)
-      || FIXED_POINT_TYPE_P (t1)
-      || TREE_CODE (t1) == VECTOR_TYPE
-      || TREE_CODE (t1) == COMPLEX_TYPE
-      || TREE_CODE (t1) == OFFSET_TYPE
-      || POINTER_TYPE_P (t1))
-    {
-      /* Can't be the same type if they have different sign or precision.  */
-      if (TYPE_PRECISION (t1) != TYPE_PRECISION (t2)
-	  || TYPE_UNSIGNED (t1) != TYPE_UNSIGNED (t2))
-	return false;
-
-      if (TREE_CODE (t1) == INTEGER_TYPE
-	  && TYPE_STRING_FLAG (t1) != TYPE_STRING_FLAG (t2))
-	return false;
-
-      /* For canonical type comparisons we do not want to build SCCs
-	 so we cannot compare pointed-to types.  But we can, for now,
-	 require the same pointed-to type kind and match what
-	 useless_type_conversion_p would do.  */
-      if (POINTER_TYPE_P (t1))
-	{
-	  /* If the two pointers have different ref-all attributes,
-	     they can't be the same type.  */
-	  if (TYPE_REF_CAN_ALIAS_ALL (t1) != TYPE_REF_CAN_ALIAS_ALL (t2))
-	    return false;
-
-	  if (TYPE_ADDR_SPACE (TREE_TYPE (t1))
-	      != TYPE_ADDR_SPACE (TREE_TYPE (t2)))
-	    return false;
-
-	  if (TYPE_RESTRICT (t1) != TYPE_RESTRICT (t2))
-	    return false;
-
-	  if (TREE_CODE (TREE_TYPE (t1)) != TREE_CODE (TREE_TYPE (t2)))
-	    return false;
-	}
-
-      /* Tail-recurse to components.  */
-      if (TREE_CODE (t1) == VECTOR_TYPE
-	  || TREE_CODE (t1) == COMPLEX_TYPE)
-	return gimple_canonical_types_compatible_p (TREE_TYPE (t1),
-						    TREE_TYPE (t2));
-
-      return true;
-    }
-
-  /* Do type-specific comparisons.  */
-  switch (TREE_CODE (t1))
-    {
-    case ARRAY_TYPE:
-      /* Array types are the same if the element types are the same and
-	 the number of elements are the same.  */
-      if (!gimple_canonical_types_compatible_p (TREE_TYPE (t1), TREE_TYPE (t2))
-	  || TYPE_STRING_FLAG (t1) != TYPE_STRING_FLAG (t2)
-	  || TYPE_NONALIASED_COMPONENT (t1) != TYPE_NONALIASED_COMPONENT (t2))
-	return false;
-      else
-	{
-	  tree i1 = TYPE_DOMAIN (t1);
-	  tree i2 = TYPE_DOMAIN (t2);
-
-	  /* For an incomplete external array, the type domain can be
- 	     NULL_TREE.  Check this condition also.  */
-	  if (i1 == NULL_TREE && i2 == NULL_TREE)
-	    return true;
-	  else if (i1 == NULL_TREE || i2 == NULL_TREE)
-	    return false;
-	  else
-	    {
-	      tree min1 = TYPE_MIN_VALUE (i1);
-	      tree min2 = TYPE_MIN_VALUE (i2);
-	      tree max1 = TYPE_MAX_VALUE (i1);
-	      tree max2 = TYPE_MAX_VALUE (i2);
-
-	      /* The minimum/maximum values have to be the same.  */
-	      if ((min1 == min2
-		   || (min1 && min2
-		       && ((TREE_CODE (min1) == PLACEHOLDER_EXPR
-			    && TREE_CODE (min2) == PLACEHOLDER_EXPR)
-		           || operand_equal_p (min1, min2, 0))))
-		  && (max1 == max2
-		      || (max1 && max2
-			  && ((TREE_CODE (max1) == PLACEHOLDER_EXPR
-			       && TREE_CODE (max2) == PLACEHOLDER_EXPR)
-			      || operand_equal_p (max1, max2, 0)))))
-		return true;
-	      else
-		return false;
-	    }
-	}
-
-    case METHOD_TYPE:
-    case FUNCTION_TYPE:
-      /* Function types are the same if the return type and arguments types
-	 are the same.  */
-      if (!gimple_canonical_types_compatible_p (TREE_TYPE (t1), TREE_TYPE (t2)))
-	return false;
-
-      if (!comp_type_attributes (t1, t2))
-	return false;
-
-      if (TYPE_ARG_TYPES (t1) == TYPE_ARG_TYPES (t2))
-	return true;
-      else
-	{
-	  tree parms1, parms2;
-
-	  for (parms1 = TYPE_ARG_TYPES (t1), parms2 = TYPE_ARG_TYPES (t2);
-	       parms1 && parms2;
-	       parms1 = TREE_CHAIN (parms1), parms2 = TREE_CHAIN (parms2))
-	    {
-	      if (!gimple_canonical_types_compatible_p
-		     (TREE_VALUE (parms1), TREE_VALUE (parms2)))
-		return false;
-	    }
-
-	  if (parms1 || parms2)
-	    return false;
-
-	  return true;
-	}
-
-    case RECORD_TYPE:
-    case UNION_TYPE:
-    case QUAL_UNION_TYPE:
-      {
-	tree f1, f2;
-
-	/* For aggregate types, all the fields must be the same.  */
-	for (f1 = TYPE_FIELDS (t1), f2 = TYPE_FIELDS (t2);
-	     f1 || f2;
-	     f1 = TREE_CHAIN (f1), f2 = TREE_CHAIN (f2))
-	  {
-	    /* Skip non-fields.  */
-	    while (f1 && TREE_CODE (f1) != FIELD_DECL)
-	      f1 = TREE_CHAIN (f1);
-	    while (f2 && TREE_CODE (f2) != FIELD_DECL)
-	      f2 = TREE_CHAIN (f2);
-	    if (!f1 || !f2)
-	      break;
-	    /* The fields must have the same name, offset and type.  */
-	    if (DECL_NONADDRESSABLE_P (f1) != DECL_NONADDRESSABLE_P (f2)
-		|| !gimple_compare_field_offset (f1, f2)
-		|| !gimple_canonical_types_compatible_p
-		      (TREE_TYPE (f1), TREE_TYPE (f2)))
-	      return false;
-	  }
-
-	/* If one aggregate has more fields than the other, they
-	   are not the same.  */
-	if (f1 || f2)
-	  return false;
-
-	return true;
-      }
-
-    default:
-      gcc_unreachable ();
-    }
-}
-
-
-/* Returns nonzero if P1 and P2 are equal.  */
-
-static int
-gimple_canonical_type_eq (const void *p1, const void *p2)
-{
-  const_tree t1 = (const_tree) p1;
-  const_tree t2 = (const_tree) p2;
-  return gimple_canonical_types_compatible_p (CONST_CAST_TREE (t1),
-					      CONST_CAST_TREE (t2));
-}
-
-/* Register type T in the global type table gimple_types.
-   If another type T', compatible with T, already existed in
-   gimple_types then return T', otherwise return T.  This is used by
-   LTO to merge identical types read from different TUs.
-
-   ???  This merging does not exactly match how the tree.c middle-end
-   functions will assign TYPE_CANONICAL when new types are created
-   during optimization (which at least happens for pointer and array
-   types).  */
-
-tree
-gimple_register_canonical_type (tree t)
-{
-  void **slot;
-
-  gcc_assert (TYPE_P (t));
-
-  if (TYPE_CANONICAL (t))
-    return TYPE_CANONICAL (t);
-
-  if (gimple_canonical_types == NULL)
-    gimple_canonical_types = htab_create_ggc (16381, gimple_canonical_type_hash,
-					      gimple_canonical_type_eq, 0);
-
-  slot = htab_find_slot (gimple_canonical_types, t, INSERT);
-  if (*slot
-      && *(tree *)slot != t)
-    {
-      tree new_type = (tree) *((tree *) slot);
-
-      TYPE_CANONICAL (t) = new_type;
-      t = new_type;
-    }
-  else
-    {
-      TYPE_CANONICAL (t) = t;
-      *slot = (void *) t;
-    }
-
-  return t;
-}
-
-
-/* Show statistics on references to the global type table gimple_types.  */
-
-void
-print_gimple_types_stats (const char *pfx)
-{
-  if (gimple_canonical_types)
-    fprintf (stderr, "[%s] GIMPLE canonical type table: size %ld, "
-	     "%ld elements, %ld searches, %ld collisions (ratio: %f)\n", pfx,
-	     (long) htab_size (gimple_canonical_types),
-	     (long) htab_elements (gimple_canonical_types),
-	     (long) gimple_canonical_types->searches,
-	     (long) gimple_canonical_types->collisions,
-	     htab_collisions (gimple_canonical_types));
-  else
-    fprintf (stderr, "[%s] GIMPLE canonical type table is empty\n", pfx);
-  if (canonical_type_hash_cache)
-    fprintf (stderr, "[%s] GIMPLE canonical type hash table: size %ld, "
-	     "%ld elements, %ld searches, %ld collisions (ratio: %f)\n", pfx,
-	     (long) htab_size (canonical_type_hash_cache),
-	     (long) htab_elements (canonical_type_hash_cache),
-	     (long) canonical_type_hash_cache->searches,
-	     (long) canonical_type_hash_cache->collisions,
-	     htab_collisions (canonical_type_hash_cache));
-  else
-    fprintf (stderr, "[%s] GIMPLE canonical type hash table is empty\n", pfx);
-}
-
-/* Free the gimple type hashtables used for LTO type merging.  */
-
-void
-free_gimple_type_tables (void)
-{
-  if (gimple_canonical_types)
-    {
-      htab_delete (gimple_canonical_types);
-      gimple_canonical_types = NULL;
-    }
-  if (canonical_type_hash_cache)
-    {
-      htab_delete (canonical_type_hash_cache);
-      canonical_type_hash_cache = NULL;
-    }
 }
 
 
@@ -3733,96 +2938,6 @@ gimple_get_alias_set (tree t)
 }
 
 
-/* Data structure used to count the number of dereferences to PTR
-   inside an expression.  */
-struct count_ptr_d
-{
-  tree ptr;
-  unsigned num_stores;
-  unsigned num_loads;
-};
-
-/* Helper for count_uses_and_derefs.  Called by walk_tree to look for
-   (ALIGN/MISALIGNED_)INDIRECT_REF nodes for the pointer passed in DATA.  */
-
-static tree
-count_ptr_derefs (tree *tp, int *walk_subtrees, void *data)
-{
-  struct walk_stmt_info *wi_p = (struct walk_stmt_info *) data;
-  struct count_ptr_d *count_p = (struct count_ptr_d *) wi_p->info;
-
-  /* Do not walk inside ADDR_EXPR nodes.  In the expression &ptr->fld,
-     pointer 'ptr' is *not* dereferenced, it is simply used to compute
-     the address of 'fld' as 'ptr + offsetof(fld)'.  */
-  if (TREE_CODE (*tp) == ADDR_EXPR)
-    {
-      *walk_subtrees = 0;
-      return NULL_TREE;
-    }
-
-  if (TREE_CODE (*tp) == MEM_REF && TREE_OPERAND (*tp, 0) == count_p->ptr)
-    {
-      if (wi_p->is_lhs)
-	count_p->num_stores++;
-      else
-	count_p->num_loads++;
-    }
-
-  return NULL_TREE;
-}
-
-/* Count the number of direct and indirect uses for pointer PTR in
-   statement STMT.  The number of direct uses is stored in
-   *NUM_USES_P.  Indirect references are counted separately depending
-   on whether they are store or load operations.  The counts are
-   stored in *NUM_STORES_P and *NUM_LOADS_P.  */
-
-void
-count_uses_and_derefs (tree ptr, gimple stmt, unsigned *num_uses_p,
-		       unsigned *num_loads_p, unsigned *num_stores_p)
-{
-  ssa_op_iter i;
-  tree use;
-
-  *num_uses_p = 0;
-  *num_loads_p = 0;
-  *num_stores_p = 0;
-
-  /* Find out the total number of uses of PTR in STMT.  */
-  FOR_EACH_SSA_TREE_OPERAND (use, stmt, i, SSA_OP_USE)
-    if (use == ptr)
-      (*num_uses_p)++;
-
-  /* Now count the number of indirect references to PTR.  This is
-     truly awful, but we don't have much choice.  There are no parent
-     pointers inside INDIRECT_REFs, so an expression like
-     '*x_1 = foo (x_1, *x_1)' needs to be traversed piece by piece to
-     find all the indirect and direct uses of x_1 inside.  The only
-     shortcut we can take is the fact that GIMPLE only allows
-     INDIRECT_REFs inside the expressions below.  */
-  if (is_gimple_assign (stmt)
-      || gimple_code (stmt) == GIMPLE_RETURN
-      || gimple_code (stmt) == GIMPLE_ASM
-      || is_gimple_call (stmt))
-    {
-      struct walk_stmt_info wi;
-      struct count_ptr_d count;
-
-      count.ptr = ptr;
-      count.num_stores = 0;
-      count.num_loads = 0;
-
-      memset (&wi, 0, sizeof (wi));
-      wi.info = &count;
-      walk_gimple_op (stmt, count_ptr_derefs, &wi);
-
-      *num_stores_p = count.num_stores;
-      *num_loads_p = count.num_loads;
-    }
-
-  gcc_assert (*num_uses_p >= *num_loads_p + *num_stores_p);
-}
-
 /* From a tree operand OP return the base of a load or store operation
    or NULL_TREE if OP is not a load or a store.  */
 
@@ -4040,7 +3155,7 @@ walk_stmt_load_store_addr_ops (gimple stmt, void *data,
     {
       for (i = 0; i < gimple_phi_num_args (stmt); ++i)
 	{
-	  tree op = PHI_ARG_DEF (stmt, i);
+	  tree op = gimple_phi_arg_def (stmt, i);
 	  if (TREE_CODE (op) == ADDR_EXPR)
 	    ret |= visit_addr (stmt, TREE_OPERAND (op, 0), data);
 	}
@@ -4096,37 +3211,6 @@ gimple_ior_addresses_taken (bitmap addresses_taken, gimple stmt)
 					gimple_ior_addresses_taken_1);
 }
 
-
-/* Return a printable name for symbol DECL.  */
-
-const char *
-gimple_decl_printable_name (tree decl, int verbosity)
-{
-  if (!DECL_NAME (decl))
-    return NULL;
-
-  if (DECL_ASSEMBLER_NAME_SET_P (decl))
-    {
-      const char *str, *mangled_str;
-      int dmgl_opts = DMGL_NO_OPTS;
-
-      if (verbosity >= 2)
-	{
-	  dmgl_opts = DMGL_VERBOSE
-		      | DMGL_ANSI
-		      | DMGL_GNU_V3
-		      | DMGL_RET_POSTFIX;
-	  if (TREE_CODE (decl) == FUNCTION_DECL)
-	    dmgl_opts |= DMGL_PARAMS;
-	}
-
-      mangled_str = IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (decl));
-      str = cplus_demangle_v3 (mangled_str, dmgl_opts);
-      return (str) ? str : mangled_str;
-    }
-
-  return IDENTIFIER_POINTER (DECL_NAME (decl));
-}
 
 /* Return TRUE iff stmt is a call to a built-in function.  */
 
@@ -4217,4 +3301,130 @@ gimple_asm_clobbers_memory_p (const_gimple stmt)
 
   return false;
 }
-#include "gt-gimple.h"
+
+/* Dump bitmap SET (assumed to contain VAR_DECLs) to FILE.  */
+
+void
+dump_decl_set (FILE *file, bitmap set)
+{
+  if (set)
+    {
+      bitmap_iterator bi;
+      unsigned i;
+
+      fprintf (file, "{ ");
+
+      EXECUTE_IF_SET_IN_BITMAP (set, 0, i, bi)
+	{
+	  fprintf (file, "D.%u", i);
+	  fprintf (file, " ");
+	}
+
+      fprintf (file, "}");
+    }
+  else
+    fprintf (file, "NIL");
+}
+
+/* Return true when CALL is a call stmt that definitely doesn't
+   free any memory or makes it unavailable otherwise.  */
+bool
+nonfreeing_call_p (gimple call)
+{
+  if (gimple_call_builtin_p (call, BUILT_IN_NORMAL)
+      && gimple_call_flags (call) & ECF_LEAF)
+    switch (DECL_FUNCTION_CODE (gimple_call_fndecl (call)))
+      {
+	/* Just in case these become ECF_LEAF in the future.  */
+	case BUILT_IN_FREE:
+	case BUILT_IN_TM_FREE:
+	case BUILT_IN_REALLOC:
+	case BUILT_IN_STACK_RESTORE:
+	  return false;
+	default:
+	  return true;
+      }
+
+  return false;
+}
+
+/* Callback for walk_stmt_load_store_ops.
+ 
+   Return TRUE if OP will dereference the tree stored in DATA, FALSE
+   otherwise.
+
+   This routine only makes a superficial check for a dereference.  Thus
+   it must only be used if it is safe to return a false negative.  */
+static bool
+check_loadstore (gimple stmt ATTRIBUTE_UNUSED, tree op, void *data)
+{
+  if ((TREE_CODE (op) == MEM_REF || TREE_CODE (op) == TARGET_MEM_REF)
+      && operand_equal_p (TREE_OPERAND (op, 0), (tree)data, 0))
+    return true;
+  return false;
+}
+
+/* If OP can be inferred to be non-zero after STMT executes, return true.  */
+
+bool
+infer_nonnull_range (gimple stmt, tree op)
+{
+  /* We can only assume that a pointer dereference will yield
+     non-NULL if -fdelete-null-pointer-checks is enabled.  */
+  if (!flag_delete_null_pointer_checks
+      || !POINTER_TYPE_P (TREE_TYPE (op))
+      || gimple_code (stmt) == GIMPLE_ASM)
+    return false;
+
+  if (walk_stmt_load_store_ops (stmt, (void *)op,
+				check_loadstore, check_loadstore))
+    return true;
+
+  if (is_gimple_call (stmt) && !gimple_call_internal_p (stmt))
+    {
+      tree fntype = gimple_call_fntype (stmt);
+      tree attrs = TYPE_ATTRIBUTES (fntype);
+      for (; attrs; attrs = TREE_CHAIN (attrs))
+	{
+	  attrs = lookup_attribute ("nonnull", attrs);
+
+	  /* If "nonnull" wasn't specified, we know nothing about
+	     the argument.  */
+	  if (attrs == NULL_TREE)
+	    return false;
+
+	  /* If "nonnull" applies to all the arguments, then ARG
+	     is non-null if it's in the argument list.  */
+	  if (TREE_VALUE (attrs) == NULL_TREE)
+	    {
+	      for (unsigned int i = 0; i < gimple_call_num_args (stmt); i++)
+		{
+		  if (operand_equal_p (op, gimple_call_arg (stmt, i), 0)
+		      && POINTER_TYPE_P (TREE_TYPE (gimple_call_arg (stmt, i))))
+		    return true;
+		}
+	      return false;
+	    }
+
+	  /* Now see if op appears in the nonnull list.  */
+	  for (tree t = TREE_VALUE (attrs); t; t = TREE_CHAIN (t))
+	    {
+	      int idx = TREE_INT_CST_LOW (TREE_VALUE (t)) - 1;
+	      tree arg = gimple_call_arg (stmt, idx);
+	      if (operand_equal_p (op, arg, 0))
+		return true;
+	    }
+	}
+    }
+
+  /* If this function is marked as returning non-null, then we can
+     infer OP is non-null if it is used in the return statement.  */
+  if (gimple_code (stmt) == GIMPLE_RETURN
+      && gimple_return_retval (stmt)
+      && operand_equal_p (gimple_return_retval (stmt), op, 0)
+      && lookup_attribute ("returns_nonnull",
+			   TYPE_ATTRIBUTES (TREE_TYPE (current_function_decl))))
+    return true;
+
+  return false;
+}

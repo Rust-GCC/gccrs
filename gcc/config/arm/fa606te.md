@@ -62,7 +62,18 @@
 ;; ALU operations
 (define_insn_reservation "606te_alu_op" 1
  (and (eq_attr "tune" "fa606te")
-      (eq_attr "type" "alu_reg,simple_alu_imm,simple_alu_shift,alu_shift,alu_shift_reg"))
+      (eq_attr "type" "alu_imm,alus_imm,logic_imm,logics_imm,\
+                       alu_reg,alus_reg,logic_reg,logics_reg,\
+                       adc_imm,adcs_imm,adc_reg,adcs_reg,\
+                       adr,bfm,rev,\
+                       shift_imm,shift_reg,extend,\
+                       alu_shift_imm,alus_shift_imm,\
+                       logic_shift_imm,logics_shift_imm,\
+                       alu_shift_reg,alus_shift_reg,\
+                       logic_shift_reg,logics_shift_reg,\
+                       mov_imm,mov_reg,mov_shift,mov_shift_reg,\
+                       mvn_imm,mvn_reg,mvn_shift,mvn_shift_reg,\
+                       mrs,multiple,no_insn"))
  "fa606te_core")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -71,22 +82,22 @@
 
 (define_insn_reservation "606te_mult1" 2
  (and (eq_attr "tune" "fa606te")
-      (eq_attr "insn" "smlalxy"))
+      (eq_attr "type" "smlalxy"))
  "fa606te_core")
 
 (define_insn_reservation "606te_mult2" 3
  (and (eq_attr "tune" "fa606te")
-      (eq_attr "insn" "smlaxy,smulxy,smulwy,smlawy"))
+      (eq_attr "type" "smlaxy,smulxy,smulwy,smlawy"))
  "fa606te_core*2")
 
 (define_insn_reservation "606te_mult3" 4
  (and (eq_attr "tune" "fa606te")
-      (eq_attr "insn" "mul,mla,muls,mlas"))
+      (eq_attr "type" "mul,mla,muls,mlas"))
  "fa606te_core*3")
 
 (define_insn_reservation "606te_mult4" 5
  (and (eq_attr "tune" "fa606te")
-      (eq_attr "insn" "umull,umlal,smull,smlal,umulls,umlals,smulls,smlals"))
+      (eq_attr "type" "umull,umlal,smull,smlal,umulls,umlals,smulls,smlals"))
  "fa606te_core*4")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -298,7 +298,8 @@ combine_set_extension (ext_cand *cand, rtx curr_insn, rtx *orig_set)
 	     the source mode.  */
 	  enum machine_mode src_mode = GET_MODE (SET_DEST (*orig_set));
 	  rtx new_const_int
-	    = GEN_INT (INTVAL (orig_src) & GET_MODE_MASK (src_mode));
+	    = gen_int_mode (INTVAL (orig_src) & GET_MODE_MASK (src_mode),
+			    GET_MODE (new_reg));
 	  new_set = gen_rtx_SET (VOIDmode, new_reg, new_const_int);
 	}
     }
@@ -799,7 +800,7 @@ add_removable_extension (const_rtx expr, rtx insn,
       /* Second, make sure the reaching definitions don't feed another and
 	 different extension.  FIXME: this obviously can be improved.  */
       for (def = defs; def; def = def->next)
-	if ((idx = def_map[INSN_UID(DF_REF_INSN (def->ref))])
+	if ((idx = def_map[INSN_UID (DF_REF_INSN (def->ref))])
 	    && (cand = &(*insn_list)[idx - 1])
 	    && cand->code != code)
 	  {
@@ -819,7 +820,7 @@ add_removable_extension (const_rtx expr, rtx insn,
       idx = insn_list->length ();
 
       for (def = defs; def; def = def->next)
-	def_map[INSN_UID(DF_REF_INSN (def->ref))] = idx;
+	def_map[INSN_UID (DF_REF_INSN (def->ref))] = idx;
     }
 }
 
@@ -919,8 +920,6 @@ find_and_remove_re (void)
   if (dump_file && num_re_opportunities > 0)
     fprintf (dump_file, "Elimination opportunities = %d realized = %d\n",
 	     num_re_opportunities, num_realized);
-
-  df_finish_pass (false);
 }
 
 /* Find and remove redundant extensions.  */
@@ -942,23 +941,40 @@ gate_handle_ree (void)
   return (optimize > 0 && flag_ree);
 }
 
-struct rtl_opt_pass pass_ree =
+namespace {
+
+const pass_data pass_data_ree =
 {
- {
-  RTL_PASS,
-  "ree",                                /* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  gate_handle_ree,                      /* gate */
-  rest_of_handle_ree,                   /* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_REE,                               /* tv_id */
-  0,                                    /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  TODO_ggc_collect |
-  TODO_verify_rtl_sharing,              /* todo_flags_finish */
- }
+  RTL_PASS, /* type */
+  "ree", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_REE, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  ( TODO_df_finish | TODO_verify_rtl_sharing ), /* todo_flags_finish */
 };
+
+class pass_ree : public rtl_opt_pass
+{
+public:
+  pass_ree (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_ree, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_handle_ree (); }
+  unsigned int execute () { return rest_of_handle_ree (); }
+
+}; // class pass_ree
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_ree (gcc::context *ctxt)
+{
+  return new pass_ree (ctxt);
+}

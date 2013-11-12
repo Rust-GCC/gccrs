@@ -6,7 +6,7 @@
  *                                                                          *
  *                         Asm Implementation File                          *
  *                                                                          *
- *         Copyright (C) 2011-2012, Free Software Foundation, Inc.          *
+ *         Copyright (C) 2011-2013, Free Software Foundation, Inc.          *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -131,7 +131,7 @@ void __gnat_sigtramp (int signo, void *si, void *sc,
 
 #define REGNO_PC  67  /* ARG_POINTER_REGNUM  */
 
-/* asm string contruction helpers.  */
+/* asm string construction helpers.  */
 
 #define STR(TEXT) #TEXT
 /* stringify expanded TEXT, surrounding it with double quotes.  */

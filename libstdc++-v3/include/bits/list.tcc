@@ -63,7 +63,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
   template<typename _Tp, typename _Alloc>
     void
     _List_base<_Tp, _Alloc>::
-    _M_clear()
+    _M_clear() _GLIBCXX_NOEXCEPT
     {
       typedef _List_node<_Tp>  _Node;
       _Node* __cur = static_cast<_Node*>(_M_impl._M_node._M_next);
@@ -85,10 +85,10 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
     template<typename... _Args>
       typename list<_Tp, _Alloc>::iterator
       list<_Tp, _Alloc>::
-      emplace(iterator __position, _Args&&... __args)
+      emplace(const_iterator __position, _Args&&... __args)
       {
 	_Node* __tmp = _M_create_node(std::forward<_Args>(__args)...);
-	__tmp->_M_hook(__position._M_node);
+	__tmp->_M_hook(__position._M_const_cast()._M_node);
 	return iterator(__tmp);
       }
 #endif
@@ -96,20 +96,62 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
   template<typename _Tp, typename _Alloc>
     typename list<_Tp, _Alloc>::iterator
     list<_Tp, _Alloc>::
+#if __cplusplus >= 201103L
+    insert(const_iterator __position, const value_type& __x)
+#else
     insert(iterator __position, const value_type& __x)
+#endif
     {
       _Node* __tmp = _M_create_node(__x);
-      __tmp->_M_hook(__position._M_node);
+      __tmp->_M_hook(__position._M_const_cast()._M_node);
       return iterator(__tmp);
     }
+
+#if __cplusplus >= 201103L
+  template<typename _Tp, typename _Alloc>
+    typename list<_Tp, _Alloc>::iterator
+    list<_Tp, _Alloc>::
+    insert(const_iterator __position, size_type __n, const value_type& __x)
+    {
+      if (__n)
+	{
+	  list __tmp(__n, __x, get_allocator());
+	  iterator __it = __tmp.begin();
+	  splice(__position, __tmp);
+	  return __it;
+	}
+      return __position._M_const_cast();
+    }
+
+  template<typename _Tp, typename _Alloc>
+    template<typename _InputIterator, typename>
+      typename list<_Tp, _Alloc>::iterator
+      list<_Tp, _Alloc>::
+      insert(const_iterator __position, _InputIterator __first,
+	     _InputIterator __last)
+      {
+	list __tmp(__first, __last, get_allocator());
+	if (!__tmp.empty())
+	  {
+	    iterator __it = __tmp.begin();
+	    splice(__position, __tmp);
+	    return __it;
+	  }
+	return __position._M_const_cast();
+      }
+#endif
 
   template<typename _Tp, typename _Alloc>
     typename list<_Tp, _Alloc>::iterator
     list<_Tp, _Alloc>::
+#if __cplusplus >= 201103L
+    erase(const_iterator __position) noexcept
+#else
     erase(iterator __position)
+#endif
     {
       iterator __ret = iterator(__position._M_node->_M_next);
-      _M_erase(__position);
+      _M_erase(__position._M_const_cast());
       return __ret;
     }
 

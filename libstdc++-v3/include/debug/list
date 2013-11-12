@@ -70,7 +70,7 @@ namespace __debug
 
       // 23.2.2.1 construct/copy/destroy:
       explicit
-      list(const _Allocator& __a = _Allocator())
+      list(const _Allocator& __a = _Allocator()) _GLIBCXX_NOEXCEPT
       : _Base(__a) { }
 
 #if __cplusplus >= 201103L
@@ -320,28 +320,28 @@ namespace __debug
 
       // element access:
       reference
-      front()
+      front() _GLIBCXX_NOEXCEPT
       {
 	__glibcxx_check_nonempty();
 	return _Base::front();
       }
 
       const_reference
-      front() const
+      front() const _GLIBCXX_NOEXCEPT
       {
 	__glibcxx_check_nonempty();
 	return _Base::front();
       }
 
       reference
-      back()
+      back() _GLIBCXX_NOEXCEPT
       {
 	__glibcxx_check_nonempty();
 	return _Base::back();
       }
 
       const_reference
-      back() const
+      back() const _GLIBCXX_NOEXCEPT
       {
 	__glibcxx_check_nonempty();
 	return _Base::back();
@@ -355,7 +355,7 @@ namespace __debug
 #endif
 
       void
-      pop_front()
+      pop_front() _GLIBCXX_NOEXCEPT
       {
 	__glibcxx_check_nonempty();
 	this->_M_invalidate_if(_Equal(_Base::begin()));
@@ -369,7 +369,7 @@ namespace __debug
 #endif
 
       void
-      pop_back()
+      pop_back() _GLIBCXX_NOEXCEPT
       {
 	__glibcxx_check_nonempty();
 	this->_M_invalidate_if(_Equal(--_Base::end()));
@@ -379,7 +379,7 @@ namespace __debug
 #if __cplusplus >= 201103L
       template<typename... _Args>
         iterator
-        emplace(iterator __position, _Args&&... __args)
+        emplace(const_iterator __position, _Args&&... __args)
 	{
 	  __glibcxx_check_insert(__position);
 	  return iterator(_Base::emplace(__position.base(),
@@ -387,40 +387,62 @@ namespace __debug
 	}
 #endif
 
-      iterator
-      insert(iterator __position, const _Tp& __x)
-      {
-	__glibcxx_check_insert(__position);
-	return iterator(_Base::insert(__position.base(), __x), this);
-      }
+     iterator
+#if __cplusplus >= 201103L
+     insert(const_iterator __position, const _Tp& __x)
+#else
+     insert(iterator __position, const _Tp& __x)
+#endif
+     {
+       __glibcxx_check_insert(__position);
+       return iterator(_Base::insert(__position.base(), __x), this);
+     }
 
 #if __cplusplus >= 201103L
       iterator
-      insert(iterator __position, _Tp&& __x)
+      insert(const_iterator __position, _Tp&& __x)
       { return emplace(__position, std::move(__x)); }
 
-      void
-      insert(iterator __p, initializer_list<value_type> __l)
+      iterator
+      insert(const_iterator __p, initializer_list<value_type> __l)
       {
 	__glibcxx_check_insert(__p);
-	_Base::insert(__p.base(), __l);
+	return iterator(_Base::insert(__p.base(), __l), this);
       }
 #endif
 
+#if __cplusplus >= 201103L
+      iterator
+      insert(const_iterator __position, size_type __n, const _Tp& __x)
+      {
+	__glibcxx_check_insert(__position);
+	return iterator(_Base::insert(__position.base(), __n, __x), this);
+      }
+#else
       void
       insert(iterator __position, size_type __n, const _Tp& __x)
       {
 	__glibcxx_check_insert(__position);
 	_Base::insert(__position.base(), __n, __x);
       }
+#endif
 
 #if __cplusplus >= 201103L
       template<class _InputIterator,
 	       typename = std::_RequireInputIter<_InputIterator>>
+	iterator
+        insert(const_iterator __position, _InputIterator __first,
+	       _InputIterator __last)
+        {
+	  __glibcxx_check_insert_range(__position, __first, __last);
+	  return iterator(_Base::insert(__position.base(),
+					__gnu_debug::__base(__first),
+					__gnu_debug::__base(__last)),
+			  this);
+	}
 #else
       template<class _InputIterator>
-#endif
-        void
+	void
         insert(iterator __position, _InputIterator __first,
 	       _InputIterator __last)
         {
@@ -428,38 +450,52 @@ namespace __debug
 	  _Base::insert(__position.base(), __gnu_debug::__base(__first),
 					   __gnu_debug::__base(__last));
 	}
+#endif
 
     private:
       _Base_iterator
+#if __cplusplus >= 201103L
+      _M_erase(_Base_const_iterator __position) noexcept
+#else
       _M_erase(_Base_iterator __position)
+#endif
       {
 	this->_M_invalidate_if(_Equal(__position));
 	return _Base::erase(__position);
       }
+
     public:
       iterator
+#if __cplusplus >= 201103L
+      erase(const_iterator __position) noexcept
+#else
       erase(iterator __position)
+#endif
       {
 	__glibcxx_check_erase(__position);
 	return iterator(_M_erase(__position.base()), this);
       }
 
       iterator
-      erase(iterator __position, iterator __last)
+#if __cplusplus >= 201103L
+      erase(const_iterator __first, const_iterator __last) noexcept
+#else
+      erase(iterator __first, iterator __last)
+#endif
       {
 	// _GLIBCXX_RESOLVE_LIB_DEFECTS
 	// 151. can't currently clear() empty container
-	__glibcxx_check_erase_range(__position, __last);
-	for (_Base_iterator __victim = __position.base();
+	__glibcxx_check_erase_range(__first, __last);
+	for (_Base_const_iterator __victim = __first.base();
 	     __victim != __last.base(); ++__victim)
 	  {
 	    _GLIBCXX_DEBUG_VERIFY(__victim != _Base::end(),
 			          _M_message(__gnu_debug::__msg_valid_range)
-				  ._M_iterator(__position, "position")
+				  ._M_iterator(__first, "position")
 				  ._M_iterator(__last, "last"));
 	    this->_M_invalidate_if(_Equal(__victim));
 	  }
-	return iterator(_Base::erase(__position.base(), __last.base()), this);
+	return iterator(_Base::erase(__first.base(), __last.base()), this);
       }
 
       void
@@ -479,7 +515,7 @@ namespace __debug
       // 23.2.2.4 list operations:
       void
 #if __cplusplus >= 201103L
-      splice(iterator __position, list&& __x)
+      splice(const_iterator __position, list&& __x) noexcept
 #else
       splice(iterator __position, list& __x)
 #endif
@@ -493,13 +529,13 @@ namespace __debug
 
 #if __cplusplus >= 201103L
       void
-      splice(iterator __position, list& __x)
+      splice(const_iterator __position, list& __x) noexcept
       { splice(__position, std::move(__x)); }
 #endif
 
       void
 #if __cplusplus >= 201103L
-      splice(iterator __position, list&& __x, iterator __i)
+      splice(const_iterator __position, list&& __x, const_iterator __i) noexcept
 #else
       splice(iterator __position, list& __x, iterator __i)
 #endif
@@ -525,14 +561,14 @@ namespace __debug
 
 #if __cplusplus >= 201103L
       void
-      splice(iterator __position, list& __x, iterator __i)
+      splice(const_iterator __position, list& __x, const_iterator __i) noexcept
       { splice(__position, std::move(__x), __i); }
 #endif
 
       void
 #if __cplusplus >= 201103L
-      splice(iterator __position, list&& __x, iterator __first,
-	     iterator __last)
+      splice(const_iterator __position, list&& __x, const_iterator __first,
+	     const_iterator __last) noexcept
 #else
       splice(iterator __position, list& __x, iterator __first,
 	     iterator __last)
@@ -548,14 +584,14 @@ namespace __debug
 	// We used to perform the splice_alloc check:  not anymore, redundant
 	// after implementing the relevant bits of N1599.
 
-	for (_Base_iterator __tmp = __first.base();
+	for (_Base_const_iterator __tmp = __first.base();
 	     __tmp != __last.base(); ++__tmp)
 	  {
 	    _GLIBCXX_DEBUG_VERIFY(__tmp != _Base::end(),
 				  _M_message(__gnu_debug::__msg_valid_range)
 				  ._M_iterator(__first, "first")
 				  ._M_iterator(__last, "last"));
-	    _GLIBCXX_DEBUG_VERIFY(&__x != this || __tmp != __position,
+	    _GLIBCXX_DEBUG_VERIFY(&__x != this || __tmp != __position.base(),
 				_M_message(__gnu_debug::__msg_splice_overlap)
 				  ._M_iterator(__tmp, "position")
 				  ._M_iterator(__first, "first")
@@ -571,7 +607,8 @@ namespace __debug
 
 #if __cplusplus >= 201103L
       void
-      splice(iterator __position, list& __x, iterator __first, iterator __last)
+      splice(const_iterator __position, list& __x,
+	     const_iterator __first, const_iterator __last) noexcept
       { splice(__position, std::move(__x), __first, __last); }
 #endif
 
@@ -753,5 +790,14 @@ namespace __debug
 
 } // namespace __debug
 } // namespace std
+
+#ifndef _GLIBCXX_DEBUG_PEDANTIC
+namespace __gnu_debug
+{
+  template<class _Tp, class _Alloc>
+    struct _Insert_range_from_self_is_safe<std::__debug::list<_Tp, _Alloc> >
+    { enum { __value = 1 }; };
+}
+#endif
 
 #endif

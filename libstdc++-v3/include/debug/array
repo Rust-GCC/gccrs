@@ -147,7 +147,7 @@ namespace __debug
 
       // Element access.
       reference
-      operator[](size_type __n)
+      operator[](size_type __n) noexcept
       {
 	__glibcxx_check_subscript(__n);
 	return _AT_Type::_S_ref(_M_elems, __n);
@@ -165,7 +165,10 @@ namespace __debug
       at(size_type __n)
       {
 	if (__n >= _Nm)
-	  std::__throw_out_of_range(__N("array::at"));
+	  std::__throw_out_of_range_fmt(__N("array::at: __n "
+				            "(which is %zu) >= _Nm "
+					    "(which is %zu)"),
+					__n, _Nm);
 	return _AT_Type::_S_ref(_M_elems, __n);
       }
 
@@ -175,19 +178,21 @@ namespace __debug
 	// Result of conditional expression must be an lvalue so use
 	// boolean ? lvalue : (throw-expr, lvalue)
 	return __n < _Nm ? _AT_Type::_S_ref(_M_elems, __n)
-	  : (std::__throw_out_of_range(__N("array::at")),
+	  : (std::__throw_out_of_range_fmt(__N("array::at: __n (which is %zu) "
+					       ">= _Nm (which is %zu)"),
+					   __n, _Nm),
 	     _AT_Type::_S_ref(_M_elems, 0));
       }
 
       reference 
-      front()
+      front() noexcept
       {
 	__glibcxx_check_nonempty();
 	return *begin();
       }
 
       constexpr const_reference 
-      front() const
+      front() const noexcept
       {
 	return _Nm ? _AT_Type::_S_ref(_M_elems, 0)
 	  : (_GLIBCXX_THROW_OR_ABORT(_Array_check_nonempty<_Nm>()),
@@ -195,14 +200,14 @@ namespace __debug
       }
 
       reference 
-      back()
+      back() noexcept
       {
 	__glibcxx_check_nonempty();
 	return _Nm ? *(end() - 1) : *end();
       }
 
       constexpr const_reference 
-      back() const
+      back() const noexcept
       {
 	return _Nm ? _AT_Type::_S_ref(_M_elems, _Nm - 1)
 	  : (_GLIBCXX_THROW_OR_ABORT(_Array_check_nonempty<_Nm>()),

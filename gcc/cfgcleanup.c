@@ -34,6 +34,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "rtl.h"
+#include "tree.h"
 #include "hard-reg-set.h"
 #include "regs.h"
 #include "insn-config.h"
@@ -456,7 +457,7 @@ try_forward_edges (int mode, basic_block b)
 
       if (first != EXIT_BLOCK_PTR
 	  && find_reg_note (BB_END (first), REG_CROSSING_JUMP, NULL_RTX))
-	return false;
+	return changed;
 
       while (counter < n_basic_blocks)
 	{
@@ -595,9 +596,7 @@ try_forward_edges (int mode, basic_block b)
 	  /* We successfully forwarded the edge.  Now update profile
 	     data: for each edge we traversed in the chain, remove
 	     the original edge's execution count.  */
-	  edge_frequency = ((edge_probability * b->frequency
-			     + REG_BR_PROB_BASE / 2)
-			    / REG_BR_PROB_BASE);
+	  edge_frequency = apply_probability (b->frequency, edge_probability);
 
 	  do
 	    {
@@ -1157,7 +1156,7 @@ old_insns_match_p (int mode ATTRIBUTE_UNUSED, rtx i1, rtx i2)
 
       /* For address sanitizer, never crossjump __asan_report_* builtins,
 	 otherwise errors might be reported on incorrect lines.  */
-      if (flag_asan)
+      if (flag_sanitize & SANITIZE_ADDRESS)
 	{
 	  rtx call = get_call_rtx_from (i1);
 	  if (call && GET_CODE (XEXP (XEXP (call, 0), 0)) == SYMBOL_REF)
@@ -1884,7 +1883,7 @@ try_crossjump_to_edge (int mode, edge e1, edge e2,
      partition boundaries).  See the comments at the top of
      bb-reorder.c:partition_hot_cold_basic_blocks for complete details.  */
 
-  if (flag_reorder_blocks_and_partition && reload_completed)
+  if (crtl->has_bb_partition && reload_completed)
     return false;
 
   /* Search backward through forwarder blocks.  We don't need to worry
@@ -2827,10 +2826,21 @@ try_optimize_cfg (int mode)
 	      df_analyze ();
 	    }
 
-#ifdef ENABLE_CHECKING
 	  if (changed)
-	    verify_flow_info ();
+            {
+              /* Edge forwarding in particular can cause hot blocks previously
+                 reached by both hot and cold blocks to become dominated only
+                 by cold blocks. This will cause the verification below to fail,
+                 and lead to now cold code in the hot section. This is not easy
+                 to detect and fix during edge forwarding, and in some cases
+                 is only visible after newly unreachable blocks are deleted,
+                 which will be done in fixup_partitions.  */
+              fixup_partitions ();
+
+#ifdef ENABLE_CHECKING
+              verify_flow_info ();
 #endif
+            }
 
 	  changed_overall |= changed;
 	  first_pass = false;
@@ -3060,25 +3070,42 @@ execute_jump (void)
   return 0;
 }
 
-struct rtl_opt_pass pass_jump =
+namespace {
+
+const pass_data pass_data_jump =
 {
- {
-  RTL_PASS,
-  "jump",				/* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  NULL,					/* gate */
-  execute_jump,				/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_JUMP,				/* tv_id */
-  0,					/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  TODO_ggc_collect,			/* todo_flags_start */
-  TODO_verify_rtl_sharing,		/* todo_flags_finish */
- }
+  RTL_PASS, /* type */
+  "jump", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  false, /* has_gate */
+  true, /* has_execute */
+  TV_JUMP, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  TODO_verify_rtl_sharing, /* todo_flags_finish */
 };
+
+class pass_jump : public rtl_opt_pass
+{
+public:
+  pass_jump (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_jump, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  unsigned int execute () { return execute_jump (); }
+
+}; // class pass_jump
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_jump (gcc::context *ctxt)
+{
+  return new pass_jump (ctxt);
+}
 
 static unsigned int
 execute_jump2 (void)
@@ -3087,22 +3114,39 @@ execute_jump2 (void)
   return 0;
 }
 
-struct rtl_opt_pass pass_jump2 =
+namespace {
+
+const pass_data pass_data_jump2 =
 {
- {
-  RTL_PASS,
-  "jump2",				/* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  NULL,					/* gate */
-  execute_jump2,			/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_JUMP,				/* tv_id */
-  0,					/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  TODO_ggc_collect,			/* todo_flags_start */
-  TODO_verify_rtl_sharing,		/* todo_flags_finish */
- }
+  RTL_PASS, /* type */
+  "jump2", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  false, /* has_gate */
+  true, /* has_execute */
+  TV_JUMP, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  TODO_verify_rtl_sharing, /* todo_flags_finish */
 };
+
+class pass_jump2 : public rtl_opt_pass
+{
+public:
+  pass_jump2 (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_jump2, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  unsigned int execute () { return execute_jump2 (); }
+
+}; // class pass_jump2
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_jump2 (gcc::context *ctxt)
+{
+  return new pass_jump2 (ctxt);
+}

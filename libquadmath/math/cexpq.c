@@ -83,8 +83,8 @@ cexpq (__complex128 x)
 	  __real__ retval = nanq ("");
 	  __imag__ retval = nanq ("");
 
-#ifdef QUADMATH_FERAISEEXCEPT
-	  QUADMATH_FERAISEEXCEPT (FE_INVALID);
+#ifdef HAVE_FENV_H
+	  feraiseexcept (FE_INVALID);
 #endif
 	}
     }
@@ -125,9 +125,9 @@ cexpq (__complex128 x)
 	  __real__ retval = HUGE_VALQ;
 	  __imag__ retval = nanq ("");
 
-#ifdef QUADMATH_FERAISEEXCEPT
+#ifdef HAVE_FENV_H
 	  if (icls == QUADFP_INFINITE)
-	    QUADMATH_FERAISEEXCEPT (FE_INVALID);
+	    feraiseexcept (FE_INVALID);
 #endif
 	}
       else
@@ -142,9 +142,9 @@ cexpq (__complex128 x)
       __real__ retval = nanq ("");
       __imag__ retval = nanq ("");
 
-#ifdef QUADMATH_FERAISEEXCEPT
+#ifdef HAVE_FENV_H
       if (rcls != QUADFP_NAN || icls != QUADFP_NAN)
-	QUADMATH_FERAISEEXCEPT (FE_INVALID);
+	feraiseexcept (FE_INVALID);
 #endif
     }
 

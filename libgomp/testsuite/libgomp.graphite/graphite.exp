@@ -23,6 +23,7 @@ if [info exists lang_test_file] then {
 }
 
 load_lib libgomp-dg.exp
+load_gcc_lib gcc-dg.exp
 
 if ![check_effective_target_pthread] {
   return
@@ -40,6 +41,9 @@ set PARALLEL_CFLAGS "-ansi -pedantic-errors -O2 \
 
 # Initialize `dg'.
 dg-init
+
+# Turn on OpenMP.
+lappend ALWAYS_CFLAGS "additional_flags=-fopenmp"
 
 # Gather a list of all tests.
 set tests [lsort [find $srcdir/$subdir *.c]]

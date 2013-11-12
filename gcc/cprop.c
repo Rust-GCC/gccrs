@@ -246,7 +246,8 @@ insert_set_in_table (rtx dest, rtx src, rtx insn, struct hash_table_d *table,
 
   /* Record bitmap_index of the implicit set in implicit_set_indexes.  */
   if (implicit)
-    implicit_set_indexes[BLOCK_FOR_INSN(insn)->index] = cur_expr->bitmap_index;
+    implicit_set_indexes[BLOCK_FOR_INSN (insn)->index]
+      = cur_expr->bitmap_index;
 }
 
 /* Determine whether the rtx X should be treated as a constant for CPROP.
@@ -1402,9 +1403,9 @@ find_implicit_sets (void)
       implicit_sets[dest->index] = new_rtx;
       if (dump_file)
 	{
-	  fprintf(dump_file, "Implicit set of reg %d in ",
-		  REGNO (XEXP (cond, 0)));
-	  fprintf(dump_file, "basic block %d\n", dest->index);
+	  fprintf (dump_file, "Implicit set of reg %d in ",
+		   REGNO (XEXP (cond, 0)));
+	  fprintf (dump_file, "basic block %d\n", dest->index);
 	}
       count++;
     }
@@ -1913,23 +1914,42 @@ execute_rtl_cprop (void)
   return 0;
 }
 
-struct rtl_opt_pass pass_rtl_cprop =
+namespace {
+
+const pass_data pass_data_rtl_cprop =
 {
- {
-  RTL_PASS,
-  "cprop",                              /* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  gate_rtl_cprop,                       /* gate */
-  execute_rtl_cprop,  			/* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_CPROP,                             /* tv_id */
-  PROP_cfglayout,                       /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  TODO_df_finish | TODO_verify_rtl_sharing |
-  TODO_verify_flow | TODO_ggc_collect   /* todo_flags_finish */
- }
+  RTL_PASS, /* type */
+  "cprop", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_CPROP, /* tv_id */
+  PROP_cfglayout, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  ( TODO_df_finish | TODO_verify_rtl_sharing
+    | TODO_verify_flow ), /* todo_flags_finish */
 };
+
+class pass_rtl_cprop : public rtl_opt_pass
+{
+public:
+  pass_rtl_cprop (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_rtl_cprop, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  opt_pass * clone () { return new pass_rtl_cprop (m_ctxt); }
+  bool gate () { return gate_rtl_cprop (); }
+  unsigned int execute () { return execute_rtl_cprop (); }
+
+}; // class pass_rtl_cprop
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_rtl_cprop (gcc::context *ctxt)
+{
+  return new pass_rtl_cprop (ctxt);
+}

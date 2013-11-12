@@ -819,17 +819,42 @@ const UQItype __popcount_tab[256] =
 };
 #endif
 
+#if defined(L_popcountsi2) || defined(L_popcountdi2)
+#define POPCOUNTCST2(x) (((UWtype) x << BITS_PER_UNIT) | x)
+#define POPCOUNTCST4(x) (((UWtype) x << (2 * BITS_PER_UNIT)) | x)
+#define POPCOUNTCST8(x) (((UWtype) x << (4 * BITS_PER_UNIT)) | x)
+#if W_TYPE_SIZE == BITS_PER_UNIT
+#define POPCOUNTCST(x) x
+#elif W_TYPE_SIZE == 2 * BITS_PER_UNIT
+#define POPCOUNTCST(x) POPCOUNTCST2 (x)
+#elif W_TYPE_SIZE == 4 * BITS_PER_UNIT
+#define POPCOUNTCST(x) POPCOUNTCST4 (POPCOUNTCST2 (x))
+#elif W_TYPE_SIZE == 8 * BITS_PER_UNIT
+#define POPCOUNTCST(x) POPCOUNTCST8 (POPCOUNTCST4 (POPCOUNTCST2 (x)))
+#endif
+#endif
+
 #ifdef L_popcountsi2
 #undef int
 int
 __popcountSI2 (UWtype x)
 {
+  /* Force table lookup on targets like AVR and RL78 which only
+     pretend they have LIBGCC2_UNITS_PER_WORD 4, but actually
+     have 1, and other small word targets.  */
+#if __SIZEOF_INT__ > 2 && defined (POPCOUNTCST) && BITS_PER_UNIT == 8
+  x = x - ((x >> 1) & POPCOUNTCST (0x55));
+  x = (x & POPCOUNTCST (0x33)) + ((x >> 2) & POPCOUNTCST (0x33));
+  x = (x + (x >> 4)) & POPCOUNTCST (0x0F);
+  return (x * POPCOUNTCST (0x01)) >> (W_TYPE_SIZE - BITS_PER_UNIT);
+#else
   int i, ret = 0;
 
   for (i = 0; i < W_TYPE_SIZE; i += 8)
     ret += __popcount_tab[(x >> i) & 0xff];
 
   return ret;
+#endif
 }
 #endif
 
@@ -838,12 +863,28 @@ __popcountSI2 (UWtype x)
 int
 __popcountDI2 (UDWtype x)
 {
+  /* Force table lookup on targets like AVR and RL78 which only
+     pretend they have LIBGCC2_UNITS_PER_WORD 4, but actually
+     have 1, and other small word targets.  */
+#if __SIZEOF_INT__ > 2 && defined (POPCOUNTCST) && BITS_PER_UNIT == 8
+  const DWunion uu = {.ll = x};
+  UWtype x1 = uu.s.low, x2 = uu.s.high;
+  x1 = x1 - ((x1 >> 1) & POPCOUNTCST (0x55));
+  x2 = x2 - ((x2 >> 1) & POPCOUNTCST (0x55));
+  x1 = (x1 & POPCOUNTCST (0x33)) + ((x1 >> 2) & POPCOUNTCST (0x33));
+  x2 = (x2 & POPCOUNTCST (0x33)) + ((x2 >> 2) & POPCOUNTCST (0x33));
+  x1 = (x1 + (x1 >> 4)) & POPCOUNTCST (0x0F);
+  x2 = (x2 + (x2 >> 4)) & POPCOUNTCST (0x0F);
+  x1 += x2;
+  return (x1 * POPCOUNTCST (0x01)) >> (W_TYPE_SIZE - BITS_PER_UNIT);
+#else
   int i, ret = 0;
 
   for (i = 0; i < 2*W_TYPE_SIZE; i += 8)
     ret += __popcount_tab[(x >> i) & 0xff];
 
   return ret;
+#endif
 }
 #endif
 
@@ -1530,7 +1571,7 @@ FUNC (DWtype u)
   /* Otherwise, find the power of two.  */
   Wtype hi = u >> W_TYPE_SIZE;
   if (hi < 0)
-    hi = -hi;
+    hi = -(UWtype) hi;
 
   UWtype count, shift;
   count_leading_zeros (count, hi);
@@ -1674,18 +1715,6 @@ FUNC (UDWtype u)
 #endif
 
 #if defined(L_fixunsxfsi) && LIBGCC2_HAS_XF_MODE
-/* Reenable the normal types, in case limits.h needs them.  */
-#undef char
-#undef short
-#undef int
-#undef long
-#undef unsigned
-#undef float
-#undef double
-#undef MIN
-#undef MAX
-#include <limits.h>
-
 UWtype
 __fixunsxfSI (XFtype a)
 {
@@ -1696,18 +1725,6 @@ __fixunsxfSI (XFtype a)
 #endif
 
 #if defined(L_fixunsdfsi) && LIBGCC2_HAS_DF_MODE
-/* Reenable the normal types, in case limits.h needs them.  */
-#undef char
-#undef short
-#undef int
-#undef long
-#undef unsigned
-#undef float
-#undef double
-#undef MIN
-#undef MAX
-#include <limits.h>
-
 UWtype
 __fixunsdfSI (DFtype a)
 {
@@ -1718,18 +1735,6 @@ __fixunsdfSI (DFtype a)
 #endif
 
 #if defined(L_fixunssfsi) && LIBGCC2_HAS_SF_MODE
-/* Reenable the normal types, in case limits.h needs them.  */
-#undef char
-#undef short
-#undef int
-#undef long
-#undef unsigned
-#undef float
-#undef double
-#undef MIN
-#undef MAX
-#include <limits.h>
-
 UWtype
 __fixunssfSI (SFtype a)
 {

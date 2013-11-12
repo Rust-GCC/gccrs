@@ -22,13 +22,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "rtl.h"
+#include "tree.h"
 #include "hard-reg-set.h"
 #include "obstack.h"
 #include "basic-block.h"
 #include "cfgloop.h"
 #include "params.h"
 #include "expr.h"
-#include "hashtab.h"
+#include "hash-table.h"
 #include "recog.h"
 #include "target.h"
 #include "dumpfile.h"
@@ -102,16 +103,70 @@ struct var_to_expand
                                       var_expansions[REUSE_EXPANSION - 1].  */
 };
 
+/* Hashtable helper for iv_to_split.  */
+
+struct iv_split_hasher : typed_free_remove <iv_to_split>
+{
+  typedef iv_to_split value_type;
+  typedef iv_to_split compare_type;
+  static inline hashval_t hash (const value_type *);
+  static inline bool equal (const value_type *, const compare_type *);
+};
+
+
+/* A hash function for information about insns to split.  */
+
+inline hashval_t
+iv_split_hasher::hash (const value_type *ivts)
+{
+  return (hashval_t) INSN_UID (ivts->insn);
+}
+
+/* An equality functions for information about insns to split.  */
+
+inline bool
+iv_split_hasher::equal (const value_type *i1, const compare_type *i2)
+{
+  return i1->insn == i2->insn;
+}
+
+/* Hashtable helper for iv_to_split.  */
+
+struct var_expand_hasher : typed_free_remove <var_to_expand>
+{
+  typedef var_to_expand value_type;
+  typedef var_to_expand compare_type;
+  static inline hashval_t hash (const value_type *);
+  static inline bool equal (const value_type *, const compare_type *);
+};
+
+/* Return a hash for VES.  */
+
+inline hashval_t
+var_expand_hasher::hash (const value_type *ves)
+{
+  return (hashval_t) INSN_UID (ves->insn);
+}
+
+/* Return true if I1 and I2 refer to the same instruction.  */
+
+inline bool
+var_expand_hasher::equal (const value_type *i1, const compare_type *i2)
+{
+  return i1->insn == i2->insn;
+}
+
 /* Information about optimization applied in
    the unrolled loop.  */
 
 struct opt_info
 {
-  htab_t insns_to_split;           /* A hashtable of insns to split.  */
+  hash_table <iv_split_hasher> insns_to_split; /* A hashtable of insns to
+						  split.  */
   struct iv_to_split *iv_to_split_head; /* The first iv to split.  */
   struct iv_to_split **iv_to_split_tail; /* Pointer to the tail of the list.  */
-  htab_t insns_with_var_to_expand; /* A hashtable of insns with accumulators
-                                      to expand.  */
+  hash_table <var_expand_hasher> insns_with_var_to_expand; /* A hashtable of
+					insns with accumulators to expand.  */
   struct var_to_expand *var_to_expand_head; /* The first var to expand.  */
   struct var_to_expand **var_to_expand_tail; /* Pointer to the tail of the list.  */
   unsigned first_new_block;        /* The first basic block that was
@@ -158,6 +213,9 @@ report_unroll_peel (struct loop *loop, location_t locus)
   int niters = 0;
   int report_flags = MSG_OPTIMIZED_LOCATIONS | TDF_RTL | TDF_DETAILS;
 
+  if (loop->lpt_decision.decision == LPT_NONE)
+    return;
+
   if (!dump_enabled_p ())
     return;
 
@@ -168,7 +226,7 @@ report_unroll_peel (struct loop *loop, location_t locus)
       && !loop->lpt_decision.times)
     {
       dump_printf_loc (report_flags, locus,
-                       "Turned loop into non-loop; it never loops.\n");
+                       "loop turned into non-loop; it never loops.\n");
       return;
     }
 
@@ -179,13 +237,16 @@ report_unroll_peel (struct loop *loop, location_t locus)
   else if (loop->header->count)
     niters = expected_loop_iterations (loop);
 
-  dump_printf_loc (report_flags, locus,
-                   "%s loop %d times",
-                   (loop->lpt_decision.decision == LPT_PEEL_COMPLETELY
-                    ?  "Completely unroll"
-                    : (loop->lpt_decision.decision == LPT_PEEL_SIMPLE
-                       ? "Peel" : "Unroll")),
-                   loop->lpt_decision.times);
+  if (loop->lpt_decision.decision == LPT_PEEL_COMPLETELY)
+    dump_printf_loc (report_flags, locus,
+                     "loop with %d iterations completely unrolled",
+		     loop->lpt_decision.times + 1);
+  else
+    dump_printf_loc (report_flags, locus,
+                     "loop %s %d times",
+                     (loop->lpt_decision.decision == LPT_PEEL_SIMPLE
+                       ? "peeled" : "unrolled"),
+                     loop->lpt_decision.times);
   if (profile_info)
     dump_printf (report_flags,
                  " (header execution count %d",
@@ -409,7 +470,7 @@ decide_peel_once_rolling (struct loop *loop, int flags ATTRIBUTE_UNUSED)
       || desc->infinite
       || !desc->const_iter
       || (desc->niter != 0
-	  && max_loop_iterations_int (loop) != 0))
+	  && get_max_loop_iterations_int (loop) != 0))
     {
       if (dump_file)
 	fprintf (dump_file,
@@ -634,8 +695,8 @@ decide_unroll_constant_iterations (struct loop *loop, int flags)
      than one exit it may well loop less than determined maximal number
      of iterations.  */
   if (desc->niter < 2 * nunroll
-      || ((estimated_loop_iterations (loop, &iterations)
-	   || max_loop_iterations (loop, &iterations))
+      || ((get_estimated_loop_iterations (loop, &iterations)
+	   || get_max_loop_iterations (loop, &iterations))
 	  && iterations.ult (double_int::from_shwi (2 * nunroll))))
     {
       if (dump_file)
@@ -939,8 +1000,8 @@ decide_unroll_runtime_iterations (struct loop *loop, int flags)
     }
 
   /* Check whether the loop rolls.  */
-  if ((estimated_loop_iterations (loop, &iterations)
-       || max_loop_iterations (loop, &iterations))
+  if ((get_estimated_loop_iterations (loop, &iterations)
+       || get_max_loop_iterations (loop, &iterations))
       && iterations.ult (double_int::from_shwi (2 * nunroll)))
     {
       if (dump_file)
@@ -1106,8 +1167,7 @@ unroll_loop_runtime_iterations (struct loop *loop)
      the number of unrollings is a power of two, and thus this is correct
      even if there is overflow in the computation.  */
   niter = expand_simple_binop (desc->mode, AND,
-			       niter,
-			       GEN_INT (max_unroll),
+			       niter, gen_int_mode (max_unroll, desc->mode),
 			       NULL_RTX, 0, OPTAB_LIB_WIDEN);
 
   init_code = get_insns ();
@@ -1250,7 +1310,7 @@ unroll_loop_runtime_iterations (struct loop *loop)
   gcc_assert (!desc->const_iter);
   desc->niter_expr =
     simplify_gen_binary (UDIV, desc->mode, old_niter,
-			 GEN_INT (max_unroll + 1));
+			 gen_int_mode (max_unroll + 1, desc->mode));
   loop->nb_iterations_upper_bound
     = loop->nb_iterations_upper_bound.udiv (double_int::from_uhwi (max_unroll
 								   + 1),
@@ -1329,7 +1389,7 @@ decide_peel_simple (struct loop *loop, int flags)
     }
 
   /* If we have realistic estimate on number of iterations, use it.  */
-  if (estimated_loop_iterations (loop, &iterations))
+  if (get_estimated_loop_iterations (loop, &iterations))
     {
       if (double_int::from_shwi (npeel).ule (iterations))
 	{
@@ -1347,7 +1407,7 @@ decide_peel_simple (struct loop *loop, int flags)
     }
   /* If we have small enough bound on iterations, we can still peel (completely
      unroll).  */
-  else if (max_loop_iterations (loop, &iterations)
+  else if (get_max_loop_iterations (loop, &iterations)
            && iterations.ult (double_int::from_shwi (npeel)))
     npeel = iterations.to_shwi () + 1;
   else
@@ -1497,8 +1557,8 @@ decide_unroll_stupid (struct loop *loop, int flags)
     }
 
   /* Check whether the loop rolls.  */
-  if ((estimated_loop_iterations (loop, &iterations)
-       || max_loop_iterations (loop, &iterations))
+  if ((get_estimated_loop_iterations (loop, &iterations)
+       || get_max_loop_iterations (loop, &iterations))
       && iterations.ult (double_int::from_shwi (2 * nunroll)))
     {
       if (dump_file)
@@ -1575,7 +1635,7 @@ unroll_loop_stupid (struct loop *loop)
 	 for a loop to be really simple.  We could update the counts, but the
 	 problem is that we are unable to decide which exit will be taken
 	 (not really true in case the number of iterations is constant,
-	 but noone will do anything with this information, so we do not
+	 but no one will do anything with this information, so we do not
 	 worry about it).  */
       desc->simple_p = false;
     }
@@ -1583,45 +1643,6 @@ unroll_loop_stupid (struct loop *loop)
   if (dump_file)
     fprintf (dump_file, ";; Unrolled loop %d times, %i insns\n",
 	     nunroll, num_loop_insns (loop));
-}
-
-/* A hash function for information about insns to split.  */
-
-static hashval_t
-si_info_hash (const void *ivts)
-{
-  return (hashval_t) INSN_UID (((const struct iv_to_split *) ivts)->insn);
-}
-
-/* An equality functions for information about insns to split.  */
-
-static int
-si_info_eq (const void *ivts1, const void *ivts2)
-{
-  const struct iv_to_split *const i1 = (const struct iv_to_split *) ivts1;
-  const struct iv_to_split *const i2 = (const struct iv_to_split *) ivts2;
-
-  return i1->insn == i2->insn;
-}
-
-/* Return a hash for VES, which is really a "var_to_expand *".  */
-
-static hashval_t
-ve_info_hash (const void *ves)
-{
-  return (hashval_t) INSN_UID (((const struct var_to_expand *) ves)->insn);
-}
-
-/* Return true if IVTS1 and IVTS2 (which are really both of type
-   "var_to_expand *") refer to the same instruction.  */
-
-static int
-ve_info_eq (const void *ivts1, const void *ivts2)
-{
-  const struct var_to_expand *const i1 = (const struct var_to_expand *) ivts1;
-  const struct var_to_expand *const i2 = (const struct var_to_expand *) ivts2;
-
-  return i1->insn == i2->insn;
 }
 
 /* Returns true if REG is referenced in one nondebug insn in LOOP.
@@ -1908,8 +1929,8 @@ analyze_insns_in_loop (struct loop *loop)
   rtx insn;
   struct iv_to_split *ivts = NULL;
   struct var_to_expand *ves = NULL;
-  PTR *slot1;
-  PTR *slot2;
+  iv_to_split **slot1;
+  var_to_expand **slot2;
   vec<edge> edges = get_loop_exit_edges (loop);
   edge exit;
   bool can_apply = false;
@@ -1920,8 +1941,7 @@ analyze_insns_in_loop (struct loop *loop)
 
   if (flag_split_ivs_in_unroller)
     {
-      opt_info->insns_to_split = htab_create (5 * loop->num_nodes,
-					      si_info_hash, si_info_eq, free);
+      opt_info->insns_to_split.create (5 * loop->num_nodes);
       opt_info->iv_to_split_head = NULL;
       opt_info->iv_to_split_tail = &opt_info->iv_to_split_head;
     }
@@ -1942,9 +1962,7 @@ analyze_insns_in_loop (struct loop *loop)
   if (flag_variable_expansion_in_unroller
       && can_apply)
     {
-      opt_info->insns_with_var_to_expand = htab_create (5 * loop->num_nodes,
-							ve_info_hash,
-							ve_info_eq, free);
+      opt_info->insns_with_var_to_expand.create (5 * loop->num_nodes);
       opt_info->var_to_expand_head = NULL;
       opt_info->var_to_expand_tail = &opt_info->var_to_expand_head;
     }
@@ -1960,12 +1978,12 @@ analyze_insns_in_loop (struct loop *loop)
         if (!INSN_P (insn))
           continue;
 
-        if (opt_info->insns_to_split)
+        if (opt_info->insns_to_split.is_created ())
           ivts = analyze_iv_to_split_insn (insn);
 
         if (ivts)
           {
-            slot1 = htab_find_slot (opt_info->insns_to_split, ivts, INSERT);
+            slot1 = opt_info->insns_to_split.find_slot (ivts, INSERT);
 	    gcc_assert (*slot1 == NULL);
             *slot1 = ivts;
 	    *opt_info->iv_to_split_tail = ivts;
@@ -1973,12 +1991,12 @@ analyze_insns_in_loop (struct loop *loop)
             continue;
           }
 
-        if (opt_info->insns_with_var_to_expand)
+        if (opt_info->insns_with_var_to_expand.is_created ())
           ves = analyze_insn_to_expand_var (loop, insn);
 
         if (ves)
           {
-            slot2 = htab_find_slot (opt_info->insns_with_var_to_expand, ves, INSERT);
+            slot2 = opt_info->insns_with_var_to_expand.find_slot (ves, INSERT);
 	    gcc_assert (*slot2 == NULL);
             *slot2 = ves;
 	    *opt_info->var_to_expand_tail = ves;
@@ -2356,7 +2374,7 @@ apply_opt_in_copies (struct opt_info *opt_info,
   gcc_assert (!unrolling || rewrite_original_loop);
 
   /* Allocate the basic variables (i0).  */
-  if (opt_info->insns_to_split)
+  if (opt_info->insns_to_split.is_created ())
     for (ivts = opt_info->iv_to_split_head; ivts; ivts = ivts->next)
       allocate_basic_variable (ivts);
 
@@ -2388,12 +2406,11 @@ apply_opt_in_copies (struct opt_info *opt_info,
           ve_templ.insn = orig_insn;
 
           /* Apply splitting iv optimization.  */
-          if (opt_info->insns_to_split)
+          if (opt_info->insns_to_split.is_created ())
             {
 	      maybe_strip_eq_note_for_split_iv (opt_info, insn);
 
-              ivts = (struct iv_to_split *)
-		htab_find (opt_info->insns_to_split, &ivts_templ);
+              ivts = opt_info->insns_to_split.find (&ivts_templ);
 
               if (ivts)
                 {
@@ -2406,10 +2423,10 @@ apply_opt_in_copies (struct opt_info *opt_info,
                 }
             }
           /* Apply variable expansion optimization.  */
-          if (unrolling && opt_info->insns_with_var_to_expand)
+          if (unrolling && opt_info->insns_with_var_to_expand.is_created ())
             {
               ves = (struct var_to_expand *)
-		htab_find (opt_info->insns_with_var_to_expand, &ve_templ);
+		opt_info->insns_with_var_to_expand.find (&ve_templ);
               if (ves)
                 {
 		  gcc_assert (GET_CODE (PATTERN (insn))
@@ -2426,7 +2443,7 @@ apply_opt_in_copies (struct opt_info *opt_info,
 
   /* Initialize the variable expansions in the loop preheader
      and take care of combining them at the loop exit.  */
-  if (opt_info->insns_with_var_to_expand)
+  if (opt_info->insns_with_var_to_expand.is_created ())
     {
       for (ves = opt_info->var_to_expand_head; ves; ves = ves->next)
 	insert_var_expansion_initialization (ves, opt_info->loop_preheader);
@@ -2455,12 +2472,12 @@ apply_opt_in_copies (struct opt_info *opt_info,
  	    continue;
 
           ivts_templ.insn = orig_insn;
-          if (opt_info->insns_to_split)
+          if (opt_info->insns_to_split.is_created ())
             {
 	      maybe_strip_eq_note_for_split_iv (opt_info, orig_insn);
 
               ivts = (struct iv_to_split *)
-		htab_find (opt_info->insns_to_split, &ivts_templ);
+		opt_info->insns_to_split.find (&ivts_templ);
               if (ivts)
                 {
                   if (!delta)
@@ -2479,15 +2496,15 @@ apply_opt_in_copies (struct opt_info *opt_info,
 static void
 free_opt_info (struct opt_info *opt_info)
 {
-  if (opt_info->insns_to_split)
-    htab_delete (opt_info->insns_to_split);
-  if (opt_info->insns_with_var_to_expand)
+  if (opt_info->insns_to_split.is_created ())
+    opt_info->insns_to_split.dispose ();
+  if (opt_info->insns_with_var_to_expand.is_created ())
     {
       struct var_to_expand *ves;
 
       for (ves = opt_info->var_to_expand_head; ves; ves = ves->next)
 	ves->var_expansions.release ();
-      htab_delete (opt_info->insns_with_var_to_expand);
+      opt_info->insns_with_var_to_expand.dispose ();
     }
   free (opt_info);
 }

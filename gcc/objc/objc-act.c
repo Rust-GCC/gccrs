@@ -1401,7 +1401,7 @@ objc_maybe_build_component_ref (tree object, tree property_ident)
 		     object.component dot-syntax without a declared
 		     property (this is valid for classes too).  Look
 		     for getter/setter methods and internally declare
-		     an artifical property based on them if found.  */
+		     an artificial property based on them if found.  */
 		  x = maybe_make_artificial_property_decl (NULL_TREE,
 							   NULL_TREE,
 							   rprotos,
@@ -8244,6 +8244,7 @@ objc_push_parm (tree parm)
   c_apply_type_quals_to_decl
   ((TYPE_READONLY (TREE_TYPE (parm)) ? TYPE_QUAL_CONST : 0)
    | (TYPE_RESTRICT (TREE_TYPE (parm)) ? TYPE_QUAL_RESTRICT : 0)
+   | (TYPE_ATOMIC (TREE_TYPE (parm)) ? TYPE_QUAL_ATOMIC : 0)
    | (TYPE_VOLATILE (TREE_TYPE (parm)) ? TYPE_QUAL_VOLATILE : 0), parm);
 
   objc_parmlist = chainon (objc_parmlist, parm);

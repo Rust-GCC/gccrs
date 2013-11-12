@@ -101,6 +101,21 @@ namespace __profile
 
       unordered_map(unordered_map&&) = default;
 
+      explicit
+      unordered_map(const allocator_type& __a)
+	: _Base(__a)
+      { }
+
+      unordered_map(const unordered_map& __umap,
+		    const allocator_type& __a)
+	: _Base(__umap, __a)
+      { }
+
+      unordered_map(unordered_map&& __umap,
+		    const allocator_type& __a)
+	: _Base(std::move(__umap._M_base()), __a)
+      { }
+
       unordered_map(initializer_list<value_type> __l,
 		    size_type __n = 0,
 		    const hasher& __hf = hasher(),
@@ -234,6 +249,7 @@ namespace __profile
 
       void
       swap(unordered_map& __x)
+      noexcept( noexcept(__x._M_base().swap(__x)) )
       { _Base::swap(__x._M_base()); }
 
       void rehash(size_type __n)
@@ -336,6 +352,21 @@ namespace __profile
       { }
 
       unordered_multimap(unordered_multimap&&) = default;
+
+      explicit
+      unordered_multimap(const allocator_type& __a)
+	: _Base(__a)
+      { }
+
+      unordered_multimap(const unordered_multimap& __ummap,
+			 const allocator_type& __a)
+	: _Base(__ummap._M_base(), __a)
+      { }
+
+      unordered_multimap(unordered_multimap&& __ummap,
+			 const allocator_type& __a)
+	: _Base(std::move(__ummap._M_base()), __a)
+      { }
 
       unordered_multimap(initializer_list<value_type> __l,
 			 size_type __n = 0,
@@ -450,6 +481,7 @@ namespace __profile
 
       void
       swap(unordered_multimap& __x)
+      noexcept( noexcept(__x._M_base().swap(__x)) )
       { _Base::swap(__x._M_base()); }
 
       void

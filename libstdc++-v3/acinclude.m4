@@ -871,7 +871,8 @@ dnl    (FEATURE, DEFAULT, HELP-ARG, HELP-STRING)
 dnl    (FEATURE, DEFAULT, HELP-ARG, HELP-STRING, permit a|b|c)
 dnl    (FEATURE, DEFAULT, HELP-ARG, HELP-STRING, SHELL-CODE-HANDLER)
 dnl
-dnl See docs/html/17_intro/configury.html#enable for documentation.
+dnl See manual/appendix_porting.html#appendix.porting.build_hacking for
+dnl documentation.
 dnl
 m4_define([GLIBCXX_ENABLE],[dnl
 m4_define([_g_switch],[--enable-$1])dnl
@@ -1161,8 +1162,9 @@ dnl        nanosleep and sched_yield in libc and libposix4 and, if needed,
 dnl        links in the latter.
 dnl --enable-libstdcxx-time=rt
 dnl        also searches (and, if needed, links) librt.  Note that this is
-dnl        not always desirable because, in glibc, for example, in turn it
-dnl        triggers the linking of libpthread too, which activates locking,
+dnl        not always desirable because, in glibc 2.16 and earlier, for
+dnl        example, in turn it triggers the linking of libpthread too,
+dnl        which activates locking,
 dnl        a large overhead for single-thread programs.
 dnl --enable-libstdcxx-time=no
 dnl --disable-libstdcxx-time
@@ -1175,8 +1177,7 @@ dnl os_defines.h and also defines _GLIBCXX_USE_SCHED_YIELD.
 dnl
 AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
 
-  AC_MSG_CHECKING([for clock_gettime, nanosleep and sched_yield])
-  GLIBCXX_ENABLE(libstdcxx-time,$1,[[[=KIND]]],
+  GLIBCXX_ENABLE(libstdcxx-time,auto,[[[=KIND]]],
     [use KIND for check type],
     [permit yes|no|rt])
 
@@ -1188,9 +1189,59 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
 
   ac_has_clock_monotonic=no
   ac_has_clock_realtime=no
-  AC_MSG_RESULT($enable_libstdcxx_time)
+  ac_has_nanosleep=no
+  ac_has_sched_yield=no
 
-  if test x"$enable_libstdcxx_time" != x"no"; then
+  if test x"$enable_libstdcxx_time" = x"auto"; then
+
+    case "${target_os}" in
+      cygwin*)
+        ac_has_nanosleep=yes
+        ;;
+      darwin*)
+        ac_has_nanosleep=yes
+        ac_has_sched_yield=yes
+        ;;
+      gnu* | linux* | kfreebsd*-gnu | knetbsd*-gnu)
+        AC_MSG_CHECKING([for at least GNU libc 2.17])
+        AC_TRY_COMPILE(
+          [#include <features.h>],
+          [
+          #if ! __GLIBC_PREREQ(2, 17)
+          #error 
+          #endif
+          ],
+          [glibcxx_glibc217=yes], [glibcxx_glibc217=no])
+        AC_MSG_RESULT($glibcxx_glibc217)
+
+        if test x"$glibcxx_glibc217" = x"yes"; then
+          ac_has_clock_monotonic=yes
+          ac_has_clock_realtime=yes
+        fi
+        ac_has_nanosleep=yes
+        ac_has_sched_yield=yes
+        ;;
+      freebsd*|netbsd*)
+        ac_has_clock_monotonic=yes
+        ac_has_clock_realtime=yes
+        ac_has_nanosleep=yes
+        ac_has_sched_yield=yes
+        ;;
+      openbsd*)
+        ac_has_clock_monotonic=yes
+        ac_has_clock_realtime=yes
+        ac_has_nanosleep=yes
+        ;;
+      solaris*)
+        GLIBCXX_LIBS="$GLIBCXX_LIBS -lrt"
+        ac_has_clock_monotonic=yes
+        ac_has_clock_realtime=yes
+        ac_has_nanosleep=yes
+        ac_has_sched_yield=yes
+        ;;
+    esac
+
+  elif test x"$enable_libstdcxx_time" != x"no"; then
 
     if test x"$enable_libstdcxx_time" = x"rt"; then
       AC_SEARCH_LIBS(clock_gettime, [rt posix4])
@@ -1214,19 +1265,16 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
     case "$ac_cv_search_sched_yield" in
       -lposix4*)
       GLIBCXX_LIBS="$GLIBCXX_LIBS $ac_cv_search_sched_yield"
-      AC_DEFINE(_GLIBCXX_USE_SCHED_YIELD, 1,
-		[ Defined if sched_yield is available. ])
+      ac_has_sched_yield=yes
       ;;
       -lrt*)
       if test x"$enable_libstdcxx_time" = x"rt"; then
 	GLIBCXX_LIBS="$GLIBCXX_LIBS $ac_cv_search_sched_yield"
-	AC_DEFINE(_GLIBCXX_USE_SCHED_YIELD, 1,
-		  [ Defined if sched_yield is available. ])
+        ac_has_sched_yield=yes
       fi
       ;;
       *)
-      AC_DEFINE(_GLIBCXX_USE_SCHED_YIELD, 1,
-		[ Defined if sched_yield is available. ])
+      ac_has_sched_yield=yes
       ;;
     esac
 
@@ -1307,6 +1355,11 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
   if test x"$ac_has_clock_realtime" = x"yes"; then
     AC_DEFINE(_GLIBCXX_USE_CLOCK_REALTIME, 1,
       [ Defined if clock_gettime has realtime clock support. ])
+  fi
+
+  if test x"$ac_has_sched_yield" = x"yes"; then
+    AC_DEFINE(_GLIBCXX_USE_SCHED_YIELD, 1,
+              [ Defined if sched_yield is available. ])
   fi
 
   if test x"$ac_has_nanosleep" = x"yes"; then
@@ -2232,6 +2285,38 @@ AC_DEFUN([GLIBCXX_ENABLE_EXTERN_TEMPLATE], [
 ])
 
 dnl
+dnl Use vtable verification.
+dnl
+dnl --enable-vtable-verify defines _GLIBCXX_VTABLE_VERIFY to 1
+dnl --disable-vtable-verify defines _GLIBCXX_VTABLE_VERIFY to 0
+
+dnl  +  Usage:  GLIBCXX_ENABLE_VTABLE_VERIFY[(DEFAULT)]
+dnl       Where DEFAULT is `yes' or `no'.
+dnl
+AC_DEFUN([GLIBCXX_ENABLE_VTABLE_VERIFY], [
+
+  GLIBCXX_ENABLE(vtable-verify,$1,,[enable vtable verify])
+
+  AC_MSG_CHECKING([for vtable verify support])
+  AC_MSG_RESULT([$enable_vtable_verify])
+
+  if test $enable_vtable_verify = yes; then
+    VTV_CXXFLAGS="-fvtable-verify=std -Wl,-u_vtable_map_vars_start,-u_vtable_map_vars_end"
+    VTV_PCH_CXXFLAGS="-fvtable-verify=std"
+    VTV_CXXLINKFLAGS="-L${toplevel_builddir}/libvtv/.libs -Wl,--rpath -Wl,${toplevel_builddir}/libvtv/.libs"		
+  else
+    VTV_CXXFLAGS= 
+    VTV_PCH_CXXFLAGS=
+    VTV_CXXLINKFLAGS= 
+  fi
+
+  AC_SUBST(VTV_CXXFLAGS)
+  AC_SUBST(VTV_PCH_CXXFLAGS)
+  AC_SUBST(VTV_CXXLINKFLAGS)
+  GLIBCXX_CONDITIONAL(ENABLE_VTABLE_VERIFY, test $enable_vtable_verify = yes)
+])
+
+dnl
 dnl Check for parallel mode pre-requisites, including OpenMP support.
 dnl
 dnl  +  Usage:  GLIBCXX_ENABLE_PARALLEL
@@ -3054,6 +3139,8 @@ EOF
     if AC_TRY_EVAL(ac_compile); then
       if grep _Unwind_SjLj_Resume conftest.s >/dev/null 2>&1 ; then
 	enable_sjlj_exceptions=yes
+      elif grep _Unwind_SjLj_Register conftest.s >/dev/null 2>&1 ; then
+	enable_sjlj_exceptions=yes
       elif grep _Unwind_Resume conftest.s >/dev/null 2>&1 ; then
 	enable_sjlj_exceptions=no
       elif grep __cxa_end_cleanup conftest.s >/dev/null 2>&1 ; then
@@ -3266,7 +3353,7 @@ changequote([,])dnl
 fi
 
 # For libtool versioning info, format is CURRENT:REVISION:AGE
-libtool_VERSION=6:18:0
+libtool_VERSION=6:19:0
 
 # Everything parsed; figure out what files and settings to use.
 case $enable_symvers in

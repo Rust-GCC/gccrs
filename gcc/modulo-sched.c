@@ -1148,8 +1148,9 @@ generate_prolog_epilog (partial_schedule_ptr ps, struct loop *loop,
          generate_prolog_epilog function.  */
       rtx sub_reg = NULL_RTX;
 
-      sub_reg = expand_simple_binop (GET_MODE (count_reg), MINUS,
-                                     count_reg, GEN_INT (last_stage),
+      sub_reg = expand_simple_binop (GET_MODE (count_reg), MINUS, count_reg,
+				     gen_int_mode (last_stage,
+						   GET_MODE (count_reg)),
                                      count_reg, 1, OPTAB_DIRECT);
       gcc_assert (REG_P (sub_reg));
       if (REGNO (sub_reg) != REGNO (count_reg))
@@ -1360,7 +1361,7 @@ sms_schedule (void)
 
   loop_optimizer_init (LOOPS_HAVE_PREHEADERS
 		       | LOOPS_HAVE_RECORDED_EXITS);
-  if (number_of_loops () <= 1)
+  if (number_of_loops (cfun) <= 1)
     {
       loop_optimizer_finalize ();
       return;  /* There are no loops to schedule.  */
@@ -1384,7 +1385,7 @@ sms_schedule (void)
 
   /* Allocate memory to hold the DDG array one entry for each loop.
      We use loop->num as index into this array.  */
-  g_arr = XCNEWVEC (ddg_ptr, number_of_loops ());
+  g_arr = XCNEWVEC (ddg_ptr, number_of_loops (cfun));
 
   if (dump_file)
   {
@@ -1715,8 +1716,9 @@ sms_schedule (void)
           /* case the BCT count is not known , Do loop-versioning */
 	  if (count_reg && ! count_init)
             {
-	      rtx comp_rtx = gen_rtx_fmt_ee (GT, VOIDmode, count_reg,
-	  				     GEN_INT(stage_count));
+	      rtx comp_rtx = gen_rtx_GT (VOIDmode, count_reg,
+					 gen_int_mode (stage_count,
+						       GET_MODE (count_reg)));
 	      unsigned prob = (PROB_SMS_ENOUGH_ITERATIONS
 			       * REG_BR_PROB_BASE) / 100;
 
@@ -3351,25 +3353,41 @@ rest_of_handle_sms (void)
   return 0;
 }
 
-struct rtl_opt_pass pass_sms =
+namespace {
+
+const pass_data pass_data_sms =
 {
- {
-  RTL_PASS,
-  "sms",                                /* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  gate_handle_sms,                      /* gate */
-  rest_of_handle_sms,                   /* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_SMS,                               /* tv_id */
-  0,                                    /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  TODO_df_finish
-    | TODO_verify_flow
-    | TODO_verify_rtl_sharing
-    | TODO_ggc_collect                  /* todo_flags_finish */
- }
+  RTL_PASS, /* type */
+  "sms", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_SMS, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  ( TODO_df_finish | TODO_verify_flow
+    | TODO_verify_rtl_sharing ), /* todo_flags_finish */
 };
+
+class pass_sms : public rtl_opt_pass
+{
+public:
+  pass_sms (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_sms, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_handle_sms (); }
+  unsigned int execute () { return rest_of_handle_sms (); }
+
+}; // class pass_sms
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_sms (gcc::context *ctxt)
+{
+  return new pass_sms (ctxt);
+}

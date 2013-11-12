@@ -166,7 +166,7 @@ including the global binding level.
 end
 
 define pbb
-set dump_bb ($, stderr, 0)
+set debug ($)
 end
 
 document pbb
@@ -184,6 +184,8 @@ end
 # Define some macros helpful to gdb when it is expanding macros.
 macro define __FILE__ "gdb"
 macro define __LINE__ 1
+macro define __FUNCTION__ "gdb"
+macro define __null 0
 
 # Gracefully handle aborts in functions used from gdb.
 set unwindonsignal on
@@ -202,6 +204,11 @@ set complaints 0
 # USE_SYSTEM_ABORT is defined, so gdb may complain and bail out.
 b exit
 b abort
+
+# Disable strict type checking.  This allows developers to (for example)
+# make inferior calls without casting absolute address to a suitable
+# pointer type.
+set check type off
 
 # Skip all inline functions in tree.h.
 # These are used in accessor macros.

@@ -110,7 +110,7 @@ determine_precision (st_parameter_dt * dtp, const fnode * f, int len)
 
 /* Output a real number according to its format which is FMT_G free.  */
 
-static try
+static bool
 output_float (st_parameter_dt *dtp, const fnode *f, char *buffer, size_t size,
 	      int nprinted, int precision, int sign_bit, bool zero_flag)
 {
@@ -244,13 +244,13 @@ output_float (st_parameter_dt *dtp, const fnode *f, char *buffer, size_t size,
 	{
 	  generate_error (&dtp->common, LIBERROR_FORMAT, "Precision not "
 			  "greater than zero in format specifier 'E' or 'D'");
-	  return FAILURE;
+	  return false;
 	}
       if (p <= -d || p >= d + 2)
 	{
 	  generate_error (&dtp->common, LIBERROR_FORMAT, "Scale factor "
 			  "out of range in format specifier 'E' or 'D'");
-	  return FAILURE;
+	  return false;
 	}
 
       if (!zero_flag)
@@ -532,7 +532,7 @@ output_float (st_parameter_dt *dtp, const fnode *f, char *buffer, size_t size,
   /* Create the ouput buffer.  */
   out = write_block (dtp, w);
   if (out == NULL)
-    return FAILURE;
+    return false;
 
   /* Check the value fits in the specified field width.  */
   if (nblanks < 0 || edigits == -1 || w == 1 || (w == 2 && sign != S_NONE))
@@ -541,10 +541,10 @@ output_float (st_parameter_dt *dtp, const fnode *f, char *buffer, size_t size,
 	{
 	  gfc_char4_t *out4 = (gfc_char4_t *) out;
 	  memset4 (out4, '*', w);
-	  return FAILURE;
+	  return false;
 	}
       star_fill (out, w);
-      return FAILURE;
+      return false;
     }
 
   /* See if we have space for a zero before the decimal point.  */
@@ -652,7 +652,7 @@ output_float (st_parameter_dt *dtp, const fnode *f, char *buffer, size_t size,
 	  memset4 (out4, ' ' , nblanks);
 	  dtp->u.p.no_leading_blank = 0;
 	}
-      return SUCCESS;
+      return true;
     } /* End of character(kind=4) internal unit code.  */
 
   /* Pad to full field width.  */
@@ -745,7 +745,7 @@ output_float (st_parameter_dt *dtp, const fnode *f, char *buffer, size_t size,
       dtp->u.p.no_leading_blank = 0;
     }
 
-  return SUCCESS;
+  return true;
 }
 
 
@@ -961,6 +961,34 @@ __qmath_(quadmath_snprintf) (buffer, size, "%+-#.*Qf", \
 #endif
 
 
+#if defined(GFC_REAL_16_IS_FLOAT128)
+#define ISFINITE2Q(val) finiteq(val)
+#endif
+#define ISFINITE2(val) isfinite(val)
+#define ISFINITE2L(val) isfinite(val)
+
+#define ISFINITE(suff,val) TOKENPASTE(ISFINITE2,suff)(val)
+
+
+#if defined(GFC_REAL_16_IS_FLOAT128)
+#define SIGNBIT2Q(val) signbitq(val)
+#endif
+#define SIGNBIT2(val) signbit(val)
+#define SIGNBIT2L(val) signbit(val)
+
+#define SIGNBIT(suff,val) TOKENPASTE(SIGNBIT2,suff)(val)
+
+
+#if defined(GFC_REAL_16_IS_FLOAT128)
+#define ISNAN2Q(val) isnanq(val)
+#endif
+#define ISNAN2(val) isnan(val)
+#define ISNAN2L(val) isnan(val)
+
+#define ISNAN(suff,val) TOKENPASTE(ISNAN2,suff)(val)
+
+
+
 /* Generate corresponding I/O format for FMT_G and output.
    The rules to translate FMT_G to FMT_E or FMT_F from DEC fortran
    LRM (table 11-2, Chapter 11, "I/O Formatting", P11-25) is:
@@ -995,7 +1023,7 @@ output_float_FMT_G_ ## x (st_parameter_dt *dtp, const fnode *f, \
   int ubound, lbound;\
   char *p, pad = ' ';\
   int save_scale_factor, nb = 0;\
-  try result;\
+  bool result;\
   int nprinted, precision;\
 \
   save_scale_factor = dtp->u.p.scale_factor;\
@@ -1087,7 +1115,7 @@ output_float_FMT_G_ ## x (st_parameter_dt *dtp, const fnode *f, \
       p = write_block (dtp, nb);\
       if (p == NULL)\
 	return;\
-      if (result == FAILURE)\
+      if (!result)\
         pad = '*';\
       if (unlikely (is_char4_unit (dtp)))\
 	{\
@@ -1127,7 +1155,7 @@ OUTPUT_FLOAT_FMT_G(16,L)
 {\
     GFC_REAL_ ## x tmp;				\
     tmp = * (GFC_REAL_ ## x *)source;				\
-    if (isfinite (tmp))						\
+    if (ISFINITE (y,tmp))					\
       nprinted = DTOA(y,0,tmp);					\
     else\
       nprinted = -1;\
@@ -1194,10 +1222,10 @@ determine_en_precision (st_parameter_dt *dtp, const fnode *f,
 {\
 	GFC_REAL_ ## x tmp;\
 	tmp = * (GFC_REAL_ ## x *)source;\
-	sign_bit = signbit (tmp);\
-	if (!isfinite (tmp))\
+	sign_bit = SIGNBIT (y,tmp);\
+	if (!ISFINITE (y,tmp))\
 	  { \
-	    write_infnan (dtp, f, isnan (tmp), sign_bit);\
+	    write_infnan (dtp, f, ISNAN (y,tmp), sign_bit);\
 	    return;\
 	  }\
 	tmp = sign_bit ? -tmp : tmp;\

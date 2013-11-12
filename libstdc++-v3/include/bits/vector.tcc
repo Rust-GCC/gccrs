@@ -105,7 +105,11 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
   template<typename _Tp, typename _Alloc>
     typename vector<_Tp, _Alloc>::iterator
     vector<_Tp, _Alloc>::
+#if __cplusplus >= 201103L
+    insert(const_iterator __position, const value_type& __x)
+#else
     insert(iterator __position, const value_type& __x)
+#endif
     {
       const size_type __n = __position - begin();
       if (this->_M_impl._M_finish != this->_M_impl._M_end_of_storage
@@ -120,11 +124,11 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	  if (this->_M_impl._M_finish != this->_M_impl._M_end_of_storage)
 	    {
 	      _Tp __x_copy = __x;
-	      _M_insert_aux(__position, std::move(__x_copy));
+	      _M_insert_aux(__position._M_const_cast(), std::move(__x_copy));
 	    }
 	  else
 #endif
-	    _M_insert_aux(__position, __x);
+	    _M_insert_aux(__position._M_const_cast(), __x);
 	}
       return iterator(this->_M_impl._M_start + __n);
     }
@@ -132,7 +136,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
   template<typename _Tp, typename _Alloc>
     typename vector<_Tp, _Alloc>::iterator
     vector<_Tp, _Alloc>::
-    erase(iterator __position)
+    _M_erase(iterator __position)
     {
       if (__position + 1 != end())
 	_GLIBCXX_MOVE3(__position + 1, end(), __position);
@@ -144,7 +148,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
   template<typename _Tp, typename _Alloc>
     typename vector<_Tp, _Alloc>::iterator
     vector<_Tp, _Alloc>::
-    erase(iterator __first, iterator __last)
+    _M_erase(iterator __first, iterator __last)
     {
       if (__first != __last)
 	{
@@ -292,7 +296,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
     template<typename... _Args>
       typename vector<_Tp, _Alloc>::iterator
       vector<_Tp, _Alloc>::
-      emplace(iterator __position, _Args&&... __args)
+      emplace(const_iterator __position, _Args&&... __args)
       {
 	const size_type __n = __position - begin();
 	if (this->_M_impl._M_finish != this->_M_impl._M_end_of_storage
@@ -303,7 +307,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	    ++this->_M_impl._M_finish;
 	  }
 	else
-	  _M_insert_aux(__position, std::forward<_Args>(__args)...);
+	  _M_insert_aux(__position._M_const_cast(),
+			std::forward<_Args>(__args)...);
 	return iterator(this->_M_impl._M_start + __n);
       }
 
@@ -788,6 +793,27 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	  this->_M_impl._M_end_of_storage = __q + _S_nword(__len);
 	  this->_M_impl._M_start = iterator(__q, 0);
 	}
+    }
+
+  template<typename _Alloc>
+    typename vector<bool, _Alloc>::iterator
+    vector<bool, _Alloc>::
+    _M_erase(iterator __position)
+    {
+      if (__position + 1 != end())
+        std::copy(__position + 1, end(), __position);
+      --this->_M_impl._M_finish;
+      return __position;
+    }
+
+  template<typename _Alloc>
+    typename vector<bool, _Alloc>::iterator
+    vector<bool, _Alloc>::
+    _M_erase(iterator __first, iterator __last)
+    {
+      if (__first != __last)
+	_M_erase_at_end(std::copy(__last, end(), __first));
+      return __first;
     }
 
 #if __cplusplus >= 201103L

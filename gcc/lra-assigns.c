@@ -462,7 +462,7 @@ find_hard_regno_for (int regno, int *cost, int try_only_hard_regno)
   int hr, conflict_hr, nregs;
   enum machine_mode biggest_mode;
   unsigned int k, conflict_regno;
-  int val, biggest_nregs, nregs_diff;
+  int offset, val, biggest_nregs, nregs_diff;
   enum reg_class rclass;
   bitmap_iterator bi;
   bool *rclass_intersect_p;
@@ -522,9 +522,10 @@ find_hard_regno_for (int regno, int *cost, int try_only_hard_regno)
 #endif
   sparseset_clear_bit (conflict_reload_and_inheritance_pseudos, regno);
   val = lra_reg_info[regno].val;
+  offset = lra_reg_info[regno].offset;
   CLEAR_HARD_REG_SET (impossible_start_hard_regs);
   EXECUTE_IF_SET_IN_SPARSESET (live_range_hard_reg_pseudos, conflict_regno)
-    if (val == lra_reg_info[conflict_regno].val)
+    if (lra_reg_val_equal_p (conflict_regno, val, offset))
       {
 	conflict_hr = live_pseudos_reg_renumber[conflict_regno];
 	nregs = (hard_regno_nregs[conflict_hr]
@@ -552,7 +553,7 @@ find_hard_regno_for (int regno, int *cost, int try_only_hard_regno)
       }
   EXECUTE_IF_SET_IN_SPARSESET (conflict_reload_and_inheritance_pseudos,
 			       conflict_regno)
-    if (val != lra_reg_info[conflict_regno].val)
+    if (!lra_reg_val_equal_p (conflict_regno, val, offset))
       {
 	lra_assert (live_pseudos_reg_renumber[conflict_regno] < 0);
 	if ((hard_regno
@@ -611,16 +612,12 @@ find_hard_regno_for (int regno, int *cost, int try_only_hard_regno)
 		&& ! df_regs_ever_live_p (hard_regno + j))
 	      /* It needs save restore.	 */
 	      hard_regno_costs[hard_regno]
-		+= 2 * ENTRY_BLOCK_PTR->next_bb->frequency;
+		+= 2 * ENTRY_BLOCK_PTR->next_bb->frequency + 1;
 	  priority = targetm.register_priority (hard_regno);
 	  if (best_hard_regno < 0 || hard_regno_costs[hard_regno] < best_cost
 	      || (hard_regno_costs[hard_regno] == best_cost
 		  && (priority > best_priority
-		      /* Hard register usage leveling actually results
-			 in bigger code for targets with conditional
-			 execution like ARM because it reduces chance
-			 of if-conversion after LRA.  */
-		      || (! targetm.have_conditional_execution ()
+		      || (targetm.register_usage_leveling_p ()
 			  && priority == best_priority
 			  && best_usage > lra_hard_reg_usage[hard_regno]))))
 	    {
@@ -689,6 +686,19 @@ update_hard_regno_preference (int regno, int hard_regno, int div)
     }
 }
 
+/* Return prefix title for pseudo REGNO.  */
+static const char *
+pseudo_prefix_title (int regno)
+{
+  return
+    (regno < lra_constraint_new_regno_start ? ""
+     : bitmap_bit_p (&lra_inheritance_pseudos, regno) ? "inheritance "
+     : bitmap_bit_p (&lra_split_regs, regno) ? "split "
+     : bitmap_bit_p (&lra_optional_reload_pseudos, regno) ? "optional reload "
+     : bitmap_bit_p (&lra_subreg_reload_pseudos, regno) ? "subreg reload "
+     : "reload ");
+}
+
 /* Update REG_RENUMBER and other pseudo preferences by assignment of
    HARD_REGNO to pseudo REGNO and print about it if PRINT_P.  */
 void
@@ -709,13 +719,7 @@ lra_setup_reg_renumber (int regno, int hard_regno, bool print_p)
       lra_hard_reg_usage[hr + i] += lra_reg_info[regno].freq;
   if (print_p && lra_dump_file != NULL)
     fprintf (lra_dump_file, "	   Assign %d to %sr%d (freq=%d)\n",
-	     reg_renumber[regno],
-	     regno < lra_constraint_new_regno_start
-	     ? ""
-	     : bitmap_bit_p (&lra_inheritance_pseudos, regno) ? "inheritance "
-	     : bitmap_bit_p (&lra_split_regs, regno) ? "split "
-	     : bitmap_bit_p (&lra_optional_reload_pseudos, regno)
-	     ? "optional reload ": "reload ",
+	     reg_renumber[regno], pseudo_prefix_title (regno),
 	     regno, lra_reg_info[regno].freq);
   if (hard_regno >= 0)
     {
@@ -861,6 +865,7 @@ spill_for (int regno, bitmap spilled_pseudo_bitmap)
 	if ((int) spill_regno >= lra_constraint_new_regno_start
 	    && ! bitmap_bit_p (&lra_inheritance_pseudos, spill_regno)
 	    && ! bitmap_bit_p (&lra_split_regs, spill_regno)
+	    && ! bitmap_bit_p (&lra_subreg_reload_pseudos, spill_regno)
 	    && ! bitmap_bit_p (&lra_optional_reload_pseudos, spill_regno))
 	  goto fail;
       insn_pseudos_num = 0;
@@ -970,14 +975,7 @@ spill_for (int regno, bitmap spilled_pseudo_bitmap)
     {
       if (lra_dump_file != NULL)
 	fprintf (lra_dump_file, "      Spill %sr%d(hr=%d, freq=%d) for r%d\n",
-		 ((int) spill_regno < lra_constraint_new_regno_start
-		  ? ""
-		  : bitmap_bit_p (&lra_inheritance_pseudos, spill_regno)
-		  ? "inheritance "
-		  : bitmap_bit_p (&lra_split_regs, spill_regno)
-		  ? "split "
-		  : bitmap_bit_p (&lra_optional_reload_pseudos, spill_regno)
-		  ? "optional reload " : "reload "),
+		 pseudo_prefix_title (spill_regno),
 		 spill_regno, reg_renumber[spill_regno],
 		 lra_reg_info[spill_regno].freq, regno);
       update_lives (spill_regno, true);
@@ -1021,7 +1019,7 @@ setup_live_pseudos_and_spill_after_risky_transforms (bitmap
 {
   int p, i, j, n, regno, hard_regno;
   unsigned int k, conflict_regno;
-  int val;
+  int val, offset;
   HARD_REG_SET conflict_set;
   enum machine_mode mode;
   lra_live_range_t r;
@@ -1064,8 +1062,9 @@ setup_live_pseudos_and_spill_after_risky_transforms (bitmap
       COPY_HARD_REG_SET (conflict_set, lra_no_alloc_regs);
       IOR_HARD_REG_SET (conflict_set, lra_reg_info[regno].conflict_hard_regs);
       val = lra_reg_info[regno].val;
+      offset = lra_reg_info[regno].offset;
       EXECUTE_IF_SET_IN_SPARSESET (live_range_hard_reg_pseudos, conflict_regno)
-	if (val != lra_reg_info[conflict_regno].val
+	if (!lra_reg_val_equal_p (conflict_regno, val, offset)
 	    /* If it is multi-register pseudos they should start on
 	       the same hard register.	*/
 	    || hard_regno != reg_renumber[conflict_regno])
@@ -1191,6 +1190,7 @@ assign_by_spills (void)
   bitmap_initialize (&changed_insns, &reg_obstack);
   bitmap_initialize (&non_reload_pseudos, &reg_obstack);
   bitmap_ior (&non_reload_pseudos, &lra_inheritance_pseudos, &lra_split_regs);
+  bitmap_ior_into (&non_reload_pseudos, &lra_subreg_reload_pseudos);
   bitmap_ior_into (&non_reload_pseudos, &lra_optional_reload_pseudos);
   for (iter = 0; iter <= 1; iter++)
     {
@@ -1278,7 +1278,7 @@ assign_by_spills (void)
 		    }
 		}
 	    }
-	  gcc_assert (asm_p);
+	  lra_assert (asm_p);
 	  break;
 	}
       /* This is a very rare event.  We can not assign a hard
@@ -1365,6 +1365,7 @@ assign_by_spills (void)
 		 && lra_reg_info[i].restore_regno >= 0)
 	     || (bitmap_bit_p (&lra_split_regs, i)
 		 && lra_reg_info[i].restore_regno >= 0)
+	     || bitmap_bit_p (&lra_subreg_reload_pseudos, i)
 	     || bitmap_bit_p (&lra_optional_reload_pseudos, i))
 	    && reg_renumber[i] < 0 && lra_reg_info[i].nrefs != 0
 	    && regno_allocno_class_array[i] != NO_REGS)

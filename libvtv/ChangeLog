@@ -1,0 +1,224 @@
+2013-09-25 Caroline Tice  <cmtice@google.com>
+
+	* Makefile.am: Reinstate ENABLE_VTABLE_VERIFY checks, to make
+	sure testsuite is not run if libstdc++ and libgcc were not built
+	with vtable verification.
+	* Makefile.in: Regenerated.
+	* configure.ac: Reinstate checks for --enable-vtable-verify flag,
+	to make sure testsuite is not run if libstdc++ and libgcc were not
+	built with vtable verification.
+	* configure: Regenerated.
+
+2013-09-24  Caroline Tice  <cmtice@google.com>
+
+	* Makefile.am:  Change libvtv_includedir to the directory used by
+	the other libraries rather than the top include directory.
+	* Makefile.in: Regenerated.
+
+2013-09-20  Alan Modra  <amodra@gmail.com>
+
+	* configure: Regenerate.
+
+2013-09-12  Alexander Ivchenko  <alexander.ivchenko@intel.com>
+
+	* configure.tgt: Remove *-*-*android* from supported targets.
+
+2013-09-09  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR other/58374
+	* configure.ac: Move VTV_SUPPORTED check after AC_CANONICAL_SYSTEM.
+	* configure: Regenerated.
+
+2013-09-08  Caroline Tice  <cmtice@google.com>
+
+	* testsuite/event-main.cc:  Move to libvtv.cc subdirectory.
+	* testsuite/environment.cc: Ditto.
+	* testsuite/template-list2.cc: Ditto.
+	* testsuite/event.h: Ditto.
+	* testsuite/dataentry.cc: Ditto.
+	* testsuite/event-private.h: Ditto.
+	* testsuite/virtual_inheritance.cc: Ditto.
+	* testsuite/povray-derived.cc: Ditto.
+	* testsuite/nested_vcall_test.cc: Ditto.
+	* testsuite/template-list-iostream.cc: Ditto.
+	* testsuite/parts-test-extra-parts-views.h:  Ditto.
+	* testsuite/virtfunc-test.cc: Ditto.
+	* testsuite/parts-test-extra-parts.h: Ditto.
+	* testsuite/const_vtable.cc: Ditto.
+	* testsuite/template-list.cc: Ditto.
+	* testsuite/dup_name.cc: Ditto.
+	* testsuite/thunk.cc: Ditto.
+	* testsuite/parts-test-main.h: Ditto.
+	* testsuite/mul_inh.cc: Ditto.
+	* testsuite/test1.cc: Ditto.
+	* testsuite/bb_tests.cc: Ditto.
+	* testsuite/v8-test-2.cc: Ditto.
+	* testsuite/thunk_vtable_map_attack.cc: Ditto.
+	* testsuite/xlan-test.cc: Ditto.
+	* testsuite/parts-test-main.cpp: Move to libvtv.cc subdirectory and
+	change file extension from .cc to .cpp.
+	* testsuite/event-definitions.cpp: Ditto.
+	* testsuite/event-main.cpp: Ditto.
+	* testsuite/derived-main.cpp: Ditto.
+	* testsuite/derived-lib.cpp: Ditto.
+	* testsuite/event-private.cpp: Ditto.
+	* testsuite/parts-test-extra-parts-views.cpp: Ditto.
+	* testsuite/parts-test-extra-parts.cpp: Ditto.
+	* testsuite/parts-test.list: Move to libvtv.cc subdirectory.  Change
+	file extensions inside file from .cc to .cpp.
+	* testsuite/event.list: Ditto.
+	* testsuite/derived.list: Ditto.
+	* testsuite/register_pair.cc: Move to libvtv.cc; rename file to
+	register_set_pair.cc; include stdlib.h, stdio.h stdint.h string.h
+	(KEY_TYPE_FIXED_SIZE): New define.
+	(key_buffer, name_string, fake_names): New global variables.
+	(generate_names): New function.
+	(vtv_string_hans): New function.
+	(main): Add call to generate_names. Update middle for-loop to
+	initialize new parameters for __VLTRegisterPair... calls; move calls
+	to __VLTRegisterPair... to middle for-loop. Add calls to
+	__VLTRegisterSet...
+	* testsuite/register_pair_mt.cc: Ditto; renamed to
+	register_set_pair_mt.cc
+	* testsuite/libvtv.cc/vtv.exp:  New file.
+	* testsuite/libvtv.mempool.cc/mempool.exp:  New file.
+	* testsuite/libvtv.mt.cc/mt.exp: New file.
+	* testsuite/lib/libvtv.exp:  New file.
+	* testsuite/lib/libvtv-dg.exp:  New file.
+	* testsuite/config/default.exp: New file.
+	* testsuite/Makefile.am:  New file. (Old file was moved to other-tests
+	subdirectory.)
+	* testsuite/Makefile.in: New file (generated).
+	* testsuite/mempool_negative.c: Change to C++ file; move to
+	libvtv.mempool.cc; include vtv-change-permission.h.
+	(main):  Add call to __VLTChangePermission.
+	* testsuite/mempool_positive.c: Change to C++ file; move to
+	libvtv.mempool.cc; include vtv-change-permission.h.
+	(main): Add call to __VLTChangePermission.
+	* testsuite/temp_deriv3.cc:  Move to other-tests subdirectory.
+	* testsuite/environment-fail-64.s: Ditto.
+	* testsutite/dlopen.cc: Ditto.
+	* testsuite/so.cc: Ditto.
+	* testsuite/temp_deriv2.cc: Ditto.
+	* testsuite/field-test.cc: Ditto.
+	* testsuite/dlopen_mt.cc: Ditto.
+	* testsuite/environment-fail-32.s: Ditto.
+	* testsuite/temp_deriv.cc: Ditto.
+	* testsuite/replace-fail.cc: Ditto.
+	* testsuite/other-tests/Makefile.am:  New file.  Copied from the
+	Makefile.am that used to be in testsuite directory.
+	* testsuite/other-tests/Makefile.in: Generated. (New file).
+	* testsuite/other-tests/README:  New file.
+
+2013-09-07  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* testsuite/Makefile.am: Remove #if ENABLE_VTABLE_VERIFY check around
+	definition of check-am:.
+	* testsuite/Makefile.in: Regenerate.
+
+2013-09-06  Caroline Tice  <cmtice@google.com>
+
+	* Makefile.am: Remove #if ENABLE_VTABLE_VERIFY checks around
+	definitions of SUBDIRS, libvtv_la_SOURCES and libvtv_include_HEADERS.
+	* Makefile.in: Regenerate.
+	* configure.ac: Remove checks and tests for --enable-vtable-verify.
+	* configure: Regenerate.
+
+2013-08-20  Caroline Tice  <cmtice@google.com>
+
+	* Makefile.am (DEFS): Add "@DEFS@", to inherit defintions.
+	* Makefile.in: Regenerate.
+	* configure.ac: Add check for __secure_getenv and secure_getenv.
+	* configure: Regenerate.
+	* vtv_utils.cc : Include stdlib.h
+	(HAVE_SECURE_GETENV): Add checks and definitions for secure_getenv.
+	(log_dirs): Remove file static constant.
+	(__vtv_open_log):  Increase size of log file name.  Add the user
+	and process ids to the file name. Do not put the log files in /tmp.
+	Instead try to get the directory name from an environment variable; if
+	that fails try to use stderr.  Add O_NOFOLLOW to the flags
+	for 'open'.  Update function comment.
+	* vtv_rts.cc (log_memory_protection_data):  Remove %d from file name.
+
+2013-08-08  Benjamin Kosnik  <bkoz@redhat.com>
+	    Michael Meissner <meissner@linux.vnet.ibm.com>
+
+	* configure.tgt : Simplify, just use VTV_SUPPORTED.
+
+2013-08-07  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* Makefile.am (SUBDIRS): Protect with ENABLE_VTABLE_VERIFY.
+	* Makefile.in: Regenerate.
+	* acinclude.m4 (LIBVTV_CONFIGURE): Move parts to..
+	* configure.ac: ...here. Make configure more verbose, re-order.
+	* configure: Regenerate.
+
+2013-08-02  Caroline Tice  <cmtice@google.com>
+	    Benjamin Kosnik  <bkoz@redhat.com>
+	    Luis Lozano  <llozano@google.com>
+	    Geoff Pike  <gpike@google.com>
+
+	Initial check-in of new vtable verification feature.
+	* configure.ac : New file.
+	* acinclude.m4 : New file.
+	* Makefile.am : New file.
+	* aclocal.m4 : New file.
+	* configure.tgt : New file.
+	* configure: New file (generated).
+	* Makefile.in: New file (generated).
+	* vtv_set.h : New file.
+	* vtv_utils.cc : New file.
+	* vtv_utils.h : New file.
+	* vtv_malloc.cc : New file.
+	* vtv_rts.cc : New file.
+	* vtv_malloc.h : New file.
+	* vtv_rts.h : New file.
+	* vtv_fail.cc : New file.
+	* vtv_fail.h : New file.
+	* vtv_map.h : New file.
+	* scripts/run-testsuite.sh : New file.
+	* scripts/sum-vtv-counts.c : New file.
+	* testsuite/parts-test-main.h : New file.
+	* testusite/dataentry.cc : New file.
+	* testsuite/temp_deriv.cc : New file.
+	* testsuite/register_pair.cc : New file.
+	* testsuite/virtual_inheritance.cc : New file.
+	* testsuite/field-test.cc : New file.
+	* testsuite/nested_vcall_test.cc : New file.
+	* testsuite/template-list-iostream.cc : New file.
+	* testsuite/register_pair_inserts.cc : New file.
+	* testsuite/register_pair_inserts_mt.cc : New file.
+	* testsuite/event.list : New file.
+	* testsuite/parts-test-extra-parts-views.cc : New file.
+	* testsuite/parts-test-extra-parts-views.h : New file.
+	* testsuite/environment-fail-32.s : New file.
+	* testsuite/parts-test-extra-parts.h : New file.
+	* testsuite/temp_deriv2.cc : New file.
+	* testsuite/dlopen_mt.cc : New file.
+	* testsuite/event.h : New file.
+	* testsuite/template-list.cc : New file.
+	* testsuite/replace-fail.cc : New file.
+	* testsuite/Makefile.am : New file.
+	* testsuite/Makefile.in: New file (generated).
+	* testsuite/mempool_negative.c : New file.
+	* testsuite/parts-test-main.cc : New file.
+	* testsuite/event-private.cc : New file.
+	* testsuite/thunk.cc : New file.
+	* testsuite/event-defintiions.cc : New file.
+	* testsuite/event-private.h : New file.
+	* testsuite/parts-test.list : New file.
+	* testusite/register_pair_mt.cc : New file.
+	* testsuite/povray-derived.cc : New file.
+	* testsuite/event-main.cc : New file.
+	* testsuite/environment.cc : New file.
+	* testsuite/template-list2.cc : New file.
+	* testsuite/thunk_vtable_map_attack.cc : New file.
+	* testsuite/parts-test-extra-parts.cc : New file.
+	* testsuite/environment-fail-64.s : New file.
+	* testsuite/dlopen.cc : New file.
+	* testsuite/so.cc : New file.
+	* testsuite/temp_deriv3.cc : New file.
+	* testsuite/const_vtable.cc : New file.
+	* testsuite/mempool_positive.c : New file.
+	* testsuite/dup_name.cc : New file.
+

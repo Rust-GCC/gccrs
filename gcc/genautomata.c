@@ -1672,6 +1672,10 @@ gen_regexp_sequence (const char *str)
   int i;
 
   sequence_vect = get_str_vect (str, &els_num, ',', TRUE);
+  if (els_num == -1)
+    fatal ("unbalanced parentheses in reservation `%s'", str);
+  if (sequence_vect == NULL)
+    fatal ("invalid reservation `%s'", str);
   if (els_num > 1)
     {
       sequence = XCREATENODEVAR (struct regexp, sizeof (struct regexp)
@@ -5529,7 +5533,7 @@ static reserv_sets_t
 form_reservs_matter (automaton_t automaton)
 {
   int cycle, unit;
-  reserv_sets_t reservs_matter = alloc_empty_reserv_sets();
+  reserv_sets_t reservs_matter = alloc_empty_reserv_sets ();
 
   for (cycle = 0; cycle < max_cycles_num; cycle++)
     for (unit = 0; unit < description->units_num; unit++)
@@ -7554,7 +7558,7 @@ output_trans_table (automaton_t automaton)
 {
   size_t i;
   arc_t arc;
-  vla_hwint_t transition_vect = vla_hwint_t();
+  vla_hwint_t transition_vect = vla_hwint_t ();
 
   undefined_vect_el_value = automaton->achieved_states_num;
   automaton->trans_table = create_state_ainsn_table (automaton);
@@ -7738,7 +7742,7 @@ output_dead_lock_vect (automaton_t automaton)
 {
   size_t i;
   arc_t arc;
-  vla_hwint_t dead_lock_vect = vla_hwint_t();
+  vla_hwint_t dead_lock_vect = vla_hwint_t ();
 
   /* Create vect of pointers to states ordered by num of
      transitions from the state (state with the maximum num is the
@@ -7783,7 +7787,7 @@ output_dead_lock_vect (automaton_t automaton)
 static void
 output_reserved_units_table (automaton_t automaton)
 {
-  vla_hwint_t reserved_units_table = vla_hwint_t();
+  vla_hwint_t reserved_units_table = vla_hwint_t ();
   int state_byte_size;
   int reserved_units_size;
   size_t n;
@@ -9661,6 +9665,7 @@ main (int argc, char **argv)
 		"#include \"system.h\"\n"
 		"#include \"coretypes.h\"\n"
 		"#include \"tm.h\"\n"
+		"#include \"tree.h\"\n"
 		"#include \"rtl.h\"\n"
 		"#include \"tm_p.h\"\n"
 		"#include \"insn-config.h\"\n"

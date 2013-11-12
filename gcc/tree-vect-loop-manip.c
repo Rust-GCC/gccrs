@@ -28,7 +28,15 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "basic-block.h"
 #include "gimple-pretty-print.h"
-#include "tree-flow.h"
+#include "gimple.h"
+#include "gimple-ssa.h"
+#include "tree-cfg.h"
+#include "tree-phinodes.h"
+#include "ssa-iterators.h"
+#include "tree-ssanames.h"
+#include "tree-ssa-loop-manip.h"
+#include "tree-into-ssa.h"
+#include "tree-ssa.h"
 #include "tree-pass.h"
 #include "cfgloop.h"
 #include "diagnostic-core.h"
@@ -107,7 +115,7 @@ typedef struct
    with a PHI DEF that would soon become non-dominant, and when we got
    to the suitable one, it wouldn't have anything to substitute any
    more.  */
-static vec<adjust_info, va_stack> adjust_vec;
+static vec<adjust_info, va_heap> adjust_vec;
 
 /* Adjust any debug stmts that referenced AI->from values to use the
    loop-closed AI->to, if the references are dominated by AI->bb and
@@ -683,6 +691,7 @@ slpeel_make_loop_iterate_ntimes (struct loop *loop, tree niters)
 	dump_printf (MSG_NOTE, "\nloop at %s:%d: ", LOC_FILE (loop_loc),
 		     LOC_LINE (loop_loc));
       dump_gimple_stmt (MSG_NOTE, TDF_SLIM, cond_stmt, 0);
+      dump_printf (MSG_NOTE, "\n");
     }
   loop->nb_iterations = niters;
 }
@@ -735,7 +744,7 @@ slpeel_tree_duplicate_loop_to_edge_cfg (struct loop *loop, edge e)
 
   copy_bbs (bbs, loop->num_nodes + 1, new_bbs,
 	    &exit, 1, &new_exit, NULL,
-	    e->src);
+	    e->src, true);
   basic_block new_preheader = new_bbs[loop->num_nodes];
 
   add_phi_args_after_copy (new_bbs, loop->num_nodes + 1, NULL);
@@ -848,9 +857,6 @@ slpeel_can_duplicate_loop_p (const struct loop *loop, const_edge e)
   gimple orig_cond = get_loop_exit_condition (loop);
   gimple_stmt_iterator loop_exit_gsi = gsi_last_bb (exit_e->src);
 
-  if (need_ssa_update_p (cfun))
-    return false;
-
   if (loop->inner
       /* All loops have an outer scope; the only case loop->outer is NULL is for
          the function itself.  */
@@ -925,10 +931,10 @@ set_prologue_iterations (basic_block bb_before_first_loop,
     unshare_expr (LOOP_VINFO_NITERS_UNCHANGED (loop_vec_info_for_loop (loop)));
 
   e = single_pred_edge (bb_before_first_loop);
-  cond_bb = split_edge(e);
+  cond_bb = split_edge (e);
 
   e = single_pred_edge (bb_before_first_loop);
-  then_bb = split_edge(e);
+  then_bb = split_edge (e);
   set_immediate_dominator (CDI_DOMINATORS, then_bb, cond_bb);
 
   e_false = make_single_succ_edge (cond_bb, bb_before_first_loop,
@@ -1060,6 +1066,15 @@ slpeel_tree_peel_loop_to_edge (struct loop *loop,
   if (!slpeel_can_duplicate_loop_p (loop, e))
     return NULL;
 
+  /* We might have a queued need to update virtual SSA form.  As we
+     delete the update SSA machinery below after doing a regular
+     incremental SSA update during loop copying make sure we don't
+     lose that fact.
+     ???  Needing to update virtual SSA form by renaming is unfortunate
+     but not all of the vectorizer code inserting new loads / stores
+     properly assigns virtual operands to those statements.  */
+  update_ssa (TODO_update_ssa_only_virtuals);
+ 
   /* If the loop has a virtual PHI, but exit bb doesn't, create a virtual PHI
      in the exit bb and rename all the uses after the loop.  This simplifies
      the *guard[12] routines, which assume loop closed SSA form for all PHIs
@@ -1118,7 +1133,7 @@ slpeel_tree_peel_loop_to_edge (struct loop *loop,
   if (MAY_HAVE_DEBUG_STMTS)
     {
       gcc_assert (!adjust_vec.exists ());
-      vec_stack_alloc (adjust_info, adjust_vec, 32);
+      adjust_vec.create (32);
     }
 
   if (e == exit_e)
@@ -1230,8 +1245,8 @@ slpeel_tree_peel_loop_to_edge (struct loop *loop,
      same frequencies.  Loop exit probablities are however easy to get wrong.
      It is safer to copy value from original loop entry.  */
   bb_before_second_loop->frequency
-     = apply_probability (bb_before_first_loop->frequency,
-			  probability_of_second_loop);
+     = combine_probabilities (bb_before_first_loop->frequency,
+                              probability_of_second_loop);
   bb_before_second_loop->count
      = apply_probability (bb_before_first_loop->count,
 			  probability_of_second_loop);
@@ -1422,7 +1437,7 @@ vect_build_loop_niters (loop_vec_info loop_vinfo, gimple_seq seq)
  and places them at the loop preheader edge or in COND_EXPR_STMT_LIST
  if that is non-NULL.  */
 
-static void
+void
 vect_generate_tmps_on_preheader (loop_vec_info loop_vinfo,
 				 tree *ni_name_ptr,
 				 tree *ratio_mult_vf_name_ptr,
@@ -1546,10 +1561,9 @@ vect_can_advance_ivs_p (loop_vec_info loop_vinfo)
   /* Analyze phi functions of the loop header.  */
 
   if (dump_enabled_p ())
-    dump_printf_loc (MSG_NOTE, vect_location, "vect_can_advance_ivs_p:");
+    dump_printf_loc (MSG_NOTE, vect_location, "vect_can_advance_ivs_p:\n");
   for (gsi = gsi_start_phis (bb); !gsi_end_p (gsi); gsi_next (&gsi))
     {
-      tree access_fn = NULL;
       tree evolution_part;
 
       phi = gsi_stmt (gsi);
@@ -1557,6 +1571,7 @@ vect_can_advance_ivs_p (loop_vec_info loop_vinfo)
 	{
           dump_printf_loc (MSG_NOTE, vect_location, "Analyze phi: ");
           dump_gimple_stmt (MSG_NOTE, TDF_SLIM, phi, 0);
+          dump_printf (MSG_NOTE, "\n");
 	}
 
       /* Skip virtual phi's. The data dependences that are associated with
@@ -1566,7 +1581,7 @@ vect_can_advance_ivs_p (loop_vec_info loop_vinfo)
 	{
 	  if (dump_enabled_p ())
 	    dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
-                             "virtual phi. skip.");
+                             "virtual phi. skip.\n");
 	  continue;
 	}
 
@@ -1576,37 +1591,19 @@ vect_can_advance_ivs_p (loop_vec_info loop_vinfo)
         {
           if (dump_enabled_p ())
             dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
-                             "reduc phi. skip.");
+                             "reduc phi. skip.\n");
           continue;
         }
 
       /* Analyze the evolution function.  */
 
-      access_fn = instantiate_parameters
-	(loop, analyze_scalar_evolution (loop, PHI_RESULT (phi)));
-
-      if (!access_fn)
-	{
-	  if (dump_enabled_p ())
-	    dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
-                             "No Access function.");
-	  return false;
-	}
-
-      STRIP_NOPS (access_fn);
-      if (dump_enabled_p ())
-        {
-	  dump_printf_loc (MSG_NOTE, vect_location,
-                           "Access function of PHI: ");
-	  dump_generic_expr (MSG_NOTE, TDF_SLIM, access_fn);
-        }
-
-      evolution_part = evolution_part_in_loop_num (access_fn, loop->num);
-
+      evolution_part
+	= STMT_VINFO_LOOP_PHI_EVOLUTION_PART (vinfo_for_stmt (phi));
       if (evolution_part == NULL_TREE)
         {
 	  if (dump_enabled_p ())
-	    dump_printf (MSG_MISSED_OPTIMIZATION, "No evolution.");
+	    dump_printf (MSG_MISSED_OPTIMIZATION,
+			 "No access function or evolution.\n");
 	  return false;
         }
 
@@ -1695,6 +1692,7 @@ vect_update_ivs_after_vectorizer (loop_vec_info loop_vinfo, tree niters,
           dump_printf_loc (MSG_NOTE, vect_location,
                            "vect_update_ivs_after_vectorizer: phi: ");
 	  dump_gimple_stmt (MSG_NOTE, TDF_SLIM, phi, 0);
+          dump_printf (MSG_NOTE, "\n");
         }
 
       /* Skip virtual phi's.  */
@@ -1702,7 +1700,7 @@ vect_update_ivs_after_vectorizer (loop_vec_info loop_vinfo, tree niters,
 	{
 	  if (dump_enabled_p ())
 	    dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
-                             "virtual phi. skip.");
+                             "virtual phi. skip.\n");
 	  continue;
 	}
 
@@ -1712,7 +1710,7 @@ vect_update_ivs_after_vectorizer (loop_vec_info loop_vinfo, tree niters,
         {
 	  if (dump_enabled_p ())
 	    dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
-                             "reduc phi. skip.");
+                             "reduc phi. skip.\n");
           continue;
         }
 
@@ -1774,8 +1772,8 @@ vect_do_peeling_for_loop_bound (loop_vec_info loop_vinfo, tree *ratio,
   gimple_seq cond_expr_stmt_list = NULL;
 
   if (dump_enabled_p ())
-    dump_printf_loc (MSG_OPTIMIZED_LOCATIONS, vect_location,
-                     "=== vect_do_peeling_for_loop_bound ===");
+    dump_printf_loc (MSG_NOTE, vect_location,
+                     "=== vect_do_peeling_for_loop_bound ===\n");
 
   initialize_original_copy_tables ();
 
@@ -1828,7 +1826,7 @@ vect_do_peeling_for_loop_bound (loop_vec_info loop_vinfo, tree *ratio,
   if (check_profitability)
     max_iter = MAX (max_iter, (int) th - 1);
   record_niter_bound (new_loop, double_int::from_shwi (max_iter), false, true);
-  dump_printf (MSG_OPTIMIZED_LOCATIONS,
+  dump_printf (MSG_NOTE,
                "Setting upper bound of nb iterations for epilogue "
                "loop to %d\n", max_iter);
 
@@ -1893,8 +1891,8 @@ vect_gen_niters_for_prolog_loop (loop_vec_info loop_vinfo, tree loop_niters, int
       int npeel = LOOP_PEELING_FOR_ALIGNMENT (loop_vinfo);
 
       if (dump_enabled_p ())
-        dump_printf_loc (MSG_OPTIMIZED_LOCATIONS, vect_location,
-                         "known peeling = %d.", npeel);
+        dump_printf_loc (MSG_NOTE, vect_location,
+                         "known peeling = %d.\n", npeel);
 
       iters = build_int_cst (niters_type, npeel);
       *bound = LOOP_PEELING_FOR_ALIGNMENT (loop_vinfo);
@@ -1948,9 +1946,10 @@ vect_gen_niters_for_prolog_loop (loop_vec_info loop_vinfo, tree loop_niters, int
 
   if (dump_enabled_p ())
     {
-      dump_printf_loc (MSG_OPTIMIZED_LOCATIONS, vect_location,
+      dump_printf_loc (MSG_NOTE, vect_location,
                        "niters for prolog loop: ");
-      dump_generic_expr (MSG_OPTIMIZED_LOCATIONS, TDF_SLIM, iters);
+      dump_generic_expr (MSG_NOTE, TDF_SLIM, iters);
+      dump_printf (MSG_NOTE, "\n");
     }
 
   var = create_tmp_var (niters_type, "prolog_loop_niters");
@@ -2005,8 +2004,8 @@ vect_update_inits_of_drs (loop_vec_info loop_vinfo, tree niters)
   struct data_reference *dr;
  
  if (dump_enabled_p ())
-    dump_printf_loc (MSG_OPTIMIZED_LOCATIONS, vect_location,
-                     "=== vect_update_inits_of_dr ===");
+    dump_printf_loc (MSG_NOTE, vect_location,
+                     "=== vect_update_inits_of_dr ===\n");
 
   FOR_EACH_VEC_ELT (datarefs, i, dr)
     vect_update_init_of_dr (dr, niters);
@@ -2035,7 +2034,8 @@ vect_do_peeling_for_alignment (loop_vec_info loop_vinfo,
 
   if (dump_enabled_p ())
     dump_printf_loc (MSG_OPTIMIZED_LOCATIONS, vect_location,
-                     "=== vect_do_peeling_for_alignment ===");
+                     "loop peeled for vectorization to enhance"
+                     " alignment\n");
 
   initialize_original_copy_tables ();
 
@@ -2062,7 +2062,7 @@ vect_do_peeling_for_alignment (loop_vec_info loop_vinfo,
   if (check_profitability)
     max_iter = MAX (max_iter, (int) th - 1);
   record_niter_bound (new_loop, double_int::from_shwi (max_iter), false, true);
-  dump_printf (MSG_OPTIMIZED_LOCATIONS,
+  dump_printf (MSG_NOTE,
                "Setting upper bound of nb iterations for prologue "
                "loop to %d\n", max_iter);
 
@@ -2219,44 +2219,6 @@ vect_create_cond_for_align_checks (loop_vec_info loop_vinfo,
     *cond_expr = part_cond_expr;
 }
 
-
-/* Function vect_vfa_segment_size.
-
-   Create an expression that computes the size of segment
-   that will be accessed for a data reference.  The functions takes into
-   account that realignment loads may access one more vector.
-
-   Input:
-     DR: The data reference.
-     LENGTH_FACTOR: segment length to consider.
-
-   Return an expression whose value is the size of segment which will be
-   accessed by DR.  */
-
-static tree
-vect_vfa_segment_size (struct data_reference *dr, tree length_factor)
-{
-  tree segment_length;
-
-  if (integer_zerop (DR_STEP (dr)))
-    segment_length = TYPE_SIZE_UNIT (TREE_TYPE (DR_REF (dr)));
-  else
-    segment_length = size_binop (MULT_EXPR,
-                                 fold_convert (sizetype, DR_STEP (dr)),
-                                 fold_convert (sizetype, length_factor));
-
-  if (vect_supportable_dr_alignment (dr, false)
-        == dr_explicit_realign_optimized)
-    {
-      tree vector_size = TYPE_SIZE_UNIT
-			  (STMT_VINFO_VECTYPE (vinfo_for_stmt (DR_STMT (dr))));
-
-      segment_length = size_binop (PLUS_EXPR, segment_length, vector_size);
-    }
-  return segment_length;
-}
-
-
 /* Function vect_create_cond_for_alias_checks.
 
    Create a conditional expression that represents the run-time checks for
@@ -2265,34 +2227,24 @@ vect_vfa_segment_size (struct data_reference *dr, tree length_factor)
 
    Input:
    COND_EXPR  - input conditional expression.  New conditions will be chained
-                with logical AND operation.
+                with logical AND operation.  If it is NULL, then the function
+                is used to return the number of alias checks.
    LOOP_VINFO - field LOOP_VINFO_MAY_ALIAS_STMTS contains the list of ddrs
 	        to be checked.
 
    Output:
    COND_EXPR - conditional expression.
-   COND_EXPR_STMT_LIST - statements needed to construct the conditional
-                         expression.
 
-
-   The returned value is the conditional expression to be used in the if
+   The returned COND_EXPR is the conditional expression to be used in the if
    statement that controls which version of the loop gets executed at runtime.
 */
 
-static void
-vect_create_cond_for_alias_checks (loop_vec_info loop_vinfo,
-				   tree * cond_expr,
-				   gimple_seq * cond_expr_stmt_list)
+void
+vect_create_cond_for_alias_checks (loop_vec_info loop_vinfo, tree * cond_expr)
 {
-  struct loop *loop = LOOP_VINFO_LOOP (loop_vinfo);
-  vec<ddr_p>  may_alias_ddrs =
-    LOOP_VINFO_MAY_ALIAS_DDRS (loop_vinfo);
-  int vect_factor = LOOP_VINFO_VECT_FACTOR (loop_vinfo);
-  tree scalar_loop_iters = LOOP_VINFO_NITERS (loop_vinfo);
-
-  ddr_p ddr;
-  unsigned int i;
-  tree part_cond_expr, length_factor;
+  vec<dr_addr_with_seg_len_pair_t> comp_alias_ddrs =
+    LOOP_VINFO_COMP_ALIAS_DDRS (loop_vinfo);
+  tree part_cond_expr;
 
   /* Create expression
      ((store_ptr_0 + store_segment_length_0) <= load_ptr_0)
@@ -2303,67 +2255,39 @@ vect_create_cond_for_alias_checks (loop_vec_info loop_vinfo,
      ((store_ptr_n + store_segment_length_n) <= load_ptr_n)
      || (load_ptr_n + load_segment_length_n) <= store_ptr_n))  */
 
-  if (may_alias_ddrs.is_empty ())
+  if (comp_alias_ddrs.is_empty ())
     return;
 
-  FOR_EACH_VEC_ELT (may_alias_ddrs, i, ddr)
+  for (size_t i = 0, s = comp_alias_ddrs.length (); i < s; ++i)
     {
-      struct data_reference *dr_a, *dr_b;
-      gimple dr_group_first_a, dr_group_first_b;
-      tree addr_base_a, addr_base_b;
-      tree segment_length_a, segment_length_b;
-      gimple stmt_a, stmt_b;
-      tree seg_a_min, seg_a_max, seg_b_min, seg_b_max;
+      const dr_addr_with_seg_len& dr_a = comp_alias_ddrs[i].first;
+      const dr_addr_with_seg_len& dr_b = comp_alias_ddrs[i].second;
+      tree segment_length_a = dr_a.seg_len;
+      tree segment_length_b = dr_b.seg_len;
 
-      dr_a = DDR_A (ddr);
-      stmt_a = DR_STMT (DDR_A (ddr));
-      dr_group_first_a = GROUP_FIRST_ELEMENT (vinfo_for_stmt (stmt_a));
-      if (dr_group_first_a)
-        {
-	  stmt_a = dr_group_first_a;
-	  dr_a = STMT_VINFO_DATA_REF (vinfo_for_stmt (stmt_a));
-	}
-
-      dr_b = DDR_B (ddr);
-      stmt_b = DR_STMT (DDR_B (ddr));
-      dr_group_first_b = GROUP_FIRST_ELEMENT (vinfo_for_stmt (stmt_b));
-      if (dr_group_first_b)
-        {
-	  stmt_b = dr_group_first_b;
-	  dr_b = STMT_VINFO_DATA_REF (vinfo_for_stmt (stmt_b));
-	}
-
-      addr_base_a =
-        vect_create_addr_base_for_vector_ref (stmt_a, cond_expr_stmt_list,
-					      NULL_TREE, loop);
-      addr_base_b =
-        vect_create_addr_base_for_vector_ref (stmt_b, cond_expr_stmt_list,
-					      NULL_TREE, loop);
-
-      if (!operand_equal_p (DR_STEP (dr_a), DR_STEP (dr_b), 0))
-	length_factor = scalar_loop_iters;
-      else
-	length_factor = size_int (vect_factor);
-      segment_length_a = vect_vfa_segment_size (dr_a, length_factor);
-      segment_length_b = vect_vfa_segment_size (dr_b, length_factor);
+      tree addr_base_a
+	= fold_build_pointer_plus (dr_a.basic_addr, dr_a.offset);
+      tree addr_base_b
+	= fold_build_pointer_plus (dr_b.basic_addr, dr_b.offset);
 
       if (dump_enabled_p ())
 	{
-	  dump_printf_loc (MSG_OPTIMIZED_LOCATIONS, vect_location, 
-                           "create runtime check for data references ");
-	  dump_generic_expr (MSG_OPTIMIZED_LOCATIONS, TDF_SLIM, DR_REF (dr_a));
-	  dump_printf (MSG_OPTIMIZED_LOCATIONS, " and ");
-	  dump_generic_expr (MSG_OPTIMIZED_LOCATIONS, TDF_SLIM, DR_REF (dr_b));
+	  dump_printf_loc (MSG_NOTE, vect_location,
+			   "create runtime check for data references ");
+	  dump_generic_expr (MSG_NOTE, TDF_SLIM, DR_REF (dr_a.dr));
+	  dump_printf (MSG_NOTE, " and ");
+	  dump_generic_expr (MSG_NOTE, TDF_SLIM, DR_REF (dr_b.dr));
+	  dump_printf (MSG_NOTE, "\n");
 	}
 
-      seg_a_min = addr_base_a;
-      seg_a_max = fold_build_pointer_plus (addr_base_a, segment_length_a);
-      if (tree_int_cst_compare (DR_STEP (dr_a), size_zero_node) < 0)
+      tree seg_a_min = addr_base_a;
+      tree seg_a_max = fold_build_pointer_plus (addr_base_a, segment_length_a);
+      if (tree_int_cst_compare (DR_STEP (dr_a.dr), size_zero_node) < 0)
 	seg_a_min = seg_a_max, seg_a_max = addr_base_a;
 
-      seg_b_min = addr_base_b;
-      seg_b_max = fold_build_pointer_plus (addr_base_b, segment_length_b);
-      if (tree_int_cst_compare (DR_STEP (dr_b), size_zero_node) < 0)
+      tree seg_b_min = addr_base_b;
+      tree seg_b_max = fold_build_pointer_plus (addr_base_b, segment_length_b);
+      if (tree_int_cst_compare (DR_STEP (dr_b.dr), size_zero_node) < 0)
 	seg_b_min = seg_b_max, seg_b_max = addr_base_b;
 
       part_cond_expr =
@@ -2379,9 +2303,11 @@ vect_create_cond_for_alias_checks (loop_vec_info loop_vinfo,
     }
 
   if (dump_enabled_p ())
-    dump_printf_loc (MSG_OPTIMIZED_LOCATIONS, vect_location,
+    dump_printf_loc (MSG_NOTE, vect_location,
 		     "created %u versioning for alias checks.\n",
-		     may_alias_ddrs.length ());
+		     comp_alias_ddrs.length ());
+
+  comp_alias_ddrs.release ();
 }
 
 
@@ -2421,6 +2347,8 @@ vect_loop_versioning (loop_vec_info loop_vinfo,
   unsigned prob = 4 * REG_BR_PROB_BASE / 5;
   gimple_seq gimplify_stmt_list = NULL;
   tree scalar_loop_iters = LOOP_VINFO_NITERS (loop_vinfo);
+  bool version_align = LOOP_REQUIRES_VERSIONING_FOR_ALIGNMENT (loop_vinfo);
+  bool version_alias = LOOP_REQUIRES_VERSIONING_FOR_ALIAS (loop_vinfo);
 
   if (check_profitability)
     {
@@ -2430,13 +2358,12 @@ vect_loop_versioning (loop_vec_info loop_vinfo,
 					  is_gimple_condexpr, NULL_TREE);
     }
 
-  if (LOOP_REQUIRES_VERSIONING_FOR_ALIGNMENT (loop_vinfo))
+  if (version_align)
     vect_create_cond_for_align_checks (loop_vinfo, &cond_expr,
 				       &cond_expr_stmt_list);
 
-  if (LOOP_REQUIRES_VERSIONING_FOR_ALIAS (loop_vinfo))
-    vect_create_cond_for_alias_checks (loop_vinfo, &cond_expr,
-				       &cond_expr_stmt_list);
+  if (version_alias)
+    vect_create_cond_for_alias_checks (loop_vinfo, &cond_expr);
 
   cond_expr = force_gimple_operand_1 (cond_expr, &gimplify_stmt_list,
 				      is_gimple_condexpr, NULL_TREE);
@@ -2445,7 +2372,21 @@ vect_loop_versioning (loop_vec_info loop_vinfo,
   initialize_original_copy_tables ();
   loop_version (loop, cond_expr, &condition_bb,
 		prob, prob, REG_BR_PROB_BASE - prob, true);
-  free_original_copy_tables();
+
+  if (LOCATION_LOCUS (vect_location) != UNKNOWN_LOC
+      && dump_enabled_p ())
+    {
+      if (version_alias)
+        dump_printf_loc (MSG_OPTIMIZED_LOCATIONS, vect_location,
+                         "loop versioned for vectorization because of "
+			 "possible aliasing\n");
+      if (version_align)
+        dump_printf_loc (MSG_OPTIMIZED_LOCATIONS, vect_location,
+                         "loop versioned for vectorization to enhance "
+			 "alignment\n");
+
+    }
+  free_original_copy_tables ();
 
   /* Loop versioning violates an assumption we try to maintain during
      vectorization - that the loop exit block has a single predecessor.
@@ -2473,13 +2414,80 @@ vect_loop_versioning (loop_vec_info loop_vinfo,
       adjust_phi_and_debug_stmts (orig_phi, e, PHI_RESULT (new_phi));
     }
 
+
+  /* Extract load statements on memrefs with zero-stride accesses.  */
+
+  if (LOOP_REQUIRES_VERSIONING_FOR_ALIAS (loop_vinfo))
+    {
+      /* In the loop body, we iterate each statement to check if it is a load.
+	 Then we check the DR_STEP of the data reference.  If DR_STEP is zero,
+	 then we will hoist the load statement to the loop preheader.  */
+
+      basic_block *bbs = LOOP_VINFO_BBS (loop_vinfo);
+      int nbbs = loop->num_nodes;
+
+      for (int i = 0; i < nbbs; ++i)
+	{
+	  for (gimple_stmt_iterator si = gsi_start_bb (bbs[i]);
+	       !gsi_end_p (si);)
+	    {
+	      gimple stmt = gsi_stmt (si);
+	      stmt_vec_info stmt_info = vinfo_for_stmt (stmt);
+	      struct data_reference *dr = STMT_VINFO_DATA_REF (stmt_info);
+
+	      if (is_gimple_assign (stmt)
+		  && (!dr
+		      || (DR_IS_READ (dr) && integer_zerop (DR_STEP (dr)))))
+		{
+		  bool hoist = true;
+		  ssa_op_iter iter;
+		  tree var;
+
+		  /* We hoist a statement if all SSA uses in it are defined
+		     outside of the loop.  */
+		  FOR_EACH_SSA_TREE_OPERAND (var, stmt, iter, SSA_OP_USE)
+		    {
+		      gimple def = SSA_NAME_DEF_STMT (var);
+		      if (!gimple_nop_p (def)
+			  && flow_bb_inside_loop_p (loop, gimple_bb (def)))
+			{
+			  hoist = false;
+			  break;
+			}
+		    }
+
+		  if (hoist)
+		    {
+		      if (dr)
+			gimple_set_vuse (stmt, NULL);
+
+		      gsi_remove (&si, false);
+		      gsi_insert_on_edge_immediate (loop_preheader_edge (loop),
+						    stmt);
+
+		      if (dump_enabled_p ())
+			{
+			  dump_printf_loc
+			      (MSG_NOTE, vect_location,
+			       "hoisting out of the vectorized loop: ");
+			  dump_gimple_stmt (MSG_NOTE, TDF_SLIM, stmt, 0);
+			  dump_printf (MSG_NOTE, "\n");
+			}
+		      continue;
+		    }
+		}
+	      gsi_next (&si);
+	    }
+	}
+    }
+
   /* End loop-exit-fixes after versioning.  */
 
-  update_ssa (TODO_update_ssa);
   if (cond_expr_stmt_list)
     {
       cond_exp_gsi = gsi_last_bb (condition_bb);
       gsi_insert_seq_before (&cond_exp_gsi, cond_expr_stmt_list,
 			     GSI_SAME_STMT);
     }
+  update_ssa (TODO_update_ssa);
 }

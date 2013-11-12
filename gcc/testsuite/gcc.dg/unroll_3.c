@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-rtl-loop2_unroll -fno-peel-loops -fdisable-tree-cunroll -fdisable-tree-cunrolli -fenable-rtl-loop2_unroll=foo" } */
+/* { dg-options "-O2 -fdump-rtl-loop2_unroll -fno-peel-loops -fno-tree-vrp -fdisable-tree-cunroll -fdisable-tree-cunrolli -fenable-rtl-loop2_unroll=foo" } */
 
 unsigned a[100], b[100];
 inline void bar()
@@ -28,5 +28,5 @@ int foo2(void)
   return 1;
 }
 
-/* { dg-final { scan-rtl-dump-times "Turned loop into non-loop; it never loops" 1 "loop2_unroll" } } */
+/* { dg-final { scan-rtl-dump-times "loop turned into non-loop; it never loops" 1 "loop2_unroll" } } */
 /* { dg-final { cleanup-rtl-dump "loop2_unroll" } } */

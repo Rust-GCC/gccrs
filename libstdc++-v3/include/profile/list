@@ -65,7 +65,7 @@ template<typename _Tp, typename _Allocator = std::allocator<_Tp> >
 
       // 23.2.2.1 construct/copy/destroy:
       explicit
-      list(const _Allocator& __a = _Allocator())
+      list(const _Allocator& __a = _Allocator()) _GLIBCXX_NOEXCEPT
       : _Base(__a) 
       {
         __profcxx_list_construct(this); 	// list2slist
@@ -276,22 +276,22 @@ template<typename _Tp, typename _Allocator = std::allocator<_Tp> >
 
       // element access:
       reference
-      front()
+      front() _GLIBCXX_NOEXCEPT
       { return _Base::front(); }
 
       const_reference
-      front() const
+      front() const _GLIBCXX_NOEXCEPT
       { return _Base::front(); }
 
       reference
-      back()
+      back() _GLIBCXX_NOEXCEPT
       {
         __profcxx_list_rewind(this);
 	return _Base::back();
       }
 
       const_reference
-      back() const
+      back() const _GLIBCXX_NOEXCEPT
       {
         __profcxx_list_rewind(this);
 	return _Base::back();
@@ -311,7 +311,7 @@ template<typename _Tp, typename _Allocator = std::allocator<_Tp> >
 #endif
 
       void
-      pop_front()
+      pop_front() _GLIBCXX_NOEXCEPT
       {
         __profcxx_list_operation(this);
 	_Base::pop_front();
@@ -324,7 +324,7 @@ template<typename _Tp, typename _Allocator = std::allocator<_Tp> >
 #endif
 
       void
-      pop_back()
+      pop_back() _GLIBCXX_NOEXCEPT
       {
 	iterator __victim = end();
 	--__victim;
@@ -335,7 +335,7 @@ template<typename _Tp, typename _Allocator = std::allocator<_Tp> >
 #if __cplusplus >= 201103L
       template<typename... _Args>
         iterator
-        emplace(iterator __position, _Args&&... __args)
+        emplace(const_iterator __position, _Args&&... __args)
 	{
 	  return iterator(_Base::emplace(__position.base(),
                                          std::forward<_Args>(__args)...),
@@ -344,7 +344,11 @@ template<typename _Tp, typename _Allocator = std::allocator<_Tp> >
 #endif
 
       iterator
+#if __cplusplus >= 201103L
+      insert(const_iterator __position, const _Tp& __x)
+#else
       insert(iterator __position, const _Tp& __x)
+#endif
       {
         _M_profile_insert(this, __position, size());
         return iterator(_Base::insert(__position.base(), __x), this);
@@ -352,34 +356,50 @@ template<typename _Tp, typename _Allocator = std::allocator<_Tp> >
 
 #if __cplusplus >= 201103L
       iterator
-      insert(iterator __position, _Tp&& __x)
-      { 
+      insert(const_iterator __position, _Tp&& __x)
+      {
         _M_profile_insert(this, __position, size());
         return iterator(_Base::emplace(__position.base(), std::move(__x)),
                         this); 
       }
 
-      void
-      insert(iterator __position, initializer_list<value_type> __l)
+      iterator
+      insert(const_iterator __position, initializer_list<value_type> __l)
       {
         _M_profile_insert(this, __position, size());
-        _Base::insert(__position.base(), __l);
+        return iterator(_Base::insert(__position.base(), __l), this);
       }
 #endif
 
+#if __cplusplus >= 201103L
+      iterator
+      insert(const_iterator __position, size_type __n, const _Tp& __x)
+      {
+        _M_profile_insert(this, __position, size());
+	return iterator(_Base::insert(__position.base(), __n, __x), this);
+      }
+#else
       void
       insert(iterator __position, size_type __n, const _Tp& __x)
       {
         _M_profile_insert(this, __position, size());
 	_Base::insert(__position.base(), __n, __x);
       }
+#endif
 
 #if __cplusplus >= 201103L
       template<typename _InputIterator,
 	       typename = std::_RequireInputIter<_InputIterator>>
+	iterator
+        insert(const_iterator __position, _InputIterator __first,
+	       _InputIterator __last)
+	{
+	  _M_profile_insert(this, __position, size());
+	  return iterator(_Base::insert(__position.base(), __first, __last),
+			  this);
+	}
 #else
       template<class _InputIterator>
-#endif
         void
         insert(iterator __position, _InputIterator __first,
 	       _InputIterator __last)
@@ -387,13 +407,22 @@ template<typename _Tp, typename _Allocator = std::allocator<_Tp> >
 	  _M_profile_insert(this, __position, size());
 	  _Base::insert(__position.base(), __first, __last);
 	}
+#endif
 
       iterator
+#if __cplusplus >= 201103L
+      erase(const_iterator __position) noexcept
+#else
       erase(iterator __position)
+#endif
       {	return iterator(_Base::erase(__position.base()), this); }
 
       iterator
+#if __cplusplus >= 201103L
+      erase(const_iterator __position, const_iterator __last) noexcept
+#else
       erase(iterator __position, iterator __last)
+#endif
       {
 	// _GLIBCXX_RESOLVE_LIB_DEFECTS
 	// 151. can't currently clear() empty container
@@ -411,7 +440,7 @@ template<typename _Tp, typename _Allocator = std::allocator<_Tp> >
       // 23.2.2.4 list operations:
       void
 #if __cplusplus >= 201103L
-      splice(iterator __position, list&& __x)
+      splice(const_iterator __position, list&& __x) noexcept
 #else
       splice(iterator __position, list& __x)
 #endif
@@ -419,19 +448,17 @@ template<typename _Tp, typename _Allocator = std::allocator<_Tp> >
 
 #if __cplusplus >= 201103L
       void
-      splice(iterator __position, list& __x)
+      splice(const_iterator __position, list& __x) noexcept
       { this->splice(__position, std::move(__x)); }
-#endif
 
-#if __cplusplus >= 201103L
       void
-      splice(iterator __position, list& __x, iterator __i)
+      splice(const_iterator __position, list& __x, const_iterator __i)
       { this->splice(__position, std::move(__x), __i); }
 #endif
 
       void
 #if __cplusplus >= 201103L
-      splice(iterator __position, list&& __x, iterator __i)
+      splice(const_iterator __position, list&& __x, const_iterator __i) noexcept
 #else
       splice(iterator __position, list& __x, iterator __i)
 #endif
@@ -446,8 +473,8 @@ template<typename _Tp, typename _Allocator = std::allocator<_Tp> >
 
       void
 #if __cplusplus >= 201103L
-      splice(iterator __position, list&& __x, iterator __first,
-	     iterator __last)
+      splice(const_iterator __position, list&& __x, const_iterator __first,
+	     const_iterator __last) noexcept
 #else
       splice(iterator __position, list& __x, iterator __first,
 	     iterator __last)
@@ -462,7 +489,8 @@ template<typename _Tp, typename _Allocator = std::allocator<_Tp> >
 
 #if __cplusplus >= 201103L
       void
-      splice(iterator __position, list& __x, iterator __first, iterator __last)
+      splice(const_iterator __position, list& __x,
+	     const_iterator __first, const_iterator __last) noexcept
       { this->splice(__position, std::move(__x), __first, __last); }
 #endif
 
@@ -598,11 +626,12 @@ template<typename _Tp, typename _Allocator = std::allocator<_Tp> >
       }
 
     private:
-      size_type _M_profile_insert(void* obj, iterator __pos, size_type __size)
+      size_type
+      _M_profile_insert(void* obj, const_iterator __pos, size_type __size)
       {
         size_type __shift = 0;
-        typename _Base::iterator __it = __pos.base();
-        for ( ; __it!=_Base::end(); __it++)
+        typename _Base::const_iterator __it = __pos.base();
+        for (; __it != _Base::end(); ++__it)
           __shift++;
         __profcxx_list_rewind(this);
         __profcxx_list_operation(this);

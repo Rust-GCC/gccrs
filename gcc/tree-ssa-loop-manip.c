@@ -24,7 +24,18 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "tm_p.h"
 #include "basic-block.h"
-#include "tree-flow.h"
+#include "gimple.h"
+#include "gimple-ssa.h"
+#include "tree-cfg.h"
+#include "tree-phinodes.h"
+#include "ssa-iterators.h"
+#include "tree-ssanames.h"
+#include "tree-ssa-loop-ivopts.h"
+#include "tree-ssa-loop-manip.h"
+#include "tree-ssa-loop-niter.h"
+#include "tree-ssa-loop.h"
+#include "tree-into-ssa.h"
+#include "tree-ssa.h"
 #include "dumpfile.h"
 #include "gimple-pretty-print.h"
 #include "cfgloop.h"
@@ -443,21 +454,12 @@ find_uses_to_rename (bitmap changed_bbs, bitmap *use_blocks, bitmap need_phis)
   unsigned index;
   bitmap_iterator bi;
 
-  /* ??? If CHANGED_BBS is empty we rewrite the whole function -- why?  */
-  if (changed_bbs && !bitmap_empty_p (changed_bbs))
-    {
-      EXECUTE_IF_SET_IN_BITMAP (changed_bbs, 0, index, bi)
-	{
-	  find_uses_to_rename_bb (BASIC_BLOCK (index), use_blocks, need_phis);
-	}
-    }
+  if (changed_bbs)
+    EXECUTE_IF_SET_IN_BITMAP (changed_bbs, 0, index, bi)
+      find_uses_to_rename_bb (BASIC_BLOCK (index), use_blocks, need_phis);
   else
-    {
-      FOR_EACH_BB (bb)
-	{
-	  find_uses_to_rename_bb (bb, use_blocks, need_phis);
-	}
-    }
+    FOR_EACH_BB (bb)
+      find_uses_to_rename_bb (bb, use_blocks, need_phis);
 }
 
 /* Rewrites the program into a loop closed ssa form -- i.e. inserts extra
@@ -498,12 +500,11 @@ find_uses_to_rename (bitmap changed_bbs, bitmap *use_blocks, bitmap need_phis)
 void
 rewrite_into_loop_closed_ssa (bitmap changed_bbs, unsigned update_flag)
 {
-  bitmap *loop_exits;
   bitmap *use_blocks;
   bitmap names_to_rename;
 
   loops_state_set (LOOP_CLOSED_SSA);
-  if (number_of_loops () <= 1)
+  if (number_of_loops (cfun) <= 1)
     return;
 
   /* If the pass has caused the SSA form to be out-of-date, update it
@@ -514,11 +515,6 @@ rewrite_into_loop_closed_ssa (bitmap changed_bbs, unsigned update_flag)
 
   names_to_rename = BITMAP_ALLOC (&loop_renamer_obstack);
 
-  /* An array of bitmaps where LOOP_EXITS[I] is the set of basic blocks
-     that are the destination of an edge exiting loop number I.  */
-  loop_exits = XNEWVEC (bitmap, number_of_loops ());
-  get_loops_exits (loop_exits);
-
   /* Uses of names to rename.  We don't have to initialize this array,
      because we know that we will only have entries for the SSA names
      in NAMES_TO_RENAME.  */
@@ -527,17 +523,26 @@ rewrite_into_loop_closed_ssa (bitmap changed_bbs, unsigned update_flag)
   /* Find the uses outside loops.  */
   find_uses_to_rename (changed_bbs, use_blocks, names_to_rename);
 
-  /* Add the PHI nodes on exits of the loops for the names we need to
-     rewrite.  */
-  add_exit_phis (names_to_rename, use_blocks, loop_exits);
+  if (!bitmap_empty_p (names_to_rename))
+    {
+      /* An array of bitmaps where LOOP_EXITS[I] is the set of basic blocks
+	 that are the destination of an edge exiting loop number I.  */
+      bitmap *loop_exits = XNEWVEC (bitmap, number_of_loops (cfun));
+      get_loops_exits (loop_exits);
+
+      /* Add the PHI nodes on exits of the loops for the names we need to
+	 rewrite.  */
+      add_exit_phis (names_to_rename, use_blocks, loop_exits);
+
+      free (loop_exits);
+
+      /* Fix up all the names found to be used outside their original
+	 loops.  */
+      update_ssa (TODO_update_ssa);
+    }
 
   bitmap_obstack_release (&loop_renamer_obstack);
   free (use_blocks);
-  free (loop_exits);
-
-  /* Fix up all the names found to be used outside their original
-     loops.  */
-  update_ssa (TODO_update_ssa);
 }
 
 /* Check invariants of the loop closed ssa form for the USE in BB.  */
@@ -584,7 +589,7 @@ verify_loop_closed_ssa (bool verify_ssa_p)
   edge e;
   edge_iterator ei;
 
-  if (number_of_loops () <= 1)
+  if (number_of_loops (cfun) <= 1)
     return;
 
   if (verify_ssa_p)
@@ -1283,7 +1288,6 @@ rewrite_phi_with_iv (loop_p loop,
 				  GSI_SAME_STMT);
   stmt = gimple_build_assign (res, val);
   gsi_insert_before (gsi, stmt, GSI_SAME_STMT);
-  SSA_NAME_DEF_STMT (res) = stmt;
 }
 
 /* Rewrite all the phi nodes of LOOP in function of the main induction

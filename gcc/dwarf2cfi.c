@@ -24,12 +24,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "version.h"
 #include "flags.h"
 #include "rtl.h"
+#include "tree.h"
 #include "function.h"
 #include "basic-block.h"
 #include "dwarf2.h"
 #include "dwarf2out.h"
 #include "dwarf2asm.h"
 #include "ggc.h"
+#include "hash-table.h"
 #include "tm_p.h"
 #include "target.h"
 #include "common/common-target.h"
@@ -153,10 +155,33 @@ typedef struct
 typedef dw_trace_info *dw_trace_info_ref;
 
 
+/* Hashtable helpers.  */
+
+struct trace_info_hasher : typed_noop_remove <dw_trace_info>
+{
+  typedef dw_trace_info value_type;
+  typedef dw_trace_info compare_type;
+  static inline hashval_t hash (const value_type *);
+  static inline bool equal (const value_type *, const compare_type *);
+};
+
+inline hashval_t
+trace_info_hasher::hash (const value_type *ti)
+{
+  return INSN_UID (ti->head);
+}
+
+inline bool
+trace_info_hasher::equal (const value_type *a, const compare_type *b)
+{
+  return a->head == b->head;
+}
+
+
 /* The variables making up the pseudo-cfg, as described above.  */
 static vec<dw_trace_info> trace_info;
 static vec<dw_trace_info_ref> trace_work_list;
-static htab_t trace_index;
+static hash_table <trace_info_hasher> trace_index;
 
 /* A vector of call frame insns for the CIE.  */
 cfi_vec cie_cfi_vec;
@@ -222,7 +247,8 @@ init_return_column_size (enum machine_mode mode, rtx mem, unsigned int c)
 {
   HOST_WIDE_INT offset = c * GET_MODE_SIZE (mode);
   HOST_WIDE_INT size = GET_MODE_SIZE (Pmode);
-  emit_move_insn (adjust_address (mem, mode, offset), GEN_INT (size));
+  emit_move_insn (adjust_address (mem, mode, offset),
+		  gen_int_mode (size, mode));
 }
 
 /* Generate code to initialize the register size table.  */
@@ -275,28 +301,12 @@ expand_builtin_init_dwarf_reg_sizes (tree address)
 }
 
 
-static hashval_t
-dw_trace_info_hash (const void *ptr)
-{
-  const dw_trace_info *ti = (const dw_trace_info *) ptr;
-  return INSN_UID (ti->head);
-}
-
-static int
-dw_trace_info_eq (const void *ptr_a, const void *ptr_b)
-{
-  const dw_trace_info *a = (const dw_trace_info *) ptr_a;
-  const dw_trace_info *b = (const dw_trace_info *) ptr_b;
-  return a->head == b->head;
-}
-
 static dw_trace_info *
 get_trace_info (rtx insn)
 {
   dw_trace_info dummy;
   dummy.head = insn;
-  return (dw_trace_info *)
-    htab_find_with_hash (trace_index, &dummy, INSN_UID (insn));
+  return trace_index.find_with_hash (&dummy, INSN_UID (insn));
 }
 
 static bool
@@ -2744,22 +2754,20 @@ create_pseudo_cfg (void)
 
   /* Create the trace index after we've finished building trace_info,
      avoiding stale pointer problems due to reallocation.  */
-  trace_index = htab_create (trace_info.length (),
-			     dw_trace_info_hash, dw_trace_info_eq, NULL);
+  trace_index.create (trace_info.length ());
   dw_trace_info *tp;
   FOR_EACH_VEC_ELT (trace_info, i, tp)
     {
-      void **slot;
+      dw_trace_info **slot;
 
       if (dump_file)
 	fprintf (dump_file, "Creating trace %u : start at %s %d%s\n", i,
 		 rtx_name[(int) GET_CODE (tp->head)], INSN_UID (tp->head),
 		 tp->switch_sections ? " (section switch)" : "");
 
-      slot = htab_find_slot_with_hash (trace_index, tp,
-				       INSN_UID (tp->head), INSERT);
+      slot = trace_index.find_slot_with_hash (tp, INSN_UID (tp->head), INSERT);
       gcc_assert (*slot == NULL);
-      *slot = (void *) tp;
+      *slot = tp;
     }
 }
 
@@ -2834,14 +2842,14 @@ create_cie_data (void)
   dw_stack_pointer_regnum = DWARF_FRAME_REGNUM (STACK_POINTER_REGNUM);
   dw_frame_pointer_regnum = DWARF_FRAME_REGNUM (HARD_FRAME_POINTER_REGNUM);
 
-  memset (&cie_trace, 0, sizeof(cie_trace));
+  memset (&cie_trace, 0, sizeof (cie_trace));
   cur_trace = &cie_trace;
 
   add_cfi_vec = &cie_cfi_vec;
   cie_cfi_row = cur_row = new_cfi_row ();
 
   /* On entry, the Canonical Frame Address is at SP.  */
-  memset(&loc, 0, sizeof (loc));
+  memset (&loc, 0, sizeof (loc));
   loc.reg = dw_stack_pointer_regnum;
   loc.offset = INCOMING_FRAME_SP_OFFSET;
   def_cfa_1 (&loc);
@@ -2908,8 +2916,7 @@ execute_dwarf2_frame (void)
   }
   trace_info.release ();
 
-  htab_delete (trace_index);
-  trace_index = NULL;
+  trace_index.dispose ();
 
   return 0;
 }
@@ -3262,7 +3269,7 @@ dump_cfi_row (FILE *f, dw_cfi_row *row)
   if (!cfi)
     {
       dw_cfa_location dummy;
-      memset(&dummy, 0, sizeof(dummy));
+      memset (&dummy, 0, sizeof (dummy));
       dummy.reg = INVALID_REGNUM;
       cfi = def_cfa_0 (&dummy, &row->cfa);
     }
@@ -3365,24 +3372,42 @@ gate_dwarf2_frame (void)
   return dwarf2out_do_frame ();
 }
 
-struct rtl_opt_pass pass_dwarf2_frame =
+namespace {
+
+const pass_data pass_data_dwarf2_frame =
 {
- {
-  RTL_PASS,
-  "dwarf2",			/* name */
-  OPTGROUP_NONE,                /* optinfo_flags */
-  gate_dwarf2_frame,		/* gate */
-  execute_dwarf2_frame,		/* execute */
-  NULL,				/* sub */
-  NULL,				/* next */
-  0,				/* static_pass_number */
-  TV_FINAL,			/* tv_id */
-  0,				/* properties_required */
-  0,				/* properties_provided */
-  0,				/* properties_destroyed */
-  0,				/* todo_flags_start */
-  0				/* todo_flags_finish */
- }
+  RTL_PASS, /* type */
+  "dwarf2", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_FINAL, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
 };
+
+class pass_dwarf2_frame : public rtl_opt_pass
+{
+public:
+  pass_dwarf2_frame (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_dwarf2_frame, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_dwarf2_frame (); }
+  unsigned int execute () { return execute_dwarf2_frame (); }
+
+}; // class pass_dwarf2_frame
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_dwarf2_frame (gcc::context *ctxt)
+{
+  return new pass_dwarf2_frame (ctxt);
+}
 
 #include "gt-dwarf2cfi.h"

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -135,6 +135,15 @@ package body Exp_Ch9 is
    --  Common to tasks and protected types. Copy discriminant specifications,
    --  build record declaration. N is the type declaration, Ctyp is the
    --  concurrent entity (task type or protected type).
+
+   function Build_Dispatching_Tag_Check
+     (K : Entity_Id;
+      N : Node_Id) return Node_Id;
+   --  Utility to create the tree to check whether the dispatching call in
+   --  a timed entry call, a conditional entry call, or an asynchronous
+   --  transfer of control is a call to a primitive of a non-synchronized type.
+   --  K is the temporary that holds the tagged kind of the target object, and
+   --  N is the enclosing construct.
 
    function Build_Entry_Count_Expression
      (Concurrent_Type : Node_Id;
@@ -1298,6 +1307,26 @@ package body Exp_Ch9 is
               Limited_Present => True));
    end Build_Corresponding_Record;
 
+   ---------------------------------
+   -- Build_Dispatching_Tag_Check --
+   ---------------------------------
+
+   function Build_Dispatching_Tag_Check
+     (K : Entity_Id;
+      N : Node_Id) return Node_Id
+   is
+      Loc : constant Source_Ptr := Sloc (N);
+   begin
+      return
+         Make_Op_Or (Loc,
+           Make_Op_Eq (Loc,
+             Left_Opnd  => New_Reference_To (K, Loc),
+             Right_Opnd => New_Reference_To (RTE (RE_TK_Limited_Tagged), Loc)),
+           Make_Op_Eq (Loc,
+             Left_Opnd  => New_Reference_To (K, Loc),
+             Right_Opnd => New_Reference_To (RTE (RE_TK_Tagged), Loc)));
+   end Build_Dispatching_Tag_Check;
+
    ----------------------------------
    -- Build_Entry_Count_Expression --
    ----------------------------------
@@ -1925,7 +1954,8 @@ package body Exp_Ch9 is
          P : Node_Id;
 
       begin
-         P := Spec_PPC_List (Contract (E));
+         P := Pre_Post_Conditions (Contract (E));
+
          if No (P) then
             return;
          end if;
@@ -1933,8 +1963,8 @@ package body Exp_Ch9 is
          --  Transfer ppc pragmas to the declarations of the wrapper
 
          while Present (P) loop
-            if Pragma_Name (P) = Name_Precondition
-              or else Pragma_Name (P) = Name_Postcondition
+            if Nam_In (Pragma_Name (P), Name_Precondition,
+                                        Name_Postcondition)
             then
                Append (Relocate_Node (P), Decls);
                Set_Analyzed (Last (Decls), False);
@@ -3346,7 +3376,7 @@ package body Exp_Ch9 is
             if Known_Static_Esize (Comp_Type) then
                Typ_Size := UI_To_Int (Esize (Comp_Type));
 
-            --  If the Esize (Object_Size) is unknown at compile-time, look at
+            --  If the Esize (Object_Size) is unknown at compile time, look at
             --  the RM_Size (Value_Size) since it may have been set by an
             --  explicit representation clause.
 
@@ -6606,7 +6636,9 @@ package body Exp_Ch9 is
    --       U   : Boolean;
 
    --    begin
-   --       if K = Ada.Tags.TK_Limited_Tagged then
+   --       if K = Ada.Tags.TK_Limited_Tagged
+   --         or else K = Ada.Tags.TK_Tagged
+   --       then
    --          <dispatching-call>;
    --          <triggering-statements>;
 
@@ -6755,6 +6787,40 @@ package body Exp_Ch9 is
       S   : Entity_Id;  --  Primitive operation slot
       T   : Entity_Id;  --  Additional status flag
 
+      procedure Rewrite_Abortable_Part;
+      --  If the trigger is a dispatching call, the expansion inserts multiple
+      --  copies of the abortable part. This is both inefficient, and may lead
+      --  to duplicate definitions that the back-end will reject, when the
+      --  abortable part includes loops. This procedure rewrites the abortable
+      --  part into a call to a generated procedure.
+
+      ----------------------------
+      -- Rewrite_Abortable_Part --
+      ----------------------------
+
+      procedure Rewrite_Abortable_Part is
+         Proc : constant Entity_Id := Make_Defining_Identifier (Loc, Name_uA);
+         Decl : Node_Id;
+
+      begin
+         Decl :=
+           Make_Subprogram_Body (Loc,
+             Specification              =>
+               Make_Procedure_Specification (Loc, Defining_Unit_Name => Proc),
+             Declarations               => New_List,
+             Handled_Statement_Sequence =>
+               Make_Handled_Sequence_Of_Statements (Loc, Astats));
+         Insert_Before (N, Decl);
+         Analyze (Decl);
+
+         --  Rewrite abortable part into a call to this procedure.
+
+         Astats :=
+           New_List (
+             Make_Procedure_Call_Statement (Loc,
+               Name => New_Occurrence_Of (Proc, Loc)));
+      end Rewrite_Abortable_Part;
+
    begin
       Process_Statements_For_Controlled_Objects (Trig);
       Process_Statements_For_Controlled_Objects (Abrt);
@@ -6790,12 +6856,13 @@ package body Exp_Ch9 is
          if Ada_Version >= Ada_2005
            and then
              (No (Original_Node (Ecall))
-                or else not Nkind_In (Original_Node (Ecall),
-                                        N_Delay_Relative_Statement,
-                                        N_Delay_Until_Statement))
+               or else not Nkind_In (Original_Node (Ecall),
+                                     N_Delay_Relative_Statement,
+                                     N_Delay_Until_Statement))
          then
             Extract_Dispatching_Call (Ecall, Call_Ent, Obj, Actuals, Formals);
 
+            Rewrite_Abortable_Part;
             Decls := New_List;
             Stmts := New_List;
 
@@ -6830,9 +6897,9 @@ package body Exp_Ch9 is
               Make_Object_Declaration (Loc,
                 Defining_Identifier =>
                   Make_Defining_Identifier (Loc, Name_uD),
-                Object_Definition =>
-                  New_Reference_To (
-                    RTE (RE_Dummy_Communication_Block), Loc)));
+                Object_Definition   =>
+                  New_Reference_To
+                    (RTE (RE_Dummy_Communication_Block), Loc)));
 
             K := Build_K (Loc, Decls, Obj);
 
@@ -6874,8 +6941,7 @@ package body Exp_Ch9 is
 
             Prepend_To (Cleanup_Stmts,
               Make_Assignment_Statement (Loc,
-                Name =>
-                  New_Reference_To (Bnn, Loc),
+                Name       => New_Reference_To (Bnn, Loc),
                 Expression =>
                   Make_Unchecked_Type_Conversion (Loc,
                     Subtype_Mark =>
@@ -6888,10 +6954,10 @@ package body Exp_Ch9 is
             Prepend_To (Cleanup_Stmts,
               Make_Procedure_Call_Statement (Loc,
                 Name =>
-                  New_Reference_To (
-                    Find_Prim_Op (Etype (Etype (Obj)),
-                      Name_uDisp_Asynchronous_Select),
-                    Loc),
+                  New_Reference_To
+                    (Find_Prim_Op
+                       (Etype (Etype (Obj)), Name_uDisp_Asynchronous_Select),
+                     Loc),
                 Parameter_Associations =>
                   New_List (
                     New_Copy_Tree (Obj),             --  <object>
@@ -7116,10 +7182,10 @@ package body Exp_Ch9 is
             Append_To (Conc_Typ_Stmts,
               Make_Procedure_Call_Statement (Loc,
                 Name =>
-                  New_Reference_To (
-                    Find_Prim_Op (Etype (Etype (Obj)),
-                      Name_uDisp_Get_Prim_Op_Kind),
-                    Loc),
+                  New_Reference_To
+                    (Find_Prim_Op (Etype (Etype (Obj)),
+                                   Name_uDisp_Get_Prim_Op_Kind),
+                     Loc),
                 Parameter_Associations =>
                   New_List (
                     New_Copy_Tree (Obj),
@@ -7171,7 +7237,9 @@ package body Exp_Ch9 is
             Prepend_To (Lim_Typ_Stmts, New_Copy_Tree (Ecall));
 
             --  Generate:
-            --    if K = Ada.Tags.TK_Limited_Tagged then
+            --    if K = Ada.Tags.TK_Limited_Tagged
+            --         or else K = Ada.Tags.TK_Tagged
+            --       then
             --       Lim_Typ_Stmts
             --    else
             --       Conc_Typ_Stmts
@@ -7179,18 +7247,9 @@ package body Exp_Ch9 is
 
             Append_To (Stmts,
               Make_Implicit_If_Statement (N,
-                Condition =>
-                   Make_Op_Eq (Loc,
-                     Left_Opnd  =>
-                       New_Reference_To (K, Loc),
-                     Right_Opnd =>
-                       New_Reference_To (RTE (RE_TK_Limited_Tagged), Loc)),
-
-                Then_Statements =>
-                  Lim_Typ_Stmts,
-
-                Else_Statements =>
-                  Conc_Typ_Stmts));
+                Condition       => Build_Dispatching_Tag_Check (K, N),
+                Then_Statements => Lim_Typ_Stmts,
+                Else_Statements => Conc_Typ_Stmts));
 
             Rewrite (N,
               Make_Block_Statement (Loc,
@@ -7239,11 +7298,11 @@ package body Exp_Ch9 is
 
             Abortable_Block :=
               Make_Block_Statement (Loc,
-                Identifier => New_Reference_To (Blk_Ent, Loc),
+                Identifier                 => New_Reference_To (Blk_Ent, Loc),
                 Handled_Statement_Sequence =>
                   Make_Handled_Sequence_Of_Statements (Loc,
                     Statements => Astats),
-                Has_Created_Identifier => True,
+                Has_Created_Identifier     => True,
                 Is_Asynchronous_Call_Block => True);
 
             --  Append call to if Enqueue (When, DB'Unchecked_Access) then
@@ -7291,8 +7350,8 @@ package body Exp_Ch9 is
                   Make_Object_Declaration (Loc,
                     Defining_Identifier => Dblock_Ent,
                     Aliased_Present     => True,
-                    Object_Definition   => New_Reference_To (
-                      RTE (RE_Delay_Block), Loc))),
+                    Object_Definition   =>
+                      New_Reference_To (RTE (RE_Delay_Block), Loc))),
 
                 Handled_Statement_Sequence =>
                   Make_Handled_Sequence_Of_Statements (Loc, Stmts)));
@@ -7317,10 +7376,9 @@ package body Exp_Ch9 is
 
          Decl := First (Decls);
          while Present (Decl)
-           and then
-             (Nkind (Decl) /= N_Object_Declaration
-               or else not Is_RTE (Etype (Object_Definition (Decl)),
-                                   RE_Communication_Block))
+           and then (Nkind (Decl) /= N_Object_Declaration
+                      or else not Is_RTE (Etype (Object_Definition (Decl)),
+                                          RE_Communication_Block))
          loop
             Next (Decl);
          end loop;
@@ -7337,13 +7395,12 @@ package body Exp_Ch9 is
          --    Mode => Asynchronous_Call;
          --    Block => Bnn);
 
-         Stmt := First (Stmts);
-
          --  Skip assignments to temporaries created for in-out parameters
 
          --  This makes unwarranted assumptions about the shape of the expanded
          --  tree for the call, and should be cleaned up ???
 
+         Stmt := First (Stmts);
          while Nkind (Stmt) /= N_Procedure_Call_Statement loop
             Next (Stmt);
          end loop;
@@ -7632,7 +7689,9 @@ package body Exp_Ch9 is
    --       S : Integer;
 
    --    begin
-   --       if K = Ada.Tags.TK_Limited_Tagged then
+   --       if K = Ada.Tags.TK_Limited_Tagged
+   --         or else K = Ada.Tags.TK_Tagged
+   --       then
    --          <dispatching-call>;
    --          <triggering-statements>
 
@@ -7858,7 +7917,9 @@ package body Exp_Ch9 is
          Prepend_To (Lim_Typ_Stmts, New_Copy_Tree (Blk));
 
          --  Generate:
-         --    if K = Ada.Tags.TK_Limited_Tagged then
+         --    if K = Ada.Tags.TK_Limited_Tagged
+         --         or else K = Ada.Tags.TK_Tagged
+         --       then
          --       Lim_Typ_Stmts
          --    else
          --       Conc_Typ_Stmts
@@ -7866,18 +7927,9 @@ package body Exp_Ch9 is
 
          Append_To (Stmts,
            Make_Implicit_If_Statement (N,
-             Condition =>
-               Make_Op_Eq (Loc,
-                 Left_Opnd =>
-                   New_Reference_To (K, Loc),
-                 Right_Opnd =>
-                   New_Reference_To (RTE (RE_TK_Limited_Tagged), Loc)),
-
-             Then_Statements =>
-               Lim_Typ_Stmts,
-
-             Else_Statements =>
-               Conc_Typ_Stmts));
+             Condition       => Build_Dispatching_Tag_Check (K, N),
+             Then_Statements => Lim_Typ_Stmts,
+             Else_Statements => Conc_Typ_Stmts));
 
          Rewrite (N,
            Make_Block_Statement (Loc,
@@ -8935,8 +8987,6 @@ package body Exp_Ch9 is
                                      (Prot_Typ, Cdecls, Loc);
 
          begin
-            --  Could this be simplified using Corresponding_Runtime_Package???
-
             if Has_Attach_Handler (Prot_Typ) then
                Ritem := First_Rep_Item (Prot_Typ);
                while Present (Ritem) loop
@@ -8948,47 +8998,40 @@ package body Exp_Ch9 is
 
                   Next_Rep_Item (Ritem);
                end loop;
+            end if;
 
-               if Restricted_Profile then
-                  if Has_Entries (Prot_Typ) then
-                     Protection_Subtype :=
-                       New_Reference_To (RTE (RE_Protection_Entry), Loc);
-                  else
-                     Protection_Subtype :=
-                       New_Reference_To (RTE (RE_Protection), Loc);
-                  end if;
+            --  Determine the proper protection type. There are two special
+            --  cases: 1) when the protected type has dynamic interrupt
+            --  handlers, and 2) when it has static handlers and we use a
+            --  restricted profile.
 
-               else
-                  Protection_Subtype :=
-                    Make_Subtype_Indication (Loc,
-                       Subtype_Mark =>
-                         New_Reference_To
-                           (RTE (RE_Static_Interrupt_Protection), Loc),
-                       Constraint =>
-                         Make_Index_Or_Discriminant_Constraint (Loc,
-                           Constraints => New_List (
-                             Entry_Count_Expr,
-                             Make_Integer_Literal (Loc, Num_Attach_Handler))));
-               end if;
+            if Has_Attach_Handler (Prot_Typ)
+              and then not Restricted_Profile
+            then
+               Protection_Subtype :=
+                 Make_Subtype_Indication (Loc,
+                  Subtype_Mark =>
+                    New_Reference_To
+                      (RTE (RE_Static_Interrupt_Protection), Loc),
+                  Constraint   =>
+                    Make_Index_Or_Discriminant_Constraint (Loc,
+                      Constraints => New_List (
+                        Entry_Count_Expr,
+                        Make_Integer_Literal (Loc, Num_Attach_Handler))));
 
             elsif Has_Interrupt_Handler (Prot_Typ)
               and then not Restriction_Active (No_Dynamic_Attachment)
             then
                Protection_Subtype :=
-                  Make_Subtype_Indication (Loc,
-                    Subtype_Mark =>
-                      New_Reference_To
-                        (RTE (RE_Dynamic_Interrupt_Protection), Loc),
-                    Constraint   =>
-                      Make_Index_Or_Discriminant_Constraint (Loc,
-                        Constraints => New_List (Entry_Count_Expr)));
+                 Make_Subtype_Indication (Loc,
+                   Subtype_Mark =>
+                     New_Reference_To
+                       (RTE (RE_Dynamic_Interrupt_Protection), Loc),
+                   Constraint   =>
+                     Make_Index_Or_Discriminant_Constraint (Loc,
+                       Constraints => New_List (Entry_Count_Expr)));
 
-            --  Type has explicit entries or generated primitive entry wrappers
-
-            elsif Has_Entries (Prot_Typ)
-              or else (Ada_Version >= Ada_2005
-                        and then Present (Interface_List (N)))
-            then
+            else
                case Corresponding_Runtime_Package (Prot_Typ) is
                   when System_Tasking_Protected_Objects_Entries =>
                      Protection_Subtype :=
@@ -9004,13 +9047,13 @@ package body Exp_Ch9 is
                      Protection_Subtype :=
                        New_Reference_To (RTE (RE_Protection_Entry), Loc);
 
+                  when System_Tasking_Protected_Objects =>
+                     Protection_Subtype :=
+                       New_Reference_To (RTE (RE_Protection), Loc);
+
                   when others =>
                      raise Program_Error;
                end case;
-
-            else
-               Protection_Subtype :=
-                 New_Reference_To (RTE (RE_Protection), Loc);
             end if;
 
             Object_Comp :=
@@ -11840,7 +11883,7 @@ package body Exp_Ch9 is
          Ent := First_Entity (Tasktyp);
          while Present (Ent) loop
             if Ekind_In (Ent, E_Entry, E_Entry_Family)
-              and then Present (Spec_PPC_List (Contract (Ent)))
+              and then Present (Pre_Post_Conditions (Contract (Ent)))
             then
                Build_PPC_Wrapper (Ent, N);
             end if;
@@ -11905,7 +11948,10 @@ package body Exp_Ch9 is
    --       end if;
    --    end;
 
-   --  3) Ada 2005 (AI-345): When T.E is a dispatching procedure call;
+   --  3) Ada 2005 (AI-345): When T.E is a dispatching procedure call, there
+   --     is no delay and the triggering statements are executed. We first
+   --     determine the kind of of the triggering call and then execute a
+   --     synchronized operation or a direct call.
 
    --    declare
    --       B  : Boolean := False;
@@ -11918,9 +11964,11 @@ package body Exp_Ch9 is
    --       S  : Integer;
 
    --    begin
-   --       if K = Ada.Tags.TK_Limited_Tagged then
+   --       if K = Ada.Tags.TK_Limited_Tagged
+   --         or else K = Ada.Tags.TK_Tagged
+   --       then
    --          <dispatching-call>;
-   --          <triggering-statements>
+   --          B := True;
 
    --       else
    --          S :=
@@ -11944,18 +11992,19 @@ package body Exp_Ch9 is
    --             then
    --                <dispatching-call>;
    --             end if;
-
-   --             <triggering-statements>
-   --          else
-   --             <timed-statements>
-   --          end if;
+   --         end if;
    --       end if;
+
+   --      if B then
+   --          <triggering-statements>
+   --      else
+   --          <timed-statements>
+   --      end if;
    --    end;
 
    --  The triggering statement and the sequence of timed statements have not
-   --  been analyzed yet (see Analyzed_Timed_Entry_Call). They may contain
-   --  local declarations, and therefore the copies that are made during
-   --  expansion must be disjoint, as for any other inlining.
+   --  been analyzed yet (see Analyzed_Timed_Entry_Call), but they may contain
+   --  global references if within an instantiation.
 
    procedure Expand_N_Timed_Entry_Call (N : Node_Id) is
       Loc : constant Source_Ptr := Sloc (N);
@@ -11969,13 +12018,13 @@ package body Exp_Ch9 is
       D_Alt          : constant Node_Id := Delay_Alternative (N);
       D_Conv         : Node_Id;
       D_Disc         : Node_Id;
-      D_Stat         : Node_Id := Delay_Statement (D_Alt);
+      D_Stat         : Node_Id          := Delay_Statement (D_Alt);
       D_Stats        : List_Id;
       D_Type         : Entity_Id;
       Decls          : List_Id;
       Dummy          : Node_Id;
       E_Alt          : constant Node_Id := Entry_Call_Alternative (N);
-      E_Call         : Node_Id := Entry_Call_Statement (E_Alt);
+      E_Call         : Node_Id          := Entry_Call_Statement (E_Alt);
       E_Stats        : List_Id;
       Ename          : Node_Id;
       Formals        : List_Id;
@@ -11997,6 +12046,8 @@ package body Exp_Ch9 is
       M : Entity_Id;  --  Delay mode
       P : Entity_Id;  --  Parameter block
       S : Entity_Id;  --  Primitive operation slot
+
+   --  Start of processing for Expand_N_Timed_Entry_Call
 
    begin
       --  Under the Ravenscar profile, timed entry calls are excluded. An error
@@ -12037,8 +12088,8 @@ package body Exp_Ch9 is
 
       if Is_Disp_Select then
          Extract_Dispatching_Call (E_Call, Call_Ent, Obj, Actuals, Formals);
-
          Decls := New_List;
+
          Stmts := New_List;
 
          --  Generate:
@@ -12242,16 +12293,10 @@ package body Exp_Ch9 is
          --       then
          --          <dispatching-call>
          --       end if;
-         --       <triggering-statements>
-         --    else
-         --       <timed-statements>
          --    end if;
 
-         N_Stats := Copy_Separate_List (E_Stats);
-
-         Prepend_To (N_Stats,
+         N_Stats := New_List (
            Make_Implicit_If_Statement (N,
-
              Condition =>
                Make_Or_Else (Loc,
                  Left_Opnd =>
@@ -12280,18 +12325,22 @@ package body Exp_Ch9 is
          Append_To (Conc_Typ_Stmts,
            Make_Implicit_If_Statement (N,
              Condition       => New_Reference_To (B, Loc),
-             Then_Statements => N_Stats,
-             Else_Statements => D_Stats));
+             Then_Statements => N_Stats));
 
          --  Generate:
          --    <dispatching-call>;
-         --    <triggering-statements>
+         --    B := True;
 
-         Lim_Typ_Stmts := Copy_Separate_List (E_Stats);
-         Prepend_To (Lim_Typ_Stmts, New_Copy_Tree (E_Call));
+         Lim_Typ_Stmts :=
+           New_List (New_Copy_Tree (E_Call),
+             Make_Assignment_Statement (Loc,
+               Name       => New_Occurrence_Of (B, Loc),
+               Expression => New_Occurrence_Of (Standard_True, Loc)));
 
          --  Generate:
-         --    if K = Ada.Tags.TK_Limited_Tagged then
+         --    if K = Ada.Tags.TK_Limited_Tagged
+         --         or else K = Ada.Tags.TK_Tagged
+         --       then
          --       Lim_Typ_Stmts
          --    else
          --       Conc_Typ_Stmts
@@ -12299,16 +12348,28 @@ package body Exp_Ch9 is
 
          Append_To (Stmts,
            Make_Implicit_If_Statement (N,
-             Condition       =>
-               Make_Op_Eq (Loc,
-                 Left_Opnd  => New_Reference_To (K, Loc),
-                 Right_Opnd =>
-                   New_Reference_To (RTE (RE_TK_Limited_Tagged), Loc)),
+             Condition       => Build_Dispatching_Tag_Check (K, N),
              Then_Statements => Lim_Typ_Stmts,
              Else_Statements => Conc_Typ_Stmts));
 
+         --    Generate:
+
+         --    if B then
+         --       <triggering-statements>
+         --    else
+         --       <timed-statements>
+         --    end if;
+
+         Append_To (Stmts,
+           Make_Implicit_If_Statement (N,
+             Condition       => New_Occurrence_Of (B, Loc),
+             Then_Statements => E_Stats,
+             Else_Statements => D_Stats));
+
       else
-         --  Skip assignments to temporaries created for in-out parameters.
+         --  Simple case of a non-dispatching trigger. Skip assignments to
+         --  temporaries created for in-out parameters.
+
          --  This makes unwarranted assumptions about the shape of the expanded
          --  tree for the call, and should be cleaned up ???
 
@@ -12973,7 +13034,6 @@ package body Exp_Ch9 is
 
             if Has_Attach_Handler (Conc_Typ)
               and then not Restricted_Profile
-              and then not Restriction_Active (No_Dynamic_Attachment)
             then
                Prot_Typ := RE_Static_Interrupt_Protection;
 
@@ -12982,14 +13042,7 @@ package body Exp_Ch9 is
             then
                Prot_Typ := RE_Dynamic_Interrupt_Protection;
 
-            --  The type has explicit entries or generated primitive entry
-            --  wrappers.
-
-            elsif Has_Entries (Conc_Typ)
-              or else
-                (Ada_Version >= Ada_2005
-                  and then Present (Interface_List (Parent (Conc_Typ))))
-            then
+            else
                case Corresponding_Runtime_Package (Conc_Typ) is
                   when System_Tasking_Protected_Objects_Entries =>
                      Prot_Typ := RE_Protection_Entries;
@@ -12997,12 +13050,12 @@ package body Exp_Ch9 is
                   when System_Tasking_Protected_Objects_Single_Entry =>
                      Prot_Typ := RE_Protection_Entry;
 
+                  when System_Tasking_Protected_Objects =>
+                     Prot_Typ := RE_Protection;
+
                   when others =>
                      raise Program_Error;
                end case;
-
-            else
-               Prot_Typ := RE_Protection;
             end if;
 
             --  Generate:
@@ -13388,6 +13441,7 @@ package body Exp_Ch9 is
       Args        : List_Id;
       L           : constant List_Id := New_List;
       Has_Entry   : constant Boolean := Has_Entries (Ptyp);
+      Prio_Type   : Entity_Id;
       Restricted  : constant Boolean := Restricted_Profile;
 
    begin
@@ -13456,18 +13510,37 @@ package body Exp_Ch9 is
                     Expression
                      (First (Pragma_Argument_Associations (Prio_Clause)));
 
+                  --  Get_Rep_Item returns either priority pragma.
+
+                  if Pragma_Name (Prio_Clause) = Name_Priority then
+                     Prio_Type := RTE (RE_Any_Priority);
+                  else
+                     Prio_Type := RTE (RE_Interrupt_Priority);
+                  end if;
+
                --  Attribute definition clause Priority
 
                else
+                  if Chars (Prio_Clause) = Name_Priority then
+                     Prio_Type := RTE (RE_Any_Priority);
+                  else
+                     Prio_Type := RTE (RE_Interrupt_Priority);
+                  end if;
+
                   Prio := Expression (Prio_Clause);
                end if;
 
                --  If priority is a static expression, then we can duplicate it
                --  with no problem and simply append it to the argument list.
+               --  However, it has only be pre-analyzed, so we need to check
+               --  now that it is in the bounds of the priority type.
 
                if Is_Static_Expression (Prio) then
+                  Set_Analyzed (Prio, False);
                   Append_To (Args,
-                    Duplicate_Subexpr_No_Checks (Prio));
+                    Make_Type_Conversion (Loc,
+                      Subtype_Mark => New_Occurrence_Of (Prio_Type, Loc),
+                      Expression   => Duplicate_Subexpr (Prio)));
 
                --  Otherwise, the priority may be a per-object expression, if
                --  it depends on a discriminant of the type. In this case,
@@ -13477,18 +13550,13 @@ package body Exp_Ch9 is
                --  appropriate approach, but that could generate declarations
                --  improperly placed in the enclosing scope.
 
-               --  Note: Use System.Any_Priority as the expected type for the
-               --  non-static priority expression, in case the expression has
-               --  not been analyzed yet (as occurs for example with pragma
-               --  Interrupt_Priority).
-
                else
                   Temp := Make_Temporary (Loc, 'R', Prio);
                   Append_To (L,
                      Make_Object_Declaration (Loc,
                         Defining_Identifier => Temp,
                         Object_Definition   =>
-                          New_Occurrence_Of (RTE (RE_Any_Priority), Loc),
+                          New_Occurrence_Of (Prio_Type,  Loc),
                         Expression          => Relocate_Node (Prio)));
 
                   Append_To (Args, New_Occurrence_Of (Temp, Loc));
@@ -13522,91 +13590,108 @@ package body Exp_Ch9 is
          --  considered equivalent to a protected type with entries in the
          --  context of dispatching select statements.
 
-         if Has_Entry
-           or else Has_Interfaces (Protect_Rec)
-           or else
-             ((Has_Attach_Handler (Ptyp) or else Has_Interrupt_Handler (Ptyp))
-                and then not Restriction_Active (No_Dynamic_Attachment))
-         then
-            declare
-               Pkg_Id : constant RTU_Id  :=
-                          Corresponding_Runtime_Package (Ptyp);
+         --  Protected types with interrupt handlers (when not using a
+         --  restricted profile) are also considered equivalent to protected
+         --  types with entries.
 
-               Called_Subp : RE_Id;
+         --  The types which are used (Static_Interrupt_Protection and
+         --  Dynamic_Interrupt_Protection) are derived from Protection_Entries.
 
-            begin
-               case Pkg_Id is
-                  when System_Tasking_Protected_Objects_Entries =>
-                     Called_Subp := RE_Initialize_Protection_Entries;
+         declare
+            Pkg_Id : constant RTU_Id := Corresponding_Runtime_Package (Ptyp);
 
-                  when System_Tasking_Protected_Objects =>
-                     Called_Subp := RE_Initialize_Protection;
+            Called_Subp : RE_Id;
 
-                  when System_Tasking_Protected_Objects_Single_Entry =>
-                     Called_Subp := RE_Initialize_Protection_Entry;
+         begin
+            case Pkg_Id is
+               when System_Tasking_Protected_Objects_Entries =>
+                  Called_Subp := RE_Initialize_Protection_Entries;
 
-                  when others =>
-                     raise Program_Error;
-               end case;
+                  --  Argument Compiler_Info
 
-               if Has_Entry
-                 or else not Restricted
-                 or else Has_Interfaces (Protect_Rec)
-               then
                   Append_To (Args,
                     Make_Attribute_Reference (Loc,
                       Prefix         => Make_Identifier (Loc, Name_uInit),
                       Attribute_Name => Name_Address));
-               end if;
 
-               --  Entry_Bodies parameter. This is a pointer to an array of
-               --  pointers to the entry body procedures and barrier functions
-               --  of the object. If the protected type has no entries this
-               --  object will not exist, in this case, pass a null.
+               when System_Tasking_Protected_Objects_Single_Entry =>
+                  Called_Subp := RE_Initialize_Protection_Entry;
 
-               if Has_Entry then
-                  P_Arr := Entry_Bodies_Array (Ptyp);
+                  --  Argument Compiler_Info
 
                   Append_To (Args,
                     Make_Attribute_Reference (Loc,
-                      Prefix => New_Reference_To (P_Arr, Loc),
+                      Prefix         => Make_Identifier (Loc, Name_uInit),
+                      Attribute_Name => Name_Address));
+
+               when System_Tasking_Protected_Objects =>
+                  Called_Subp := RE_Initialize_Protection;
+
+               when others =>
+                     raise Program_Error;
+            end case;
+
+            --  Entry_Bodies parameter. This is a pointer to an array of
+            --  pointers to the entry body procedures and barrier functions of
+            --  the object. If the protected type has no entries this object
+            --  will not exist, in this case, pass a null (it can happen when
+            --  there are protected interrupt handlers or interfaces).
+
+            if Has_Entry then
+               P_Arr := Entry_Bodies_Array (Ptyp);
+
+               --  Argument Entry_Body (for single entry) or Entry_Bodies (for
+               --  multiple entries).
+
+               Append_To (Args,
+                 Make_Attribute_Reference (Loc,
+                   Prefix         => New_Reference_To (P_Arr, Loc),
+                   Attribute_Name => Name_Unrestricted_Access));
+
+               if Pkg_Id = System_Tasking_Protected_Objects_Entries then
+
+                  --  Find index mapping function (clumsy but ok for now)
+
+                  while Ekind (P_Arr) /= E_Function loop
+                     Next_Entity (P_Arr);
+                  end loop;
+
+                  Append_To (Args,
+                    Make_Attribute_Reference (Loc,
+                      Prefix         => New_Reference_To (P_Arr, Loc),
                       Attribute_Name => Name_Unrestricted_Access));
-
-                  if Pkg_Id = System_Tasking_Protected_Objects_Entries then
-
-                     --  Find index mapping function (clumsy but ok for now)
-
-                     while Ekind (P_Arr) /= E_Function loop
-                        Next_Entity (P_Arr);
-                     end loop;
-
-                     Append_To (Args,
-                       Make_Attribute_Reference (Loc,
-                         Prefix         => New_Reference_To (P_Arr, Loc),
-                         Attribute_Name => Name_Unrestricted_Access));
-                  end if;
-
-               elsif Pkg_Id =
-                       System_Tasking_Protected_Objects_Single_Entry
-               then
-                  Append_To (Args, Make_Null (Loc));
-
-               elsif Pkg_Id = System_Tasking_Protected_Objects_Entries then
-                  Append_To (Args, Make_Null (Loc));
-                  Append_To (Args, Make_Null (Loc));
                end if;
 
-               Append_To (L,
-                 Make_Procedure_Call_Statement (Loc,
-                   Name => New_Reference_To (RTE (Called_Subp), Loc),
-                   Parameter_Associations => Args));
-            end;
-         else
+            elsif Pkg_Id = System_Tasking_Protected_Objects_Single_Entry then
+
+               --  This is the case where we have a protected object with
+               --  interfaces and no entries, and the single entry restriction
+               --  is in effect. We pass a null pointer for the entry
+               --  parameter because there is no actual entry.
+
+               Append_To (Args, Make_Null (Loc));
+
+            elsif Pkg_Id = System_Tasking_Protected_Objects_Entries then
+
+               --  This is the case where we have a protected object with no
+               --  entries and:
+               --    - either interrupt handlers with non restricted profile,
+               --    - or interfaces
+               --  Note that the types which are used for interrupt handlers
+               --  (Static/Dynamic_Interrupt_Protection) are derived from
+               --  Protection_Entries. We pass two null pointers because there
+               --  is no actual entry, and the initialization procedure needs
+               --  both Entry_Bodies and Find_Body_Index.
+
+               Append_To (Args, Make_Null (Loc));
+               Append_To (Args, Make_Null (Loc));
+            end if;
+
             Append_To (L,
               Make_Procedure_Call_Statement (Loc,
-                Name => New_Reference_To (RTE (RE_Initialize_Protection), Loc),
+                Name => New_Reference_To (RTE (Called_Subp), Loc),
                 Parameter_Associations => Args));
-         end if;
+         end;
       end if;
 
       if Has_Attach_Handler (Ptyp) then
@@ -14071,11 +14156,10 @@ package body Exp_Ch9 is
         and then (Nkind_In (Stmt, N_Null_Statement, N_Label)
                     or else
                       (Nkind (Stmt) = N_Pragma
-                         and then (Pragma_Name (Stmt) = Name_Unreferenced
-                                     or else
-                                   Pragma_Name (Stmt) = Name_Unmodified
-                                     or else
-                                   Pragma_Name (Stmt) = Name_Warnings)))
+                        and then
+                          Nam_In (Pragma_Name (Stmt), Name_Unreferenced,
+                                                      Name_Unmodified,
+                                                      Name_Warnings)))
       loop
          Next (Stmt);
       end loop;

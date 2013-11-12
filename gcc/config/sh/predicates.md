@@ -154,7 +154,7 @@
 
       return (regno != T_REG && regno != PR_REG
 	      && ! TARGET_REGISTER_P (regno)
-	      && (regno != FPUL_REG || TARGET_SH4)
+	      && regno != FPUL_REG
 	      && regno != MACH_REG && regno != MACL_REG);
     }
   /* Allow a no-op sign extension - compare LOAD_EXTEND_OP.
@@ -194,6 +194,34 @@
 
   return 0;
 })
+
+;; Returns true if OP is either a register or constant 0 or constant 1.
+(define_predicate "arith_reg_or_0_or_1_operand"
+  (match_code "subreg,reg,const_int,const_vector")
+{
+  return arith_reg_or_0_operand (op, mode) || satisfies_constraint_M (op);
+})
+
+;; Returns true if OP is a suitable constant for the minimum value of a
+;; clips.b or clips.w insn.
+(define_predicate "clips_min_const_int"
+  (and (match_code "const_int")
+       (ior (match_test "INTVAL (op) == -128")
+	    (match_test "INTVAL (op) == -32768"))))
+
+;; Returns true if OP is a suitable constant for the maximum value of a
+;; clips.b or clips.w insn.
+(define_predicate "clips_max_const_int"
+  (and (match_code "const_int")
+       (ior (match_test "INTVAL (op) == 127")
+	    (match_test "INTVAL (op) == 32767"))))
+
+;; Returns true if OP is a suitable constant for the maximum value of a
+;; clipu.b or clipu.w insn.
+(define_predicate "clipu_max_const_int"
+  (and (match_code "const_int")
+       (ior (match_test "INTVAL (op) == 255")
+	    (match_test "INTVAL (op) == 65535"))))
 
 ;; Returns 1 if OP is a floating point operator with two operands.
 (define_predicate "binary_float_operator"
@@ -370,9 +398,13 @@
 (define_predicate "general_extend_operand"
   (match_code "subreg,reg,mem,truncate")
 {
-  return (GET_CODE (op) == TRUNCATE
-	  ? arith_operand
-	  : nonimmediate_operand) (op, mode);
+  if (GET_CODE (op) == TRUNCATE)
+    return arith_operand (op, mode);
+
+  if (MEM_P (op) || (GET_CODE (op) == SUBREG && MEM_P (SUBREG_REG (op))))
+    return general_movsrc_operand (op, mode);
+
+  return nonimmediate_operand (op, mode);
 })
 
 ;; Returns 1 if OP is a simple register address.
@@ -440,17 +472,36 @@
 	return 0;
     }
 
-  if ((mode == QImode || mode == HImode)
-      && mode == GET_MODE (op)
-      && (MEM_P (op)
-	  || (GET_CODE (op) == SUBREG && MEM_P (SUBREG_REG (op)))))
+  if (mode == GET_MODE (op)
+      && (MEM_P (op) || (GET_CODE (op) == SUBREG && MEM_P (SUBREG_REG (op)))))
     {
-      rtx x = XEXP ((MEM_P (op) ? op : SUBREG_REG (op)), 0);
+      rtx mem_rtx = MEM_P (op) ? op : SUBREG_REG (op);
+      rtx x = XEXP (mem_rtx, 0);
 
-      if (GET_CODE (x) == PLUS
+      if ((mode == QImode || mode == HImode)
+	  && GET_CODE (x) == PLUS
 	  && REG_P (XEXP (x, 0))
 	  && CONST_INT_P (XEXP (x, 1)))
 	return sh_legitimate_index_p (mode, XEXP (x, 1), TARGET_SH2A, false);
+
+      /* Allow reg+reg addressing here without validating the register
+	 numbers.  Usually one of the regs must be R0 or a pseudo reg.
+	 In some cases it can happen that arguments from hard regs are
+	 propagated directly into address expressions.  In this cases reload
+	 will have to fix it up later.  However, allow this only for native
+	 1, 2 or 4 byte addresses.  */
+      if (can_create_pseudo_p () && GET_CODE (x) == PLUS
+	  && GET_MODE_SIZE (mode) <= 4
+	  && REG_P (XEXP (x, 0)) && REG_P (XEXP (x, 1)))
+	return true;
+
+      /* 'general_operand' does not allow volatile mems during RTL expansion to
+	 avoid matching arithmetic that operates on mems, it seems.
+	 On SH this leads to redundant sign extensions for QImode or HImode
+	 loads.  Thus we mimic the behavior but allow volatile mems.  */
+        if (memory_address_addr_space_p (GET_MODE (mem_rtx), x,
+					 MEM_ADDR_SPACE (mem_rtx)))
+	  return true;
     }
 
   if (TARGET_SHMEDIA
@@ -461,6 +512,7 @@
       && GET_CODE (op) == SUBREG && GET_MODE (op) == mode
       && SUBREG_REG (op) == const0_rtx && subreg_lowpart_p (op))
     /* FIXME */ abort (); /* return 1; */
+
   return general_operand (op, mode);
 })
 
@@ -498,17 +550,36 @@
       && ! (reload_in_progress || reload_completed))
     return 0;
 
-  if ((mode == QImode || mode == HImode)
-      && mode == GET_MODE (op)
-      && (MEM_P (op)
-	  || (GET_CODE (op) == SUBREG && MEM_P (SUBREG_REG (op)))))
+  if (mode == GET_MODE (op)
+      && (MEM_P (op) || (GET_CODE (op) == SUBREG && MEM_P (SUBREG_REG (op)))))
     {
-      rtx x = XEXP ((MEM_P (op) ? op : SUBREG_REG (op)), 0);
+      rtx mem_rtx = MEM_P (op) ? op : SUBREG_REG (op);
+      rtx x = XEXP (mem_rtx, 0);
 
-      if (GET_CODE (x) == PLUS
+      if ((mode == QImode || mode == HImode)
+	  && GET_CODE (x) == PLUS
 	  && REG_P (XEXP (x, 0))
 	  && CONST_INT_P (XEXP (x, 1)))
 	return sh_legitimate_index_p (mode, XEXP (x, 1), TARGET_SH2A, false);
+
+      /* Allow reg+reg addressing here without validating the register
+	 numbers.  Usually one of the regs must be R0 or a pseudo reg.
+	 In some cases it can happen that arguments from hard regs are
+	 propagated directly into address expressions.  In this cases reload
+	 will have to fix it up later.  However, allow this only for native
+	 1, 2 or 4 byte addresses.  */
+      if (can_create_pseudo_p () && GET_CODE (x) == PLUS
+	  && GET_MODE_SIZE (mode) <= 4
+	  && REG_P (XEXP (x, 0)) && REG_P (XEXP (x, 1)))
+	return true;
+
+      /* 'general_operand' does not allow volatile mems during RTL expansion to
+	 avoid matching arithmetic that operates on mems, it seems.
+	 On SH this leads to redundant sign extensions for QImode or HImode
+	 stores.  Thus we mimic the behavior but allow volatile mems.  */
+        if (memory_address_addr_space_p (GET_MODE (mem_rtx), x,
+					 MEM_ADDR_SPACE (mem_rtx)))
+	  return true;
     }
 
   return general_operand (op, mode);

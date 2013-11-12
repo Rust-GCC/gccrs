@@ -1,6 +1,7 @@
 /* PR tree-optimization/53265 */
 /* { dg-do compile } */
 /* { dg-options "-O2 -Wall" } */
+/* { dg-require-effective-target size32plus } */
 
 void bar (void *);
 int baz (int);
@@ -49,9 +50,9 @@ fn4 (void)
   unsigned int *a[32], *o, i;
 
   bar (a);
-  for (i = 0; i <= sizeof (a) / sizeof (a[0]); i++)	/* { dg-message "note: containing loop" "" { xfail *-*-* } } */
+  for (i = 0; i <= sizeof (a) / sizeof (a[0]); i++)	/* { dg-message "note: containing loop" "" } */
     {
-      o = a[i];	/* { dg-warning "invokes undefined behavior" "" { xfail *-*-* } } */
+      o = a[i];	/* { dg-warning "invokes undefined behavior" "" } */
       bar (o);
     }
 }
@@ -85,11 +86,11 @@ fn7 (void)
 {
   int a[16], b, c;
   bar (a);
-  for (b = a[c = 0]; c < 16; b = a[++c])	/* { dg-warning "invokes undefined behavior" "" { xfail *-*-* } } */
+  for (b = a[c = 0]; c < 16; b = a[++c])	/* { dg-warning "invokes undefined behavior" "" } */
     baz (b);
 }
 
-/* { dg-message "note: containing loop" "" { xfail *-*-* } 88 } */
+/* { dg-message "note: containing loop" "" { target *-*-* } 89 } */
 
 const void *va, *vb, *vc, *vd, *ve;
 const void *vf[4];

@@ -23,7 +23,7 @@ type makeFuncImpl struct {
 // that wraps the function fn. When called, that new function
 // does the following:
 //
-//	- converts its arguments to a list of Values args.
+//	- converts its arguments to a slice of Values.
 //	- runs results := fn(args).
 //	- returns the results as a slice of Values, one per formal result.
 //
@@ -63,7 +63,7 @@ func MakeFunc(typ Type, fn func(args []Value) (results []Value)) Value {
 
 	impl := &makeFuncImpl{code: code, typ: ftyp, fn: fn}
 
-	return Value{t, unsafe.Pointer(impl), flag(Func) << flagKindShift}
+	return Value{t, unsafe.Pointer(&impl), flag(Func<<flagKindShift) | flagIndir}
 }
 
 // makeFuncStub is an assembly function that is the code half of

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -462,25 +462,26 @@ package Atree is
    --  with copying aspect specifications where this is required.
 
    function New_Copy (Source : Node_Id) return Node_Id;
-   --  This function allocates a completely new node, and then initializes it
-   --  by copying the contents of the source node into it. The contents of the
-   --  source node is not affected. The target node is always marked as not
-   --  being in a list (even if the source is a list member). The new node will
-   --  have an extension if the source has an extension. New_Copy (Empty)
-   --  returns Empty and New_Copy (Error) returns Error. Note that, unlike
-   --  Copy_Separate_Tree, New_Copy does not recursively copy any descendents,
-   --  so in general parent pointers are not set correctly for the descendents
-   --  of the copied node. Both normal and extended nodes (entities) may be
-   --  copied using New_Copy.
+   --  This function allocates a completely new node, and then initializes
+   --  it by copying the contents of the source node into it. The contents of
+   --  the source node is not affected. The target node is always marked as
+   --  not being in a list (even if the source is a list member), and not
+   --  overloaded. The new node will have an extension if the source has
+   --  an extension. New_Copy (Empty) returns Empty, and New_Copy (Error)
+   --  returns Error. Note that, unlike Copy_Separate_Tree, New_Copy does not
+   --  recursively copy any descendents, so in general parent pointers are not
+   --  set correctly for the descendents of the copied node. Both normal and
+   --  extended nodes (entities) may be copied using New_Copy.
 
    function Relocate_Node (Source : Node_Id) return Node_Id;
    --  Source is a non-entity node that is to be relocated. A new node is
-   --  allocated and the contents of Source are copied to this node using
-   --  Copy_Node. The parent pointers of descendents of the node are then
+   --  allocated, and the contents of Source are copied to this node, using
+   --  New_Copy. The parent pointers of descendents of the node are then
    --  adjusted to point to the relocated copy. The original node is not
    --  modified, but the parent pointers of its descendents are no longer
-   --  valid. This routine is used in conjunction with the tree rewrite
-   --  routines (see descriptions of Replace/Rewrite).
+   --  valid. The new copy is always marked as not overloaded. This routine is
+   --  used in conjunction with the tree rewrite routines (see descriptions of
+   --  Replace/Rewrite).
    --
    --  Note that the resulting node has the same parent as the source node, and
    --  is thus still attached to the tree. It is valid for Source to be Empty,
@@ -736,6 +737,16 @@ package Atree is
       V6 : Entity_Kind) return Boolean;
 
    function Ekind_In
+     (E  : Entity_Id;
+      V1 : Entity_Kind;
+      V2 : Entity_Kind;
+      V3 : Entity_Kind;
+      V4 : Entity_Kind;
+      V5 : Entity_Kind;
+      V6 : Entity_Kind;
+      V7 : Entity_Kind) return Boolean;
+
+   function Ekind_In
      (T  : Entity_Kind;
       V1 : Entity_Kind;
       V2 : Entity_Kind) return Boolean;
@@ -769,6 +780,16 @@ package Atree is
       V4 : Entity_Kind;
       V5 : Entity_Kind;
       V6 : Entity_Kind) return Boolean;
+
+   function Ekind_In
+     (T  : Entity_Kind;
+      V1 : Entity_Kind;
+      V2 : Entity_Kind;
+      V3 : Entity_Kind;
+      V4 : Entity_Kind;
+      V5 : Entity_Kind;
+      V6 : Entity_Kind;
+      V7 : Entity_Kind) return Boolean;
 
    pragma Inline (Ekind_In);
    --  Inline all above functions
@@ -939,12 +960,15 @@ package Atree is
    function Original_Node (Node : Node_Id) return Node_Id;
    pragma Inline (Original_Node);
    --  If Node has not been rewritten, then returns its input argument
-   --  unchanged, else returns the Node for the original subtree.
+   --  unchanged, else returns the Node for the original subtree. Note that
+   --  this is used extensively by ASIS on the trees constructed in ASIS mode
+   --  to reconstruct the original semantic tree. See section in sinfo.ads
+   --  for requirements on original nodes returned by this function.
    --
    --  Note: Parents are not preserved in original tree nodes that are
    --  retrieved in this way (i.e. their children may have children whose
-   --  pointers which reference some other node).
-
+   --  pointers which reference some other node). This needs more details???
+   --
    --  Note: there is no direct mechanism for deleting an original node (in
    --  a manner that can be reversed later). One possible approach is to use
    --  Rewrite to substitute a null statement for the node to be deleted.
@@ -1170,6 +1194,12 @@ package Atree is
 
       function Node30 (N : Node_Id) return Node_Id;
       pragma Inline (Node30);
+
+      function Node31 (N : Node_Id) return Node_Id;
+      pragma Inline (Node31);
+
+      function Node32 (N : Node_Id) return Node_Id;
+      pragma Inline (Node32);
 
       function List1 (N : Node_Id) return List_Id;
       pragma Inline (List1);
@@ -2452,6 +2482,12 @@ package Atree is
 
       procedure Set_Node30 (N : Node_Id; Val : Node_Id);
       pragma Inline (Set_Node30);
+
+      procedure Set_Node31 (N : Node_Id; Val : Node_Id);
+      pragma Inline (Set_Node31);
+
+      procedure Set_Node32 (N : Node_Id; Val : Node_Id);
+      pragma Inline (Set_Node32);
 
       procedure Set_List1 (N : Node_Id; Val : List_Id);
       pragma Inline (Set_List1);

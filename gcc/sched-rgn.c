@@ -1441,7 +1441,13 @@ compute_dom_prob_ps (int bb)
       FOR_EACH_EDGE (out_edge, out_ei, in_edge->src->succs)
 	bitmap_set_bit (pot_split[bb], EDGE_TO_BIT (out_edge));
 
-      prob[bb] += ((prob[pred_bb] * in_edge->probability) / REG_BR_PROB_BASE);
+      prob[bb] += combine_probabilities (prob[pred_bb], in_edge->probability);
+      // The rounding divide in combine_probabilities can result in an extra
+      // probability increment propagating along 50-50 edges. Eventually when
+      // the edges re-merge, the accumulated probability can go slightly above
+      // REG_BR_PROB_BASE.
+      if (prob[bb] > REG_BR_PROB_BASE)
+        prob[bb] = REG_BR_PROB_BASE;
     }
 
   bitmap_set_bit (dom[bb], bb);
@@ -1514,7 +1520,7 @@ compute_trg_info (int trg)
 	  int tf = prob[trg], cf = prob[i];
 
 	  /* In CFGs with low probability edges TF can possibly be zero.  */
-	  sp->src_prob = (tf ? ((cf * REG_BR_PROB_BASE) / tf) : 0);
+	  sp->src_prob = (tf ? GCOV_COMPUTE_SCALE (cf, tf) : 0);
 	  sp->is_valid = (sp->src_prob >= min_spec_prob);
 	}
 
@@ -2437,6 +2443,8 @@ add_branch_dependences (rtx head, rtx tail)
      cc0 setters remain at the end because they can't be moved away from
      their cc0 user.
 
+     Predecessors of SCHED_GROUP_P instructions at the end remain at the end.
+
      COND_EXEC insns cannot be moved past a branch (see e.g. PR17808).
 
      Insns setting TARGET_CLASS_LIKELY_SPILLED_P registers (usually return
@@ -2449,7 +2457,7 @@ add_branch_dependences (rtx head, rtx tail)
   insn = tail;
   last = 0;
   while (CALL_P (insn)
-	 || JUMP_P (insn)
+	 || JUMP_P (insn) || JUMP_TABLE_DATA_P (insn)
 	 || (NONJUMP_INSN_P (insn)
 	     && (GET_CODE (PATTERN (insn)) == USE
 		 || GET_CODE (PATTERN (insn)) == CLOBBER
@@ -2459,7 +2467,8 @@ add_branch_dependences (rtx head, rtx tail)
 #endif
 		 || (!reload_completed
 		     && sets_likely_spilled (PATTERN (insn)))))
-	 || NOTE_P (insn))
+	 || NOTE_P (insn)
+	 || (last != 0 && SCHED_GROUP_P (last)))
     {
       if (!NOTE_P (insn))
 	{
@@ -2536,7 +2545,7 @@ add_branch_dependences (rtx head, rtx tail)
      possible improvement for handling COND_EXECs in this scheduler: it
      could remove always-true predicates.  */
 
-  if (!reload_completed || ! JUMP_P (tail))
+  if (!reload_completed || ! (JUMP_P (tail) || JUMP_TABLE_DATA_P (tail)))
     return;
 
   insn = tail;
@@ -3556,6 +3565,33 @@ advance_target_bb (basic_block bb, rtx insn)
 #endif
 
 static bool
+gate_handle_live_range_shrinkage (void)
+{
+#ifdef INSN_SCHEDULING
+  return flag_live_range_shrinkage;
+#else
+  return 0;
+#endif
+}
+
+/* Run instruction scheduler.  */
+static unsigned int
+rest_of_handle_live_range_shrinkage (void)
+{
+#ifdef INSN_SCHEDULING
+  int saved;
+
+  initialize_live_range_shrinkage ();
+  saved = flag_schedule_interblock;
+  flag_schedule_interblock = false;
+  schedule_insns ();
+  flag_schedule_interblock = saved;
+  finish_live_range_shrinkage ();
+#endif
+  return 0;
+}
+
+static bool
 gate_handle_sched (void)
 {
 #ifdef INSN_SCHEDULING
@@ -3611,46 +3647,119 @@ rest_of_handle_sched2 (void)
   return 0;
 }
 
-struct rtl_opt_pass pass_sched =
+namespace {
+
+const pass_data pass_data_live_range_shrinkage =
 {
- {
-  RTL_PASS,
-  "sched1",                             /* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  gate_handle_sched,                    /* gate */
-  rest_of_handle_sched,                 /* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_SCHED,                             /* tv_id */
-  0,                                    /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  TODO_df_finish | TODO_verify_rtl_sharing |
-  TODO_verify_flow |
-  TODO_ggc_collect                      /* todo_flags_finish */
- }
+  RTL_PASS, /* type */
+  "lr_shrinkage", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_LIVE_RANGE_SHRINKAGE, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  ( TODO_df_finish | TODO_verify_rtl_sharing
+    | TODO_verify_flow ), /* todo_flags_finish */
 };
 
-struct rtl_opt_pass pass_sched2 =
+class pass_live_range_shrinkage : public rtl_opt_pass
 {
- {
-  RTL_PASS,
-  "sched2",                             /* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  gate_handle_sched2,                   /* gate */
-  rest_of_handle_sched2,                /* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_SCHED2,                            /* tv_id */
-  0,                                    /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  TODO_df_finish | TODO_verify_rtl_sharing |
-  TODO_verify_flow |
-  TODO_ggc_collect                      /* todo_flags_finish */
- }
+public:
+  pass_live_range_shrinkage(gcc::context *ctxt)
+    : rtl_opt_pass(pass_data_live_range_shrinkage, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_handle_live_range_shrinkage (); }
+  unsigned int execute () { return rest_of_handle_live_range_shrinkage (); }
+
+}; // class pass_live_range_shrinkage
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_live_range_shrinkage (gcc::context *ctxt)
+{
+  return new pass_live_range_shrinkage (ctxt);
+}
+
+namespace {
+
+const pass_data pass_data_sched =
+{
+  RTL_PASS, /* type */
+  "sched1", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_SCHED, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  ( TODO_df_finish | TODO_verify_rtl_sharing
+    | TODO_verify_flow ), /* todo_flags_finish */
 };
+
+class pass_sched : public rtl_opt_pass
+{
+public:
+  pass_sched (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_sched, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_handle_sched (); }
+  unsigned int execute () { return rest_of_handle_sched (); }
+
+}; // class pass_sched
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_sched (gcc::context *ctxt)
+{
+  return new pass_sched (ctxt);
+}
+
+namespace {
+
+const pass_data pass_data_sched2 =
+{
+  RTL_PASS, /* type */
+  "sched2", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_SCHED2, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  ( TODO_df_finish | TODO_verify_rtl_sharing
+    | TODO_verify_flow ), /* todo_flags_finish */
+};
+
+class pass_sched2 : public rtl_opt_pass
+{
+public:
+  pass_sched2 (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_sched2, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_handle_sched2 (); }
+  unsigned int execute () { return rest_of_handle_sched2 (); }
+
+}; // class pass_sched2
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_sched2 (gcc::context *ctxt)
+{
+  return new pass_sched2 (ctxt);
+}

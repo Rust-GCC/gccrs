@@ -1,16 +1,101 @@
-2013-05-31  Release Manager
+2013-11-06  Tobias Burnus  <burnus@net-b.de>
 
-	* GCC 4.8.1 released.
+	* macro.c (_cpp_builtin_macro_text): Correct
+	wording of two warnings.
+
+2013-11-05  Tobias Burnus  <burnus@net-b.de>
+
+	* include/cpplib.h (CPP_W_DATE_TIME): Added.
+	(cpp_options): Add warn_date_time.
+	* init.c (cpp_create_reader): Init it.
+	* macro.c (_cpp_builtin_macro_text): Warn when
+	__DATE__/__TIME__/__TIMESTAMP__ is used.
+
+2013-10-31  Edward Smith-Rowland  <3dw4rd@verizon.net>
+
+	Implement C++14 digit separators.
+	* include/cpplib.h (cpp_options): Add digit_separators flag.
+	* internal.h (DIGIT_SEP(c)): New macro.
+	* expr.c (cpp_classify_number): Check improper placement of digit sep;
+	(cpp_interpret_integer): Skip over digit separators.
+	* init.c (lang_flags): Add digit_separators flag; (lang_defaults): Add
+	digit separator flags per language; (cpp_set_lang): Set
+	digit_separators
+	* lex.c (lex_number): Add digits separator to allowable characters for
+	C++14.
+
+2013-10-15  David Malcolm  <dmalcolm@redhat.com>
+
+	* Makefile.in (PICFLAG): New.
+	(ALL_CFLAGS): Add PICFLAG.
+	(ALL_CXXFLAGS): Likewise.
+	* configure.ac: Add --enable-host-shared, setting up new
+	PICFLAG variable.
+	* configure: Regenerate.
+
+2013-08-07  Richard Earnshaw  <rearnsha@arm.com>
+
+	* configure.ac: Set need_64bit_hwint for all arm targets.
+	* configure: Regenerated.
+
+2013-07-20  Jakub Jelinek  <jakub@redhat.com>
+
+	PR preprocessor/57620
+	* lex.c (lex_raw_string): Undo phase1 and phase2 transformations
+	between R" and final " rather than only in between R"del( and )del".
+
+2013-07-10  Jakub Jelinek  <jakub@redhat.com>
+
+	PR preprocessor/57824
+	* lex.c (lex_raw_string): Allow reading new-lines if
+	in_deferred_pragma or if parsing_args and there is still
+	data in the current buffer.
+
+	* include/cpplib.h (cpp_token_val_index): Change parameter type to
+	const cpp_token *.
+	* lex.c (cpp_token_val_index): Likewise.
+
+	PR preprocessor/57757
+	* lex.c (cpp_avoid_paste): Avoid pasting CPP_{,W,UTF8}STRING
+	or CPP_STRING{16,32} with CPP_NAME or SPELL_LITERAL token that
+	starts if a-zA-Z_.
+
+2013-06-28  Ed Smith-Rowland  <3dw4rd@verizon.net>
+
+	* lex.c (lex_raw_string(), lex_string()): Constrain suffixes treated
+	as concatenated literal and macro to just the patterns found in
+	inttypes.h; (is_macro()): New.
+
+2013-06-24  Dehao Chen  <dehao@google.com>
+
+	* files.c (_cpp_stack_include): Fix the highest_location when header
+	file is guarded by #ifndef and is included twice.
+
+2013-04-28  Jakub Jelinek  <jakub@redhat.com>
+
+	N3472 binary constants
+	* include/cpplib.h (struct cpp_options): Fix a typo in user_literals
+	field comment.  Add binary_constants field.
+	* init.c (struct lang_flags): Add binary_constants field.
+	(lang_defaults): Add bin_cst column to the table.
+	(cpp_set_lang): Initialize CPP_OPTION (pfile, binary_constants).
+	* expr.c (cpp_classify_number): Talk about C++11 instead of C++0x
+	in diagnostics.  Accept binary constants if
+	CPP_OPTION (pfile, binary_constants) even when pedantic.  Adjust
+	pedwarn message.
+
+2013-04-24  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/cpplib.h (enum c_lang): Add CLK_GNUCXX1Y and CLK_CXX1Y.
+	* init.c (lang_defaults): Add defaults for the latter.
+	(cpp_init_builtins): Define __cplusplus as 201300L for the latter.
+	* lex.c (_cpp_lex_direct): Update.
 
 2013-04-03  Sebastian Huber  <sebastian.huber@embedded-brains.de>
 
 	PR target/56771
 	* configure.ac: Require 64-bit int for arm*-*-rtems*.
 	* configure: Regenerate.
-
-2013-03-22  Release Manager
-
-	* GCC 4.8.0 released.
 
 2013-03-06  Jakub Jelinek  <jakub@redhat.com>
 
@@ -54,7 +139,7 @@
 2013-02-13  Ed Smith-Rowland  <3dw4rd@verizon.net>
 
 	PR c++/55582
-	* libcpp/lex.c (lex_raw_string): Allow string literal with suffix
+	* lex.c (lex_raw_string): Allow string literal with suffix
 	beginning with 's' to be parsed as a C++11 user-defined literal.
 
 2013-01-14  Richard Sandiford  <rdsandiford@googlemail.com>

@@ -24,12 +24,15 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "tm_p.h"
 #include "basic-block.h"
-#include "tree-flow.h"
+#include "gimple.h"
+#include "gimple-ssa.h"
+#include "tree-cfg.h"
+#include "tree-into-ssa.h"
 #include "tree-pass.h"
 #include "cfgloop.h"
 #include "tree-inline.h"
 #include "flags.h"
-#include "tree-inline.h"
+#include "tree-ssa-threadedge.h"
 
 /* Duplicates headers of loops if they are small enough, so that the statements
    in the loop body are always executed when the loop is entered.  This
@@ -100,7 +103,7 @@ should_duplicate_loop_header_p (basic_block header, struct loop *loop,
 
 /* Checks whether LOOP is a do-while style loop.  */
 
-bool
+static bool
 do_while_loop_p (struct loop *loop)
 {
   gimple stmt = last_stmt (loop->latch);
@@ -136,7 +139,7 @@ copy_loop_headers (void)
 
   loop_optimizer_init (LOOPS_HAVE_PREHEADERS
 		       | LOOPS_HAVE_SIMPLE_LATCHES);
-  if (number_of_loops () <= 1)
+  if (number_of_loops (cfun) <= 1)
     {
       loop_optimizer_finalize ();
       return 0;
@@ -197,7 +200,8 @@ copy_loop_headers (void)
       entry = loop_preheader_edge (loop);
 
       propagate_threaded_block_debug_into (exit->dest, entry->dest);
-      if (!gimple_duplicate_sese_region (entry, exit, bbs, n_bbs, copied_bbs))
+      if (!gimple_duplicate_sese_region (entry, exit, bbs, n_bbs, copied_bbs,
+					 true))
 	{
 	  fprintf (dump_file, "Duplication failed.\n");
 	  continue;
@@ -255,24 +259,41 @@ gate_ch (void)
   return flag_tree_ch != 0;
 }
 
-struct gimple_opt_pass pass_ch =
+namespace {
+
+const pass_data pass_data_ch =
 {
- {
-  GIMPLE_PASS,
-  "ch",					/* name */
-  OPTGROUP_LOOP,                        /* optinfo_flags */
-  gate_ch,				/* gate */
-  copy_loop_headers,			/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_TREE_CH,				/* tv_id */
-  PROP_cfg | PROP_ssa,			/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  TODO_cleanup_cfg
-    | TODO_verify_ssa
-    | TODO_verify_flow			/* todo_flags_finish */
- }
+  GIMPLE_PASS, /* type */
+  "ch", /* name */
+  OPTGROUP_LOOP, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_TREE_CH, /* tv_id */
+  ( PROP_cfg | PROP_ssa ), /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  ( TODO_cleanup_cfg | TODO_verify_ssa
+    | TODO_verify_flow ), /* todo_flags_finish */
 };
+
+class pass_ch : public gimple_opt_pass
+{
+public:
+  pass_ch (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_ch, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_ch (); }
+  unsigned int execute () { return copy_loop_headers (); }
+
+}; // class pass_ch
+
+} // anon namespace
+
+gimple_opt_pass *
+make_pass_ch (gcc::context *ctxt)
+{
+  return new pass_ch (ctxt);
+}

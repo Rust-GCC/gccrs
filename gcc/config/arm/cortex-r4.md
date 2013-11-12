@@ -78,24 +78,31 @@
 ;; for the purposes of the dual-issue constraints above.
 (define_insn_reservation "cortex_r4_alu" 2
   (and (eq_attr "tune_cortexr4" "yes")
-       (and (eq_attr "type" "alu_reg,simple_alu_imm")
-            (not (eq_attr "insn" "mov"))))
+       (eq_attr "type" "alu_imm,alus_imm,logic_imm,logics_imm,\
+                        alu_reg,alus_reg,logic_reg,logics_reg,\
+                        adc_imm,adcs_imm,adc_reg,adcs_reg,\
+                        adr,bfm,rev,\
+                        shift_imm,shift_reg,mvn_imm,mvn_reg"))
   "cortex_r4_alu")
 
 (define_insn_reservation "cortex_r4_mov" 2
   (and (eq_attr "tune_cortexr4" "yes")
-       (and (eq_attr "type" "alu_reg,simple_alu_imm")
-            (eq_attr "insn" "mov")))
+       (eq_attr "type" "mov_imm,mov_reg"))
   "cortex_r4_mov")
 
 (define_insn_reservation "cortex_r4_alu_shift" 2
   (and (eq_attr "tune_cortexr4" "yes")
-       (eq_attr "type" "simple_alu_shift,alu_shift"))
+       (eq_attr "type" "alu_shift_imm,alus_shift_imm,\
+                        logic_shift_imm,logics_shift_imm,\
+                        extend,mov_shift,mvn_shift"))
   "cortex_r4_alu")
 
 (define_insn_reservation "cortex_r4_alu_shift_reg" 2
   (and (eq_attr "tune_cortexr4" "yes")
-       (eq_attr "type" "alu_shift_reg"))
+       (eq_attr "type" "alu_shift_reg,alus_shift_reg,\
+                       logic_shift_reg,logics_shift_reg,\
+                       mov_shift_reg,mvn_shift_reg,\
+                       mrs,multiple,no_insn"))
   "cortex_r4_alu_shift_reg")
 
 ;; An ALU instruction followed by an ALU instruction with no early dep.
@@ -128,32 +135,32 @@
 
 (define_insn_reservation "cortex_r4_mul_4" 4
   (and (eq_attr "tune_cortexr4" "yes")
-       (eq_attr "insn" "mul,smmul"))
+       (eq_attr "type" "mul,smmul"))
   "cortex_r4_mul_2")
 
 (define_insn_reservation "cortex_r4_mul_3" 3
   (and (eq_attr "tune_cortexr4" "yes")
-       (eq_attr "insn" "smulxy,smulwy,smuad,smusd"))
+       (eq_attr "type" "smulxy,smulwy,smuad,smusd"))
   "cortex_r4_mul")
 
 (define_insn_reservation "cortex_r4_mla_4" 4
   (and (eq_attr "tune_cortexr4" "yes")
-       (eq_attr "insn" "mla,smmla"))
+       (eq_attr "type" "mla,smmla"))
   "cortex_r4_mul_2")
 
 (define_insn_reservation "cortex_r4_mla_3" 3
   (and (eq_attr "tune_cortexr4" "yes")
-       (eq_attr "insn" "smlaxy,smlawy,smlad,smlsd"))
+       (eq_attr "type" "smlaxy,smlawy,smlad,smlsd"))
   "cortex_r4_mul")
 
 (define_insn_reservation "cortex_r4_smlald" 3
   (and (eq_attr "tune_cortexr4" "yes")
-       (eq_attr "insn" "smlald,smlsld"))
+       (eq_attr "type" "smlald,smlsld"))
   "cortex_r4_mul")
 
 (define_insn_reservation "cortex_r4_mull" 4
   (and (eq_attr "tune_cortexr4" "yes")
-       (eq_attr "insn" "smull,umull,umlal,umaal"))
+       (eq_attr "type" "smull,umull,umlal,umaal"))
   "cortex_r4_mul_2")
 
 ;; A multiply or an MLA with a single-register result, followed by an
@@ -196,12 +203,12 @@
 ;; This gives a latency of nine for udiv and ten for sdiv.
 (define_insn_reservation "cortex_r4_udiv" 9
   (and (eq_attr "tune_cortexr4" "yes")
-       (eq_attr "insn" "udiv"))
+       (eq_attr "type" "udiv"))
   "cortex_r4_div_9")
 
 (define_insn_reservation "cortex_r4_sdiv" 10
   (and (eq_attr "tune_cortexr4" "yes")
-       (eq_attr "insn" "sdiv"))
+       (eq_attr "type" "sdiv"))
   "cortex_r4_div_10")
 
 ;; Branches.  We assume correct prediction.

@@ -1,3 +1,7 @@
+2013-09-20  Alan Modra  <amodra@gmail.com>
+
+	* configure: Regenerate.
+
 2013-06-25  Alan Modra  <amodra@gmail.com>
 
 	* src/powerpc/ffi.c (ffi_prep_args_SYSV): Move var declaration
@@ -6,10 +10,6 @@
 	(ffi_closure_helper_SYSV, ffi_closure_helper_LINUX64): Likewise.
 	* src/powerpc/linux64_closure.S (ffi_closure_LINUX64): Likewise.
 	* src/powerpc/ppc_closure.S (ffi_closure_SYSV): Likewise.
-
-2013-05-31  Release Manager
-
-	* GCC 4.8.1 released.
 
 2013-05-22  Dominique d'Humieres  <dominiq@lps.ens.fr>
 	    Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
@@ -21,18 +21,10 @@
 	* testsuite/libffi.call/va_1.c (main): Change res to ffi_arg.
 	* testsuite/libffi.call/va_struct1.c (main): Likewise.
 
-2013-03-22  Jakub Jelinek  <jakub@redhat.com>
+2013-03-22  Kai Tietz  <ktietz@redhat.com>
 
-	PR other/43620
-	* configure.ac (AM_INIT_AUTOMAKE): Add no-dist.
-	* Makefile.in: Regenerated.
-	* include/Makefile.in: Regenerated.
-	* man/Makefile.in: Regenerated.
-	* testsuite/Makefile.in: Regenerated.
-
-2013-03-22  Release Manager
-
-	* GCC 4.8.0 released.
+	* src/x86/win64.S: Make use of ffi_closure_win64_inner
+	symbol pc-relative.
 
 2013-03-07  Dave Korn  <dave.korn.cygwin@gmail.com>
 

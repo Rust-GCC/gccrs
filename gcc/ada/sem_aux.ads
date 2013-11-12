@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -104,14 +104,6 @@ package Sem_Aux is
    --  in some other cases of internal entities, which cannot be treated as
    --  constants from the point of view of constant folding. Empty is also
    --  returned for variables with no initialization expression.
-
-   function Effectively_Has_Constrained_Partial_View
-     (Typ  : Entity_Id;
-      Scop : Entity_Id) return Boolean;
-   --  Return True if Typ has attribute Has_Constrained_Partial_View set to
-   --  True; in addition, within a generic body, return True if a subtype is
-   --  a descendant of an untagged generic formal private or derived type, and
-   --  the subtype is not an unconstrained array subtype (RM 3.3(23.10/3)).
 
    function Enclosing_Dynamic_Scope (Ent : Entity_Id) return Entity_Id;
    --  For any entity, Ent, returns the closest dynamic scope in which the
@@ -259,6 +251,12 @@ package Sem_Aux is
    function In_Generic_Body (Id : Entity_Id) return Boolean;
    --  Determine whether entity Id appears inside a generic body
 
+   function Initialization_Suppressed (Typ : Entity_Id) return Boolean;
+   pragma Inline (Initialization_Suppressed);
+   --  Returns True if initialization should be suppressed for the given type
+   --  or subtype. This is true if Suppress_Initialization is set either for
+   --  the subtype itself, or for the corresponding base type.
+
    function Is_By_Copy_Type (Ent : Entity_Id) return Boolean;
    --  Ent is any entity. Returns True if Ent is a type entity where the type
    --  is required to be passed by copy, as defined in (RM 6.2(3)).
@@ -283,6 +281,12 @@ package Sem_Aux is
    --  so. False for other type entities, or any entities that are not types.
 
    function Is_Immutably_Limited_Type (Ent : Entity_Id) return Boolean;
+   --  Implements definition in Ada 2012 RM-7.5 (8.1/3). This differs from the
+   --  following predicate in that an untagged record with immutably limited
+   --  components is NOT by itself immutably limited. This matters, e.g. when
+   --  checking the legality of an access to the current instance.
+
+   function Is_Limited_View (Ent : Entity_Id) return Boolean;
    --  Ent is any entity. True for a type that is "inherently" limited (i.e.
    --  cannot become nonlimited). From the Ada 2005 RM-7.5(8.1/2), "a type with
    --  a part that is of a task, protected, or explicitly limited record type".
@@ -296,7 +300,8 @@ package Sem_Aux is
    --  Ent is any entity. Returns true if Ent is a limited type (limited
    --  private type, limited interface type, task type, protected type,
    --  composite containing a limited component, or a subtype of any of
-   --  these types).
+   --  these types). This older routine overlaps with the previous one, this
+   --  should be cleaned up???
 
    function Nearest_Ancestor (Typ : Entity_Id) return Entity_Id;
    --  Given a subtype Typ, this function finds out the nearest ancestor from
@@ -329,11 +334,14 @@ package Sem_Aux is
    function Number_Discriminants (Typ : Entity_Id) return Pos;
    --  Typ is a type with discriminants, yields number of discriminants in type
 
-   function Initialization_Suppressed (Typ : Entity_Id) return Boolean;
-   pragma Inline (Initialization_Suppressed);
-   --  Returns True if initialization should be suppressed for the given type
-   --  or subtype. This is true if Suppress_Initialization is set either for
-   --  the subtype itself, or for the corresponding base type.
+   function Object_Type_Has_Constrained_Partial_View
+     (Typ  : Entity_Id;
+      Scop : Entity_Id) return Boolean;
+   --  Return True if type of object has attribute Has_Constrained_Partial_View
+   --  set to True; in addition, within a generic body, return True if subtype
+   --  of the object is a descendant of an untagged generic formal private or
+   --  derived type, and the subtype is not an unconstrained array subtype
+   --  (RM 3.3(23.10/3)).
 
    function Ultimate_Alias (Prim : Entity_Id) return Entity_Id;
    pragma Inline (Ultimate_Alias);
@@ -347,4 +355,8 @@ package Sem_Aux is
    --  it returns the subprogram, task or protected body node for it. The unit
    --  may be a child unit with any number of ancestors.
 
+   function Package_Specification (Pack_Id : Entity_Id) return Node_Id;
+   --  Given an entity for a package or generic package, return corresponding
+   --  package specification. Simplifies handling of child units, and better
+   --  than the old idiom: Specification (Unit_Declaration_Node (Pack_Id)).
 end Sem_Aux;

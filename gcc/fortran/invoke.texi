@@ -144,14 +144,14 @@ and warnings}.
 -Wconversion -Wfunction-elimination -Wimplicit-interface @gol
 -Wimplicit-procedure -Wintrinsic-shadow -Wintrinsics-std @gol
 -Wline-truncation -Wno-align-commons -Wno-tabs -Wreal-q-constant @gol
--Wsurprising -Wunderflow -Wunused-parameter -Wrealloc-lhs Wrealloc-lhs-all @gol
+-Wsurprising -Wunderflow -Wunused-parameter -Wrealloc-lhs -Wrealloc-lhs-all @gol
 -Wtarget-lifetime -fmax-errors=@var{n} -fsyntax-only -pedantic -pedantic-errors
 }
 
 @item Debugging Options
 @xref{Debugging Options,,Options for debugging your program or GNU Fortran}.
 @gccoptlist{-fbacktrace -fdump-fortran-optimized -fdump-fortran-original @gol
--fdump-parse-tree -ffpe-trap=@var{list}
+-fdump-parse-tree -ffpe-trap=@var{list} -ffpe-summary=@var{list}
 }
 
 @item Directory Options
@@ -180,7 +180,7 @@ and warnings}.
 -finit-real=@var{<zero|inf|-inf|nan|snan>} @gol
 -fmax-array-constructor=@var{n} -fmax-stack-var-size=@var{n}
 -fno-align-commons @gol
--fno-automatic -fno-protect-parens -fno-underscoring -fno-whole-file @gol
+-fno-automatic -fno-protect-parens -fno-underscoring @gol
 -fsecond-underscore -fpack-derived -frealloc-lhs -frecursive @gol
 -frepack-arrays -fshort-enums -fstack-arrays
 }
@@ -954,6 +954,11 @@ This option is implied by @option{-Wextra}.
 Warn if the pointer in a pointer assignment might be longer than the its
 target. This option is implied by @option{-Wall}.
 
+@item -Wzerotrip
+@opindex @code{Wzerotrip}
+Warn if a @code{DO} loop is known to execute zero times at compile
+time.  This option is implied by @option{-Wall}.
+
 @item -Werror
 @opindex @code{Werror}
 @cindex warnings, to errors
@@ -1020,6 +1025,17 @@ due to rounding, and hence the @code{ffpe-trap=inexact} is likely to
 be uninteresting in practice.
 
 By default no exception traps are enabled.
+
+@item -ffpe-summary=@var{list}
+@opindex @code{ffpe-summary=}@var{list}
+Specify a list of floating-point exceptions, whose flag status is printed
+to @code{ERROR_UNIT} when invoking @code{STOP} and @code{ERROR STOP}.
+@var{list} can be either @samp{none}, @samp{all} or a comma-separated list
+of the following exceptions: @samp{invalid}, @samp{zero}, @samp{overflow},
+@samp{underflow}, @samp{inexact} and @samp{denormal}. (See
+@option{-ffpe-trap} for a description of the exceptions.)
+
+By default, a summary for all exceptions but @samp{inexact} is shown.
 
 @item -fno-backtrace
 @opindex @code{fno-backtrace}
@@ -1290,22 +1306,6 @@ issues so that debugging always involves using the names as they appear
 in the source, even if the names as seen by the linker are mangled to
 prevent accidental linking between procedures with incompatible
 interfaces.
-
-@item -fno-whole-file
-@opindex @code{fno-whole-file}
-This flag causes the compiler to resolve and translate each procedure in
-a file separately. 
-
-By default, the whole file is parsed and placed in a single front-end tree.
-During resolution, in addition to all the usual checks and fixups, references
-to external procedures that are in the same file effect resolution of
-that procedure, if not already done, and a check of the interfaces.  The
-dependences are resolved by changing the order in which the file is
-translated into the backend tree.  Thus, a procedure that is referenced
-is translated before the reference and the duplication of backend tree
-declarations eliminated.
-
-The @option{-fno-whole-file} option is deprecated and may lead to wrong code.
 
 @item -fsecond-underscore
 @opindex @code{fsecond-underscore}

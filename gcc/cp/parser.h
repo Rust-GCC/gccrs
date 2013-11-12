@@ -21,6 +21,7 @@ along with GCC; see the file COPYING3.  If not see
 #define GCC_CP_PARSER_H
 
 #include "tree.h"
+#include "cp/cp-tree.h"
 #include "c-family/c-pragma.h"
 
 /* A token's value and its associated deferred access checks and
@@ -195,6 +196,14 @@ typedef struct GTY (()) cp_parser_context {
 } cp_parser_context;
 
 
+/* Control structure for #pragma omp declare simd parsing.  */
+struct cp_omp_declare_simd_data {
+  bool error_seen; /* Set if error has been reported.  */
+  bool fndecl_seen; /* Set if one fn decl/definition has been seen already.  */
+  vec<cp_token_cache_ptr> tokens;
+};
+
+
 /* The cp_parser structure represents the C++ parser.  */
 
 typedef struct GTY(()) cp_parser {
@@ -323,6 +332,12 @@ typedef struct GTY(()) cp_parser {
   /* TRUE if we can auto-correct a colon to a scope operator.  */
   bool colon_corrects_to_scope_p;
 
+  /* TRUE if : doesn't start a class definition.  Should be only used
+     together with type_definition_forbidden_message non-NULL, in
+     contexts where new types may not be defined, and the type list
+     is terminated by colon.  */
+  bool colon_doesnt_start_class_def_p;
+
   /* If non-NULL, then we are parsing a construct where new type
      definitions are not permitted.  The string stored here will be
      issued as an error message if a type is defined.  */
@@ -340,10 +355,26 @@ typedef struct GTY(()) cp_parser {
   /* The number of template parameter lists that apply directly to the
      current declaration.  */
   unsigned num_template_parameter_lists;
+
+  /* When parsing #pragma omp declare simd, this is a pointer to a
+     data structure with everything needed for parsing the clauses.  */
+  cp_omp_declare_simd_data * GTY((skip)) omp_declare_simd;
+
+  /* TRUE if the function being declared was made a template due to its
+     parameter list containing generic type specifiers (`auto' or concept
+     identifiers) rather than an explicit template parameter list.  */
+  bool fully_implicit_function_template_p;
+
 } cp_parser;
 
 /* In parser.c  */
+extern void debug (cp_token &ref);
+extern void debug (cp_token *ptr);
 extern void cp_lexer_debug_tokens (vec<cp_token, va_gc> *);
+extern void debug (vec<cp_token, va_gc> &ref);
+extern void debug (vec<cp_token, va_gc> *ptr);
 extern void cp_debug_parser (FILE *, cp_parser *);
+extern void debug (cp_parser &ref);
+extern void debug (cp_parser *ptr);
 
 #endif  /* GCC_CP_PARSER_H  */

@@ -22,6 +22,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
+#include "tree.h"
 #include "rtl-error.h"
 #include "tm_p.h"
 #include "insn-config.h"
@@ -70,7 +71,7 @@ static rtx split_insn (rtx);
 
 int volatile_ok;
 
-struct recog_data recog_data;
+struct recog_data_d recog_data;
 
 /* Contains a vector of operand_alternative structures for every operand.
    Set up by preprocess_constraints.  */
@@ -397,7 +398,10 @@ verify_changes (int num)
 					     MEM_ADDR_SPACE (object)))
 	    break;
 	}
-      else if (REG_P (changes[i].old)
+      else if (/* changes[i].old might be zero, e.g. when putting a
+	       REG_FRAME_RELATED_EXPR into a previously empty list.  */
+	       changes[i].old
+	       && REG_P (changes[i].old)
 	       && asm_noperands (PATTERN (object)) > 0
 	       && REG_EXPR (changes[i].old) != NULL_TREE
 	       && DECL_ASSEMBLER_NAME_SET_P (REG_EXPR (changes[i].old))
@@ -722,7 +726,7 @@ validate_replace_rtx_1 (rtx *loc, rtx from, rtx to, rtx object,
   /* Call ourself recursively to perform the replacements.
      We must not replace inside already replaced expression, otherwise we
      get infinite recursion for replacements like (reg X)->(subreg (reg X))
-     done by regmove, so we must special case shared ASM_OPERANDS.  */
+     so we must special case shared ASM_OPERANDS.  */
 
   if (GET_CODE (x) == PARALLEL)
     {
@@ -758,6 +762,7 @@ validate_replace_rtx_1 (rtx *loc, rtx from, rtx to, rtx object,
   if (num_changes == prev_changes)
     return;
 
+  /* ??? The regmove is no more, so is this aberration still necessary?  */
   /* Allow substituted expression to have different mode.  This is used by
      regmove to change mode of pseudo register.  */
   if (fmt[0] == 'e' && GET_MODE (XEXP (x, 0)) != VOIDmode)
@@ -1065,7 +1070,11 @@ register_operand (rtx op, enum machine_mode mode)
 	  && REGNO (sub) < FIRST_PSEUDO_REGISTER
 	  && REG_CANNOT_CHANGE_MODE_P (REGNO (sub), GET_MODE (sub), mode)
 	  && GET_MODE_CLASS (GET_MODE (sub)) != MODE_COMPLEX_INT
-	  && GET_MODE_CLASS (GET_MODE (sub)) != MODE_COMPLEX_FLOAT)
+	  && GET_MODE_CLASS (GET_MODE (sub)) != MODE_COMPLEX_FLOAT
+	  /* LRA can generate some invalid SUBREGS just for matched
+	     operand reload presentation.  LRA needs to treat them as
+	     valid.  */
+	  && ! LRA_SUBREG_P (op))
 	return 0;
 #endif
 
@@ -1647,7 +1656,7 @@ asm_operand_ok (rtx op, const char *constraint, const char **constraints)
 	case '0': case '1': case '2': case '3': case '4':
 	case '5': case '6': case '7': case '8': case '9':
 	  /* If caller provided constraints pointer, look up
-	     the maching constraint.  Otherwise, our caller should have
+	     the matching constraint.  Otherwise, our caller should have
 	     given us the proper matching constraint, but we can't
 	     actually fail the check if they didn't.  Indicate that
 	     results are inconclusive.  */
@@ -3061,6 +3070,9 @@ peep2_reg_dead_p (int ofs, rtx reg)
   return 1;
 }
 
+/* Regno offset to be used in the register search.  */
+static int search_ofs;
+
 /* Try to find a hard register of mode MODE, matching the register class in
    CLASS_STR, which is available at the beginning of insn CURRENT_INSN and
    remains available until the end of LAST_INSN.  LAST_INSN may be NULL_RTX,
@@ -3076,7 +3088,6 @@ rtx
 peep2_find_free_register (int from, int to, const char *class_str,
 			  enum machine_mode mode, HARD_REG_SET *reg_set)
 {
-  static int search_ofs;
   enum reg_class cl;
   HARD_REG_SET live;
   df_ref *def_rec;
@@ -3541,6 +3552,7 @@ peephole2_optimize (void)
   /* Initialize the regsets we're going to use.  */
   for (i = 0; i < MAX_INSNS_PER_PEEP2 + 1; ++i)
     peep2_insn_data[i].live_before = BITMAP_ALLOC (&reg_obstack);
+  search_ofs = 0;
   live = BITMAP_ALLOC (&reg_obstack);
 
   FOR_EACH_BB_REVERSE (bb)
@@ -3774,26 +3786,46 @@ rest_of_handle_peephole2 (void)
   return 0;
 }
 
-struct rtl_opt_pass pass_peephole2 =
+namespace {
+
+const pass_data pass_data_peephole2 =
 {
- {
-  RTL_PASS,
-  "peephole2",                          /* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  gate_handle_peephole2,                /* gate */
-  rest_of_handle_peephole2,             /* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_PEEPHOLE2,                         /* tv_id */
-  0,                                    /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  TODO_df_finish | TODO_verify_rtl_sharing |
-  0                                    /* todo_flags_finish */
- }
+  RTL_PASS, /* type */
+  "peephole2", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_PEEPHOLE2, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  ( TODO_df_finish | TODO_verify_rtl_sharing | 0 ), /* todo_flags_finish */
 };
+
+class pass_peephole2 : public rtl_opt_pass
+{
+public:
+  pass_peephole2 (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_peephole2, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  /* The epiphany backend creates a second instance of this pass, so we need
+     a clone method.  */
+  opt_pass * clone () { return new pass_peephole2 (m_ctxt); }
+  bool gate () { return gate_handle_peephole2 (); }
+  unsigned int execute () { return rest_of_handle_peephole2 (); }
+
+}; // class pass_peephole2
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_peephole2 (gcc::context *ctxt)
+{
+  return new pass_peephole2 (ctxt);
+}
 
 static unsigned int
 rest_of_handle_split_all_insns (void)
@@ -3802,25 +3834,45 @@ rest_of_handle_split_all_insns (void)
   return 0;
 }
 
-struct rtl_opt_pass pass_split_all_insns =
+namespace {
+
+const pass_data pass_data_split_all_insns =
 {
- {
-  RTL_PASS,
-  "split1",                             /* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  NULL,                                 /* gate */
-  rest_of_handle_split_all_insns,       /* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_NONE,                              /* tv_id */
-  0,                                    /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  0                                     /* todo_flags_finish */
- }
+  RTL_PASS, /* type */
+  "split1", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  false, /* has_gate */
+  true, /* has_execute */
+  TV_NONE, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
 };
+
+class pass_split_all_insns : public rtl_opt_pass
+{
+public:
+  pass_split_all_insns (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_split_all_insns, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  /* The epiphany backend creates a second instance of this pass, so
+     we need a clone method.  */
+  opt_pass * clone () { return new pass_split_all_insns (m_ctxt); }
+  unsigned int execute () { return rest_of_handle_split_all_insns (); }
+
+}; // class pass_split_all_insns
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_split_all_insns (gcc::context *ctxt)
+{
+  return new pass_split_all_insns (ctxt);
+}
 
 static unsigned int
 rest_of_handle_split_after_reload (void)
@@ -3833,25 +3885,42 @@ rest_of_handle_split_after_reload (void)
   return 0;
 }
 
-struct rtl_opt_pass pass_split_after_reload =
+namespace {
+
+const pass_data pass_data_split_after_reload =
 {
- {
-  RTL_PASS,
-  "split2",                             /* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  NULL,                                 /* gate */
-  rest_of_handle_split_after_reload,    /* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_NONE,                              /* tv_id */
-  0,                                    /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  0                                     /* todo_flags_finish */
- }
+  RTL_PASS, /* type */
+  "split2", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  false, /* has_gate */
+  true, /* has_execute */
+  TV_NONE, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
 };
+
+class pass_split_after_reload : public rtl_opt_pass
+{
+public:
+  pass_split_after_reload (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_split_after_reload, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  unsigned int execute () { return rest_of_handle_split_after_reload (); }
+
+}; // class pass_split_after_reload
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_split_after_reload (gcc::context *ctxt)
+{
+  return new pass_split_after_reload (ctxt);
+}
 
 static bool
 gate_handle_split_before_regstack (void)
@@ -3878,25 +3947,45 @@ rest_of_handle_split_before_regstack (void)
   return 0;
 }
 
-struct rtl_opt_pass pass_split_before_regstack =
+namespace {
+
+const pass_data pass_data_split_before_regstack =
 {
- {
-  RTL_PASS,
-  "split3",                             /* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  gate_handle_split_before_regstack,    /* gate */
-  rest_of_handle_split_before_regstack, /* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_NONE,                              /* tv_id */
-  0,                                    /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  0                                     /* todo_flags_finish */
- }
+  RTL_PASS, /* type */
+  "split3", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_NONE, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
 };
+
+class pass_split_before_regstack : public rtl_opt_pass
+{
+public:
+  pass_split_before_regstack (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_split_before_regstack, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_handle_split_before_regstack (); }
+  unsigned int execute () {
+    return rest_of_handle_split_before_regstack ();
+  }
+
+}; // class pass_split_before_regstack
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_split_before_regstack (gcc::context *ctxt)
+{
+  return new pass_split_before_regstack (ctxt);
+}
 
 static bool
 gate_handle_split_before_sched2 (void)
@@ -3917,25 +4006,43 @@ rest_of_handle_split_before_sched2 (void)
   return 0;
 }
 
-struct rtl_opt_pass pass_split_before_sched2 =
+namespace {
+
+const pass_data pass_data_split_before_sched2 =
 {
- {
-  RTL_PASS,
-  "split4",                             /* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  gate_handle_split_before_sched2,      /* gate */
-  rest_of_handle_split_before_sched2,   /* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_NONE,                              /* tv_id */
-  0,                                    /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  TODO_verify_flow                      /* todo_flags_finish */
- }
+  RTL_PASS, /* type */
+  "split4", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_NONE, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  TODO_verify_flow, /* todo_flags_finish */
 };
+
+class pass_split_before_sched2 : public rtl_opt_pass
+{
+public:
+  pass_split_before_sched2 (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_split_before_sched2, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_handle_split_before_sched2 (); }
+  unsigned int execute () { return rest_of_handle_split_before_sched2 (); }
+
+}; // class pass_split_before_sched2
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_split_before_sched2 (gcc::context *ctxt)
+{
+  return new pass_split_before_sched2 (ctxt);
+}
 
 /* The placement of the splitting that we do for shorten_branches
    depends on whether regstack is used by the target or not.  */
@@ -3949,22 +4056,40 @@ gate_do_final_split (void)
 #endif
 }
 
-struct rtl_opt_pass pass_split_for_shorten_branches =
+namespace {
+
+const pass_data pass_data_split_for_shorten_branches =
 {
- {
-  RTL_PASS,
-  "split5",                             /* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  gate_do_final_split,                  /* gate */
-  split_all_insns_noflow,               /* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_NONE,                              /* tv_id */
-  0,                                    /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  TODO_verify_rtl_sharing               /* todo_flags_finish */
- }
+  RTL_PASS, /* type */
+  "split5", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_NONE, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  TODO_verify_rtl_sharing, /* todo_flags_finish */
 };
+
+class pass_split_for_shorten_branches : public rtl_opt_pass
+{
+public:
+  pass_split_for_shorten_branches (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_split_for_shorten_branches, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_do_final_split (); }
+  unsigned int execute () { return split_all_insns_noflow (); }
+
+}; // class pass_split_for_shorten_branches
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_split_for_shorten_branches (gcc::context *ctxt)
+{
+  return new pass_split_for_shorten_branches (ctxt);
+}

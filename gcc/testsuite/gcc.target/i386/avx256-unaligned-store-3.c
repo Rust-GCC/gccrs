@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O3 -dp -mavx -mavx256-split-unaligned-store -mtune=generic" } */
+/* { dg-options "-O3 -dp -mavx -mavx256-split-unaligned-store -mtune=generic -fno-common" } */
 
 #define N 1024
 
@@ -18,5 +18,5 @@ avx_test (void)
 }
 
 /* { dg-final { scan-assembler-not "avx_storeupd256" } } */
-/* { dg-final { scan-assembler "vmovupd.*\\*movv2df_internal/3" } } */
+/* { dg-final { scan-assembler "vmovups.*\\*movv2df_internal/3" } } */
 /* { dg-final { scan-assembler "vextractf128" } } */

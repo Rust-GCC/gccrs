@@ -1,10 +1,10 @@
 // PR c++/37006
-// { dg-options "-std=c++0x" }
+// { dg-options "-std=c++11" }
 
 template<class T>
 struct A {
   template<class U>
-  bool operator==(const A<U>&) = delete; // { dg-error "declared" }
+  bool operator==(const A<U>&) = delete; // { dg-message "declared" }
   operator bool () { return true; }
 };
 

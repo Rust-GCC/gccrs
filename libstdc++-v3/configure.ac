@@ -97,6 +97,12 @@ ACX_LT_HOST_FLAGS
 AC_SUBST(enable_shared)
 AC_SUBST(enable_static)
 
+if test "$enable_vtable_verify" = yes; then
+  predep_objects_CXX="${predep_objects_CXX} ${glibcxx_builddir}/../libgcc/vtv_start.o"
+  postdep_objects_CXX="${postdep_objects_CXX} ${glibcxx_builddir}/../libgcc/vtv_end.o"
+fi
+
+
 # libtool variables for C++ shared and position-independent compiles.
 #
 # Use glibcxx_lt_pic_flag to designate the automake variable
@@ -168,6 +174,7 @@ GLIBCXX_ENABLE_FULLY_DYNAMIC_STRING([no])
 GLIBCXX_ENABLE_EXTERN_TEMPLATE([yes])
 GLIBCXX_ENABLE_PYTHON
 GLIBCXX_ENABLE_WERROR([yes])
+GLIBCXX_ENABLE_VTABLE_VERIFY([no])
 
 # Checks for operating systems support that doesn't require linking.
 GLIBCXX_CHECK_STDIO_PROTO
@@ -188,6 +195,12 @@ GLIBCXX_CHECK_S_ISREG_OR_S_IFREG
 AC_CHECK_HEADERS(sys/uio.h)
 GLIBCXX_CHECK_WRITEV
 
+# Check for fenv.h and complex.h before GLIBCXX_CHECK_C99_TR1
+# so that the check is done with the C compiler (not C++).
+# Checking with C++ can break a canadian cross build if either
+# file does not exist in C but does in C++.
+AC_CHECK_HEADERS(fenv.h complex.h)
+
 # For C99 support to TR1.
 GLIBCXX_CHECK_C99_TR1
 
@@ -198,8 +211,7 @@ GLIBCXX_COMPUTE_STDIO_INTEGER_CONSTANTS
 GLIBCXX_CHECK_GETTIMEOFDAY
 
 # For clock_gettime, nanosleep and sched_yield support.
-# NB: The default is [no], because otherwise it requires linking.
-GLIBCXX_ENABLE_LIBSTDCXX_TIME([no])
+GLIBCXX_ENABLE_LIBSTDCXX_TIME
 
 AC_LC_MESSAGES
 

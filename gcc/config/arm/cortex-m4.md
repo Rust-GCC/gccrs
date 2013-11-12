@@ -31,7 +31,20 @@
 ;; ALU and multiply is one cycle.
 (define_insn_reservation "cortex_m4_alu" 1
   (and (eq_attr "tune" "cortexm4")
-       (eq_attr "type" "alu_reg,simple_alu_imm,simple_alu_shift,alu_shift,alu_shift_reg,mult"))
+       (ior (eq_attr "type" "alu_imm,alus_imm,logic_imm,logics_imm,\
+                             alu_reg,alus_reg,logic_reg,logics_reg,\
+                             adc_imm,adcs_imm,adc_reg,adcs_reg,\
+                             adr,bfm,rev,\
+                             shift_imm,shift_reg,extend,\
+                             alu_shift_imm,alus_shift_imm,\
+                             logic_shift_imm,logics_shift_imm,\
+                             alu_shift_reg,alus_shift_reg,\
+                             logic_shift_reg,logics_shift_reg,\
+                             mov_imm,mov_reg,mov_shift,mov_shift_reg,\
+                             mvn_imm,mvn_reg,mvn_shift,mvn_shift_reg,\
+                             mrs,multiple,no_insn")
+	    (ior (eq_attr "mul32" "yes")
+		 (eq_attr "mul64" "yes"))))
   "cortex_m4_ex")
 
 ;; Byte, half-word and word load is two cycles.
@@ -83,6 +96,10 @@
   (and (eq_attr "tune" "cortexm4")
        (eq_attr "type" "store4"))
   "cortex_m4_ex*5")
+
+(define_bypass 1 "cortex_m4_load1"
+                 "cortex_m4_store1_1,cortex_m4_store1_2"
+                 "arm_no_early_store_addr_dep")
 
 ;; If the address of load or store depends on the result of the preceding
 ;; instruction, the latency is increased by one.

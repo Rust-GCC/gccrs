@@ -372,7 +372,7 @@ lhd_print_error_function (diagnostic_context *context, const char *file,
       const char *old_prefix = context->printer->prefix;
       tree abstract_origin = diagnostic_abstract_origin (diagnostic);
       char *new_prefix = (file && abstract_origin == NULL)
-			 ? file_name_as_prefix (file) : NULL;
+			 ? file_name_as_prefix (context, file) : NULL;
 
       pp_set_prefix (context->printer, new_prefix);
 
@@ -446,20 +446,20 @@ lhd_print_error_function (diagnostic_context *context, const char *file,
 	      if (fndecl)
 		{
 		  expanded_location s = expand_location (*locus);
-		  pp_character (context->printer, ',');
+		  pp_comma (context->printer);
 		  pp_newline (context->printer);
 		  if (s.file != NULL)
 		    {
 		      if (context->show_column)
 			pp_printf (context->printer,
-				   _("    inlined from %qs at %s:%d:%d"),
+				   _("    inlined from %qs at %r%s:%d:%d%R"),
 				   identifier_to_locale (lang_hooks.decl_printable_name (fndecl, 2)),
-				   s.file, s.line, s.column);
+				   "locus", s.file, s.line, s.column);
 		      else
 			pp_printf (context->printer,
-				   _("    inlined from %qs at %s:%d"),
+				   _("    inlined from %qs at %r%s:%d%R"),
 				   identifier_to_locale (lang_hooks.decl_printable_name (fndecl, 2)),
-				   s.file, s.line);
+				   "locus", s.file, s.line);
 
 		    }
 		  else
@@ -467,7 +467,7 @@ lhd_print_error_function (diagnostic_context *context, const char *file,
 			       identifier_to_locale (lang_hooks.decl_printable_name (fndecl, 2)));
 		}
 	    }
-	  pp_character (context->printer, ':');
+	  pp_colon (context->printer);
 	}
 
       diagnostic_set_last_function (context, diagnostic);
@@ -521,6 +521,15 @@ void
 lhd_omp_firstprivatize_type_sizes (struct gimplify_omp_ctx *c ATTRIBUTE_UNUSED,
 				   tree t ATTRIBUTE_UNUSED)
 {
+}
+
+/* Return true if TYPE is an OpenMP mappable type.  By default return true
+   if type is complete.  */
+
+bool
+lhd_omp_mappable_type (tree type)
+{
+  return COMPLETE_TYPE_P (type);
 }
 
 /* Common function for add_builtin_function and
@@ -665,4 +674,19 @@ lhd_end_section (void)
       switch_to_section (saved_section);
       saved_section = NULL;
     }
+}
+
+/* Empty function that is replaced with appropriate language dependent
+   frame cleanup function for _Cilk_spawn.  */
+
+void
+lhd_install_body_with_frame_cleanup (tree, tree)
+{
+}
+
+/* Empty function to handle cilk_valid_spawn.  */
+bool
+lhd_cilk_detect_spawn (tree *)
+{
+  return false;
 }

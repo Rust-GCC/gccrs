@@ -147,6 +147,14 @@ hook_bool_FILEptr_rtx_false (FILE *a ATTRIBUTE_UNUSED,
   return false;
 }
 
+/* Generic hook that takes (gimple_stmt_iterator *) and returns
+   false.  */
+bool
+hook_bool_gsiptr_false (gimple_stmt_iterator *a ATTRIBUTE_UNUSED)
+{
+  return false;
+}
+
 /* Used for the TARGET_ASM_CAN_OUTPUT_MI_THUNK hook.  */
 bool
 hook_bool_const_tree_hwi_hwi_const_tree_false (const_tree a ATTRIBUTE_UNUSED,
@@ -321,6 +329,12 @@ hook_bool_rtx_int_int_int_intp_bool_false (rtx a ATTRIBUTE_UNUSED,
 					   bool speed_p ATTRIBUTE_UNUSED)
 {
   return false;
+}
+
+bool
+hook_bool_dint_dint_uint_bool_true (double_int, double_int, unsigned int, bool)
+{
+  return true;
 }
 
 /* Generic hook that takes an rtx and returns it.  */

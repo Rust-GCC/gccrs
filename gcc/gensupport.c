@@ -392,7 +392,7 @@ static struct queue_elem *
 queue_pattern (rtx pattern, struct queue_elem ***list_tail,
 	       const char *filename, int lineno)
 {
-  struct queue_elem *e = XNEW(struct queue_elem);
+  struct queue_elem *e = XNEW (struct queue_elem);
   e->data = pattern;
   e->filename = filename;
   e->lineno = lineno;
@@ -429,7 +429,7 @@ remove_from_queue (struct queue_elem *elem, struct queue_elem **queue)
 static void
 add_define_attr (const char *name)
 {
-  struct queue_elem *e = XNEW(struct queue_elem);
+  struct queue_elem *e = XNEW (struct queue_elem);
   rtx t1 = rtx_alloc (DEFINE_ATTR);
   XSTR (t1, 0) = name;
   XSTR (t1, 1) = "no,yes";
@@ -1717,6 +1717,21 @@ process_one_cond_exec (struct queue_elem *ce_elem)
 	  XVECEXP (insn, 1, 0) = pattern;
 	}
 
+       if (XVEC (ce_elem->data, 3) != NULL)
+	{
+	  rtvec attributes = rtvec_alloc (XVECLEN (insn, 4)
+	                                  + XVECLEN (ce_elem->data, 3));
+	  int i = 0;
+	  int j = 0;
+	  for (i = 0; i < XVECLEN (insn, 4); i++)
+	    RTVEC_ELT (attributes, i) = XVECEXP (insn, 4, i);
+
+	  for (j = 0; j < XVECLEN (ce_elem->data, 3); j++, i++)
+	    RTVEC_ELT (attributes, i) = XVECEXP (ce_elem->data, 3, j);
+
+	  XVEC (insn, 4) = attributes;
+	}
+
       XSTR (insn, 2) = alter_test_for_insn (ce_elem, insn_elem);
       XTMPL (insn, 3) = alter_output_for_insn (ce_elem, insn_elem,
 					      alternatives, max_operand);
@@ -2163,8 +2178,8 @@ subst_dup (rtx pattern, int n_alt, int n_subst_alt)
 	  if (XVEC (pattern, i) == NULL)
 	    break;
 	case 'E':
-	  for (j = XVECLEN (pattern, i) - 1; j >= 0; --j)
-	    if (code != MATCH_DUP && code != MATCH_OP_DUP)
+	  if (code != MATCH_DUP && code != MATCH_OP_DUP)
+	    for (j = XVECLEN (pattern, i) - 1; j >= 0; --j)
 	      XVECEXP (pattern, i, j) = subst_dup (XVECEXP (pattern, i, j),
 						   n_alt, n_subst_alt);
 	  break;
@@ -2430,14 +2445,29 @@ gen_mnemonic_attr (void)
       bool found = false;
 
       /* Check if the insn definition already has
-	 (set_attr "mnemonic" ...).  */
+	 (set_attr "mnemonic" ...) or (set (attr "mnemonic") ...).  */
       if (XVEC (insn, 4))
  	for (i = 0; i < XVECLEN (insn, 4); i++)
-	  if (strcmp (XSTR (XVECEXP (insn, 4, i), 0), MNEMONIC_ATTR_NAME) == 0)
-	    {
-	      found = true;
-	      break;
-	    }
+	  {
+	    rtx set_attr = XVECEXP (insn, 4, i);
+
+	    switch (GET_CODE (set_attr))
+	      {
+	      case SET_ATTR:
+	      case SET_ATTR_ALTERNATIVE:
+		if (strcmp (XSTR (set_attr, 0), MNEMONIC_ATTR_NAME) == 0)
+		  found = true;
+		break;
+	      case SET:
+		if (GET_CODE (SET_DEST (set_attr)) == ATTR
+		    && strcmp (XSTR (SET_DEST (set_attr), 0),
+			       MNEMONIC_ATTR_NAME) == 0)
+		  found = true;
+		break;
+	      default:
+		break;
+	      }
+	  }
 
       if (!found)
 	gen_mnemonic_setattr (mnemonic_htab, insn);
@@ -2732,7 +2762,8 @@ add_predicate_code (struct pred_data *pred, enum rtx_code code)
 	  && code != MEM
 	  && code != CONCAT
 	  && code != PARALLEL
-	  && code != STRICT_LOW_PART)
+	  && code != STRICT_LOW_PART
+	  && code != SCRATCH)
 	pred->allows_non_lvalue = true;
 
       if (pred->num_codes == 1)
@@ -2854,7 +2885,7 @@ record_insn_name (int code, const char *name)
       new_size = (insn_name_ptr_size ? insn_name_ptr_size * 2 : 512);
       insn_name_ptr = XRESIZEVEC (char *, insn_name_ptr, new_size);
       memset (insn_name_ptr + insn_name_ptr_size, 0,
-	      sizeof(char *) * (new_size - insn_name_ptr_size));
+	      sizeof (char *) * (new_size - insn_name_ptr_size));
       insn_name_ptr_size = new_size;
     }
 

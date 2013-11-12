@@ -1,6 +1,6 @@
 /* Software floating-point emulation.
    Convert a 64bit unsigned integer to IEEE quad
-   Copyright (C) 1997,1999, 2006 Free Software Foundation, Inc.
+   Copyright (C) 1997-2013 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
    Contributed by Richard Henderson (rth@cygnus.com) and
 		  Jakub Jelinek (jj@ultra.linux.cz).
@@ -28,19 +28,18 @@
    License along with the GNU C Library; if not, see
    <http://www.gnu.org/licenses/>.  */
 
+#define FP_NO_EXCEPTIONS
 #include "soft-fp.h"
 #include "quad.h"
 
 TFtype
-__floatunditf(UDItype i)
+__floatunditf (UDItype i)
 {
-  FP_DECL_EX;
-  FP_DECL_Q(A);
+  FP_DECL_Q (A);
   TFtype a;
 
-  FP_FROM_INT_Q(A, i, DI_BITS, UDItype);
-  FP_PACK_RAW_Q(a, A);
-  FP_HANDLE_EXCEPTIONS;
+  FP_FROM_INT_Q (A, i, DI_BITS, UDItype);
+  FP_PACK_RAW_Q (a, A);
 
   return a;
 }

@@ -1,4 +1,4 @@
-// { dg-options "-std=c++0x" }
+// { dg-options "-std=c++11" }
 enum class Color1 {
   Red, 
   Green,
@@ -6,7 +6,7 @@ enum class Color1 {
 };
 
 enum struct Color2 {
-  Red, // { dg-error "previously declared here" }
+  Red, // { dg-message "previously declared here" }
   Orange,
   Yellow,
   Green,

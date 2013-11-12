@@ -30,15 +30,15 @@ along with GCC; see the file COPYING3.  If not see
 
 #if GCC_VERSION >= 3400
 #  if SBITMAP_ELT_BITS == HOST_BITS_PER_LONG
-#    define do_popcount(x) __builtin_popcountl(x)
+#    define do_popcount(x) __builtin_popcountl (x)
 #  elif SBITMAP_ELT_BITS == HOST_BITS_PER_LONGLONG
-#    define do_popcount(x) __builtin_popcountll(x)
+#    define do_popcount(x) __builtin_popcountll (x)
 #  else
 #    error "internal error: sbitmap.h and hwint.h are inconsistent"
 #  endif
 #else
 static unsigned long sbitmap_elt_popcount (SBITMAP_ELT_TYPE);
-#  define do_popcount(x) sbitmap_elt_popcount((x))
+#  define do_popcount(x) sbitmap_elt_popcount (x)
 #endif
 
 typedef SBITMAP_ELT_TYPE *sbitmap_ptr;
@@ -655,6 +655,21 @@ dump_bitmap (FILE *file, const_sbitmap bmap)
   fprintf (file, "\n");
 }
 
+DEBUG_FUNCTION void
+debug_raw (simple_bitmap_def &ref)
+{
+  dump_bitmap (stderr, &ref);
+}
+
+DEBUG_FUNCTION void
+debug_raw (simple_bitmap_def *ptr)
+{
+  if (ptr)
+    debug_raw (*ptr);
+  else
+    fprintf (stderr, "<nil>\n");
+}
+
 void
 dump_bitmap_file (FILE *file, const_sbitmap bmap)
 {
@@ -682,6 +697,21 @@ DEBUG_FUNCTION void
 debug_bitmap (const_sbitmap bmap)
 {
   dump_bitmap_file (stderr, bmap);
+}
+
+DEBUG_FUNCTION void
+debug (simple_bitmap_def &ref)
+{
+  dump_bitmap_file (stderr, &ref);
+}
+
+DEBUG_FUNCTION void
+debug (simple_bitmap_def *ptr)
+{
+  if (ptr)
+    debug (*ptr);
+  else
+    fprintf (stderr, "<nil>\n");
 }
 
 void

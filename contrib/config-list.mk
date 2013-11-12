@@ -11,8 +11,11 @@ TEST=all-gcc
 # nohup nice make -j25 -l36 -f ../gcc/contrib/config-list.mk > make.out 2>&1 &
 #
 # v850e1-elf is rejected by config.sub
-LIST = alpha-linux-gnu alpha-freebsd6 alpha-netbsd alpha-openbsd \
+LIST = aarch64-elf aarch64-linux-gnu \
+  alpha-linux-gnu alpha-freebsd6 alpha-netbsd alpha-openbsd \
   alpha64-dec-vms alpha-dec-vms am33_2.0-linux \
+  arc-elf32OPT-with-cpu=arc600 arc-elf32OPT-with-cpu=arc700 \
+  arc-linux-uclibcOPT-with-cpu=arc700 arceb-linux-uclibcOPT-with-cpu=arc700 \
   arm-wrs-vxworks arm-netbsdelf \
   arm-linux-androideabi arm-uclinux_eabi arm-eabi \
   arm-symbianelf avr-rtems avr-elf \
@@ -43,6 +46,8 @@ LIST = alpha-linux-gnu alpha-freebsd6 alpha-netbsd alpha-openbsd \
   mipsel-elf mips64-elf mips64vr-elf mips64orion-elf mips-rtems \
   mips-wrs-vxworks mipstx39-elf mmix-knuth-mmixware mn10300-elf moxie-elf \
   moxie-uclinux moxie-rtems pdp11-aout picochip-elfOPT-enable-obsolete \
+  msp430-elf \
+  nds32le-elf nds32be-elf \
   powerpc-darwin8 \
   powerpc-darwin7 powerpc64-darwin powerpc-freebsd6 powerpc-netbsd \
   powerpc-eabispe powerpc-eabisimaltivec powerpc-eabisim ppc-elf \
@@ -66,7 +71,8 @@ LIST = alpha-linux-gnu alpha-freebsd6 alpha-netbsd alpha-openbsd \
   x86_64-elfOPT-with-fpmath=sse x86_64-freebsd6 x86_64-netbsd \
   x86_64-knetbsd-gnu x86_64-w64-mingw32 \
   x86_64-mingw32OPT-enable-sjlj-exceptions=yes xstormy16-elf xtensa-elf \
-  xtensa-linux sparc-sun-solaris2.9 i686-solaris2.9 \
+  xtensa-linux \
+  sparc-sun-solaris2.9OPT-enable-obsolete i686-solaris2.9OPT-enable-obsolete \
   i686-interix3OPT-enable-obsolete score-elfOPT-enable-obsolete
 
 LOGFILES = $(patsubst %,log/%-make.out,$(LIST))

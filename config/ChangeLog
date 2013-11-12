@@ -1,10 +1,17 @@
-2013-05-31  Release Manager
+2013-09-29  Iain Sandoe  <iain@codesourcery.com>
 
-	* GCC 4.8.1 released.
+	* mh-darwin (BOOT_CFLAGS): Only add -mdynamic-no-pic for m32 hosts.
+	(STAGE1_CFLAGS, STAGE1_LDFLAGS): New.
+	Fix over-length lines and amend comments.
 
-2013-03-22  Release Manager
+2013-08-30  Marek Polacek  <polacek@redhat.com>
 
-	* GCC 4.8.0 released.
+	* bootstrap-ubsan.mk: New.
+
+2013-03-27  Kai Tietz  <ktietz@redhat.com>
+
+	* dfp.m4: Add support for cygwin x64 target.
+	* picflag.m4: Likewise.
 
 2013-02-25  H.J. Lu  <hongjiu.lu@intel.com>
 

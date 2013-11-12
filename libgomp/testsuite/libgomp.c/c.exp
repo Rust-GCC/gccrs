@@ -7,6 +7,7 @@ if [info exists lang_test_file] then {
 }
 
 load_lib libgomp-dg.exp
+load_gcc_lib gcc-dg.exp
 
 # If a testcase doesn't have special options, use these.
 if ![info exists DEFAULT_CFLAGS] then {
@@ -15,6 +16,9 @@ if ![info exists DEFAULT_CFLAGS] then {
 
 # Initialize dg.
 dg-init
+
+# Turn on OpenMP.
+lappend ALWAYS_CFLAGS "additional_flags=-fopenmp"
 
 # Gather a list of all tests.
 set tests [lsort [find $srcdir/$subdir *.c]]

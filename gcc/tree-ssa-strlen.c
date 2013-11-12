@@ -21,7 +21,15 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tree-flow.h"
+#include "tree.h"
+#include "hash-table.h"
+#include "bitmap.h"
+#include "gimple.h"
+#include "gimple-ssa.h"
+#include "tree-phinodes.h"
+#include "ssa-iterators.h"
+#include "tree-ssanames.h"
+#include "tree-dfa.h"
 #include "tree-pass.h"
 #include "domwalk.h"
 #include "alloc-pool.h"
@@ -111,9 +119,33 @@ struct decl_stridxlist_map
   struct stridxlist list;
 };
 
+/* stridxlist hashtable helpers.  */
+
+struct stridxlist_hasher : typed_noop_remove <decl_stridxlist_map>
+{
+  typedef decl_stridxlist_map value_type;
+  typedef decl_stridxlist_map compare_type;
+  static inline hashval_t hash (const value_type *);
+  static inline bool equal (const value_type *, const compare_type *);
+};
+
+/* Hash a from tree in a decl_stridxlist_map.  */
+
+inline hashval_t
+stridxlist_hasher::hash (const value_type *item)
+{
+  return DECL_UID (item->base.from);
+}
+
+inline bool
+stridxlist_hasher::equal (const value_type *v, const compare_type *c)
+{
+  return tree_map_base_eq (&v->base, &c->base);
+}
+
 /* Hash table for mapping decls to a chained list of offset -> idx
    mappings.  */
-static htab_t decl_to_stridxlist_htab;
+static hash_table <stridxlist_hasher> decl_to_stridxlist_htab;
 
 /* Obstack for struct stridxlist and struct decl_stridxlist_map.  */
 static struct obstack stridx_obstack;
@@ -128,14 +160,6 @@ struct laststmt_struct
   int stridx;
 } laststmt;
 
-/* Hash a from tree in a decl_stridxlist_map.  */
-
-static unsigned int
-decl_to_stridxlist_hash (const void *item)
-{
-  return DECL_UID (((const struct decl_stridxlist_map *) item)->base.from);
-}
-
 /* Helper function for get_stridx.  */
 
 static int
@@ -146,7 +170,7 @@ get_addr_stridx (tree exp)
   struct stridxlist *list;
   tree base;
 
-  if (decl_to_stridxlist_htab == NULL)
+  if (!decl_to_stridxlist_htab.is_created ())
     return 0;
 
   base = get_addr_base_and_unit_offset (exp, &off);
@@ -154,8 +178,7 @@ get_addr_stridx (tree exp)
     return 0;
 
   ent.base.from = base;
-  e = (struct decl_stridxlist_map *)
-      htab_find_with_hash (decl_to_stridxlist_htab, &ent, DECL_UID (base));
+  e = decl_to_stridxlist_htab.find_with_hash (&ent, DECL_UID (base));
   if (e == NULL)
     return 0;
 
@@ -234,7 +257,7 @@ unshare_strinfo_vec (void)
 static int *
 addr_stridxptr (tree exp)
 {
-  void **slot;
+  decl_stridxlist_map **slot;
   struct decl_stridxlist_map ent;
   struct stridxlist *list;
   HOST_WIDE_INT off;
@@ -243,19 +266,18 @@ addr_stridxptr (tree exp)
   if (base == NULL_TREE || !DECL_P (base))
     return NULL;
 
-  if (decl_to_stridxlist_htab == NULL)
+  if (!decl_to_stridxlist_htab.is_created ())
     {
-      decl_to_stridxlist_htab
-	= htab_create (64, decl_to_stridxlist_hash, tree_map_base_eq, NULL);
+      decl_to_stridxlist_htab.create (64);
       gcc_obstack_init (&stridx_obstack);
     }
   ent.base.from = base;
-  slot = htab_find_slot_with_hash (decl_to_stridxlist_htab, &ent,
-				   DECL_UID (base), INSERT);
+  slot = decl_to_stridxlist_htab.find_slot_with_hash (&ent, DECL_UID (base),
+						      INSERT);
   if (*slot)
     {
       int i;
-      list = &((struct decl_stridxlist_map *)*slot)->list;
+      list = &(*slot)->list;
       for (i = 0; i < 16; i++)
 	{
 	  if (list->offset == off)
@@ -273,7 +295,7 @@ addr_stridxptr (tree exp)
       struct decl_stridxlist_map *e
 	= XOBNEW (&stridx_obstack, struct decl_stridxlist_map);
       e->base.from = base;
-      *slot = (void *) e;
+      *slot = e;
       list = &e->list;
     }
   list->next = NULL;
@@ -1679,7 +1701,8 @@ handle_char_store (gimple_stmt_iterator *gsi)
 	      else
 		{
 		  si->writable = true;
-		  si->dont_invalidate = true;
+		  gsi_next (gsi);
+		  return false;
 		}
 	    }
 	  else
@@ -1701,6 +1724,33 @@ handle_char_store (gimple_stmt_iterator *gsi)
 	  if (ssaname && !SSA_NAME_OCCURS_IN_ABNORMAL_PHI (ssaname))
 	    si->endptr = ssaname;
 	  si->dont_invalidate = true;
+	}
+      /* If si->length is non-zero constant, we aren't overwriting '\0',
+	 and if we aren't storing '\0', we know that the length of the
+	 string and any other zero terminated string in memory remains
+	 the same.  In that case we move to the next gimple statement and
+	 return to signal the caller that it shouldn't invalidate anything.  
+
+	 This is benefical for cases like:
+
+	 char p[20];
+	 void foo (char *q)
+	 {
+	   strcpy (p, "foobar");
+	   size_t len = strlen (p);        // This can be optimized into 6
+	   size_t len2 = strlen (q);        // This has to be computed
+	   p[0] = 'X';
+	   size_t len3 = strlen (p);        // This can be optimized into 6
+	   size_t len4 = strlen (q);        // This can be optimized into len2
+	   bar (len, len2, len3, len4);
+        }
+	*/ 
+      else if (si != NULL && si->length != NULL_TREE
+	       && TREE_CODE (si->length) == INTEGER_CST
+	       && integer_nonzerop (gimple_assign_rhs1 (stmt)))
+	{
+	  gsi_next (gsi);
+	  return false;
 	}
     }
   else if (idx == 0 && initializer_zerop (gimple_assign_rhs1 (stmt)))
@@ -1724,6 +1774,25 @@ handle_char_store (gimple_stmt_iterator *gsi)
 	}
       if (si != NULL)
 	si->writable = true;
+    }
+  else if (idx == 0
+	   && TREE_CODE (gimple_assign_rhs1 (stmt)) == STRING_CST
+	   && ssaname == NULL_TREE
+	   && TREE_CODE (TREE_TYPE (lhs)) == ARRAY_TYPE)
+    {
+      size_t l = strlen (TREE_STRING_POINTER (gimple_assign_rhs1 (stmt)));
+      HOST_WIDE_INT a = int_size_in_bytes (TREE_TYPE (lhs));
+      if (a > 0 && (unsigned HOST_WIDE_INT) a > l)
+	{
+	  int idx = new_addr_stridx (lhs);
+	  if (idx != 0)
+	    {
+	      si = new_strinfo (build_fold_addr_expr (lhs), idx,
+				build_int_cst (size_type_node, l));
+	      set_strinfo (idx, si);
+	      si->dont_invalidate = true;
+	    }
+	}
     }
 
   if (si != NULL && initializer_zerop (gimple_assign_rhs1 (stmt)))
@@ -1864,12 +1933,20 @@ do_invalidate (basic_block dombb, gimple phi, bitmap visited, int *count)
     }
 }
 
+class strlen_dom_walker : public dom_walker
+{
+public:
+  strlen_dom_walker (cdi_direction direction) : dom_walker (direction) {}
+
+  virtual void before_dom_children (basic_block);
+  virtual void after_dom_children (basic_block);
+};
+
 /* Callback for walk_dominator_tree.  Attempt to optimize various
    string ops by remembering string lenths pointed by pointer SSA_NAMEs.  */
 
-static void
-strlen_enter_block (struct dom_walk_data *walk_data ATTRIBUTE_UNUSED,
-		    basic_block bb)
+void
+strlen_dom_walker::before_dom_children (basic_block bb)
 {
   gimple_stmt_iterator gsi;
   basic_block dombb = get_immediate_dominator (CDI_DOMINATORS, bb);
@@ -1952,9 +2029,8 @@ strlen_enter_block (struct dom_walk_data *walk_data ATTRIBUTE_UNUSED,
 /* Callback for walk_dominator_tree.  Free strinfo vector if it is
    owned by the current bb, clear bb->aux.  */
 
-static void
-strlen_leave_block (struct dom_walk_data *walk_data ATTRIBUTE_UNUSED,
-		    basic_block bb)
+void
+strlen_dom_walker::after_dom_children (basic_block bb)
 {
   if (bb->aux)
     {
@@ -1978,8 +2054,6 @@ strlen_leave_block (struct dom_walk_data *walk_data ATTRIBUTE_UNUSED,
 static unsigned int
 tree_ssa_strlen (void)
 {
-  struct dom_walk_data walk_data;
-
   ssa_ver_to_stridx.safe_grow_cleared (num_ssa_names);
   max_stridx = 1;
   strinfo_pool = create_alloc_pool ("strinfo_struct pool",
@@ -1989,29 +2063,14 @@ tree_ssa_strlen (void)
 
   /* String length optimization is implemented as a walk of the dominator
      tree and a forward walk of statements within each block.  */
-  walk_data.dom_direction = CDI_DOMINATORS;
-  walk_data.initialize_block_local_data = NULL;
-  walk_data.before_dom_children = strlen_enter_block;
-  walk_data.after_dom_children = strlen_leave_block;
-  walk_data.block_local_data_size = 0;
-  walk_data.global_data = NULL;
-
-  /* Initialize the dominator walker.  */
-  init_walk_dominator_tree (&walk_data);
-
-  /* Recursively walk the dominator tree.  */
-  walk_dominator_tree (&walk_data, ENTRY_BLOCK_PTR);
-
-  /* Finalize the dominator walker.  */
-  fini_walk_dominator_tree (&walk_data);
+  strlen_dom_walker (CDI_DOMINATORS).walk (cfun->cfg->x_entry_block_ptr);
 
   ssa_ver_to_stridx.release ();
   free_alloc_pool (strinfo_pool);
-  if (decl_to_stridxlist_htab)
+  if (decl_to_stridxlist_htab.is_created ())
     {
       obstack_free (&stridx_obstack, NULL);
-      htab_delete (decl_to_stridxlist_htab);
-      decl_to_stridxlist_htab = NULL;
+      decl_to_stridxlist_htab.dispose ();
     }
   laststmt.stmt = NULL;
   laststmt.len = NULL_TREE;
@@ -2026,23 +2085,40 @@ gate_strlen (void)
   return flag_optimize_strlen != 0;
 }
 
-struct gimple_opt_pass pass_strlen =
+namespace {
+
+const pass_data pass_data_strlen =
 {
- {
-  GIMPLE_PASS,
-  "strlen",			/* name */
-  OPTGROUP_NONE,                /* optinfo_flags */
-  gate_strlen,			/* gate */
-  tree_ssa_strlen,		/* execute */
-  NULL,				/* sub */
-  NULL,				/* next */
-  0,				/* static_pass_number */
-  TV_TREE_STRLEN,		/* tv_id */
-  PROP_cfg | PROP_ssa,		/* properties_required */
-  0,				/* properties_provided */
-  0,				/* properties_destroyed */
-  0,				/* todo_flags_start */
-  TODO_ggc_collect
-    | TODO_verify_ssa		/* todo_flags_finish */
- }
+  GIMPLE_PASS, /* type */
+  "strlen", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_TREE_STRLEN, /* tv_id */
+  ( PROP_cfg | PROP_ssa ), /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  TODO_verify_ssa, /* todo_flags_finish */
 };
+
+class pass_strlen : public gimple_opt_pass
+{
+public:
+  pass_strlen (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_strlen, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_strlen (); }
+  unsigned int execute () { return tree_ssa_strlen (); }
+
+}; // class pass_strlen
+
+} // anon namespace
+
+gimple_opt_pass *
+make_pass_strlen (gcc::context *ctxt)
+{
+  return new pass_strlen (ctxt);
+}

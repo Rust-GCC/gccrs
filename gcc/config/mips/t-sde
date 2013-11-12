@@ -16,8 +16,8 @@
 # along with GCC; see the file COPYING3.  If not see
 # <http://www.gnu.org/licenses/>.
 
-MULTILIB_OPTIONS = EL/EB mips32/mips32r2/mips64/mips64r2 mips16 msoft-float/mfp64 mcode-readable=no
-MULTILIB_DIRNAMES = el eb mips32 mips32r2 mips64 mips64r2 mips16 sof f64 spram
+MULTILIB_OPTIONS = EL/EB mips32/mips32r2/mips64/mips64r2 mips16/mmicromips msoft-float/mfp64 mcode-readable=no
+MULTILIB_DIRNAMES = el eb mips32 mips32r2 mips64 mips64r2 mips16 micromips sof f64 spram
 MULTILIB_MATCHES = EL=mel EB=meb
 
 # The -mfp64 option is only valid in conjunction with -mips32r2.
@@ -27,9 +27,11 @@ else
 MULTILIB_EXCLUSIONS := !mips32r2/mfp64
 endif
 
-# Don't build 64-bit MIPS16 multilibs.
+# Don't build 64-bit MIPS16 and microMIPS multilibs.
 ifneq ($(filter MIPS_ISA_DEFAULT=6%,$(tm_defines)),)
 MULTILIB_EXCLUSIONS += !mips32/!mips32r2/mips16
+MULTILIB_EXCLUSIONS += !mips32/!mips32r2/mmicromips
 else
 MULTILIB_EXCLUSIONS += mips64/mips16 mips64r2/mips16
+MULTILIB_EXCLUSIONS += mips64/mmicromips mips64r2/mmicromips
 endif

@@ -32,9 +32,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "input.h"
 #include "hashtab.h"
 #include "basic-block.h"
-#include "tree-flow.h"
+#include "gimple.h"
+#include "gimple-ssa.h"
+#include "tree-cfg.h"
+#include "tree-ssanames.h"
+#include "tree-into-ssa.h"
+#include "tree-dfa.h"
+#include "tree-ssa.h"
 #include "tree-pass.h"
-#include "cgraph.h"
 #include "function.h"
 #include "ggc.h"
 #include "diagnostic.h"
@@ -48,9 +53,22 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-streamer.h"
 #include "tree-pass.h"
 #include "streamer-hooks.h"
+#include "cfgloop.h"
+
+
+struct freeing_string_slot_hasher : string_slot_hasher
+{
+  static inline void remove (value_type *);
+};
+
+inline void
+freeing_string_slot_hasher::remove (value_type *v)
+{
+  free (v);
+}
 
 /* The table to hold the file names.  */
-static htab_t file_name_hash_table;
+static hash_table <freeing_string_slot_hasher> file_name_hash_table;
 
 
 /* Check that tag ACTUAL has one of the given values.  NUM_TAGS is the
@@ -94,14 +112,14 @@ lto_input_data_block (struct lto_input_block *ib, void *addr, size_t length)
 static const char *
 canon_file_name (const char *string)
 {
-  void **slot;
+  string_slot **slot;
   struct string_slot s_slot;
   size_t len = strlen (string);
 
   s_slot.s = string;
   s_slot.len = len;
 
-  slot = htab_find_slot (file_name_hash_table, &s_slot, INSERT);
+  slot = file_name_hash_table.find_slot (&s_slot, INSERT);
   if (*slot == NULL)
     {
       char *saved_string;
@@ -117,7 +135,7 @@ canon_file_name (const char *string)
     }
   else
     {
-      struct string_slot *old_slot = (struct string_slot *) *slot;
+      struct string_slot *old_slot = *slot;
       return old_slot->s;
     }
 }
@@ -622,8 +640,8 @@ input_cfg (struct lto_input_block *ib, struct function *fn,
 
 	  dest_index = streamer_read_uhwi (ib);
 	  probability = (int) streamer_read_hwi (ib);
-	  count = ((gcov_type) streamer_read_hwi (ib) * count_materialization_scale
-		   + REG_BR_PROB_BASE / 2) / REG_BR_PROB_BASE;
+	  count = apply_scale ((gcov_type) streamer_read_gcov_count (ib),
+                               count_materialization_scale);
 	  edge_flags = streamer_read_uhwi (ib);
 
 	  dest = BASIC_BLOCK_FOR_FUNCTION (fn, dest_index);
@@ -639,7 +657,7 @@ input_cfg (struct lto_input_block *ib, struct function *fn,
       index = streamer_read_hwi (ib);
     }
 
-  p_bb = ENTRY_BLOCK_PTR_FOR_FUNCTION(fn);
+  p_bb = ENTRY_BLOCK_PTR_FOR_FUNCTION (fn);
   index = streamer_read_hwi (ib);
   while (index != -1)
     {
@@ -649,6 +667,58 @@ input_cfg (struct lto_input_block *ib, struct function *fn,
       p_bb = bb;
       index = streamer_read_hwi (ib);
     }
+
+  /* ???  The cfgloop interface is tied to cfun.  */
+  gcc_assert (cfun == fn);
+
+  /* Input the loop tree.  */
+  unsigned n_loops = streamer_read_uhwi (ib);
+  if (n_loops == 0)
+    return;
+
+  struct loops *loops = ggc_alloc_cleared_loops ();
+  init_loops_structure (fn, loops, n_loops);
+  set_loops_for_fn (fn, loops);
+
+  /* Input each loop and associate it with its loop header so
+     flow_loops_find can rebuild the loop tree.  */
+  for (unsigned i = 1; i < n_loops; ++i)
+    {
+      int header_index = streamer_read_hwi (ib);
+      if (header_index == -1)
+	{
+	  loops->larray->quick_push (NULL);
+	  continue;
+	}
+
+      struct loop *loop = alloc_loop ();
+      loop->header = BASIC_BLOCK_FOR_FUNCTION (fn, header_index);
+      loop->header->loop_father = loop;
+
+      /* Read everything copy_loop_info copies.  */
+      loop->estimate_state = streamer_read_enum (ib, loop_estimation, EST_LAST);
+      loop->any_upper_bound = streamer_read_hwi (ib);
+      if (loop->any_upper_bound)
+	{
+	  loop->nb_iterations_upper_bound.low = streamer_read_uhwi (ib);
+	  loop->nb_iterations_upper_bound.high = streamer_read_hwi (ib);
+	}
+      loop->any_estimate = streamer_read_hwi (ib);
+      if (loop->any_estimate)
+	{
+	  loop->nb_iterations_estimate.low = streamer_read_uhwi (ib);
+	  loop->nb_iterations_estimate.high = streamer_read_hwi (ib);
+	}
+
+      place_new_loop (fn, loop);
+
+      /* flow_loops_find doesn't like loops not in the tree, hook them
+         all as siblings of the tree root temporarily.  */
+      flow_loop_tree_node_add (loops->tree_root, loop);
+    }
+
+  /* Rebuild the loop tree.  */
+  flow_loops_find (loops);
 }
 
 
@@ -690,14 +760,42 @@ input_ssa_names (struct lto_input_block *ib, struct data_in *data_in,
    so they point to STMTS.  */
 
 static void
-fixup_call_stmt_edges_1 (struct cgraph_node *node, gimple *stmts)
+fixup_call_stmt_edges_1 (struct cgraph_node *node, gimple *stmts,
+			 struct function *fn)
 {
   struct cgraph_edge *cedge;
+  struct ipa_ref *ref;
+  unsigned int i;
+
   for (cedge = node->callees; cedge; cedge = cedge->next_callee)
-    cedge->call_stmt = stmts[cedge->lto_stmt_uid];
+    {
+      if (gimple_stmt_max_uid (fn) < cedge->lto_stmt_uid)
+        fatal_error ("Cgraph edge statement index out of range");
+      cedge->call_stmt = stmts[cedge->lto_stmt_uid - 1];
+      if (!cedge->call_stmt)
+        fatal_error ("Cgraph edge statement index not found");
+    }
   for (cedge = node->indirect_calls; cedge; cedge = cedge->next_callee)
-    cedge->call_stmt = stmts[cedge->lto_stmt_uid];
+    {
+      if (gimple_stmt_max_uid (fn) < cedge->lto_stmt_uid)
+        fatal_error ("Cgraph edge statement index out of range");
+      cedge->call_stmt = stmts[cedge->lto_stmt_uid - 1];
+      if (!cedge->call_stmt)
+        fatal_error ("Cgraph edge statement index not found");
+    }
+  for (i = 0;
+       ipa_ref_list_reference_iterate (&node->ref_list, i, ref);
+       i++)
+    if (ref->lto_stmt_uid)
+      {
+	if (gimple_stmt_max_uid (fn) < ref->lto_stmt_uid)
+	  fatal_error ("Reference statement index out of range");
+	ref->stmt = stmts[ref->lto_stmt_uid - 1];
+	if (!ref->stmt)
+	  fatal_error ("Reference statement index not found");
+      }
 }
+
 
 /* Fixup call_stmt pointers in NODE and all clones.  */
 
@@ -705,15 +803,17 @@ static void
 fixup_call_stmt_edges (struct cgraph_node *orig, gimple *stmts)
 {
   struct cgraph_node *node;
+  struct function *fn;
 
   while (orig->clone_of)
     orig = orig->clone_of;
+  fn = DECL_STRUCT_FUNCTION (orig->decl);
 
-  fixup_call_stmt_edges_1 (orig, stmts);
+  fixup_call_stmt_edges_1 (orig, stmts, fn);
   if (orig->clones)
     for (node = orig->clones; node != orig;)
       {
-	fixup_call_stmt_edges_1 (node, stmts);
+	fixup_call_stmt_edges_1 (node, stmts, fn);
 	if (node->clones)
 	  node = node->clones;
 	else if (node->next_sibling_clone)
@@ -786,7 +886,7 @@ input_struct_function_base (struct function *fn, struct data_in *data_in,
 
 static void
 input_function (tree fn_decl, struct data_in *data_in,
-		struct lto_input_block *ib)
+		struct lto_input_block *ib, struct lto_input_block *ib_cfg)
 {
   struct function *fn;
   enum LTO_tags tag;
@@ -794,13 +894,30 @@ input_function (tree fn_decl, struct data_in *data_in,
   basic_block bb;
   struct cgraph_node *node;
 
-  fn = DECL_STRUCT_FUNCTION (fn_decl);
   tag = streamer_read_record_start (ib);
-
-  gimple_register_cfg_hooks ();
   lto_tag_check (tag, LTO_function);
 
+  /* Read decls for parameters and args.  */
+  DECL_RESULT (fn_decl) = stream_read_tree (ib, data_in);
+  DECL_ARGUMENTS (fn_decl) = streamer_read_chain (ib, data_in);
+
+  /* Read the tree of lexical scopes for the function.  */
+  DECL_INITIAL (fn_decl) = stream_read_tree (ib, data_in);
+
+  if (!streamer_read_uhwi (ib))
+    return;
+
+  push_struct_function (fn_decl);
+  fn = DECL_STRUCT_FUNCTION (fn_decl);
+  init_tree_ssa (fn);
+  /* We input IL in SSA form.  */
+  cfun->gimple_df->in_ssa_p = true;
+
+  gimple_register_cfg_hooks ();
+
+  node = cgraph_get_create_node (fn_decl);
   input_struct_function_base (fn, data_in, ib);
+  input_cfg (ib_cfg, fn, node->count_materialization_scale);
 
   /* Read all the SSA names.  */
   input_ssa_names (ib, data_in, fn);
@@ -808,11 +925,8 @@ input_function (tree fn_decl, struct data_in *data_in,
   /* Read the exception handling regions in the function.  */
   input_eh_regions (ib, data_in, fn);
 
-  /* Read the tree of lexical scopes for the function.  */
-  DECL_INITIAL (fn_decl) = stream_read_tree (ib, data_in);
   gcc_assert (DECL_INITIAL (fn_decl));
   DECL_SAVED_TREE (fn_decl) = NULL_TREE;
-  node = cgraph_get_create_node (fn_decl);
 
   /* Read all the basic blocks.  */
   tag = streamer_read_record_start (ib);
@@ -829,6 +943,11 @@ input_function (tree fn_decl, struct data_in *data_in,
   FOR_ALL_BB (bb)
     {
       gimple_stmt_iterator gsi;
+      for (gsi = gsi_start_phis (bb); !gsi_end_p (gsi); gsi_next (&gsi))
+	{
+	  gimple stmt = gsi_stmt (gsi);
+	  gimple_set_uid (stmt, inc_gimple_stmt_max_uid (cfun));
+	}
       for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
 	{
 	  gimple stmt = gsi_stmt (gsi);
@@ -838,7 +957,14 @@ input_function (tree fn_decl, struct data_in *data_in,
   stmts = (gimple *) xcalloc (gimple_stmt_max_uid (fn), sizeof (gimple));
   FOR_ALL_BB (bb)
     {
-      gimple_stmt_iterator bsi = gsi_start_bb (bb);
+      gimple_stmt_iterator bsi = gsi_start_phis (bb);
+      while (!gsi_end_p (bsi))
+	{
+	  gimple stmt = gsi_stmt (bsi);
+	  gsi_next (&bsi);
+	  stmts[gimple_uid (stmt)] = stmt;
+	}
+      bsi = gsi_start_bb (bb);
       while (!gsi_end_p (bsi))
 	{
 	  gimple stmt = gsi_stmt (bsi);
@@ -877,17 +1003,18 @@ input_function (tree fn_decl, struct data_in *data_in,
   free_dominance_info (CDI_DOMINATORS);
   free_dominance_info (CDI_POST_DOMINATORS);
   free (stmts);
+  pop_cfun ();
 }
 
 
-/* Read the body from DATA for function FN_DECL and fill it in.
+/* Read the body from DATA for function NODE and fill it in.
    FILE_DATA are the global decls and types.  SECTION_TYPE is either
    LTO_section_function_body or LTO_section_static_initializer.  If
    section type is LTO_section_function_body, FN must be the decl for
    that function.  */
 
 static void
-lto_read_body (struct lto_file_decl_data *file_data, tree fn_decl,
+lto_read_body (struct lto_file_decl_data *file_data, struct cgraph_node *node,
 	       const char *data, enum lto_section_type section_type)
 {
   const struct lto_function_header *header;
@@ -897,6 +1024,7 @@ lto_read_body (struct lto_file_decl_data *file_data, tree fn_decl,
   int string_offset;
   struct lto_input_block ib_cfg;
   struct lto_input_block ib_main;
+  tree fn_decl = node->decl;
 
   header = (const struct lto_function_header *) data;
   cfg_offset = sizeof (struct lto_function_header);
@@ -922,28 +1050,20 @@ lto_read_body (struct lto_file_decl_data *file_data, tree fn_decl,
 
   if (section_type == LTO_section_function_body)
     {
-      struct function *fn = DECL_STRUCT_FUNCTION (fn_decl);
       struct lto_in_decl_state *decl_state;
-      struct cgraph_node *node = cgraph_get_node (fn_decl);
       unsigned from;
 
       gcc_checking_assert (node);
-      push_cfun (fn);
-      init_tree_ssa (fn);
-
-      /* We input IL in SSA form.  */
-      cfun->gimple_df->in_ssa_p = true;
 
       /* Use the function's decl state. */
       decl_state = lto_get_function_in_decl_state (file_data, fn_decl);
       gcc_assert (decl_state);
       file_data->current_decl_state = decl_state;
 
-      input_cfg (&ib_cfg, fn, node->count_materialization_scale);
 
       /* Set up the struct function.  */
       from = data_in->reader_cache->nodes.length ();
-      input_function (fn_decl, data_in, &ib_main);
+      input_function (fn_decl, data_in, &ib_main, &ib_cfg);
       /* And fixup types we streamed locally.  */
 	{
 	  struct streamer_tree_cache_d *cache = data_in->reader_cache;
@@ -951,7 +1071,7 @@ lto_read_body (struct lto_file_decl_data *file_data, tree fn_decl,
 	  unsigned i;
 	  for (i = len; i-- > from;)
 	    {
-	      tree t = cache->nodes[i];
+	      tree t = streamer_tree_cache_get_tree (cache, i);
 	      if (t == NULL_TREE)
 		continue;
 
@@ -972,31 +1092,60 @@ lto_read_body (struct lto_file_decl_data *file_data, tree fn_decl,
 
       /* Restore decl state */
       file_data->current_decl_state = file_data->global_decl_state;
-
-      pop_cfun ();
     }
 
   lto_data_in_delete (data_in);
 }
 
 
-/* Read the body of FN_DECL using DATA.  FILE_DATA holds the global
+/* Read the body of NODE using DATA.  FILE_DATA holds the global
    decls and types.  */
 
 void
 lto_input_function_body (struct lto_file_decl_data *file_data,
-			 tree fn_decl, const char *data)
+			 struct cgraph_node *node, const char *data)
 {
-  lto_read_body (file_data, fn_decl, data, LTO_section_function_body);
+  lto_read_body (file_data, node, data, LTO_section_function_body);
 }
 
+
+/* Read the physical representation of a tree node EXPR from
+   input block IB using the per-file context in DATA_IN.  */
+
+static void
+lto_read_tree_1 (struct lto_input_block *ib, struct data_in *data_in, tree expr)
+{
+  /* Read all the bitfield values in EXPR.  Note that for LTO, we
+     only write language-independent bitfields, so no more unpacking is
+     needed.  */
+  streamer_read_tree_bitfields (ib, data_in, expr);
+
+  /* Read all the pointer fields in EXPR.  */
+  streamer_read_tree_body (ib, data_in, expr);
+
+  /* Read any LTO-specific data not read by the tree streamer.  */
+  if (DECL_P (expr)
+      && TREE_CODE (expr) != FUNCTION_DECL
+      && TREE_CODE (expr) != TRANSLATION_UNIT_DECL)
+    DECL_INITIAL (expr) = stream_read_tree (ib, data_in);
+
+  /* We should never try to instantiate an MD or NORMAL builtin here.  */
+  if (TREE_CODE (expr) == FUNCTION_DECL)
+    gcc_assert (!streamer_handle_as_builtin_p (expr));
+
+#ifdef LTO_STREAMER_DEBUG
+  /* Remove the mapping to RESULT's original address set by
+     streamer_alloc_tree.  */
+  lto_orig_address_remove (expr);
+#endif
+}
 
 /* Read the physical representation of a tree node with tag TAG from
    input block IB using the per-file context in DATA_IN.  */
 
 static tree
 lto_read_tree (struct lto_input_block *ib, struct data_in *data_in,
-	       enum LTO_tags tag)
+	       enum LTO_tags tag, hashval_t hash)
 {
   /* Instantiate a new tree node.  */
   tree result = streamer_alloc_tree (ib, data_in, tag);
@@ -1004,35 +1153,70 @@ lto_read_tree (struct lto_input_block *ib, struct data_in *data_in,
   /* Enter RESULT in the reader cache.  This will make RESULT
      available so that circular references in the rest of the tree
      structure can be resolved in subsequent calls to stream_read_tree.  */
-  streamer_tree_cache_append (data_in->reader_cache, result);
+  streamer_tree_cache_append (data_in->reader_cache, result, hash);
 
-  /* Read all the bitfield values in RESULT.  Note that for LTO, we
-     only write language-independent bitfields, so no more unpacking is
-     needed.  */
-  streamer_read_tree_bitfields (ib, data_in, result);
-
-  /* Read all the pointer fields in RESULT.  */
-  streamer_read_tree_body (ib, data_in, result);
-
-  /* Read any LTO-specific data not read by the tree streamer.  */
-  if (DECL_P (result)
-      && TREE_CODE (result) != FUNCTION_DECL
-      && TREE_CODE (result) != TRANSLATION_UNIT_DECL)
-    DECL_INITIAL (result) = stream_read_tree (ib, data_in);
-
-  /* We should never try to instantiate an MD or NORMAL builtin here.  */
-  if (TREE_CODE (result) == FUNCTION_DECL)
-    gcc_assert (!streamer_handle_as_builtin_p (result));
+  lto_read_tree_1 (ib, data_in, result);
 
   /* end_marker = */ streamer_read_uchar (ib);
 
-#ifdef LTO_STREAMER_DEBUG
-  /* Remove the mapping to RESULT's original address set by
-     streamer_alloc_tree.  */
-  lto_orig_address_remove (result);
-#endif
-
   return result;
+}
+
+
+/* Populate the reader cache with trees materialized from the SCC
+   following in the IB, DATA_IN stream.  */
+
+hashval_t
+lto_input_scc (struct lto_input_block *ib, struct data_in *data_in,
+	       unsigned *len, unsigned *entry_len)
+{
+  /* A blob of unnamed tree nodes, fill the cache from it and
+     recurse.  */
+  unsigned size = streamer_read_uhwi (ib);
+  hashval_t scc_hash = streamer_read_uhwi (ib);
+  unsigned scc_entry_len = 1;
+
+  if (size == 1)
+    {
+      enum LTO_tags tag = streamer_read_record_start (ib);
+      lto_input_tree_1 (ib, data_in, tag, scc_hash);
+    }
+  else
+    {
+      unsigned int first = data_in->reader_cache->nodes.length ();
+      tree result;
+
+      scc_entry_len = streamer_read_uhwi (ib);
+
+      /* Materialize size trees by reading their headers.  */
+      for (unsigned i = 0; i < size; ++i)
+	{
+	  enum LTO_tags tag = streamer_read_record_start (ib);
+	  if (tag == LTO_null
+	      || (tag >= LTO_field_decl_ref && tag <= LTO_global_decl_ref)
+	      || tag == LTO_tree_pickle_reference
+	      || tag == LTO_builtin_decl
+	      || tag == LTO_integer_cst
+	      || tag == LTO_tree_scc)
+	    gcc_unreachable ();
+
+	  result = streamer_alloc_tree (ib, data_in, tag);
+	  streamer_tree_cache_append (data_in->reader_cache, result, 0);
+	}
+
+      /* Read the tree bitpacks and references.  */
+      for (unsigned i = 0; i < size; ++i)
+	{
+	  result = streamer_tree_cache_get_tree (data_in->reader_cache,
+						 first + i);
+	  lto_read_tree_1 (ib, data_in, result);
+	  /* end_marker = */ streamer_read_uchar (ib);
+	}
+    }
+
+  *len = size;
+  *entry_len = scc_entry_len;
+  return scc_hash;
 }
 
 
@@ -1041,12 +1225,11 @@ lto_read_tree (struct lto_input_block *ib, struct data_in *data_in,
    to previously read nodes.  */
 
 tree
-lto_input_tree (struct lto_input_block *ib, struct data_in *data_in)
+lto_input_tree_1 (struct lto_input_block *ib, struct data_in *data_in,
+		  enum LTO_tags tag, hashval_t hash)
 {
-  enum LTO_tags tag;
   tree result;
 
-  tag = streamer_read_record_start (ib);
   gcc_assert ((unsigned) tag < (unsigned) LTO_NUM_TAGS);
 
   if (tag == LTO_null)
@@ -1072,17 +1255,37 @@ lto_input_tree (struct lto_input_block *ib, struct data_in *data_in)
     }
   else if (tag == LTO_integer_cst)
     {
-      /* For shared integer constants we only need the type and its hi/low
-	 words.  */
-      result = streamer_read_integer_cst (ib, data_in);
+      /* For shared integer constants in singletons we can use the existing
+         tree integer constant merging code.  */
+      tree type = stream_read_tree (ib, data_in);
+      unsigned HOST_WIDE_INT low = streamer_read_uhwi (ib);
+      HOST_WIDE_INT high = streamer_read_hwi (ib);
+      result = build_int_cst_wide (type, low, high);
+      streamer_tree_cache_append (data_in->reader_cache, result, hash);
+    }
+  else if (tag == LTO_tree_scc)
+    {
+      unsigned len, entry_len;
+
+      /* Input and skip the SCC.  */
+      lto_input_scc (ib, data_in, &len, &entry_len);
+
+      /* Recurse.  */
+      return lto_input_tree (ib, data_in);
     }
   else
     {
       /* Otherwise, materialize a new node from IB.  */
-      result = lto_read_tree (ib, data_in, tag);
+      result = lto_read_tree (ib, data_in, tag, hash);
     }
 
   return result;
+}
+
+tree
+lto_input_tree (struct lto_input_block *ib, struct data_in *data_in)
+{
+  return lto_input_tree_1 (ib, data_in, streamer_read_record_start (ib), 0);
 }
 
 
@@ -1137,8 +1340,7 @@ void
 lto_reader_init (void)
 {
   lto_streamer_init ();
-  file_name_hash_table = htab_create (37, hash_string_slot_node,
-				      eq_string_slot_node, free);
+  file_name_hash_table.create (37);
 }
 
 
@@ -1156,7 +1358,7 @@ lto_data_in_create (struct lto_file_decl_data *file_data, const char *strings,
   data_in->strings = strings;
   data_in->strings_len = len;
   data_in->globals_resolution = resolutions;
-  data_in->reader_cache = streamer_tree_cache_create ();
+  data_in->reader_cache = streamer_tree_cache_create (false, false);
 
   return data_in;
 }

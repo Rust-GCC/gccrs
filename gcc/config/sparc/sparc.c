@@ -52,6 +52,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "params.h"
 #include "df.h"
 #include "opts.h"
+#include "tree-pass.h"
+#include "context.h"
 
 /* Processor costs */
 
@@ -221,6 +223,30 @@ struct processor_costs leon_costs = {
   0, /* imul bit factor */
   COSTS_N_INSNS (5), /* idiv */
   COSTS_N_INSNS (5), /* idivX */
+  COSTS_N_INSNS (1), /* movcc/movr */
+  0, /* shift penalty */
+};
+
+static const
+struct processor_costs leon3_costs = {
+  COSTS_N_INSNS (1), /* int load */
+  COSTS_N_INSNS (1), /* int signed load */
+  COSTS_N_INSNS (1), /* int zeroed load */
+  COSTS_N_INSNS (1), /* float load */
+  COSTS_N_INSNS (1), /* fmov, fneg, fabs */
+  COSTS_N_INSNS (1), /* fadd, fsub */
+  COSTS_N_INSNS (1), /* fcmp */
+  COSTS_N_INSNS (1), /* fmov, fmovr */
+  COSTS_N_INSNS (1), /* fmul */
+  COSTS_N_INSNS (14), /* fdivs */
+  COSTS_N_INSNS (15), /* fdivd */
+  COSTS_N_INSNS (22), /* fsqrts */
+  COSTS_N_INSNS (23), /* fsqrtd */
+  COSTS_N_INSNS (5), /* imul */
+  COSTS_N_INSNS (5), /* imulX */
+  0, /* imul bit factor */
+  COSTS_N_INSNS (35), /* idiv */
+  COSTS_N_INSNS (35), /* idivX */
   COSTS_N_INSNS (1), /* movcc/movr */
   0, /* shift penalty */
 };
@@ -538,7 +564,6 @@ static void sparc_output_mi_thunk (FILE *, tree, HOST_WIDE_INT,
 				   HOST_WIDE_INT, tree);
 static bool sparc_can_output_mi_thunk (const_tree, HOST_WIDE_INT,
 				       HOST_WIDE_INT, const_tree);
-static void sparc_reorg (void);
 static struct machine_function * sparc_init_machine_status (void);
 static bool sparc_cannot_force_const_mem (enum machine_mode, rtx);
 static rtx sparc_tls_get_addr (void);
@@ -597,6 +622,7 @@ static void sparc_print_operand_address (FILE *, rtx);
 static reg_class_t sparc_secondary_reload (bool, rtx, reg_class_t,
 					   enum machine_mode,
 					   secondary_reload_info *);
+static enum machine_mode sparc_cstore_mode (enum insn_code icode);
 
 #ifdef SUBTARGET_ATTRIBUTE_TABLE
 /* Table of valid machine attributes.  */
@@ -679,9 +705,6 @@ char sparc_hard_reg_printed[8];
 #define TARGET_ASM_OUTPUT_MI_THUNK sparc_output_mi_thunk
 #undef TARGET_ASM_CAN_OUTPUT_MI_THUNK
 #define TARGET_ASM_CAN_OUTPUT_MI_THUNK sparc_can_output_mi_thunk
-
-#undef TARGET_MACHINE_DEPENDENT_REORG
-#define TARGET_MACHINE_DEPENDENT_REORG sparc_reorg
 
 #undef TARGET_RTX_COSTS
 #define TARGET_RTX_COSTS sparc_rtx_costs
@@ -802,8 +825,221 @@ char sparc_hard_reg_printed[8];
 #undef TARGET_ATOMIC_TEST_AND_SET_TRUEVAL
 #define TARGET_ATOMIC_TEST_AND_SET_TRUEVAL 0xff
 
+#undef TARGET_CSTORE_MODE
+#define TARGET_CSTORE_MODE sparc_cstore_mode
+
 struct gcc_target targetm = TARGET_INITIALIZER;
 
+/* Return the memory reference contained in X if any, zero otherwise.  */
+
+static rtx
+mem_ref (rtx x)
+{
+  if (GET_CODE (x) == SIGN_EXTEND || GET_CODE (x) == ZERO_EXTEND)
+    x = XEXP (x, 0);
+
+  if (MEM_P (x))
+    return x;
+
+  return NULL_RTX;
+}
+
+/* We use a machine specific pass to enable workarounds for errata.
+   We need to have the (essentially) final form of the insn stream in order
+   to properly detect the various hazards.  Therefore, this machine specific
+   pass runs as late as possible.  The pass is inserted in the pass pipeline
+   at the end of sparc_option_override.  */
+
+static bool
+sparc_gate_work_around_errata (void)
+{
+  /* The only errata we handle are those of the AT697F and UT699.  */
+  return sparc_fix_at697f != 0 || sparc_fix_ut699 != 0;
+}
+
+static unsigned int
+sparc_do_work_around_errata (void)
+{
+  rtx insn, next;
+
+  /* Force all instructions to be split into their final form.  */
+  split_all_insns_noflow ();
+
+  /* Now look for specific patterns in the insn stream.  */
+  for (insn = get_insns (); insn; insn = next)
+    {
+      bool insert_nop = false;
+      rtx set;
+
+      /* Look into the instruction in a delay slot.  */
+      if (NONJUMP_INSN_P (insn) && GET_CODE (PATTERN (insn)) == SEQUENCE)
+	insn = XVECEXP (PATTERN (insn), 0, 1);
+
+      /* Look for a single-word load into an odd-numbered FP register.  */
+      if (sparc_fix_at697f
+	  && NONJUMP_INSN_P (insn)
+	  && (set = single_set (insn)) != NULL_RTX
+	  && GET_MODE_SIZE (GET_MODE (SET_SRC (set))) == 4
+	  && MEM_P (SET_SRC (set))
+	  && REG_P (SET_DEST (set))
+	  && REGNO (SET_DEST (set)) > 31
+	  && REGNO (SET_DEST (set)) % 2 != 0)
+	{
+	  /* The wrong dependency is on the enclosing double register.  */
+	  unsigned int x = REGNO (SET_DEST (set)) - 1;
+	  unsigned int src1, src2, dest;
+	  int code;
+
+	  /* If the insn has a delay slot, then it cannot be problematic.  */
+	  next = next_active_insn (insn);
+	  if (!next)
+	    break;
+	  if (NONJUMP_INSN_P (next) && GET_CODE (PATTERN (next)) == SEQUENCE)
+	    continue;
+
+	  extract_insn (next);
+	  code = INSN_CODE (next);
+
+	  switch (code)
+	    {
+	    case CODE_FOR_adddf3:
+	    case CODE_FOR_subdf3:
+	    case CODE_FOR_muldf3:
+	    case CODE_FOR_divdf3:
+	      dest = REGNO (recog_data.operand[0]);
+	      src1 = REGNO (recog_data.operand[1]);
+	      src2 = REGNO (recog_data.operand[2]);
+	      if (src1 != src2)
+		{
+		  /* Case [1-4]:
+				 ld [address], %fx+1
+				 FPOPd %f{x,y}, %f{y,x}, %f{x,y}  */
+		  if ((src1 == x || src2 == x)
+		      && (dest == src1 || dest == src2))
+		    insert_nop = true;
+		}
+	      else
+		{
+		  /* Case 5:
+			     ld [address], %fx+1
+			     FPOPd %fx, %fx, %fx  */
+		  if (src1 == x
+		      && dest == src1
+		      && (code == CODE_FOR_adddf3 || code == CODE_FOR_muldf3))
+		    insert_nop = true;
+		}
+	      break;
+
+	    case CODE_FOR_sqrtdf2:
+	      dest = REGNO (recog_data.operand[0]);
+	      src1 = REGNO (recog_data.operand[1]);
+	      /* Case 6:
+			 ld [address], %fx+1
+			 fsqrtd %fx, %fx  */
+	      if (src1 == x && dest == src1)
+		insert_nop = true;
+	      break;
+
+	    default:
+	      break;
+	    }
+	}
+
+      /* Look for a single-word load into an integer register.  */
+      else if (sparc_fix_ut699
+	       && NONJUMP_INSN_P (insn)
+	       && (set = single_set (insn)) != NULL_RTX
+	       && GET_MODE_SIZE (GET_MODE (SET_SRC (set))) <= 4
+	       && mem_ref (SET_SRC (set)) != NULL_RTX
+	       && REG_P (SET_DEST (set))
+	       && REGNO (SET_DEST (set)) < 32)
+	{
+	  /* There is no problem if the second memory access has a data
+	     dependency on the first single-cycle load.  */
+	  rtx x = SET_DEST (set);
+
+	  /* If the insn has a delay slot, then it cannot be problematic.  */
+	  next = next_active_insn (insn);
+	  if (!next)
+	    break;
+	  if (NONJUMP_INSN_P (next) && GET_CODE (PATTERN (next)) == SEQUENCE)
+	    continue;
+
+	  /* Look for a second memory access to/from an integer register.  */
+	  if ((set = single_set (next)) != NULL_RTX)
+	    {
+	      rtx src = SET_SRC (set);
+	      rtx dest = SET_DEST (set);
+	      rtx mem;
+
+	      /* LDD is affected.  */
+	      if ((mem = mem_ref (src)) != NULL_RTX
+		  && REG_P (dest)
+		  && REGNO (dest) < 32
+		  && !reg_mentioned_p (x, XEXP (mem, 0)))
+		insert_nop = true;
+
+	      /* STD is *not* affected.  */
+	      else if ((mem = mem_ref (dest)) != NULL_RTX
+		       && GET_MODE_SIZE (GET_MODE (mem)) <= 4
+		       && (src == const0_rtx
+			   || (REG_P (src)
+			       && REGNO (src) < 32
+			       && REGNO (src) != REGNO (x)))
+		       && !reg_mentioned_p (x, XEXP (mem, 0)))
+		insert_nop = true;
+	    }
+	}
+
+      else
+	next = NEXT_INSN (insn);
+
+      if (insert_nop)
+	emit_insn_before (gen_nop (), next);
+    }
+
+  return 0;
+}
+
+namespace {
+
+const pass_data pass_data_work_around_errata =
+{
+  RTL_PASS, /* type */
+  "errata", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_MACH_DEP, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  TODO_verify_rtl_sharing, /* todo_flags_finish */
+};
+
+class pass_work_around_errata : public rtl_opt_pass
+{
+public:
+  pass_work_around_errata(gcc::context *ctxt)
+    : rtl_opt_pass(pass_data_work_around_errata, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return sparc_gate_work_around_errata (); }
+  unsigned int execute () { return sparc_do_work_around_errata (); }
+
+}; // class pass_work_around_errata
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_work_around_errata (gcc::context *ctxt)
+{
+  return new pass_work_around_errata (ctxt);
+}
+
+/* Helpers for TARGET_DEBUG_OPTIONS.  */
 static void
 dump_target_flag_bits (const int flags)
 {
@@ -888,6 +1124,7 @@ sparc_option_override (void)
     { TARGET_CPU_supersparc, PROCESSOR_SUPERSPARC },
     { TARGET_CPU_hypersparc, PROCESSOR_HYPERSPARC },
     { TARGET_CPU_leon, PROCESSOR_LEON },
+    { TARGET_CPU_leon3, PROCESSOR_LEON3 },
     { TARGET_CPU_sparclite, PROCESSOR_F930 },
     { TARGET_CPU_sparclite86x, PROCESSOR_SPARCLITE86X },
     { TARGET_CPU_sparclet, PROCESSOR_TSC701 },
@@ -902,7 +1139,7 @@ sparc_option_override (void)
   };
   const struct cpu_default *def;
   /* Table of values for -m{cpu,tune}=.  This must match the order of
-     the PROCESSOR_* enumeration.  */
+     the enum processor_type in sparc-opts.h.  */
   static struct cpu_table {
     const char *const name;
     const int disable;
@@ -914,8 +1151,8 @@ sparc_option_override (void)
     /* TI TMS390Z55 supersparc */
     { "supersparc",	MASK_ISA, MASK_V8 },
     { "hypersparc",	MASK_ISA, MASK_V8|MASK_FPU },
-    /* LEON */
-    { "leon",		MASK_ISA, MASK_V8|MASK_FPU },
+    { "leon",		MASK_ISA, MASK_V8|MASK_LEON|MASK_FPU },
+    { "leon3",		MASK_ISA, MASK_V8|MASK_LEON3|MASK_FPU },
     { "sparclite",	MASK_ISA, MASK_SPARCLITE },
     /* The Fujitsu MB86930 is the original sparclite chip, with no FPU.  */
     { "f930",		MASK_ISA|MASK_FPU, MASK_SPARCLITE },
@@ -1075,6 +1312,9 @@ sparc_option_override (void)
 #ifndef HAVE_AS_SPARC4
 		   & ~MASK_CBCOND
 #endif
+#ifndef HAVE_AS_LEON
+		   & ~(MASK_LEON | MASK_LEON3)
+#endif
 		   );
 
   /* If -mfpu or -mno-fpu was explicitly used, don't override with
@@ -1164,6 +1404,9 @@ sparc_option_override (void)
     case PROCESSOR_LEON:
       sparc_costs = &leon_costs;
       break;
+    case PROCESSOR_LEON3:
+      sparc_costs = &leon3_costs;
+      break;
     case PROCESSOR_SPARCLET:
     case PROCESSOR_TSC701:
       sparc_costs = &sparclet_costs;
@@ -1200,6 +1443,10 @@ sparc_option_override (void)
       /* Choose the most relaxed model for the processor.  */
       else if (TARGET_V9)
 	sparc_memory_model = SMM_RMO;
+      else if (TARGET_LEON3)
+	sparc_memory_model = SMM_TSO;
+      else if (TARGET_LEON)
+	sparc_memory_model = SMM_SC;
       else if (TARGET_V8)
 	sparc_memory_model = SMM_PSO;
       else
@@ -1241,6 +1488,21 @@ sparc_option_override (void)
      pessimizes for double floating-point registers.  */
   if (!global_options_set.x_flag_ira_share_save_slots)
     flag_ira_share_save_slots = 0;
+
+  /* We register a machine specific pass to work around errata, if any.
+     The pass mut be scheduled as late as possible so that we have the
+     (essentially) final form of the insn stream to work on.
+     Registering the pass must be done at start up.  It's convenient to
+     do it here.  */
+  opt_pass *errata_pass = make_pass_work_around_errata (g);
+  struct register_pass_info insert_pass_work_around_errata =
+    {
+      errata_pass,		/* pass */
+      "dbr",			/* reference_pass_name */
+      1,			/* ref_pass_instance_number */
+      PASS_POS_INSERT_AFTER	/* po_op */
+    };
+  register_pass (&insert_pass_work_around_errata);
 }
 
 /* Miscellaneous utilities.  */
@@ -2572,7 +2834,11 @@ emit_scc_insn (rtx operands[])
     {
       if (GET_MODE (x) == SImode)
         {
-          rtx pat = gen_seqsi_special (operands[0], x, y);
+	  rtx pat;
+	  if (TARGET_ARCH64)
+	    pat = gen_seqsidi_special (operands[0], x, y);
+	  else
+	    pat = gen_seqsisi_special (operands[0], x, y);
           emit_insn (pat);
           return true;
         }
@@ -2588,7 +2854,11 @@ emit_scc_insn (rtx operands[])
     {
       if (GET_MODE (x) == SImode)
         {
-          rtx pat = gen_snesi_special (operands[0], x, y);
+          rtx pat;
+	  if (TARGET_ARCH64)
+	    pat = gen_snesidi_special (operands[0], x, y);
+	  else
+	    pat = gen_snesisi_special (operands[0], x, y);
           emit_insn (pat);
           return true;
         }
@@ -2631,7 +2901,7 @@ emit_scc_insn (rtx operands[])
       || (!TARGET_VIS3 && code == GEU))
     {
       emit_insn (gen_rtx_SET (VOIDmode, operands[0],
-			      gen_rtx_fmt_ee (code, SImode,
+			      gen_rtx_fmt_ee (code, GET_MODE (operands[0]),
 					      gen_compare_reg_1 (code, x, y),
 					      const0_rtx)));
       return true;
@@ -3063,10 +3333,10 @@ emit_cbcond_nop (rtx insn)
   if (!next)
     return 1;
 
-  if (GET_CODE (next) == INSN
+  if (NONJUMP_INSN_P (next)
       && GET_CODE (PATTERN (next)) == SEQUENCE)
     next = XVECEXP (PATTERN (next), 0, 0);
-  else if (GET_CODE (next) == CALL_INSN
+  else if (CALL_P (next)
 	   && GET_CODE (PATTERN (next)) == PARALLEL)
     {
       rtx delay = XVECEXP (PATTERN (next), 0, 1);
@@ -3222,7 +3492,7 @@ eligible_for_return_delay (rtx trial)
   int regno;
   rtx pat;
 
-  if (GET_CODE (trial) != INSN)
+  if (! NONJUMP_INSN_P (trial))
     return 0;
 
   if (get_attr_length (trial) != 1)
@@ -3293,7 +3563,7 @@ eligible_for_sibcall_delay (rtx trial)
 {
   rtx pat;
 
-  if (GET_CODE (trial) != INSN || GET_CODE (PATTERN (trial)) != SET)
+  if (! NONJUMP_INSN_P (trial) || GET_CODE (PATTERN (trial)) != SET)
     return 0;
 
   if (get_attr_length (trial) != 1)
@@ -4780,7 +5050,7 @@ sparc_emit_probe_stack_range (HOST_WIDE_INT first, HOST_WIDE_INT size)
 	 probes at FIRST + N * PROBE_INTERVAL for values of N from 1
 	 until it is equal to ROUNDED_SIZE.  */
 
-      if (TARGET_64BIT)
+      if (TARGET_ARCH64)
 	emit_insn (gen_probe_stack_rangedi (g1, g1, g4));
       else
 	emit_insn (gen_probe_stack_rangesi (g1, g1, g4));
@@ -5092,8 +5362,17 @@ sparc_expand_prologue (void)
   if (flag_stack_usage_info)
     current_function_static_stack_size = size;
 
-  if (flag_stack_check == STATIC_BUILTIN_STACK_CHECK && size)
-    sparc_emit_probe_stack_range (STACK_CHECK_PROTECT, size);
+  if (flag_stack_check == STATIC_BUILTIN_STACK_CHECK)
+    {
+      if (crtl->is_leaf && !cfun->calls_alloca)
+	{
+	  if (size > PROBE_INTERVAL && size > STACK_CHECK_PROTECT)
+	    sparc_emit_probe_stack_range (STACK_CHECK_PROTECT,
+					  size - STACK_CHECK_PROTECT);
+	}
+      else if (size > 0)
+	sparc_emit_probe_stack_range (STACK_CHECK_PROTECT, size);
+    }
 
   if (size == 0)
     ; /* do nothing.  */
@@ -5194,8 +5473,17 @@ sparc_flat_expand_prologue (void)
   if (flag_stack_usage_info)
     current_function_static_stack_size = size;
 
-  if (flag_stack_check == STATIC_BUILTIN_STACK_CHECK && size)
-    sparc_emit_probe_stack_range (STACK_CHECK_PROTECT, size);
+  if (flag_stack_check == STATIC_BUILTIN_STACK_CHECK)
+    {
+      if (crtl->is_leaf && !cfun->calls_alloca)
+	{
+	  if (size > PROBE_INTERVAL && size > STACK_CHECK_PROTECT)
+	    sparc_emit_probe_stack_range (STACK_CHECK_PROTECT,
+					  size - STACK_CHECK_PROTECT);
+	}
+      else if (size > 0)
+	sparc_emit_probe_stack_range (STACK_CHECK_PROTECT, size);
+    }
 
   if (sparc_save_local_in_regs_p)
     emit_save_or_restore_local_in_regs (stack_pointer_rtx, SPARC_STACK_BIAS,
@@ -5427,7 +5715,7 @@ sparc_asm_function_epilogue (FILE *file, HOST_WIDE_INT size ATTRIBUTE_UNUSED)
 
   last_real_insn = prev_real_insn (insn);
   if (last_real_insn
-      && GET_CODE (last_real_insn) == INSN
+      && NONJUMP_INSN_P (last_real_insn)
       && GET_CODE (PATTERN (last_real_insn)) == SEQUENCE)
     last_real_insn = XVECEXP (PATTERN (last_real_insn), 0, 0);
 
@@ -7454,7 +7742,7 @@ output_cbranch (rtx op, rtx dest, int label, int reversed, int annul,
       if (*labelno && insn && (note = find_reg_note (insn, REG_BR_PROB, NULL_RTX)))
 	{
 	  strcpy (p,
-		  ((INTVAL (XEXP (note, 0)) >= REG_BR_PROB_BASE / 2) ^ far)
+		  ((XINT (note, 0) >= REG_BR_PROB_BASE / 2) ^ far)
 		  ? ",pt" : ",pn");
 	  p += 3;
 	  spaces -= 3;
@@ -7925,7 +8213,7 @@ output_v9branch (rtx op, rtx dest, int reg, int label, int reversed,
   if (insn && (note = find_reg_note (insn, REG_BR_PROB, NULL_RTX)))
     {
       strcpy (p,
-	      ((INTVAL (XEXP (note, 0)) >= REG_BR_PROB_BASE / 2) ^ far)
+	      ((XINT (note, 0) >= REG_BR_PROB_BASE / 2) ^ far)
 	      ? ",pt" : ",pn");
       p += 3;
     }
@@ -8271,6 +8559,16 @@ mems_ok_for_ldd_peep (rtx mem1, rtx mem2, rtx dependent_reg_rtx)
   /* All the tests passed.  addr1 and addr2 are valid for ldd and std
      instructions.  */
   return 1;
+}
+
+/* Return the widened memory access made of MEM1 and MEM2 in MODE.  */
+
+rtx
+widen_mem_for_ldd_peep (rtx mem1, rtx mem2, enum machine_mode mode)
+{
+  rtx x = widen_memory_access (mem1, mode, 0);
+  MEM_NOTRAP_P (x) = MEM_NOTRAP_P (mem1) && MEM_NOTRAP_P (mem2);
+  return x;
 }
 
 /* Return 1 if reg is a pseudo, or is the first register in
@@ -10897,107 +11195,6 @@ sparc_can_output_mi_thunk (const_tree thunk_fndecl ATTRIBUTE_UNUSED,
   return (vcall_offset >= -32768 || ! fixed_regs[5]);
 }
 
-/* We use the machine specific reorg pass to enable workarounds for errata.  */
-
-static void
-sparc_reorg (void)
-{
-  rtx insn, next;
-
-  /* The only erratum we handle for now is that of the AT697F processor.  */
-  if (!sparc_fix_at697f)
-    return;
-
-  /* We need to have the (essentially) final form of the insn stream in order
-     to properly detect the various hazards.  Run delay slot scheduling.  */
-  if (optimize > 0 && flag_delayed_branch)
-    {
-      cleanup_barriers ();
-      dbr_schedule (get_insns ());
-    }
-
-  /* Now look for specific patterns in the insn stream.  */
-  for (insn = get_insns (); insn; insn = next)
-    {
-      bool insert_nop = false;
-      rtx set;
-
-      /* Look for a single-word load into an odd-numbered FP register.  */
-      if (NONJUMP_INSN_P (insn)
-	  && (set = single_set (insn)) != NULL_RTX
-	  && GET_MODE_SIZE (GET_MODE (SET_SRC (set))) == 4
-	  && MEM_P (SET_SRC (set))
-	  && REG_P (SET_DEST (set))
-	  && REGNO (SET_DEST (set)) > 31
-	  && REGNO (SET_DEST (set)) % 2 != 0)
-	{
-	  /* The wrong dependency is on the enclosing double register.  */
-	  unsigned int x = REGNO (SET_DEST (set)) - 1;
-	  unsigned int src1, src2, dest;
-	  int code;
-
-	  /* If the insn has a delay slot, then it cannot be problematic.  */
-	  next = next_active_insn (insn);
-	  if (NONJUMP_INSN_P (next) && GET_CODE (PATTERN (next)) == SEQUENCE)
-	    code = -1;
-	  else
-	    {
-	      extract_insn (next);
-	      code = INSN_CODE (next);
-	    }
-
-	  switch (code)
-	    {
-	    case CODE_FOR_adddf3:
-	    case CODE_FOR_subdf3:
-	    case CODE_FOR_muldf3:
-	    case CODE_FOR_divdf3:
-	      dest = REGNO (recog_data.operand[0]);
-	      src1 = REGNO (recog_data.operand[1]);
-	      src2 = REGNO (recog_data.operand[2]);
-	      if (src1 != src2)
-		{
-		  /* Case [1-4]:
-				 ld [address], %fx+1
-				 FPOPd %f{x,y}, %f{y,x}, %f{x,y}  */
-		  if ((src1 == x || src2 == x)
-		      && (dest == src1 || dest == src2))
-		    insert_nop = true;
-		}
-	      else
-		{
-		  /* Case 5:
-			     ld [address], %fx+1
-			     FPOPd %fx, %fx, %fx  */
-		  if (src1 == x
-		      && dest == src1
-		      && (code == CODE_FOR_adddf3 || code == CODE_FOR_muldf3))
-		    insert_nop = true;
-		}
-	      break;
-
-	    case CODE_FOR_sqrtdf2:
-	      dest = REGNO (recog_data.operand[0]);
-	      src1 = REGNO (recog_data.operand[1]);
-	      /* Case 6:
-			 ld [address], %fx+1
-			 fsqrtd %fx, %fx  */
-	      if (src1 == x && dest == src1)
-		insert_nop = true;
-	      break;
-
-	    default:
-	      break;
-	    }
-	}
-      else
-	next = NEXT_INSN (insn);
-
-      if (insert_nop)
-	emit_insn_after (gen_nop (), insn);
-    }
-}
-
 /* How to allocate a 'struct machine_function'.  */
 
 static struct machine_function *
@@ -11487,7 +11684,7 @@ sparc_expand_vec_perm_bmask (enum machine_mode vmode, rtx sel)
     }
 
   /* Always perform the final addition/merge within the bmask insn.  */
-  emit_insn (gen_bmasksi_vis (gen_reg_rtx (SImode), sel, t_1));
+  emit_insn (gen_bmasksi_vis (gen_rtx_REG (SImode, 0), sel, t_1));
 }
 
 /* Implement TARGET_FRAME_POINTER_REQUIRED.  */
@@ -11726,7 +11923,7 @@ static void
 vector_init_bshuffle (rtx target, rtx elt, enum machine_mode mode,
 		      enum machine_mode inner_mode)
 {
-  rtx t1, final_insn;
+  rtx t1, final_insn, sel;
   int bmask;
 
   t1 = gen_reg_rtx (mode);
@@ -11752,8 +11949,8 @@ vector_init_bshuffle (rtx target, rtx elt, enum machine_mode mode,
       gcc_unreachable ();
     }
 
-  emit_insn (gen_bmasksi_vis (gen_reg_rtx (SImode), CONST0_RTX (SImode),
-			      force_reg (SImode, GEN_INT (bmask))));
+  sel = force_reg (SImode, GEN_INT (bmask));
+  emit_insn (gen_bmasksi_vis (gen_rtx_REG (SImode, 0), sel, const0_rtx));
   emit_insn (final_insn);
 }
 
@@ -12110,6 +12307,11 @@ sparc_modes_tieable_p (enum machine_mode mode1, enum machine_mode mode2)
     return false;
 
   return true;
+}
+
+static enum machine_mode sparc_cstore_mode (enum insn_code icode ATTRIBUTE_UNUSED)
+{
+  return (TARGET_ARCH64 ? DImode : SImode);
 }
 
 #include "gt-sparc.h"
