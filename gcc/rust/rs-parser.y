@@ -50,6 +50,7 @@ extern void yyerror (const char *);
 
 %debug
 %locations
+ //%glr-parser
 
 %error-verbose
 %start declarations

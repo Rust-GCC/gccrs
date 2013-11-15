@@ -18,7 +18,7 @@ along with GCC; see the file COPYING3.  If not see
 #define __GCC_RDOT_IMPL_H__
 
 typedef enum {
-    D_IDENTIFIER,
+    D_IDENTIFIER = 0,
     D_T_INTEGER,
     D_T_FLOAT,
     D_T_STRING,
@@ -56,12 +56,12 @@ typedef enum {
     D_STRUCT_ELSE,
     D_STRUCT_CONDITIONAL,
 
-    RTYPE_BOOL = 0,
-    RTYPE_INT = 1,
-    RTYPE_FLOAT = 2,
-    RTYPE_UINT = 3,
+    RTYPE_BOOL,
+    RTYPE_INT,
+    RTYPE_FLOAT,
+    RTYPE_UINT,
     // infer the type please...
-    RTYPE_INFER = 4
+    RTYPE_INFER
 } opcode_t ;
 
 typedef enum {
@@ -82,7 +82,7 @@ typedef struct GTY(()) grs_tree_dot {
     opcode_t T, FT, opaT, opbT;
     qualified qual;
     bool retval;
-    /* location_t loc; */
+    location_t loc;
     struct grs_tree_dot * field1;
     struct grs_tree_dot * field2;
     union {
@@ -114,6 +114,9 @@ typedef struct GTY(()) grs_tree_dot {
 #define RDOT_IDENTIFIER_POINTER(x_)  RDOT_lhs_TC (x_)->o.string
 #define DOT_RETVAL(x_)               x_->retval
 #define MAYBE_RETVAL(x_)	     DOT_RETVAL(x_) = true
+#define RDOT_OPCODE_STR(x_)          rdot_getOpString (x_)
+#define RDOT_CODE_STR(x_)            rdot_getOpString_enum (x_)
+#define RDOT_LOCATION(x_)            x_->loc
 
 extern rdot D_MAYBE_TYPE;
 
@@ -132,5 +135,8 @@ extern rdot rdot_build_identifier (const char *);
 
 /* type / final or mutable / ident */
 extern rdot rdot_build_varDecl (rdot, qualified, rdot);
+
+extern const char * rdot_getOpString (rdot);
+extern const char * rdot_getOpString_enum (opcode_t);
 
 #endif //__GCC_RDOT_IMPL_H__

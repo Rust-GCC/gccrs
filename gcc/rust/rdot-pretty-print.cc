@@ -152,7 +152,7 @@ void dot_pass_dumpExprNode (FILE * fd, rdot node)
     case D_VAR_DECL:
     {
 	const char * mut;
-	if (RDOT_qual (node))
+	if (RDOT_qual (node) == FINAL)
 	    mut = "_final_";
 	else
 	    mut = "_mut_";

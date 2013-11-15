@@ -18,6 +18,54 @@
 
 static bool initilized = false;
 
+static const char * opcodeStrings [] = {
+    "identifier",
+    "literal_integer",
+    "literal_float",
+    "literal_string",
+    "liteal_list",
+    "var_decl",
+    "modify_expr",
+    "multiply_expr",
+    "divide_expr",
+    "plus_expr",
+    "minus_expr",
+    "equivilant_expr",
+    "less_than_expr",
+    "less_eq_expr",
+    "greater_expr",
+    "greater_eq_expr",
+    "not_equal_expr",
+    "call_expr",
+    "attribute_reference",
+    "struct_method",
+    "struct_while",
+    "enc_expression",
+    "TD_COM",
+    "TD_DOT",
+    "TD_NULL",
+    "primitive",
+    "struct_if",
+    "struct_elif",
+    "struct_else",
+    "struct_conditional",
+    "type_bool",
+    "type_int",
+    "type_float",
+    "type_uint",
+    "type_infer"
+};
+
+const char * rdot_getOpString (rdot type)
+{
+    return opcodeStrings [RDOT_TYPE (type)];
+}
+
+const char * rdot_getOpString_enum (opcode_t o)
+{
+    return opcodeStrings [o];
+}
+
 void rdot_init (void)
 {
     if (initilized)
@@ -39,6 +87,7 @@ rdot rdot_alloc (void)
         xmalloc (sizeof (struct grs_tree_dot));
     gcc_assert (retval);
     memset (retval, 0, sizeof (struct grs_tree_dot));
+    RDOT_LOCATION (retval) = UNKNOWN_LOCATION;
     return retval;
 }
 
@@ -129,7 +178,7 @@ rdot rdot_build_integer (const int i)
     RDOT_TYPE(decl) = D_PRIMITIVE;
 
     RDOT_FIELD(decl) = NULL_DOT;
-    RDOT_T_FIELD(decl) = D_TD_NULL;
+    RDOT_T_FIELD(decl) = D_D_EXPR;
 
     decl->opaT = D_TD_COM;
     decl->opa.tc = RDOT_CM_alloc;
@@ -149,7 +198,7 @@ rdot rdot_build_string (const char * s)
     RDOT_TYPE (decl) = D_PRIMITIVE;
 
     RDOT_FIELD (decl) = NULL_DOT;
-    RDOT_T_FIELD (decl) = D_TD_NULL;
+    RDOT_T_FIELD (decl) = D_D_EXPR;
 
     decl->opaT = D_TD_COM;
     decl->opa.tc = RDOT_CM_alloc;
