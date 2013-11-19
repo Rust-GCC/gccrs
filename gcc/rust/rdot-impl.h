@@ -61,7 +61,14 @@ typedef enum {
     RTYPE_FLOAT,
     RTYPE_UINT,
     // infer the type please...
-    RTYPE_INFER
+    RTYPE_INFER,
+
+    D_PARAMETER,
+    D_STRUCT_TYPE,
+    D_STRUCT_PARAM,
+    D_STRUCT_INIT,
+
+    RTYPE_USER_STRUCT
 } opcode_t ;
 
 typedef enum {
@@ -117,8 +124,6 @@ typedef struct GTY(()) grs_tree_dot {
 #define RDOT_OPCODE_STR(x_)          rdot_getOpString (x_)
 #define RDOT_CODE_STR(x_)            rdot_getOpString_enum (x_)
 #define RDOT_LOCATION(x_)            x_->loc
-
-extern rdot D_MAYBE_TYPE;
 
 extern rdot rdot_alloc (void);
 extern void rdot_init (void);

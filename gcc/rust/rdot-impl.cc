@@ -53,7 +53,12 @@ static const char * opcodeStrings [] = {
     "type_int",
     "type_float",
     "type_uint",
-    "type_infer"
+    "type_infer",
+    "parameter",
+    "struct_definition",
+    "struct_init_param",
+    "struct_initilization",
+    "user_struct_type"
 };
 
 const char * rdot_getOpString (rdot type)
@@ -70,7 +75,7 @@ void rdot_init (void)
 {
     if (initilized)
 	return;
-    D_MAYBE_TYPE = rdot_build_decl1 (RTYPE_INFER, NULL_DOT);
+    //... probably should get rid of this function ...
     initilized = true;
 }
 

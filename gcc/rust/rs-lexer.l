@@ -37,6 +37,7 @@ mut                     {  return MUT; }
 while                   {  return WHILE; }
 loop                    {  return LOOP; }
 static                  {  return STATIC; }
+struct                  {  return STRUCT; }
 
 bool                    {  return TYPE_BOOL; }
 int                     {  return TYPE_INT; }
@@ -71,6 +72,8 @@ uint                    {  return TYPE_UINT; }
 "<="                    { return LESS_EQUAL; }
 ">"                     { return GREATER; }
 ">="                    { return GREATER_EQUAL; }
+
+\/\/.*                  ;  /* // style comment */
 
 {QSTRING}               {
   yylval.string = xstrdup (yytext + 1);

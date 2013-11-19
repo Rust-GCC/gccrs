@@ -17,15 +17,10 @@
 #include "rust.h"
 
 tree cstring_type_node;
-rdot D_MAYBE_TYPE;
-
-#define MAYBE_BOMB_OUT						    \
-    do								    \
-	if (seen_error ()) {					    \
-	    error ("GCC rust failing out due to previous errors!"); \
-	    return;						    \
-	}							    \
-    while (0);
+#define MAYBE_BOMB_OUT				\
+  do						\
+    if (seen_error ()) return;			\
+  while (0);
 
 static vec<rdot,va_gc> * rust_decls;
 typedef vec<rdot,va_gc> * (*dot_pass)(vec<rdot,va_gc> *);

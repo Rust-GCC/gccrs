@@ -74,6 +74,7 @@ extern void yyerror (const char *);
 %token GREATER ">"
 %token LESS_EQUAL "<="
 %token GREATER_EQUAL ">="
+%token STRUCT 'struct'
 
 %token<string> STRING
 %token<string> IDENTIFIER
@@ -96,6 +97,13 @@ extern void yyerror (const char *);
 %type<symbol> expression
 %type<symbol> arguments
 %type<symbol> argument_list
+%type<symbol> parameter
+%type<symbol> parameter_list
+%type<symbol> parameters
+%type<symbol> structdef
+%type<symbol> struct_init
+%type<symbol> struct_init_params
+%type<symbol> struct_param
 
 %left '='
 %left '-' '+'
@@ -111,13 +119,42 @@ target_ident: IDENTIFIER
             { $$ = rdot_build_identifier ($1); }
             ;
 
-funcdef: DEFUN target_ident '(' ')' '{' suite '}'
-       { $$ = rdot_build_fndecl ($2, NULL_DOT, NULL_DOT, $6); }
-       | DEFUN target_ident '(' ')' RTYPE type '{' suite '}'
-       { $$ = rdot_build_fndecl ($2, NULL_DOT, $6, $8); }
+parameter: target_ident ':' type
+         {
+	   $$ = rdot_build_decl2 (D_PARAMETER, $1, $3);
+	 }
+         ;
+
+parameter_list: parameter_list ',' parameter
+              {
+		RDOT_CHAIN ($1) = $3;
+		$$ = $3;
+	      }
+              | parameter
+	      {
+		vec_safe_push (symStack, $1);
+		$$ = $1;
+	      }
+              ;
+
+parameters: /* lambda/empty */
+          { $$ = NULL_DOT; }
+          | parameter_list
+	  { $$ = symStack->pop (); }
+	  ;
+
+funcdef: DEFUN target_ident '(' parameters ')' '{' suite '}'
+       { $$ = rdot_build_fndecl ($2, $4, NULL_DOT, $7); }
+       | DEFUN target_ident '(' parameters ')' RTYPE type '{' suite '}'
+       { $$ = rdot_build_fndecl ($2, $4, $7, $9); }
        ;
 
+structdef: STRUCT target_ident '{' parameter_list '}'
+         { $$ = rdot_build_decl2 (D_STRUCT_TYPE, $2, symStack->pop ()); }
+         ;
+
 decl: funcdef
+    | structdef
     ;
 
 suite: statement_list
@@ -162,11 +199,17 @@ expression_stmt: target '=' expression_stmt
           ;
 
 vardecl: LET target_ident
-       { $$ = rdot_build_varDecl (D_MAYBE_TYPE, FINAL, $2); }
+       {
+	 $$ = rdot_build_varDecl (rdot_build_decl1 (RTYPE_INFER, NULL_DOT),
+				  FINAL, $2);
+       }
        | LET target_ident ':' type
        { $$ = rdot_build_varDecl ($4, FINAL, $2); }
        | LET MUT target_ident 
-       { $$ = rdot_build_varDecl (D_MAYBE_TYPE, MUTABLE, $3); }
+       {
+	 $$ = rdot_build_varDecl (rdot_build_decl1 (RTYPE_INFER, NULL_DOT),
+				  MUTABLE, $3);
+       }
        | LET MUT target_ident ':' type
        { $$ = rdot_build_varDecl ($5, MUTABLE, $3); }
        ;
@@ -215,7 +258,28 @@ call: target_ident '(' arguments ')'
     { $$ = rdot_build_decl2 (D_CALL_EXPR, $1, $3); }
     ;
 
+struct_param: target_ident ':' expression
+            { $$ = rdot_build_decl2 (D_STRUCT_PARAM, $1, $3); }
+            ;
+
+struct_init_params: struct_init_params ',' struct_param
+                  {
+		    RDOT_CHAIN ($1) = $3;
+		    $$ = $3;
+		  }
+                  | struct_param
+                  {
+		    vec_safe_push (symStack, $1);
+		    $$ = $1;
+		  }
+                  ;
+
+struct_init: target_ident '{' struct_init_params '}'
+           { $$ = rdot_build_decl2 (D_STRUCT_INIT, $1, symStack->pop ()); }
+           ;
+
 primary: literal
+       | struct_init
        | call
        ;
 
