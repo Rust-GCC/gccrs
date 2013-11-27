@@ -24,13 +24,26 @@ along with GCC; see the file COPYING3.  If not see
 #include "rtl.h"
 #include "hard-reg-set.h"
 #include "tree.h"
+#include "stringpool.h"
+#include "varasm.h"
+#include "stor-layout.h"
+#include "stmt.h"
+#include "print-tree.h"
 #include "tm_p.h"
 #include "basic-block.h"
 #include "function.h"
 #include "expr.h"
 #include "langhooks.h"
 #include "bitmap.h"
+#include "pointer-set.h"
+#include "tree-ssa-alias.h"
+#include "internal-fn.h"
+#include "tree-eh.h"
+#include "gimple-expr.h"
+#include "is-a.h"
 #include "gimple.h"
+#include "gimple-iterator.h"
+#include "gimple-walk.h"
 #include "gimple-ssa.h"
 #include "cgraph.h"
 #include "tree-cfg.h"
@@ -60,6 +73,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-ssa-address.h"
 #include "recog.h"
 #include "output.h"
+
+/* Some systems use __main in a way incompatible with its use in gcc, in these
+   cases use the macros NAME__MAIN to give a quoted symbol and SYMBOL__MAIN to
+   give the same symbol without quotes for an alternative entry point.  You
+   must define both, or neither.  */
+#ifndef NAME__MAIN
+#define NAME__MAIN "__main"
+#endif
 
 /* This variable holds information helping the rewriting of SSA trees
    into RTL.  */
@@ -283,7 +304,7 @@ add_stack_var (tree decl)
   * (size_t *)pointer_map_insert (decl_to_stack_part, decl) = stack_vars_num;
 
   v->decl = decl;
-  v->size = tree_low_cst (DECL_SIZE_UNIT (SSAVAR (decl)), 1);
+  v->size = tree_to_uhwi (DECL_SIZE_UNIT (SSAVAR (decl)));
   /* Ensure that all variables have size, so that &a != &b for any two
      variables that are simultaneously live.  */
   if (v->size == 0)
@@ -1047,7 +1068,7 @@ expand_one_stack_var (tree var)
   HOST_WIDE_INT size, offset;
   unsigned byte_align;
 
-  size = tree_low_cst (DECL_SIZE_UNIT (SSAVAR (var)), 1);
+  size = tree_to_uhwi (DECL_SIZE_UNIT (SSAVAR (var)));
   byte_align = align_local_variable (SSAVAR (var));
 
   /* We handle highly aligned variables in expand_stack_vars.  */
@@ -1120,6 +1141,12 @@ expand_one_error_var (tree var)
 static bool
 defer_stack_allocation (tree var, bool toplevel)
 {
+  /* Whether the variable is small enough for immediate allocation not to be
+     a problem with regard to the frame size.  */
+  bool smallish
+    = ((HOST_WIDE_INT) tree_to_uhwi (DECL_SIZE_UNIT (var))
+       < PARAM_VALUE (PARAM_MIN_SIZE_FOR_STACK_SHARING));
+
   /* If stack protection is enabled, *all* stack variables must be deferred,
      so that we can re-order the strings to the top of the frame.
      Similarly for Address Sanitizer.  */
@@ -1131,8 +1158,15 @@ defer_stack_allocation (tree var, bool toplevel)
   if (DECL_ALIGN (var) > MAX_SUPPORTED_STACK_ALIGNMENT)
     return true;
 
-  /* Variables in the outermost scope automatically conflict with
-     every other variable.  The only reason to want to defer them
+  /* When optimization is enabled, DECL_IGNORED_P variables originally scoped
+     might be detached from their block and appear at toplevel when we reach
+     here.  We want to coalesce them with variables from other blocks when
+     the immediate contribution to the frame size would be noticeable.  */
+  if (toplevel && optimize > 0 && DECL_IGNORED_P (var) && !smallish)
+    return true;
+
+  /* Variables declared in the outermost scope automatically conflict
+     with every other variable.  The only reason to want to defer them
      at all is that, after sorting, we can more efficiently pack
      small variables in the stack frame.  Continue to defer at -O2.  */
   if (toplevel && optimize < 2)
@@ -1144,9 +1178,7 @@ defer_stack_allocation (tree var, bool toplevel)
      other hand, we don't want the function's stack frame size to
      get completely out of hand.  So we avoid adding scalars and
      "small" aggregates to the list at all.  */
-  if (optimize == 0
-      && (tree_low_cst (DECL_SIZE_UNIT (var), 1)
-          < PARAM_VALUE (PARAM_MIN_SIZE_FOR_STACK_SHARING)))
+  if (optimize == 0 && smallish)
     return false;
 
   return true;
@@ -1260,7 +1292,7 @@ expand_one_var (tree var, bool toplevel, bool really_expand)
     {
       if (really_expand)
         expand_one_stack_var (origvar);
-      return tree_low_cst (DECL_SIZE_UNIT (var), 1);
+      return tree_to_uhwi (DECL_SIZE_UNIT (var));
     }
   return 0;
 }
@@ -1337,10 +1369,10 @@ stack_protect_classify_type (tree type)
 	  unsigned HOST_WIDE_INT len;
 
 	  if (!TYPE_SIZE_UNIT (type)
-	      || !host_integerp (TYPE_SIZE_UNIT (type), 1))
+	      || !tree_fits_uhwi_p (TYPE_SIZE_UNIT (type)))
 	    len = max;
 	  else
-	    len = tree_low_cst (TYPE_SIZE_UNIT (type), 1);
+	    len = tree_to_uhwi (TYPE_SIZE_UNIT (type));
 
 	  if (len < max)
 	    ret = SPCT_HAS_SMALL_CHAR_ARRAY | SPCT_HAS_ARRAY;
@@ -1602,9 +1634,15 @@ expand_used_vars (void)
 	  replace_ssa_name_symbol (var, (tree) *slot);
 	}
 
+      /* Always allocate space for partitions based on VAR_DECLs.  But for
+	 those based on PARM_DECLs or RESULT_DECLs and which matter for the
+	 debug info, there is no need to do so if optimization is disabled
+	 because all the SSA_NAMEs based on these DECLs have been coalesced
+	 into a single partition, which is thus assigned the canonical RTL
+	 location of the DECLs.  */
       if (TREE_CODE (SSA_NAME_VAR (var)) == VAR_DECL)
 	expand_one_var (var, true, true);
-      else
+      else if (DECL_IGNORED_P (SSA_NAME_VAR (var)) || optimize)
 	{
 	  /* This is a PARM_DECL or RESULT_DECL.  For those partitions that
 	     contain the default def (representing the parm or result itself)
@@ -1660,9 +1698,11 @@ expand_used_vars (void)
       else if (TREE_STATIC (var) || DECL_EXTERNAL (var))
 	expand_now = true;
 
-      /* If the variable is not associated with any block, then it
-	 was created by the optimizers, and could be live anywhere
-	 in the function.  */
+      /* Expand variables not associated with any block now.  Those created by
+	 the optimizers could be live anywhere in the function.  Those that
+	 could possibly have been scoped originally and detached from their
+	 block will have their allocation deferred so we coalesce them with
+	 others when optimization is enabled.  */
       else if (TREE_USED (var))
 	expand_now = true;
 
@@ -2125,11 +2165,21 @@ expand_call_stmt (gimple stmt)
       return;
     }
 
-  exp = build_vl_exp (CALL_EXPR, gimple_call_num_args (stmt) + 3);
-
-  CALL_EXPR_FN (exp) = gimple_call_fn (stmt);
   decl = gimple_call_fndecl (stmt);
   builtin_p = decl && DECL_BUILT_IN (decl);
+
+  /* Bind bounds call is expanded as assignment.  */
+  if (builtin_p
+      && DECL_BUILT_IN_CLASS (decl) == BUILT_IN_NORMAL
+      && DECL_FUNCTION_CODE (decl) == BUILT_IN_CHKP_BIND_BOUNDS)
+    {
+      expand_assignment (gimple_call_lhs (stmt),
+			 gimple_call_arg (stmt, 0), false);
+      return;
+    }
+
+  exp = build_vl_exp (CALL_EXPR, gimple_call_num_args (stmt) + 3);
+  CALL_EXPR_FN (exp) = gimple_call_fn (stmt);
 
   /* If this is not a builtin function, the function type through which the
      call is made may be different from the type of the function.  */
@@ -3319,7 +3369,7 @@ expand_gimple_tailcall (basic_block bb, gimple stmt, bool *can_fallthru)
     {
       if (!(e->flags & (EDGE_ABNORMAL | EDGE_EH)))
 	{
-	  if (e->dest != EXIT_BLOCK_PTR)
+	  if (e->dest != EXIT_BLOCK_PTR_FOR_FN (cfun))
 	    {
 	      e->dest->count -= e->count;
 	      e->dest->frequency -= EDGE_FREQUENCY (e);
@@ -3355,7 +3405,8 @@ expand_gimple_tailcall (basic_block bb, gimple stmt, bool *can_fallthru)
       delete_insn (NEXT_INSN (last));
     }
 
-  e = make_edge (bb, EXIT_BLOCK_PTR, EDGE_ABNORMAL | EDGE_SIBCALL);
+  e = make_edge (bb, EXIT_BLOCK_PTR_FOR_FN (cfun), EDGE_ABNORMAL
+		 | EDGE_SIBCALL);
   e->probability += probability;
   e->count += count;
   BB_END (bb) = last;
@@ -3890,7 +3941,7 @@ expand_debug_expr (tree exp)
 	tree offset;
 	int volatilep = 0;
 	tree tem = get_inner_reference (exp, &bitsize, &bitpos, &offset,
-					&mode1, &unsignedp, &volatilep, false);
+					&mode1, &unsignedp, &volatilep);
 	rtx orig_op0;
 
 	if (bitsize == 0)
@@ -4796,9 +4847,9 @@ expand_gimple_basic_block (basic_block bb, bool disable_tail_calls)
       gimple ret_stmt = gsi_stmt (gsi);
 
       gcc_assert (single_succ_p (bb));
-      gcc_assert (single_succ (bb) == EXIT_BLOCK_PTR);
+      gcc_assert (single_succ (bb) == EXIT_BLOCK_PTR_FOR_FN (cfun));
 
-      if (bb->next_bb == EXIT_BLOCK_PTR
+      if (bb->next_bb == EXIT_BLOCK_PTR_FOR_FN (cfun)
 	  && !gimple_return_retval (ret_stmt))
 	{
 	  gsi_remove (&gsi, false);
@@ -5140,17 +5191,17 @@ construct_init_block (void)
   int flags;
 
   /* Multiple entry points not supported yet.  */
-  gcc_assert (EDGE_COUNT (ENTRY_BLOCK_PTR->succs) == 1);
-  init_rtl_bb_info (ENTRY_BLOCK_PTR);
-  init_rtl_bb_info (EXIT_BLOCK_PTR);
-  ENTRY_BLOCK_PTR->flags |= BB_RTL;
-  EXIT_BLOCK_PTR->flags |= BB_RTL;
+  gcc_assert (EDGE_COUNT (ENTRY_BLOCK_PTR_FOR_FN (cfun)->succs) == 1);
+  init_rtl_bb_info (ENTRY_BLOCK_PTR_FOR_FN (cfun));
+  init_rtl_bb_info (EXIT_BLOCK_PTR_FOR_FN (cfun));
+  ENTRY_BLOCK_PTR_FOR_FN (cfun)->flags |= BB_RTL;
+  EXIT_BLOCK_PTR_FOR_FN (cfun)->flags |= BB_RTL;
 
-  e = EDGE_SUCC (ENTRY_BLOCK_PTR, 0);
+  e = EDGE_SUCC (ENTRY_BLOCK_PTR_FOR_FN (cfun), 0);
 
   /* When entry edge points to first basic block, we don't need jump,
      otherwise we have to jump into proper target.  */
-  if (e && e->dest != ENTRY_BLOCK_PTR->next_bb)
+  if (e && e->dest != ENTRY_BLOCK_PTR_FOR_FN (cfun)->next_bb)
     {
       tree label = gimple_block_label (e->dest);
 
@@ -5162,11 +5213,11 @@ construct_init_block (void)
 
   init_block = create_basic_block (NEXT_INSN (get_insns ()),
 				   get_last_insn (),
-				   ENTRY_BLOCK_PTR);
-  init_block->frequency = ENTRY_BLOCK_PTR->frequency;
-  init_block->count = ENTRY_BLOCK_PTR->count;
-  if (current_loops && ENTRY_BLOCK_PTR->loop_father)
-    add_bb_to_loop (init_block, ENTRY_BLOCK_PTR->loop_father);
+				   ENTRY_BLOCK_PTR_FOR_FN (cfun));
+  init_block->frequency = ENTRY_BLOCK_PTR_FOR_FN (cfun)->frequency;
+  init_block->count = ENTRY_BLOCK_PTR_FOR_FN (cfun)->count;
+  if (current_loops && ENTRY_BLOCK_PTR_FOR_FN (cfun)->loop_father)
+    add_bb_to_loop (init_block, ENTRY_BLOCK_PTR_FOR_FN (cfun)->loop_father);
   if (e)
     {
       first_block = e->dest;
@@ -5174,9 +5225,9 @@ construct_init_block (void)
       e = make_edge (init_block, first_block, flags);
     }
   else
-    e = make_edge (init_block, EXIT_BLOCK_PTR, EDGE_FALLTHRU);
+    e = make_edge (init_block, EXIT_BLOCK_PTR_FOR_FN (cfun), EDGE_FALLTHRU);
   e->probability = REG_BR_PROB_BASE;
-  e->count = ENTRY_BLOCK_PTR->count;
+  e->count = ENTRY_BLOCK_PTR_FOR_FN (cfun)->count;
 
   update_bb_for_insn (init_block);
   return init_block;
@@ -5207,9 +5258,9 @@ construct_exit_block (void)
   edge e, e2;
   unsigned ix;
   edge_iterator ei;
-  rtx orig_end = BB_END (EXIT_BLOCK_PTR->prev_bb);
+  rtx orig_end = BB_END (EXIT_BLOCK_PTR_FOR_FN (cfun)->prev_bb);
 
-  rtl_profile_for_bb (EXIT_BLOCK_PTR);
+  rtl_profile_for_bb (EXIT_BLOCK_PTR_FOR_FN (cfun));
 
   /* Make sure the locus is set to the end of the function, so that
      epilogue line numbers and warnings are set properly.  */
@@ -5224,30 +5275,30 @@ construct_exit_block (void)
     return;
   /* While emitting the function end we could move end of the last basic block.
    */
-  BB_END (EXIT_BLOCK_PTR->prev_bb) = orig_end;
+  BB_END (EXIT_BLOCK_PTR_FOR_FN (cfun)->prev_bb) = orig_end;
   while (NEXT_INSN (head) && NOTE_P (NEXT_INSN (head)))
     head = NEXT_INSN (head);
   exit_block = create_basic_block (NEXT_INSN (head), end,
-				   EXIT_BLOCK_PTR->prev_bb);
-  exit_block->frequency = EXIT_BLOCK_PTR->frequency;
-  exit_block->count = EXIT_BLOCK_PTR->count;
-  if (current_loops && EXIT_BLOCK_PTR->loop_father)
-    add_bb_to_loop (exit_block, EXIT_BLOCK_PTR->loop_father);
+				   EXIT_BLOCK_PTR_FOR_FN (cfun)->prev_bb);
+  exit_block->frequency = EXIT_BLOCK_PTR_FOR_FN (cfun)->frequency;
+  exit_block->count = EXIT_BLOCK_PTR_FOR_FN (cfun)->count;
+  if (current_loops && EXIT_BLOCK_PTR_FOR_FN (cfun)->loop_father)
+    add_bb_to_loop (exit_block, EXIT_BLOCK_PTR_FOR_FN (cfun)->loop_father);
 
   ix = 0;
-  while (ix < EDGE_COUNT (EXIT_BLOCK_PTR->preds))
+  while (ix < EDGE_COUNT (EXIT_BLOCK_PTR_FOR_FN (cfun)->preds))
     {
-      e = EDGE_PRED (EXIT_BLOCK_PTR, ix);
+      e = EDGE_PRED (EXIT_BLOCK_PTR_FOR_FN (cfun), ix);
       if (!(e->flags & EDGE_ABNORMAL))
 	redirect_edge_succ (e, exit_block);
       else
 	ix++;
     }
 
-  e = make_edge (exit_block, EXIT_BLOCK_PTR, EDGE_FALLTHRU);
+  e = make_edge (exit_block, EXIT_BLOCK_PTR_FOR_FN (cfun), EDGE_FALLTHRU);
   e->probability = REG_BR_PROB_BASE;
-  e->count = EXIT_BLOCK_PTR->count;
-  FOR_EACH_EDGE (e2, ei, EXIT_BLOCK_PTR->preds)
+  e->count = EXIT_BLOCK_PTR_FOR_FN (cfun)->count;
+  FOR_EACH_EDGE (e2, ei, EXIT_BLOCK_PTR_FOR_FN (cfun)->preds)
     if (e2 != e)
       {
 	e->count -= e2->count;
@@ -5477,7 +5528,7 @@ gimple_expand_cfg (void)
   /* Dominators are not kept up-to-date as we may create new basic-blocks.  */
   free_dominance_info (CDI_DOMINATORS);
 
-  rtl_profile_for_bb (ENTRY_BLOCK_PTR);
+  rtl_profile_for_bb (ENTRY_BLOCK_PTR_FOR_FN (cfun));
 
   insn_locations_init ();
   if (!DECL_IS_BUILTIN (current_function_decl))
@@ -5641,11 +5692,12 @@ gimple_expand_cfg (void)
 
   /* Clear EDGE_EXECUTABLE on the entry edge(s).  It is cleaned from the
      remaining edges later.  */
-  FOR_EACH_EDGE (e, ei, ENTRY_BLOCK_PTR->succs)
+  FOR_EACH_EDGE (e, ei, ENTRY_BLOCK_PTR_FOR_FN (cfun)->succs)
     e->flags &= ~EDGE_EXECUTABLE;
 
   lab_rtx_for_bb = pointer_map_create ();
-  FOR_BB_BETWEEN (bb, init_block->next_bb, EXIT_BLOCK_PTR, next_bb)
+  FOR_BB_BETWEEN (bb, init_block->next_bb, EXIT_BLOCK_PTR_FOR_FN (cfun),
+		  next_bb)
     bb = expand_gimple_basic_block (bb, var_ret_seq != NULL_RTX);
 
   if (MAY_HAVE_DEBUG_INSNS)
@@ -5690,7 +5742,8 @@ gimple_expand_cfg (void)
      split edges which edge insertions might do.  */
   rebuild_jump_labels (get_insns ());
 
-  FOR_BB_BETWEEN (bb, ENTRY_BLOCK_PTR, EXIT_BLOCK_PTR, next_bb)
+  FOR_BB_BETWEEN (bb, ENTRY_BLOCK_PTR_FOR_FN (cfun),
+		  EXIT_BLOCK_PTR_FOR_FN (cfun), next_bb)
     {
       edge e;
       edge_iterator ei;
@@ -5701,8 +5754,8 @@ gimple_expand_cfg (void)
 	      rebuild_jump_labels_chain (e->insns.r);
 	      /* Put insns after parm birth, but before
 		 NOTE_INSNS_FUNCTION_BEG.  */
-	      if (e->src == ENTRY_BLOCK_PTR
-		  && single_succ_p (ENTRY_BLOCK_PTR))
+	      if (e->src == ENTRY_BLOCK_PTR_FOR_FN (cfun)
+		  && single_succ_p (ENTRY_BLOCK_PTR_FOR_FN (cfun)))
 		{
 		  rtx insns = e->insns.r;
 		  e->insns.r = NULL_RTX;
@@ -5723,7 +5776,8 @@ gimple_expand_cfg (void)
   /* We're done expanding trees to RTL.  */
   currently_expanding_to_rtl = 0;
 
-  FOR_BB_BETWEEN (bb, ENTRY_BLOCK_PTR->next_bb, EXIT_BLOCK_PTR, next_bb)
+  FOR_BB_BETWEEN (bb, ENTRY_BLOCK_PTR_FOR_FN (cfun)->next_bb,
+		  EXIT_BLOCK_PTR_FOR_FN (cfun), next_bb)
     {
       edge e;
       edge_iterator ei;

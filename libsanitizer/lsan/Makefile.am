@@ -4,17 +4,31 @@ AM_CPPFLAGS = -I $(top_srcdir)/include -I $(top_srcdir)
 gcc_version := $(shell cat $(top_srcdir)/../gcc/BASE-VER)
 
 DEFS = -D_GNU_SOURCE -D_DEBUG -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS 
-AM_CXXFLAGS = -Wall -W -Wno-unused-parameter -Wwrite-strings -pedantic -Wno-long-long  -fPIC -fno-builtin -fno-exceptions -fomit-frame-pointer -funwind-tables -fvisibility=hidden -Wno-variadic-macros
+AM_CXXFLAGS = -Wall -W -Wno-unused-parameter -Wwrite-strings -pedantic -Wno-long-long  -fPIC -fno-builtin -fno-exceptions -fno-rtti -fomit-frame-pointer -funwind-tables -fvisibility=hidden -Wno-variadic-macros
 AM_CXXFLAGS += $(LIBSTDCXX_RAW_CXX_CXXFLAGS)
 ACLOCAL_AMFLAGS = -I m4
 
 noinst_LTLIBRARIES = libsanitizer_lsan.la
+if LSAN_SUPPORTED
+toolexeclib_LTLIBRARIES = liblsan.la
+endif
 
 sanitizer_lsan_files = \
 	lsan_common.cc \
 	lsan_common_linux.cc
 
+lsan_files = \
+	$(sanitizer_lsan_files) \
+	lsan.cc \
+	lsan_allocator.cc \
+	lsan_interceptors.cc \
+	lsan_thread.cc
+
 libsanitizer_lsan_la_SOURCES = $(sanitizer_lsan_files)
+
+liblsan_la_SOURCES = $(lsan_files)
+liblsan_la_LIBADD = $(top_builddir)/sanitizer_common/libsanitizer_common.la $(top_builddir)/interception/libinterception.la $(LIBSTDCXX_RAW_CXX_LDFLAGS)
+liblsan_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` -lpthread -ldl
 
 # Work around what appears to be a GNU make bug handling MAKEFLAGS
 # values defined in terms of make variables, as is the case for CC and

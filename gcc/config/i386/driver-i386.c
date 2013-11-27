@@ -550,6 +550,8 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 	processor = PROCESSOR_GEODE;
       else if (has_movbe)
 	processor = PROCESSOR_BTVER2;
+      else if (has_avx2)
+        processor = PROCESSOR_BDVER4;
       else if (has_xsaveopt)
         processor = PROCESSOR_BDVER3;
       else if (has_bmi)
@@ -643,6 +645,11 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 	case 0x26:
 	  /* Atom.  */
 	  cpu = "atom";
+	  break;
+	case 0x37:
+	case 0x4d:
+	  /* Silvermont.  */
+	  cpu = "slm";
 	  break;
 	case 0x0f:
 	  /* Merom.  */
@@ -771,6 +778,9 @@ const char *host_detect_local_cpu (int argc, const char **argv)
       break;
     case PROCESSOR_BDVER3:
       cpu = "bdver3";
+      break;
+    case PROCESSOR_BDVER4:
+      cpu = "bdver4";
       break;
     case PROCESSOR_BTVER1:
       cpu = "btver1";

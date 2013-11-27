@@ -23,14 +23,22 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
+#include "expr.h"
 #include "intl.h"
 #include "tm.h"
 #include "basic-block.h"
+#include "tree-ssa-alias.h"
+#include "internal-fn.h"
+#include "gimple-expr.h"
+#include "is-a.h"
 #include "gimple.h"
+#include "gimplify.h"
+#include "gimple-iterator.h"
 #include "function.h"
 #include "gimple-ssa.h"
 #include "cgraph.h"
 #include "tree-cfg.h"
+#include "stringpool.h"
 #include "tree-ssanames.h"
 #include "tree-pass.h"
 #include "tree-iterator.h"
@@ -113,7 +121,7 @@ instrument_expr (gimple_stmt_iterator gsi, tree expr, bool is_write)
   enum machine_mode mode;
   int volatilep = 0, unsignedp = 0;
   base = get_inner_reference (expr, &bitsize, &bitpos, &offset,
-			      &mode, &unsignedp, &volatilep, false);
+			      &mode, &unsignedp, &volatilep);
 
   /* No need to instrument accesses to decls that don't escape,
      they can't escape to other threads then.  */
@@ -445,9 +453,8 @@ instrument_builtin_call (gimple_stmt_iterator *gsi)
 	  case check_last:
 	  case fetch_op:
 	    last_arg = gimple_call_arg (stmt, num - 1);
-	    if (!host_integerp (last_arg, 1)
-		|| (unsigned HOST_WIDE_INT) tree_low_cst (last_arg, 1)
-		   > MEMMODEL_SEQ_CST)
+	    if (!tree_fits_uhwi_p (last_arg)
+		|| tree_to_uhwi (last_arg) > MEMMODEL_SEQ_CST)
 	      return;
 	    gimple_call_set_fndecl (stmt, decl);
 	    update_stmt (stmt);
@@ -517,13 +524,11 @@ instrument_builtin_call (gimple_stmt_iterator *gsi)
 	    gcc_assert (num == 6);
 	    for (j = 0; j < 6; j++)
 	      args[j] = gimple_call_arg (stmt, j);
-	    if (!host_integerp (args[4], 1)
-		|| (unsigned HOST_WIDE_INT) tree_low_cst (args[4], 1)
-		   > MEMMODEL_SEQ_CST)
+	    if (!tree_fits_uhwi_p (args[4])
+		|| tree_to_uhwi (args[4]) > MEMMODEL_SEQ_CST)
 	      return;
-	    if (!host_integerp (args[5], 1)
-		|| (unsigned HOST_WIDE_INT) tree_low_cst (args[5], 1)
-		   > MEMMODEL_SEQ_CST)
+	    if (!tree_fits_uhwi_p (args[5])
+		|| tree_to_uhwi (args[5]) > MEMMODEL_SEQ_CST)
 	      return;
 	    update_gimple_call (gsi, decl, 5, args[0], args[1], args[2],
 				args[4], args[5]);
@@ -651,7 +656,7 @@ instrument_func_entry (void)
   tree ret_addr, builtin_decl;
   gimple g;
 
-  succ_bb = single_succ (ENTRY_BLOCK_PTR);
+  succ_bb = single_succ (ENTRY_BLOCK_PTR_FOR_FN (cfun));
   gsi = gsi_after_labels (succ_bb);
 
   builtin_decl = builtin_decl_implicit (BUILT_IN_RETURN_ADDRESS);
@@ -681,7 +686,7 @@ instrument_func_exit (void)
   edge_iterator ei;
 
   /* Find all function exits.  */
-  exit_bb = EXIT_BLOCK_PTR;
+  exit_bb = EXIT_BLOCK_PTR_FOR_FN (cfun);
   FOR_EACH_EDGE (e, ei, exit_bb->preds)
     {
       gsi = gsi_last_bb (e->src);

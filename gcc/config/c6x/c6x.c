@@ -25,6 +25,10 @@
 #include "tm.h"
 #include "rtl.h"
 #include "tree.h"
+#include "stor-layout.h"
+#include "varasm.h"
+#include "calls.h"
+#include "stringpool.h"
 #include "insn-flags.h"
 #include "output.h"
 #include "insn-attr.h"
@@ -52,6 +56,7 @@
 #include "hw-doloop.h"
 #include "regrename.h"
 #include "dumpfile.h"
+#include "gimple-expr.h"
 
 /* Table of supported architecture variants.  */
 typedef struct

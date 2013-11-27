@@ -23,12 +23,17 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "diagnostic-core.h"
 #include "tree.h"
+#include "basic-block.h"
+#include "tree-ssa-alias.h"
+#include "internal-fn.h"
+#include "gimple-expr.h"
+#include "is-a.h"
 #include "gimple.h"
-#include "ggc.h"
 #include "hashtab.h"
 #include "plugin-api.h"
 #include "lto-streamer.h"
 #include "ipa-utils.h"
+#include "ipa-inline.h"
 
 /* Replace the cgraph node NODE with PREVAILING_NODE in the cgraph, merging
    all edges and removing the old node.  */
@@ -44,8 +49,8 @@ lto_cgraph_replace_node (struct cgraph_node *node,
     {
       fprintf (cgraph_dump_file, "Replacing cgraph node %s/%i by %s/%i"
  	       " for symbol %s\n",
-	       cgraph_node_name (node), node->order,
-	       cgraph_node_name (prevailing_node),
+	       node->name (), node->order,
+	       prevailing_node->name (),
 	       prevailing_node->order,
 	       IDENTIFIER_POINTER ((*targetm.asm_out.mangle_assembler_name)
 		 (IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (node->decl)))));
@@ -83,6 +88,12 @@ lto_cgraph_replace_node (struct cgraph_node *node,
 
   if (node->decl != prevailing_node->decl)
     cgraph_release_function_body (node);
+
+  /* Time profile merging */
+  if (node->tp_first_run)
+    prevailing_node->tp_first_run = prevailing_node->tp_first_run ?
+      MIN (prevailing_node->tp_first_run, node->tp_first_run) :
+      node->tp_first_run;
 
   /* Finally remove the replaced node.  */
   cgraph_remove_node (node);
@@ -421,7 +432,7 @@ lto_symtab_merge_decls_1 (symtab_node *first)
   if (cgraph_dump_file)
     {
       fprintf (cgraph_dump_file, "Merging nodes for %s. Candidates:\n",
-	       symtab_node_asm_name (first));
+	       first->asm_name ());
       for (e = first; e; e = e->next_sharing_asm_name)
 	if (TREE_PUBLIC (e->decl))
 	  dump_symtab_node (cgraph_dump_file, e);

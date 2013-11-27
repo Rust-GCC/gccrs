@@ -211,7 +211,7 @@ create_pre_exit (int n_entities, int *entity_map, const int *num_modes)
      fallthrough edge; there can be at most one, but there could be
      none at all, e.g. when exit is called.  */
   pre_exit = 0;
-  FOR_EACH_EDGE (eg, ei, EXIT_BLOCK_PTR->preds)
+  FOR_EACH_EDGE (eg, ei, EXIT_BLOCK_PTR_FOR_FN (cfun)->preds)
     if (eg->flags & EDGE_FALLTHRU)
       {
 	basic_block src_bb = eg->src;
@@ -221,7 +221,7 @@ create_pre_exit (int n_entities, int *entity_map, const int *num_modes)
 	/* If this function returns a value at the end, we have to
 	   insert the final mode switch before the return value copy
 	   to its hard register.  */
-	if (EDGE_COUNT (EXIT_BLOCK_PTR->preds) == 1
+	if (EDGE_COUNT (EXIT_BLOCK_PTR_FOR_FN (cfun)->preds) == 1
 	    && NONJUMP_INSN_P ((last_insn = BB_END (src_bb)))
 	    && GET_CODE (PATTERN (last_insn)) == USE
 	    && GET_CODE ((ret_reg = XEXP (PATTERN (last_insn), 0))) == REG)
@@ -492,7 +492,7 @@ optimize_mode_switching (void)
 #if defined (MODE_ENTRY) && defined (MODE_EXIT)
   /* Split the edge from the entry block, so that we can note that
      there NORMAL_MODE is supplied.  */
-  post_entry = split_edge (single_succ_edge (ENTRY_BLOCK_PTR));
+  post_entry = split_edge (single_succ_edge (ENTRY_BLOCK_PTR_FOR_FN (cfun)));
   pre_exit = create_pre_exit (n_entities, entity_map, num_modes);
 #endif
 
@@ -571,12 +571,15 @@ optimize_mode_switching (void)
 
 	  info[bb->index].computing = last_mode;
 	  /* Check for blocks without ANY mode requirements.
-	     N.B. because of MODE_AFTER, last_mode might still be different
-	     from no_mode.  */
+	     N.B. because of MODE_AFTER, last_mode might still
+	     be different from no_mode, in which case we need to
+	     mark the block as nontransparent.  */
 	  if (!any_set_required)
 	    {
 	      ptr = new_seginfo (no_mode, BB_END (bb), bb->index, live_now);
 	      add_seginfo (info + bb->index, ptr);
+	      if (last_mode != no_mode)
+		bitmap_clear_bit (transp[bb->index], j);
 	    }
 	}
 #if defined (MODE_ENTRY) && defined (MODE_EXIT)

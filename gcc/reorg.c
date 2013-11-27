@@ -2302,15 +2302,16 @@ follow_jumps (rtx label, rtx jump, bool *crossing)
        depth++)
     {
       rtx this_label = JUMP_LABEL (insn);
-      rtx tem;
 
       /* If we have found a cycle, make the insn jump to itself.  */
       if (this_label == label)
 	return label;
+
+      /* Cannot follow returns and cannot look through tablejumps.  */
       if (ANY_RETURN_P (this_label))
 	return this_label;
-      tem = next_active_insn (this_label);
-      if (tem && JUMP_TABLE_DATA_P (tem))
+      if (NEXT_INSN (this_label)
+	  && JUMP_TABLE_DATA_P (NEXT_INSN (this_label)))
 	break;
 
       if (!targetm.can_follow_jump (jump, insn))
@@ -3642,7 +3643,7 @@ dbr_schedule (rtx first)
 
   /* If the current function has no insns other than the prologue and
      epilogue, then do not try to fill any delay slots.  */
-  if (n_basic_blocks == NUM_FIXED_BLOCKS)
+  if (n_basic_blocks_for_fn (cfun) == NUM_FIXED_BLOCKS)
     return;
 
   /* Find the highest INSN_UID and allocate and initialize our map from

@@ -443,7 +443,7 @@ enum reg_class
 #define INDEX_REG_CLASS	CORE_REGS
 #define BASE_REG_CLASS  POINTER_REGS
 
-/* Register pairs used to eliminate unneeded registers that point intoi
+/* Register pairs used to eliminate unneeded registers that point into
    the stack frame.  */
 #define ELIMINABLE_REGS							\
 {									\
@@ -468,10 +468,10 @@ enum target_cpus
   TARGET_CPU_generic
 };
 
-/* If there is no CPU defined at configure, use "generic" as default.  */
+/* If there is no CPU defined at configure, use "cortex-a53" as default.  */
 #ifndef TARGET_CPU_DEFAULT
 #define TARGET_CPU_DEFAULT \
-  (TARGET_CPU_generic | (AARCH64_CPU_DEFAULT_FLAGS << 6))
+  (TARGET_CPU_cortexa53 | (AARCH64_CPU_DEFAULT_FLAGS << 6))
 #endif
 
 /* The processor for which instructions should be scheduled.  */
@@ -484,7 +484,7 @@ extern enum aarch64_processor aarch64_tune;
 /* Stack layout; function entry, exit and calling.  */
 #define STACK_GROWS_DOWNWARD	1
 
-#define FRAME_GROWS_DOWNWARD	0
+#define FRAME_GROWS_DOWNWARD	1
 
 #define STARTING_FRAME_OFFSET	0
 
@@ -789,13 +789,13 @@ do {									     \
 
 /* Emit rtl for profiling.  Output assembler code to FILE
    to call "_mcount" for profiling a function entry.  */
-#define PROFILE_HOOK(LABEL)                                    \
-{                                                              \
-  rtx fun,lr;                                                  \
-  lr = get_hard_reg_initial_val (Pmode, LR_REGNUM);            \
-  fun = gen_rtx_SYMBOL_REF (Pmode, MCOUNT_NAME);               \
-  emit_library_call (fun, LCT_NORMAL, VOIDmode, 1, lr, Pmode); \
-}
+#define PROFILE_HOOK(LABEL)						\
+  {									\
+    rtx fun, lr;							\
+    lr = get_hard_reg_initial_val (Pmode, LR_REGNUM);			\
+    fun = gen_rtx_SYMBOL_REF (Pmode, MCOUNT_NAME);			\
+    emit_library_call (fun, LCT_NORMAL, VOIDmode, 1, lr, Pmode);	\
+  }
 
 /* All the work done in PROFILE_HOOK, but still required.  */
 #define FUNCTION_PROFILER(STREAM, LABELNO) do { } while (0)
@@ -853,5 +853,8 @@ extern enum aarch64_code_model aarch64_cmodel;
 #define AARCH64_VALID_SIMD_QREG_MODE(MODE) \
   ((MODE) == V4SImode || (MODE) == V8HImode || (MODE) == V16QImode \
    || (MODE) == V4SFmode || (MODE) == V2DImode || mode == V2DFmode)
+
+#define ENDIAN_LANE_N(mode, n)  \
+  (BYTES_BIG_ENDIAN ? GET_MODE_NUNITS (mode) - 1 - n : n)
 
 #endif /* GCC_AARCH64_H */

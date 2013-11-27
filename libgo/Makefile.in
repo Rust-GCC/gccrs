@@ -179,12 +179,9 @@ libgo_la_DEPENDENCIES = $(am__DEPENDENCIES_2) \
 @LIBGO_IS_LINUX_TRUE@am__objects_1 = lock_futex.lo thread-linux.lo
 @HAVE_SYS_MMAN_H_FALSE@am__objects_2 = mem_posix_memalign.lo
 @HAVE_SYS_MMAN_H_TRUE@am__objects_2 = mem.lo
-@LIBGO_IS_DARWIN_FALSE@@LIBGO_IS_LINUX_FALSE@am__objects_3 =  \
-@LIBGO_IS_DARWIN_FALSE@@LIBGO_IS_LINUX_FALSE@	netpoll_stub.lo
-@LIBGO_IS_DARWIN_TRUE@@LIBGO_IS_LINUX_FALSE@am__objects_3 =  \
-@LIBGO_IS_DARWIN_TRUE@@LIBGO_IS_LINUX_FALSE@	netpoll.lo \
-@LIBGO_IS_DARWIN_TRUE@@LIBGO_IS_LINUX_FALSE@	netpoll_kqueue.lo
-@LIBGO_IS_LINUX_TRUE@am__objects_3 = netpoll.lo netpoll_epoll.lo
+@LIBGO_IS_LINUX_FALSE@@LIBGO_IS_SOLARIS_FALSE@am__objects_3 = netpoll_kqueue.lo
+@LIBGO_IS_LINUX_FALSE@@LIBGO_IS_SOLARIS_TRUE@am__objects_3 = netpoll_select.lo
+@LIBGO_IS_LINUX_TRUE@am__objects_3 = netpoll_epoll.lo
 @LIBGO_IS_RTEMS_TRUE@am__objects_4 = rtems-task-variable-add.lo
 @LIBGO_IS_DARWIN_FALSE@@LIBGO_IS_FREEBSD_FALSE@@LIBGO_IS_IRIX_FALSE@@LIBGO_IS_LINUX_FALSE@@LIBGO_IS_NETBSD_FALSE@@LIBGO_IS_SOLARIS_FALSE@am__objects_5 = getncpu-none.lo
 @LIBGO_IS_DARWIN_FALSE@@LIBGO_IS_FREEBSD_FALSE@@LIBGO_IS_IRIX_FALSE@@LIBGO_IS_LINUX_FALSE@@LIBGO_IS_NETBSD_TRUE@@LIBGO_IS_SOLARIS_FALSE@am__objects_5 = getncpu-bsd.lo
@@ -215,13 +212,14 @@ am__objects_6 = go-append.lo go-assert.lo go-assert-interface.lo \
 	go-type-float.lo go-type-identity.lo go-type-interface.lo \
 	go-type-string.lo go-typedesc-equal.lo go-typestring.lo \
 	go-unsafe-new.lo go-unsafe-newarray.lo go-unsafe-pointer.lo \
-	go-unwind.lo chan.lo cpuprof.lo env_posix.lo lfstack.lo \
-	$(am__objects_1) mcache.lo mcentral.lo $(am__objects_2) \
-	mfinal.lo mfixalloc.lo mgc0.lo mheap.lo msize.lo \
-	$(am__objects_3) panic.lo parfor.lo print.lo proc.lo \
+	go-unwind.lo go-varargs.lo chan.lo cpuprof.lo env_posix.lo \
+	lfstack.lo $(am__objects_1) mcache.lo mcentral.lo \
+	$(am__objects_2) mfinal.lo mfixalloc.lo mgc0.lo mheap.lo \
+	msize.lo $(am__objects_3) panic.lo parfor.lo print.lo proc.lo \
 	runtime.lo signal_unix.lo thread.lo yield.lo $(am__objects_4) \
-	iface.lo malloc.lo map.lo mprof.lo reflect.lo runtime1.lo \
-	sema.lo sigqueue.lo string.lo time.lo $(am__objects_5)
+	iface.lo malloc.lo map.lo mprof.lo netpoll.lo reflect.lo \
+	runtime1.lo sema.lo sigqueue.lo string.lo time.lo \
+	$(am__objects_5)
 am_libgo_la_OBJECTS = $(am__objects_6)
 libgo_la_OBJECTS = $(am_libgo_la_OBJECTS)
 libgo_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
@@ -752,9 +750,9 @@ toolexeclibgounicode_DATA = \
 @LIBGO_IS_DARWIN_FALSE@@LIBGO_IS_IRIX_TRUE@@LIBGO_IS_LINUX_FALSE@runtime_getncpu_file = runtime/getncpu-irix.c
 @LIBGO_IS_DARWIN_TRUE@@LIBGO_IS_LINUX_FALSE@runtime_getncpu_file = runtime/getncpu-bsd.c
 @LIBGO_IS_LINUX_TRUE@runtime_getncpu_file = runtime/getncpu-linux.c
-@LIBGO_IS_DARWIN_FALSE@@LIBGO_IS_LINUX_FALSE@runtime_netpoll_files = runtime/netpoll_stub.c
-@LIBGO_IS_DARWIN_TRUE@@LIBGO_IS_LINUX_FALSE@runtime_netpoll_files = netpoll.c runtime/netpoll_kqueue.c
-@LIBGO_IS_LINUX_TRUE@runtime_netpoll_files = netpoll.c runtime/netpoll_epoll.c
+@LIBGO_IS_LINUX_FALSE@@LIBGO_IS_SOLARIS_FALSE@runtime_netpoll_files = runtime/netpoll_kqueue.c
+@LIBGO_IS_LINUX_FALSE@@LIBGO_IS_SOLARIS_TRUE@runtime_netpoll_files = runtime/netpoll_select.c
+@LIBGO_IS_LINUX_TRUE@runtime_netpoll_files = runtime/netpoll_epoll.c
 runtime_files = \
 	runtime/go-append.c \
 	runtime/go-assert.c \
@@ -821,6 +819,7 @@ runtime_files = \
 	runtime/go-unsafe-newarray.c \
 	runtime/go-unsafe-pointer.c \
 	runtime/go-unwind.c \
+	runtime/go-varargs.c \
 	runtime/chan.c \
 	runtime/cpuprof.c \
 	runtime/env_posix.c \
@@ -848,6 +847,7 @@ runtime_files = \
 	malloc.c \
 	map.c \
 	mprof.c \
+	netpoll.c \
 	reflect.c \
 	runtime1.c \
 	sema.c \
@@ -962,16 +962,6 @@ go_mime_files = \
 	go/mime/type.go \
 	go/mime/type_unix.go
 
-# By default use select with pipes.  Most systems should have
-# something better.
-@LIBGO_IS_LINUX_FALSE@@LIBGO_IS_NETBSD_FALSE@@LIBGO_IS_RTEMS_FALSE@go_net_fd_os_file = go/net/fd_select.go
-@LIBGO_IS_LINUX_FALSE@@LIBGO_IS_NETBSD_TRUE@@LIBGO_IS_RTEMS_FALSE@go_net_fd_os_file = 
-@LIBGO_IS_LINUX_TRUE@@LIBGO_IS_RTEMS_FALSE@go_net_fd_os_file = 
-@LIBGO_IS_RTEMS_TRUE@go_net_fd_os_file = go/net/fd_select.go
-@LIBGO_IS_LINUX_FALSE@@LIBGO_IS_NETBSD_FALSE@@LIBGO_IS_RTEMS_FALSE@go_net_newpollserver_file = 
-@LIBGO_IS_LINUX_FALSE@@LIBGO_IS_NETBSD_TRUE@@LIBGO_IS_RTEMS_FALSE@go_net_newpollserver_file = 
-@LIBGO_IS_LINUX_TRUE@@LIBGO_IS_RTEMS_FALSE@go_net_newpollserver_file = 
-@LIBGO_IS_RTEMS_TRUE@go_net_newpollserver_file = go/net/newpollserver_rtems.go
 @LIBGO_IS_FREEBSD_FALSE@@LIBGO_IS_IRIX_FALSE@@LIBGO_IS_LINUX_FALSE@@LIBGO_IS_NETBSD_FALSE@@LIBGO_IS_SOLARIS_FALSE@go_net_cgo_file = go/net/cgo_bsd.go
 @LIBGO_IS_FREEBSD_FALSE@@LIBGO_IS_IRIX_FALSE@@LIBGO_IS_LINUX_FALSE@@LIBGO_IS_NETBSD_TRUE@@LIBGO_IS_SOLARIS_FALSE@go_net_cgo_file = go/net/cgo_netbsd.go
 @LIBGO_IS_FREEBSD_TRUE@@LIBGO_IS_IRIX_FALSE@@LIBGO_IS_LINUX_FALSE@@LIBGO_IS_SOLARIS_FALSE@go_net_cgo_file = go/net/cgo_bsd.go
@@ -1006,7 +996,8 @@ go_mime_files = \
 @LIBGO_IS_LINUX_TRUE@go_net_interface_file = go/net/interface_linux.go
 @LIBGO_IS_LINUX_FALSE@go_net_cloexec_file = go/net/sys_cloexec.go
 @LIBGO_IS_LINUX_TRUE@go_net_cloexec_file = go/net/sock_cloexec.go
-@LIBGO_IS_DARWIN_FALSE@@LIBGO_IS_OPENBSD_FALSE@go_net_tcpsockopt_file = go/net/tcpsockopt_unix.go
+@LIBGO_IS_DARWIN_FALSE@@LIBGO_IS_OPENBSD_FALSE@@LIBGO_IS_SOLARIS_FALSE@go_net_tcpsockopt_file = go/net/tcpsockopt_unix.go
+@LIBGO_IS_DARWIN_FALSE@@LIBGO_IS_OPENBSD_FALSE@@LIBGO_IS_SOLARIS_TRUE@go_net_tcpsockopt_file = go/net/tcpsockopt_darwin.go
 @LIBGO_IS_DARWIN_TRUE@@LIBGO_IS_OPENBSD_FALSE@go_net_tcpsockopt_file = go/net/tcpsockopt_darwin.go
 @LIBGO_IS_OPENBSD_TRUE@go_net_tcpsockopt_file = go/net/tcpsockopt_openbsd.go
 go_net_files = \
@@ -1018,10 +1009,8 @@ go_net_files = \
 	go/net/dnsclient_unix.go \
 	go/net/dnsconfig_unix.go \
 	go/net/dnsmsg.go \
-	$(go_net_newpollserver_file) \
 	go/net/fd_mutex.go \
 	go/net/fd_unix.go \
-	$(go_net_fd_os_file) \
 	go/net/file_unix.go \
 	go/net/hosts.go \
 	go/net/interface.go \
@@ -1476,7 +1465,7 @@ go_go_build_files = \
 	go/go/build/build.go \
 	go/go/build/doc.go \
 	go/go/build/read.go \
-	syslist.go
+	go/go/build/syslist.go
 
 go_go_doc_files = \
 	go/go/doc/comment.go \
@@ -2463,6 +2452,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-unsafe-newarray.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-unsafe-pointer.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-unwind.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-varargs.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/iface.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/lfstack.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/lock_futex.Plo@am__quote@
@@ -2482,7 +2472,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/netpoll.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/netpoll_epoll.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/netpoll_kqueue.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/netpoll_stub.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/netpoll_select.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/panic.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/parfor.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/print.Plo@am__quote@
@@ -2991,6 +2981,13 @@ go-unwind.lo: runtime/go-unwind.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-unwind.lo `test -f 'runtime/go-unwind.c' || echo '$(srcdir)/'`runtime/go-unwind.c
 
+go-varargs.lo: runtime/go-varargs.c
+@am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT go-varargs.lo -MD -MP -MF $(DEPDIR)/go-varargs.Tpo -c -o go-varargs.lo `test -f 'runtime/go-varargs.c' || echo '$(srcdir)/'`runtime/go-varargs.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/go-varargs.Tpo $(DEPDIR)/go-varargs.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/go-varargs.c' object='go-varargs.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-varargs.lo `test -f 'runtime/go-varargs.c' || echo '$(srcdir)/'`runtime/go-varargs.c
+
 chan.lo: runtime/chan.c
 @am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT chan.lo -MD -MP -MF $(DEPDIR)/chan.Tpo -c -o chan.lo `test -f 'runtime/chan.c' || echo '$(srcdir)/'`runtime/chan.c
 @am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/chan.Tpo $(DEPDIR)/chan.Plo
@@ -3110,19 +3107,19 @@ msize.lo: runtime/msize.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o msize.lo `test -f 'runtime/msize.c' || echo '$(srcdir)/'`runtime/msize.c
 
-netpoll_stub.lo: runtime/netpoll_stub.c
-@am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT netpoll_stub.lo -MD -MP -MF $(DEPDIR)/netpoll_stub.Tpo -c -o netpoll_stub.lo `test -f 'runtime/netpoll_stub.c' || echo '$(srcdir)/'`runtime/netpoll_stub.c
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/netpoll_stub.Tpo $(DEPDIR)/netpoll_stub.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/netpoll_stub.c' object='netpoll_stub.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o netpoll_stub.lo `test -f 'runtime/netpoll_stub.c' || echo '$(srcdir)/'`runtime/netpoll_stub.c
-
 netpoll_kqueue.lo: runtime/netpoll_kqueue.c
 @am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT netpoll_kqueue.lo -MD -MP -MF $(DEPDIR)/netpoll_kqueue.Tpo -c -o netpoll_kqueue.lo `test -f 'runtime/netpoll_kqueue.c' || echo '$(srcdir)/'`runtime/netpoll_kqueue.c
 @am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/netpoll_kqueue.Tpo $(DEPDIR)/netpoll_kqueue.Plo
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/netpoll_kqueue.c' object='netpoll_kqueue.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o netpoll_kqueue.lo `test -f 'runtime/netpoll_kqueue.c' || echo '$(srcdir)/'`runtime/netpoll_kqueue.c
+
+netpoll_select.lo: runtime/netpoll_select.c
+@am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT netpoll_select.lo -MD -MP -MF $(DEPDIR)/netpoll_select.Tpo -c -o netpoll_select.lo `test -f 'runtime/netpoll_select.c' || echo '$(srcdir)/'`runtime/netpoll_select.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/netpoll_select.Tpo $(DEPDIR)/netpoll_select.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/netpoll_select.c' object='netpoll_select.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o netpoll_select.lo `test -f 'runtime/netpoll_select.c' || echo '$(srcdir)/'`runtime/netpoll_select.c
 
 netpoll_epoll.lo: runtime/netpoll_epoll.c
 @am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT netpoll_epoll.lo -MD -MP -MF $(DEPDIR)/netpoll_epoll.Tpo -c -o netpoll_epoll.lo `test -f 'runtime/netpoll_epoll.c' || echo '$(srcdir)/'`runtime/netpoll_epoll.c
@@ -5142,15 +5139,6 @@ go/build.lo: $(go_go_build_files)
 go/build/check: $(CHECK_DEPS)
 	@$(CHECK)
 .PHONY: go/build/check
-
-syslist.go: s-syslist; @true
-s-syslist: Makefile
-	echo '// Generated automatically by make.' >syslist.go.tmp
-	echo 'package build' >>syslist.go.tmp
-	echo 'const goosList = "$(GOOS)"' >>syslist.go.tmp
-	echo 'const goarchList = "$(GOARCH)"' >>syslist.go.tmp
-	$(SHELL) $(srcdir)/../move-if-change syslist.go.tmp syslist.go
-	$(STAMP) $@
 
 @go_include@ go/doc.lo.dep
 go/doc.lo.dep: $(go_go_doc_files)

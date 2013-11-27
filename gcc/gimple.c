@@ -25,10 +25,21 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm.h"
 #include "target.h"
 #include "tree.h"
-#include "ggc.h"
+#include "calls.h"
+#include "stmt.h"
+#include "stor-layout.h"
 #include "hard-reg-set.h"
 #include "basic-block.h"
+#include "tree-ssa-alias.h"
+#include "internal-fn.h"
+#include "tree-eh.h"
+#include "gimple-expr.h"
+#include "is-a.h"
 #include "gimple.h"
+#include "gimple-iterator.h"
+#include "gimple-walk.h"
+#include "gimple.h"
+#include "gimplify.h"
 #include "diagnostic.h"
 #include "value-prof.h"
 #include "flags.h"
@@ -80,11 +91,6 @@ static const char * const gimple_alloc_kind_names[] = {
     "everything else"
 };
 
-/* Private API manipulation functions shared only with some
-   other files.  */
-extern void gimple_set_stored_syms (gimple, bitmap, bitmap_obstack *);
-extern void gimple_set_loaded_syms (gimple, bitmap, bitmap_obstack *);
-
 /* Gimple tuple constructors.
    Note: Any constructor taking a ``gimple_seq'' as a parameter, can
    be passed a NULL to start with an empty sequence.  */
@@ -94,7 +100,7 @@ extern void gimple_set_loaded_syms (gimple, bitmap, bitmap_obstack *);
 static inline void
 gimple_set_code (gimple g, enum gimple_code code)
 {
-  g->gsbase.code = code;
+  g->code = code;
 }
 
 /* Return the number of bytes needed to hold a GIMPLE statement with
@@ -126,13 +132,13 @@ gimple_alloc_stat (enum gimple_code code, unsigned num_ops MEM_STAT_DECL)
       gimple_alloc_sizes[(int) kind] += size;
     }
 
-  stmt = ggc_alloc_cleared_gimple_statement_d_stat (size PASS_MEM_STAT);
+  stmt = ggc_alloc_cleared_gimple_statement_stat (size PASS_MEM_STAT);
   gimple_set_code (stmt, code);
   gimple_set_num_ops (stmt, num_ops);
 
   /* Do not call gimple_set_modified here as it has other side
      effects and this tuple is still not completely built.  */
-  stmt->gsbase.modified = 1;
+  stmt->modified = 1;
   gimple_init_singleton (stmt);
 
   return stmt;
@@ -146,7 +152,7 @@ gimple_set_subcode (gimple g, unsigned subcode)
   /* We only have 16 bits for the RHS code.  Assert that we are not
      overflowing it.  */
   gcc_assert (subcode < (1 << 16));
-  g->gsbase.subcode = subcode;
+  g->subcode = subcode;
 }
 
 
@@ -281,7 +287,7 @@ static inline gimple
 gimple_build_call_internal_1 (enum internal_fn fn, unsigned nargs)
 {
   gimple s = gimple_build_with_ops (GIMPLE_CALL, ERROR_MARK, nargs + 3);
-  s->gsbase.subcode |= GF_CALL_INTERNAL;
+  s->subcode |= GF_CALL_INTERNAL;
   gimple_call_set_internal_fn (s, fn);
   gimple_call_reset_alias_info (s);
   return s;
@@ -366,26 +372,6 @@ gimple_build_call_from_tree (tree t)
 }
 
 
-/* Return index of INDEX's non bound argument of the call.  */
-
-unsigned
-gimple_call_get_nobnd_arg_index (const_gimple gs, unsigned index)
-{
-  unsigned num_args = gimple_call_num_args (gs);
-  for (unsigned n = 0; n < num_args; n++)
-    {
-      if (POINTER_BOUNDS_P (gimple_call_arg (gs, n)))
-	continue;
-      else if (index)
-	index--;
-      else
-	return n;
-    }
-
-  gcc_unreachable ();
-}
-
-
 /* Build a GIMPLE_ASSIGN statement.
 
    LHS of the assignment.
@@ -443,24 +429,6 @@ gimple_build_assign_with_ops (enum tree_code subcode, tree lhs, tree op1,
 {
   return gimple_build_assign_with_ops (subcode, lhs, op1, op2, NULL_TREE
 				       PASS_MEM_STAT);
-}
-
-
-/* Build a new GIMPLE_ASSIGN tuple and append it to the end of *SEQ_P.
-
-   DST/SRC are the destination and source respectively.  You can pass
-   ungimplified trees in DST or SRC, in which case they will be
-   converted to a gimple operand if necessary.
-
-   This function returns the newly created GIMPLE_ASSIGN tuple.  */
-
-gimple
-gimplify_assign (tree dst, tree src, gimple_seq *seq_p)
-{
-  tree t = build2 (MODIFY_EXPR, TREE_TYPE (dst), dst, src);
-  gimplify_and_add (t, seq_p);
-  ggc_free (t);
-  return gimple_seq_last_stmt (*seq_p);
 }
 
 
@@ -569,21 +537,22 @@ static inline gimple
 gimple_build_asm_1 (const char *string, unsigned ninputs, unsigned noutputs,
                     unsigned nclobbers, unsigned nlabels)
 {
-  gimple p;
+  gimple_statement_asm *p;
   int size = strlen (string);
 
   /* ASMs with labels cannot have outputs.  This should have been
      enforced by the front end.  */
   gcc_assert (nlabels == 0 || noutputs == 0);
 
-  p = gimple_build_with_ops (GIMPLE_ASM, ERROR_MARK,
-			     ninputs + noutputs + nclobbers + nlabels);
+  p = as_a <gimple_statement_asm> (
+        gimple_build_with_ops (GIMPLE_ASM, ERROR_MARK,
+			       ninputs + noutputs + nclobbers + nlabels));
 
-  p->gimple_asm.ni = ninputs;
-  p->gimple_asm.no = noutputs;
-  p->gimple_asm.nc = nclobbers;
-  p->gimple_asm.nl = nlabels;
-  p->gimple_asm.string = ggc_alloc_string (string, size);
+  p->ni = ninputs;
+  p->no = noutputs;
+  p->nc = nclobbers;
+  p->nl = nlabels;
+  p->string = ggc_alloc_string (string, size);
 
   if (GATHER_STATISTICS)
     gimple_alloc_sizes[(int) gimple_alloc_kind (GIMPLE_ASM)] += size;
@@ -695,14 +664,14 @@ gimple_build_eh_else (gimple_seq n_body, gimple_seq e_body)
    KIND is either GIMPLE_TRY_CATCH or GIMPLE_TRY_FINALLY depending on
    whether this is a try/catch or a try/finally respectively.  */
 
-gimple
+gimple_statement_try *
 gimple_build_try (gimple_seq eval, gimple_seq cleanup,
     		  enum gimple_try_flags kind)
 {
-  gimple p;
+  gimple_statement_try *p;
 
   gcc_assert (kind == GIMPLE_TRY_CATCH || kind == GIMPLE_TRY_FINALLY);
-  p = gimple_alloc (GIMPLE_TRY, 0);
+  p = as_a <gimple_statement_try> (gimple_alloc (GIMPLE_TRY, 0));
   gimple_set_subcode (p, kind);
   if (eval)
     gimple_try_set_eval (p, eval);
@@ -732,8 +701,10 @@ gimple_build_wce (gimple_seq cleanup)
 gimple
 gimple_build_resx (int region)
 {
-  gimple p = gimple_build_with_ops (GIMPLE_RESX, ERROR_MARK, 0);
-  p->gimple_eh_ctrl.region = region;
+  gimple_statement_eh_ctrl *p =
+    as_a <gimple_statement_eh_ctrl> (
+      gimple_build_with_ops (GIMPLE_RESX, ERROR_MARK, 0));
+  p->region = region;
   return p;
 }
 
@@ -780,8 +751,10 @@ gimple_build_switch (tree index, tree default_label, vec<tree> args)
 gimple
 gimple_build_eh_dispatch (int region)
 {
-  gimple p = gimple_build_with_ops (GIMPLE_EH_DISPATCH, ERROR_MARK, 0);
-  p->gimple_eh_ctrl.region = region;
+  gimple_statement_eh_ctrl *p =
+    as_a <gimple_statement_eh_ctrl> (
+      gimple_build_with_ops (GIMPLE_EH_DISPATCH, ERROR_MARK, 0));
+  p->region = region;
   return p;
 }
 
@@ -855,14 +828,17 @@ gimple
 gimple_build_omp_for (gimple_seq body, int kind, tree clauses, size_t collapse,
 		      gimple_seq pre_body)
 {
-  gimple p = gimple_alloc (GIMPLE_OMP_FOR, 0);
+  gimple_statement_omp_for *p =
+    as_a <gimple_statement_omp_for> (gimple_alloc (GIMPLE_OMP_FOR, 0));
   if (body)
     gimple_omp_set_body (p, body);
   gimple_omp_for_set_clauses (p, clauses);
   gimple_omp_for_set_kind (p, kind);
-  p->gimple_omp_for.collapse = collapse;
-  p->gimple_omp_for.iter
-      = ggc_alloc_cleared_vec_gimple_omp_for_iter (collapse);
+  p->collapse = collapse;
+  p->iter =  static_cast <struct gimple_omp_for_iter *> (
+   ggc_internal_cleared_vec_alloc_stat (sizeof (*p->iter),
+					collapse MEM_STAT_INFO));
+
   if (pre_body)
     gimple_omp_for_set_pre_body (p, pre_body);
 
@@ -1150,8 +1126,8 @@ gimple_check_failed (const_gimple gs, const char *file, int line,
       		  gimple_code_name[code],
 		  get_tree_code_name (subcode),
 		  gimple_code_name[gimple_code (gs)],
-		  gs->gsbase.subcode > 0
-		    ? get_tree_code_name ((enum tree_code) gs->gsbase.subcode)
+		  gs->subcode > 0
+		    ? get_tree_code_name ((enum tree_code) gs->subcode)
 		    : "",
 		  function, trim_filename (file), line);
 }
@@ -1172,6 +1148,23 @@ gimple_seq_add_stmt (gimple_seq *seq_p, gimple gs)
   gsi_insert_after (&si, gs, GSI_NEW_STMT);
 }
 
+/* Link gimple statement GS to the end of the sequence *SEQ_P.  If
+   *SEQ_P is NULL, a new sequence is allocated.  This function is
+   similar to gimple_seq_add_stmt, but does not scan the operands.
+   During gimplification, we need to manipulate statement sequences
+   before the def/use vectors have been constructed.  */
+
+void
+gimple_seq_add_stmt_without_update (gimple_seq *seq_p, gimple gs)
+{
+  gimple_stmt_iterator si;
+
+  if (gs == NULL)
+    return;
+
+  si = gsi_last (*seq_p);
+  gsi_insert_after_without_update (&si, gs, GSI_NEW_STMT);
+}
 
 /* Append sequence SRC to the end of sequence *DST_P.  If *DST_P is
    NULL, a new sequence is allocated.  */
@@ -1187,6 +1180,64 @@ gimple_seq_add_seq (gimple_seq *dst_p, gimple_seq src)
   gsi_insert_seq_after (&si, src, GSI_NEW_STMT);
 }
 
+/* Determine whether to assign a location to the statement GS.  */
+
+static bool
+should_carry_location_p (gimple gs)
+{
+  /* Don't emit a line note for a label.  We particularly don't want to
+     emit one for the break label, since it doesn't actually correspond
+     to the beginning of the loop/switch.  */
+  if (gimple_code (gs) == GIMPLE_LABEL)
+    return false;
+
+  return true;
+}
+
+/* Set the location for gimple statement GS to LOCATION.  */
+
+static void
+annotate_one_with_location (gimple gs, location_t location)
+{
+  if (!gimple_has_location (gs)
+      && !gimple_do_not_emit_location_p (gs)
+      && should_carry_location_p (gs))
+    gimple_set_location (gs, location);
+}
+
+/* Set LOCATION for all the statements after iterator GSI in sequence
+   SEQ.  If GSI is pointing to the end of the sequence, start with the
+   first statement in SEQ.  */
+
+void
+annotate_all_with_location_after (gimple_seq seq, gimple_stmt_iterator gsi,
+				  location_t location)
+{
+  if (gsi_end_p (gsi))
+    gsi = gsi_start (seq);
+  else
+    gsi_next (&gsi);
+
+  for (; !gsi_end_p (gsi); gsi_next (&gsi))
+    annotate_one_with_location (gsi_stmt (gsi), location);
+}
+
+/* Set the location for all the statements in a sequence STMT_P to LOCATION.  */
+
+void
+annotate_all_with_location (gimple_seq stmt_p, location_t location)
+{
+  gimple_stmt_iterator i;
+
+  if (gimple_seq_empty_p (stmt_p))
+    return;
+
+  for (i = gsi_start (stmt_p); !gsi_end_p (i); gsi_next (&i))
+    {
+      gimple gs = gsi_stmt (i);
+      annotate_one_with_location (gs, location);
+    }
+}
 
 /* Helper function of empty_body_p.  Return true if STMT is an empty
    statement.  */
@@ -1239,600 +1290,6 @@ gimple_seq_copy (gimple_seq src)
 }
 
 
-/* Walk all the statements in the sequence *PSEQ calling walk_gimple_stmt
-   on each one.  WI is as in walk_gimple_stmt.
-
-   If walk_gimple_stmt returns non-NULL, the walk is stopped, and the
-   value is stored in WI->CALLBACK_RESULT.  Also, the statement that
-   produced the value is returned if this statement has not been
-   removed by a callback (wi->removed_stmt).  If the statement has
-   been removed, NULL is returned.
-
-   Otherwise, all the statements are walked and NULL returned.  */
-
-gimple
-walk_gimple_seq_mod (gimple_seq *pseq, walk_stmt_fn callback_stmt,
-		     walk_tree_fn callback_op, struct walk_stmt_info *wi)
-{
-  gimple_stmt_iterator gsi;
-
-  for (gsi = gsi_start (*pseq); !gsi_end_p (gsi); )
-    {
-      tree ret = walk_gimple_stmt (&gsi, callback_stmt, callback_op, wi);
-      if (ret)
-	{
-	  /* If CALLBACK_STMT or CALLBACK_OP return a value, WI must exist
-	     to hold it.  */
-	  gcc_assert (wi);
-	  wi->callback_result = ret;
-
-	  return wi->removed_stmt ? NULL : gsi_stmt (gsi);
-	}
-
-      if (!wi->removed_stmt)
-	gsi_next (&gsi);
-    }
-
-  if (wi)
-    wi->callback_result = NULL_TREE;
-
-  return NULL;
-}
-
-
-/* Like walk_gimple_seq_mod, but ensure that the head of SEQ isn't
-   changed by the callbacks.  */
-
-gimple
-walk_gimple_seq (gimple_seq seq, walk_stmt_fn callback_stmt,
-		 walk_tree_fn callback_op, struct walk_stmt_info *wi)
-{
-  gimple_seq seq2 = seq;
-  gimple ret = walk_gimple_seq_mod (&seq2, callback_stmt, callback_op, wi);
-  gcc_assert (seq2 == seq);
-  return ret;
-}
-
-
-/* Helper function for walk_gimple_stmt.  Walk operands of a GIMPLE_ASM.  */
-
-static tree
-walk_gimple_asm (gimple stmt, walk_tree_fn callback_op,
-		 struct walk_stmt_info *wi)
-{
-  tree ret, op;
-  unsigned noutputs;
-  const char **oconstraints;
-  unsigned i, n;
-  const char *constraint;
-  bool allows_mem, allows_reg, is_inout;
-
-  noutputs = gimple_asm_noutputs (stmt);
-  oconstraints = (const char **) alloca ((noutputs) * sizeof (const char *));
-
-  if (wi)
-    wi->is_lhs = true;
-
-  for (i = 0; i < noutputs; i++)
-    {
-      op = gimple_asm_output_op (stmt, i);
-      constraint = TREE_STRING_POINTER (TREE_VALUE (TREE_PURPOSE (op)));
-      oconstraints[i] = constraint;
-      parse_output_constraint (&constraint, i, 0, 0, &allows_mem, &allows_reg,
-	                       &is_inout);
-      if (wi)
-	wi->val_only = (allows_reg || !allows_mem);
-      ret = walk_tree (&TREE_VALUE (op), callback_op, wi, NULL);
-      if (ret)
-	return ret;
-    }
-
-  n = gimple_asm_ninputs (stmt);
-  for (i = 0; i < n; i++)
-    {
-      op = gimple_asm_input_op (stmt, i);
-      constraint = TREE_STRING_POINTER (TREE_VALUE (TREE_PURPOSE (op)));
-      parse_input_constraint (&constraint, 0, 0, noutputs, 0,
-			      oconstraints, &allows_mem, &allows_reg);
-      if (wi)
-	{
-	  wi->val_only = (allows_reg || !allows_mem);
-          /* Although input "m" is not really a LHS, we need a lvalue.  */
-	  wi->is_lhs = !wi->val_only;
-	}
-      ret = walk_tree (&TREE_VALUE (op), callback_op, wi, NULL);
-      if (ret)
-	return ret;
-    }
-
-  if (wi)
-    {
-      wi->is_lhs = false;
-      wi->val_only = true;
-    }
-
-  n = gimple_asm_nlabels (stmt);
-  for (i = 0; i < n; i++)
-    {
-      op = gimple_asm_label_op (stmt, i);
-      ret = walk_tree (&TREE_VALUE (op), callback_op, wi, NULL);
-      if (ret)
-	return ret;
-    }
-
-  return NULL_TREE;
-}
-
-
-/* Helper function of WALK_GIMPLE_STMT.  Walk every tree operand in
-   STMT.  CALLBACK_OP and WI are as in WALK_GIMPLE_STMT.
-
-   CALLBACK_OP is called on each operand of STMT via walk_tree.
-   Additional parameters to walk_tree must be stored in WI.  For each operand
-   OP, walk_tree is called as:
-
-	walk_tree (&OP, CALLBACK_OP, WI, WI->PSET)
-
-   If CALLBACK_OP returns non-NULL for an operand, the remaining
-   operands are not scanned.
-
-   The return value is that returned by the last call to walk_tree, or
-   NULL_TREE if no CALLBACK_OP is specified.  */
-
-tree
-walk_gimple_op (gimple stmt, walk_tree_fn callback_op,
-		struct walk_stmt_info *wi)
-{
-  struct pointer_set_t *pset = (wi) ? wi->pset : NULL;
-  unsigned i;
-  tree ret = NULL_TREE;
-
-  switch (gimple_code (stmt))
-    {
-    case GIMPLE_ASSIGN:
-      /* Walk the RHS operands.  If the LHS is of a non-renamable type or
-         is a register variable, we may use a COMPONENT_REF on the RHS.  */
-      if (wi)
-	{
-	  tree lhs = gimple_assign_lhs (stmt);
-	  wi->val_only
-	    = (is_gimple_reg_type (TREE_TYPE (lhs)) && !is_gimple_reg (lhs))
-	      || gimple_assign_rhs_class (stmt) != GIMPLE_SINGLE_RHS;
-	}
-
-      for (i = 1; i < gimple_num_ops (stmt); i++)
-	{
-	  ret = walk_tree (gimple_op_ptr (stmt, i), callback_op, wi,
-			   pset);
-	  if (ret)
-	    return ret;
-	}
-
-      /* Walk the LHS.  If the RHS is appropriate for a memory, we
-	 may use a COMPONENT_REF on the LHS.  */
-      if (wi)
-	{
-          /* If the RHS is of a non-renamable type or is a register variable,
-	     we may use a COMPONENT_REF on the LHS.  */
-	  tree rhs1 = gimple_assign_rhs1 (stmt);
-	  wi->val_only
-	    = (is_gimple_reg_type (TREE_TYPE (rhs1)) && !is_gimple_reg (rhs1))
-	      || gimple_assign_rhs_class (stmt) != GIMPLE_SINGLE_RHS;
-	  wi->is_lhs = true;
-	}
-
-      ret = walk_tree (gimple_op_ptr (stmt, 0), callback_op, wi, pset);
-      if (ret)
-	return ret;
-
-      if (wi)
-	{
-	  wi->val_only = true;
-	  wi->is_lhs = false;
-	}
-      break;
-
-    case GIMPLE_CALL:
-      if (wi)
-	{
-	  wi->is_lhs = false;
-	  wi->val_only = true;
-	}
-
-      ret = walk_tree (gimple_call_chain_ptr (stmt), callback_op, wi, pset);
-      if (ret)
-        return ret;
-
-      ret = walk_tree (gimple_call_fn_ptr (stmt), callback_op, wi, pset);
-      if (ret)
-        return ret;
-
-      for (i = 0; i < gimple_call_num_args (stmt); i++)
-	{
-	  if (wi)
-	    wi->val_only
-	      = is_gimple_reg_type (TREE_TYPE (gimple_call_arg (stmt, i)));
-	  ret = walk_tree (gimple_call_arg_ptr (stmt, i), callback_op, wi,
-			   pset);
-	  if (ret)
-	    return ret;
-	}
-
-      if (gimple_call_lhs (stmt))
-	{
-	  if (wi)
-	    {
-	      wi->is_lhs = true;
-	      wi->val_only
-		= is_gimple_reg_type (TREE_TYPE (gimple_call_lhs (stmt)));
-	    }
-
-	  ret = walk_tree (gimple_call_lhs_ptr (stmt), callback_op, wi, pset);
-	  if (ret)
-	    return ret;
-	}
-
-      if (wi)
-	{
-	  wi->is_lhs = false;
-	  wi->val_only = true;
-	}
-      break;
-
-    case GIMPLE_CATCH:
-      ret = walk_tree (gimple_catch_types_ptr (stmt), callback_op, wi,
-		       pset);
-      if (ret)
-	return ret;
-      break;
-
-    case GIMPLE_EH_FILTER:
-      ret = walk_tree (gimple_eh_filter_types_ptr (stmt), callback_op, wi,
-		       pset);
-      if (ret)
-	return ret;
-      break;
-
-    case GIMPLE_ASM:
-      ret = walk_gimple_asm (stmt, callback_op, wi);
-      if (ret)
-	return ret;
-      break;
-
-    case GIMPLE_OMP_CONTINUE:
-      ret = walk_tree (gimple_omp_continue_control_def_ptr (stmt),
-	  	       callback_op, wi, pset);
-      if (ret)
-	return ret;
-
-      ret = walk_tree (gimple_omp_continue_control_use_ptr (stmt),
-	  	       callback_op, wi, pset);
-      if (ret)
-	return ret;
-      break;
-
-    case GIMPLE_OMP_CRITICAL:
-      ret = walk_tree (gimple_omp_critical_name_ptr (stmt), callback_op, wi,
-		       pset);
-      if (ret)
-	return ret;
-      break;
-
-    case GIMPLE_OMP_FOR:
-      ret = walk_tree (gimple_omp_for_clauses_ptr (stmt), callback_op, wi,
-		       pset);
-      if (ret)
-	return ret;
-      for (i = 0; i < gimple_omp_for_collapse (stmt); i++)
-	{
-	  ret = walk_tree (gimple_omp_for_index_ptr (stmt, i), callback_op,
-			   wi, pset);
-	  if (ret)
-	    return ret;
-	  ret = walk_tree (gimple_omp_for_initial_ptr (stmt, i), callback_op,
-			   wi, pset);
-	  if (ret)
-	    return ret;
-	  ret = walk_tree (gimple_omp_for_final_ptr (stmt, i), callback_op,
-			   wi, pset);
-	  if (ret)
-	    return ret;
-	  ret = walk_tree (gimple_omp_for_incr_ptr (stmt, i), callback_op,
-			   wi, pset);
-	}
-      if (ret)
-	return ret;
-      break;
-
-    case GIMPLE_OMP_PARALLEL:
-      ret = walk_tree (gimple_omp_parallel_clauses_ptr (stmt), callback_op,
-		       wi, pset);
-      if (ret)
-	return ret;
-      ret = walk_tree (gimple_omp_parallel_child_fn_ptr (stmt), callback_op,
-		       wi, pset);
-      if (ret)
-	return ret;
-      ret = walk_tree (gimple_omp_parallel_data_arg_ptr (stmt), callback_op,
-		       wi, pset);
-      if (ret)
-	return ret;
-      break;
-
-    case GIMPLE_OMP_TASK:
-      ret = walk_tree (gimple_omp_task_clauses_ptr (stmt), callback_op,
-		       wi, pset);
-      if (ret)
-	return ret;
-      ret = walk_tree (gimple_omp_task_child_fn_ptr (stmt), callback_op,
-		       wi, pset);
-      if (ret)
-	return ret;
-      ret = walk_tree (gimple_omp_task_data_arg_ptr (stmt), callback_op,
-		       wi, pset);
-      if (ret)
-	return ret;
-      ret = walk_tree (gimple_omp_task_copy_fn_ptr (stmt), callback_op,
-		       wi, pset);
-      if (ret)
-	return ret;
-      ret = walk_tree (gimple_omp_task_arg_size_ptr (stmt), callback_op,
-		       wi, pset);
-      if (ret)
-	return ret;
-      ret = walk_tree (gimple_omp_task_arg_align_ptr (stmt), callback_op,
-		       wi, pset);
-      if (ret)
-	return ret;
-      break;
-
-    case GIMPLE_OMP_SECTIONS:
-      ret = walk_tree (gimple_omp_sections_clauses_ptr (stmt), callback_op,
-		       wi, pset);
-      if (ret)
-	return ret;
-
-      ret = walk_tree (gimple_omp_sections_control_ptr (stmt), callback_op,
-		       wi, pset);
-      if (ret)
-	return ret;
-
-      break;
-
-    case GIMPLE_OMP_SINGLE:
-      ret = walk_tree (gimple_omp_single_clauses_ptr (stmt), callback_op, wi,
-		       pset);
-      if (ret)
-	return ret;
-      break;
-
-    case GIMPLE_OMP_TARGET:
-      ret = walk_tree (gimple_omp_target_clauses_ptr (stmt), callback_op, wi,
-		       pset);
-      if (ret)
-	return ret;
-      break;
-
-    case GIMPLE_OMP_TEAMS:
-      ret = walk_tree (gimple_omp_teams_clauses_ptr (stmt), callback_op, wi,
-		       pset);
-      if (ret)
-	return ret;
-      break;
-
-    case GIMPLE_OMP_ATOMIC_LOAD:
-      ret = walk_tree (gimple_omp_atomic_load_lhs_ptr (stmt), callback_op, wi,
-		       pset);
-      if (ret)
-	return ret;
-
-      ret = walk_tree (gimple_omp_atomic_load_rhs_ptr (stmt), callback_op, wi,
-		       pset);
-      if (ret)
-	return ret;
-      break;
-
-    case GIMPLE_OMP_ATOMIC_STORE:
-      ret = walk_tree (gimple_omp_atomic_store_val_ptr (stmt), callback_op,
-		       wi, pset);
-      if (ret)
-	return ret;
-      break;
-
-    case GIMPLE_TRANSACTION:
-      ret = walk_tree (gimple_transaction_label_ptr (stmt), callback_op,
-		       wi, pset);
-      if (ret)
-	return ret;
-      break;
-
-    case GIMPLE_OMP_RETURN:
-      ret = walk_tree (gimple_omp_return_lhs_ptr (stmt), callback_op, wi,
-		       pset);
-      if (ret)
-	return ret;
-      break;
-
-      /* Tuples that do not have operands.  */
-    case GIMPLE_NOP:
-    case GIMPLE_RESX:
-    case GIMPLE_PREDICT:
-      break;
-
-    default:
-      {
-	enum gimple_statement_structure_enum gss;
-	gss = gimple_statement_structure (stmt);
-	if (gss == GSS_WITH_OPS || gss == GSS_WITH_MEM_OPS)
-	  for (i = 0; i < gimple_num_ops (stmt); i++)
-	    {
-	      ret = walk_tree (gimple_op_ptr (stmt, i), callback_op, wi, pset);
-	      if (ret)
-		return ret;
-	    }
-      }
-      break;
-    }
-
-  return NULL_TREE;
-}
-
-
-/* Walk the current statement in GSI (optionally using traversal state
-   stored in WI).  If WI is NULL, no state is kept during traversal.
-   The callback CALLBACK_STMT is called.  If CALLBACK_STMT indicates
-   that it has handled all the operands of the statement, its return
-   value is returned.  Otherwise, the return value from CALLBACK_STMT
-   is discarded and its operands are scanned.
-
-   If CALLBACK_STMT is NULL or it didn't handle the operands,
-   CALLBACK_OP is called on each operand of the statement via
-   walk_gimple_op.  If walk_gimple_op returns non-NULL for any
-   operand, the remaining operands are not scanned.  In this case, the
-   return value from CALLBACK_OP is returned.
-
-   In any other case, NULL_TREE is returned.  */
-
-tree
-walk_gimple_stmt (gimple_stmt_iterator *gsi, walk_stmt_fn callback_stmt,
-		  walk_tree_fn callback_op, struct walk_stmt_info *wi)
-{
-  gimple ret;
-  tree tree_ret;
-  gimple stmt = gsi_stmt (*gsi);
-
-  if (wi)
-    {
-      wi->gsi = *gsi;
-      wi->removed_stmt = false;
-
-      if (wi->want_locations && gimple_has_location (stmt))
-	input_location = gimple_location (stmt);
-    }
-
-  ret = NULL;
-
-  /* Invoke the statement callback.  Return if the callback handled
-     all of STMT operands by itself.  */
-  if (callback_stmt)
-    {
-      bool handled_ops = false;
-      tree_ret = callback_stmt (gsi, &handled_ops, wi);
-      if (handled_ops)
-	return tree_ret;
-
-      /* If CALLBACK_STMT did not handle operands, it should not have
-	 a value to return.  */
-      gcc_assert (tree_ret == NULL);
-
-      if (wi && wi->removed_stmt)
-	return NULL;
-
-      /* Re-read stmt in case the callback changed it.  */
-      stmt = gsi_stmt (*gsi);
-    }
-
-  /* If CALLBACK_OP is defined, invoke it on every operand of STMT.  */
-  if (callback_op)
-    {
-      tree_ret = walk_gimple_op (stmt, callback_op, wi);
-      if (tree_ret)
-	return tree_ret;
-    }
-
-  /* If STMT can have statements inside (e.g. GIMPLE_BIND), walk them.  */
-  switch (gimple_code (stmt))
-    {
-    case GIMPLE_BIND:
-      ret = walk_gimple_seq_mod (gimple_bind_body_ptr (stmt), callback_stmt,
-				 callback_op, wi);
-      if (ret)
-	return wi->callback_result;
-      break;
-
-    case GIMPLE_CATCH:
-      ret = walk_gimple_seq_mod (gimple_catch_handler_ptr (stmt), callback_stmt,
-				 callback_op, wi);
-      if (ret)
-	return wi->callback_result;
-      break;
-
-    case GIMPLE_EH_FILTER:
-      ret = walk_gimple_seq_mod (gimple_eh_filter_failure_ptr (stmt), callback_stmt,
-		             callback_op, wi);
-      if (ret)
-	return wi->callback_result;
-      break;
-
-    case GIMPLE_EH_ELSE:
-      ret = walk_gimple_seq_mod (gimple_eh_else_n_body_ptr (stmt),
-			     callback_stmt, callback_op, wi);
-      if (ret)
-	return wi->callback_result;
-      ret = walk_gimple_seq_mod (gimple_eh_else_e_body_ptr (stmt),
-			     callback_stmt, callback_op, wi);
-      if (ret)
-	return wi->callback_result;
-      break;
-
-    case GIMPLE_TRY:
-      ret = walk_gimple_seq_mod (gimple_try_eval_ptr (stmt), callback_stmt, callback_op,
-	                     wi);
-      if (ret)
-	return wi->callback_result;
-
-      ret = walk_gimple_seq_mod (gimple_try_cleanup_ptr (stmt), callback_stmt,
-	                     callback_op, wi);
-      if (ret)
-	return wi->callback_result;
-      break;
-
-    case GIMPLE_OMP_FOR:
-      ret = walk_gimple_seq_mod (gimple_omp_for_pre_body_ptr (stmt), callback_stmt,
-		             callback_op, wi);
-      if (ret)
-	return wi->callback_result;
-
-      /* FALL THROUGH.  */
-    case GIMPLE_OMP_CRITICAL:
-    case GIMPLE_OMP_MASTER:
-    case GIMPLE_OMP_TASKGROUP:
-    case GIMPLE_OMP_ORDERED:
-    case GIMPLE_OMP_SECTION:
-    case GIMPLE_OMP_PARALLEL:
-    case GIMPLE_OMP_TASK:
-    case GIMPLE_OMP_SECTIONS:
-    case GIMPLE_OMP_SINGLE:
-    case GIMPLE_OMP_TARGET:
-    case GIMPLE_OMP_TEAMS:
-      ret = walk_gimple_seq_mod (gimple_omp_body_ptr (stmt), callback_stmt,
-			     callback_op, wi);
-      if (ret)
-	return wi->callback_result;
-      break;
-
-    case GIMPLE_WITH_CLEANUP_EXPR:
-      ret = walk_gimple_seq_mod (gimple_wce_cleanup_ptr (stmt), callback_stmt,
-			     callback_op, wi);
-      if (ret)
-	return wi->callback_result;
-      break;
-
-    case GIMPLE_TRANSACTION:
-      ret = walk_gimple_seq_mod (gimple_transaction_body_ptr (stmt),
-			     callback_stmt, callback_op, wi);
-      if (ret)
-	return wi->callback_result;
-      break;
-
-    default:
-      gcc_assert (!gimple_has_substatements (stmt));
-      break;
-    }
-
-  return NULL;
-}
-
 
 /* Return true if calls C1 and C2 are known to go to the same function.  */
 
@@ -1864,7 +1321,7 @@ gimple_call_flags (const_gimple stmt)
   else
     flags = flags_from_decl_or_type (gimple_call_fntype (stmt));
 
-  if (stmt->gsbase.subcode & GF_CALL_NOTHROW)
+  if (stmt->subcode & GF_CALL_NOTHROW)
     flags |= ECF_NOTHROW;
 
   return flags;
@@ -2005,7 +1462,7 @@ gimple_assign_unary_nop_p (gimple gs)
 void
 gimple_set_bb (gimple stmt, basic_block bb)
 {
-  stmt->gsbase.bb = bb;
+  stmt->bb = bb;
 
   /* If the statement is a label, add the label to block-to-labels map
      so that we can speed up edge creation for GIMPLE_GOTOs.  */
@@ -2200,9 +1657,15 @@ gimple_copy (gimple stmt)
 	  gimple_omp_for_set_pre_body (copy, new_seq);
 	  t = unshare_expr (gimple_omp_for_clauses (stmt));
 	  gimple_omp_for_set_clauses (copy, t);
-	  copy->gimple_omp_for.iter
-	    = ggc_alloc_vec_gimple_omp_for_iter
-	    (gimple_omp_for_collapse (stmt));
+	  {
+	    gimple_statement_omp_for *omp_for_copy =
+	      as_a <gimple_statement_omp_for> (copy);
+	    omp_for_copy->iter =
+	      static_cast <struct gimple_omp_for_iter *> (
+		  ggc_internal_vec_alloc_stat (sizeof (struct gimple_omp_for_iter),
+					       gimple_omp_for_collapse (stmt)
+					       MEM_STAT_INFO));
+          }
 	  for (i = 0; i < gimple_omp_for_collapse (stmt); i++)
 	    {
 	      gimple_omp_for_set_cond (copy, i,
@@ -2491,85 +1954,6 @@ const unsigned char gimple_rhs_class_table[] = {
 #undef DEFTREECODE
 #undef END_OF_BASE_TREE_CODES
 
-/* Given a memory reference expression T, return its base address.
-   The base address of a memory reference expression is the main
-   object being referenced.  For instance, the base address for
-   'array[i].fld[j]' is 'array'.  You can think of this as stripping
-   away the offset part from a memory address.
-
-   This function calls handled_component_p to strip away all the inner
-   parts of the memory reference until it reaches the base object.  */
-
-tree
-get_base_address (tree t)
-{
-  while (handled_component_p (t))
-    t = TREE_OPERAND (t, 0);
-
-  if ((TREE_CODE (t) == MEM_REF
-       || TREE_CODE (t) == TARGET_MEM_REF)
-      && TREE_CODE (TREE_OPERAND (t, 0)) == ADDR_EXPR)
-    t = TREE_OPERAND (TREE_OPERAND (t, 0), 0);
-
-  /* ???  Either the alias oracle or all callers need to properly deal
-     with WITH_SIZE_EXPRs before we can look through those.  */
-  if (TREE_CODE (t) == WITH_SIZE_EXPR)
-    return NULL_TREE;
-
-  return t;
-}
-
-void
-recalculate_side_effects (tree t)
-{
-  enum tree_code code = TREE_CODE (t);
-  int len = TREE_OPERAND_LENGTH (t);
-  int i;
-
-  switch (TREE_CODE_CLASS (code))
-    {
-    case tcc_expression:
-      switch (code)
-	{
-	case INIT_EXPR:
-	case MODIFY_EXPR:
-	case VA_ARG_EXPR:
-	case PREDECREMENT_EXPR:
-	case PREINCREMENT_EXPR:
-	case POSTDECREMENT_EXPR:
-	case POSTINCREMENT_EXPR:
-	  /* All of these have side-effects, no matter what their
-	     operands are.  */
-	  return;
-
-	default:
-	  break;
-	}
-      /* Fall through.  */
-
-    case tcc_comparison:  /* a comparison expression */
-    case tcc_unary:       /* a unary arithmetic expression */
-    case tcc_binary:      /* a binary arithmetic expression */
-    case tcc_reference:   /* a reference */
-    case tcc_vl_exp:        /* a function call */
-      TREE_SIDE_EFFECTS (t) = TREE_THIS_VOLATILE (t);
-      for (i = 0; i < len; ++i)
-	{
-	  tree op = TREE_OPERAND (t, i);
-	  if (op && TREE_SIDE_EFFECTS (op))
-	    TREE_SIDE_EFFECTS (t) = 1;
-	}
-      break;
-
-    case tcc_constant:
-      /* No side-effects.  */
-      return;
-
-    default:
-      gcc_unreachable ();
-   }
-}
-
 /* Canonicalize a tree T for use in a COND_EXPR as conditional.  Returns
    a canonicalized tree that is valid for a COND_EXPR or NULL_TREE, if
    we failed to create one.  */
@@ -2620,8 +2004,7 @@ gimple_call_copy_skip_args (gimple stmt, bitmap args_to_skip)
 {
   int i;
   int nargs = gimple_call_num_args (stmt);
-  vec<tree> vargs;
-  vargs.create (nargs);
+  auto_vec<tree> vargs (nargs);
   gimple new_stmt;
 
   for (i = 0; i < nargs; i++)
@@ -2633,7 +2016,7 @@ gimple_call_copy_skip_args (gimple stmt, bitmap args_to_skip)
 					       vargs);
   else
     new_stmt = gimple_build_call_vec (gimple_call_fn (stmt), vargs);
-  vargs.release ();
+
   if (gimple_call_lhs (stmt))
     gimple_call_set_lhs (new_stmt, gimple_call_lhs (stmt));
 
@@ -2684,8 +2067,8 @@ gimple_compare_field_offset (tree f1, tree f2)
   /* Fortran and C do not always agree on what DECL_OFFSET_ALIGN
      should be, so handle differing ones specially by decomposing
      the offset into a byte and bit offset manually.  */
-  if (host_integerp (DECL_FIELD_OFFSET (f1), 0)
-      && host_integerp (DECL_FIELD_OFFSET (f2), 0))
+  if (tree_fits_shwi_p (DECL_FIELD_OFFSET (f1))
+      && tree_fits_shwi_p (DECL_FIELD_OFFSET (f2)))
     {
       unsigned HOST_WIDE_INT byte_offset1, byte_offset2;
       unsigned HOST_WIDE_INT bit_offset1, bit_offset2;
@@ -2938,251 +2321,6 @@ gimple_get_alias_set (tree t)
 }
 
 
-/* From a tree operand OP return the base of a load or store operation
-   or NULL_TREE if OP is not a load or a store.  */
-
-static tree
-get_base_loadstore (tree op)
-{
-  while (handled_component_p (op))
-    op = TREE_OPERAND (op, 0);
-  if (DECL_P (op)
-      || INDIRECT_REF_P (op)
-      || TREE_CODE (op) == MEM_REF
-      || TREE_CODE (op) == TARGET_MEM_REF)
-    return op;
-  return NULL_TREE;
-}
-
-/* For the statement STMT call the callbacks VISIT_LOAD, VISIT_STORE and
-   VISIT_ADDR if non-NULL on loads, store and address-taken operands
-   passing the STMT, the base of the operand and DATA to it.  The base
-   will be either a decl, an indirect reference (including TARGET_MEM_REF)
-   or the argument of an address expression.
-   Returns the results of these callbacks or'ed.  */
-
-bool
-walk_stmt_load_store_addr_ops (gimple stmt, void *data,
-			       bool (*visit_load)(gimple, tree, void *),
-			       bool (*visit_store)(gimple, tree, void *),
-			       bool (*visit_addr)(gimple, tree, void *))
-{
-  bool ret = false;
-  unsigned i;
-  if (gimple_assign_single_p (stmt))
-    {
-      tree lhs, rhs;
-      if (visit_store)
-	{
-	  lhs = get_base_loadstore (gimple_assign_lhs (stmt));
-	  if (lhs)
-	    ret |= visit_store (stmt, lhs, data);
-	}
-      rhs = gimple_assign_rhs1 (stmt);
-      while (handled_component_p (rhs))
-	rhs = TREE_OPERAND (rhs, 0);
-      if (visit_addr)
-	{
-	  if (TREE_CODE (rhs) == ADDR_EXPR)
-	    ret |= visit_addr (stmt, TREE_OPERAND (rhs, 0), data);
-	  else if (TREE_CODE (rhs) == TARGET_MEM_REF
-		   && TREE_CODE (TMR_BASE (rhs)) == ADDR_EXPR)
-	    ret |= visit_addr (stmt, TREE_OPERAND (TMR_BASE (rhs), 0), data);
-	  else if (TREE_CODE (rhs) == OBJ_TYPE_REF
-		   && TREE_CODE (OBJ_TYPE_REF_OBJECT (rhs)) == ADDR_EXPR)
-	    ret |= visit_addr (stmt, TREE_OPERAND (OBJ_TYPE_REF_OBJECT (rhs),
-						   0), data);
-	  else if (TREE_CODE (rhs) == CONSTRUCTOR)
-	    {
-	      unsigned int ix;
-	      tree val;
-
-	      FOR_EACH_CONSTRUCTOR_VALUE (CONSTRUCTOR_ELTS (rhs), ix, val)
-		if (TREE_CODE (val) == ADDR_EXPR)
-		  ret |= visit_addr (stmt, TREE_OPERAND (val, 0), data);
-		else if (TREE_CODE (val) == OBJ_TYPE_REF
-			 && TREE_CODE (OBJ_TYPE_REF_OBJECT (val)) == ADDR_EXPR)
-		  ret |= visit_addr (stmt,
-				     TREE_OPERAND (OBJ_TYPE_REF_OBJECT (val),
-						   0), data);
-	    }
-          lhs = gimple_assign_lhs (stmt);
-	  if (TREE_CODE (lhs) == TARGET_MEM_REF
-              && TREE_CODE (TMR_BASE (lhs)) == ADDR_EXPR)
-            ret |= visit_addr (stmt, TREE_OPERAND (TMR_BASE (lhs), 0), data);
-	}
-      if (visit_load)
-	{
-	  rhs = get_base_loadstore (rhs);
-	  if (rhs)
-	    ret |= visit_load (stmt, rhs, data);
-	}
-    }
-  else if (visit_addr
-	   && (is_gimple_assign (stmt)
-	       || gimple_code (stmt) == GIMPLE_COND))
-    {
-      for (i = 0; i < gimple_num_ops (stmt); ++i)
-	{
-	  tree op = gimple_op (stmt, i);
-	  if (op == NULL_TREE)
-	    ;
-	  else if (TREE_CODE (op) == ADDR_EXPR)
-	    ret |= visit_addr (stmt, TREE_OPERAND (op, 0), data);
-	  /* COND_EXPR and VCOND_EXPR rhs1 argument is a comparison
-	     tree with two operands.  */
-	  else if (i == 1 && COMPARISON_CLASS_P (op))
-	    {
-	      if (TREE_CODE (TREE_OPERAND (op, 0)) == ADDR_EXPR)
-		ret |= visit_addr (stmt, TREE_OPERAND (TREE_OPERAND (op, 0),
-						       0), data);
-	      if (TREE_CODE (TREE_OPERAND (op, 1)) == ADDR_EXPR)
-		ret |= visit_addr (stmt, TREE_OPERAND (TREE_OPERAND (op, 1),
-						       0), data);
-	    }
-	}
-    }
-  else if (is_gimple_call (stmt))
-    {
-      if (visit_store)
-	{
-	  tree lhs = gimple_call_lhs (stmt);
-	  if (lhs)
-	    {
-	      lhs = get_base_loadstore (lhs);
-	      if (lhs)
-		ret |= visit_store (stmt, lhs, data);
-	    }
-	}
-      if (visit_load || visit_addr)
-	for (i = 0; i < gimple_call_num_args (stmt); ++i)
-	  {
-	    tree rhs = gimple_call_arg (stmt, i);
-	    if (visit_addr
-		&& TREE_CODE (rhs) == ADDR_EXPR)
-	      ret |= visit_addr (stmt, TREE_OPERAND (rhs, 0), data);
-	    else if (visit_load)
-	      {
-		rhs = get_base_loadstore (rhs);
-		if (rhs)
-		  ret |= visit_load (stmt, rhs, data);
-	      }
-	  }
-      if (visit_addr
-	  && gimple_call_chain (stmt)
-	  && TREE_CODE (gimple_call_chain (stmt)) == ADDR_EXPR)
-	ret |= visit_addr (stmt, TREE_OPERAND (gimple_call_chain (stmt), 0),
-			   data);
-      if (visit_addr
-	  && gimple_call_return_slot_opt_p (stmt)
-	  && gimple_call_lhs (stmt) != NULL_TREE
-	  && TREE_ADDRESSABLE (TREE_TYPE (gimple_call_lhs (stmt))))
-	ret |= visit_addr (stmt, gimple_call_lhs (stmt), data);
-    }
-  else if (gimple_code (stmt) == GIMPLE_ASM)
-    {
-      unsigned noutputs;
-      const char *constraint;
-      const char **oconstraints;
-      bool allows_mem, allows_reg, is_inout;
-      noutputs = gimple_asm_noutputs (stmt);
-      oconstraints = XALLOCAVEC (const char *, noutputs);
-      if (visit_store || visit_addr)
-	for (i = 0; i < gimple_asm_noutputs (stmt); ++i)
-	  {
-	    tree link = gimple_asm_output_op (stmt, i);
-	    tree op = get_base_loadstore (TREE_VALUE (link));
-	    if (op && visit_store)
-	      ret |= visit_store (stmt, op, data);
-	    if (visit_addr)
-	      {
-		constraint = TREE_STRING_POINTER
-		    (TREE_VALUE (TREE_PURPOSE (link)));
-		oconstraints[i] = constraint;
-		parse_output_constraint (&constraint, i, 0, 0, &allows_mem,
-					 &allows_reg, &is_inout);
-		if (op && !allows_reg && allows_mem)
-		  ret |= visit_addr (stmt, op, data);
-	      }
-	  }
-      if (visit_load || visit_addr)
-	for (i = 0; i < gimple_asm_ninputs (stmt); ++i)
-	  {
-	    tree link = gimple_asm_input_op (stmt, i);
-	    tree op = TREE_VALUE (link);
-	    if (visit_addr
-		&& TREE_CODE (op) == ADDR_EXPR)
-	      ret |= visit_addr (stmt, TREE_OPERAND (op, 0), data);
-	    else if (visit_load || visit_addr)
-	      {
-		op = get_base_loadstore (op);
-		if (op)
-		  {
-		    if (visit_load)
-		      ret |= visit_load (stmt, op, data);
-		    if (visit_addr)
-		      {
-			constraint = TREE_STRING_POINTER
-			    (TREE_VALUE (TREE_PURPOSE (link)));
-			parse_input_constraint (&constraint, 0, 0, noutputs,
-						0, oconstraints,
-						&allows_mem, &allows_reg);
-			if (!allows_reg && allows_mem)
-			  ret |= visit_addr (stmt, op, data);
-		      }
-		  }
-	      }
-	  }
-    }
-  else if (gimple_code (stmt) == GIMPLE_RETURN)
-    {
-      tree op = gimple_return_retval (stmt);
-      if (op)
-	{
-	  if (visit_addr
-	      && TREE_CODE (op) == ADDR_EXPR)
-	    ret |= visit_addr (stmt, TREE_OPERAND (op, 0), data);
-	  else if (visit_load)
-	    {
-	      op = get_base_loadstore (op);
-	      if (op)
-		ret |= visit_load (stmt, op, data);
-	    }
-	}
-    }
-  else if (visit_addr
-	   && gimple_code (stmt) == GIMPLE_PHI)
-    {
-      for (i = 0; i < gimple_phi_num_args (stmt); ++i)
-	{
-	  tree op = gimple_phi_arg_def (stmt, i);
-	  if (TREE_CODE (op) == ADDR_EXPR)
-	    ret |= visit_addr (stmt, TREE_OPERAND (op, 0), data);
-	}
-    }
-  else if (visit_addr
-	   && gimple_code (stmt) == GIMPLE_GOTO)
-    {
-      tree op = gimple_goto_dest (stmt);
-      if (TREE_CODE (op) == ADDR_EXPR)
-	ret |= visit_addr (stmt, TREE_OPERAND (op, 0), data);
-    }
-
-  return ret;
-}
-
-/* Like walk_stmt_load_store_addr_ops but with NULL visit_addr.  IPA-CP
-   should make a faster clone for this case.  */
-
-bool
-walk_stmt_load_store_ops (gimple stmt, void *data,
-			  bool (*visit_load)(gimple, tree, void *),
-			  bool (*visit_store)(gimple, tree, void *))
-{
-  return walk_stmt_load_store_addr_ops (stmt, data,
-					visit_load, visit_store, NULL);
-}
-
 /* Helper for gimple_ior_addresses_taken_1.  */
 
 static bool
@@ -3427,4 +2565,215 @@ infer_nonnull_range (gimple stmt, tree op)
     return true;
 
   return false;
+}
+
+/* Compare two case labels.  Because the front end should already have
+   made sure that case ranges do not overlap, it is enough to only compare
+   the CASE_LOW values of each case label.  */
+
+static int
+compare_case_labels (const void *p1, const void *p2)
+{
+  const_tree const case1 = *(const_tree const*)p1;
+  const_tree const case2 = *(const_tree const*)p2;
+
+  /* The 'default' case label always goes first.  */
+  if (!CASE_LOW (case1))
+    return -1;
+  else if (!CASE_LOW (case2))
+    return 1;
+  else
+    return tree_int_cst_compare (CASE_LOW (case1), CASE_LOW (case2));
+}
+
+/* Sort the case labels in LABEL_VEC in place in ascending order.  */
+
+void
+sort_case_labels (vec<tree> label_vec)
+{
+  label_vec.qsort (compare_case_labels);
+}
+
+/* Prepare a vector of case labels to be used in a GIMPLE_SWITCH statement.
+
+   LABELS is a vector that contains all case labels to look at.
+
+   INDEX_TYPE is the type of the switch index expression.  Case labels
+   in LABELS are discarded if their values are not in the value range
+   covered by INDEX_TYPE.  The remaining case label values are folded
+   to INDEX_TYPE.
+
+   If a default case exists in LABELS, it is removed from LABELS and
+   returned in DEFAULT_CASEP.  If no default case exists, but the
+   case labels already cover the whole range of INDEX_TYPE, a default
+   case is returned pointing to one of the existing case labels.
+   Otherwise DEFAULT_CASEP is set to NULL_TREE.
+
+   DEFAULT_CASEP may be NULL, in which case the above comment doesn't
+   apply and no action is taken regardless of whether a default case is
+   found or not.  */
+
+void
+preprocess_case_label_vec_for_gimple (vec<tree> labels,
+				      tree index_type,
+				      tree *default_casep)
+{
+  tree min_value, max_value;
+  tree default_case = NULL_TREE;
+  size_t i, len;
+
+  i = 0;
+  min_value = TYPE_MIN_VALUE (index_type);
+  max_value = TYPE_MAX_VALUE (index_type);
+  while (i < labels.length ())
+    {
+      tree elt = labels[i];
+      tree low = CASE_LOW (elt);
+      tree high = CASE_HIGH (elt);
+      bool remove_element = FALSE;
+
+      if (low)
+	{
+	  gcc_checking_assert (TREE_CODE (low) == INTEGER_CST);
+	  gcc_checking_assert (!high || TREE_CODE (high) == INTEGER_CST);
+
+	  /* This is a non-default case label, i.e. it has a value.
+
+	     See if the case label is reachable within the range of
+	     the index type.  Remove out-of-range case values.  Turn
+	     case ranges into a canonical form (high > low strictly)
+	     and convert the case label values to the index type.
+
+	     NB: The type of gimple_switch_index() may be the promoted
+	     type, but the case labels retain the original type.  */
+
+	  if (high)
+	    {
+	      /* This is a case range.  Discard empty ranges.
+		 If the bounds or the range are equal, turn this
+		 into a simple (one-value) case.  */
+	      int cmp = tree_int_cst_compare (high, low);
+	      if (cmp < 0)
+		remove_element = TRUE;
+	      else if (cmp == 0)
+		high = NULL_TREE;
+	    }
+
+	  if (! high)
+	    {
+	      /* If the simple case value is unreachable, ignore it.  */
+	      if ((TREE_CODE (min_value) == INTEGER_CST
+		   && tree_int_cst_compare (low, min_value) < 0)
+		  || (TREE_CODE (max_value) == INTEGER_CST
+		      && tree_int_cst_compare (low, max_value) > 0))
+		remove_element = TRUE;
+	      else
+		low = fold_convert (index_type, low);
+	    }
+	  else
+	    {
+	      /* If the entire case range is unreachable, ignore it.  */
+	      if ((TREE_CODE (min_value) == INTEGER_CST
+		   && tree_int_cst_compare (high, min_value) < 0)
+		  || (TREE_CODE (max_value) == INTEGER_CST
+		      && tree_int_cst_compare (low, max_value) > 0))
+		remove_element = TRUE;
+	      else
+		{
+		  /* If the lower bound is less than the index type's
+		     minimum value, truncate the range bounds.  */
+		  if (TREE_CODE (min_value) == INTEGER_CST
+		      && tree_int_cst_compare (low, min_value) < 0)
+		    low = min_value;
+		  low = fold_convert (index_type, low);
+
+		  /* If the upper bound is greater than the index type's
+		     maximum value, truncate the range bounds.  */
+		  if (TREE_CODE (max_value) == INTEGER_CST
+		      && tree_int_cst_compare (high, max_value) > 0)
+		    high = max_value;
+		  high = fold_convert (index_type, high);
+
+		  /* We may have folded a case range to a one-value case.  */
+		  if (tree_int_cst_equal (low, high))
+		    high = NULL_TREE;
+		}
+	    }
+
+	  CASE_LOW (elt) = low;
+	  CASE_HIGH (elt) = high;
+	}
+      else
+	{
+	  gcc_assert (!default_case);
+	  default_case = elt;
+	  /* The default case must be passed separately to the
+	     gimple_build_switch routine.  But if DEFAULT_CASEP
+	     is NULL, we do not remove the default case (it would
+	     be completely lost).  */
+	  if (default_casep)
+	    remove_element = TRUE;
+	}
+
+      if (remove_element)
+	labels.ordered_remove (i);
+      else
+	i++;
+    }
+  len = i;
+
+  if (!labels.is_empty ())
+    sort_case_labels (labels);
+
+  if (default_casep && !default_case)
+    {
+      /* If the switch has no default label, add one, so that we jump
+	 around the switch body.  If the labels already cover the whole
+	 range of the switch index_type, add the default label pointing
+	 to one of the existing labels.  */
+      if (len
+	  && TYPE_MIN_VALUE (index_type)
+	  && TYPE_MAX_VALUE (index_type)
+	  && tree_int_cst_equal (CASE_LOW (labels[0]),
+				 TYPE_MIN_VALUE (index_type)))
+	{
+	  tree low, high = CASE_HIGH (labels[len - 1]);
+	  if (!high)
+	    high = CASE_LOW (labels[len - 1]);
+	  if (tree_int_cst_equal (high, TYPE_MAX_VALUE (index_type)))
+	    {
+	      for (i = 1; i < len; i++)
+		{
+		  high = CASE_LOW (labels[i]);
+		  low = CASE_HIGH (labels[i - 1]);
+		  if (!low)
+		    low = CASE_LOW (labels[i - 1]);
+		  if ((TREE_INT_CST_LOW (low) + 1
+		       != TREE_INT_CST_LOW (high))
+		      || (TREE_INT_CST_HIGH (low)
+			  + (TREE_INT_CST_LOW (high) == 0)
+			  != TREE_INT_CST_HIGH (high)))
+		    break;
+		}
+	      if (i == len)
+		{
+		  tree label = CASE_LABEL (labels[0]);
+		  default_case = build_case_label (NULL_TREE, NULL_TREE,
+						   label);
+		}
+	    }
+	}
+    }
+
+  if (default_casep)
+    *default_casep = default_case;
+}
+
+/* Set the location of all statements in SEQ to LOC.  */
+
+void
+gimple_seq_set_location (gimple_seq seq, location_t loc)
+{
+  for (gimple_stmt_iterator i = gsi_start (seq); !gsi_end_p (i); gsi_next (&i))
+    gimple_set_location (gsi_stmt (i), loc);
 }

@@ -24,16 +24,25 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "dumpfile.h"
 #include "tm.h"
-#include "ggc.h"
 #include "tree.h"
+#include "stor-layout.h"
 #include "tm_p.h"
 #include "target.h"
 #include "basic-block.h"
 #include "gimple-pretty-print.h"
+#include "tree-ssa-alias.h"
+#include "internal-fn.h"
+#include "tree-eh.h"
+#include "gimple-expr.h"
+#include "is-a.h"
 #include "gimple.h"
+#include "gimplify.h"
+#include "gimple-iterator.h"
+#include "gimplify-me.h"
 #include "gimple-ssa.h"
 #include "tree-phinodes.h"
 #include "ssa-iterators.h"
+#include "stringpool.h"
 #include "tree-ssanames.h"
 #include "tree-ssa-loop-ivopts.h"
 #include "tree-ssa-loop-manip.h"
@@ -769,7 +778,7 @@ vect_compute_data_ref_alignment (struct data_reference *dr)
   /* Modulo alignment.  */
   misalign = size_binop (FLOOR_MOD_EXPR, misalign, alignment);
 
-  if (!host_integerp (misalign, 1))
+  if (!tree_fits_uhwi_p (misalign))
     {
       /* Negative or overflowed misalignment value.  */
       if (dump_enabled_p ())
@@ -778,7 +787,7 @@ vect_compute_data_ref_alignment (struct data_reference *dr)
       return false;
     }
 
-  SET_DR_MISALIGNMENT (dr, TREE_INT_CST_LOW (misalign));
+  SET_DR_MISALIGNMENT (dr, tree_to_uhwi (misalign));
 
   if (dump_enabled_p ())
     {
@@ -957,10 +966,10 @@ vect_verify_datarefs_alignment (loop_vec_info loop_vinfo, bb_vec_info bb_vinfo)
 static bool
 not_size_aligned (tree exp)
 {
-  if (!host_integerp (TYPE_SIZE (TREE_TYPE (exp)), 1))
+  if (!tree_fits_uhwi_p (TYPE_SIZE (TREE_TYPE (exp))))
     return true;
 
-  return (TREE_INT_CST_LOW (TYPE_SIZE (TREE_TYPE (exp)))
+  return (tree_to_uhwi (TYPE_SIZE (TREE_TYPE (exp)))
 	  > get_object_alignment (exp));
 }
 
@@ -1730,9 +1739,10 @@ vect_enhance_data_refs_alignment (loop_vec_info loop_vinfo)
 
           LOOP_VINFO_UNALIGNED_DR (loop_vinfo) = dr0;
           if (npeel)
-            LOOP_PEELING_FOR_ALIGNMENT (loop_vinfo) = npeel;
+            LOOP_VINFO_PEELING_FOR_ALIGNMENT (loop_vinfo) = npeel;
           else
-            LOOP_PEELING_FOR_ALIGNMENT (loop_vinfo) = DR_MISALIGNMENT (dr0);
+            LOOP_VINFO_PEELING_FOR_ALIGNMENT (loop_vinfo)
+	      = DR_MISALIGNMENT (dr0);
 	  SET_DR_MISALIGNMENT (dr0, 0);
 	  if (dump_enabled_p ())
             {
@@ -2541,11 +2551,11 @@ vect_analyze_data_ref_accesses (loop_vec_info loop_vinfo, bb_vec_info bb_vinfo)
 	  /* Check that the data-refs have the same constant size and step.  */
 	  tree sza = TYPE_SIZE_UNIT (TREE_TYPE (DR_REF (dra)));
 	  tree szb = TYPE_SIZE_UNIT (TREE_TYPE (DR_REF (drb)));
-	  if (!host_integerp (sza, 1)
-	      || !host_integerp (szb, 1)
+	  if (!tree_fits_uhwi_p (sza)
+	      || !tree_fits_uhwi_p (szb)
 	      || !tree_int_cst_equal (sza, szb)
-	      || !host_integerp (DR_STEP (dra), 0)
-	      || !host_integerp (DR_STEP (drb), 0)
+	      || !tree_fits_shwi_p (DR_STEP (dra))
+	      || !tree_fits_shwi_p (DR_STEP (drb))
 	      || !tree_int_cst_equal (DR_STEP (dra), DR_STEP (drb)))
 	    break;
 
@@ -2566,13 +2576,13 @@ vect_analyze_data_ref_accesses (loop_vec_info loop_vinfo, bb_vec_info bb_vinfo)
 
 	  /* If init_b == init_a + the size of the type * k, we have an
 	     interleaving, and DRA is accessed before DRB.  */
-	  HOST_WIDE_INT type_size_a = TREE_INT_CST_LOW (sza);
+	  HOST_WIDE_INT type_size_a = tree_to_uhwi (sza);
 	  if ((init_b - init_a) % type_size_a != 0)
 	    break;
 
 	  /* The step (if not zero) is greater than the difference between
 	     data-refs' inits.  This splits groups into suitable sizes.  */
-	  HOST_WIDE_INT step = TREE_INT_CST_LOW (DR_STEP (dra));
+	  HOST_WIDE_INT step = tree_to_shwi (DR_STEP (dra));
 	  if (step != 0 && step <= (init_b - init_a))
 	    break;
 
@@ -2620,7 +2630,7 @@ vect_analyze_data_ref_accesses (loop_vec_info loop_vinfo, bb_vec_info bb_vinfo)
 }
 
 
-/* Operator == between two dr_addr_with_seg_len objects.
+/* Operator == between two dr_with_seg_len objects.
 
    This equality operator is used to make sure two data refs
    are the same one so that we will consider to combine the
@@ -2628,62 +2638,51 @@ vect_analyze_data_ref_accesses (loop_vec_info loop_vinfo, bb_vec_info bb_vinfo)
    refs.  */
 
 static bool
-operator == (const dr_addr_with_seg_len& d1,
-	     const dr_addr_with_seg_len& d2)
+operator == (const dr_with_seg_len& d1,
+	     const dr_with_seg_len& d2)
 {
-  return operand_equal_p (d1.basic_addr, d2.basic_addr, 0)
-	 && compare_tree (d1.offset, d2.offset) == 0
-	 && compare_tree (d1.seg_len, d2.seg_len) == 0;
+  return operand_equal_p (DR_BASE_ADDRESS (d1.dr),
+			  DR_BASE_ADDRESS (d2.dr), 0)
+	   && compare_tree (d1.offset, d2.offset) == 0
+	   && compare_tree (d1.seg_len, d2.seg_len) == 0;
 }
 
-/* Function comp_dr_addr_with_seg_len_pair.
+/* Function comp_dr_with_seg_len_pair.
 
-   Comparison function for sorting objects of dr_addr_with_seg_len_pair_t
+   Comparison function for sorting objects of dr_with_seg_len_pair_t
    so that we can combine aliasing checks in one scan.  */
 
 static int
-comp_dr_addr_with_seg_len_pair (const void *p1_, const void *p2_)
+comp_dr_with_seg_len_pair (const void *p1_, const void *p2_)
 {
-  const dr_addr_with_seg_len_pair_t* p1 =
-    (const dr_addr_with_seg_len_pair_t *) p1_;
-  const dr_addr_with_seg_len_pair_t* p2 =
-    (const dr_addr_with_seg_len_pair_t *) p2_;
+  const dr_with_seg_len_pair_t* p1 = (const dr_with_seg_len_pair_t *) p1_;
+  const dr_with_seg_len_pair_t* p2 = (const dr_with_seg_len_pair_t *) p2_;
 
-  const dr_addr_with_seg_len &p11 = p1->first,
-			     &p12 = p1->second,
-			     &p21 = p2->first,
-			     &p22 = p2->second;
+  const dr_with_seg_len &p11 = p1->first,
+			&p12 = p1->second,
+			&p21 = p2->first,
+			&p22 = p2->second;
 
-  int comp_res = compare_tree (p11.basic_addr, p21.basic_addr);
-  if (comp_res != 0)
+  /* For DR pairs (a, b) and (c, d), we only consider to merge the alias checks
+     if a and c have the same basic address snd step, and b and d have the same
+     address and step.  Therefore, if any a&c or b&d don't have the same address
+     and step, we don't care the order of those two pairs after sorting.  */
+  int comp_res;
+
+  if ((comp_res = compare_tree (DR_BASE_ADDRESS (p11.dr),
+				DR_BASE_ADDRESS (p21.dr))) != 0)
     return comp_res;
-
-  comp_res = compare_tree (p12.basic_addr, p22.basic_addr);
-  if (comp_res != 0)
+  if ((comp_res = compare_tree (DR_BASE_ADDRESS (p12.dr),
+				DR_BASE_ADDRESS (p22.dr))) != 0)
     return comp_res;
-
-  if (TREE_CODE (p11.offset) != INTEGER_CST
-      || TREE_CODE (p21.offset) != INTEGER_CST)
-    {
-      comp_res = compare_tree (p11.offset, p21.offset);
-      if (comp_res != 0)
-	return comp_res;
-    }
-  if (tree_int_cst_compare (p11.offset, p21.offset) < 0)
-    return -1;
-  if (tree_int_cst_compare (p11.offset, p21.offset) > 0)
-    return 1;
-  if (TREE_CODE (p12.offset) != INTEGER_CST
-      || TREE_CODE (p22.offset) != INTEGER_CST)
-    {
-      comp_res = compare_tree (p12.offset, p22.offset);
-      if (comp_res != 0)
-	return comp_res;
-    }
-  if (tree_int_cst_compare (p12.offset, p22.offset) < 0)
-    return -1;
-  if (tree_int_cst_compare (p12.offset, p22.offset) > 0)
-    return 1;
+  if ((comp_res = compare_tree (DR_STEP (p11.dr), DR_STEP (p21.dr))) != 0)
+    return comp_res;
+  if ((comp_res = compare_tree (DR_STEP (p12.dr), DR_STEP (p22.dr))) != 0)
+    return comp_res;
+  if ((comp_res = compare_tree (p11.offset, p21.offset)) != 0)
+    return comp_res;
+  if ((comp_res = compare_tree (p12.offset, p22.offset)) != 0)
+    return comp_res;
 
   return 0;
 }
@@ -2718,11 +2717,11 @@ vect_vfa_segment_size (struct data_reference *dr, tree length_factor)
     segment_length = TYPE_SIZE_UNIT (TREE_TYPE (DR_REF (dr)));
   else
     segment_length = size_binop (MULT_EXPR,
-                                 fold_convert (sizetype, DR_STEP (dr)),
-                                 fold_convert (sizetype, length_factor));
+				 fold_convert (sizetype, DR_STEP (dr)),
+				 fold_convert (sizetype, length_factor));
 
   if (vect_supportable_dr_alignment (dr, false)
-        == dr_explicit_realign_optimized)
+	== dr_explicit_realign_optimized)
     {
       tree vector_size = TYPE_SIZE_UNIT
 			  (STMT_VINFO_VECTYPE (vinfo_for_stmt (DR_STMT (dr))));
@@ -2744,7 +2743,7 @@ vect_prune_runtime_alias_test_list (loop_vec_info loop_vinfo)
 {
   vec<ddr_p> may_alias_ddrs =
     LOOP_VINFO_MAY_ALIAS_DDRS (loop_vinfo);
-  vec<dr_addr_with_seg_len_pair_t>& comp_alias_ddrs =
+  vec<dr_with_seg_len_pair_t>& comp_alias_ddrs =
     LOOP_VINFO_COMP_ALIAS_DDRS (loop_vinfo);
   int vect_factor = LOOP_VINFO_VECT_FACTOR (loop_vinfo);
   tree scalar_loop_iters = LOOP_VINFO_NITERS (loop_vinfo);
@@ -2823,18 +2822,11 @@ vect_prune_runtime_alias_test_list (loop_vec_info loop_vinfo)
       segment_length_a = vect_vfa_segment_size (dr_a, length_factor);
       segment_length_b = vect_vfa_segment_size (dr_b, length_factor);
 
-      dr_addr_with_seg_len_pair_t dr_with_seg_len_pair
-	  (dr_addr_with_seg_len
-	       (dr_a, DR_BASE_ADDRESS (dr_a),
-		size_binop (PLUS_EXPR, DR_OFFSET (dr_a), DR_INIT (dr_a)),
-		segment_length_a),
-	   dr_addr_with_seg_len
-	       (dr_b, DR_BASE_ADDRESS (dr_b),
-		size_binop (PLUS_EXPR, DR_OFFSET (dr_b), DR_INIT (dr_b)),
-		segment_length_b));
+      dr_with_seg_len_pair_t dr_with_seg_len_pair
+	  (dr_with_seg_len (dr_a, segment_length_a),
+	   dr_with_seg_len (dr_b, segment_length_b));
 
-      if (compare_tree (dr_with_seg_len_pair.first.basic_addr,
-			dr_with_seg_len_pair.second.basic_addr) > 0)
+      if (compare_tree (DR_BASE_ADDRESS (dr_a), DR_BASE_ADDRESS (dr_b)) > 0)
 	swap (dr_with_seg_len_pair.first, dr_with_seg_len_pair.second);
 
       comp_alias_ddrs.safe_push (dr_with_seg_len_pair);
@@ -2842,17 +2834,17 @@ vect_prune_runtime_alias_test_list (loop_vec_info loop_vinfo)
 
   /* Second, we sort the collected data ref pairs so that we can scan
      them once to combine all possible aliasing checks.  */
-  comp_alias_ddrs.qsort (comp_dr_addr_with_seg_len_pair);
+  comp_alias_ddrs.qsort (comp_dr_with_seg_len_pair);
 
   /* Third, we scan the sorted dr pairs and check if we can combine
      alias checks of two neighbouring dr pairs.  */
   for (size_t i = 1; i < comp_alias_ddrs.length (); ++i)
     {
       /* Deal with two ddrs (dr_a1, dr_b1) and (dr_a2, dr_b2).  */
-      dr_addr_with_seg_len *dr_a1 = &comp_alias_ddrs[i-1].first,
-			   *dr_b1 = &comp_alias_ddrs[i-1].second,
-			   *dr_a2 = &comp_alias_ddrs[i].first,
-			   *dr_b2 = &comp_alias_ddrs[i].second;
+      dr_with_seg_len *dr_a1 = &comp_alias_ddrs[i-1].first,
+		      *dr_b1 = &comp_alias_ddrs[i-1].second,
+		      *dr_a2 = &comp_alias_ddrs[i].first,
+		      *dr_b2 = &comp_alias_ddrs[i].second;
 
       /* Remove duplicate data ref pairs.  */
       if (*dr_a1 == *dr_a2 && *dr_b1 == *dr_b2)
@@ -2889,13 +2881,15 @@ vect_prune_runtime_alias_test_list (loop_vec_info loop_vinfo)
 	      swap (dr_a2, dr_b2);
 	    }
 
-	  if (!operand_equal_p (dr_a1->basic_addr, dr_a2->basic_addr, 0)
-	      || !host_integerp (dr_a1->offset, 0)
-	      || !host_integerp (dr_a2->offset, 0))
+	  if (!operand_equal_p (DR_BASE_ADDRESS (dr_a1->dr),
+				DR_BASE_ADDRESS (dr_a2->dr),
+				0)
+	      || !tree_fits_shwi_p (dr_a1->offset)
+	      || !tree_fits_shwi_p (dr_a2->offset))
 	    continue;
 
-	  HOST_WIDE_INT diff = TREE_INT_CST_LOW (dr_a2->offset) -
-			       TREE_INT_CST_LOW (dr_a1->offset);
+	  HOST_WIDE_INT diff = (tree_to_shwi (dr_a2->offset)
+				- tree_to_shwi (dr_a1->offset));
 
 
 	  /* Now we check if the following condition is satisfied:
@@ -2916,8 +2910,8 @@ vect_prune_runtime_alias_test_list (loop_vec_info loop_vinfo)
 
 	  HOST_WIDE_INT
 	  min_seg_len_b = (TREE_CODE (dr_b1->seg_len) == INTEGER_CST) ?
-			      TREE_INT_CST_LOW (dr_b1->seg_len) :
-			      vect_factor;
+			     TREE_INT_CST_LOW (dr_b1->seg_len) :
+			     vect_factor;
 
 	  if (diff <= min_seg_len_b
 	      || (TREE_CODE (dr_a1->seg_len) == INTEGER_CST
@@ -2976,7 +2970,7 @@ vect_check_gather (gimple stmt, loop_vec_info loop_vinfo, tree *basep,
      SSA_NAME OFF and put the loop invariants into a tree BASE
      that can be gimplified before the loop.  */
   base = get_inner_reference (DR_REF (dr), &pbitsize, &pbitpos, &off,
-			      &pmode, &punsignedp, &pvolatilep, false);
+			      &pmode, &punsignedp, &pvolatilep);
   gcc_assert (base != NULL_TREE && (pbitpos % BITS_PER_UNIT) == 0);
 
   if (TREE_CODE (base) == MEM_REF)
@@ -3082,9 +3076,9 @@ vect_check_gather (gimple stmt, loop_vec_info loop_vinfo, tree *basep,
 	    }
 	  break;
 	case MULT_EXPR:
-	  if (scale == 1 && host_integerp (op1, 0))
+	  if (scale == 1 && tree_fits_shwi_p (op1))
 	    {
-	      scale = tree_low_cst (op1, 0);
+	      scale = tree_to_shwi (op1);
 	      off = op0;
 	      continue;
 	    }
@@ -3281,7 +3275,7 @@ again:
 		      STRIP_NOPS (off);
 		      if (TREE_CODE (DR_INIT (newdr)) == INTEGER_CST
 			  && TREE_CODE (off) == MULT_EXPR
-			  && host_integerp (TREE_OPERAND (off, 1), 1))
+			  && tree_fits_uhwi_p (TREE_OPERAND (off, 1)))
 			{
 			  tree step = TREE_OPERAND (off, 1);
 			  off = TREE_OPERAND (off, 0);
@@ -3472,7 +3466,7 @@ again:
 	    }
 
 	  outer_base = get_inner_reference (inner_base, &pbitsize, &pbitpos,
-		          &poffset, &pmode, &punsignedp, &pvolatilep, false);
+		          &poffset, &pmode, &punsignedp, &pvolatilep);
 	  gcc_assert (outer_base != NULL_TREE);
 
 	  if (pbitpos % BITS_PER_UNIT != 0)
