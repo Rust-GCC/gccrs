@@ -14,7 +14,6 @@
    along with GCC; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.
 */
-
 #include "rust.h"
 
 char * GRS_current_infname;
@@ -75,10 +74,32 @@ bool grs_langhook_init (void)
 
 /* Initialize before parsing options.  */
 static void
-grs_langhook_init_options (unsigned int decoded_options_count ATTRIBUTE_UNUSED,
-                           struct cl_decoded_option *decoded_options ATTRIBUTE_UNUSED)
+grs_langhook_init_options_struct (struct gcc_options * opts)
 {
-  return;
+   /* Go says that signed overflow is precisely defined.  */
+  opts->x_flag_wrapv = 1;
+
+  /* We default to using strict aliasing, since Go pointers are safe.
+     This is turned off for code that imports the "unsafe" package,
+     because using unsafe.pointer violates C style aliasing
+     requirements.  */
+  opts->x_flag_strict_aliasing = 1;
+
+  /* Default to avoiding range issues for complex multiply and
+     divide.  */
+  opts->x_flag_complex_method = 2;
+
+  /* The builtin math functions should not set errno.  */
+  opts->x_flag_errno_math = 0;
+  opts->frontend_set_flag_errno_math = true;
+
+  /* We turn on stack splitting if we can.  */
+  if (targetm_common.supports_split_stack (false, opts))
+    opts->x_flag_split_stack = 1;
+
+  /* Exceptions are used to handle recovering from panics.  */
+  opts->x_flag_exceptions = 1;
+  opts->x_flag_non_call_exceptions = 1;
 }
 
 /* Handle grs specific options.  Return 0 if we didn't do anything.  */
@@ -184,9 +205,24 @@ void grs_langhook_write_globals (void)
 }
 
 static
-unsigned int grs_option_lang_mask (void)
+unsigned int grs_langhook_option_lang_mask (void)
 {
   return CL_Rust;
+}
+
+/* Return a decl for the exception personality function.  The function
+   itself is implemented in libgo/runtime/go-unwind.c.  */
+
+static
+tree grs_langhook_eh_personality (void)
+{
+  static tree personality_decl;
+  if (personality_decl == NULL_TREE)
+    {
+      personality_decl = build_personality_function ("gccrs");
+      grs_preserve_from_gc (personality_decl);
+    }
+  return personality_decl;
 }
 
 static int
@@ -244,24 +280,14 @@ void grs_preserve_from_gc (tree t)
   grs_gc_root = tree_cons (NULL_TREE, t, grs_gc_root);
 }
 
-/* Useful logging kind of ... */
-void __grs_debug__ (const char * file, unsigned int lineno,
-		    const char * fmt, ...)
-{
-  va_list args;
-  fprintf (stderr, "DEBUG: <%s:%i> ", file, lineno);
-  va_start (args, fmt);
-  vfprintf (stderr, fmt, args);
-  va_end (args);
-}
-
 /* The language hooks data structure. This is the main interface between the GCC front-end
  * and the GCC middle-end/back-end. A list of language hooks could be found in
  * <gcc>/langhooks.h
  */
 #undef LANG_HOOKS_NAME
 #undef LANG_HOOKS_INIT
-#undef LANG_HOOKS_INIT_OPTIONS
+#undef LANG_HOOKS_OPTION_LANG_MASK
+#undef LANG_HOOKS_INIT_OPTIONS_STRUCT
 #undef LANG_HOOKS_HANDLE_OPTION
 #undef LANG_HOOKS_POST_OPTIONS
 #undef LANG_HOOKS_PARSE_FILE
@@ -273,12 +299,12 @@ void __grs_debug__ (const char * file, unsigned int lineno,
 #undef LANG_HOOKS_GETDECLS
 #undef LANG_HOOKS_WRITE_GLOBALS
 #undef LANG_HOOKS_GIMPLIFY_EXPR
-#undef LANG_HOOKS_GIMPLIFY_EXPR
-#undef LANG_HOOKS_OPTION_LANG_MASK
+#undef LANG_HOOKS_EH_PERSONALITY
 
 #define LANG_HOOKS_NAME                 "GNU Rust"
 #define LANG_HOOKS_INIT                 grs_langhook_init
-#define LANG_HOOKS_INIT_OPTIONS         grs_langhook_init_options
+#define LANG_HOOKS_OPTION_LANG_MASK	grs_langhook_option_lang_mask
+#define LANG_HOOKS_INIT_OPTIONS_STRUCT	grs_langhook_init_options_struct
 #define LANG_HOOKS_HANDLE_OPTION        grs_langhook_handle_option
 #define LANG_HOOKS_POST_OPTIONS         grs_langhook_post_options
 #define LANG_HOOKS_PARSE_FILE           grs_langhook_parse_file
@@ -290,7 +316,7 @@ void __grs_debug__ (const char * file, unsigned int lineno,
 #define LANG_HOOKS_GETDECLS             grs_langhook_getdecls
 #define LANG_HOOKS_WRITE_GLOBALS        grs_langhook_write_globals
 #define LANG_HOOKS_GIMPLIFY_EXPR        grs_langhook_gimplify_expr
-#define LANG_HOOKS_OPTION_LANG_MASK     grs_option_lang_mask
+#define LANG_HOOKS_EH_PERSONALITY	grs_langhook_eh_personality
 
 struct lang_hooks lang_hooks = LANG_HOOKS_INITIALIZER;
 

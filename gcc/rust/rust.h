@@ -30,29 +30,34 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "ansidecl.h"
 #include "coretypes.h"
-#include "tm.h"
 #include "opts.h"
 #include "tree.h"
 #include "tree-iterator.h"
 #include "tree-pass.h"
-#include "gimple.h"
+#include "basic-block.h"
+#include "gimple-expr.h"
+#include "gimplify.h"
+#include "stor-layout.h"
 #include "toplev.h"
 #include "debug.h"
 #include "options.h"
 #include "flags.h"
 #include "convert.h"
-#include "diagnostic-core.h"
+#include "diagnostic.h"
 #include "langhooks.h"
 #include "langhooks-def.h"
 #include "target.h"
+#include "common/common-target.h"
+#include "diagnostic-core.h"
 #include "cgraph.h"
+#include "varasm.h"
+#include "stringpool.h"
 
 #include <vec.h>
 #include <hashtab.h>
 
 #include <gmp.h>
 #include <mpfr.h>
-
 /* rust include */
 #include "rdot-impl.h"
 
@@ -77,12 +82,6 @@ extern tree grs_type_for_size (unsigned int, int);
 extern tree grs_type_for_mode (enum machine_mode, int);
 
 extern bool grs_do_compile (const char *);
-extern void __grs_debug__ (const char *, unsigned int, const char *, ...)
-  __attribute__ ((format (printf, 3, 4)));
-
-/* quick and handy debug function */
-#define debug(...)					\
-  __grs_debug__ (__FILE__, __LINE__, __VA_ARGS__);
 
 /* rdot pass manager */
 extern tree cstring_type_node;
