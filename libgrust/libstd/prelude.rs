@@ -40,9 +40,11 @@ pub use result::{Result, Ok, Err};
 // Reexported functions
 pub use from_str::from_str;
 pub use iter::range;
-pub use rt::io::stdio::{print, println};
+pub use io::stdio::{print, println};
 
 // Reexported types and traits
+
+pub use any::{Any, AnyOwnExt, AnyRefExt, AnyMutRefExt};
 pub use ascii::{Ascii, AsciiCast, OwnedAsciiCast, AsciiStr, ToBytesConsume};
 pub use bool::Bool;
 pub use c_str::ToCStr;
@@ -65,6 +67,7 @@ pub use num::{Orderable, Signed, Unsigned, Round};
 pub use num::{Primitive, Int, Float, ToStrRadix, ToPrimitive, FromPrimitive};
 pub use path::{GenericPath, Path, PosixPath, WindowsPath};
 pub use ptr::RawPtr;
+pub use io::{Buffer, Writer, Reader, Seek};
 pub use send_str::{SendStr, SendStrOwned, SendStrStatic, IntoSendStr};
 pub use str::{Str, StrVector, StrSlice, OwnedStr};
 pub use to_bytes::IterBytes;

@@ -14,7 +14,7 @@ use cast::transmute;
 use option::{None, Option, Some};
 use iter::{Iterator, range_step};
 use str::StrSlice;
-use unicode::{derived_property, general_category, decompose};
+use unicode::{derived_property, property, general_category, decompose};
 use to_str::ToStr;
 use str;
 
@@ -89,30 +89,28 @@ pub fn is_XID_continue(c: char) -> bool { derived_property::XID_Continue(c) }
 
 ///
 /// Indicates whether a character is in lower case, defined
-/// in terms of the Unicode General Category 'Ll'
+/// in terms of the Unicode Derived Core Property 'Lowercase'.
 ///
 #[inline]
-pub fn is_lowercase(c: char) -> bool { general_category::Ll(c) }
+pub fn is_lowercase(c: char) -> bool { derived_property::Lowercase(c) }
 
 ///
 /// Indicates whether a character is in upper case, defined
-/// in terms of the Unicode General Category 'Lu'.
+/// in terms of the Unicode Derived Core Property 'Uppercase'.
 ///
 #[inline]
-pub fn is_uppercase(c: char) -> bool { general_category::Lu(c) }
+pub fn is_uppercase(c: char) -> bool { derived_property::Uppercase(c) }
 
 ///
 /// Indicates whether a character is whitespace. Whitespace is defined in
-/// terms of the Unicode General Categories 'Zs', 'Zl', 'Zp'
-/// additional 'Cc'-category control codes in the range [0x09, 0x0d]
+/// terms of the Unicode Property 'White_Space'.
 ///
 #[inline]
 pub fn is_whitespace(c: char) -> bool {
+    // As an optimization ASCII whitespace characters are checked separately
     c == ' '
         || ('\x09' <= c && c <= '\x0d')
-        || general_category::Zs(c)
-        || general_category::Zl(c)
-        || general_category::Zp(c)
+        || property::White_Space(c)
 }
 
 ///
@@ -187,7 +185,7 @@ pub fn is_digit_radix(c: char, radix: uint) -> bool {
 #[inline]
 pub fn to_digit(c: char, radix: uint) -> Option<uint> {
     if radix > 36 {
-        fail!("to_digit: radix {} is to high (maximum 36)", radix);
+        fail!("to_digit: radix {} is too high (maximum 36)", radix);
     }
     let val = match c {
       '0' .. '9' => c as uint - ('0' as uint),
@@ -241,7 +239,7 @@ static N_COUNT: uint = (V_COUNT * T_COUNT);
 static S_COUNT: uint = (L_COUNT * N_COUNT);
 
 // Decompose a precomposed Hangul syllable
-fn decompose_hangul(s: char, f: &fn(char)) {
+fn decompose_hangul(s: char, f: |char|) {
     let si = s as uint - S_BASE;
 
     let li = si / N_COUNT;
@@ -259,7 +257,7 @@ fn decompose_hangul(s: char, f: &fn(char)) {
 }
 
 /// Returns the canonical decompostion of a character
-pub fn decompose_canonical(c: char, f: &fn(char)) {
+pub fn decompose_canonical(c: char, f: |char|) {
     if (c as uint) < S_BASE || (c as uint) >= (S_BASE + S_COUNT) {
         decompose::canonical(c, f);
     } else {
@@ -268,7 +266,7 @@ pub fn decompose_canonical(c: char, f: &fn(char)) {
 }
 
 /// Returns the compatibility decompostion of a character
-pub fn decompose_compatible(c: char, f: &fn(char)) {
+pub fn decompose_compatible(c: char, f: |char|) {
     if (c as uint) < S_BASE || (c as uint) >= (S_BASE + S_COUNT) {
         decompose::compatibility(c, f);
     } else {
@@ -285,7 +283,7 @@ pub fn decompose_compatible(c: char, f: &fn(char)) {
 /// - chars in [0x100,0xffff] get 4-digit escapes: `\\uNNNN`
 /// - chars above 0x10000 get 8-digit escapes: `\\UNNNNNNNN`
 ///
-pub fn escape_unicode(c: char, f: &fn(char)) {
+pub fn escape_unicode(c: char, f: |char|) {
     // avoid calling str::to_str_radix because we don't really need to allocate
     // here.
     f('\\');
@@ -316,7 +314,7 @@ pub fn escape_unicode(c: char, f: &fn(char)) {
 /// - Any other chars in the range [0x20,0x7e] are not escaped.
 /// - Any other chars are given hex unicode escapes; see `escape_unicode`.
 ///
-pub fn escape_default(c: char, f: &fn(char)) {
+pub fn escape_default(c: char, f: |char|) {
     match c {
         '\t' => { f('\\'); f('t'); }
         '\r' => { f('\\'); f('r'); }
@@ -367,8 +365,8 @@ pub trait Char {
     fn is_digit_radix(&self, radix: uint) -> bool;
     fn to_digit(&self, radix: uint) -> Option<uint>;
     fn from_digit(num: uint, radix: uint) -> Option<char>;
-    fn escape_unicode(&self, f: &fn(char));
-    fn escape_default(&self, f: &fn(char));
+    fn escape_unicode(&self, f: |char|);
+    fn escape_default(&self, f: |char|);
     fn len_utf8_bytes(&self) -> uint;
 
     /// Encodes this character as utf-8 into the provided byte-buffer. The
@@ -403,9 +401,9 @@ impl Char for char {
 
     fn from_digit(num: uint, radix: uint) -> Option<char> { from_digit(num, radix) }
 
-    fn escape_unicode(&self, f: &fn(char)) { escape_unicode(*self, f) }
+    fn escape_unicode(&self, f: |char|) { escape_unicode(*self, f) }
 
-    fn escape_default(&self, f: &fn(char)) { escape_default(*self, f) }
+    fn escape_default(&self, f: |char|) { escape_default(*self, f) }
 
     fn len_utf8_bytes(&self) -> uint { len_utf8_bytes(*self) }
 
@@ -532,7 +530,7 @@ fn test_is_digit() {
 fn test_escape_default() {
     fn string(c: char) -> ~str {
         let mut result = ~"";
-        do escape_default(c) |c| { result.push_char(c); }
+        escape_default(c, |c| { result.push_char(c); });
         return result;
     }
     assert_eq!(string('\n'), ~"\\n");
@@ -554,7 +552,7 @@ fn test_escape_default() {
 fn test_escape_unicode() {
     fn string(c: char) -> ~str {
         let mut result = ~"";
-        do escape_unicode(c) |c| { result.push_char(c); }
+        escape_unicode(c, |c| { result.push_char(c); });
         return result;
     }
     assert_eq!(string('\x00'), ~"\\x00");

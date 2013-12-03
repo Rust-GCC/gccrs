@@ -15,8 +15,8 @@ use unstable::intrinsics::TyDesc;
 pub struct Box<T> {
     ref_count: uint,
     type_desc: *TyDesc,
-    priv prev: *Box<T>,
-    next: *Box<T>,
+    prev: *mut Box<T>,
+    next: *mut Box<T>,
     data: T
 }
 
@@ -62,3 +62,33 @@ impl Repr<*Box<String>> for @str {}
 
 // sure would be nice to have this
 // impl<T> Repr<*Vec<T>> for ~[T] {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use cast;
+
+    #[test]
+    fn synthesize_closure() {
+        unsafe {
+            let x = 10;
+            let f: |int| -> int = |y| x + y;
+
+            assert_eq!(f(20), 30);
+
+            let original_closure: Closure = cast::transmute(f);
+
+            let actual_function_pointer = original_closure.code;
+            let environment = original_closure.env;
+
+            let new_closure = Closure {
+                code: actual_function_pointer,
+                env: environment
+            };
+
+            let new_f: |int| -> int = cast::transmute(new_closure);
+            assert_eq!(new_f(20), 30);
+        }
+    }
+}

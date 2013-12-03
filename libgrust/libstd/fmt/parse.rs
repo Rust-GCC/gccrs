@@ -180,7 +180,7 @@ impl<'self> Iterator<Piece<'self>> for Parser<'self> {
             }
             Some((_, '}')) if self.depth == 0 => {
                 self.cur.next();
-                self.err(~"unmatched `}` found");
+                self.err("unmatched `}` found");
                 None
             }
             Some((_, '}')) | None => { None }
@@ -196,7 +196,7 @@ impl<'self> Parser<'self> {
     pub fn new<'a>(s: &'a str) -> Parser<'a> {
         Parser {
             input: s,
-            cur: s.char_offset_iter(),
+            cur: s.char_indices(),
             depth: 0,
         }
     }
@@ -204,8 +204,8 @@ impl<'self> Parser<'self> {
     /// Notifies of an error. The message doesn't actually need to be of type
     /// ~str, but I think it does when this eventually uses conditions so it
     /// might as well start using it now.
-    fn err(&self, msg: ~str) {
-        parse_error::cond.raise(msg);
+    fn err(&self, msg: &str) {
+        parse_error::cond.raise("invalid format string: " + msg);
     }
 
     /// Optionally consumes the specified character. If the character is not at
@@ -217,7 +217,7 @@ impl<'self> Parser<'self> {
                 self.cur.next();
                 true
             }
-            Some(*) | None => false,
+            Some(..) | None => false,
         }
     }
 
@@ -230,11 +230,11 @@ impl<'self> Parser<'self> {
                 self.cur.next();
             }
             Some((_, other)) => {
-                parse_error::cond.raise(
+                self.err(
                     format!("expected `{}` but found `{}`", c, other));
             }
             None => {
-                parse_error::cond.raise(
+                self.err(
                     format!("expected `{}` but string was terminated", c));
             }
         }
@@ -251,7 +251,7 @@ impl<'self> Parser<'self> {
         loop {
             match self.cur.clone().next() {
                 Some((_, c)) if char::is_whitespace(c) => { self.cur.next(); }
-                Some(*) | None => { return }
+                Some(..) | None => { return }
             }
         }
     }
@@ -267,7 +267,7 @@ impl<'self> Parser<'self> {
                 c
             }
             None => {
-                self.err(~"expected an escape sequence, but format string was \
+                self.err("expected an escape sequence, but format string was \
                            terminated");
                 ' '
             }
@@ -284,7 +284,7 @@ impl<'self> Parser<'self> {
                 Some((pos, '}')) | Some((pos, '{')) => {
                     return self.input.slice(start, pos);
                 }
-                Some(*) => { self.cur.next(); }
+                Some(..) => { self.cur.next(); }
                 None => {
                     self.cur.next();
                     return self.input.slice(start, self.input.len());
@@ -340,7 +340,7 @@ impl<'self> Parser<'self> {
                         spec.fill = Some(c);
                         self.cur.next();
                     }
-                    Some(*) | None => {}
+                    Some(..) | None => {}
                 }
             }
             None => {}
@@ -411,7 +411,7 @@ impl<'self> Parser<'self> {
                 Some(self.plural())
             }
             "" => {
-                self.err(~"expected method after comma");
+                self.err("expected method after comma");
                 return None;
             }
             method => {
@@ -430,7 +430,7 @@ impl<'self> Parser<'self> {
             self.ws();
             let selector = self.word();
             if selector == "" {
-                self.err(~"cannot have an empty selector");
+                self.err("cannot have an empty selector");
                 break
             }
             self.must_consume('{');
@@ -440,7 +440,7 @@ impl<'self> Parser<'self> {
             self.must_consume('}');
             if selector == "other" {
                 if !other.is_none() {
-                    self.err(~"multiple `other` statements in `select");
+                    self.err("multiple `other` statements in `select");
                 }
                 other = Some(pieces);
             } else {
@@ -449,14 +449,14 @@ impl<'self> Parser<'self> {
             self.ws();
             match self.cur.clone().next() {
                 Some((_, '}')) => { break }
-                Some(*) | None => {}
+                Some(..) | None => {}
             }
         }
         // The "other" selector must be present
         let other = match other {
             Some(arm) => { arm }
             None => {
-                self.err(~"`select` statement must provide an `other` case");
+                self.err("`select` statement must provide an `other` case");
                 ~[]
             }
         };
@@ -488,15 +488,15 @@ impl<'self> Parser<'self> {
                             match self.integer() {
                                 Some(i) => { offset = Some(i); }
                                 None => {
-                                    self.err(~"offset must be an integer");
+                                    self.err("offset must be an integer");
                                 }
                             }
                         }
                     }
-                    Some(*) | None => {}
+                    Some(..) | None => {}
                 }
             }
-            Some(*) | None => {}
+            Some(..) | None => {}
         }
 
         // Next, generate all the arms
@@ -506,8 +506,8 @@ impl<'self> Parser<'self> {
                 match self.integer() {
                     Some(i) => Right(i),
                     None => {
-                        self.err(~"plural `=` selectors must be followed by an \
-                                   integer");
+                        self.err("plural `=` selectors must be followed by an \
+                                  integer");
                         Right(0)
                     }
                 }
@@ -538,7 +538,7 @@ impl<'self> Parser<'self> {
             self.must_consume('}');
             if isother {
                 if !other.is_none() {
-                    self.err(~"multiple `other` statements in `select");
+                    self.err("multiple `other` statements in `select");
                 }
                 other = Some(pieces);
             } else {
@@ -547,14 +547,14 @@ impl<'self> Parser<'self> {
             self.ws();
             match self.cur.clone().next() {
                 Some((_, '}')) => { break }
-                Some(*) | None => {}
+                Some(..) | None => {}
             }
         }
 
         let other = match other {
             Some(arm) => { arm }
             None => {
-                self.err(~"`plural` statement must provide an `other` case");
+                self.err("`plural` statement must provide an `other` case");
                 ~[]
             }
         };
@@ -597,7 +597,7 @@ impl<'self> Parser<'self> {
                 self.cur.next();
                 pos
             }
-            Some(*) | None => { return self.input.slice(0, 0); }
+            Some(..) | None => { return self.input.slice(0, 0); }
         };
         let mut end;
         loop {

@@ -17,8 +17,9 @@ use os;
 // Note that these are all accessed without any synchronization.
 // They are expected to be initialized once then left alone.
 
-static mut MIN_STACK: uint = 4000000;
+static mut MIN_STACK: uint = 2000000;
 static mut DEBUG_BORROW: bool = false;
+static mut POISON_ON_FREE: bool = false;
 
 pub fn init() {
     unsafe {
@@ -33,6 +34,10 @@ pub fn init() {
             Some(_) => DEBUG_BORROW = true,
             None => ()
         }
+        match os::getenv("RUST_POISON_ON_FREE") {
+            Some(_) => POISON_ON_FREE = true,
+            None => ()
+        }
     }
 }
 
@@ -42,4 +47,8 @@ pub fn min_stack() -> uint {
 
 pub fn debug_borrow() -> bool {
     unsafe { DEBUG_BORROW }
+}
+
+pub fn poison_on_free() -> bool {
+    unsafe { POISON_ON_FREE }
 }

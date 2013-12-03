@@ -17,25 +17,27 @@
 #include "rust.h"
 
 tree cstring_type_node;
-#define MAYBE_BOMB_OUT				\
-  do						\
-    if (seen_error ()) return;			\
+static bool empty = true;
+#define MAYBE_BOMB_OUT                          \
+  do                                            \
+    if (seen_error ()) return;                  \
   while (0);
 
 static vec<rdot,va_gc> * rust_decls;
 typedef vec<rdot,va_gc> * (*dot_pass)(vec<rdot,va_gc> *);
 static dot_pass dot_pass_mngr[] =
-{
+  {
     &dot_pass_PrettyPrint,  /* pretty print if -fdump-dot pre and post infereance */
     &dot_pass_inferTypes,   /* This ensures there are no longer any D_MAYBE_TYPES */
     &dot_pass_PrettyPrint,
     NULL                         /* sentinal */
-};
+  };
 
 /* Pushes each decl from the parser onto the current translation unit */
 void dot_pass_pushDecl (rdot decl)
 {
-    vec_safe_push (rust_decls, decl);
+  empty = false;
+  vec_safe_push (rust_decls, decl);
 }
 
 /* Function to run over the pass manager hooks and
@@ -43,52 +45,56 @@ void dot_pass_pushDecl (rdot decl)
 */
 void dot_pass_WriteGlobals (void)
 {
-    tree cptr = build_pointer_type (char_type_node);
-    cstring_type_node = build_qualified_type (cptr, TYPE_QUAL_CONST);
+  // if the rdot translation unit is empty there is nothing to compile..
+  if (empty == true)
+    return;
 
-    dot_pass *p = NULL;
-    vec<rdot,va_gc> * dot_decls = rust_decls;
+  tree cptr = build_pointer_type (char_type_node);
+  cstring_type_node = build_qualified_type (cptr, TYPE_QUAL_CONST);
 
-    /* walk the passes */
-    for (p = dot_pass_mngr; *p != NULL; ++p)
+  dot_pass *p = NULL;
+  vec<rdot,va_gc> * dot_decls = rust_decls;
+
+  /* walk the passes */
+  for (p = dot_pass_mngr; *p != NULL; ++p)
     {
-	MAYBE_BOMB_OUT;
- 	dot_decls = (*p)(dot_decls);
+      MAYBE_BOMB_OUT;
+      dot_decls = (*p)(dot_decls);
     }
     
-    /* check errors */
-    MAYBE_BOMB_OUT;
+  /* check errors */
+  MAYBE_BOMB_OUT;
 
-    /* lower the decls from DOT -> GENERIC */
-    vec<tree,va_gc> * globals = dot_pass_Genericify (dot_decls);
+  /* lower the decls from DOT -> GENERIC */
+  vec<tree,va_gc> * globals = dot_pass_Genericify (dot_decls);
 
-    int global_vec_len = vec_safe_length (globals);
-    tree * global_vec = new tree[global_vec_len];
-    tree itx = NULL_TREE;
-    int idx, idy = 0;
-    /*
-      Lets make sure to dump the Translation Unit this isn't that
-      useful to read over but can help to make sure certain tree's
-      are being generated...
+  int global_vec_len = vec_safe_length (globals);
+  tree * global_vec = new tree[global_vec_len];
+  tree itx = NULL_TREE;
+  int idx, idy = 0;
+  /*
+    Lets make sure to dump the Translation Unit this isn't that
+    useful to read over but can help to make sure certain tree's
+    are being generated...
       
-      We also fill up the vector of tree's to be passed to the middle-end
-    */
-    FILE * tu_stream = dump_begin (TDI_tu, NULL);
-    for (idx = 0; vec_safe_iterate (globals, idx, &itx); ++idx)
+    We also fill up the vector of tree's to be passed to the middle-end
+  */
+  FILE * tu_stream = dump_begin (TDI_tu, NULL);
+  for (idx = 0; vec_safe_iterate (globals, idx, &itx); ++idx)
     {
-	if (tu_stream)
-	    dump_node (itx, 0, tu_stream);
-	global_vec [idy] = itx;
-	idy++;
+      if (tu_stream)
+        dump_node (itx, 0, tu_stream);
+      global_vec [idy] = itx;
+      idy++;
     }
-    if (tu_stream)
-	dump_end(TDI_tu, tu_stream);
+  if (tu_stream)
+    dump_end(TDI_tu, tu_stream);
   
-    /* Passing control to GCC middle-end */
-    wrapup_global_declarations (global_vec, global_vec_len);
-    finalize_compilation_unit ();
-    check_global_declarations (global_vec, global_vec_len);
-    emit_debug_global_declarations (global_vec, global_vec_len);
+  /* Passing control to GCC middle-end */
+  wrapup_global_declarations (global_vec, global_vec_len);
+  finalize_compilation_unit ();
+  check_global_declarations (global_vec, global_vec_len);
+  emit_debug_global_declarations (global_vec, global_vec_len);
 
-    delete [] global_vec;
+  delete [] global_vec;
 }

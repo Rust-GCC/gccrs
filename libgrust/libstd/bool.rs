@@ -53,12 +53,12 @@ use num::FromPrimitive;
 /// # Examples
 ///
 /// ```
-/// do std::bool::all_values |x: bool| {
+/// std::bool::all_values(|x: bool| {
 ///     println(x.to_str());
-/// }
+/// })
 /// ```
 #[inline]
-pub fn all_values(blk: &fn(v: bool)) {
+pub fn all_values(blk: |v: bool|) {
     blk(true);
     blk(false);
 }
@@ -317,8 +317,11 @@ impl Zero for bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use prelude::*;
+    use cmp::{Equal, Greater, Less, Eq, TotalOrd};
+    use ops::{BitAnd, BitXor, BitOr};
+    use from_str::{FromStr, from_str};
+    use option::{Some, None};
+    use super::all_values;
 
     #[test]
     fn test_bool() {
@@ -393,9 +396,9 @@ mod tests {
 
     #[test]
     fn test_bool_from_str() {
-        do all_values |v| {
+        all_values(|v| {
             assert!(Some(v) == FromStr::from_str(v.to_str()))
-        }
+        });
     }
 
     #[test]
@@ -406,11 +409,11 @@ mod tests {
 
     #[test]
     fn test_bool_to_bit() {
-        do all_values |v| {
+        all_values(|v| {
             assert_eq!(v.to_bit::<u8>(), if v { 1u8 } else { 0u8 });
             assert_eq!(v.to_bit::<uint>(), if v { 1u } else { 0u });
             assert_eq!(v.to_bit::<int>(), if v { 1i } else { 0i });
-        }
+        });
     }
 
     #[test]

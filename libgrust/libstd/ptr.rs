@@ -56,7 +56,7 @@ impl<T> Clone for *mut T {
 
 /// Return the first offset `i` such that `f(buf[i]) == true`.
 #[inline]
-pub unsafe fn position<T>(buf: *T, f: &fn(&T) -> bool) -> uint {
+pub unsafe fn position<T>(buf: *T, f: |&T| -> bool) -> uint {
     let mut i = 0;
     loop {
         if f(&(*offset(buf, i as int))) { return i; }
@@ -87,25 +87,8 @@ pub fn is_not_null<T,P:RawPtr<T>>(ptr: P) -> bool { ptr.is_not_null() }
  * and destination may overlap.
  */
 #[inline]
-#[cfg(target_word_size = "32")]
 pub unsafe fn copy_memory<T,P:RawPtr<T>>(dst: *mut T, src: P, count: uint) {
-    intrinsics::memmove32(dst,
-                          cast::transmute_immut_unsafe(src),
-                          count as u32);
-}
-
-/**
- * Copies data from one location to another.
- *
- * Copies `count` elements (not bytes) from `src` to `dst`. The source
- * and destination may overlap.
- */
-#[inline]
-#[cfg(target_word_size = "64")]
-pub unsafe fn copy_memory<T,P:RawPtr<T>>(dst: *mut T, src: P, count: uint) {
-    intrinsics::memmove64(dst,
-                          cast::transmute_immut_unsafe(src),
-                          count as u64);
+    intrinsics::copy_memory(dst, cast::transmute_immut_unsafe(src), count)
 }
 
 /**
@@ -115,29 +98,10 @@ pub unsafe fn copy_memory<T,P:RawPtr<T>>(dst: *mut T, src: P, count: uint) {
  * and destination may *not* overlap.
  */
 #[inline]
-#[cfg(target_word_size = "32")]
 pub unsafe fn copy_nonoverlapping_memory<T,P:RawPtr<T>>(dst: *mut T,
                                                         src: P,
                                                         count: uint) {
-    intrinsics::memcpy32(dst,
-                         cast::transmute_immut_unsafe(src),
-                         count as u32);
-}
-
-/**
- * Copies data from one location to another.
- *
- * Copies `count` elements (not bytes) from `src` to `dst`. The source
- * and destination may *not* overlap.
- */
-#[inline]
-#[cfg(target_word_size = "64")]
-pub unsafe fn copy_nonoverlapping_memory<T,P:RawPtr<T>>(dst: *mut T,
-                                                        src: P,
-                                                        count: uint) {
-    intrinsics::memcpy64(dst,
-                         cast::transmute_immut_unsafe(src),
-                         count as u64);
+    intrinsics::copy_nonoverlapping_memory(dst, cast::transmute_immut_unsafe(src), count)
 }
 
 /**
@@ -145,19 +109,8 @@ pub unsafe fn copy_nonoverlapping_memory<T,P:RawPtr<T>>(dst: *mut T,
  * bytes of memory starting at `dst` to `c`.
  */
 #[inline]
-#[cfg(target_word_size = "32")]
 pub unsafe fn set_memory<T>(dst: *mut T, c: u8, count: uint) {
-    intrinsics::memset32(dst, c, count as u32);
-}
-
-/**
- * Invokes memset on the specified pointer, setting `count * size_of::<T>()`
- * bytes of memory starting at `dst` to `c`.
- */
-#[inline]
-#[cfg(target_word_size = "64")]
-pub unsafe fn set_memory<T>(dst: *mut T, c: u8, count: uint) {
-    intrinsics::memset64(dst, c, count as u64);
+    intrinsics::set_memory(dst, c, count)
 }
 
 /**
@@ -202,7 +155,7 @@ pub unsafe fn replace_ptr<T>(dest: *mut T, mut src: T) -> T {
  * Reads the value from `*src` and returns it. Does not copy `*src`.
  */
 #[inline(always)]
-pub unsafe fn read_ptr<T>(src: *mut T) -> T {
+pub unsafe fn read_ptr<T>(src: *T) -> T {
     let mut tmp: T = intrinsics::uninit();
     copy_nonoverlapping_memory(&mut tmp, src, 1);
     tmp
@@ -215,7 +168,7 @@ pub unsafe fn read_ptr<T>(src: *mut T) -> T {
 #[inline(always)]
 pub unsafe fn read_and_zero_ptr<T>(dest: *mut T) -> T {
     // Copy the data out from `dest`:
-    let tmp = read_ptr(dest);
+    let tmp = read_ptr(&*dest);
 
     // Now zero out `dest`:
     zero_memory(dest, 1);
@@ -242,7 +195,7 @@ pub fn to_mut_unsafe_ptr<T>(thing: &mut T) -> *mut T {
 
   SAFETY NOTE: Pointer-arithmetic. Dragons be here.
 */
-pub unsafe fn array_each_with_len<T>(arr: **T, len: uint, cb: &fn(*T)) {
+pub unsafe fn array_each_with_len<T>(arr: **T, len: uint, cb: |*T|) {
     debug!("array_each_with_len: before iterate");
     if (arr as uint == 0) {
         fail!("ptr::array_each_with_len failure: arr input is null pointer");
@@ -264,7 +217,7 @@ pub unsafe fn array_each_with_len<T>(arr: **T, len: uint, cb: &fn(*T)) {
   pointer array. Barely less-dodgy Pointer Arithmetic.
   Dragons be here.
 */
-pub unsafe fn array_each<T>(arr: **T, cb: &fn(*T)) {
+pub unsafe fn array_each<T>(arr: **T, cb: |*T|) {
     if (arr as uint == 0) {
         fail!("ptr::array_each_with_len failure: arr input is null pointer");
     }
@@ -539,28 +492,28 @@ pub mod ptr_tests {
     fn test_position() {
         use libc::c_char;
 
-        do "hello".with_c_str |p| {
+        "hello".with_c_str(|p| {
             unsafe {
                 assert!(2u == position(p, |c| *c == 'l' as c_char));
                 assert!(4u == position(p, |c| *c == 'o' as c_char));
                 assert!(5u == position(p, |c| *c == 0 as c_char));
             }
-        }
+        })
     }
 
     #[test]
     fn test_buf_len() {
-        do "hello".with_c_str |p0| {
-            do "there".with_c_str |p1| {
-                do "thing".with_c_str |p2| {
+        "hello".with_c_str(|p0| {
+            "there".with_c_str(|p1| {
+                "thing".with_c_str(|p2| {
                     let v = ~[p0, p1, p2, null()];
-                    do v.as_imm_buf |vp, len| {
+                    v.as_imm_buf(|vp, len| {
                         assert_eq!(unsafe { buf_len(vp) }, 3u);
                         assert_eq!(len, 4u);
-                    }
-                }
-            }
-        }
+                    })
+                })
+            })
+        })
     }
 
     #[test]
@@ -668,23 +621,23 @@ pub mod ptr_tests {
                 one, two, three
             ];
 
-            do arr.as_imm_buf |arr_ptr, arr_len| {
+            arr.as_imm_buf(|arr_ptr, arr_len| {
                 let mut ctr = 0;
                 let mut iteration_count = 0;
-                do array_each_with_len(arr_ptr, arr_len) |e| {
+                array_each_with_len(arr_ptr, arr_len, |e| {
                      let actual = str::raw::from_c_str(e);
-                     let expected = do expected_arr[ctr].with_ref |buf| {
+                     let expected = expected_arr[ctr].with_ref(|buf| {
                          str::raw::from_c_str(buf)
-                     };
+                     });
                      debug!(
                          "test_ptr_array_each_with_len e: {}, a: {}",
                          expected, actual);
                      assert_eq!(actual, expected);
                      ctr += 1;
                      iteration_count += 1;
-                 }
+                });
                 assert_eq!(iteration_count, 3u);
-            }
+            })
         }
     }
 
@@ -705,23 +658,23 @@ pub mod ptr_tests {
                 one, two, three
             ];
 
-            do arr.as_imm_buf |arr_ptr, _| {
+            arr.as_imm_buf(|arr_ptr, _| {
                 let mut ctr = 0;
                 let mut iteration_count = 0;
-                do array_each(arr_ptr) |e| {
+                array_each(arr_ptr, |e| {
                      let actual = str::raw::from_c_str(e);
-                     let expected = do expected_arr[ctr].with_ref |buf| {
+                     let expected = expected_arr[ctr].with_ref(|buf| {
                          str::raw::from_c_str(buf)
-                     };
+                     });
                      debug!(
                          "test_ptr_array_each e: {}, a: {}",
                          expected, actual);
                      assert_eq!(actual, expected);
                      ctr += 1;
                      iteration_count += 1;
-                 }
+                });
                 assert_eq!(iteration_count, 3);
-            }
+            })
         }
     }
 

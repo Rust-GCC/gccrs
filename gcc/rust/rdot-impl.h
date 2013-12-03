@@ -40,6 +40,7 @@ typedef enum {
 
     D_CALL_EXPR,
     D_ATTRIB_REF,
+    D_ACC_EXPR,
     
     D_STRUCT_METHOD,
     D_STRUCT_WHILE,
@@ -68,7 +69,13 @@ typedef enum {
     D_STRUCT_PARAM,
     D_STRUCT_INIT,
 
-    RTYPE_USER_STRUCT
+    RTYPE_USER_STRUCT,
+
+    D_STRUCT_ENUM,
+    D_STRUCT_IMPL,
+
+    D_BOOLEAN,
+    D_T_BOOL
 } opcode_t ;
 
 typedef enum {
@@ -76,20 +83,30 @@ typedef enum {
     MUTABLE
 } qualified;
 
+typedef enum {
+  ALLOC_AUTO,
+  ALLOC_HEAP,
+  ALLOC_STACK,
+  ALLOC_BOX
+} ALLOCA_;
+
 typedef struct GTY(()) grs_rdot_tree_common {
-    opcode_t T;
-    union {
-	int integer;
-	unsigned char c;
-	char * string;
-    } o;
+  opcode_t T;
+  union {
+    int integer;
+    unsigned char c;
+    char * string;
+    bool boolean;
+  } o;
 } rdot_tree_common ;
 
 typedef struct GTY(()) grs_tree_dot {
     opcode_t T, FT, opaT, opbT;
     qualified qual;
     bool retval;
+    bool reference;
     location_t loc;
+    ALLOCA_ alloca_modifier;
     struct grs_tree_dot * field1;
     struct grs_tree_dot * field2;
     union {
@@ -124,6 +141,9 @@ typedef struct GTY(()) grs_tree_dot {
 #define RDOT_OPCODE_STR(x_)          rdot_getOpString (x_)
 #define RDOT_CODE_STR(x_)            rdot_getOpString_enum (x_)
 #define RDOT_LOCATION(x_)            x_->loc
+#define RDOT_BOOLEAN_VAL(x_)         RDOT_lhs_TC (x_)->o.boolean
+#define RDOT_MEM_MODIFIER(x_)        x_->alloca_modifier
+#define RDOT_REFERENCE(x_)           x_->reference
 
 extern rdot rdot_alloc (void);
 extern void rdot_init (void);
@@ -137,6 +157,7 @@ extern rdot rdot_build_fndecl (rdot, rdot, rdot, rdot);
 extern rdot rdot_build_integer (const int);
 extern rdot rdot_build_string (const char *);
 extern rdot rdot_build_identifier (const char *);
+extern rdot rdot_build_bool (bool);
 
 /* type / final or mutable / ident */
 extern rdot rdot_build_varDecl (rdot, qualified, rdot);

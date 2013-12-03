@@ -16,4 +16,5 @@ libgrust_la_CFLAGS = -DGRUST -DSHARED -g -O2 -std=gnu99 -Wall -Werror $(LIBFFIIN
 libgrust_la_LDFLAGS = -release 0.1.0 $(LIBFFI) $(PTHREAD_CFLAGS) $(AM_LDFLAGS)
 libgrust_la_LIBADD = $(PTHREAD_LIBS) $(MATH_LIBS)
 libgrust_la_SOURCES = \
+	src/rust-main.c \
 	src/lang-hooks.c

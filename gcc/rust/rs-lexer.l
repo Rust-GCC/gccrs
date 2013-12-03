@@ -18,8 +18,8 @@
 #include "rust.h"
 #include "y.rs.h"
 
+extern int yydebug;
 extern int yyparse (void);
-
 %}
 
 %option noyywrap
@@ -29,8 +29,18 @@ DIGIT        [0-9]
 ID           [_a-zA-Z][a-zA_Z0-9_$]*
 QSTRING      \"[^\"\n]*[\"\n]
 
+%x comment
 %%
 
+"/*"                    {  BEGIN (comment); }
+<comment>[^*\n]*        {  /* eat it up flex you be le hungry maybe? */ }
+<comment>"*"+[^*/\n]*   {  /* eat up boyo */ }
+<comment>\n             {  ++yylineno; }
+<comment>"*"+"/"        {  BEGIN (INITIAL); }
+
+as                      {  return AS; }
+break                   {  return BREAK; }
+do                      {  return DO; }
 fn                      {  return DEFUN; }
 let                     {  return LET; }
 mut                     {  return MUT; }
@@ -38,11 +48,18 @@ while                   {  return WHILE; }
 loop                    {  return LOOP; }
 static                  {  return STATIC; }
 struct                  {  return STRUCT; }
-
+if                      {  return IF; }
+else                    {  return ELSE; }
+impl                    {  return IMPL; }
+self                    {  return SELF; }
 bool                    {  return TYPE_BOOL; }
 int                     {  return TYPE_INT; }
 float                   {  return TYPE_FLOAT; }
 uint                    {  return TYPE_UINT; }
+enum                    {  return ENUM; }
+match                   {  return MATCH; }
+true                    {  return XTRUE; }
+false                   {  return XFALSE; }
 
 \[                      {  return '['; }
 \]                      {  return ']'; }
@@ -52,11 +69,14 @@ uint                    {  return TYPE_UINT; }
 \}                      {  return '}'; }
 
 "->"                    {  return RTYPE; }
+"=>"                    {  return GOES; }
+"_"                     {  return '_'; }
 
 ";"                     { return ';'; }
 ","                     { return ','; }
 "."                     { return '.'; }
 ":"                     { return ':'; }
+"::"                    { return ACC; }
 
 "="                     { return '='; }
 "+"                     { return '+'; }
@@ -65,12 +85,16 @@ uint                    {  return TYPE_UINT; }
 "*"                     { return '*'; }
 "|"                     { return '|'; }
 
+"~"                     { return '~'; }
+"&"                     { return '&'; }
+"@"                     { return '@'; }
+
 "=="                    { return EQUAL_EQUAL; }
 
 "!="                    { return NOT_EQUAL; }
-"<"                     { return LESS; }
+"<"                     { return '<'; }
 "<="                    { return LESS_EQUAL; }
-">"                     { return GREATER; }
+">"                     { return '>'; }
 ">="                    { return GREATER_EQUAL; }
 
 \/\/.*                  ;  /* // style comment */
@@ -104,7 +128,6 @@ uint                    {  return TYPE_UINT; }
 }
 
 .           {  }
-\t          {  }
 \n          {  }
 
 %%
@@ -116,6 +139,7 @@ bool grs_do_compile (const char * in)
     if (fd)
     {
 	yyin = fd;
+        // yydebug = 1;
 	retval = yyparse ();
 	fclose (fd);
 	yylex_destroy ();
@@ -127,3 +151,4 @@ bool grs_do_compile (const char * in)
     }
     return retval;
 }
+

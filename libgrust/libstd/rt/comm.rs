@@ -22,9 +22,10 @@ use rt::select::{SelectInner, SelectPortInner};
 use select::{Select, SelectPort};
 use unstable::atomics::{AtomicUint, AtomicOption, Acquire, Relaxed, SeqCst};
 use unstable::sync::UnsafeArc;
+use util;
 use util::Void;
-use comm::{GenericChan, GenericSmartChan, GenericPort, Peekable};
-use cell::Cell;
+use comm::{GenericChan, GenericSmartChan, GenericPort, Peekable, SendDeferred};
+use cell::{Cell, RefCell};
 use clone::Clone;
 use tuple::ImmutableTuple;
 
@@ -78,7 +79,7 @@ pub fn oneshot<T: Send>() -> (PortOne<T>, ChanOne<T>) {
     }
 }
 
-impl<T> ChanOne<T> {
+impl<T: Send> ChanOne<T> {
     #[inline]
     fn packet(&self) -> *mut Packet<T> {
         unsafe {
@@ -113,7 +114,7 @@ impl<T> ChanOne<T> {
 
     // 'do_resched' configures whether the scheduler immediately switches to
     // the receiving task, or leaves the sending task still running.
-    fn try_send_inner(self, val: T, do_resched: bool) -> bool {
+    fn try_send_inner(mut self, val: T, do_resched: bool) -> bool {
         if do_resched {
             rtassert!(!rt::in_sched_context());
         }
@@ -129,9 +130,8 @@ impl<T> ChanOne<T> {
             sched.maybe_yield();
         }
 
-        let mut this = self;
         let mut recvr_active = true;
-        let packet = this.packet();
+        let packet = self.packet();
 
         unsafe {
 
@@ -150,7 +150,7 @@ impl<T> ChanOne<T> {
             // done with the packet. NB: In case of do_resched, this *must*
             // happen before waking up a blocked task (or be unkillable),
             // because we might get a kill signal during the reschedule.
-            this.suppress_finalize = true;
+            self.suppress_finalize = true;
 
             match oldstate {
                 STATE_BOTH => {
@@ -158,21 +158,21 @@ impl<T> ChanOne<T> {
                 }
                 STATE_ONE => {
                     // Port has closed. Need to clean up.
-                    let _packet: ~Packet<T> = cast::transmute(this.void_packet);
+                    let _packet: ~Packet<T> = cast::transmute(self.void_packet);
                     recvr_active = false;
                 }
                 task_as_state => {
                     // Port is blocked. Wake it up.
                     let recvr = BlockedTask::cast_from_uint(task_as_state);
                     if do_resched {
-                        do recvr.wake().map |woken_task| {
+                        recvr.wake().map(|woken_task| {
                             Scheduler::run_task(woken_task);
-                        };
+                        });
                     } else {
                         let recvr = Cell::new(recvr);
-                        do Local::borrow |sched: &mut Scheduler| {
+                        Local::borrow(|sched: &mut Scheduler| {
                             sched.enqueue_blocked_task(recvr.take());
-                        }
+                        })
                     }
                 }
             }
@@ -182,7 +182,7 @@ impl<T> ChanOne<T> {
     }
 }
 
-impl<T> PortOne<T> {
+impl<T: Send> PortOne<T> {
     fn packet(&self) -> *mut Packet<T> {
         unsafe {
             let p: *mut ~Packet<T> = cast::transmute(&self.void_packet);
@@ -202,26 +202,24 @@ impl<T> PortOne<T> {
     }
 
     /// As `recv`, but returns `None` if the send end is closed rather than failing.
-    pub fn try_recv(self) -> Option<T> {
-        let mut this = self;
-
+    pub fn try_recv(mut self) -> Option<T> {
         // Optimistic check. If data was sent already, we don't even need to block.
         // No release barrier needed here; we're not handing off our task pointer yet.
-        if !this.optimistic_check() {
+        if !self.optimistic_check() {
             // No data available yet.
             // Switch to the scheduler to put the ~Task into the Packet state.
             let sched: ~Scheduler = Local::take();
-            do sched.deschedule_running_task_and_then |sched, task| {
-                this.block_on(sched, task);
-            }
+            sched.deschedule_running_task_and_then(|sched, task| {
+                self.block_on(sched, task);
+            })
         }
 
         // Task resumes.
-        this.recv_ready()
+        self.recv_ready()
     }
 }
 
-impl<T> SelectInner for PortOne<T> {
+impl<T: Send> SelectInner for PortOne<T> {
     #[inline] #[cfg(not(test))]
     fn optimistic_check(&mut self) -> bool {
         unsafe { (*self.packet()).state.load(Acquire) == STATE_ONE }
@@ -232,9 +230,9 @@ impl<T> SelectInner for PortOne<T> {
         // The optimistic check is never necessary for correctness. For testing
         // purposes, making it randomly return false simulates a racing sender.
         use rand::{Rand};
-        let actually_check = do Local::borrow |sched: &mut Scheduler| {
+        let actually_check = Local::borrow(|sched: &mut Scheduler| {
             Rand::rand(&mut sched.rng)
-        };
+        });
         if actually_check {
             unsafe { (*self.packet()).state.load(Acquire) == STATE_ONE }
         } else {
@@ -322,12 +320,11 @@ impl<T> SelectInner for PortOne<T> {
     }
 }
 
-impl<T> Select for PortOne<T> { }
+impl<T: Send> Select for PortOne<T> { }
 
-impl<T> SelectPortInner<T> for PortOne<T> {
-    fn recv_ready(self) -> Option<T> {
-        let mut this = self;
-        let packet = this.packet();
+impl<T: Send> SelectPortInner<T> for PortOne<T> {
+    fn recv_ready(mut self) -> Option<T> {
+        let packet = self.packet();
 
         // No further memory barrier is needed here to access the
         // payload. Some scenarios:
@@ -348,17 +345,17 @@ impl<T> SelectPortInner<T> for PortOne<T> {
             let payload = (*packet).payload.take();
 
             // The sender has closed up shop. Drop the packet.
-            let _packet: ~Packet<T> = cast::transmute(this.void_packet);
+            let _packet: ~Packet<T> = cast::transmute(self.void_packet);
             // Suppress the synchronizing actions in the finalizer. We're done with the packet.
-            this.suppress_finalize = true;
+            self.suppress_finalize = true;
             return payload;
         }
     }
 }
 
-impl<T> SelectPort<T> for PortOne<T> { }
+impl<T: Send> SelectPort<T> for PortOne<T> { }
 
-impl<T> Peekable<T> for PortOne<T> {
+impl<T: Send> Peekable<T> for PortOne<T> {
     fn peek(&self) -> bool {
         unsafe {
             let packet: *mut Packet<T> = self.packet();
@@ -373,27 +370,26 @@ impl<T> Peekable<T> for PortOne<T> {
 }
 
 #[unsafe_destructor]
-impl<T> Drop for ChanOne<T> {
+impl<T: Send> Drop for ChanOne<T> {
     fn drop(&mut self) {
         if self.suppress_finalize { return }
 
         unsafe {
-            let this = cast::transmute_mut(self);
-            let oldstate = (*this.packet()).state.swap(STATE_ONE, SeqCst);
+            let oldstate = (*self.packet()).state.swap(STATE_ONE, SeqCst);
             match oldstate {
                 STATE_BOTH => {
                     // Port still active. It will destroy the Packet.
                 },
                 STATE_ONE => {
-                    let _packet: ~Packet<T> = cast::transmute(this.void_packet);
+                    let _packet: ~Packet<T> = cast::transmute(self.void_packet);
                 },
                 task_as_state => {
                     // The port is blocked waiting for a message we will never send. Wake it.
-                    rtassert!((*this.packet()).payload.is_none());
+                    rtassert!((*self.packet()).payload.is_none());
                     let recvr = BlockedTask::cast_from_uint(task_as_state);
-                    do recvr.wake().map |woken_task| {
+                    recvr.wake().map(|woken_task| {
                         Scheduler::run_task(woken_task);
-                    };
+                    });
                 }
             }
         }
@@ -401,19 +397,18 @@ impl<T> Drop for ChanOne<T> {
 }
 
 #[unsafe_destructor]
-impl<T> Drop for PortOne<T> {
+impl<T: Send> Drop for PortOne<T> {
     fn drop(&mut self) {
         if self.suppress_finalize { return }
 
         unsafe {
-            let this = cast::transmute_mut(self);
-            let oldstate = (*this.packet()).state.swap(STATE_ONE, SeqCst);
+            let oldstate = (*self.packet()).state.swap(STATE_ONE, SeqCst);
             match oldstate {
                 STATE_BOTH => {
                     // Chan still active. It will destroy the packet.
                 },
                 STATE_ONE => {
-                    let _packet: ~Packet<T> = cast::transmute(this.void_packet);
+                    let _packet: ~Packet<T> = cast::transmute(self.void_packet);
                 }
                 task_as_state => {
                     // This case occurs during unwinding, when the blocked
@@ -427,12 +422,6 @@ impl<T> Drop for PortOne<T> {
     }
 }
 
-/// Trait for non-rescheduling send operations, similar to `send_deferred` on ChanOne.
-pub trait SendDeferred<T> {
-    fn send_deferred(&self, val: T);
-    fn try_send_deferred(&self, val: T) -> bool;
-}
-
 struct StreamPayload<T> {
     val: T,
     next: PortOne<StreamPayload<T>>
@@ -443,28 +432,28 @@ type StreamPortOne<T> = PortOne<StreamPayload<T>>;
 
 /// A channel with unbounded size.
 pub struct Chan<T> {
-    // FIXME #5372. Using Cell because we don't take &mut self
-    next: Cell<StreamChanOne<T>>
+    // FIXME #5372. Using RefCell because we don't take &mut self
+    next: RefCell<StreamChanOne<T>>
 }
 
 /// An port with unbounded size.
 pub struct Port<T> {
-    // FIXME #5372. Using Cell because we don't take &mut self
-    next: Cell<StreamPortOne<T>>
+    // FIXME #5372. Using RefCell because we don't take &mut self
+    next: RefCell<Option<StreamPortOne<T>>>
 }
 
 pub fn stream<T: Send>() -> (Port<T>, Chan<T>) {
     let (pone, cone) = oneshot();
-    let port = Port { next: Cell::new(pone) };
-    let chan = Chan { next: Cell::new(cone) };
+    let port = Port { next: RefCell::new(Some(pone)) };
+    let chan = Chan { next: RefCell::new(cone) };
     return (port, chan);
 }
 
 impl<T: Send> Chan<T> {
     fn try_send_inner(&self, val: T, do_resched: bool) -> bool {
-        let (next_pone, next_cone) = oneshot();
-        let cone = self.next.take();
-        self.next.put_back(next_cone);
+        let (next_pone, mut cone) = oneshot();
+        let mut b = self.next.borrow_mut();
+        util::swap(&mut cone, b.get());
         cone.try_send_inner(StreamPayload { val: val, next: next_pone }, do_resched)
     }
 }
@@ -490,7 +479,7 @@ impl<T: Send> SendDeferred<T> for Chan<T> {
     }
 }
 
-impl<T> GenericPort<T> for Port<T> {
+impl<T: Send> GenericPort<T> for Port<T> {
     fn recv(&self) -> T {
         match self.try_recv() {
             Some(val) => val,
@@ -501,21 +490,22 @@ impl<T> GenericPort<T> for Port<T> {
     }
 
     fn try_recv(&self) -> Option<T> {
-        do self.next.take_opt().map_default(None) |pone| {
+        let mut b = self.next.borrow_mut();
+        b.get().take().map_default(None, |pone| {
             match pone.try_recv() {
                 Some(StreamPayload { val, next }) => {
-                    self.next.put_back(next);
+                    *b.get() = Some(next);
                     Some(val)
                 }
                 None => None
             }
-        }
+        })
     }
 }
 
-impl<T> Peekable<T> for Port<T> {
+impl<T: Send> Peekable<T> for Port<T> {
     fn peek(&self) -> bool {
-        self.next.with_mut_ref(|p| p.peek())
+        self.next.with_mut(|p| p.get_mut_ref().peek())
     }
 }
 
@@ -523,27 +513,27 @@ impl<T> Peekable<T> for Port<T> {
 // of them, but a &Port<T> should also be selectable so you can select2 on it
 // alongside a PortOne<U> without passing the port by value in recv_ready.
 
-impl<'self, T> SelectInner for &'self Port<T> {
+impl<'self, T: Send> SelectInner for &'self Port<T> {
     #[inline]
     fn optimistic_check(&mut self) -> bool {
-        do self.next.with_mut_ref |pone| { pone.optimistic_check() }
+        self.next.with_mut(|pone| { pone.get_mut_ref().optimistic_check() })
     }
 
     #[inline]
     fn block_on(&mut self, sched: &mut Scheduler, task: BlockedTask) -> bool {
-        let task = Cell::new(task);
-        do self.next.with_mut_ref |pone| { pone.block_on(sched, task.take()) }
+        let mut b = self.next.borrow_mut();
+        b.get().get_mut_ref().block_on(sched, task)
     }
 
     #[inline]
     fn unblock_from(&mut self) -> bool {
-        do self.next.with_mut_ref |pone| { pone.unblock_from() }
+        self.next.with_mut(|pone| { pone.get_mut_ref().unblock_from() })
     }
 }
 
-impl<'self, T> Select for &'self Port<T> { }
+impl<'self, T: Send> Select for &'self Port<T> { }
 
-impl<T> SelectInner for Port<T> {
+impl<T: Send> SelectInner for Port<T> {
     #[inline]
     fn optimistic_check(&mut self) -> bool {
         (&*self).optimistic_check()
@@ -560,13 +550,14 @@ impl<T> SelectInner for Port<T> {
     }
 }
 
-impl<T> Select for Port<T> { }
+impl<T: Send> Select for Port<T> { }
 
-impl<'self, T> SelectPortInner<T> for &'self Port<T> {
+impl<'self, T: Send> SelectPortInner<T> for &'self Port<T> {
     fn recv_ready(self) -> Option<T> {
-        match self.next.take().recv_ready() {
+        let mut b = self.next.borrow_mut();
+        match b.get().take_unwrap().recv_ready() {
             Some(StreamPayload { val, next }) => {
-                self.next.put_back(next);
+                *b.get() = Some(next);
                 Some(val)
             }
             None => None
@@ -574,16 +565,16 @@ impl<'self, T> SelectPortInner<T> for &'self Port<T> {
     }
 }
 
-impl<'self, T> SelectPort<T> for &'self Port<T> { }
+impl<'self, T: Send> SelectPort<T> for &'self Port<T> { }
 
 pub struct SharedChan<T> {
     // Just like Chan, but a shared AtomicOption instead of Cell
     priv next: UnsafeArc<AtomicOption<StreamChanOne<T>>>
 }
 
-impl<T> SharedChan<T> {
+impl<T: Send> SharedChan<T> {
     pub fn new(chan: Chan<T>) -> SharedChan<T> {
-        let next = chan.next.take();
+        let next = chan.next.unwrap();
         let next = AtomicOption::new(~next);
         SharedChan { next: UnsafeArc::new(next) }
     }
@@ -621,7 +612,7 @@ impl<T: Send> SendDeferred<T> for SharedChan<T> {
     }
 }
 
-impl<T> Clone for SharedChan<T> {
+impl<T: Send> Clone for SharedChan<T> {
     fn clone(&self) -> SharedChan<T> {
         SharedChan {
             next: self.next.clone()
@@ -634,10 +625,10 @@ pub struct SharedPort<T> {
     priv next_link: UnsafeArc<AtomicOption<PortOne<StreamPortOne<T>>>>
 }
 
-impl<T> SharedPort<T> {
+impl<T: Send> SharedPort<T> {
     pub fn new(port: Port<T>) -> SharedPort<T> {
         // Put the data port into a new link pipe
-        let next_data_port = port.next.take();
+        let next_data_port = port.next.unwrap().unwrap();
         let (next_link_port, next_link_chan) = oneshot();
         next_link_chan.send(next_data_port);
         let next_link = AtomicOption::new(~next_link_port);
@@ -676,7 +667,7 @@ impl<T: Send> GenericPort<T> for SharedPort<T> {
     }
 }
 
-impl<T> Clone for SharedPort<T> {
+impl<T: Send> Clone for SharedPort<T> {
     fn clone(&self) -> SharedPort<T> {
         SharedPort {
             next_link: self.next_link.clone()
@@ -880,7 +871,7 @@ mod test {
     #[test]
     fn oneshot_multi_thread_close_stress() {
         if util::limit_thread_creation_due_to_osx_and_valgrind() { return; }
-        do stress_factor().times {
+        stress_factor().times(|| {
             do run_in_newsched_task {
                 let (port, chan) = oneshot::<int>();
                 let port_cell = Cell::new(port);
@@ -890,13 +881,13 @@ mod test {
                 let _chan = chan;
                 thread.join();
             }
-        }
+        })
     }
 
     #[test]
     fn oneshot_multi_thread_send_close_stress() {
         if util::limit_thread_creation_due_to_osx_and_valgrind() { return; }
-        do stress_factor().times {
+        stress_factor().times(|| {
             do run_in_newsched_task {
                 let (port, chan) = oneshot::<int>();
                 let chan_cell = Cell::new(chan);
@@ -911,13 +902,13 @@ mod test {
                 thread1.join();
                 thread2.join();
             }
-        }
+        })
     }
 
     #[test]
     fn oneshot_multi_thread_recv_close_stress() {
         if util::limit_thread_creation_due_to_osx_and_valgrind() { return; }
-        do stress_factor().times {
+        stress_factor().times(|| {
             do run_in_newsched_task {
                 let (port, chan) = oneshot::<int>();
                 let chan_cell = Cell::new(chan);
@@ -938,13 +929,13 @@ mod test {
                 thread1.join();
                 thread2.join();
             }
-        }
+        })
     }
 
     #[test]
     fn oneshot_multi_thread_send_recv_stress() {
         if util::limit_thread_creation_due_to_osx_and_valgrind() { return; }
-        do stress_factor().times {
+        stress_factor().times(|| {
             do run_in_newsched_task {
                 let (port, chan) = oneshot::<~int>();
                 let chan_cell = Cell::new(chan);
@@ -958,13 +949,13 @@ mod test {
                 thread1.join();
                 thread2.join();
             }
-        }
+        })
     }
 
     #[test]
     fn stream_send_recv_stress() {
         if util::limit_thread_creation_due_to_osx_and_valgrind() { return; }
-        do stress_factor().times {
+        stress_factor().times(|| {
             do run_in_mt_newsched_task {
                 let (port, chan) = stream::<~int>();
 
@@ -993,7 +984,7 @@ mod test {
                     };
                 }
             }
-        }
+        })
     }
 
     #[test]
@@ -1001,8 +992,8 @@ mod test {
         // Regression test that we don't run out of stack in scheduler context
         do run_in_newsched_task {
             let (port, chan) = stream();
-            do 10000.times { chan.send(()) }
-            do 10000.times { port.recv() }
+            10000.times(|| { chan.send(()) });
+            10000.times(|| { port.recv() });
         }
     }
 
@@ -1013,16 +1004,16 @@ mod test {
             let (port, chan) = stream();
             let chan = SharedChan::new(chan);
             let total = stress_factor() + 100;
-            do total.times {
+            total.times(|| {
                 let chan_clone = chan.clone();
                 do spawntask_random {
                     chan_clone.send(());
                 }
-            }
+            });
 
-            do total.times {
+            total.times(|| {
                 port.recv();
-            }
+            });
         }
     }
 
@@ -1035,22 +1026,22 @@ mod test {
             let end_chan = SharedChan::new(end_chan);
             let port = SharedPort::new(port);
             let total = stress_factor() + 100;
-            do total.times {
+            total.times(|| {
                 let end_chan_clone = end_chan.clone();
                 let port_clone = port.clone();
                 do spawntask_random {
                     port_clone.recv();
                     end_chan_clone.send(());
                 }
-            }
+            });
 
-            do total.times {
+            total.times(|| {
                 chan.send(());
-            }
+            });
 
-            do total.times {
+            total.times(|| {
                 end_port.recv();
-            }
+            });
         }
     }
 
@@ -1075,29 +1066,29 @@ mod test {
             let send_total = 10;
             let recv_total = 20;
             do spawntask_random {
-                do send_total.times {
+                send_total.times(|| {
                     let chan_clone = chan.clone();
                     do spawntask_random {
                         chan_clone.send(());
                     }
-                }
+                });
             }
             let end_chan_clone = end_chan.clone();
             do spawntask_random {
-                do recv_total.times {
+                recv_total.times(|| {
                     let port_clone = port.clone();
                     let end_chan_clone = end_chan_clone.clone();
                     do spawntask_random {
                         let recvd = port_clone.try_recv().is_some();
                         end_chan_clone.send(recvd);
                     }
-                }
+                });
             }
 
             let mut recvd = 0;
-            do recv_total.times {
+            recv_total.times(|| {
                 recvd += if end_port.recv() { 1 } else { 0 };
-            }
+            });
 
             assert!(recvd == send_total);
         }
@@ -1116,25 +1107,25 @@ mod test {
             let pipe = megapipe();
             let total = stress_factor() + 10;
             let mut rng = rand::rng();
-            do total.times {
+            total.times(|| {
                 let msgs = rng.gen_range(0u, 10);
                 let pipe_clone = pipe.clone();
                 let end_chan_clone = end_chan.clone();
                 do spawntask_random {
-                    do msgs.times {
+                    msgs.times(|| {
                         pipe_clone.send(());
-                    }
-                    do msgs.times {
+                    });
+                    msgs.times(|| {
                         pipe_clone.recv();
-                    }
+                    });
                 }
 
                 end_chan_clone.send(());
-            }
+            });
 
-            do total.times {
+            total.times(|| {
                 end_port.recv();
-            }
+            });
         }
     }
 
@@ -1161,13 +1152,13 @@ mod test {
 
             let cs = Cell::new((cone, cstream, cshared, mp));
             unsafe {
-                do atomically {
+                atomically(|| {
                     let (cone, cstream, cshared, mp) = cs.take();
                     cone.send_deferred(());
                     cstream.send_deferred(());
                     cshared.send_deferred(());
                     mp.send_deferred(());
-                }
+                })
             }
         }
     }

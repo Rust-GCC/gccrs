@@ -35,6 +35,7 @@ static const char * typeStrings [] = {
 static
 const char * typeStringNode (rdot node)
 {
+  bool _error = false;
   const char * retval = typeStrings [6];
   if (node != NULL_DOT)
     {
@@ -58,7 +59,7 @@ const char * typeStringNode (rdot node)
 
         case RTYPE_INFER:
           if (_no_infer) {
-            retval = xstrdup ("The Compiler Failed to infer this type!");
+            retval = xstrdup ("__FAIL__");
             error ("gcc-rust has failed to infer a type and cannot continue");
           }
           else
@@ -70,7 +71,13 @@ const char * typeStringNode (rdot node)
 	    if (RDOT_lhs_TT (node) != NULL_DOT)
 	      {
 		rdot sdef = RDOT_lhs_TT (node);
-		retval = RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (sdef));
+		if (!_no_infer)
+		  retval = RDOT_IDENTIFIER_POINTER (sdef);
+		else
+		  {
+		    // ... 
+		    retval = RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (sdef));
+		  }
 	      }
 	    else
 	      retval = typeStrings [5];
@@ -78,9 +85,43 @@ const char * typeStringNode (rdot node)
 	  break;
 
         default:
+	  {
+	    _error = false;
+	    error ("unhandled type [%s]", RDOT_OPCODE_STR (node));
+	  }
           break;
         }
     }
+
+  if (node)
+    if (!_error)
+      {
+	char modifier_char;
+	switch (RDOT_MEM_MODIFIER (node))
+	  {
+	  case ALLOC_AUTO:
+	    modifier_char = '_';
+	    break;
+
+	  case ALLOC_HEAP:
+	    modifier_char = '~';
+	    break;
+
+	  case ALLOC_STACK:
+	    modifier_char = '&';
+	    break;
+
+	  case ALLOC_BOX:
+	    modifier_char = '@';
+	    break;
+	  }
+	size_t blen = strlen (retval) + 5;
+	char * buffer = (char *) alloca (blen);
+	gcc_assert (buffer);
+
+	snprintf (buffer, blen, "%c::%s", modifier_char, retval);
+	retval = xstrdup (buffer);
+      }
   return retval;
 }
 
@@ -130,7 +171,7 @@ void dot_pass_dump_method (FILE * fd, rdot node, size_t indents)
   const char * rtype = typeStringNode (RDOT_FIELD2 (node));
   rdot parameters = RDOT_lhs_TT (node);
 
-  fprintf (fd, "defn %s ( ", method_id);
+  fprintf (fd, "fn %s ( ", method_id);
   if (parameters == NULL_DOT)
     fprintf (fd, "void");
   else
@@ -139,22 +180,51 @@ void dot_pass_dump_method (FILE * fd, rdot node, size_t indents)
       for (next = parameters; next != NULL_DOT; next = RDOT_CHAIN (next))
         {
           gcc_assert (RDOT_TYPE (next) = D_PARAMETER);
+	  bool iself = false;
+	  bool reference = RDOT_REFERENCE (next);
+	  bool muta = false;
+	  if (RDOT_qual (next) == MUTABLE)
+	    muta = true;
           const char * id = RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (next));
-          const char * typestr = typeStringNode (RDOT_rhs_TT (next));
 
-          fprintf (fd, "%s %s", typestr, id);
+	  if (strcmp (id, "self") == 0)
+	    iself = true;
+
+	  const char * sref;
+	  if (reference) {
+	    sref = "&";
+	  }
+	  else {
+	    sref = "_";
+	  }
+
+	  const char *smuta;
+	  if (muta) {
+	    smuta = "mut";
+	  }
+	  else {
+	    smuta = "final";
+	  }
+
+	  if (iself)
+	    fprintf (fd, "[%s %s] _self_", sref, smuta);
+	  else
+	    {
+	      const char * typestr = typeStringNode (RDOT_rhs_TT (next));
+	      fprintf (fd, "[%s %s] %s:%s", sref, smuta, typestr, id);
+	    }
           if (RDOT_CHAIN (next) != NULL_DOT)
             fprintf (fd, ", ");
         }
     }
   fprintf (fd, " ) -> %s {\n", rtype);
 
-  rdot suite = RDOT_rhs_TT (node);
-  do {
-    dot_pass_dump_node (fd, suite, indents + 1);
-    fprintf (fd, "\n");
-  }
-  while ((suite = RDOT_CHAIN (suite)));
+  rdot suite;
+  for (suite = RDOT_rhs_TT (node); suite != NULL_DOT; suite = RDOT_CHAIN (suite))
+    {
+      dot_pass_dump_node (fd, suite, indents + 1);
+      fprintf (fd, "\n");
+    }
 
   for (i = 0; i < indents; ++i)
     fprintf (fd, "  ");
@@ -195,6 +265,16 @@ void dot_pass_dumpExprNode (FILE * fd, rdot node)
       fprintf (fd, "%s", RDOT_IDENTIFIER_POINTER (node));
       break;
 
+    case D_BOOLEAN:
+      {
+	bool val = RDOT_BOOLEAN_VAL (node);
+	if (val)
+	  fprintf (fd, "true");
+	else
+	  fprintf (fd, "false");
+      }
+      break;
+
     case D_CALL_EXPR:
       {
         rdot id = RDOT_lhs_TT (node);
@@ -203,7 +283,11 @@ void dot_pass_dumpExprNode (FILE * fd, rdot node)
 
         rdot p;
         for (p = RDOT_rhs_TT (node); p != NULL_DOT; p = RDOT_CHAIN (p))
-          dot_pass_dump_expr (fd, p);
+	  {
+	    dot_pass_dump_expr (fd, p);
+	    if (RDOT_CHAIN (p) != NULL_DOT)
+	      fprintf (fd, ", ");
+	  }
         fprintf (fd, ")");
       }
       break;
@@ -243,7 +327,7 @@ void dot_pass_dumpExprNode (FILE * fd, rdot node)
       break;
 
     default:
-      fatal_error ("unhandled dumpExprNode [%s]\n", RDOT_OPCODE_STR (node));
+      error ("unhandled dumpExprNode [%s]\n", RDOT_OPCODE_STR (node));
       break;
     }
 }
@@ -260,6 +344,9 @@ void dot_pass_dump_expr (FILE * fd, rdot node)
     case D_PRIMITIVE:
     case D_IDENTIFIER:
     case D_CALL_EXPR:
+    case D_BOOLEAN:
+    case D_VAR_DECL:
+    case D_STRUCT_INIT:
       dot_pass_dumpExprNode (fd, node);
       break;
         
@@ -269,7 +356,7 @@ void dot_pass_dump_expr (FILE * fd, rdot node)
         rdot lhs = RDOT_lhs_TT (node);
         rdot rhs = RDOT_rhs_TT (node);
         
-        dot_pass_dumpExprNode (fd, lhs);
+        dot_pass_dump_expr (fd, lhs);
         switch (RDOT_TYPE (node))
           {
           case D_MODIFY_EXPR:
@@ -291,10 +378,18 @@ void dot_pass_dump_expr (FILE * fd, rdot node)
           case D_LESS_EXPR:
             fprintf (fd, " < ");
             break;
+
+	  case D_LESS_EQ_EXPR:
+	    fprintf (fd, " <= ");
+	    break;
             
           case D_GREATER_EXPR:
             fprintf (fd, " > ");
             break;
+
+	  case D_GREATER_EQ_EXPR:
+	    fprintf (fd, " >= ");
+	    break;
 
           case D_EQ_EQ_EXPR:
             fprintf (fd, " == ");
@@ -303,15 +398,133 @@ void dot_pass_dump_expr (FILE * fd, rdot node)
           case D_NOT_EQ_EXPR:
             fprintf (fd, " != ");
             break;
+	    
+	  case D_ATTRIB_REF:
+	    fprintf (fd, ".");
+	    break;
+
+	  case D_ACC_EXPR:
+	    fprintf (fd, "::");
+	    break;
 
           default:
-            fatal_error ("unhandled dump!\n");
+            fatal_error ("unhandled dump [%s]!\n", RDOT_OPCODE_STR (node));
             break;
           }
-        dot_pass_dumpExprNode (fd, rhs);
+        dot_pass_dump_expr (fd, rhs);
       }
       break;
     }
+}
+
+static
+void dot_pass_dump_enum (FILE * fd, rdot node, size_t indents)
+{
+  rdot enum_id = RDOT_lhs_TT (node);
+  rdot enum_layout = RDOT_rhs_TT (node);
+
+  size_t i;
+  for (i = 0; i < indents; ++i)
+    fprintf (fd, "    ");
+  const char * id = RDOT_IDENTIFIER_POINTER (enum_id);
+  fprintf (fd, "enum %s {\n", id);
+
+  indents++;
+  rdot next;
+  for (next = enum_layout; next != NULL_DOT; next = RDOT_CHAIN (next))
+    {
+      for (i = 0; i < indents; ++i)
+	fprintf (fd, "    ");
+      const char *enumit = RDOT_IDENTIFIER_POINTER (next);
+      fprintf (fd, "[%s],\n", enumit);
+    }
+  indents--;
+
+  for (i = 0; i < indents; ++i)
+    fprintf (fd, "    ");
+  fprintf (fd, "}\n");
+}
+
+static
+void dot_pass_dump_cond (FILE * fd, rdot node, size_t indents)
+{
+  size_t i;
+  rdot ifb = RDOT_lhs_TT (node);
+  rdot elb = RDOT_rhs_TT (node);
+
+  gcc_assert (RDOT_TYPE (ifb) == D_STRUCT_IF);
+
+  for (i = 0; i < indents; ++i)
+    fprintf (fd, "    ");
+
+  fprintf (fd, "if (");
+  dot_pass_dump_expr (fd, RDOT_lhs_TT (ifb));
+  fprintf (fd, ") {\n");
+  
+  rdot next;
+  for (next = RDOT_rhs_TT (ifb) ; next != NULL_DOT; next = RDOT_CHAIN (next))
+    {
+      dot_pass_dump_node (fd, next, indents + 1);
+      fprintf (fd, "\n");
+    }
+
+  for (i = 0; i < indents; ++i)
+    fprintf (fd, "    ");
+  fprintf (fd, "}");
+
+  if (elb != NULL_DOT)
+    {
+      fprintf (fd, " else {\n");
+      for (next = RDOT_lhs_TT (elb); next != NULL_DOT; next = RDOT_CHAIN (next))
+	{
+	  dot_pass_dump_node (fd, next, indents + 1);
+	  fprintf (fd, "\n");
+	} 
+      for (i = 0; i < indents; ++i)
+	fprintf (fd, "    ");
+      fprintf (fd, "}\n");
+    }
+}
+
+static
+void dot_pass_dump_while (FILE * fd, rdot node, size_t indents)
+{
+  size_t i;
+  rdot expr = RDOT_lhs_TT (node);
+  rdot suite = RDOT_rhs_TT (node);
+
+  for (i = 0; i < indents; ++i)
+    fprintf (fd, "    ");
+  fprintf (fd, "while (");
+  dot_pass_dump_expr (fd, expr);
+  fprintf (fd, ") {\n");
+
+  rdot next;
+  for (next = suite; next != NULL_DOT; next = RDOT_CHAIN (next))
+    {
+      dot_pass_dump_node (fd, next, indents + 1);
+      fprintf (fd, "\n");
+    }
+
+  for (i = 0; i < indents; ++i)
+    fprintf (fd, "    ");
+  fprintf (fd, "}");
+}
+
+static
+void dot_pass_dump_impl (FILE * fd, rdot node, size_t indents)
+{
+  const char * implid = RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (node));
+  fprintf (fd, "impl %s {\n", implid);
+
+  rdot next;
+  for (next = RDOT_rhs_TT (node); next != NULL_DOT; next = RDOT_CHAIN (next))
+    {
+      dot_pass_dump_node (fd, next, indents + 1);
+      fprintf (fd, "\n");
+    }
+
+  fprintf (fd, "}\n");
 }
 
 static
@@ -333,6 +546,10 @@ void dot_pass_dump_node (FILE * fd, rdot node, size_t indents)
           dot_pass_dump_expr (fd, node);
           break;
 
+	case D_STRUCT_IMPL:
+	  dot_pass_dump_impl (fd, node, indents);
+	  break;
+
         case D_STRUCT_METHOD:
           dot_pass_dump_method (fd, node, indents);
           break;
@@ -341,7 +558,20 @@ void dot_pass_dump_node (FILE * fd, rdot node, size_t indents)
 	  dot_pass_dump_struct (fd, node, indents);
 	  break;
      
+	case D_STRUCT_ENUM:
+	  dot_pass_dump_enum (fd, node, indents);
+	  break;
+
+	case D_STRUCT_IF:
+	  dot_pass_dump_cond (fd, node, indents);
+	  break;
+
+	case D_STRUCT_WHILE:
+	  dot_pass_dump_while (fd, node, indents);
+	  break;
+
         default:
+	  error ("unhandled node [%s]\n", RDOT_OPCODE_STR (node));
           break;
         }
     }

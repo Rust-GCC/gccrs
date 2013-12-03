@@ -11,8 +11,7 @@
 //! A wrapper around any Reader to treat it as an RNG.
 
 use option::{Some, None};
-use rt::io::Reader;
-use rt::io::ReaderByteConversions;
+use io::Reader;
 
 use rand::Rng;
 
@@ -25,7 +24,7 @@ use rand::Rng;
 ///
 /// ```rust
 /// use std::rand::{reader, Rng};
-/// use std::rt::io::mem;
+/// use std::io::mem;
 ///
 /// fn main() {
 ///     let mut rng = reader::ReaderRng::new(mem::MemReader::new(~[1,2,3,4,5,6,7,8]));
@@ -51,17 +50,17 @@ impl<R: Reader> Rng for ReaderRng<R> {
         // platform just involves blitting the bytes into the memory
         // of the u32, similarly for BE on BE; avoiding byteswapping.
         if cfg!(target_endian="little") {
-            self.reader.read_le_u32_()
+            self.reader.read_le_u32()
         } else {
-            self.reader.read_be_u32_()
+            self.reader.read_be_u32()
         }
     }
     fn next_u64(&mut self) -> u64 {
         // see above for explanation.
         if cfg!(target_endian="little") {
-            self.reader.read_le_u64_()
+            self.reader.read_le_u64()
         } else {
-            self.reader.read_be_u64_()
+            self.reader.read_be_u64()
         }
     }
     fn fill_bytes(&mut self, v: &mut [u8]) {
@@ -78,7 +77,7 @@ impl<R: Reader> Rng for ReaderRng<R> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use rt::io::mem::MemReader;
+    use io::mem::MemReader;
     use cast;
 
     #[test]

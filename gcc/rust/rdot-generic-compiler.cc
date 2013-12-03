@@ -22,9 +22,43 @@ static tree dot_pass_genFndecl_Basic (location_t, const char *, tree);
 static tree dot_pass_lookupCTU (const char *);
 static std::vector<tree> * dot_pass_popContext (void);
 static void dot_pass_pushContext (void);
+static void dot_pass_genMethodProto (rdot);
+static void dot_pass_compileSuite (rdot, tree *);
 
 static tree global_retDecl;
 static bool global_retDecl_;
+static tree __impl_type_decl = error_mark_node;
+
+static
+char * dot_pass_demangleImpl (const char * val)
+{
+  // has form of type.method_name
+  size_t i;
+  size_t last_dot = 0;
+  for (i = 0; i < strlen (val); ++i)
+    {
+      if (val [i] == '.')
+	last_dot = i;
+    }
+  size_t bsize = (strlen (val) - last_dot) * sizeof (char);
+  char * buffer = (char *) xmalloc (bsize);
+  memset (buffer, 0, bsize);
+  strncpy (buffer, val + last_dot + 1, strlen (val) - last_dot);
+
+  return buffer;
+}
+
+static
+char * dot_pass_mangle (const char * val)
+{
+  // just for now pre-append __rust_[id] will do ok for now
+  const char * stuff = "__rust_";
+  size_t blen = (strlen (stuff) + strlen (val) + 1) * sizeof (char);
+  char * retval = (char *) xmalloc (blen);
+  memset (retval, 0, blen);
+  snprintf (retval, blen, "%s%s", stuff, val);
+  return retval;
+}
 
 static
 tree dot_pass_rustToGccType (rdot type, bool consty)
@@ -53,7 +87,7 @@ tree dot_pass_rustToGccType (rdot type, bool consty)
 	retval = dot_pass_lookupCTU (id);
 
 	if (retval == error_mark_node)
-	  error ("Unable to find struct [%s]\n", id);
+	  error ("Unable to find struct type [%s]\n", id);
       }
       break;
 
@@ -118,9 +152,9 @@ tree dot_pass_lookupCTU (const char * id)
   for (it = context.rbegin (); it != context.rend (); ++it)
     {
       std::map<std::string, tree> * ctx = *it;
-      if (ctx->count (std::string (id)))
-        {
-          retval = (*ctx)[std::string (id)];
+      if (ctx->count (std::string (id)) > 0)
+	{
+          retval = ctx->at (std::string (id));
           break;
         }
     }
@@ -302,15 +336,81 @@ tree dot_pass_lowerExpr (rdot dot, tree * block)
       }
       break;
 
+    case D_ATTRIB_REF:
+      {
+	rdot lhs = RDOT_lhs_TT (dot);
+	rdot rhs = RDOT_rhs_TT (dot);
+
+	tree lookup = dot_pass_lowerExpr (lhs, block);
+
+	switch (RDOT_TYPE (rhs))
+	  {
+	  case D_CALL_EXPR:
+	    {
+	      rdot crid = RDOT_lhs_TT (rhs);
+	      const char * rlookup = RDOT_IDENTIFIER_POINTER (crid);
+	      tree tid = TYPE_NAME (TREE_TYPE (lookup));
+	      const char * ctid = IDENTIFIER_POINTER (tid);
+
+	      tree type_decl = dot_pass_lookupCTU (ctid);
+	      // just to be sure but we will have already error'd at this point..
+	      gcc_assert (type_decl != error_mark_node);
+
+	      tree mths = TYPE_METHODS (type_decl);
+	      tree next;
+	      for (next = mths; next != NULL_TREE; next = DECL_CHAIN (next))
+		{
+		  const char * mid = IDENTIFIER_POINTER (DECL_NAME (next));
+		  char * demangle = dot_pass_demangleImpl (mid);
+		  if (strcmp (rlookup, demangle) == 0)
+		    {
+		      vec<tree,va_gc> * cargs;
+		      vec_alloc (cargs, 0);
+		      vec_safe_push (cargs, lookup);
+
+		      rdot pnext;
+		      for (pnext = RDOT_rhs_TT (rhs); pnext != NULL_DOT;
+			   pnext = RDOT_CHAIN (pnext))
+			vec_safe_push (cargs, dot_pass_lowerExpr (pnext, block));
+
+		      retval = dot_pass_genifyCall (next, cargs);
+		      break;
+		    }
+		}
+	    }
+	    break;
+
+	  case D_IDENTIFIER:
+	    {
+	      const char * rlookup = RDOT_IDENTIFIER_POINTER (rhs);
+	      tree fields = TYPE_FIELDS (TREE_TYPE (lookup));
+	      tree next;
+	      for (next = fields; next != NULL_TREE; next = DECL_CHAIN (next))
+		{
+		  const char * fid = IDENTIFIER_POINTER (DECL_NAME (next));
+		  if (strcmp (rlookup, fid) == 0)
+		    {
+		      /* no idea why we need build3 here but build2 fails... */
+		      retval = build3 (COMPONENT_REF, TREE_TYPE (next),
+				       lookup, next, NULL_TREE);
+		      break;
+		    }
+		}
+	    }
+	    break;
+
+	  default:
+	    fatal_error ("Really don't know what happened here!\n");
+	    break;
+	  }
+      }
+      break;
+
     case D_MODIFY_EXPR:
       {
-        rdot lhs = RDOT_lhs_TT (dot);
-        rdot rhs = RDOT_rhs_TT (dot);
-
-        tree assignment = dot_pass_lowerExpr (rhs, block);
+	tree assignment = dot_pass_lowerExpr (RDOT_rhs_TT (dot), block);
 	// the compution compiled first so we can correct the types if nessecary
-	tree decl = dot_pass_lowerExpr (lhs, block);
-
+	tree decl = dot_pass_lowerExpr (RDOT_lhs_TT (dot), block);
         tree assign = build2 (MODIFY_EXPR, TREE_TYPE (decl),
 			      decl, assignment);
         retval = assign;
@@ -326,6 +426,45 @@ tree dot_pass_lowerExpr (rdot dot, tree * block)
         tree xrhs = dot_pass_lowerExpr (rhs, block);
 
 	retval = build2 (PLUS_EXPR, TREE_TYPE (xlhs),
+			 xlhs, xrhs);
+      }
+      break;
+
+    case D_MINUS_EXPR:
+      {
+	rdot lhs = RDOT_lhs_TT (dot);
+        rdot rhs = RDOT_rhs_TT (dot);
+
+        tree xlhs = dot_pass_lowerExpr (lhs, block);
+        tree xrhs = dot_pass_lowerExpr (rhs, block);
+
+	retval = build2 (MINUS_EXPR, TREE_TYPE (xlhs),
+			 xlhs, xrhs);
+      }
+      break;
+
+      case D_MULT_EXPR:
+      {
+	rdot lhs = RDOT_lhs_TT (dot);
+        rdot rhs = RDOT_rhs_TT (dot);
+
+        tree xlhs = dot_pass_lowerExpr (lhs, block);
+        tree xrhs = dot_pass_lowerExpr (rhs, block);
+
+	retval = build2 (MULT_EXPR, TREE_TYPE (xlhs),
+			 xlhs, xrhs);
+      }
+      break;
+
+      case D_LESS_EQ_EXPR:
+      {
+	rdot lhs = RDOT_lhs_TT (dot);
+        rdot rhs = RDOT_rhs_TT (dot);
+
+        tree xlhs = dot_pass_lowerExpr (lhs, block);
+        tree xrhs = dot_pass_lowerExpr (rhs, block);
+
+	retval = build2 (LE_EXPR, TREE_TYPE (xlhs),
 			 xlhs, xrhs);
       }
       break;
@@ -367,25 +506,222 @@ tree dot_pass_lowerExpr (rdot dot, tree * block)
 }
 
 static
-tree dot_pass_genifyTopFndecl (rdot node)
+void dot_pass_compileCond (rdot node, tree * block)
 {
-  /* doesn't handle arguments yet ... */
-  const char * method_id = RDOT_IDENTIFIER_POINTER (RDOT_FIELD (node));
+  rdot ifblock = RDOT_lhs_TT (node);
+  rdot elseblock = RDOT_rhs_TT (node);
 
+  tree endif_label_decl = build_decl (BUILTINS_LOCATION, LABEL_DECL,
+				      create_tmp_var_name ("ENDIF"),
+				      void_type_node);
+  tree endif_label_expr = fold_build1_loc (BUILTINS_LOCATION, LABEL_EXPR,
+					   void_type_node, endif_label_decl);
+  DECL_CONTEXT (endif_label_decl) = current_function_decl;
+
+  tree else_label_expr = error_mark_node;
+  tree else_label_decl = error_mark_node;
+  if (elseblock != NULL_DOT)
+    {
+      else_label_decl = build_decl (BUILTINS_LOCATION, LABEL_DECL,
+				    create_tmp_var_name ("ELSE"),
+				    void_type_node);
+      else_label_expr = fold_build1_loc (BUILTINS_LOCATION, LABEL_EXPR,
+					 void_type_node, else_label_decl);
+      DECL_CONTEXT (else_label_decl) = current_function_decl;
+    }
+  else
+    {
+      else_label_expr = endif_label_expr;
+      else_label_decl = endif_label_decl;
+    }
+
+  tree cond = dot_pass_lowerExpr (RDOT_lhs_TT (ifblock), block);
+  tree conditional = build3_loc (RDOT_LOCATION (node), COND_EXPR, void_type_node,
+				 cond,
+				 NULL_TREE,
+				 build1 (GOTO_EXPR, void_type_node, else_label_decl));
+
+  append_to_statement_list (conditional, block);
+  dot_pass_compileSuite (RDOT_rhs_TT (ifblock), block);
+  append_to_statement_list (build1 (GOTO_EXPR, void_type_node, endif_label_decl),
+			    block);
+  if (elseblock)
+    {
+      append_to_statement_list (else_label_expr, block);
+      dot_pass_compileSuite (RDOT_lhs_TT (elseblock), block);
+      append_to_statement_list (endif_label_expr, block);
+    }
+  else
+    append_to_statement_list (endif_label_expr, block);
+}
+
+static
+void dot_pass_compileWhile (rdot node, tree * block)
+{
+  rdot condition = RDOT_lhs_TT (node);
+  rdot suite = RDOT_rhs_TT (node);
+
+  tree start_label_decl = build_decl (BUILTINS_LOCATION, LABEL_DECL,
+				      create_tmp_var_name ("START"),
+				      void_type_node);
+  tree start_label_expr = fold_build1_loc (BUILTINS_LOCATION, LABEL_EXPR,
+					   void_type_node, start_label_decl);
+  DECL_CONTEXT (start_label_decl) = current_function_decl;
+
+  tree end_label_decl = build_decl (BUILTINS_LOCATION, LABEL_DECL,
+				    create_tmp_var_name ("END"),
+				    void_type_node);
+  tree end_label_expr = fold_build1_loc (BUILTINS_LOCATION, LABEL_EXPR,
+					 void_type_node, end_label_decl);
+  DECL_CONTEXT (end_label_decl) = current_function_decl;
+
+  /* -- -- -- */
+  append_to_statement_list (start_label_expr, block);
+
+  tree cond = dot_pass_lowerExpr (condition, block);
+  tree conditional = build3_loc (RDOT_LOCATION (node), COND_EXPR, void_type_node,
+				 cond, NULL_TREE,
+				 build1 (GOTO_EXPR, void_type_node, end_label_decl));
+  append_to_statement_list (conditional, block);
+  dot_pass_compileSuite (suite, block);
+  append_to_statement_list (build1 (GOTO_EXPR, void_type_node, start_label_decl), block);
+  append_to_statement_list (end_label_expr, block);
+}
+
+static
+void dot_pass_compileSuite (rdot suite, tree * block)
+{
+  rdot node;
+  for (node = suite; node != NULL_DOT; node = RDOT_CHAIN (node))
+    {
+      if (RDOT_T_FIELD (node) ==  D_D_EXPR)
+	append_to_statement_list (dot_pass_lowerExpr (node, block), block);
+      else
+        {
+          switch (RDOT_TYPE (node))
+            {
+	    case D_STRUCT_IF:
+	      dot_pass_compileCond (node, block);
+	      break;
+
+	    case D_STRUCT_WHILE:
+	      dot_pass_compileWhile (node, block);
+	      break;
+
+            default:
+              error ("Unhandled statement [%s]\n", RDOT_OPCODE_STR (node));
+              break;
+            }
+        }
+    }
+}
+
+static
+void dot_pass_genMethodProto (rdot node)
+{
+  const char * method_id = RDOT_IDENTIFIER_POINTER (RDOT_FIELD (node));
   if (dot_pass_lookupCTU (method_id) != error_mark_node)
     {
       error ("Duplicate declaration of function [%s]\n", method_id);
-      return error_mark_node;
+      return;
     }
+  tree rtype = void_type_node;
+  if (RDOT_FIELD2 (node))
+    rtype = dot_pass_rustToGccType (RDOT_FIELD2 (node), false);
+
+  rdot parameters = RDOT_lhs_TT (node);
+  tree fntype = error_mark_node;
+  if (parameters != NULL_DOT)
+    {
+      size_t nparams = 0;
+      rdot prm;
+      for (prm = parameters; prm != NULL_DOT; prm = RDOT_CHAIN (prm))
+	nparams++;
+
+      tree * gccparams = XALLOCAVEC (tree, nparams);
+      size_t i = 0;
+      for (prm = parameters; prm != NULL_DOT; prm = RDOT_CHAIN (prm))
+	{
+	  bool mut = false;
+	  if (RDOT_qual (prm))
+	    mut = true;
+	  gccparams [i] = dot_pass_rustToGccType (RDOT_rhs_TT (prm), mut);
+	  i++;
+	}
+      fntype = build_function_type_array (rtype, nparams, gccparams);
+    }
+  else
+    fntype = build_function_type_list (rtype, NULL_TREE);
+
+  tree fndecl = dot_pass_genFndecl_Basic (RDOT_LOCATION (node), method_id, fntype);
+  SET_DECL_ASSEMBLER_NAME (fndecl, get_identifier (dot_pass_mangle (method_id)));
+  dot_pass_pushDecl (method_id, fndecl);
+}
+
+static
+tree dot_pass_genifyTopFndecl (rdot node)
+{
+  const char * method_id;
+  if (__impl_type_decl != error_mark_node)
+    {
+      char * mid = RDOT_IDENTIFIER_POINTER (RDOT_FIELD (node));
+      tree spfx = TYPE_NAME (__impl_type_decl);
+      const char *pfx = IDENTIFIER_POINTER (spfx);
+
+      size_t len = strlen (mid) + strlen (pfx) + 2;
+      size_t bsize = len * sizeof (char);
+      char * buffer = (char *) alloca (bsize);
+      gcc_assert (buffer);
+      memset (buffer, 0, bsize);
+
+      snprintf (buffer, bsize, "%s.%s", pfx, mid);
+      method_id = buffer;
+    }
+  else
+    method_id = RDOT_IDENTIFIER_POINTER (RDOT_FIELD (node));
 
   tree rtype = void_type_node;
   if (RDOT_FIELD2 (node))
     rtype = dot_pass_rustToGccType (RDOT_FIELD2 (node), false);
-  tree fntype = build_function_type_list (rtype, NULL_TREE);
 
-  tree fndecl = dot_pass_genFndecl_Basic (RDOT_LOCATION (node),
-                                          method_id, fntype);
-  dot_pass_pushDecl (method_id, fndecl);
+  rdot parameters = RDOT_lhs_TT (node);
+  tree fntype = error_mark_node;
+  if (parameters != NULL_DOT)
+    {
+      size_t nparams = 0;
+      rdot prm;
+      for (prm = parameters; prm != NULL_DOT; prm = RDOT_CHAIN (prm))
+	nparams++;
+
+      tree * gccparams = XALLOCAVEC (tree, nparams);
+      size_t i = 0;
+      for (prm = parameters; prm != NULL_DOT; prm = RDOT_CHAIN (prm))
+	{
+	  bool mut = false;
+	  if (RDOT_qual (prm))
+	    mut = true;
+
+	  const char * pid = RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (prm));
+	  if (strcmp (pid, "self") == 0)
+	    {
+	      tree self_type = __impl_type_decl;
+	      if (RDOT_REFERENCE (prm) == true)
+		self_type = build_pointer_type (self_type);
+	      if (RDOT_qual (prm) == FINAL)
+		self_type = build_qualified_type (self_type, TYPE_QUAL_CONST);
+	      gccparams [i] = self_type;
+	    }
+	  else
+	    gccparams [i] = dot_pass_rustToGccType (RDOT_rhs_TT (prm), mut);
+	  i++;
+	}
+      fntype = build_function_type_array (rtype, nparams, gccparams);
+    }
+  else
+    fntype = build_function_type_list (rtype, NULL_TREE);
+
+  tree fndecl = dot_pass_genFndecl_Basic (RDOT_LOCATION (node), method_id, fntype);
+  SET_DECL_ASSEMBLER_NAME (fndecl, get_identifier (dot_pass_mangle (method_id)));
   dot_pass_pushContext ();
   
   rdot rdot_params = RDOT_lhs_TT (node);
@@ -399,7 +735,19 @@ tree dot_pass_genifyTopFndecl (rdot node)
 	  if (dot_pass_lookupCTU (pid) != error_mark_node)
 	    error ("paramater [%s] is already declared", pid);
 
-	  tree ptype = dot_pass_rustToGccType (RDOT_rhs_TT (next), false);
+	  tree ptype = error_mark_node;
+	  if (strcmp (pid, "self") == 0)
+	    {
+	      tree self_type = __impl_type_decl;
+	      if (RDOT_REFERENCE (next) == true)
+		self_type = build_pointer_type (self_type);
+	      if (RDOT_qual (next) == FINAL)
+		self_type = build_qualified_type (self_type, TYPE_QUAL_CONST);
+	      ptype = self_type;
+	    }
+	  else
+	    ptype = dot_pass_rustToGccType (RDOT_rhs_TT (next), false);
+
 	  tree param = build_decl (RDOT_LOCATION (node), PARM_DECL,
 				   get_identifier (pid), ptype);
 	  DECL_CONTEXT (param) = fndecl;
@@ -422,22 +770,8 @@ tree dot_pass_genifyTopFndecl (rdot node)
       global_retDecl_ = false;
     }
 
-  rdot suite;
-  for (suite = RDOT_rhs_TT (node); suite != NULL_DOT;
-       suite = RDOT_CHAIN (suite))
-    {
-      if (RDOT_T_FIELD (suite) ==  D_D_EXPR)
-        append_to_statement_list (dot_pass_lowerExpr (suite, &block), &block);
-      else
-        {
-          switch (RDOT_TYPE (suite))
-            {
-            default:
-              error ("Unhandled symbol %i\n", RDOT_TYPE (suite));
-              break;
-            }
-        }
-    }
+  // compile the block...
+  dot_pass_compileSuite (RDOT_rhs_TT (node), &block);
 
   // make sure it returns something!!!
   if (rtype != void_type_node)
@@ -540,22 +874,62 @@ tree dot_pass_genifyStruct (rdot node)
 }
 
 static
-tree dot_pass_genifyTopNode (rdot node)
+std::vector<tree> * dot_pass_genifyImplBlock (rdot node)
 {
-  tree retval = error_mark_node;
+  std::vector<tree> * retval = new std::vector<tree>;
+  // look up the struct type to set TYPE_METHODS on it...
+  const char * implid = RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (node));
+  tree type_decl = dot_pass_lookupCTU (implid);
+  if (type_decl == error_mark_node)
+    error ("type [%s] does not exist for impl block", implid);
+  else
+    {
+      __impl_type_decl = type_decl;
+      rdot decl;
+      tree fndecl_chain = error_mark_node, curr = error_mark_node;
+      bool first = true;
+      for (decl = RDOT_rhs_TT (node); decl != NULL_DOT; decl = RDOT_CHAIN (decl))
+	{
+	  tree fndecl = dot_pass_genifyTopFndecl (decl);
+	  retval->push_back (fndecl);
+	  if (first == true)
+	    {
+	      fndecl_chain = fndecl;
+	      curr = fndecl_chain;
+	      first = false;
+	    }
+	  else
+	    {
+	      DECL_CHAIN (curr) = fndecl;
+	      curr = fndecl;
+	    }
+	}
+      TYPE_METHODS (__impl_type_decl) = fndecl_chain;
+      __impl_type_decl = error_mark_node;
+    }
+  return retval;
+}
+
+static
+std::vector<tree> * dot_pass_genifyTopNode (rdot node)
+{
+  std::vector<tree> * retval = NULL;
   switch (RDOT_TYPE (node))
     {
     case D_STRUCT_METHOD:
-      retval = dot_pass_genifyTopFndecl (node);
+      {
+	retval = new std::vector<tree>;
+	retval->push_back (dot_pass_genifyTopFndecl (node));
+      }
       break;
 
+      // nothing to do here...
     case D_STRUCT_TYPE:
-      retval = dot_pass_genifyStruct (node);
+    case D_STRUCT_IMPL:
       break;
 
     default:
-      fatal_error ("Unhandled Toplevel declaration [%s]\n",
-		   RDOT_OPCODE_STR (node));
+      error ("Unhandled Toplevel declaration [%s]\n", RDOT_OPCODE_STR (node));
       break;
     }
   return retval;
@@ -604,12 +978,69 @@ vec<tree,va_gc> * dot_pass_Genericify (vec<rdot,va_gc> * decls)
 
   size_t i;
   rdot idtx = NULL_DOT;
+
+  /* fill up the prototypes now ... */
   for (i = 0; decls->iterate (i, &idtx); ++i)
     {
-      tree item = dot_pass_genifyTopNode (idtx);
-      vec_safe_push (retval, item);
+      rdot node = idtx;
+      switch (RDOT_TYPE (node))
+	{
+	case D_STRUCT_METHOD:
+	  dot_pass_genMethodProto (node);
+	  break;
+
+	case D_STRUCT_TYPE:
+	  {
+	    tree gen = dot_pass_genifyStruct (node);
+	    vec_safe_push (retval, gen);
+	  }
+	  break;
+
+	default:
+	  break;
+	}
     }
 
+  if (seen_error ())
+    goto exit;
+
+  for (i = 0; decls->iterate (i, &idtx); ++i)
+    {
+      rdot node = idtx;
+      switch (RDOT_TYPE (node))
+	{
+	case D_STRUCT_IMPL:
+	  {
+	    std::vector<tree> * gdecls = dot_pass_genifyImplBlock (node);
+	    std::vector<tree>::iterator it;
+	    for (it = gdecls->begin (); it != gdecls->end (); ++it)
+	      vec_safe_push (retval, *it);
+	    delete gdecls;
+	  }
+	  break;
+
+	default:
+	  break;
+	}
+    }
+
+  if (seen_error ())
+    goto exit;
+
+  __impl_type_decl = error_mark_node;
+  for (i = 0; decls->iterate (i, &idtx); ++i)
+    {
+      std::vector<tree> * gdecls = dot_pass_genifyTopNode (idtx);
+      if (gdecls != NULL)
+	{
+	  std::vector<tree>::iterator it;
+	  for (it = gdecls->begin (); it != gdecls->end (); ++it)
+	    vec_safe_push (retval, *it);
+	  delete gdecls;
+	}
+    }
+
+ exit:
   dot_pass_popContext ();
   return retval;
 }
