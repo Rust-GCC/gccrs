@@ -162,19 +162,29 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
+#include "varasm.h"
+#include "stor-layout.h"
+#include "stringpool.h"
 #include "output.h"
 #include "rtl.h"
+#include "basic-block.h"
+#include "tree-ssa-alias.h"
+#include "internal-fn.h"
+#include "gimple-fold.h"
+#include "gimple-expr.h"
+#include "is-a.h"
 #include "gimple.h"
+#include "gimplify.h"
+#include "gimple-iterator.h"
+#include "gimplify-me.h"
 #include "gimple-ssa.h"
 #include "tree-cfg.h"
 #include "tree-into-ssa.h"
 #include "tree-ssa.h"
 #include "tree-inline.h"
 #include "langhooks.h"
-#include "pointer-set.h"
 #include "toplev.h"
 #include "flags.h"
-#include "ggc.h"
 #include "debug.h"
 #include "target.h"
 #include "diagnostic.h"
@@ -198,6 +208,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "regset.h"     /* FIXME: For reg_obstack.  */
 #include "context.h"
 #include "pass_manager.h"
+#include "tree-nested.h"
+#include "gimplify.h"
 
 /* Queue of cgraph nodes scheduled to be added into cgraph.  This is a
    secondary queue used during optimization to accommodate passes that
@@ -261,11 +273,13 @@ decide_is_symbol_needed (symtab_node *node)
   return false;
 }
 
-/* Head of the queue of nodes to be processed while building callgraph */
+/* Head and terminator of the queue of nodes to be processed while building
+   callgraph.  */
 
-static symtab_node *first = (symtab_node *)(void *)1;
+static symtab_node symtab_terminator;
+static symtab_node *queued_nodes = &symtab_terminator;
 
-/* Add NODE to queue starting at FIRST. 
+/* Add NODE to queue starting at QUEUED_NODES. 
    The queue is linked via AUX pointers and terminated by pointer to 1.  */
 
 static void
@@ -273,25 +287,24 @@ enqueue_node (symtab_node *node)
 {
   if (node->aux)
     return;
-  gcc_checking_assert (first);
-  node->aux = first;
-  first = node;
+  gcc_checking_assert (queued_nodes);
+  node->aux = queued_nodes;
+  queued_nodes = node;
 }
 
 /* Process CGRAPH_NEW_FUNCTIONS and perform actions necessary to add these
    functions into callgraph in a way so they look like ordinary reachable
    functions inserted into callgraph already at construction time.  */
 
-bool
+void
 cgraph_process_new_functions (void)
 {
-  bool output = false;
   tree fndecl;
   struct cgraph_node *node;
   cgraph_node_set_iterator csi;
 
   if (!cgraph_new_nodes)
-    return false;
+    return;
   handle_alias_pairs ();
   /*  Note that this queue may grow as its being processed, as the new
       functions may generate new ones.  */
@@ -306,7 +319,6 @@ cgraph_process_new_functions (void)
 	     it into reachable functions list.  */
 
 	  cgraph_finalize_function (fndecl, false);
-	  output = true;
           cgraph_call_function_insertion_hooks (node);
 	  enqueue_node (node);
 	  break;
@@ -347,7 +359,6 @@ cgraph_process_new_functions (void)
     }
   free_cgraph_node_set (cgraph_new_nodes);
   cgraph_new_nodes = NULL;
-  return output;
 }
 
 /* As an GCC extension we allow redefinition of the function.  The
@@ -825,7 +836,8 @@ varpool_finalize_decl (tree decl)
     varpool_analyze_node (node);
   /* Some frontends produce various interface variables after compilation
      finished.  */
-  if (cgraph_state == CGRAPH_STATE_FINISHED)
+  if (cgraph_state == CGRAPH_STATE_FINISHED
+      || (!flag_toplevel_reorder && cgraph_state == CGRAPH_STATE_EXPANSION))
     varpool_assemble_decl (node);
 }
 
@@ -960,7 +972,7 @@ analyze_functions (void)
 		fprintf (cgraph_dump_file, "Trivially needed symbols:");
 	      changed = true;
 	      if (cgraph_dump_file)
-		fprintf (cgraph_dump_file, " %s", symtab_node_asm_name (node));
+		fprintf (cgraph_dump_file, " %s", node->asm_name ());
 	      if (!changed && cgraph_dump_file)
 		fprintf (cgraph_dump_file, "\n");
 	    }
@@ -977,11 +989,11 @@ analyze_functions (void)
 
       /* Lower representation, build callgraph edges and references for all trivially
          needed symbols and all symbols referred by them.  */
-      while (first != (symtab_node *)(void *)1)
+      while (queued_nodes != &symtab_terminator)
 	{
 	  changed = true;
-	  node = first;
-	  first = (symtab_node *)first->aux;
+	  node = queued_nodes;
+	  queued_nodes = (symtab_node *)queued_nodes->aux;
 	  cgraph_node *cnode = dyn_cast <cgraph_node> (node);
 	  if (cnode && cnode->definition)
 	    {
@@ -1073,7 +1085,7 @@ analyze_functions (void)
       if (!node->aux && !referred_to_p (node))
 	{
 	  if (cgraph_dump_file)
-	    fprintf (cgraph_dump_file, " %s", symtab_node_name (node));
+	    fprintf (cgraph_dump_file, " %s", node->name ());
 	  symtab_remove_node (node);
 	  continue;
 	}
@@ -1329,10 +1341,10 @@ init_lowered_empty_function (tree decl, bool in_ssa)
   loops_for_fn (cfun)->state |= LOOPS_MAY_HAVE_MULTIPLE_LATCHES;
 
   /* Create BB for body of the function and connect it properly.  */
-  bb = create_basic_block (NULL, (void *) 0, ENTRY_BLOCK_PTR);
-  make_edge (ENTRY_BLOCK_PTR, bb, EDGE_FALLTHRU);
-  make_edge (bb, EXIT_BLOCK_PTR, 0);
-  add_bb_to_loop (bb, ENTRY_BLOCK_PTR->loop_father);
+  bb = create_basic_block (NULL, (void *) 0, ENTRY_BLOCK_PTR_FOR_FN (cfun));
+  make_edge (ENTRY_BLOCK_PTR_FOR_FN (cfun), bb, EDGE_FALLTHRU);
+  make_edge (bb, EXIT_BLOCK_PTR_FOR_FN (cfun), 0);
+  add_bb_to_loop (bb, ENTRY_BLOCK_PTR_FOR_FN (cfun)->loop_father);
 
   return bb;
 }
@@ -1517,7 +1529,6 @@ expand_thunk (struct cgraph_node *node, bool output_asm_thunks)
       int i;
       tree resdecl;
       tree restmp = NULL;
-      vec<tree> vargs;
 
       gimple call;
       gimple ret;
@@ -1571,7 +1582,7 @@ expand_thunk (struct cgraph_node *node, bool output_asm_thunks)
 
       for (arg = a; arg; arg = DECL_CHAIN (arg))
         nargs++;
-      vargs.create (nargs);
+      auto_vec<tree> vargs (nargs);
       if (this_adjusting)
         vargs.quick_push (thunk_adjust (&bsi, a, 1, fixed_offset,
 					virtual_offset));
@@ -1583,7 +1594,6 @@ expand_thunk (struct cgraph_node *node, bool output_asm_thunks)
 	  vargs.quick_push (arg);
       call = gimple_build_call_vec (build_fold_addr_expr_loc (0, alias), vargs);
       node->callees->call_stmt = call;
-      vargs.release ();
       gimple_call_set_from_thunk (call, true);
       if (restmp)
 	{
@@ -1620,7 +1630,7 @@ expand_thunk (struct cgraph_node *node, bool output_asm_thunks)
 		  gsi_insert_after (&bsi, stmt, GSI_NEW_STMT);
 		  make_edge (bb, then_bb, EDGE_TRUE_VALUE);
 		  make_edge (bb, else_bb, EDGE_FALSE_VALUE);
-		  make_edge (return_bb, EXIT_BLOCK_PTR, 0);
+		  make_edge (return_bb, EXIT_BLOCK_PTR_FOR_FN (cfun), 0);
 		  make_edge (then_bb, return_bb, EDGE_FALLTHRU);
 		  make_edge (else_bb, return_bb, EDGE_FALLTHRU);
 		  bsi = gsi_last_bb (then_bb);
@@ -1859,6 +1869,7 @@ expand_all_functions (void)
 	}
     }
   cgraph_process_new_functions ();
+  free_gimplify_stack ();
 
   free (order);
 
@@ -2014,9 +2025,6 @@ ipa_passes (void)
   /* Some targets need to handle LTO assembler output specially.  */
   if (flag_generate_lto)
     targetm.asm_out.lto_start ();
-
-  execute_ipa_summary_passes ((struct ipa_opt_pass_d *)
-			      passes->all_lto_gen_passes);
 
   if (!in_lto_p)
     ipa_write_summaries ();

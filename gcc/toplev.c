@@ -29,6 +29,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "line-map.h"
 #include "input.h"
 #include "tree.h"
+#include "varasm.h"
+#include "tree-inline.h"
 #include "realmpfr.h"	/* For GMP/MPFR/MPC versions, in print_version.  */
 #include "version.h"
 #include "rtl.h"
@@ -44,9 +46,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "function.h"
 #include "toplev.h"
 #include "expr.h"
-#include "basic-block.h"
 #include "intl.h"
-#include "ggc.h"
 #include "regs.h"
 #include "timevar.h"
 #include "diagnostic.h"
@@ -70,8 +70,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "alloc-pool.h"
 #include "asan.h"
 #include "tsan.h"
-#include "gimple.h"
 #include "tree-ssa-alias.h"
+#include "internal-fn.h"
+#include "gimple-expr.h"
+#include "gimple.h"
 #include "plugin.h"
 #include "diagnostic-color.h"
 #include "context.h"
@@ -1968,10 +1970,12 @@ toplev_main (int argc, char **argv)
 
   if (warningcount || errorcount || werrorcount)
     print_ignored_options ();
-  diagnostic_finish (global_dc);
 
-  /* Invoke registered plugin callbacks if any.  */
+  /* Invoke registered plugin callbacks if any.  Some plugins could
+     emit some diagnostics here.  */
   invoke_plugin_callbacks (PLUGIN_FINISH, NULL);
+
+  diagnostic_finish (global_dc);
 
   finalize_plugins ();
   location_adhoc_data_fini (line_table);

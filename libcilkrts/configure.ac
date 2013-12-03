@@ -39,20 +39,31 @@ AC_PREREQ([2.64])
 AC_CANONICAL_SYSTEM
 target_alias=${target_alias-$host_alias}
 AC_SUBST(target_alias)
-GCC_LIBSTDCXX_RAW_CXX_FLAGS
 AM_INIT_AUTOMAKE(foreign no-dist)
 
 AM_MAINTAINER_MODE
 
 # Build a DLL on Windows
 # AC_LIBTOOL_WIN32_DLL
-AC_PROG_CXX
 AC_PROG_CC
+AC_PROG_CXX
 # AC_PROG_LIBTOOL
 # AC_CONFIG_MACRO_DIR([..])
 AC_CONFIG_FILES([Makefile])
 AM_ENABLE_MULTILIB(, ..)
 AC_FUNC_ALLOCA
+
+# Check whether the target supports protected visibility.
+save_CFLAGS="$CFLAGS"
+CFLAGS="$CFLAGS -Werror"
+AC_TRY_COMPILE([void __attribute__((visibility("protected"))) foo(void) { }],
+	       [], libcilkrts_cv_have_attribute_visibility=yes,
+	       libcilkrts_cv_have_attribute_visibility=no)
+CFLAGS="$save_CFLAGS"
+if test $libcilkrts_cv_have_attribute_visibility = yes; then
+  AC_DEFINE(HAVE_ATTRIBUTE_VISIBILITY, 1,
+    [Define to 1 if the target supports __attribute__((visibility(...))).])
+fi
 
 # Get target configury.
 . ${srcdir}/configure.tgt
@@ -146,9 +157,12 @@ case "${host}" in
 esac
 AM_CONDITIONAL(MAC_LINKER_SCRIPT, test "$mac_linker_script" = "yes")
 
+AC_LIBTOOL_DLOPEN
 AM_PROG_LIBTOOL
 AC_SUBST(toolexecdir)
 AC_SUBST(toolexeclibdir)
+
+AC_SUBST(lt_cv_dlopen_libs)
 
 # Must be last
 AC_OUTPUT

@@ -23,6 +23,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
+#include "stor-layout.h"
+#include "varasm.h"
+#include "calls.h"
+#include "stringpool.h"
 #include "rtl.h"
 #include "regs.h"
 #include "hard-reg-set.h"
@@ -1129,7 +1133,7 @@ epiphany_compute_frame_size (int size /* # of var. bytes allocated.  */)
       if (total_size + reg_size <= (unsigned) epiphany_stack_offset)
 	{
 	  gcc_assert (first_slot < 0);
-	  gcc_assert (reg_size == 0 || reg_size == epiphany_stack_offset);
+	  gcc_assert (reg_size == 0 || (int) reg_size == epiphany_stack_offset);
 	  last_slot_offset = EPIPHANY_STACK_ALIGN (total_size + reg_size);
 	}
       else
@@ -1690,7 +1694,6 @@ epiphany_expand_prologue (void)
   int interrupt_p;
   enum epiphany_function_type fn_type;
   rtx addr, mem, off, reg;
-  rtx save_config;
 
   if (!current_frame_info.initialized)
     epiphany_compute_frame_size (get_frame_size ());
@@ -2758,11 +2761,11 @@ epiphany_special_round_type_align (tree type, unsigned computed,
 	continue;
       offset = bit_position (field);
       size = DECL_SIZE (field);
-      if (!host_integerp (offset, 1) || !host_integerp (size, 1)
-	  || TREE_INT_CST_LOW (offset) >= try_align
-	  || TREE_INT_CST_LOW (size) >= try_align)
+      if (!tree_fits_uhwi_p (offset) || !tree_fits_uhwi_p (size)
+	  || tree_to_uhwi (offset) >= try_align
+	  || tree_to_uhwi (size) >= try_align)
 	return try_align;
-      total = TREE_INT_CST_LOW (offset) + TREE_INT_CST_LOW (size);
+      total = tree_to_uhwi (offset) + tree_to_uhwi (size);
       if (total > max)
 	max = total;
     }
@@ -2785,7 +2788,7 @@ epiphany_adjust_field_align (tree field, unsigned computed)
     {
       tree elmsz = TYPE_SIZE (TREE_TYPE (TREE_TYPE (field)));
 
-      if (!host_integerp (elmsz, 1) || tree_low_cst (elmsz, 1) >= 32)
+      if (!tree_fits_uhwi_p (elmsz) || tree_to_uhwi (elmsz) >= 32)
 	return 64;
     }
   return computed;

@@ -23,7 +23,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
+#include "basic-block.h"
+#include "tree-ssa-alias.h"
+#include "internal-fn.h"
+#include "tree-eh.h"
+#include "gimple-expr.h"
+#include "is-a.h"
 #include "gimple.h"
+#include "gimple-iterator.h"
 #include "gimple-ssa.h"
 #include "data-streamer.h"
 #include "gimple-streamer.h"
@@ -77,7 +84,7 @@ output_gimple_stmt (struct output_block *ob, gimple stmt)
   bp_pack_value (&bp, gimple_has_volatile_ops (stmt), 1);
   hist = gimple_histogram_value (cfun, stmt);
   bp_pack_value (&bp, hist != NULL, 1);
-  bp_pack_var_len_unsigned (&bp, stmt->gsbase.subcode);
+  bp_pack_var_len_unsigned (&bp, stmt->subcode);
 
   /* Emit location information for the statement.  */
   stream_output_location (ob, &bp, LOCATION_LOCUS (gimple_location (stmt)));
@@ -129,6 +136,8 @@ output_gimple_stmt (struct output_block *ob, gimple stmt)
 	  if (op && (i || !is_gimple_debug (stmt)))
 	    {
 	      basep = &op;
+	      if (TREE_CODE (*basep) == ADDR_EXPR)
+		basep = &TREE_OPERAND (*basep, 0);
 	      while (handled_component_p (*basep))
 		basep = &TREE_OPERAND (*basep, 0);
 	      if (TREE_CODE (*basep) == VAR_DECL
@@ -136,10 +145,10 @@ output_gimple_stmt (struct output_block *ob, gimple stmt)
 		  && !DECL_REGISTER (*basep))
 		{
 		  bool volatilep = TREE_THIS_VOLATILE (*basep);
+		  tree ptrtype = build_pointer_type (TREE_TYPE (*basep));
 		  *basep = build2 (MEM_REF, TREE_TYPE (*basep),
-				   build_fold_addr_expr (*basep),
-				   build_int_cst (build_pointer_type
-						  (TREE_TYPE (*basep)), 0));
+				   build1 (ADDR_EXPR, ptrtype, *basep),
+				   build_int_cst (ptrtype, 0));
 		  TREE_THIS_VOLATILE (*basep) = volatilep;
 		}
 	      else

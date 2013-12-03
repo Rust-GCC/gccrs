@@ -28,6 +28,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
+#include "stor-layout.h"
+#include "trans-mem.h"
+#include "varasm.h"
+#include "stmt.h"
 #include "langhooks.h"
 #include "c-tree.h"
 #include "c-lang.h"
@@ -36,7 +40,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "target.h"
 #include "tree-iterator.h"
 #include "bitmap.h"
-#include "gimple.h"
+#include "pointer-set.h"
+#include "basic-block.h"
+#include "gimple-expr.h"
+#include "gimplify.h"
 #include "tree-inline.h"
 #include "omp-low.h"
 #include "c-family/c-objc.h"
@@ -4054,7 +4061,7 @@ build_unary_op (location_t location,
 	/* Report a read-only lvalue.  */
 	if (TYPE_READONLY (argtype))
 	  {
-	    readonly_error (arg,
+	    readonly_error (location, arg,
 			    ((code == PREINCREMENT_EXPR
 			      || code == POSTINCREMENT_EXPR)
 			     ? lv_increment : lv_decrement));
@@ -5265,7 +5272,7 @@ build_modify_expr (location_t location, tree lhs, tree lhs_origtype,
 	   || TREE_CODE (lhstype) == UNION_TYPE)
 	  && C_TYPE_FIELDS_READONLY (lhstype)))
     {
-      readonly_error (lhs, lv_assign);
+      readonly_error (location, lhs, lv_assign);
       return error_mark_node;
     }
   else if (TREE_READONLY (lhs))
@@ -6180,7 +6187,7 @@ store_init_value (location_t init_loc, tree decl, tree init, tree origtype)
 
   /* Store the expression if valid; else report error.  */
 
-  if (!in_system_header
+  if (!in_system_header_at (input_location)
       && AGGREGATE_TYPE_P (TREE_TYPE (decl)) && !TREE_STATIC (decl))
     warning (OPT_Wtraditional, "traditional C rejects automatic "
 	     "aggregate initialization");
@@ -7209,7 +7216,7 @@ push_init_level (int implicit, struct obstack * braced_init_obstack)
   else if (TREE_CODE (constructor_type) == ARRAY_TYPE)
     {
       constructor_type = TREE_TYPE (constructor_type);
-      push_array_bounds (tree_low_cst (constructor_index, 1));
+      push_array_bounds (tree_to_uhwi (constructor_index));
       constructor_depth++;
     }
 
@@ -8681,7 +8688,7 @@ process_init_element (struct c_expr value, bool implicit,
 	     again on the assumption that this must be conditional on
 	     __STDC__ anyway (and we've already complained about the
 	     member-designator already).  */
-	  if (!in_system_header && !constructor_designated
+	  if (!in_system_header_at (input_location) && !constructor_designated
 	      && !(value.value && (integer_zerop (value.value)
 				   || real_zerop (value.value))))
 	    warning (OPT_Wtraditional, "traditional C rejects initialization "
@@ -8759,7 +8766,7 @@ process_init_element (struct c_expr value, bool implicit,
 	  /* Now output the actual element.  */
 	  if (value.value)
 	    {
-	      push_array_bounds (tree_low_cst (constructor_index, 1));
+	      push_array_bounds (tree_to_uhwi (constructor_index));
 	      output_init_element (value.value, value.original_type,
 				   strict_string, elttype,
 				   constructor_index, 1, implicit,
@@ -8948,7 +8955,7 @@ build_asm_expr (location_t loc, tree string, tree outputs, tree inputs,
 	      || ((TREE_CODE (TREE_TYPE (output)) == RECORD_TYPE
 		   || TREE_CODE (TREE_TYPE (output)) == UNION_TYPE)
 		  && C_TYPE_FIELDS_READONLY (TREE_TYPE (output)))))
-	readonly_error (output, lv_asm);
+	readonly_error (loc, output, lv_asm);
 
       constraint = TREE_STRING_POINTER (TREE_VALUE (TREE_PURPOSE (tail)));
       oconstraints[i] = constraint;
@@ -9282,7 +9289,7 @@ c_start_case (location_t switch_loc,
 	{
 	  tree type = TYPE_MAIN_VARIANT (orig_type);
 
-	  if (!in_system_header
+	  if (!in_system_header_at (input_location)
 	      && (type == long_integer_type_node
 		  || type == long_unsigned_type_node))
 	    warning_at (switch_cond_loc,
@@ -9573,6 +9580,13 @@ c_finish_bc_stmt (location_t loc, tree *label_p, bool is_break)
     case 1:
       gcc_assert (is_break);
       error_at (loc, "break statement used with OpenMP for loop");
+      return NULL_TREE;
+
+    case 2:
+      if (is_break) 
+	error ("break statement within %<#pragma simd%> loop body");
+      else 
+	error ("continue statement within %<#pragma simd%> loop body");
       return NULL_TREE;
 
     default:

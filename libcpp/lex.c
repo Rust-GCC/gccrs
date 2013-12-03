@@ -559,8 +559,13 @@ search_line_fast (const uchar *s, const uchar *end ATTRIBUTE_UNUSED)
      beginning with all ones and shifting in zeros according to the
      mis-alignment.  The LVSR instruction pulls the exact shift we
      want from the address.  */
+#ifdef __BIG_ENDIAN__
   mask = __builtin_vec_lvsr(0, s);
   mask = __builtin_vec_perm(zero, ones, mask);
+#else
+  mask = __builtin_vec_lvsl(0, s);
+  mask = __builtin_vec_perm(ones, zero, mask);
+#endif
   data &= mask;
 
   /* While altivec loads mask addresses, we still need to align S so
@@ -624,7 +629,11 @@ search_line_fast (const uchar *s, const uchar *end ATTRIBUTE_UNUSED)
     /* L now contains 0xff in bytes for which we matched one of the
        relevant characters.  We can find the byte index by finding
        its bit index and dividing by 8.  */
+#ifdef __BIG_ENDIAN__
     l = __builtin_clzl(l) >> 3;
+#else
+    l = __builtin_ctzl(l) >> 3;
+#endif
     return s + l;
 
 #undef N
@@ -1204,11 +1213,14 @@ lex_identifier (cpp_reader *pfile, const uchar *base, bool starts_ucn,
 
   cur = pfile->buffer->cur;
   if (! starts_ucn)
-    while (ISIDNUM (*cur))
-      {
-	hash = HT_HASHSTEP (hash, *cur);
-	cur++;
-      }
+    {
+      while (ISIDNUM (*cur))
+	{
+	  hash = HT_HASHSTEP (hash, *cur);
+	  cur++;
+	}
+      NORMALIZE_STATE_UPDATE_IDNUM (nst, *(cur - 1));
+    }
   pfile->buffer->cur = cur;
   if (starts_ucn || forms_identifier_p (pfile, false, nst))
     {
@@ -1216,8 +1228,8 @@ lex_identifier (cpp_reader *pfile, const uchar *base, bool starts_ucn,
       do {
 	while (ISIDNUM (*pfile->buffer->cur))
 	  {
+	    NORMALIZE_STATE_UPDATE_IDNUM (nst, *pfile->buffer->cur);
 	    pfile->buffer->cur++;
-	    NORMALIZE_STATE_UPDATE_IDNUM (nst);
 	  }
       } while (forms_identifier_p (pfile, false, nst));
       result = _cpp_interpret_identifier (pfile, base,
@@ -1277,8 +1289,8 @@ lex_number (cpp_reader *pfile, cpp_string *number,
       while (ISIDNUM (*cur) || *cur == '.' || DIGIT_SEP (*cur)
 	     || VALID_SIGN (*cur, cur[-1]))
 	{
+	  NORMALIZE_STATE_UPDATE_IDNUM (nst, *cur);
 	  cur++;
-	  NORMALIZE_STATE_UPDATE_IDNUM (nst);
 	}
 
       pfile->buffer->cur = cur;

@@ -46,7 +46,12 @@
 #include "params.h"
 #include "coverage.h"
 #include "tree-pass.h"
+#include "tree-ssa-alias.h"
+#include "internal-fn.h"
+#include "gimple-expr.h"
+#include "is-a.h"
 #include "gimple.h"
+#include "gimple-iterator.h"
 #include "tree-cfg.h"
 #include "tree-ssa.h"
 #include "tree-inline.h"
@@ -226,7 +231,7 @@ static bool
 tail_duplicate (void)
 {
   fibnode_t *blocks = XCNEWVEC (fibnode_t, last_basic_block);
-  basic_block *trace = XNEWVEC (basic_block, n_basic_blocks);
+  basic_block *trace = XNEWVEC (basic_block, n_basic_blocks_for_fn (cfun));
   int *counts = XNEWVEC (int, last_basic_block);
   int ninsns = 0, nduplicated = 0;
   gcov_type weighted_insns = 0, traced_insns = 0;
@@ -370,7 +375,7 @@ tracer (void)
 {
   bool changed;
 
-  if (n_basic_blocks <= NUM_FIXED_BLOCKS + 1)
+  if (n_basic_blocks_for_fn (cfun) <= NUM_FIXED_BLOCKS + 1)
     return 0;
 
   mark_dfs_back_edges ();

@@ -101,6 +101,13 @@ __go_get_backtrace_state ()
       const char *filename;
 
       filename = (const char *) runtime_progname ();
+
+      /* If there is no '/' in FILENAME, it was found on PATH, and
+	 might not be the same as the file with the same name in the
+	 current directory.  */
+      if (__builtin_strchr (filename, '/') == NULL)
+	filename = NULL;
+
       back_state = backtrace_create_state (filename, 1, error_callback, NULL);
     }
   runtime_unlock (&back_state_lock);
@@ -128,7 +135,7 @@ __go_file_line (uintptr pc, String *fn, String *file, intgo *line)
 static void
 syminfo_callback (void *data, uintptr_t pc __attribute__ ((unused)),
 		  const char *symname __attribute__ ((unused)),
-		  uintptr_t address)
+		  uintptr_t address, uintptr_t size __attribute__ ((unused)))
 {
   uintptr_t *pval = (uintptr_t *) data;
 

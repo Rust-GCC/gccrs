@@ -27,20 +27,24 @@ along with GCC; see the file COPYING3.  If not see
 #include "target.h"
 #include "basic-block.h"
 #include "timevar.h"	/* for TV_ALIAS_STMT_WALK */
-#include "ggc.h"
 #include "langhooks.h"
 #include "flags.h"
 #include "function.h"
 #include "tree-pretty-print.h"
 #include "dumpfile.h"
+#include "tree-ssa-alias.h"
+#include "internal-fn.h"
+#include "tree-eh.h"
+#include "gimple-expr.h"
+#include "is-a.h"
 #include "gimple.h"
 #include "gimple-ssa.h"
+#include "stringpool.h"
 #include "tree-ssanames.h"
+#include "expr.h"
 #include "tree-dfa.h"
 #include "tree-inline.h"
 #include "params.h"
-#include "vec.h"
-#include "pointer-set.h"
 #include "alloc-pool.h"
 #include "tree-ssa-alias.h"
 #include "ipa-reference.h"
@@ -452,8 +456,18 @@ dump_points_to_solution (FILE *file, struct pt_solution *pt)
     {
       fprintf (file, ", points-to vars: ");
       dump_decl_set (file, pt->vars);
-      if (pt->vars_contains_global)
-	fprintf (file, " (includes global vars)");
+      if (pt->vars_contains_nonlocal
+	  && pt->vars_contains_escaped_heap)
+	fprintf (file, " (nonlocal, escaped heap)");
+      else if (pt->vars_contains_nonlocal
+	       && pt->vars_contains_escaped)
+	fprintf (file, " (nonlocal, escaped)");
+      else if (pt->vars_contains_nonlocal)
+	fprintf (file, " (nonlocal)");
+      else if (pt->vars_contains_escaped_heap)
+	fprintf (file, " (escaped heap)");
+      else if (pt->vars_contains_escaped)
+	fprintf (file, " (escaped)");
     }
 }
 
@@ -566,7 +580,7 @@ ao_ref_alias_set (ao_ref *ref)
 void
 ao_ref_init_from_ptr_and_size (ao_ref *ref, tree ptr, tree size)
 {
-  HOST_WIDE_INT t, extra_offset = 0;
+  HOST_WIDE_INT t, size_hwi, extra_offset = 0;
   ref->ref = NULL_TREE;
   if (TREE_CODE (ptr) == SSA_NAME)
     {
@@ -604,10 +618,9 @@ ao_ref_init_from_ptr_and_size (ao_ref *ref, tree ptr, tree size)
     }
   ref->offset += extra_offset;
   if (size
-      && host_integerp (size, 0)
-      && TREE_INT_CST_LOW (size) * BITS_PER_UNIT / BITS_PER_UNIT
-	 == TREE_INT_CST_LOW (size))
-    ref->max_size = ref->size = TREE_INT_CST_LOW (size) * BITS_PER_UNIT;
+      && tree_fits_shwi_p (size)
+      && (size_hwi = tree_to_shwi (size)) <= HOST_WIDE_INT_MAX / BITS_PER_UNIT)
+    ref->max_size = ref->size = size_hwi * BITS_PER_UNIT;
   else
     ref->max_size = ref->size = -1;
   ref->ref_alias_set = 0;
@@ -2008,9 +2021,10 @@ static bool
 stmt_kills_ref_p_1 (gimple stmt, ao_ref *ref)
 {
   /* For a must-alias check we need to be able to constrain
-     the access properly.  */
-  ao_ref_base (ref);
-  if (ref->max_size == -1)
+     the access properly.
+     FIXME: except for BUILTIN_FREE.  */
+  if (!ao_ref_base (ref)
+      || ref->max_size == -1)
     return false;
 
   if (gimple_has_lhs (stmt)
@@ -2097,23 +2111,33 @@ stmt_kills_ref_p_1 (gimple stmt, ao_ref *ref)
 	    {
 	      tree dest = gimple_call_arg (stmt, 0);
 	      tree len = gimple_call_arg (stmt, 2);
-	      tree base = NULL_TREE;
-	      HOST_WIDE_INT offset = 0;
-	      if (!host_integerp (len, 0))
+	      if (!tree_fits_shwi_p (len))
 		return false;
-	      if (TREE_CODE (dest) == ADDR_EXPR)
-		base = get_addr_base_and_unit_offset (TREE_OPERAND (dest, 0),
-						      &offset);
-	      else if (TREE_CODE (dest) == SSA_NAME)
-		base = dest;
-	      if (base
-		  && base == ao_ref_base (ref))
+	      tree rbase = ref->base;
+	      double_int roffset = double_int::from_shwi (ref->offset);
+	      ao_ref dref;
+	      ao_ref_init_from_ptr_and_size (&dref, dest, len);
+	      tree base = ao_ref_base (&dref);
+	      double_int offset = double_int::from_shwi (dref.offset);
+	      double_int bpu = double_int::from_uhwi (BITS_PER_UNIT);
+	      if (!base || dref.size == -1)
+		return false;
+	      if (TREE_CODE (base) == MEM_REF)
 		{
-		  HOST_WIDE_INT size = TREE_INT_CST_LOW (len);
-		  if (offset <= ref->offset / BITS_PER_UNIT
-		      && (offset + size
-		          >= ((ref->offset + ref->max_size + BITS_PER_UNIT - 1)
-			      / BITS_PER_UNIT)))
+		  if (TREE_CODE (rbase) != MEM_REF)
+		    return false;
+		  // Compare pointers.
+		  offset += bpu * mem_ref_offset (base);
+		  roffset += bpu * mem_ref_offset (rbase);
+		  base = TREE_OPERAND (base, 0);
+		  rbase = TREE_OPERAND (rbase, 0);
+		}
+	      if (base == rbase)
+		{
+		  double_int size = bpu * tree_to_double_int (len);
+		  double_int rsize = double_int::from_uhwi (ref->max_size);
+		  if (offset.sle (roffset)
+		      && (roffset + rsize).sle (offset + size))
 		    return true;
 		}
 	      break;

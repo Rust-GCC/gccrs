@@ -25,8 +25,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
+#include "stringpool.h"
+#include "stor-layout.h"
+#include "varasm.h"
+#include "attribs.h"
 #include "tree-dump.h"
-#include "gimple.h"	/* For create_tmp_var_raw.  */
+#include "gimple-expr.h"	/* For create_tmp_var_raw.  */
 #include "ggc.h"
 #include "diagnostic-core.h"	/* For internal_error.  */
 #include "toplev.h"	/* For announce_function.  */

@@ -29,6 +29,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
+#include "stringpool.h"
+#include "varasm.h"
+#include "attribs.h"
+#include "stor-layout.h"
 #include "intl.h"
 #include "pointer-set.h"
 #include "flags.h"
@@ -42,6 +46,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "timevar.h"
 #include "tree-iterator.h"
 #include "type-utils.h"
+#include "gimplify.h"
 
 /* The type of functions taking a tree, and some additional data, and
    returning an int.  */
@@ -150,7 +155,7 @@ static int for_each_template_parm (tree, tree_fn_t, void*,
 				   struct pointer_set_t*, bool);
 static tree expand_template_argument_pack (tree);
 static tree build_template_parm_index (int, int, int, tree, tree);
-static bool inline_needs_template_parms (tree);
+static bool inline_needs_template_parms (tree, bool);
 static void push_inline_template_parms_recursive (tree, int);
 static tree retrieve_local_specialization (tree);
 static void register_local_specialization (tree, tree);
@@ -376,9 +381,9 @@ template_class_depth (tree type)
    Returns true if processing DECL needs us to push template parms.  */
 
 static bool
-inline_needs_template_parms (tree decl)
+inline_needs_template_parms (tree decl, bool nsdmi)
 {
-  if (! DECL_TEMPLATE_INFO (decl))
+  if (!decl || (!nsdmi && ! DECL_TEMPLATE_INFO (decl)))
     return false;
 
   return (TMPL_PARMS_DEPTH (DECL_TEMPLATE_PARMS (most_general_template (decl)))
@@ -447,16 +452,23 @@ push_inline_template_parms_recursive (tree parmlist, int levels)
     }
 }
 
-/* Restore the template parameter context for a member template or
-   a friend template defined in a class definition.  */
+/* Restore the template parameter context for a member template, a
+   friend template defined in a class definition, or a non-template
+   member of template class.  */
 
 void
 maybe_begin_member_template_processing (tree decl)
 {
   tree parms;
   int levels = 0;
+  bool nsdmi = TREE_CODE (decl) == FIELD_DECL;
 
-  if (inline_needs_template_parms (decl))
+  if (nsdmi)
+    decl = (CLASSTYPE_TEMPLATE_INFO (DECL_CONTEXT (decl))
+	    ? CLASSTYPE_TI_TEMPLATE (DECL_CONTEXT (decl))
+	    : NULL_TREE);
+
+  if (inline_needs_template_parms (decl, nsdmi))
     {
       parms = DECL_TEMPLATE_PARMS (most_general_template (decl));
       levels = TMPL_PARMS_DEPTH (parms) - processing_template_decl;
@@ -5424,7 +5436,7 @@ unify_arg_conversion (bool explain_p, tree to_type,
 		      tree from_type, tree arg)
 {
   if (explain_p)
-    inform (EXPR_LOC_OR_HERE (arg),
+    inform (EXPR_LOC_OR_LOC (arg, input_location),
 	    "  cannot convert %qE (type %qT) to type %qT",
 	    arg, from_type, to_type);
   return 1;
@@ -5664,7 +5676,7 @@ convert_nontype_argument (tree type, tree expr, tsubst_flags_t complain)
 		return NULL_TREE;
 	      expr = cxx_constant_value (expr);
 	      if (errorcount > errs || warningcount + werrorcount > warns)
-		inform (EXPR_LOC_OR_HERE (expr),
+		inform (EXPR_LOC_OR_LOC (expr, input_location),
 			"in template argument for type %qT ", type);
 	      if (expr == error_mark_node)
 		return NULL_TREE;
@@ -7458,30 +7470,7 @@ lookup_template_class_1 (tree d1, tree arglist, tree in_decl, tree context,
 	context = global_namespace;
 
       /* Create the type.  */
-      if (TREE_CODE (template_type) == ENUMERAL_TYPE)
-	{
-	  if (!is_dependent_type)
-	    {
-	      set_current_access_from_decl (TYPE_NAME (template_type));
-	      t = start_enum (TYPE_IDENTIFIER (template_type), NULL_TREE,
-			      tsubst (ENUM_UNDERLYING_TYPE (template_type),
-				      arglist, complain, in_decl),
-			      SCOPED_ENUM_P (template_type), NULL);
-	    }
-	  else
-            {
-              /* We don't want to call start_enum for this type, since
-                 the values for the enumeration constants may involve
-                 template parameters.  And, no one should be interested
-                 in the enumeration constants for such a type.  */
-              t = cxx_make_type (ENUMERAL_TYPE);
-              SET_SCOPED_ENUM_P (t, SCOPED_ENUM_P (template_type));
-            }
-          SET_OPAQUE_ENUM_P (t, OPAQUE_ENUM_P (template_type));
-	  ENUM_FIXED_UNDERLYING_TYPE_P (t)
-	    = ENUM_FIXED_UNDERLYING_TYPE_P (template_type);
-	}
-      else if (DECL_ALIAS_TEMPLATE_P (gen_tmpl))
+      if (DECL_ALIAS_TEMPLATE_P (gen_tmpl))
 	{
 	  /* The user referred to a specialization of an alias
 	    template represented by GEN_TMPL.
@@ -7504,6 +7493,29 @@ lookup_template_class_1 (tree d1, tree arglist, tree in_decl, tree context,
 
 	  if (t == error_mark_node)
 	    return t;
+	}
+      else if (TREE_CODE (template_type) == ENUMERAL_TYPE)
+	{
+	  if (!is_dependent_type)
+	    {
+	      set_current_access_from_decl (TYPE_NAME (template_type));
+	      t = start_enum (TYPE_IDENTIFIER (template_type), NULL_TREE,
+			      tsubst (ENUM_UNDERLYING_TYPE (template_type),
+				      arglist, complain, in_decl),
+			      SCOPED_ENUM_P (template_type), NULL);
+	    }
+	  else
+            {
+              /* We don't want to call start_enum for this type, since
+                 the values for the enumeration constants may involve
+                 template parameters.  And, no one should be interested
+                 in the enumeration constants for such a type.  */
+              t = cxx_make_type (ENUMERAL_TYPE);
+              SET_SCOPED_ENUM_P (t, SCOPED_ENUM_P (template_type));
+            }
+          SET_OPAQUE_ENUM_P (t, OPAQUE_ENUM_P (template_type));
+	  ENUM_FIXED_UNDERLYING_TYPE_P (t)
+	    = ENUM_FIXED_UNDERLYING_TYPE_P (template_type);
 	}
       else if (CLASS_TYPE_P (template_type))
 	{
@@ -7661,7 +7673,8 @@ lookup_template_class_1 (tree d1, tree arglist, tree in_decl, tree context,
 	= tree_cons (arglist, t,
 		     DECL_TEMPLATE_INSTANTIATIONS (templ));
 
-      if (TREE_CODE (template_type) == ENUMERAL_TYPE && !is_dependent_type)
+      if (TREE_CODE (template_type) == ENUMERAL_TYPE && !is_dependent_type
+	  && !DECL_ALIAS_TEMPLATE_P (gen_tmpl))
 	/* Now that the type has been registered on the instantiations
 	   list, we set up the enumerators.  Because the enumeration
 	   constants may involve the enumeration type itself, we make
@@ -8079,7 +8092,7 @@ push_tinst_level (tree d)
   new_level->decl = d;
   new_level->locus = input_location;
   new_level->errors = errorcount+sorrycount;
-  new_level->in_system_header_p = in_system_header;
+  new_level->in_system_header_p = in_system_header_at (input_location);
   new_level->next = current_tinst_level;
   current_tinst_level = new_level;
 
@@ -8611,7 +8624,8 @@ apply_late_template_attributes (tree *decl_p, tree attributes, int attr_flags,
 		 pass it through tsubst.  Attributes like mode, format,
 		 cleanup and several target specific attributes expect it
 		 unmodified.  */
-	      else if (attribute_takes_identifier_p (get_attribute_name (t)))
+	      else if (attribute_takes_identifier_p (get_attribute_name (t))
+		       && TREE_VALUE (t))
 		{
 		  tree chain
 		    = tsubst_expr (TREE_CHAIN (TREE_VALUE (t)), args, complain,
@@ -13556,6 +13570,7 @@ tsubst_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl,
 
     case OMP_FOR:
     case OMP_SIMD:
+    case CILK_SIMD:
     case OMP_DISTRIBUTE:
       {
 	tree clauses, body, pre_body;
@@ -14490,7 +14505,7 @@ tsubst_copy_and_build (tree t,
 		      fn = TREE_OPERAND (fn, 1);
 		    if (is_overloaded_fn (fn))
 		      fn = get_first_fn (fn);
-		    if (permerror (EXPR_LOC_OR_HERE (t),
+		    if (permerror (EXPR_LOC_OR_LOC (t, input_location),
 				   "%qD was not declared in this scope, "
 				   "and no declarations were found by "
 				   "argument-dependent lookup at the point "
@@ -14500,15 +14515,17 @@ tsubst_copy_and_build (tree t,
 			  /* Can't say anything more.  */;
 			else if (DECL_CLASS_SCOPE_P (fn))
 			  {
-			    inform (EXPR_LOC_OR_HERE (t),
+			    location_t loc = EXPR_LOC_OR_LOC (t,
+							      input_location);
+			    inform (loc,
 				    "declarations in dependent base %qT are "
 				    "not found by unqualified lookup",
 				    DECL_CLASS_CONTEXT (fn));
 			    if (current_class_ptr)
-			      inform (EXPR_LOC_OR_HERE (t),
+			      inform (loc,
 				      "use %<this->%D%> instead", function);
 			    else
-			      inform (EXPR_LOC_OR_HERE (t),
+			      inform (loc,
 				      "use %<%T::%D%> instead",
 				      current_class_name, function);
 			  }
@@ -17194,8 +17211,9 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict,
 	  /* Also deduce from the length of the initializer list.  */
 	  tree max = size_int (CONSTRUCTOR_NELTS (arg));
 	  tree idx = compute_array_index_type (NULL_TREE, max, tf_none);
-	  return unify_array_domain (tparms, targs, TYPE_DOMAIN (parm),
-				     idx, explain_p);
+	  if (TYPE_DOMAIN (parm) != NULL_TREE)
+	    return unify_array_domain (tparms, targs, TYPE_DOMAIN (parm),
+				       idx, explain_p);
 	}
 
       /* If the std::initializer_list<T> deduction worked, replace the
@@ -18792,7 +18810,7 @@ do_decl_instantiation (tree decl, tree storage)
     ;
   else if (storage == ridpointers[(int) RID_EXTERN])
     {
-      if (!in_system_header && (cxx_dialect == cxx98))
+      if (!in_system_header_at (input_location) && (cxx_dialect == cxx98))
 	pedwarn (input_location, OPT_Wpedantic, 
 		 "ISO C++ 1998 forbids the use of %<extern%> on explicit "
 		 "instantiations");
@@ -18885,7 +18903,7 @@ do_type_instantiation (tree t, tree storage, tsubst_flags_t complain)
 
   if (storage != NULL_TREE)
     {
-      if (!in_system_header)
+      if (!in_system_header_at (input_location))
 	{
 	  if (storage == ridpointers[(int) RID_EXTERN])
 	    {
@@ -21628,6 +21646,58 @@ append_type_to_template_for_access_check (tree templ,
   append_type_to_template_for_access_check_1 (templ, type_decl,
 					      scope, location);
 }
+
+/* Convert the generic type parameters in PARM that match the types given in the
+   range [START_IDX, END_IDX) from the current_template_parms into generic type
+   packs.  */
+
+tree
+convert_generic_types_to_packs (tree parm, int start_idx, int end_idx)
+{
+  tree current = current_template_parms;
+  int depth = TMPL_PARMS_DEPTH (current);
+  current = INNERMOST_TEMPLATE_PARMS (current);
+  tree replacement = make_tree_vec (TREE_VEC_LENGTH (current));
+
+  for (int i = 0; i < start_idx; ++i)
+    TREE_VEC_ELT (replacement, i)
+      = TREE_TYPE (TREE_VALUE (TREE_VEC_ELT (current, i)));
+
+  for (int i = start_idx; i < end_idx; ++i)
+    {
+      /* Create a distinct parameter pack type from the current parm and add it
+	 to the replacement args to tsubst below into the generic function
+	 parameter.  */
+
+      tree o = TREE_TYPE (TREE_VALUE
+			  (TREE_VEC_ELT (current, i)));
+      tree t = copy_type (o);
+      TEMPLATE_TYPE_PARM_INDEX (t)
+	= reduce_template_parm_level (TEMPLATE_TYPE_PARM_INDEX (o),
+				      o, 0, 0, tf_none);
+      TREE_TYPE (TEMPLATE_TYPE_DECL (t)) = t;
+      TYPE_STUB_DECL (t) = TYPE_NAME (t) = TEMPLATE_TYPE_DECL (t);
+      TYPE_MAIN_VARIANT (t) = t;
+      TEMPLATE_TYPE_PARAMETER_PACK (t) = true;
+      TYPE_CANONICAL (t) = canonical_type_parameter (t);
+      TREE_VEC_ELT (replacement, i) = t;
+      TREE_VALUE (TREE_VEC_ELT (current, i)) = TREE_CHAIN (t);
+    }
+
+  for (int i = end_idx, e = TREE_VEC_LENGTH (current); i < e; ++i)
+    TREE_VEC_ELT (replacement, i)
+      = TREE_TYPE (TREE_VALUE (TREE_VEC_ELT (current, i)));
+
+  /* If there are more levels then build up the replacement with the outer
+     template parms.  */
+  if (depth > 1)
+    replacement = add_to_template_args (template_parms_to_args
+					(TREE_CHAIN (current_template_parms)),
+					replacement);
+
+  return tsubst (parm, replacement, tf_none, NULL_TREE);
+}
+
 
 /* Set up the hash tables for template instantiations.  */
 

@@ -23,9 +23,17 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
-#include "gimple.h"
-#include "langhooks.h"
 #include "pointer-set.h"
+#include "basic-block.h"
+#include "tree-ssa-alias.h"
+#include "internal-fn.h"
+#include "gimple-fold.h"
+#include "gimple-expr.h"
+#include "is-a.h"
+#include "gimple.h"
+#include "gimple-iterator.h"
+#include "gimple-walk.h"
+#include "langhooks.h"
 #include "intl.h"
 #include "tree-pass.h"
 #include "ipa-utils.h"
@@ -71,7 +79,7 @@ record_reference (tree *tp, int *walk_subtrees, void *data)
       decl = get_base_var (*tp);
       if (TREE_CODE (decl) == FUNCTION_DECL)
 	{
-	  struct cgraph_node *node = cgraph_get_create_real_symbol_node (decl);
+	  struct cgraph_node *node = cgraph_get_create_node (decl);
 	  if (!ctx->only_vars)
 	    cgraph_mark_address_taken_node (node);
 	  ipa_record_reference (ctx->varpool_node,
@@ -139,9 +147,9 @@ record_eh_tables (struct cgraph_node *node, struct function *fun)
 
   if (DECL_FUNCTION_PERSONALITY (node->decl))
     {
-      struct cgraph_node *per_node;
+      tree per_decl = DECL_FUNCTION_PERSONALITY (node->decl);
+      struct cgraph_node *per_node = cgraph_get_create_node (per_decl);
 
-      per_node = cgraph_get_create_real_symbol_node (DECL_FUNCTION_PERSONALITY (node->decl));
       ipa_record_reference (node, per_node, IPA_REF_ADDR, NULL);
       cgraph_mark_address_taken_node (per_node);
     }
@@ -196,7 +204,7 @@ record_eh_tables (struct cgraph_node *node, struct function *fun)
 int
 compute_call_stmt_bb_frequency (tree decl, basic_block bb)
 {
-  int entry_freq = ENTRY_BLOCK_PTR_FOR_FUNCTION
+  int entry_freq = ENTRY_BLOCK_PTR_FOR_FN
   		     (DECL_STRUCT_FUNCTION (decl))->frequency;
   int freq = bb->frequency;
 
@@ -221,7 +229,7 @@ mark_address (gimple stmt, tree addr, void *data)
   addr = get_base_address (addr);
   if (TREE_CODE (addr) == FUNCTION_DECL)
     {
-      struct cgraph_node *node = cgraph_get_create_real_symbol_node (addr);
+      struct cgraph_node *node = cgraph_get_create_node (addr);
       cgraph_mark_address_taken_node (node);
       ipa_record_reference ((symtab_node *)data,
 			    node,
@@ -250,7 +258,7 @@ mark_load (gimple stmt, tree t, void *data)
     {
       /* ??? This can happen on platforms with descriptors when these are
 	 directly manipulated in the code.  Pretend that it's an address.  */
-      struct cgraph_node *node = cgraph_get_create_real_symbol_node (t);
+      struct cgraph_node *node = cgraph_get_create_node (t);
       cgraph_mark_address_taken_node (node);
       ipa_record_reference ((symtab_node *)data,
 			    node,
@@ -338,7 +346,7 @@ build_cgraph_edges (void)
 	    {
 	      tree fn = gimple_omp_parallel_child_fn (stmt);
 	      ipa_record_reference (node,
-				    cgraph_get_create_real_symbol_node (fn),
+				    cgraph_get_create_node (fn),
 				    IPA_REF_ADDR, stmt);
 	    }
 	  if (gimple_code (stmt) == GIMPLE_OMP_TASK)
@@ -346,12 +354,12 @@ build_cgraph_edges (void)
 	      tree fn = gimple_omp_task_child_fn (stmt);
 	      if (fn)
 		ipa_record_reference (node,
-				      cgraph_get_create_real_symbol_node (fn),
+				      cgraph_get_create_node (fn),
 				      IPA_REF_ADDR, stmt);
 	      fn = gimple_omp_task_copy_fn (stmt);
 	      if (fn)
 		ipa_record_reference (node,
-				      cgraph_get_create_real_symbol_node (fn),
+				      cgraph_get_create_node (fn),
 				      IPA_REF_ADDR, stmt);
 	    }
 	}
@@ -439,7 +447,7 @@ rebuild_cgraph_edges (void)
   cgraph_node_remove_callees (node);
   ipa_remove_all_references (&node->ref_list);
 
-  node->count = ENTRY_BLOCK_PTR->count;
+  node->count = ENTRY_BLOCK_PTR_FOR_FN (cfun)->count;
 
   FOR_EACH_BB (bb)
     {
@@ -491,7 +499,7 @@ cgraph_rebuild_references (void)
     else
       i++;
 
-  node->count = ENTRY_BLOCK_PTR->count;
+  node->count = ENTRY_BLOCK_PTR_FOR_FN (cfun)->count;
 
   FOR_EACH_BB (bb)
     {

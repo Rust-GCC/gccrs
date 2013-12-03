@@ -27,12 +27,19 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-pretty-print.h"
 #include "bitmap.h"
 #include "dumpfile.h"
+#include "hash-table.h"
+#include "basic-block.h"
+#include "tree-ssa-alias.h"
+#include "internal-fn.h"
+#include "gimple-expr.h"
+#include "is-a.h"
 #include "gimple.h"
+#include "gimple-iterator.h"
 #include "gimple-ssa.h"
 #include "tree-phinodes.h"
 #include "ssa-iterators.h"
+#include "stringpool.h"
 #include "tree-ssanames.h"
-#include "hash-table.h"
 #include "tree-ssa-live.h"
 #include "tree-ssa-coalesce.h"
 #include "diagnostic-core.h"
@@ -1076,7 +1083,7 @@ create_outofssa_var_map (coalesce_list_p cl, bitmap used_in_copy)
 		  v2 = SSA_NAME_VERSION (var);
 		  bitmap_set_bit (used_in_copy, v1);
 		  bitmap_set_bit (used_in_copy, v2);
-		  cost = coalesce_cost_bb (EXIT_BLOCK_PTR);
+		  cost = coalesce_cost_bb (EXIT_BLOCK_PTR_FOR_FN (cfun));
 		  add_coalesce (cl, v1, v2, cost);
 		}
 	    }
@@ -1256,8 +1263,8 @@ coalesce_ssa_name (void)
   cl = create_coalesce_list ();
   map = create_outofssa_var_map (cl, used_in_copies);
 
-  /* We need to coalesce all names originating same SSA_NAME_VAR
-     so debug info remains undisturbed.  */
+  /* If optimization is disabled, we need to coalesce all the names originating
+     from the same SSA_NAME_VAR so debug info remains undisturbed.  */
   if (!optimize)
     {
       hash_table <ssa_name_var_hash> ssa_name_hash;
@@ -1278,8 +1285,16 @@ coalesce_ssa_name (void)
 		*slot = a;
 	      else
 		{
-		  add_coalesce (cl, SSA_NAME_VERSION (a), SSA_NAME_VERSION (*slot),
-				MUST_COALESCE_COST - 1);
+		  /* If the variable is a PARM_DECL or a RESULT_DECL, we
+		     _require_ that all the names originating from it be
+		     coalesced, because there must be a single partition
+		     containing all the names so that it can be assigned
+		     the canonical RTL location of the DECL safely.  */
+		  const int cost
+		    = TREE_CODE (SSA_NAME_VAR (a)) == VAR_DECL
+		      ? MUST_COALESCE_COST - 1 : MUST_COALESCE_COST;
+		  add_coalesce (cl, SSA_NAME_VERSION (a),
+				SSA_NAME_VERSION (*slot), cost);
 		  bitmap_set_bit (used_in_copies, SSA_NAME_VERSION (a));
 		  bitmap_set_bit (used_in_copies, SSA_NAME_VERSION (*slot));
 		}

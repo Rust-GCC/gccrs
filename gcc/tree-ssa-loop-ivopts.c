@@ -66,28 +66,38 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
+#include "stor-layout.h"
 #include "tm_p.h"
 #include "basic-block.h"
 #include "gimple-pretty-print.h"
+#include "pointer-set.h"
+#include "hash-table.h"
+#include "tree-ssa-alias.h"
+#include "internal-fn.h"
+#include "tree-eh.h"
+#include "gimple-expr.h"
+#include "is-a.h"
 #include "gimple.h"
+#include "gimplify.h"
+#include "gimple-iterator.h"
+#include "gimplify-me.h"
 #include "gimple-ssa.h"
 #include "cgraph.h"
 #include "tree-cfg.h"
 #include "tree-phinodes.h"
 #include "ssa-iterators.h"
+#include "stringpool.h"
 #include "tree-ssanames.h"
 #include "tree-ssa-loop-ivopts.h"
 #include "tree-ssa-loop-manip.h"
 #include "tree-ssa-loop-niter.h"
 #include "tree-ssa-loop.h"
+#include "expr.h"
 #include "tree-dfa.h"
 #include "tree-ssa.h"
 #include "cfgloop.h"
 #include "tree-pass.h"
-#include "ggc.h"
 #include "insn-config.h"
-#include "pointer-set.h"
-#include "hash-table.h"
 #include "tree-chrec.h"
 #include "tree-scalar-evolution.h"
 #include "cfgloop.h"
@@ -1674,7 +1684,7 @@ may_be_unaligned_p (tree ref, tree step)
      does to check whether the object must be loaded by parts when
      STRICT_ALIGNMENT is true.  */
   base = get_inner_reference (ref, &bitsize, &bitpos, &toffset, &mode,
-			      &unsignedp, &volatilep, true);
+			      &unsignedp, &volatilep);
   base_type = TREE_TYPE (base);
   base_align = get_object_alignment (base);
   base_align = MAX (base_align, TYPE_ALIGN (base_type));
@@ -2001,7 +2011,7 @@ find_interesting_uses (struct ivopts_data *data)
       bb = body[i];
 
       FOR_EACH_EDGE (e, ei, bb->succs)
-	if (e->dest != EXIT_BLOCK_PTR
+	if (e->dest != EXIT_BLOCK_PTR_FOR_FN (cfun)
 	    && !flow_bb_inside_loop_p (data->current_loop, e->dest))
 	  find_interesting_uses_outside (data, e);
 
@@ -3204,10 +3214,20 @@ multiplier_allowed_in_address_p (HOST_WIDE_INT ratio, enum machine_mode mode,
 
    TODO -- there must be some better way.  This all is quite crude.  */
 
+enum ainc_type
+{
+  AINC_PRE_INC,		/* Pre increment.  */
+  AINC_PRE_DEC,		/* Pre decrement.  */
+  AINC_POST_INC,	/* Post increment.  */
+  AINC_POST_DEC,	/* Post decrement.  */
+  AINC_NONE		/* Also the number of auto increment types.  */
+};
+
 typedef struct address_cost_data_s
 {
   HOST_WIDE_INT min_offset, max_offset;
   unsigned costs[2][2][2][2];
+  unsigned ainc_costs[AINC_NONE];
 } *address_cost_data;
 
 
@@ -3225,6 +3245,7 @@ get_address_cost (bool symbol_present, bool var_present,
   static bool has_preinc[MAX_MACHINE_MODE], has_postinc[MAX_MACHINE_MODE];
   static bool has_predec[MAX_MACHINE_MODE], has_postdec[MAX_MACHINE_MODE];
   unsigned cost, acost, complexity;
+  enum ainc_type autoinc_type;
   bool offset_p, ratio_p, autoinc;
   HOST_WIDE_INT s_offset, autoinc_offset, msize;
   unsigned HOST_WIDE_INT mask;
@@ -3296,33 +3317,49 @@ get_address_cost (bool symbol_present, bool var_present,
       reg0 = gen_raw_REG (address_mode, LAST_VIRTUAL_REGISTER + 1);
       reg1 = gen_raw_REG (address_mode, LAST_VIRTUAL_REGISTER + 2);
 
-      if (USE_LOAD_PRE_DECREMENT (mem_mode) 
+      if (USE_LOAD_PRE_DECREMENT (mem_mode)
 	  || USE_STORE_PRE_DECREMENT (mem_mode))
 	{
 	  addr = gen_rtx_PRE_DEC (address_mode, reg0);
 	  has_predec[mem_mode]
 	    = memory_address_addr_space_p (mem_mode, addr, as);
+
+	  if (has_predec[mem_mode])
+	    data->ainc_costs[AINC_PRE_DEC]
+	      = address_cost (addr, mem_mode, as, speed);
 	}
-      if (USE_LOAD_POST_DECREMENT (mem_mode) 
+      if (USE_LOAD_POST_DECREMENT (mem_mode)
 	  || USE_STORE_POST_DECREMENT (mem_mode))
 	{
 	  addr = gen_rtx_POST_DEC (address_mode, reg0);
 	  has_postdec[mem_mode]
 	    = memory_address_addr_space_p (mem_mode, addr, as);
+
+	  if (has_postdec[mem_mode])
+	    data->ainc_costs[AINC_POST_DEC]
+	      = address_cost (addr, mem_mode, as, speed);
 	}
-      if (USE_LOAD_PRE_INCREMENT (mem_mode) 
+      if (USE_LOAD_PRE_INCREMENT (mem_mode)
 	  || USE_STORE_PRE_DECREMENT (mem_mode))
 	{
 	  addr = gen_rtx_PRE_INC (address_mode, reg0);
 	  has_preinc[mem_mode]
 	    = memory_address_addr_space_p (mem_mode, addr, as);
+
+	  if (has_preinc[mem_mode])
+	    data->ainc_costs[AINC_PRE_INC]
+	      = address_cost (addr, mem_mode, as, speed);
 	}
-      if (USE_LOAD_POST_INCREMENT (mem_mode) 
+      if (USE_LOAD_POST_INCREMENT (mem_mode)
 	  || USE_STORE_POST_INCREMENT (mem_mode))
 	{
 	  addr = gen_rtx_POST_INC (address_mode, reg0);
 	  has_postinc[mem_mode]
 	    = memory_address_addr_space_p (mem_mode, addr, as);
+
+	  if (has_postinc[mem_mode])
+	    data->ainc_costs[AINC_POST_INC]
+	      = address_cost (addr, mem_mode, as, speed);
 	}
       for (i = 0; i < 16; i++)
 	{
@@ -3448,21 +3485,31 @@ get_address_cost (bool symbol_present, bool var_present,
   s_offset = offset;
 
   autoinc = false;
+  autoinc_type = AINC_NONE;
   msize = GET_MODE_SIZE (mem_mode);
   autoinc_offset = offset;
   if (stmt_after_inc)
     autoinc_offset += ratio * cstep;
   if (symbol_present || var_present || ratio != 1)
     autoinc = false;
-  else if ((has_postinc[mem_mode] && autoinc_offset == 0
-	       && msize == cstep)
-	   || (has_postdec[mem_mode] && autoinc_offset == 0
+  else
+    {
+      if (has_postinc[mem_mode] && autoinc_offset == 0
+	  && msize == cstep)
+	autoinc_type = AINC_POST_INC;
+      else if (has_postdec[mem_mode] && autoinc_offset == 0
 	       && msize == -cstep)
-	   || (has_preinc[mem_mode] && autoinc_offset == msize
+	autoinc_type = AINC_POST_DEC;
+      else if (has_preinc[mem_mode] && autoinc_offset == msize
 	       && msize == cstep)
-	   || (has_predec[mem_mode] && autoinc_offset == -msize
-	       && msize == -cstep))
-    autoinc = true;
+	autoinc_type = AINC_PRE_INC;
+      else if (has_predec[mem_mode] && autoinc_offset == -msize
+	       && msize == -cstep)
+	autoinc_type = AINC_PRE_DEC;
+
+      if (autoinc_type != AINC_NONE)
+	autoinc = true;
+    }
 
   cost = 0;
   offset_p = (s_offset != 0
@@ -3479,7 +3526,10 @@ get_address_cost (bool symbol_present, bool var_present,
 
   if (may_autoinc)
     *may_autoinc = autoinc;
-  acost = data->costs[symbol_present][var_present][offset_p][ratio_p];
+  if (autoinc)
+    acost = data->ainc_costs[autoinc_type];
+  else
+    acost = data->costs[symbol_present][var_present][offset_p][ratio_p];
   complexity = (symbol_present != 0) + (var_present != 0) + offset_p + ratio_p;
   return new_cost (cost + acost, complexity);
 }
@@ -3608,36 +3658,31 @@ force_expr_to_var_cost (tree expr, bool speed)
       op1 = TREE_OPERAND (expr, 1);
       STRIP_NOPS (op0);
       STRIP_NOPS (op1);
-
-      if (is_gimple_val (op0))
-	cost0 = no_cost;
-      else
-	cost0 = force_expr_to_var_cost (op0, speed);
-
-      if (is_gimple_val (op1))
-	cost1 = no_cost;
-      else
-	cost1 = force_expr_to_var_cost (op1, speed);
-
       break;
 
+    CASE_CONVERT:
     case NEGATE_EXPR:
       op0 = TREE_OPERAND (expr, 0);
       STRIP_NOPS (op0);
       op1 = NULL_TREE;
-
-      if (is_gimple_val (op0))
-	cost0 = no_cost;
-      else
-	cost0 = force_expr_to_var_cost (op0, speed);
-
-      cost1 = no_cost;
       break;
 
     default:
       /* Just an arbitrary value, FIXME.  */
       return new_cost (target_spill_cost[speed], 0);
     }
+
+  if (op0 == NULL_TREE
+      || TREE_CODE (op0) == SSA_NAME || CONSTANT_CLASS_P (op0))
+    cost0 = no_cost;
+  else
+    cost0 = force_expr_to_var_cost (op0, speed);
+
+  if (op1 == NULL_TREE
+      || TREE_CODE (op1) == SSA_NAME || CONSTANT_CLASS_P (op1))
+    cost1 = no_cost;
+  else
+    cost1 = force_expr_to_var_cost (op1, speed);
 
   mode = TYPE_MODE (TREE_TYPE (expr));
   switch (TREE_CODE (expr))
@@ -3662,6 +3707,16 @@ force_expr_to_var_cost (tree expr, bool speed)
                                     speed, &sa_cost))
             return sa_cost;
         }
+      break;
+
+    CASE_CONVERT:
+      {
+	tree inner_mode, outer_mode;
+	outer_mode = TREE_TYPE (expr);
+	inner_mode = TREE_TYPE (op0);
+	cost = new_cost (convert_cost (TYPE_MODE (outer_mode),
+				       TYPE_MODE (inner_mode), speed), 0);
+      }
       break;
 
     case MULT_EXPR:
@@ -3726,7 +3781,7 @@ split_address_cost (struct ivopts_data *data,
   int unsignedp, volatilep;
 
   core = get_inner_reference (addr, &bitsize, &bitpos, &toffset, &mode,
-			      &unsignedp, &volatilep, false);
+			      &unsignedp, &volatilep);
 
   if (toffset != 0
       || bitpos % BITS_PER_UNIT != 0
@@ -3962,16 +4017,16 @@ get_loop_invariant_expr_id (struct ivopts_data *data, tree ubase,
             {
               tree ind = TREE_OPERAND (usym, 1);
               if (TREE_CODE (ind) == INTEGER_CST
-                  && host_integerp (ind, 0)
-                  && TREE_INT_CST_LOW (ind) == 0)
+                  && tree_fits_shwi_p (ind)
+                  && tree_to_shwi (ind) == 0)
                 usym = TREE_OPERAND (usym, 0);
             }
           if (TREE_CODE (csym) == ARRAY_REF)
             {
               tree ind = TREE_OPERAND (csym, 1);
               if (TREE_CODE (ind) == INTEGER_CST
-                  && host_integerp (ind, 0)
-                  && TREE_INT_CST_LOW (ind) == 0)
+                  && tree_fits_shwi_p (ind)
+                  && tree_to_shwi (ind) == 0)
                 csym = TREE_OPERAND (csym, 0);
             }
           if (operand_equal_p (usym, csym, 0))
@@ -4348,7 +4403,7 @@ iv_period (struct iv *iv)
 
   period = build_low_bits_mask (type,
                                 (TYPE_PRECISION (type)
-                                 - tree_low_cst (pow2div, 1)));
+                                 - tree_to_uhwi (pow2div)));
 
   return period;
 }
@@ -6824,12 +6879,11 @@ tree_ssa_iv_optimize (void)
 {
   struct loop *loop;
   struct ivopts_data data;
-  loop_iterator li;
 
   tree_ssa_iv_optimize_init (&data);
 
   /* Optimize the loops starting with the innermost ones.  */
-  FOR_EACH_LOOP (li, loop, LI_FROM_INNERMOST)
+  FOR_EACH_LOOP (loop, LI_FROM_INNERMOST)
     {
       if (dump_file && (dump_flags & TDF_DETAILS))
 	flow_loop_dump (loop, dump_file, NULL, 1);
