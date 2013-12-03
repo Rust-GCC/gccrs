@@ -1,5 +1,5 @@
 language: c
 compiler:
-	- gcc
-	- clang
+  - gcc
+  - clang
 script: ./travis-build.sh
