@@ -2,12 +2,10 @@
 BUILD_DIR="gccrs-build-travis"
 rm -rf $BUILD_DIR
 mkdir $BUILD_DIR
-./contrib/download_prerequisites || exit $?
 cd $BUILD_DIR
 ../configure \
     --enable-languages=rust \
-    --disable-multilib \
-    --disable-bootstrap || exit $?
+    --disable-multilib || exit $?
 make || exit $?
 cd -
 
