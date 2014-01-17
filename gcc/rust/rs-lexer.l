@@ -40,6 +40,8 @@ QSTRING      \"[^\"\n]*[\"\n]
 
 as                      {  return AS; }
 break                   {  return BREAK; }
+return                  {  return RETURN; }
+continue                {  return CONTINUE; }
 do                      {  return DO; }
 fn                      {  return DEFUN; }
 let                     {  return LET; }

@@ -576,6 +576,14 @@ void dot_pass_dataFlowBlock_ (rdot suite, std::vector<rdot> * decls)
 	      dot_pass_dataFlowBlock_ (RDOT_rhs_TT (node), decls);
 	      break;
 
+            case D_STRUCT_LOOP:
+              dot_pass_dataFlowBlock_ (RDOT_lhs_TT (node), decls);
+              break;
+
+            case C_BREAK_STMT:
+            case C_CONT_STMT:
+              break;
+
 	    default:
 	      error ("Unhandled data flow in block on [%s]\n", RDOT_OPCODE_STR (node));
 	      break;

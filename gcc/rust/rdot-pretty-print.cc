@@ -96,7 +96,7 @@ const char * typeStringNode (rdot node)
   if (node)
     if (!_error)
       {
-	char modifier_char;
+	char modifier_char = 'X';
 	switch (RDOT_MEM_MODIFIER (node))
 	  {
 	  case ALLOC_AUTO:
@@ -487,7 +487,37 @@ void dot_pass_dump_cond (FILE * fd, rdot node, size_t indents)
 }
 
 static
-void dot_pass_dump_while (FILE * fd, rdot node, size_t indents)
+void dot_pass_dump_break (FILE * fd, const rdot node, size_t indents)
+{
+  size_t i;
+  for (i = 0; i < indents; ++i)
+    fprintf (fd, "    ");
+  fprintf (fd, "break;");
+}
+
+static
+void dot_pass_dump_loop (FILE * fd, const rdot node, size_t indents)
+{
+  const rdot suite = RDOT_lhs_TT (node);
+  size_t i;
+  for (i = 0; i < indents; ++i)
+    fprintf (fd, "    ");
+  fprintf (fd, "loop {\n");
+  
+  rdot next;
+  for (next = suite; next != NULL_DOT; next = RDOT_CHAIN (next))
+    {
+      dot_pass_dump_node (fd, next, indents + 1);
+      fprintf (fd, "\n");
+    }
+  
+  for (i = 0; i < indents; ++i)
+    fprintf (fd, "    ");
+  fprintf (fd, "}\n");
+}
+
+static
+void dot_pass_dump_while (FILE * fd, const rdot node, size_t indents)
 {
   size_t i;
   rdot expr = RDOT_lhs_TT (node);
@@ -569,6 +599,14 @@ void dot_pass_dump_node (FILE * fd, rdot node, size_t indents)
 	case D_STRUCT_WHILE:
 	  dot_pass_dump_while (fd, node, indents);
 	  break;
+
+        case D_STRUCT_LOOP:
+          dot_pass_dump_loop (fd, node, indents);
+          break;
+
+        case C_BREAK_STMT:
+          dot_pass_dump_break (fd, node, indents);
+          break;
 
         default:
 	  error ("unhandled node [%s]\n", RDOT_OPCODE_STR (node));

@@ -60,6 +60,8 @@ extern void yyerror (const char *);
 %token IMPL "impl"
 %token AS "as"
 %token BREAK "break"
+%token CONTINUE "continue"
+%token RETURN "return"
 %token DO "do"
 %token DEFUN "fn"
 %token LET "let"
@@ -73,7 +75,7 @@ extern void yyerror (const char *);
 %token TYPE_UINT "uint"
 %token TYPE_FLOAT "float"
 %token ACC "::"
-%token ENUM 'enum'
+%token ENUM "enum"
 
 %token EQUAL_EQUAL "=="
 %token NOT_EQUAL "!=" 
@@ -122,6 +124,7 @@ extern void yyerror (const char *);
 %type<symbol> struct_init
 %type<symbol> struct_init_list
 %type<symbol> while_loop
+%type<symbol> loop_loop
 %type<symbol> if_block
 %type<symbol> else_block
 %type<symbol> parameter
@@ -205,7 +208,7 @@ structdef: STRUCT IDENTIFIER '{' parameters '}'
          {
 	   $$ = rdot_build_decl2 (D_STRUCT_TYPE,
 				  rdot_build_identifier ($2),
-				  symStack->pop ())
+				  symStack->pop ());
 	 }
          ;
 
@@ -297,6 +300,10 @@ while_loop: WHILE '(' expression ')' '{' suite '}'
           { $$ = rdot_build_decl2 (D_STRUCT_WHILE, $3, $6); }
           ;
 
+loop_loop: LOOP '{' suite '}'
+         { $$ = rdot_build_decl1 (D_STRUCT_LOOP, $3); }
+         ;
+
 if_block: IF '(' expression ')' '{' suite '}'
         { $$ = rdot_build_decl2 (D_STRUCT_IF, $3, $6); }
         ;
@@ -320,7 +327,12 @@ statement: expression_stmt
 	   DOT_RETVAL ($1) = true;
 	   $$ = $1;
 	 }
+         | BREAK ';'
+	 { $$ = rdot_build_decl1 (C_BREAK_STMT, NULL_DOT); }
+         | CONTINUE ';'
+	 { $$ = rdot_build_decl1 (C_CONT_STMT, NULL_DOT); }
          | while_loop
+	 | loop_loop
          | cond_stmt
          ;
 
@@ -393,6 +405,8 @@ expression: target '=' expression
           { $$ = rdot_build_decl2 (D_GREATER_EQ_EXPR, $1, $3); }
           | expression LESS_EQUAL expression
           { $$ = rdot_build_decl2 (D_LESS_EQ_EXPR, $1, $3); }
+          | expression EQUAL_EQUAL expression
+	  { $$ = rdot_build_decl2 (D_EQ_EQ_EXPR, $1, $3); }
           | expression '.' expression
           { $$ = rdot_build_decl2 (D_ATTRIB_REF, $1, $3); }
           | expression ACC expression

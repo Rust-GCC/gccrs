@@ -28,6 +28,7 @@ static void dot_pass_compileSuite (rdot, tree *);
 static tree global_retDecl;
 static bool global_retDecl_;
 static tree __impl_type_decl = error_mark_node;
+static std::vector<tree> __loopContexts;
 
 static
 char * dot_pass_demangleImpl (const char * val)
@@ -213,7 +214,6 @@ tree dot_pass_genifyCall (tree mfndecl, vec<tree,va_gc> * arguments)
       // tree types = TYPE_ARG_TYPES (mfndecl);
 
       /* really need to check the calling types and number of arguments */
-
       retval = build_call_expr_loc_vec (UNKNOWN_LOCATION, mfndecl, arguments);
     }
   else
@@ -342,7 +342,6 @@ tree dot_pass_lowerExpr (rdot dot, tree * block)
 	rdot rhs = RDOT_rhs_TT (dot);
 
 	tree lookup = dot_pass_lowerExpr (lhs, block);
-
 	switch (RDOT_TYPE (rhs))
 	  {
 	  case D_CALL_EXPR:
@@ -469,6 +468,19 @@ tree dot_pass_lowerExpr (rdot dot, tree * block)
       }
       break;
 
+    case D_EQ_EQ_EXPR:
+      {
+        rdot lhs = RDOT_lhs_TT (dot);
+        rdot rhs = RDOT_rhs_TT (dot);
+
+        tree xlhs = dot_pass_lowerExpr (lhs, block);
+        tree xrhs = dot_pass_lowerExpr (rhs, block);
+
+	retval = build2 (EQ_EXPR, TREE_TYPE (xlhs),
+			 xlhs, xrhs);
+      }
+      break;
+
     case D_VAR_DECL:
         {
           const char * varID = RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (dot));
@@ -556,6 +568,48 @@ void dot_pass_compileCond (rdot node, tree * block)
 }
 
 static
+void dot_pass_compileBreak (rdot node, tree * block)
+{
+  size_t lts = __loopContexts.size ();
+  if (lts > 0)
+    {
+      tree lt = __loopContexts.back ();
+      append_to_statement_list (build1 (GOTO_EXPR, void_type_node, lt), block);
+    }
+  else
+    error ("break outside of loop context");
+}
+
+static
+void dot_pass_compileLoop (rdot node, tree * block)
+{
+  tree start_label_decl = build_decl (BUILTINS_LOCATION, LABEL_DECL,
+				      create_tmp_var_name ("START"),
+				      void_type_node);
+  tree start_label_expr = fold_build1_loc (BUILTINS_LOCATION, LABEL_EXPR,
+					   void_type_node, start_label_decl);
+  DECL_CONTEXT (start_label_decl) = current_function_decl;
+
+  tree end_label_decl = build_decl (BUILTINS_LOCATION, LABEL_DECL,
+				    create_tmp_var_name ("END"),
+				    void_type_node);
+  tree end_label_expr = fold_build1_loc (BUILTINS_LOCATION, LABEL_EXPR,
+					 void_type_node, end_label_decl);
+  DECL_CONTEXT (end_label_decl) = current_function_decl;
+  __loopContexts.push_back (end_label_decl);
+
+  /* -- -- -- */
+  append_to_statement_list (start_label_expr, block);
+
+  dot_pass_compileSuite (RDOT_lhs_TT (node), block);
+  append_to_statement_list (build1 (GOTO_EXPR, void_type_node, start_label_decl), block);
+  append_to_statement_list (end_label_expr, block);
+  
+  __loopContexts.pop_back ();
+  
+}
+
+static
 void dot_pass_compileWhile (rdot node, tree * block)
 {
   rdot condition = RDOT_lhs_TT (node);
@@ -574,6 +628,7 @@ void dot_pass_compileWhile (rdot node, tree * block)
   tree end_label_expr = fold_build1_loc (BUILTINS_LOCATION, LABEL_EXPR,
 					 void_type_node, end_label_decl);
   DECL_CONTEXT (end_label_decl) = current_function_decl;
+  __loopContexts.push_back (end_label_decl);
 
   /* -- -- -- */
   append_to_statement_list (start_label_expr, block);
@@ -586,6 +641,8 @@ void dot_pass_compileWhile (rdot node, tree * block)
   dot_pass_compileSuite (suite, block);
   append_to_statement_list (build1 (GOTO_EXPR, void_type_node, start_label_decl), block);
   append_to_statement_list (end_label_expr, block);
+  
+  __loopContexts.pop_back ();
 }
 
 static
@@ -600,13 +657,21 @@ void dot_pass_compileSuite (rdot suite, tree * block)
         {
           switch (RDOT_TYPE (node))
             {
-	    case D_STRUCT_IF:
-	      dot_pass_compileCond (node, block);
-	      break;
-
+            case D_STRUCT_IF:
+              dot_pass_compileCond (node, block);
+              break;
+              
 	    case D_STRUCT_WHILE:
 	      dot_pass_compileWhile (node, block);
 	      break;
+              
+            case D_STRUCT_LOOP:
+              dot_pass_compileLoop (node, block);
+              break;
+
+            case C_BREAK_STMT:
+              dot_pass_compileBreak (node, block);
+              break;
 
             default:
               error ("Unhandled statement [%s]\n", RDOT_OPCODE_STR (node));

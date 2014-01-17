@@ -44,6 +44,7 @@ typedef enum {
     
     D_STRUCT_METHOD,
     D_STRUCT_WHILE,
+    D_STRUCT_LOOP,
 
     D_D_EXPR,
     D_TD_COM,
@@ -75,7 +76,10 @@ typedef enum {
     D_STRUCT_IMPL,
 
     D_BOOLEAN,
-    D_T_BOOL
+    D_T_BOOL,
+
+    C_BREAK_STMT,
+    C_CONT_STMT
 } opcode_t ;
 
 typedef enum {

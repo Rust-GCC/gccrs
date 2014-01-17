@@ -41,6 +41,7 @@ static const char * opcodeStrings [] = {
   "accessor_reference",
   "struct_method",
   "struct_while",
+  "struct_loop",
   "enc_expression",
   "TD_COM",
   "TD_DOT",
@@ -63,7 +64,9 @@ static const char * opcodeStrings [] = {
   "struct_enum",
   "impl_block",
   "d_boolean",
-  "d_t_bool"
+  "d_t_bool",
+  "break_stmt",
+  "continue_stmt"
 };
 
 const char * rdot_getOpString (rdot type)
@@ -106,7 +109,7 @@ rdot_tree_common * rdot_cm_alloc (void)
   rdot_tree_common * retval = (struct grs_rdot_tree_common *)
     xmalloc (sizeof (struct grs_rdot_tree_common *));
   gcc_assert (retval);
-  memset (retval, 0, sizeof (struct grs_rdot_tree_common *));
+  memset (retval, 0, sizeof (struct grs_rdot_tree_common));
   return retval;
 }
 
