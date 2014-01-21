@@ -1,5 +1,5 @@
 ;; Machine description for AArch64 architecture.
-;; Copyright (C) 2009-2013 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2014 Free Software Foundation, Inc.
 ;; Contributed by ARM Ltd.
 ;;
 ;; This file is part of GCC.
@@ -289,6 +289,12 @@
   "nop"
   [(set_attr "type" "no_insn")]
 )
+
+(define_insn "trap"
+  [(trap_if (const_int 1) (const_int 8))]
+  ""
+  "brk #1000"
+  [(set_attr "type" "trap")])
 
 (define_expand "prologue"
   [(clobber (const_int 0))]
@@ -1244,8 +1250,8 @@
 )
 
 (define_insn "*compare_neg<mode>"
-  [(set (reg:CC_SWP CC_REGNUM)
-	(compare:CC_SWP
+  [(set (reg:CC_Z CC_REGNUM)
+	(compare:CC_Z
 	 (neg:GPI (match_operand:GPI 0 "register_operand" "r"))
 	 (match_operand:GPI 1 "register_operand" "r")))]
   ""

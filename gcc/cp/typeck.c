@@ -1,5 +1,5 @@
 /* Build expressions with type checking for C++ compiler.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
    Hacked by Michael Tiemann (tiemann@cygnus.com)
 
 This file is part of GCC.
@@ -1562,7 +1562,7 @@ cxx_sizeof_or_alignof_type (tree type, enum tree_code op, bool complain)
     }
 
   return c_sizeof_or_alignof_type (input_location, complete_type (type),
-				   op == SIZEOF_EXPR,
+				   op == SIZEOF_EXPR, false,
 				   complain);
 }
 
@@ -4944,12 +4944,25 @@ build_x_vec_perm_expr (location_t loc,
 			tree arg0, tree arg1, tree arg2,
 			tsubst_flags_t complain)
 {
-  if (processing_template_decl
-      && (type_dependent_expression_p (arg0)
+  tree orig_arg0 = arg0;
+  tree orig_arg1 = arg1;
+  tree orig_arg2 = arg2;
+  if (processing_template_decl)
+    {
+      if (type_dependent_expression_p (arg0)
 	  || type_dependent_expression_p (arg1)
-	  || type_dependent_expression_p (arg2)))
-    return build_min_nt_loc (loc, VEC_PERM_EXPR, arg0, arg1, arg2);
-  return c_build_vec_perm_expr (loc, arg0, arg1, arg2, complain & tf_error);
+	  || type_dependent_expression_p (arg2))
+	return build_min_nt_loc (loc, VEC_PERM_EXPR, arg0, arg1, arg2);
+      arg0 = build_non_dependent_expr (arg0);
+      if (arg1)
+	arg1 = build_non_dependent_expr (arg1);
+      arg2 = build_non_dependent_expr (arg2);
+    }
+  tree exp = c_build_vec_perm_expr (loc, arg0, arg1, arg2, complain & tf_error);
+  if (processing_template_decl && exp != error_mark_node)
+    return build_min_non_dep (VEC_PERM_EXPR, exp, orig_arg0,
+			      orig_arg1, orig_arg2);
+  return exp;
 }
 
 /* Return a tree for the sum or difference (RESULTCODE says which)
@@ -5748,7 +5761,9 @@ cp_build_unary_op (enum tree_code code, tree xarg, int noconvert,
 	    inc = cxx_sizeof_nowarn (TREE_TYPE (argtype));
 	  }
 	else
-	  inc = integer_one_node;
+	  inc = VECTOR_TYPE_P (argtype)
+	    ? build_one_cst (argtype)
+	    : integer_one_node;
 
 	inc = cp_convert (argtype, inc, complain);
 
@@ -6163,6 +6178,17 @@ cp_build_compound_expr (tree lhs, tree rhs, tsubst_flags_t complain)
 
   if (lhs == error_mark_node || rhs == error_mark_node)
     return error_mark_node;
+
+  if (flag_enable_cilkplus
+      && (TREE_CODE (lhs) == CILK_SPAWN_STMT
+	  || TREE_CODE (rhs) == CILK_SPAWN_STMT))
+    {
+      location_t loc = (EXPR_HAS_LOCATION (lhs) ? EXPR_LOCATION (lhs)
+			: EXPR_LOCATION (rhs));
+      error_at (loc,
+		"spawned function call cannot be part of a comma expression");
+      return error_mark_node;
+    }
 
   if (TREE_CODE (rhs) == TARGET_EXPR)
     {
@@ -8287,6 +8313,13 @@ check_return_expr (tree retval, bool *no_warning)
   bool named_return_value_okay_p;
 
   *no_warning = false;
+
+  if (flag_enable_cilkplus && retval && TREE_CODE (retval) == CILK_SPAWN_STMT)
+    {
+      error_at (EXPR_LOCATION (retval), "use of %<_Cilk_spawn%> in a return "
+		"statement is not allowed");
+      return NULL_TREE;
+    }
 
   /* A `volatile' function is one that isn't supposed to return, ever.
      (This is a G++ extension, used to get better code for functions

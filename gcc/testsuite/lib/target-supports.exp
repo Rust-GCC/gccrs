@@ -1,4 +1,4 @@
-#   Copyright (C) 1999-2013 Free Software Foundation, Inc.
+#   Copyright (C) 1999-2014 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -530,6 +530,8 @@ proc check_profiling_available { test_what } {
 	     || [istarget mn10300-*-elf*]
 	     || [istarget moxie-*-elf*]
 	     || [istarget msp430-*-*]
+	     || [istarget nds32*-*-elf]
+	     || [istarget nios2-*-elf]
 	     || [istarget picochip-*-*]
 	     || [istarget powerpc-*-eabi*]
 	     || [istarget powerpc-*-elf]
@@ -1031,6 +1033,20 @@ proc check_iconv_available { test_what } {
 	  return 0;
 	}
     }] $libiconv]
+}
+
+# Return true if Cilk Library is supported on the target.
+proc check_libcilkrts_available { } {
+  return [ check_no_compiler_messages_nocache libcilkrts_available executable {
+	#ifdef __cplusplus
+	extern "C" 
+	#endif
+	   int __cilkrts_set_param (const char *, const char *);
+	    int main (void) { 
+		int x = __cilkrts_set_param ("nworkers", "0");
+		return x; 
+	    }
+	} "-fcilkplus -lcilkrts" ]
 }
 
 # Return 1 if an ASCII locale is supported on this host, 0 otherwise.
@@ -2146,6 +2162,32 @@ proc check_effective_target_vect_floatuint_cvt { } {
     return $et_vect_floatuint_cvt_saved
 }
 
+# Return 1 if the target supports #pragma omp declare simd, 0 otherwise.
+#
+# This won't change for different subtargets so cache the result.
+
+proc check_effective_target_vect_simd_clones { } {
+    global et_vect_simd_clones_saved
+
+    if [info exists et_vect_simd_clones_saved] {
+	verbose "check_effective_target_vect_simd_clones: using cached result" 2
+    } else {
+	set et_vect_simd_clones_saved 0
+	if { [istarget i?86-*-*] || [istarget x86_64-*-*] } {
+	    # On i?86/x86_64 #pragma omp declare simd builds a sse2, avx and
+	    # avx2 clone.  Only the right clone for the specified arch will be
+	    # chosen, but still we need to at least be able to assemble
+	    # avx2.
+	    if { [check_effective_target_avx2] } {
+		set et_vect_simd_clones_saved 1
+	    }
+	}
+    }
+
+    verbose "check_effective_target_vect_simd_clones: returning $et_vect_simd_clones_saved" 2
+    return $et_vect_simd_clones_saved
+}
+
 # Return 1 if this is a AArch64 target supporting big endian
 proc check_effective_target_aarch64_big_endian { } {
     return [check_no_compiler_messages aarch64_big_endian assembly {
@@ -2272,6 +2314,49 @@ proc check_effective_target_arm_unaligned { } {
     }]
 }
 
+# Return 1 if this is an ARM target supporting -mfpu=crypto-neon-fp-armv8
+# -mfloat-abi=softfp or equivalent options.  Some multilibs may be
+# incompatible with these options.  Also set et_arm_crypto_flags to the
+# best options to add.
+
+proc check_effective_target_arm_crypto_ok_nocache { } {
+    global et_arm_crypto_flags
+    set et_arm_crypto_flags ""
+    if { [check_effective_target_arm32] } {
+	foreach flags {"" "-mfloat-abi=softfp" "-mfpu=crypto-neon-fp-armv8" "-mfpu=crypto-neon-fp-armv8 -mfloat-abi=softfp"} {
+	    if { [check_no_compiler_messages_nocache arm_crypto_ok object {
+		#include "arm_neon.h"
+		uint8x16_t
+		foo (uint8x16_t a, uint8x16_t b)
+		{
+	          return vaeseq_u8 (a, b);
+		}
+	    } "$flags"] } {
+		set et_arm_crypto_flags $flags
+		return 1
+	    }
+	}
+    }
+
+    return 0
+}
+
+# Return 1 if this is an ARM target supporting -mfpu=crypto-neon-fp-armv8
+
+proc check_effective_target_arm_crypto_ok { } {
+    return [check_cached_effective_target arm_crypto_ok \
+		check_effective_target_arm_crypto_ok_nocache]
+}
+
+# Add options for crypto extensions.
+proc add_options_for_arm_crypto { flags } {
+    if { ! [check_effective_target_arm_crypto_ok] } {
+        return "$flags"
+    }
+    global et_arm_crypto_flags
+    return "$flags $et_arm_crypto_flags"
+}
+
 # Add the options needed for NEON.  We need either -mfloat-abi=softfp
 # or -mfloat-abi=hard, but if one is already specified by the
 # multilib, use it.  Similarly, if a -mfpu option already enables
@@ -2298,6 +2383,14 @@ proc add_options_for_arm_v8_neon { flags } {
     }
     global et_arm_v8_neon_flags
     return "$flags $et_arm_v8_neon_flags -march=armv8-a"
+}
+
+proc add_options_for_arm_crc { flags } {
+    if { ! [check_effective_target_arm_crc_ok] } {
+        return "$flags"
+    }
+    global et_arm_crc_flags
+    return "$flags $et_arm_crc_flags"
 }
 
 # Add the options needed for NEON.  We need either -mfloat-abi=softfp
@@ -2339,6 +2432,21 @@ proc check_effective_target_arm_neon_ok_nocache { } {
 proc check_effective_target_arm_neon_ok { } {
     return [check_cached_effective_target arm_neon_ok \
 		check_effective_target_arm_neon_ok_nocache]
+}
+
+proc check_effective_target_arm_crc_ok_nocache { } {
+    global et_arm_crc_flags
+    set et_arm_crc_flags "-march=armv8-a+crc"
+    return [check_no_compiler_messages_nocache arm_crc_ok object {
+	#if !defined (__ARM_FEATURE_CRC32)
+	#error FOO
+	#endif
+    } "$et_arm_crc_flags"]
+}
+
+proc check_effective_target_arm_crc_ok { } {
+    return [check_cached_effective_target arm_crc_ok \
+		check_effective_target_arm_crc_ok_nocache]
 }
 
 # Return 1 if this is an ARM target supporting -mfpu=neon-fp16
@@ -3332,7 +3440,8 @@ proc check_effective_target_vect_perm { } {
     } else {
         set et_vect_perm_saved 0
         if { [is-effective-target arm_neon_ok]
-	     || [istarget aarch64*-*-*]
+	     || ([istarget aarch64*-*-*]
+		 && [is-effective-target aarch64_little_endian])
 	     || [istarget powerpc*-*-*]
              || [istarget spu-*-*]
 	     || [istarget i?86-*-*]
@@ -3360,7 +3469,8 @@ proc check_effective_target_vect_perm_byte { } {
         set et_vect_perm_byte_saved 0
         if { ([is-effective-target arm_neon_ok]
 	      && [is-effective-target arm_little_endian])
-	     || [istarget aarch64*-*-*]
+	     || ([istarget aarch64*-*-*]
+		 && [is-effective-target aarch64_little_endian])
 	     || [istarget powerpc*-*-*]
              || [istarget spu-*-*] } {
             set et_vect_perm_byte_saved 1
@@ -3384,7 +3494,8 @@ proc check_effective_target_vect_perm_short { } {
         set et_vect_perm_short_saved 0
         if { ([is-effective-target arm_neon_ok]
 	      && [is-effective-target arm_little_endian])
-	     || [istarget aarch64*-*-*]
+	     || ([istarget aarch64*-*-*]
+		 && [is-effective-target aarch64_little_endian])
 	     || [istarget powerpc*-*-*]
              || [istarget spu-*-*] } {
             set et_vect_perm_short_saved 1
@@ -5095,6 +5206,19 @@ proc check_prefer_avx128 { } {
 }
 
 
+# Return 1 if avx512f instructions can be compiled.
+
+proc check_effective_target_avx512f { } {
+    return [check_no_compiler_messages avx512f object {
+	typedef double __m512d __attribute__ ((__vector_size__ (64)));
+
+	__m512d _mm512_add (__m512d a)
+	{
+	  return __builtin_ia32_addpd512_mask (a, a, a, 1, 4);
+	}
+    } "-O2 -mavx512f" ]
+}
+
 # Return 1 if avx instructions can be compiled.
 
 proc check_effective_target_avx { } {
@@ -5104,6 +5228,18 @@ proc check_effective_target_avx { } {
 	   __builtin_ia32_vzeroall ();
 	}
     } "-O2 -mavx" ]
+}
+
+# Return 1 if avx2 instructions can be compiled.
+proc check_effective_target_avx2 { } {
+    return [check_no_compiler_messages avx2 object {
+	typedef long long __v4di __attribute__ ((__vector_size__ (32)));
+	__v4di
+	mm256_is32_andnotsi256  (__v4di __X, __v4di __Y)
+        {
+	   return __builtin_ia32_andnotsi256 (__X, __Y);
+	}
+    } "-O0 -mavx2" ]
 }
 
 # Return 1 if sse instructions can be compiled.
@@ -5531,3 +5667,17 @@ proc check_effective_target_fenv_exceptions {} {
 	}
     } "-std=gnu99"]
 }
+
+# Record that dg-final test TEST requires convential compilation.
+
+proc force_conventional_output_for { test } {
+    if { [info proc $test] == "" } {
+	perror "$test does not exist"
+	exit 1
+    }
+    proc ${test}_required_options {} {
+	global gcc_force_conventional_output
+	return $gcc_force_conventional_output
+    }
+}
+

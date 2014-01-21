@@ -1,6 +1,6 @@
 // thread -*- C++ -*-
 
-// Copyright (C) 2008-2013 Free Software Foundation, Inc.
+// Copyright (C) 2008-2014 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -183,7 +183,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
         ::usleep(__us);
       }
 # else
-    ::sleep(__s.count() + (__ns >= 1000000));
+    ::sleep(__s.count() + (__ns.count() >= 1000000));
 # endif
 #elif defined(_GLIBCXX_HAVE_WIN32_SLEEP)
     unsigned long ms = __ns.count() / 1000000;

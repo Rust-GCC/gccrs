@@ -575,9 +575,6 @@ Type::are_compatible_for_comparison(bool is_equality_op, const Type *t1,
 	       p != fields->end();
 	       ++p)
 	    {
-	      if (Gogo::is_sink_name(p->field_name()))
-		continue;
-
 	      if (!p->type()->is_comparable())
 		{
 		  if (reason != NULL)
@@ -2261,26 +2258,9 @@ Type::method_constructor(Gogo*, Type* method_type,
 
   ++p;
   go_assert(p->is_field_name("typ"));
-  if (!only_value_methods && m->is_value_method())
-    {
-      // This is a value method on a pointer type.  Change the type of
-      // the method to use a pointer receiver.  The implementation
-      // always uses a pointer receiver anyhow.
-      Type* rtype = mtype->receiver()->type();
-      Type* prtype = Type::make_pointer_type(rtype);
-      Typed_identifier* receiver =
-	new Typed_identifier(mtype->receiver()->name(), prtype,
-			     mtype->receiver()->location());
-      mtype = Type::make_function_type(receiver,
-				       (mtype->parameters() == NULL
-					? NULL
-					: mtype->parameters()->copy()),
-				       (mtype->results() == NULL
-					? NULL
-					: mtype->results()->copy()),
-				       mtype->location());
-    }
-  vals->push_back(Expression::make_type_descriptor(mtype, bloc));
+  bool want_pointer_receiver = !only_value_methods && m->is_value_method();
+  nonmethod_type = mtype->copy_with_receiver_as_param(want_pointer_receiver);
+  vals->push_back(Expression::make_type_descriptor(nonmethod_type, bloc));
 
   ++p;
   go_assert(p->is_field_name("tfn"));
@@ -4008,6 +3988,32 @@ Function_type::copy_with_receiver(Type* receiver_type) const
   return ret;
 }
 
+// Make a copy of a function type with the receiver as the first
+// parameter.
+
+Function_type*
+Function_type::copy_with_receiver_as_param(bool want_pointer_receiver) const
+{
+  go_assert(this->is_method());
+  Typed_identifier_list* new_params = new Typed_identifier_list();
+  Type* rtype = this->receiver_->type();
+  if (want_pointer_receiver)
+    rtype = Type::make_pointer_type(rtype);
+  Typed_identifier receiver(this->receiver_->name(), rtype,
+			    this->receiver_->location());
+  new_params->push_back(receiver);
+  const Typed_identifier_list* orig_params = this->parameters_;
+  if (orig_params != NULL && !orig_params->empty())
+    {
+      for (Typed_identifier_list::const_iterator p = orig_params->begin();
+	   p != orig_params->end();
+	   ++p)
+	new_params->push_back(*p);
+    }
+  return Type::make_function_type(NULL, new_params, this->results_,
+				  this->location_);
+}
+
 // Make a copy of a function type ignoring any receiver and adding a
 // closure parameter.
 
@@ -4058,6 +4064,17 @@ Type::make_function_type(Typed_identifier* receiver,
 			 Location location)
 {
   return new Function_type(receiver, parameters, results, location);
+}
+
+// Make a backend function type.
+
+Backend_function_type*
+Type::make_backend_function_type(Typed_identifier* receiver,
+                                 Typed_identifier_list* parameters,
+                                 Typed_identifier_list* results,
+                                 Location location)
+{
+  return new Backend_function_type(receiver, parameters, results, location);
 }
 
 // Class Pointer_type.
@@ -5994,84 +6011,53 @@ Array_type::finish_backend_element(Gogo* gogo)
     }
 }
 
-// Return a tree for a pointer to the values in ARRAY.
+// Return an expression for a pointer to the values in ARRAY.
 
-tree
-Array_type::value_pointer_tree(Gogo*, tree array) const
+Expression*
+Array_type::get_value_pointer(Gogo*, Expression* array) const
 {
-  tree ret;
   if (this->length() != NULL)
     {
       // Fixed array.
-      ret = fold_convert(build_pointer_type(TREE_TYPE(TREE_TYPE(array))),
-			 build_fold_addr_expr(array));
+      go_assert(array->type()->array_type() != NULL);
+      Type* etype = array->type()->array_type()->element_type();
+      array = Expression::make_unary(OPERATOR_AND, array, array->location());
+      return Expression::make_cast(Type::make_pointer_type(etype), array,
+                                   array->location());
     }
-  else
-    {
-      // Open array.
-      tree field = TYPE_FIELDS(TREE_TYPE(array));
-      go_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)),
-			"__values") == 0);
-      ret = fold_build3(COMPONENT_REF, TREE_TYPE(field), array, field,
-			NULL_TREE);
-    }
-  if (TREE_CONSTANT(array))
-    TREE_CONSTANT(ret) = 1;
-  return ret;
+
+  // Open array.
+  return Expression::make_slice_info(array,
+                                     Expression::SLICE_INFO_VALUE_POINTER,
+                                     array->location());
 }
 
-// Return a tree for the length of the array ARRAY which has this
+// Return an expression for the length of the array ARRAY which has this
 // type.
 
-tree
-Array_type::length_tree(Gogo* gogo, tree array)
+Expression*
+Array_type::get_length(Gogo*, Expression* array) const
 {
   if (this->length_ != NULL)
-    {
-      if (TREE_CODE(array) == SAVE_EXPR)
-	return this->get_length_tree(gogo);
-      else
-	{
-	  tree len = this->get_length_tree(gogo);
-	  return omit_one_operand(TREE_TYPE(len), len, array);
-	}
-    }
+    return this->length_;
 
   // This is an open array.  We need to read the length field.
-
-  tree type = TREE_TYPE(array);
-  go_assert(TREE_CODE(type) == RECORD_TYPE);
-
-  tree field = DECL_CHAIN(TYPE_FIELDS(type));
-  go_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__count") == 0);
-
-  tree ret = build3(COMPONENT_REF, TREE_TYPE(field), array, field, NULL_TREE);
-  if (TREE_CONSTANT(array))
-    TREE_CONSTANT(ret) = 1;
-  return ret;
+  return Expression::make_slice_info(array, Expression::SLICE_INFO_LENGTH,
+                                     array->location());
 }
 
-// Return a tree for the capacity of the array ARRAY which has this
+// Return an expression for the capacity of the array ARRAY which has this
 // type.
 
-tree
-Array_type::capacity_tree(Gogo* gogo, tree array)
+Expression*
+Array_type::get_capacity(Gogo*, Expression* array) const
 {
   if (this->length_ != NULL)
-    {
-      tree len = this->get_length_tree(gogo);
-      return omit_one_operand(TREE_TYPE(len), len, array);
-    }
+    return this->length_;
 
   // This is an open array.  We need to read the capacity field.
-
-  tree type = TREE_TYPE(array);
-  go_assert(TREE_CODE(type) == RECORD_TYPE);
-
-  tree field = DECL_CHAIN(DECL_CHAIN(TYPE_FIELDS(type)));
-  go_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__capacity") == 0);
-
-  return build3(COMPONENT_REF, TREE_TYPE(field), array, field, NULL_TREE);
+  return Expression::make_slice_info(array, Expression::SLICE_INFO_CAPACITY,
+                                     array->location());
 }
 
 // Export.

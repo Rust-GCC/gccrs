@@ -1,5 +1,5 @@
 /* Data flow functions for trees.
-   Copyright (C) 2001-2013 Free Software Foundation, Inc.
+   Copyright (C) 2001-2014 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@redhat.com>
 
 This file is part of GCC.
@@ -80,7 +80,7 @@ renumber_gimple_stmt_uids (void)
   basic_block bb;
 
   set_gimple_stmt_max_uid (cfun, 0);
-  FOR_ALL_BB (bb)
+  FOR_ALL_BB_FN (bb, cfun)
     {
       gimple_stmt_iterator bsi;
       for (bsi = gsi_start_phis (bb); !gsi_end_p (bsi); gsi_next (&bsi))
@@ -279,7 +279,7 @@ collect_dfa_stats (struct dfa_stats_d *dfa_stats_p ATTRIBUTE_UNUSED)
   memset ((void *)dfa_stats_p, 0, sizeof (struct dfa_stats_d));
 
   /* Walk all the statements in the function counting references.  */
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       gimple_stmt_iterator si;
 
@@ -737,11 +737,11 @@ dump_enumerated_decls (FILE *file, int flags)
 {
   basic_block bb;
   struct walk_stmt_info wi;
-  stack_vec<numbered_tree, 40> decl_list;
+  auto_vec<numbered_tree, 40> decl_list;
 
   memset (&wi, '\0', sizeof (wi));
   wi.info = (void *) &decl_list;
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       gimple_stmt_iterator gsi;
 

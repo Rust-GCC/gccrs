@@ -1,5 +1,5 @@
 /* Process declarations and variables for C++ compiler.
-   Copyright (C) 1988-2013 Free Software Foundation, Inc.
+   Copyright (C) 1988-2014 Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com)
 
 This file is part of GCC.
@@ -59,6 +59,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "splay-tree.h"
 #include "plugin.h"
 #include "cgraph.h"
+#include "cilk.h"
 
 /* Possible cases of bad specifiers type used by bad_specifiers. */
 enum bad_spec_place {
@@ -1299,8 +1300,9 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 	{
 	  if (warning (OPT_Wattributes, "function %q+D redeclared as inline",
 		       newdecl))
-	    inform (input_location, "previous declaration of %q+D "
-		    "with attribute noinline", olddecl);
+	    inform (DECL_SOURCE_LOCATION (olddecl),
+		    "previous declaration of %qD with attribute noinline",
+		    olddecl);
 	}
       else if (DECL_DECLARED_INLINE_P (olddecl)
 	       && DECL_UNINLINABLE (newdecl)
@@ -1308,7 +1310,8 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 	{
 	  if (warning (OPT_Wattributes, "function %q+D redeclared with "
 		       "attribute noinline", newdecl))
-	    inform (input_location, "previous declaration of %q+D was inline",
+	    inform (DECL_SOURCE_LOCATION (olddecl),
+		    "previous declaration of %qD was inline",
 		    olddecl);
 	}
     }
@@ -1343,11 +1346,8 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 	    warning (0, "library function %q#D redeclared as non-function %q#D",
 		     olddecl, newdecl);
 	  else
-	    {
-	      error ("declaration of %q#D", newdecl);
-	      error ("conflicts with built-in declaration %q#D",
-		     olddecl);
-	    }
+	    error ("declaration of %q#D conflicts with built-in "
+		   "declaration %q#D", newdecl, olddecl);
 	  return NULL_TREE;
 	}
       else if (DECL_OMP_DECLARE_REDUCTION_P (olddecl))
@@ -1355,8 +1355,8 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 	  gcc_assert (DECL_OMP_DECLARE_REDUCTION_P (newdecl));
 	  error_at (DECL_SOURCE_LOCATION (newdecl),
 		    "redeclaration of %<pragma omp declare reduction%>");
-	  error_at (DECL_SOURCE_LOCATION (olddecl),
-		    "previous %<pragma omp declare reduction%> declaration");
+	  inform (DECL_SOURCE_LOCATION (olddecl),
+		  "previous %<pragma omp declare reduction%> declaration");
 	  return error_mark_node;
 	}
       else if (!types_match)
@@ -1407,11 +1407,8 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 	      /* A near match; override the builtin.  */
 
 	      if (TREE_PUBLIC (newdecl))
-		{
-		  warning (0, "new declaration %q#D", newdecl);
-		  warning (0, "ambiguates built-in declaration %q#D",
-			   olddecl);
-		}
+		warning (0, "new declaration %q#D ambiguates built-in "
+			 "declaration %q#D", newdecl, olddecl);
 	      else
 		warning (OPT_Wshadow, 
                          DECL_BUILT_IN (olddecl)
@@ -1504,7 +1501,8 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
       error ("%q#D redeclared as different kind of symbol", newdecl);
       if (TREE_CODE (olddecl) == TREE_LIST)
 	olddecl = TREE_VALUE (olddecl);
-      inform (input_location, "previous declaration of %q+#D", olddecl);
+      inform (DECL_SOURCE_LOCATION (olddecl),
+	      "previous declaration %q#D", olddecl);
 
       return error_mark_node;
     }
@@ -1523,8 +1521,9 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 	  if (TREE_CODE (DECL_TEMPLATE_RESULT (olddecl)) == TYPE_DECL
 	      || TREE_CODE (DECL_TEMPLATE_RESULT (newdecl)) == TYPE_DECL)
 	    {
-	      error ("declaration of template %q#D", newdecl);
-	      error ("conflicts with previous declaration %q+#D", olddecl);
+	      error ("conflicting declaration of template %q#D", newdecl);
+	      inform (DECL_SOURCE_LOCATION (olddecl),
+		      "previous declaration %q#D", olddecl);
 	      return error_mark_node;
 	    }
 	  else if (TREE_CODE (DECL_TEMPLATE_RESULT (olddecl)) == FUNCTION_DECL
@@ -1538,8 +1537,9 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 		   && same_type_p (TREE_TYPE (TREE_TYPE (newdecl)),
 				   TREE_TYPE (TREE_TYPE (olddecl))))
 	    {
-	      error ("new declaration %q#D", newdecl);
-	      error ("ambiguates old declaration %q+#D", olddecl);
+	      error ("ambiguating new declaration %q#D", newdecl);
+	      inform (DECL_SOURCE_LOCATION (olddecl),
+		      "old declaration %q#D", olddecl);
 	    }
 	  return NULL_TREE;
 	}
@@ -1547,9 +1547,10 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 	{
 	  if (DECL_EXTERN_C_P (newdecl) && DECL_EXTERN_C_P (olddecl))
 	    {
-	      error ("declaration of C function %q#D conflicts with",
+	      error ("conflicting declaration of C function %q#D",
 		     newdecl);
-	      error ("previous declaration %q+#D here", olddecl);
+	      inform (DECL_SOURCE_LOCATION (olddecl),
+		      "previous declaration %q#D", olddecl);
 	      return NULL_TREE;
 	    }
 	  /* For function versions, params and types match, but they
@@ -1559,8 +1560,9 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 		   && compparms (TYPE_ARG_TYPES (TREE_TYPE (newdecl)),
 			      TYPE_ARG_TYPES (TREE_TYPE (olddecl))))
 	    {
-	      error ("new declaration %q#D", newdecl);
-	      error ("ambiguates old declaration %q+#D", olddecl);
+	      error ("ambiguating new declaration of %q#D", newdecl);
+	      inform (DECL_SOURCE_LOCATION (olddecl),
+		      "old declaration %q#D", olddecl);
               return error_mark_node;
 	    }
 	  else
@@ -1569,8 +1571,8 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
       else
 	{
 	  error ("conflicting declaration %q#D", newdecl);
-	  inform (input_location,
-		  "%q+D has a previous declaration as %q#D", olddecl, olddecl);
+	  inform (DECL_SOURCE_LOCATION (olddecl),
+		  "previous declaration as %q#D", olddecl);
 	  return error_mark_node;
 	}
     }
@@ -1622,8 +1624,9 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 	 A namespace-name defined at global scope shall not be
 	 declared as the name of any other entity in any global scope
 	 of the program.  */
-      error ("declaration of namespace %qD conflicts with", newdecl);
-      error ("previous declaration of namespace %q+D here", olddecl);
+      error ("conflicting declaration of namespace %qD", newdecl);
+      inform (DECL_SOURCE_LOCATION (olddecl),
+	      "previous declaration of namespace %qD here", olddecl);
       return error_mark_node;
     }
   else
@@ -1645,9 +1648,10 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 	       && prototype_p (TREE_TYPE (newdecl)))
 	{
 	  /* Prototype decl follows defn w/o prototype.  */
-	  warning_at (input_location, 0, "prototype for %q+#D", newdecl);
-	  warning_at (DECL_SOURCE_LOCATION (olddecl), 0,
-		      "follows non-prototype definition here");
+	  warning_at (DECL_SOURCE_LOCATION (newdecl), 0,
+		      "prototype specified for %q#D", newdecl);
+	  inform (DECL_SOURCE_LOCATION (olddecl),
+		  "previous non-prototype definition here");
 	}
       else if (VAR_OR_FUNCTION_DECL_P (olddecl)
 	       && DECL_LANGUAGE (newdecl) != DECL_LANGUAGE (olddecl))
@@ -1686,10 +1690,11 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 	    }
 	  else
 	    {
-	      error ("previous declaration of %q+#D with %qL linkage",
-		     olddecl, DECL_LANGUAGE (olddecl));
-	      error ("conflicts with new declaration with %qL linkage",
-		     DECL_LANGUAGE (newdecl));
+	      error ("conflicting declaration of %q#D with %qL linkage",
+		     newdecl, DECL_LANGUAGE (newdecl));
+	      inform (DECL_SOURCE_LOCATION (olddecl),
+		      "previous declaration with %qL linkage",
+		      DECL_LANGUAGE (olddecl));
 	    }
 	}
 
@@ -1729,19 +1734,20 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 		    if (1 == simple_cst_equal (TREE_PURPOSE (t1),
 					       TREE_PURPOSE (t2)))
 		      {
-			permerror (input_location,
-				   "default argument given for parameter %d "
-				   "of %q#D", i, newdecl);
-			permerror (input_location,
-				   "after previous specification in %q+#D",
-				   olddecl);
+			if (permerror (input_location,
+				       "default argument given for parameter "
+				       "%d of %q#D", i, newdecl))
+			  permerror (DECL_SOURCE_LOCATION (olddecl),
+				     "previous specification in %q#D here",
+				     olddecl);
 		      }
 		    else
 		      {
 			error ("default argument given for parameter %d "
 			       "of %q#D", i, newdecl);
-			error ("after previous specification in %q+#D",
-			       olddecl);
+			inform (DECL_SOURCE_LOCATION (olddecl),
+				"previous specification in %q#D here",
+				olddecl);
 		      }
 		  }
 	    }
@@ -1805,7 +1811,8 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 	  if (warning (OPT_Wredundant_decls,
 		       "redundant redeclaration of %qD in same scope",
 		       newdecl))
-	    inform (input_location, "previous declaration of %q+D", olddecl);
+	    inform (DECL_SOURCE_LOCATION (olddecl),
+		    "previous declaration of %qD", olddecl);
 	}
 
       if (!(DECL_TEMPLATE_INSTANTIATION (olddecl)
@@ -1814,7 +1821,8 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 	  if (DECL_DELETED_FN (newdecl))
 	    {
 	      error ("deleted definition of %qD", newdecl);
-	      error ("after previous declaration %q+D", olddecl);
+	      inform (DECL_SOURCE_LOCATION (olddecl),
+		      "previous declaration of %qD", olddecl);
 	    }
 	  DECL_DELETED_FN (newdecl) |= DECL_DELETED_FN (olddecl);
 	}
@@ -8434,8 +8442,7 @@ compute_array_index_type (tree name, tree size, tsubst_flags_t complain)
 		 LE_EXPR rather than LT_EXPR.  */
 	      tree t = fold_build2 (PLUS_EXPR, TREE_TYPE (itype), itype,
 				    build_one_cst (TREE_TYPE (itype)));
-	      t = fold_build2 (COMPOUND_EXPR, TREE_TYPE (t),
-			       ubsan_instrument_vla (input_location, t), t);
+	      t = ubsan_instrument_vla (input_location, t);
 	      finish_expr_stmt (t);
 	    }
 	}
@@ -10178,7 +10185,9 @@ grokdeclarator (const cp_declarator *declarator,
 	    /* The TYPE_DECL is "abstract" because there will be
 	       clones of this constructor/destructor, and there will
 	       be copies of this TYPE_DECL generated in those
-	       clones.  */
+	       clones.  The decloning optimization (for space) may
+               revert this subsequently if it determines that
+               the clones should share a common implementation.  */
 	    DECL_ABSTRACT (decl) = 1;
 	}
       else if (current_class_type
@@ -13882,6 +13891,9 @@ finish_function (int flags)
 
   /* If we're saving up tree structure, tie off the function now.  */
   DECL_SAVED_TREE (fndecl) = pop_stmt_list (DECL_SAVED_TREE (fndecl));
+
+  if (fn_contains_cilk_spawn_p (cfun) && !processing_template_decl)
+    cfun->cilk_frame_decl = insert_cilk_frame (fndecl);
 
   finish_fname_decls ();
 

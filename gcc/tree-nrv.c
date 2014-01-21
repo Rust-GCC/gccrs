@@ -1,5 +1,5 @@
 /* Language independent return value optimizations
-   Copyright (C) 2004-2013 Free Software Foundation, Inc.
+   Copyright (C) 2004-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -144,7 +144,7 @@ tree_nrv (void)
     return 0;
 
   /* Look through each block for assignments to the RESULT_DECL.  */
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
 	{
@@ -238,7 +238,7 @@ tree_nrv (void)
      RESULT.  */
   data.var = found;
   data.result = result;
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); )
 	{
@@ -358,7 +358,7 @@ execute_return_slot_opt (void)
 {
   basic_block bb;
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       gimple_stmt_iterator gsi;
       for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))

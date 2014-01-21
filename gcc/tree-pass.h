@@ -1,5 +1,5 @@
 /* Definitions for describing one tree-ssa optimization pass.
-   Copyright (C) 2004-2013 Free Software Foundation, Inc.
+   Copyright (C) 2004-2014 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>
 
 This file is part of GCC.
@@ -106,13 +106,18 @@ protected:
 
 public:
   /* A list of sub-passes to run, dependent on gate predicate.  */
-  struct opt_pass *sub;
+  opt_pass *sub;
 
   /* Next in the list of passes to run, independent of gate predicate.  */
-  struct opt_pass *next;
+  opt_pass *next;
 
   /* Static pass number, used as a fragment of the dump file name.  */
   int static_pass_number;
+
+  /* When a given dump file is being initialized, this flag is set to
+     true if the corresponding TDF_graph dump file has also been
+     initialized.  */
+  bool graph_dump_initialized;
 
 protected:
   gcc::context *m_ctxt;
@@ -138,7 +143,7 @@ protected:
   }
 };
 
-struct varpool_node;
+class varpool_node;
 struct cgraph_node;
 struct lto_symtab_encoder_d;
 
@@ -171,7 +176,7 @@ public:
      function body via this hook.  */
   unsigned int function_transform_todo_flags_start;
   unsigned int (*function_transform) (struct cgraph_node *);
-  void (*variable_transform) (struct varpool_node *);
+  void (*variable_transform) (varpool_node *);
 
 protected:
   ipa_opt_pass_d (const pass_data& data, gcc::context *ctxt,
@@ -183,7 +188,7 @@ protected:
 		  void (*stmt_fixup) (struct cgraph_node *, gimple *),
 		  unsigned int function_transform_todo_flags_start,
 		  unsigned int (*function_transform) (struct cgraph_node *),
-		  void (*variable_transform) (struct varpool_node *))
+		  void (*variable_transform) (varpool_node *))
     : opt_pass (data, ctxt),
       generate_summary (generate_summary),
       write_summary (write_summary),
@@ -321,7 +326,7 @@ enum pass_positioning_ops
 
 struct register_pass_info
 {
-  struct opt_pass *pass;            /* New pass to register.  */
+  opt_pass *pass;		    /* New pass to register.  */
   const char *reference_pass_name;  /* Name of the reference pass for hooking
                                        up the new pass.  */
   int ref_pass_instance_number;     /* Insert the pass at the specified
@@ -400,7 +405,6 @@ extern gimple_opt_pass *make_pass_lower_vector_ssa (gcc::context *ctxt);
 extern gimple_opt_pass *make_pass_lower_omp (gcc::context *ctxt);
 extern gimple_opt_pass *make_pass_diagnose_omp_blocks (gcc::context *ctxt);
 extern gimple_opt_pass *make_pass_expand_omp (gcc::context *ctxt);
-extern gimple_opt_pass *make_pass_expand_omp_ssa (gcc::context *ctxt);
 extern gimple_opt_pass *make_pass_object_sizes (gcc::context *ctxt);
 extern gimple_opt_pass *make_pass_strlen (gcc::context *ctxt);
 extern gimple_opt_pass *make_pass_fold_builtins (gcc::context *ctxt);
@@ -472,6 +476,7 @@ extern ipa_opt_pass_d *make_pass_ipa_reference (gcc::context *ctxt);
 extern ipa_opt_pass_d *make_pass_ipa_pure_const (gcc::context *ctxt);
 extern simple_ipa_opt_pass *make_pass_ipa_pta (gcc::context *ctxt);
 extern simple_ipa_opt_pass *make_pass_ipa_tm (gcc::context *ctxt);
+extern simple_ipa_opt_pass *make_pass_omp_simd_clone (gcc::context *ctxt);
 extern ipa_opt_pass_d *make_pass_ipa_profile (gcc::context *ctxt);
 extern ipa_opt_pass_d *make_pass_ipa_cdtor_merge (gcc::context *ctxt);
 
@@ -582,16 +587,16 @@ extern gimple_opt_pass *make_pass_update_address_taken (gcc::context *ctxt);
 extern gimple_opt_pass *make_pass_convert_switch (gcc::context *ctxt);
 
 /* Current optimization pass.  */
-extern struct opt_pass *current_pass;
+extern opt_pass *current_pass;
 
-extern bool execute_one_pass (struct opt_pass *);
-extern void execute_pass_list (struct opt_pass *);
-extern void execute_ipa_pass_list (struct opt_pass *);
-extern void execute_ipa_summary_passes (struct ipa_opt_pass_d *);
+extern bool execute_one_pass (opt_pass *);
+extern void execute_pass_list (opt_pass *);
+extern void execute_ipa_pass_list (opt_pass *);
+extern void execute_ipa_summary_passes (ipa_opt_pass_d *);
 extern void execute_all_ipa_transforms (void);
 extern void execute_all_ipa_stmt_fixups (struct cgraph_node *, gimple *);
-extern bool pass_init_dump_file (struct opt_pass *);
-extern void pass_fini_dump_file (struct opt_pass *);
+extern bool pass_init_dump_file (opt_pass *);
+extern void pass_fini_dump_file (opt_pass *);
 
 extern const char *get_current_pass_name (void);
 extern void print_current_pass (FILE *);
@@ -600,7 +605,7 @@ extern void ipa_write_summaries (void);
 extern void ipa_write_optimization_summaries (struct lto_symtab_encoder_d *);
 extern void ipa_read_summaries (void);
 extern void ipa_read_optimization_summaries (void);
-extern void register_one_dump_file (struct opt_pass *);
+extern void register_one_dump_file (opt_pass *);
 extern bool function_called_by_processed_nodes_p (void);
 
 /* Set to true if the pass is called the first time during compilation of the

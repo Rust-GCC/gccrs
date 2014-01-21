@@ -1,5 +1,5 @@
 /* A pass for lowering trees to RTL.
-   Copyright (C) 2004-2013 Free Software Foundation, Inc.
+   Copyright (C) 2004-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -365,7 +365,7 @@ stack_var_conflict_p (size_t x, size_t y)
    enter its partition number into bitmap DATA.  */
 
 static bool
-visit_op (gimple stmt ATTRIBUTE_UNUSED, tree op, void *data)
+visit_op (gimple, tree op, tree, void *data)
 {
   bitmap active = (bitmap)data;
   op = get_base_address (op);
@@ -385,7 +385,7 @@ visit_op (gimple stmt ATTRIBUTE_UNUSED, tree op, void *data)
    from bitmap DATA.  */
 
 static bool
-visit_conflict (gimple stmt ATTRIBUTE_UNUSED, tree op, void *data)
+visit_conflict (gimple, tree op, tree, void *data)
 {
   bitmap active = (bitmap)data;
   op = get_base_address (op);
@@ -419,7 +419,7 @@ add_scope_conflicts_1 (basic_block bb, bitmap work, bool for_conflict)
   edge e;
   edge_iterator ei;
   gimple_stmt_iterator gsi;
-  bool (*visit)(gimple, tree, void *);
+  walk_stmt_load_store_addr_fn visit;
 
   bitmap_clear (work);
   FOR_EACH_EDGE (e, ei, bb->preds)
@@ -498,10 +498,10 @@ add_scope_conflicts (void)
 
      We then do a mostly classical bitmap liveness algorithm.  */
 
-  FOR_ALL_BB (bb)
+  FOR_ALL_BB_FN (bb, cfun)
     bb->aux = BITMAP_ALLOC (&stack_var_bitmap_obstack);
 
-  rpo = XNEWVEC (int, last_basic_block);
+  rpo = XNEWVEC (int, last_basic_block_for_fn (cfun));
   n_bbs = pre_and_rev_post_order_compute (NULL, rpo, false);
 
   changed = true;
@@ -512,7 +512,7 @@ add_scope_conflicts (void)
       for (i = 0; i < n_bbs; i++)
 	{
 	  bitmap active;
-	  bb = BASIC_BLOCK (rpo[i]);
+	  bb = BASIC_BLOCK_FOR_FN (cfun, rpo[i]);
 	  active = (bitmap)bb->aux;
 	  add_scope_conflicts_1 (bb, work, false);
 	  if (bitmap_ior_into (active, work))
@@ -520,12 +520,12 @@ add_scope_conflicts (void)
 	}
     }
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     add_scope_conflicts_1 (bb, work, true);
 
   free (rpo);
   BITMAP_FREE (work);
-  FOR_ALL_BB (bb)
+  FOR_ALL_BB_FN (bb, cfun)
     BITMAP_FREE (bb->aux);
 }
 
@@ -798,7 +798,7 @@ partition_stack_vars (void)
 	     sizes, as the shorter vars wouldn't be adequately protected.
 	     Don't do that for "large" (unsupported) alignment objects,
 	     those aren't protected anyway.  */
-	  if ((flag_sanitize & SANITIZE_ADDRESS) && isize != jsize
+	  if ((flag_sanitize & SANITIZE_ADDRESS) && ASAN_STACK && isize != jsize
 	      && ialign * BITS_PER_UNIT <= MAX_SUPPORTED_STACK_ALIGNMENT)
 	    break;
 
@@ -890,6 +890,12 @@ struct stack_vars_data
 
   /* Vector of partition representative decls in between the paddings.  */
   vec<tree> asan_decl_vec;
+
+  /* Base pseudo register for Address Sanitizer protected automatic vars.  */
+  rtx asan_base;
+
+  /* Alignment needed for the Address Sanitizer protected automatic vars.  */
+  unsigned int asan_alignb;
 };
 
 /* A subroutine of expand_used_vars.  Give each partition representative
@@ -974,7 +980,8 @@ expand_stack_vars (bool (*pred) (size_t), struct stack_vars_data *data)
       alignb = stack_vars[i].alignb;
       if (alignb * BITS_PER_UNIT <= MAX_SUPPORTED_STACK_ALIGNMENT)
 	{
-	  if ((flag_sanitize & SANITIZE_ADDRESS) && pred)
+	  base = virtual_stack_vars_rtx;
+	  if ((flag_sanitize & SANITIZE_ADDRESS) && ASAN_STACK && pred)
 	    {
 	      HOST_WIDE_INT prev_offset = frame_offset;
 	      tree repr_decl = NULL_TREE;
@@ -1002,10 +1009,13 @@ expand_stack_vars (bool (*pred) (size_t), struct stack_vars_data *data)
 	      if (repr_decl == NULL_TREE)
 		repr_decl = stack_vars[i].decl;
 	      data->asan_decl_vec.safe_push (repr_decl);
+	      data->asan_alignb = MAX (data->asan_alignb, alignb);
+	      if (data->asan_base == NULL)
+		data->asan_base = gen_reg_rtx (Pmode);
+	      base = data->asan_base;
 	    }
 	  else
 	    offset = alloc_stack_frame_space (stack_vars[i].size, alignb);
-	  base = virtual_stack_vars_rtx;
 	  base_align = crtl->max_used_stack_slot_alignment;
 	}
       else
@@ -1150,7 +1160,7 @@ defer_stack_allocation (tree var, bool toplevel)
   /* If stack protection is enabled, *all* stack variables must be deferred,
      so that we can re-order the strings to the top of the frame.
      Similarly for Address Sanitizer.  */
-  if (flag_stack_protect || (flag_sanitize & SANITIZE_ADDRESS))
+  if (flag_stack_protect || ((flag_sanitize & SANITIZE_ADDRESS) && ASAN_STACK))
     return true;
 
   /* We handle "large" alignment via dynamic allocation.  We want to handle
@@ -1205,8 +1215,11 @@ expand_one_var (tree var, bool toplevel, bool really_expand)
 	 we conservatively assume it will be on stack even if VAR is
 	 eventually put into register after RA pass.  For non-automatic
 	 variables, which won't be on stack, we collect alignment of
-	 type and ignore user specified alignment.  */
-      if (TREE_STATIC (var) || DECL_EXTERNAL (var))
+	 type and ignore user specified alignment.  Similarly for
+	 SSA_NAMEs for which use_register_for_decl returns true.  */
+      if (TREE_STATIC (var)
+	  || DECL_EXTERNAL (var)
+	  || (TREE_CODE (origvar) == SSA_NAME && use_register_for_decl (var)))
 	align = MINIMUM_ALIGNMENT (TREE_TYPE (var),
 				   TYPE_MODE (TREE_TYPE (var)),
 				   TYPE_ALIGN (TREE_TYPE (var)));
@@ -1792,6 +1805,8 @@ expand_used_vars (void)
 
       data.asan_vec = vNULL;
       data.asan_decl_vec = vNULL;
+      data.asan_base = NULL_RTX;
+      data.asan_alignb = 0;
 
       /* Reorder decls to be protected by iterating over the variables
 	 array multiple times, and allocating out of each phase in turn.  */
@@ -1808,7 +1823,7 @@ expand_used_vars (void)
 	    expand_stack_vars (stack_protect_decl_phase_2, &data);
 	}
 
-      if (flag_sanitize & SANITIZE_ADDRESS)
+      if ((flag_sanitize & SANITIZE_ADDRESS) && ASAN_STACK)
 	/* Phase 3, any partitions that need asan protection
 	   in addition to phase 1 and 2.  */
 	expand_stack_vars (asan_decl_phase_3, &data);
@@ -1816,16 +1831,25 @@ expand_used_vars (void)
       if (!data.asan_vec.is_empty ())
 	{
 	  HOST_WIDE_INT prev_offset = frame_offset;
-	  HOST_WIDE_INT offset
-	    = alloc_stack_frame_space (ASAN_RED_ZONE_SIZE,
-				       ASAN_RED_ZONE_SIZE);
+	  HOST_WIDE_INT offset, sz, redzonesz;
+	  redzonesz = ASAN_RED_ZONE_SIZE;
+	  sz = data.asan_vec[0] - prev_offset;
+	  if (data.asan_alignb > ASAN_RED_ZONE_SIZE
+	      && data.asan_alignb <= 4096
+	      && sz + ASAN_RED_ZONE_SIZE >= (int) data.asan_alignb)
+	    redzonesz = ((sz + ASAN_RED_ZONE_SIZE + data.asan_alignb - 1)
+			 & ~(data.asan_alignb - HOST_WIDE_INT_1)) - sz;
+	  offset
+	    = alloc_stack_frame_space (redzonesz, ASAN_RED_ZONE_SIZE);
 	  data.asan_vec.safe_push (prev_offset);
 	  data.asan_vec.safe_push (offset);
 
 	  var_end_seq
 	    = asan_emit_stack_protection (virtual_stack_vars_rtx,
+					  data.asan_base,
+					  data.asan_alignb,
 					  data.asan_vec.address (),
-					  data.asan_decl_vec. address (),
+					  data.asan_decl_vec.address (),
 					  data.asan_vec.length ());
 	}
 
@@ -2165,21 +2189,11 @@ expand_call_stmt (gimple stmt)
       return;
     }
 
+  exp = build_vl_exp (CALL_EXPR, gimple_call_num_args (stmt) + 3);
+
+  CALL_EXPR_FN (exp) = gimple_call_fn (stmt);
   decl = gimple_call_fndecl (stmt);
   builtin_p = decl && DECL_BUILT_IN (decl);
-
-  /* Bind bounds call is expanded as assignment.  */
-  if (builtin_p
-      && DECL_BUILT_IN_CLASS (decl) == BUILT_IN_NORMAL
-      && DECL_FUNCTION_CODE (decl) == BUILT_IN_CHKP_BIND_BOUNDS)
-    {
-      expand_assignment (gimple_call_lhs (stmt),
-			 gimple_call_arg (stmt, 0), false);
-      return;
-    }
-
-  exp = build_vl_exp (CALL_EXPR, gimple_call_num_args (stmt) + 3);
-  CALL_EXPR_FN (exp) = gimple_call_fn (stmt);
 
   /* If this is not a builtin function, the function type through which the
      call is made may be different from the type of the function.  */
@@ -2242,7 +2256,7 @@ expand_call_stmt (gimple stmt)
   if (lhs)
     expand_assignment (lhs, exp, false);
   else
-    expand_expr_real_1 (exp, const0_rtx, VOIDmode, EXPAND_NORMAL, NULL);
+    expand_expr (exp, const0_rtx, VOIDmode, EXPAND_NORMAL);
 
   mark_transaction_restart_calls (stmt);
 }
@@ -3941,7 +3955,7 @@ expand_debug_expr (tree exp)
 	tree offset;
 	int volatilep = 0;
 	tree tem = get_inner_reference (exp, &bitsize, &bitpos, &offset,
-					&mode1, &unsignedp, &volatilep);
+					&mode1, &unsignedp, &volatilep, false);
 	rtx orig_op0;
 
 	if (bitsize == 0)
@@ -5367,7 +5381,7 @@ discover_nonconstant_array_refs (void)
   basic_block bb;
   gimple_stmt_iterator gsi;
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
       {
 	gimple stmt = gsi_stmt (gsi);
@@ -5798,7 +5812,7 @@ gimple_expand_cfg (void)
 	}
     }
 
-  blocks = sbitmap_alloc (last_basic_block);
+  blocks = sbitmap_alloc (last_basic_block_for_fn (cfun));
   bitmap_ones (blocks);
   find_many_sub_basic_blocks (blocks);
   sbitmap_free (blocks);

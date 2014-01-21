@@ -1,8 +1,7 @@
 /* Detect paths through the CFG which can never be executed in a conforming
    program and isolate them.
 
-   Copyright (C) 2013
-   Free Software Foundation, Inc.
+   Copyright (C) 2013-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -48,14 +47,14 @@ along with GCC; see the file COPYING3.  If not see
 static bool cfg_altered;
 
 /* Callback for walk_stmt_load_store_ops.
- 
+
    Return TRUE if OP will dereference the tree stored in DATA, FALSE
    otherwise.
 
    This routine only makes a superficial check for a dereference.  Thus,
    it must only be used if it is safe to return a false negative.  */
 static bool
-check_loadstore (gimple stmt ATTRIBUTE_UNUSED, tree op, void *data)
+check_loadstore (gimple stmt, tree op, tree, void *data)
 {
   if ((TREE_CODE (op) == MEM_REF || TREE_CODE (op) == TARGET_MEM_REF)
       && operand_equal_p (TREE_OPERAND (op, 0), (tree)data, 0))
@@ -144,7 +143,6 @@ isolate_path (basic_block bb, basic_block duplicate,
   gimple_stmt_iterator si, si2;
   edge_iterator ei;
   edge e2;
-  
 
   /* First duplicate BB if we have not done so already and remove all
      the duplicate's outgoing edges as duplicate is going to unconditionally
@@ -171,7 +169,7 @@ isolate_path (basic_block bb, basic_block duplicate,
      the statement which triggers undefined behaviour.  If found, then
      transform the statement into a trap and delete everything after the
      statement.  If not found, then this particular instance was subsumed by
-     an earlier instance of undefined behaviour and there's nothing to do. 
+     an earlier instance of undefined behaviour and there's nothing to do.
 
      This is made more complicated by the fact that we have STMT, which is in
      BB rather than in DUPLICATE.  So we set up two iterators, one for each
@@ -180,7 +178,7 @@ isolate_path (basic_block bb, basic_block duplicate,
 
      When we find STMT the second iterator should point to STMT's equivalent in
      duplicate.  If DUPLICATE ends before STMT is found in BB, then there's
-     nothing to do. 
+     nothing to do.
 
      Ignore labels and debug statements.  */
   si = gsi_start_nondebug_after_labels_bb (bb);
@@ -217,7 +215,7 @@ find_implicit_erroneous_behaviour (void)
 {
   basic_block bb;
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       gimple_stmt_iterator si;
 
@@ -247,7 +245,7 @@ find_implicit_erroneous_behaviour (void)
 	    continue;
 
 	  /* PHI produces a pointer result.  See if any of the PHI's
-	     arguments are NULL. 
+	     arguments are NULL.
 
 	     When we remove an edge, we want to reprocess the current
 	     index, hence the ugly way we update I for each iteration.  */
@@ -259,7 +257,7 @@ find_implicit_erroneous_behaviour (void)
 	      tree op = gimple_phi_arg_def (phi, i);
 
 	      next_i = i + 1;
-	
+
 	      if (!integer_zerop (op))
 		continue;
 
@@ -277,7 +275,10 @@ find_implicit_erroneous_behaviour (void)
 		  if (gimple_bb (use_stmt) != bb)
 		    continue;
 
-		  if (infer_nonnull_range (use_stmt, lhs))
+		  if (infer_nonnull_range (use_stmt, lhs,
+					   flag_isolate_erroneous_paths_dereference,
+					   flag_isolate_erroneous_paths_attribute))
+
 		    {
 		      duplicate = isolate_path (bb, duplicate,
 						e, use_stmt, lhs);
@@ -294,7 +295,7 @@ find_implicit_erroneous_behaviour (void)
 }
 
 /* Look for statements which exhibit erroneous behaviour.  For example
-   a NULL pointer dereference. 
+   a NULL pointer dereference.
 
    When found, optimize the block containing the erroneous behaviour.  */
 static void
@@ -302,7 +303,7 @@ find_explicit_erroneous_behaviour (void)
 {
   basic_block bb;
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       gimple_stmt_iterator si;
 
@@ -327,7 +328,9 @@ find_explicit_erroneous_behaviour (void)
 	  /* By passing null_pointer_node, we can use infer_nonnull_range
 	     to detect explicit NULL pointer dereferences and other uses
 	     where a non-NULL value is required.  */
-	  if (infer_nonnull_range (stmt, null_pointer_node))
+	  if (infer_nonnull_range (stmt, null_pointer_node,
+				   flag_isolate_erroneous_paths_dereference,
+				   flag_isolate_erroneous_paths_attribute))
 	    {
 	      insert_trap_and_remove_trailing_statements (&si,
 							  null_pointer_node);
@@ -361,7 +364,7 @@ find_explicit_erroneous_behaviour (void)
    unconditional trap and eliminate the outgoing edges from the statement's
    basic block.  This may expose secondary optimization opportunities.
 
-   In the latter case, we isolate the path(s) with the NULL PHI 
+   In the latter case, we isolate the path(s) with the NULL PHI
    feeding the dereference.  We can then replace the offending statement
    and eliminate the outgoing edges in the duplicate.  Again, this may
    expose secondary optimization opportunities.
@@ -398,7 +401,7 @@ gimple_ssa_isolate_erroneous_paths (void)
 
   free_original_copy_tables ();
 
-  /* We scramble the CFG and loop structures a bit, clean up 
+  /* We scramble the CFG and loop structures a bit, clean up
      appropriately.  We really should incrementally update the
      loop structures, in theory it shouldn't be that hard.  */
   if (cfg_altered)
@@ -416,7 +419,8 @@ gate_isolate_erroneous_paths (void)
 {
   /* If we do not have a suitable builtin function for the trap statement,
      then do not perform the optimization.  */
-  return (flag_isolate_erroneous_paths != 0);
+  return (flag_isolate_erroneous_paths_dereference != 0
+	  || flag_isolate_erroneous_paths_attribute != 0);
 }
 
 namespace {

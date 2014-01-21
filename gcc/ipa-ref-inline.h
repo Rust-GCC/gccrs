@@ -1,5 +1,5 @@
 /* IPA reference lists.
-   Copyright (C) 2010-2013 Free Software Foundation, Inc.
+   Copyright (C) 2010-2014 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -27,7 +27,7 @@ ipa_ref_node (struct ipa_ref *ref)
 
 /* Return varpool node REF is referring.  */
 
-static inline struct varpool_node *
+static inline varpool_node *
 ipa_ref_varpool_node (struct ipa_ref *ref)
 {
   return varpool (ref->referred);
@@ -43,7 +43,7 @@ ipa_ref_referring_node (struct ipa_ref *ref)
 
 /* Return varpool node REF is in.  */
 
-static inline struct varpool_node *
+static inline varpool_node *
 ipa_ref_referring_varpool_node (struct ipa_ref *ref)
 {
   return varpool (ref->referring);

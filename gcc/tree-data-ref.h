@@ -1,5 +1,5 @@
 /* Data references and dependences detectors.
-   Copyright (C) 2003-2013 Free Software Foundation, Inc.
+   Copyright (C) 2003-2014 Free Software Foundation, Inc.
    Contributed by Sebastian Pop <pop@cri.ensmp.fr>
 
 This file is part of GCC.
@@ -239,11 +239,11 @@ enum data_dependence_direction {
 
 typedef vec<tree> affine_fn;
 
-typedef struct
+struct conflict_function
 {
   unsigned n;
   affine_fn fns[MAX_DIM];
-} conflict_function;
+};
 
 /* What is a subscript?  Given two array accesses a subscript is the
    tuple composed of the access functions for a given dimension.

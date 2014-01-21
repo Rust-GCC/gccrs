@@ -1,5 +1,5 @@
 /* Subroutines for insn-output.c for HPPA.
-   Copyright (C) 1992-2013 Free Software Foundation, Inc.
+   Copyright (C) 1992-2014 Free Software Foundation, Inc.
    Contributed by Tim Moore (moore@cs.utah.edu), based on sparc.c
 
 This file is part of GCC.
@@ -7534,7 +7534,7 @@ pa_attr_length_millicode_call (rtx insn)
       if (!TARGET_LONG_CALLS && distance < MAX_PCREL17F_OFFSET)
 	return 8;
 
-      if (TARGET_LONG_ABS_CALL && !flag_pic)
+      if (!flag_pic)
 	return 12;
 
       return 24;
@@ -8099,7 +8099,8 @@ pa_attr_length_indirect_call (rtx insn)
     return 12;
 
   if (TARGET_FAST_INDIRECT_CALLS
-      || (!TARGET_PORTABLE_RUNTIME
+      || (!TARGET_LONG_CALLS
+	  && !TARGET_PORTABLE_RUNTIME
 	  && ((TARGET_PA_20 && !TARGET_SOM && distance < 7600000)
 	      || distance < MAX_PCREL17F_OFFSET)))
     return 8;
@@ -10424,13 +10425,13 @@ pa_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
 
 	  /* When INT14_OK_STRICT is false, a secondary reload is needed
 	     to adjust the displacement of SImode and DImode floating point
-	     instructions.  So, we return false when STRICT is true.  We
+	     instructions but this may fail when the register also needs
+	     reloading.  So, we return false when STRICT is true.  We
 	     also reject long displacements for float mode addresses since
 	     the majority of accesses will use floating point instructions
 	     that don't support 14-bit offsets.  */
 	  if (!INT14_OK_STRICT
-	      && reload_in_progress
-	      && strict
+	      && (strict || !(reload_in_progress || reload_completed))
 	      && mode != QImode
 	      && mode != HImode)
 	    return false;
@@ -10490,8 +10491,7 @@ pa_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
 	    return true;
 
 	  if (!INT14_OK_STRICT
-	      && reload_in_progress
-	      && strict
+	      && (strict || !(reload_in_progress || reload_completed))
 	      && mode != QImode
 	      && mode != HImode)
 	    return false;

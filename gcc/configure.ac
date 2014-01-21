@@ -1,7 +1,7 @@
 # configure.ac for GCC
 # Process this file with autoconf to generate a configuration script.
 
-# Copyright (C) 1997-2013 Free Software Foundation, Inc.
+# Copyright (C) 1997-2014 Free Software Foundation, Inc.
 
 #This file is part of GCC.
 
@@ -1529,13 +1529,11 @@ else
 	/* | [A-Za-z]:[\\/]* ) realsrcdir=${srcdir};;
 	*) realsrcdir=../${srcdir};;
 	esac
-	saved_CFLAGS="${CFLAGS}"
 	CC="${CC_FOR_BUILD}" CFLAGS="${CFLAGS_FOR_BUILD}" \
-	LDFLAGS="${LDFLAGS_FOR_BUILD}" \
+	LDFLAGS="${LDFLAGS_FOR_BUILD}" GMPINC="" \
 	${realsrcdir}/configure \
 		--enable-languages=${enable_languages-all} \
 		--target=$target_alias --host=$build_alias --build=$build_alias
-	CFLAGS="${saved_CFLAGS}"
 
 	# We just finished tests for the build machine, so rename
 	# the file auto-build.h in the gcc directory.
@@ -1900,6 +1898,7 @@ STMP_FIXINC=stmp-fixinc		AC_SUBST(STMP_FIXINC)
 if test x$build != x$host || test "x$coverage_flags" != x
 then
     BUILD_CFLAGS='$(INTERNAL_CFLAGS) $(T_CFLAGS) $(CFLAGS_FOR_BUILD)'
+    BUILD_CXXFLAGS='$(INTERNAL_CFLAGS) $(T_CFLAGS) $(CXXFLAGS_FOR_BUILD)'
     BUILD_LDFLAGS='$(LDFLAGS_FOR_BUILD)'
 fi
 
@@ -3069,6 +3068,13 @@ foo:
 	tls_first_minor=19
 	tls_as_opt='--fatal-warnings'
 	;;
+  nios2-*-*)
+      conftest_s='
+	.section ".tdata","awT",@progbits'
+	tls_first_major=2
+	tls_first_minor=23
+	tls_as_opt="--fatal-warnings"
+	;;
   aarch64*-*-*)
     conftest_s='
 	.section ".tdata","awT",%progbits
@@ -3495,6 +3501,35 @@ AC_DEFINE_UNQUOTED(HAVE_LTO_PLUGIN, $gcc_cv_lto_plugin,
 AC_MSG_RESULT($gcc_cv_lto_plugin)
 
 case "$target" in
+  aarch64*-*-*)
+    gcc_GAS_CHECK_FEATURE([-mabi option], gcc_cv_as_aarch64_mabi,,
+                          [-mabi=lp64], [.text],,,)
+    if test x$gcc_cv_as_aarch64_mabi = xyes; then
+      AC_DEFINE(HAVE_AS_MABI_OPTION, 1,
+                [Define if your assembler supports the -mabi option.])
+    else
+      if test x$with_abi = xilp32; then
+        AC_MSG_ERROR([Assembler does not support -mabi=ilp32.\
+                     Upgrade the Assembler.])
+      fi
+      if test x"$with_multilib_list" = xdefault; then
+        TM_MULTILIB_CONFIG=lp64
+      else
+        aarch64_multilibs=`echo $with_multilib_list | sed -e 's/,/ /g'`
+        for aarch64_multilib in ${aarch64_multilibs}; do
+          case ${aarch64_multilib} in
+            ilp32)
+              AC_MSG_ERROR([Assembler does not support -mabi=ilp32.\
+                            Upgrade the Assembler.])
+              ;;
+            *)
+              ;;
+          esac
+        done
+      fi
+    fi
+    ;;
+
   # All TARGET_ABI_OSF targets.
   alpha*-*-linux* | alpha*-*-*bsd*)
     gcc_GAS_CHECK_FEATURE([explicit relocation support],
@@ -4275,8 +4310,8 @@ esac
 # version to the per-target configury.
 case "$cpu_type" in
   aarch64 | alpha | arm | avr | bfin | cris | i386 | m32c | m68k | microblaze \
-  | mips | pa | rs6000 | score | sparc | spu | tilegx | tilepro | xstormy16 \
-  | xtensa)
+  | mips | nios2 | pa | rs6000 | score | sparc | spu | tilegx | tilepro \
+  | xstormy16 | xtensa)
     insn="nop"
     ;;
   ia64 | s390)
@@ -5244,6 +5279,14 @@ if test "x$subdirs" != x; then
 fi
 echo "source ${srcdir}/gdbinit.in" >> .gdbinit
 echo "python import sys; sys.path.append('${srcdir}'); import gdbhooks" >> .gdbinit
+
+# Put a breakpoint on __asan_report_error to help with debugging buffer
+# overflow.
+case "$CFLAGS" in
+*-fsanitize=address*)
+  echo "source ${srcdir}/gdbasan.in" >> .gdbinit
+  ;;
+esac
 
 gcc_tooldir='$(libsubdir)/$(libsubdir_to_prefix)$(target_noncanonical)'
 AC_SUBST(gcc_tooldir)

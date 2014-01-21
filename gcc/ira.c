@@ -1,5 +1,5 @@
 /* Integrated Register Allocator (IRA) entry point.
-   Copyright (C) 2006-2013 Free Software Foundation, Inc.
+   Copyright (C) 2006-2014 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov <vmakarov@redhat.com>.
 
 This file is part of GCC.
@@ -1574,21 +1574,30 @@ ira_init_register_move_cost (enum machine_mode mode)
 	      && ira_may_move_out_cost[mode] == NULL);
   ira_assert (have_regs_of_mode[mode]);
   for (cl1 = 0; cl1 < N_REG_CLASSES; cl1++)
-    if (contains_reg_of_mode[cl1][mode])
-      for (cl2 = 0; cl2 < N_REG_CLASSES; cl2++)
-	{
-	  int cost;
-	  if (!contains_reg_of_mode[cl2][mode])
-	    cost = 65535;
-	  else
-	    {
-	      cost = register_move_cost (mode, (enum reg_class) cl1,
-					 (enum reg_class) cl2);
-	      ira_assert (cost < 65535);
-	    }
-	  all_match &= (last_move_cost[cl1][cl2] == cost);
-	  last_move_cost[cl1][cl2] = cost;
-	}
+    for (cl2 = 0; cl2 < N_REG_CLASSES; cl2++)
+      {
+	int cost;
+	if (!contains_reg_of_mode[cl1][mode]
+	    || !contains_reg_of_mode[cl2][mode])
+	  {
+	    if ((ira_reg_class_max_nregs[cl1][mode]
+		 > ira_class_hard_regs_num[cl1])
+		|| (ira_reg_class_max_nregs[cl2][mode]
+		    > ira_class_hard_regs_num[cl2]))
+	      cost = 65535;
+	    else
+	      cost = (ira_memory_move_cost[mode][cl1][0]
+		      + ira_memory_move_cost[mode][cl2][1]) * 2;
+	  }
+	else
+	  {
+	    cost = register_move_cost (mode, (enum reg_class) cl1,
+				       (enum reg_class) cl2);
+	    ira_assert (cost < 65535);
+	  }
+	all_match &= (last_move_cost[cl1][cl2] == cost);
+	last_move_cost[cl1][cl2] = cost;
+      }
   if (all_match && last_mode_for_init_move_cost != -1)
     {
       ira_register_move_cost[mode]
@@ -1604,58 +1613,51 @@ ira_init_register_move_cost (enum machine_mode mode)
   ira_may_move_in_cost[mode] = XNEWVEC (move_table, N_REG_CLASSES);
   ira_may_move_out_cost[mode] = XNEWVEC (move_table, N_REG_CLASSES);
   for (cl1 = 0; cl1 < N_REG_CLASSES; cl1++)
-    if (contains_reg_of_mode[cl1][mode])
-      for (cl2 = 0; cl2 < N_REG_CLASSES; cl2++)
-	{
-	  int cost;
-	  enum reg_class *p1, *p2;
-
-	  if (last_move_cost[cl1][cl2] == 65535)
-	    {
-	      ira_register_move_cost[mode][cl1][cl2] = 65535;
-	      ira_may_move_in_cost[mode][cl1][cl2] = 65535;
-	      ira_may_move_out_cost[mode][cl1][cl2] = 65535;
-	    }
-	  else
-	    {
-	      cost = last_move_cost[cl1][cl2];
-
-	      for (p2 = &reg_class_subclasses[cl2][0];
-		   *p2 != LIM_REG_CLASSES; p2++)
-		if (ira_class_hard_regs_num[*p2] > 0
-		    && (ira_reg_class_max_nregs[*p2][mode]
-			<= ira_class_hard_regs_num[*p2]))
-		  cost = MAX (cost, ira_register_move_cost[mode][cl1][*p2]);
-
-	      for (p1 = &reg_class_subclasses[cl1][0];
-		   *p1 != LIM_REG_CLASSES; p1++)
-		if (ira_class_hard_regs_num[*p1] > 0
-		    && (ira_reg_class_max_nregs[*p1][mode]
-			<= ira_class_hard_regs_num[*p1]))
-		  cost = MAX (cost, ira_register_move_cost[mode][*p1][cl2]);
-
-	      ira_assert (cost <= 65535);
-	      ira_register_move_cost[mode][cl1][cl2] = cost;
-
-	      if (ira_class_subset_p[cl1][cl2])
-		ira_may_move_in_cost[mode][cl1][cl2] = 0;
-	      else
-		ira_may_move_in_cost[mode][cl1][cl2] = cost;
-
-	      if (ira_class_subset_p[cl2][cl1])
-		ira_may_move_out_cost[mode][cl1][cl2] = 0;
-	      else
-		ira_may_move_out_cost[mode][cl1][cl2] = cost;
-	    }
-	}
-    else
-      for (cl2 = 0; cl2 < N_REG_CLASSES; cl2++)
-	{
-	  ira_register_move_cost[mode][cl1][cl2] = 65535;
-	  ira_may_move_in_cost[mode][cl1][cl2] = 65535;
-	  ira_may_move_out_cost[mode][cl1][cl2] = 65535;
-	}
+    for (cl2 = 0; cl2 < N_REG_CLASSES; cl2++)
+      {
+	int cost;
+	enum reg_class *p1, *p2;
+	
+	if (last_move_cost[cl1][cl2] == 65535)
+	  {
+	    ira_register_move_cost[mode][cl1][cl2] = 65535;
+	    ira_may_move_in_cost[mode][cl1][cl2] = 65535;
+	    ira_may_move_out_cost[mode][cl1][cl2] = 65535;
+	  }
+	else
+	  {
+	    cost = last_move_cost[cl1][cl2];
+	    
+	    for (p2 = &reg_class_subclasses[cl2][0];
+		 *p2 != LIM_REG_CLASSES; p2++)
+	      if (ira_class_hard_regs_num[*p2] > 0
+		  && (ira_reg_class_max_nregs[*p2][mode]
+		      <= ira_class_hard_regs_num[*p2]))
+		cost = MAX (cost, ira_register_move_cost[mode][cl1][*p2]);
+	    
+	    for (p1 = &reg_class_subclasses[cl1][0];
+		 *p1 != LIM_REG_CLASSES; p1++)
+	      if (ira_class_hard_regs_num[*p1] > 0
+		  && (ira_reg_class_max_nregs[*p1][mode]
+		      <= ira_class_hard_regs_num[*p1]))
+		cost = MAX (cost, ira_register_move_cost[mode][*p1][cl2]);
+	    
+	    ira_assert (cost <= 65535);
+	    ira_register_move_cost[mode][cl1][cl2] = cost;
+	    
+	    if (ira_class_subset_p[cl1][cl2])
+	      ira_may_move_in_cost[mode][cl1][cl2] = 0;
+	    else
+	      ira_may_move_in_cost[mode][cl1][cl2] = cost;
+	    
+	    if (ira_class_subset_p[cl2][cl1])
+	      ira_may_move_out_cost[mode][cl1][cl2] = 0;
+	    else
+	      ira_may_move_out_cost[mode][cl1][cl2] = cost;
+	  }
+      }
 }
+
 
 
 /* This is called once during compiler work.  It sets up
@@ -2135,7 +2137,7 @@ decrease_live_ranges_number (void)
   if (ira_dump_file)
     fprintf (ira_dump_file, "Starting decreasing number of live ranges...\n");
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     FOR_BB_INSNS (bb, insn)
       {
 	set = single_set (insn);
@@ -2358,7 +2360,7 @@ compute_regs_asm_clobbered (void)
 {
   basic_block bb;
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       rtx insn;
       FOR_BB_INSNS_REVERSE (bb, insn)
@@ -2380,11 +2382,10 @@ compute_regs_asm_clobbered (void)
 }
 
 
-/* Set up ELIMINABLE_REGSET, IRA_NO_ALLOC_REGS, and REGS_EVER_LIVE.
-   If the function is called from IRA (not from the insn scheduler or
-   RTL loop invariant motion), FROM_IRA_P is true.  */
+/* Set up ELIMINABLE_REGSET, IRA_NO_ALLOC_REGS, and
+   REGS_EVER_LIVE.  */
 void
-ira_setup_eliminable_regset (bool from_ira_p)
+ira_setup_eliminable_regset (void)
 {
 #ifdef ELIMINABLE_REGS
   int i;
@@ -2401,16 +2402,16 @@ ira_setup_eliminable_regset (bool from_ira_p)
 	  if the stack pointer is moving.  */
        || (flag_stack_check && STACK_CHECK_MOVING_SP)
        || crtl->accesses_prior_frames
-       || crtl->stack_realign_needed
+       || (SUPPORTS_STACK_ALIGNMENT && crtl->stack_realign_needed)
        /* We need a frame pointer for all Cilk Plus functions that use
 	  Cilk keywords.  */
        || (flag_enable_cilkplus && cfun->is_cilk_function)
        || targetm.frame_pointer_required ());
 
-  if (from_ira_p && ira_use_lra_p)
-    /* It can change FRAME_POINTER_NEEDED.  We call it only from IRA
-       because it is expensive.  */
-    lra_init_elimination ();
+    /* The chance that FRAME_POINTER_NEEDED is changed from inspecting
+       RTL is very small.  So if we use frame pointer for RA and RTL
+       actually prevents this, we will spill pseudos assigned to the
+       frame pointer in LRA.  */
 
   if (frame_pointer_needed)
     df_set_regs_ever_live (HARD_FRAME_POINTER_REGNUM, true);
@@ -2952,7 +2953,7 @@ mark_elimination (int from, int to)
   basic_block bb;
   bitmap r;
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       r = DF_LR_IN (bb);
       if (bitmap_bit_p (r, from))
@@ -2977,7 +2978,7 @@ mark_elimination (int from, int to)
 int ira_reg_equiv_len;
 
 /* Info about equiv. info for each register.  */
-struct ira_reg_equiv *ira_reg_equiv;
+struct ira_reg_equiv_s *ira_reg_equiv;
 
 /* Expand ira_reg_equiv if necessary.  */
 void
@@ -2989,12 +2990,12 @@ ira_expand_reg_equiv (void)
     return;
   ira_reg_equiv_len = max_reg_num () * 3 / 2 + 1;
   ira_reg_equiv
-    = (struct ira_reg_equiv *) xrealloc (ira_reg_equiv,
+    = (struct ira_reg_equiv_s *) xrealloc (ira_reg_equiv,
 					 ira_reg_equiv_len
-					 * sizeof (struct ira_reg_equiv));
+					 * sizeof (struct ira_reg_equiv_s));
   gcc_assert (old < ira_reg_equiv_len);
   memset (ira_reg_equiv + old, 0,
-	  sizeof (struct ira_reg_equiv) * (ira_reg_equiv_len - old));
+	  sizeof (struct ira_reg_equiv_s) * (ira_reg_equiv_len - old));
 }
 
 static void
@@ -3474,7 +3475,7 @@ update_equiv_regs (void)
      paradoxical subreg. Don't set such reg sequivalent to a mem,
      because lra will not substitute such equiv memory in order to
      prevent access beyond allocated memory for paradoxical memory subreg.  */
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     FOR_BB_INSNS (bb, insn)
       if (NONDEBUG_INSN_P (insn))
 	for_each_rtx (&insn, set_paradoxical_subreg, (void *) pdx_subregs);
@@ -3482,7 +3483,7 @@ update_equiv_regs (void)
   /* Scan the insns and find which registers have equivalences.  Do this
      in a separate scan of the insns because (due to -fcse-follow-jumps)
      a register can be set below its use.  */
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       loop_depth = bb_loop_depth (bb);
 
@@ -3773,7 +3774,7 @@ update_equiv_regs (void)
      within the same loop (or in an inner loop), then move the register
      initialization just before the use, so that they are in the same
      basic block.  */
-  FOR_EACH_BB_REVERSE (bb)
+  FOR_EACH_BB_REVERSE_FN (bb, cfun)
     {
       loop_depth = bb_loop_depth (bb);
       for (insn = BB_END (bb);
@@ -3906,7 +3907,7 @@ update_equiv_regs (void)
 
   if (!bitmap_empty_p (cleared_regs))
     {
-      FOR_EACH_BB (bb)
+      FOR_EACH_BB_FN (bb, cfun)
 	{
 	  bitmap_and_compl_into (DF_LR_IN (bb), cleared_regs);
 	  bitmap_and_compl_into (DF_LR_OUT (bb), cleared_regs);
@@ -4128,7 +4129,7 @@ build_insn_chain (void)
   for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
     if (TEST_HARD_REG_BIT (eliminable_regset, i))
       bitmap_set_bit (elim_regset, i);
-  FOR_EACH_BB_REVERSE (bb)
+  FOR_EACH_BB_REVERSE_FN (bb, cfun)
     {
       bitmap_iterator bi;
       rtx insn;
@@ -4508,12 +4509,15 @@ find_moveable_pseudos (void)
   int *uid_luid = XNEWVEC (int, max_uid);
   rtx *closest_uses = XNEWVEC (rtx, max_regs);
   /* A set of registers which are live but not modified throughout a block.  */
-  bitmap_head *bb_transp_live = XNEWVEC (bitmap_head, last_basic_block);
+  bitmap_head *bb_transp_live = XNEWVEC (bitmap_head,
+					 last_basic_block_for_fn (cfun));
   /* A set of registers which only exist in a given basic block.  */
-  bitmap_head *bb_local = XNEWVEC (bitmap_head, last_basic_block);
+  bitmap_head *bb_local = XNEWVEC (bitmap_head,
+				   last_basic_block_for_fn (cfun));
   /* A set of registers which are set once, in an instruction that can be
      moved freely downwards, but are otherwise transparent to a block.  */
-  bitmap_head *bb_moveable_reg_sets = XNEWVEC (bitmap_head, last_basic_block);
+  bitmap_head *bb_moveable_reg_sets = XNEWVEC (bitmap_head,
+					       last_basic_block_for_fn (cfun));
   bitmap_head live, used, set, interesting, unusable_as_input;
   bitmap_iterator bi;
   bitmap_initialize (&interesting, 0);
@@ -4530,7 +4534,7 @@ find_moveable_pseudos (void)
   bitmap_initialize (&used, 0);
   bitmap_initialize (&set, 0);
   bitmap_initialize (&unusable_as_input, 0);
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       rtx insn;
       bitmap transp = bb_transp_live + bb->index;
@@ -4593,7 +4597,7 @@ find_moveable_pseudos (void)
   bitmap_clear (&used);
   bitmap_clear (&set);
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       bitmap local = bb_local + bb->index;
       rtx insn;
@@ -4822,7 +4826,7 @@ find_moveable_pseudos (void)
 	}
     }
   
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       bitmap_clear (bb_local + bb->index);
       bitmap_clear (bb_transp_live + bb->index);
@@ -4919,7 +4923,7 @@ split_live_ranges_for_shrink_wrap (void)
   bitmap_initialize (&reachable, 0);
   queue.create (n_basic_blocks_for_fn (cfun));
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     FOR_BB_INSNS (bb, insn)
       if (CALL_P (insn) && !SIBLING_CALL_P (insn))
 	{
@@ -5143,7 +5147,7 @@ allocate_initial_values (void)
 		     fixed regs are accepted.  */
 		  SET_REGNO (preg, new_regno);
 		  /* Update global register liveness information.  */
-		  FOR_EACH_BB (bb)
+		  FOR_EACH_BB_FN (bb, cfun)
 		    {
 		      if (REGNO_REG_SET_P (df_get_live_in (bb), regno))
 			SET_REGNO_REG_SET (df_get_live_in (bb), new_regno);
@@ -5188,7 +5192,8 @@ ira (FILE *f)
      pseudos and 10K blocks or 100K pseudos and 1K blocks), we will
      use simplified and faster algorithms in LRA.  */
   lra_simple_p
-    = (ira_use_lra_p && max_reg_num () >= (1 << 26) / last_basic_block);
+    = (ira_use_lra_p
+       && max_reg_num () >= (1 << 26) / last_basic_block_for_fn (cfun));
   if (lra_simple_p)
     {
       /* It permits to skip live range splitting in LRA.  */
@@ -5291,7 +5296,7 @@ ira (FILE *f)
     find_moveable_pseudos ();
 
   max_regno_before_ira = max_reg_num ();
-  ira_setup_eliminable_regset (true);
+  ira_setup_eliminable_regset ();
 
   ira_overall_cost = ira_reg_cost = ira_mem_cost = 0;
   ira_load_cost = ira_store_cost = ira_shuffle_cost = 0;
@@ -5440,7 +5445,7 @@ do_reload (void)
 	  loop_optimizer_finalize ();
 	  free_dominance_info (CDI_DOMINATORS);
 	}
-      FOR_ALL_BB (bb)
+      FOR_ALL_BB_FN (bb, cfun)
 	bb->loop_father = NULL;
       current_loops = NULL;
       
@@ -5489,7 +5494,7 @@ do_reload (void)
 	  loop_optimizer_finalize ();
 	  free_dominance_info (CDI_DOMINATORS);
 	}
-      FOR_ALL_BB (bb)
+      FOR_ALL_BB_FN (bb, cfun)
 	bb->loop_father = NULL;
       current_loops = NULL;
       
@@ -5526,6 +5531,18 @@ do_reload (void)
 
   if (need_dce && optimize)
     run_fast_dce ();
+
+  /* Diagnose uses of the hard frame pointer when it is used as a global
+     register.  Often we can get away with letting the user appropriate
+     the frame pointer, but we should let them know when code generation
+     makes that impossible.  */
+  if (global_regs[HARD_FRAME_POINTER_REGNUM] && frame_pointer_needed)
+    {
+      tree decl = global_regs_decl[HARD_FRAME_POINTER_REGNUM];
+      error_at (DECL_SOURCE_LOCATION (current_function_decl),
+                "frame pointer required, but reserved");
+      inform (DECL_SOURCE_LOCATION (decl), "for %qD", decl);
+    }
 
   timevar_pop (TV_IRA);
 }

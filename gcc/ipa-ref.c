@@ -1,5 +1,5 @@
 /* Interprocedural reference lists.
-   Copyright (C) 2010-2013 Free Software Foundation, Inc.
+   Copyright (C) 2010-2014 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -291,11 +291,13 @@ void
 ipa_remove_stmt_references (symtab_node *referring_node, gimple stmt)
 {
   struct ipa_ref *r = NULL;
-  int i;
+  int i = 0;
 
-  for (i = 0; ipa_ref_list_reference_iterate (&referring_node->ref_list, i, r); i++)
+  while (ipa_ref_list_reference_iterate (&referring_node->ref_list, i, r))
     if (r->stmt == stmt)
       ipa_remove_reference (r);
+    else
+      i++;
 }
 
 /* Remove all stmt references in non-speculative references.

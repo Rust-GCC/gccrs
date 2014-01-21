@@ -1,6 +1,6 @@
 // class template regex -*- C++ -*-
 
-// Copyright (C) 2013 Free Software Foundation, Inc.
+// Copyright (C) 2013-2014 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -32,17 +32,6 @@
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
-_GLIBCXX_BEGIN_NAMESPACE_VERSION
-  template<typename, typename>
-    class basic_regex;
-
-  template<typename>
-    class sub_match;
-
-  template<typename, typename>
-    class match_results;
-_GLIBCXX_END_NAMESPACE_VERSION
-
 namespace __detail
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
@@ -76,7 +65,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _M_nfa(*__re._M_automaton),
       _M_results(__results),
       _M_match_queue(__dfs_mode ? nullptr
-		     : new queue<pair<_StateIdT, _ResultsVec>>()),
+		     : new vector<pair<_StateIdT, _ResultsVec>>()),
       _M_visited(__dfs_mode ? nullptr : new vector<bool>(_M_nfa.size())),
       _M_flags((__flags & regex_constants::match_prev_avail)
 	       ? (__flags
@@ -144,23 +133,23 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _M_lookahead(_State<_TraitsT> __state);
 
     public:
-      _ResultsVec                                          _M_cur_results;
-      _BiIter                                              _M_current;
-      const _BiIter                                        _M_begin;
-      const _BiIter                                        _M_end;
-      const _RegexT&                                       _M_re;
-      const _NFAT&                                         _M_nfa;
-      _ResultsVec&                                         _M_results;
+      _ResultsVec                                           _M_cur_results;
+      _BiIter                                               _M_current;
+      const _BiIter                                         _M_begin;
+      const _BiIter                                         _M_end;
+      const _RegexT&                                        _M_re;
+      const _NFAT&                                          _M_nfa;
+      _ResultsVec&                                          _M_results;
       // Used in BFS, saving states that need to be considered for the next
       // character.
-      std::unique_ptr<queue<pair<_StateIdT, _ResultsVec>>> _M_match_queue;
+      std::unique_ptr<vector<pair<_StateIdT, _ResultsVec>>> _M_match_queue;
       // Used in BFS, indicating that which state is already visited.
-      std::unique_ptr<vector<bool>>                        _M_visited;
-      _FlagT                                               _M_flags;
+      std::unique_ptr<vector<bool>>                         _M_visited;
+      _FlagT                                                _M_flags;
       // To record current solution.
-      _StateIdT                                            _M_start_state;
+      _StateIdT                                             _M_start_state;
       // Do we have a solution so far?
-      bool                                                 _M_has_sol;
+      bool                                                  _M_has_sol;
     };
 
  //@} regex-detail

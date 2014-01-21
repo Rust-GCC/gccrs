@@ -1,6 +1,6 @@
 /* Routines required for instrumenting a program.  */
 /* Compile this one with gcc.  */
-/* Copyright (C) 1989-2013 Free Software Foundation, Inc.
+/* Copyright (C) 1989-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -23,19 +23,7 @@ a copy of the GCC Runtime Library Exception along with this program;
 see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 <http://www.gnu.org/licenses/>.  */
 
-#include "tconfig.h"
-#include "tsystem.h"
-#include "coretypes.h"
-#include "tm.h"
-#include "libgcc_tm.h"
-
-#if defined(inhibit_libc)
-#define IN_LIBGCOV (-1)
-#else
-#define IN_LIBGCOV 1
-#endif
-
-#include "gcov-io.h"
+#include "libgcov.h"
 
 #if defined(inhibit_libc)
 /* If libc and its header files are not available, provide dummy functions.  */

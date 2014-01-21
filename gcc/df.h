@@ -1,6 +1,6 @@
 /* Form lists of pseudo register references for autoinc optimization
    for GNU compiler.  This is part of flow optimization.
-   Copyright (C) 1999-2013 Free Software Foundation, Inc.
+   Copyright (C) 1999-2014 Free Software Foundation, Inc.
    Originally contributed by Michael P. Hayes
              (m.hayes@elec.canterbury.ac.nz, mhayes@redhat.com)
    Major rewrite contributed by Danny Berlin (dberlin@dberlin.org)
@@ -176,7 +176,7 @@ enum df_ref_order
     DF_REF_ORDER_BY_REG_WITH_NOTES,
 
     /* Organize the refs in insn order.  The insns are ordered within a
-       block, and the blocks are ordered by FOR_ALL_BB.  */
+       block, and the blocks are ordered by FOR_ALL_BB_FN.  */
     DF_REF_ORDER_BY_INSN,
 
     /* For uses, the refs within eq notes may be added for
@@ -900,7 +900,8 @@ extern void df_set_blocks (bitmap);
 extern void df_remove_problem (struct dataflow *);
 extern void df_finish_pass (bool);
 extern void df_analyze_problem (struct dataflow *, bitmap, int *, int);
-extern void df_analyze (void);
+extern void df_analyze ();
+extern void df_analyze_loop (struct loop *);
 extern int df_get_n_blocks (enum df_flow_dir);
 extern int *df_get_postorder (enum df_flow_dir);
 extern void df_simple_dataflow (enum df_flow_dir, df_init_function,

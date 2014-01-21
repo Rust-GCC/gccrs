@@ -1,7 +1,9 @@
-// { dg-options "-std=gnu++0x" }
+// { dg-options "-std=gnu++11" }
+// { dg-do compile }
+
 // 2004-12-26  Paolo Carlini  <pcarlini@suse.de>
 //
-// Copyright (C) 2004-2013 Free Software Foundation, Inc.
+// Copyright (C) 2004-2014 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -21,41 +23,44 @@
 // 4.5.3 Type properties
 
 #include <type_traits>
-#include <testsuite_hooks.h>
 #include <testsuite_tr1.h>
 
 void test01()
 {
-  bool test __attribute__((unused)) = true;
   using std::has_trivial_default_constructor;
   using namespace __gnu_test;
 
   // Positive tests.
-  VERIFY( (test_category<has_trivial_default_constructor, int>(true)) );
-  VERIFY( (test_category<has_trivial_default_constructor, float>(true)) );
-  VERIFY( (test_category<has_trivial_default_constructor, EnumType>(true)) );
-  VERIFY( (test_category<has_trivial_default_constructor, int*>(true)) );
-  VERIFY( (test_category<has_trivial_default_constructor, int(*)(int)>(true)) );
-  VERIFY( (test_category<has_trivial_default_constructor, int (ClassType::*)>(true)) );
-  VERIFY( (test_category<has_trivial_default_constructor,
-	   int (ClassType::*) (int)>(true)) );
-  VERIFY( (test_category<has_trivial_default_constructor, int[2]>(true)) );
-  VERIFY( (test_category<has_trivial_default_constructor, float[][3]>(true)) );
-  VERIFY( (test_category<has_trivial_default_constructor, EnumType[2][3][4]>(true)) );
-  VERIFY( (test_category<has_trivial_default_constructor, int*[3]>(true)) );
-  VERIFY( (test_category<has_trivial_default_constructor, int(*[][2])(int)>(true)) );
-  VERIFY( (test_category<has_trivial_default_constructor,
-	   int (ClassType::*[2][3])>(true)) );
-  VERIFY( (test_category<has_trivial_default_constructor,
-	   int (ClassType::*[][2][3]) (int)>(true)) );
-  VERIFY( (test_category<has_trivial_default_constructor, ClassType>(true)) );
+  static_assert(test_category<has_trivial_default_constructor, int>(true), "");
+  static_assert(test_category<has_trivial_default_constructor,
+		float>(true), "");
+  static_assert(test_category<has_trivial_default_constructor,
+		EnumType>(true), "");
+  static_assert(test_category<has_trivial_default_constructor, int*>(true), "");
+  static_assert(test_category<has_trivial_default_constructor,
+		int(*)(int)>(true), "");
+  static_assert(test_category<has_trivial_default_constructor,
+		int (ClassType::*)>(true), "");
+  static_assert(test_category<has_trivial_default_constructor,
+		int (ClassType::*) (int)>(true), "");
+  static_assert(test_category<has_trivial_default_constructor,
+		int[2]>(true), "");
+  static_assert(test_category<has_trivial_default_constructor,
+		float[][3]>(true), "");
+  static_assert(test_category<has_trivial_default_constructor,
+		EnumType[2][3][4]>(true), "");
+  static_assert(test_category<has_trivial_default_constructor,
+		int*[3]>(true), "");
+  static_assert(test_category<has_trivial_default_constructor,
+		int(*[][2])(int)>(true), "");
+  static_assert(test_category<has_trivial_default_constructor,
+		int (ClassType::*[2][3])>(true), "");
+  static_assert(test_category<has_trivial_default_constructor,
+		int (ClassType::*[][2][3]) (int)>(true), "");
+  static_assert(test_category<has_trivial_default_constructor,
+		ClassType>(true), "");
 
   // Negative tests.
-  VERIFY( (test_category<has_trivial_default_constructor, void>(false)) );  
-}
-
-int main()
-{
-  test01();
-  return 0;
+  static_assert(test_category<has_trivial_default_constructor,
+		void>(false), "");  
 }

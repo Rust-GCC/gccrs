@@ -1,5 +1,5 @@
 /* Analyze RTL for GNU compiler.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1178,6 +1178,27 @@ set_noop_p (const_rtx set)
 	return 0;
       src = SUBREG_REG (src);
       dst = SUBREG_REG (dst);
+    }
+
+  /* It is a NOOP if destination overlaps with selected src vector
+     elements.  */
+  if (GET_CODE (src) == VEC_SELECT
+      && REG_P (XEXP (src, 0)) && REG_P (dst)
+      && HARD_REGISTER_P (XEXP (src, 0))
+      && HARD_REGISTER_P (dst))
+    {
+      int i;
+      rtx par = XEXP (src, 1);
+      rtx src0 = XEXP (src, 0);
+      int c0 = INTVAL (XVECEXP (par, 0, 0));
+      HOST_WIDE_INT offset = GET_MODE_UNIT_SIZE (GET_MODE (src0)) * c0;
+
+      for (i = 1; i < XVECLEN (par, 0); i++)
+	if (INTVAL (XVECEXP (par, 0, i)) != c0 + i)
+	  return 0;
+      return
+	simplify_subreg_regno (REGNO (src0), GET_MODE (src0),
+			       offset, GET_MODE (dst)) == (int) REGNO (dst);
     }
 
   return (REG_P (src) && REG_P (dst)

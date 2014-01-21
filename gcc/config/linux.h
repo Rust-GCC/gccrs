@@ -2,7 +2,7 @@
    MMU, using ELF at the compiler level but possibly FLT for final
    linked executables and shared libraries in some no-MMU cases, and
    possibly with a choice of libc implementations.
-   Copyright (C) 1995-2013 Free Software Foundation, Inc.
+   Copyright (C) 1995-2014 Free Software Foundation, Inc.
    Contributed by Eric Youngdale.
    Modified for stabs-in-ELF by H.J. Lu (hjl@lucon.org).
 
@@ -99,7 +99,31 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #undef TARGET_HAS_BIONIC
 #define TARGET_HAS_BIONIC (OPTION_BIONIC)
 
+#if (DEFAULT_LIBC == LIBC_UCLIBC) && defined (SINGLE_LIBC) /* uClinux */
+/* This is a *uclinux* target.  We don't define below macros to normal linux
+   versions, because doing so would require *uclinux* targets to include
+   linux.c, linux-protos.h, linux.opt, etc.  We could, alternatively, add
+   these files to *uclinux* targets, but that would only pollute option list
+   (add -mglibc, etc.) without adding any useful support.  */
+
+/* Define TARGET_LIBC_HAS_FUNCTION for *uclinux* targets to
+   no_c99_libc_has_function, because uclibc does not, normally, have
+   c99 runtime.  If, in special cases, uclibc does have c99 runtime,
+   this should be defined to a new hook.  Also please note that for targets
+   like *-linux-uclibc that similar check will also need to be added to
+   linux_libc_has_function.  */
+# undef TARGET_LIBC_HAS_FUNCTION
+# define TARGET_LIBC_HAS_FUNCTION no_c99_libc_has_function
+
+#else /* !uClinux, i.e., normal Linux */
+
+/* IFUNCs are supported by glibc, but not by uClibc or Bionic.  */
+# undef TARGET_HAS_IFUNC_P
+# define TARGET_HAS_IFUNC_P linux_has_ifunc_p
+
 /* Determine what functions are present at the runtime;
    this includes full c99 runtime and sincos.  */
-#undef TARGET_LIBC_HAS_FUNCTION
-#define TARGET_LIBC_HAS_FUNCTION linux_android_libc_has_function
+# undef TARGET_LIBC_HAS_FUNCTION
+# define TARGET_LIBC_HAS_FUNCTION linux_libc_has_function
+
+#endif

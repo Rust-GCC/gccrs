@@ -1,5 +1,5 @@
 /* Description of pass structure
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -117,6 +117,7 @@ along with GCC; see the file COPYING3.  If not see
      compiled unit.  */
   INSERT_PASSES_AFTER (all_late_ipa_passes)
   NEXT_PASS (pass_ipa_pta);
+  NEXT_PASS (pass_omp_simd_clone);
   TERMINATE_PASS_LIST ()
 
   /* These passes are run after IPA passes on every function that is being
@@ -131,11 +132,11 @@ along with GCC; see the file COPYING3.  If not see
 	 They ensure memory accesses are not indirect wherever possible.  */
       NEXT_PASS (pass_strip_predict_hints);
       NEXT_PASS (pass_rename_ssa_copies);
-      NEXT_PASS (pass_copy_prop);
-      NEXT_PASS (pass_complete_unrolli);
       NEXT_PASS (pass_ccp);
       /* After CCP we rewrite no longer addressed locals into SSA
 	 form if possible.  */
+      NEXT_PASS (pass_copy_prop);
+      NEXT_PASS (pass_complete_unrolli);
       NEXT_PASS (pass_phiprop);
       NEXT_PASS (pass_forwprop);
       NEXT_PASS (pass_object_sizes);
@@ -216,6 +217,8 @@ along with GCC; see the file COPYING3.  If not see
 	  NEXT_PASS (pass_iv_canon);
 	  NEXT_PASS (pass_parallelize_loops);
 	  NEXT_PASS (pass_if_conversion);
+	  /* pass_vectorize must immediately follow pass_if_conversion.
+	     Please do not add any other passes in between.  */
 	  NEXT_PASS (pass_vectorize);
           PUSH_INSERT_PASSES_WITHIN (pass_vectorize)
 	      NEXT_PASS (pass_dce_loop);

@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler.  MIPS version.
-   Copyright (C) 1989-2013 Free Software Foundation, Inc.
+   Copyright (C) 1989-2014 Free Software Foundation, Inc.
    Contributed by A. Lichnewsky (lich@inria.inria.fr).
    Changed by Michael Meissner	(meissner@osf.org).
    64-bit r4000 support by Ian Lance Taylor (ian@cygnus.com) and
@@ -2529,7 +2529,9 @@ typedef struct mips_args {
       : TARGET_MICROMIPS && !TARGET_INTERLINK_COMPRESSED	\
       ? "%*" INSN "r%!\t%" #TARGET_OPNO "%/"			\
       : "%*" INSN "r\t%" #TARGET_OPNO "%/")			\
-   : MIPS_ABSOLUTE_JUMP ("%*" INSN "\t%" #TARGET_OPNO "%/"))
+   : TARGET_MICROMIPS && !TARGET_INTERLINK_COMPRESSED		\
+     ? MIPS_ABSOLUTE_JUMP ("%*" INSN "%!\t%" #TARGET_OPNO "%/")	\
+     : MIPS_ABSOLUTE_JUMP ("%*" INSN "\t%" #TARGET_OPNO "%/"))	\
 
 /* Similar to MIPS_CALL, but this is for MICROMIPS "j" to generate
    "jrc" when nop is in the delay slot of "jr".  */

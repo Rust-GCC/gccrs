@@ -1,5 +1,5 @@
 /* Output dbx-format symbol table information from GNU compiler.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -2367,10 +2367,6 @@ dbxout_type (tree type, int full)
       dbxout_type (TREE_TYPE (type), 0);
       break;
 
-    case POINTER_BOUNDS_TYPE:
-      /* No debug info for pointer bounds type supported yet.  */
-      break;
-
     default:
       gcc_unreachable ();
     }
@@ -2485,7 +2481,7 @@ dbxout_expand_expr (tree expr)
 	  /* If this is a var that might not be actually output,
 	     return NULL, otherwise stabs might reference an undefined
 	     symbol.  */
-	  struct varpool_node *node = varpool_get_node (expr);
+	  varpool_node *node = varpool_get_node (expr);
 	  if (!node || !node->definition)
 	    return NULL;
 	}
@@ -2515,7 +2511,7 @@ dbxout_expand_expr (tree expr)
 	rtx x;
 
 	tem = get_inner_reference (expr, &bitsize, &bitpos, &offset,
-				   &mode, &unsignedp, &volatilep);
+				   &mode, &unsignedp, &volatilep, true);
 
 	x = dbxout_expand_expr (tem);
 	if (x == NULL || !MEM_P (x))

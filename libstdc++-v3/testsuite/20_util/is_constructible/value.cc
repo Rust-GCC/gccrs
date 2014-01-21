@@ -1,6 +1,6 @@
-// { dg-options "-std=gnu++0x" }
-
-// Copyright (C) 2009-2013 Free Software Foundation, Inc.
+// { dg-options "-std=gnu++11" }
+// { dg-do compile }
+// Copyright (C) 2009-2014 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -18,28 +18,22 @@
 // <http://www.gnu.org/licenses/>.
 
 #include <type_traits>
-#include <testsuite_hooks.h>
 #include <testsuite_tr1.h>
 
 void test01()
 {
-  bool test __attribute__((unused)) = true;
   using std::is_constructible;
   using namespace __gnu_test;
 
   // Positive tests.
-  VERIFY( (test_property<is_constructible, ExplicitClass, double&>(true)) );
-  VERIFY( (test_property<is_constructible, ExplicitClass, int&>(true)) );
+  static_assert(test_property<is_constructible,
+		ExplicitClass, double&>(true), "");
+  static_assert(test_property<is_constructible, ExplicitClass, int&>(true), "");
 
   // Negative tests.
-  VERIFY( (test_property<is_constructible, ExplicitClass, void*>(false)) );
-  VERIFY( (test_property<is_constructible, ExplicitClass>(false)) );
-  VERIFY( (test_property<is_constructible, ExplicitClass,
-	   int, double>(false)) );
-}
-
-int main()
-{
-  test01();
-  return 0;
+  static_assert(test_property<is_constructible,
+		ExplicitClass, void*>(false), "");
+  static_assert(test_property<is_constructible, ExplicitClass>(false), "");
+  static_assert(test_property<is_constructible, ExplicitClass,
+		int, double>(false), "");
 }

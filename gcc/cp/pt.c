@@ -1,5 +1,5 @@
 /* Handle parameterized types (templates) for GNU C++.
-   Copyright (C) 1992-2013 Free Software Foundation, Inc.
+   Copyright (C) 1992-2014 Free Software Foundation, Inc.
    Written by Ken Raeburn (raeburn@cygnus.com) while at Watchmaker Computing.
    Rewritten by Jason Merrill (jason@cygnus.com).
 
@@ -176,7 +176,7 @@ static tree tsubst_template_arg (tree, tree, tsubst_flags_t, tree);
 static tree tsubst_template_args (tree, tree, tsubst_flags_t, tree);
 static tree tsubst_template_parms (tree, tree, tsubst_flags_t);
 static void regenerate_decl_from_template (tree, tree);
-static tree most_specialized_class (tree, tree, tsubst_flags_t);
+static tree most_specialized_class (tree, tsubst_flags_t);
 static tree tsubst_aggr_type (tree, tree, tsubst_flags_t, tree, int);
 static tree tsubst_arg_types (tree, tree, tree, tsubst_flags_t, tree);
 static tree tsubst_function_type (tree, tree, tsubst_flags_t, tree);
@@ -4305,7 +4305,7 @@ process_partial_specialization (tree decl)
       if (COMPLETE_TYPE_P (inst_type)
 	  && CLASSTYPE_IMPLICIT_INSTANTIATION (inst_type))
 	{
-	  tree spec = most_specialized_class (inst_type, maintmpl, tf_none);
+	  tree spec = most_specialized_class (inst_type, tf_none);
 	  if (spec && TREE_TYPE (spec) == type)
 	    permerror (input_location,
 		       "partial specialization of %qT after instantiation "
@@ -5149,6 +5149,15 @@ alias_template_specialization_p (const_tree t)
 	  && DECL_ALIAS_TEMPLATE_P (TYPE_TI_TEMPLATE (t)));
 }
 
+/* Return the number of innermost template parameters in TMPL.  */
+
+static int
+num_innermost_template_parms (tree tmpl)
+{
+  tree parms = INNERMOST_TEMPLATE_PARMS (DECL_TEMPLATE_PARMS (tmpl));
+  return TREE_VEC_LENGTH (parms);
+}
+
 /* Return either TMPL or another template that it is equivalent to under DR
    1286: An alias that just changes the name of a template is equivalent to
    the other template.  */
@@ -5164,6 +5173,8 @@ get_underlying_template (tree tmpl)
 	{
 	  tree sub = TYPE_TI_TEMPLATE (result);
 	  if (PRIMARY_TEMPLATE_P (sub)
+	      && (num_innermost_template_parms (tmpl)
+		  == num_innermost_template_parms (sub))
 	      && same_type_p (result, TREE_TYPE (sub)))
 	    {
 	      /* The alias type is equivalent to the pattern of the
@@ -8716,7 +8727,7 @@ instantiate_class_template_1 (tree type)
 
   /* Determine what specialization of the original template to
      instantiate.  */
-  t = most_specialized_class (type, templ, tf_warning_or_error);
+  t = most_specialized_class (type, tf_warning_or_error);
   if (t == error_mark_node)
     {
       TYPE_BEING_DEFINED (type) = 1;
@@ -13035,6 +13046,10 @@ tsubst_omp_for_iterator (tree t, int i, tree declv, tree initv,
   init_decl = (init && TREE_CODE (init) == DECL_EXPR);
   init = RECUR (init);
   decl = RECUR (decl);
+
+  if (decl == error_mark_node || init == error_mark_node)
+    return;
+
   if (init_decl)
     {
       gcc_assert (!processing_template_decl);
@@ -13762,6 +13777,13 @@ tsubst_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl,
       error ("use %<...%> to expand argument pack");
       RETURN (error_mark_node);
 
+    case CILK_SPAWN_STMT:
+      cfun->calls_cilk_spawn = 1;
+      RETURN (build_cilk_spawn (EXPR_LOCATION (t), RECUR (CILK_SPAWN_FN (t))));
+
+    case CILK_SYNC_STMT:
+      RETURN (build_cilk_sync ());
+
     case COMPOUND_EXPR:
       tmp = RECUR (TREE_OPERAND (t, 0));
       if (tmp == NULL_TREE)
@@ -14159,6 +14181,10 @@ tsubst_copy_and_build (tree t,
 	RETURN (r);
       }
 
+    case POINTER_PLUS_EXPR:
+      return fold_build_pointer_plus (RECUR (TREE_OPERAND (t, 0)),
+				      RECUR (TREE_OPERAND (t, 1)));
+
     case SCOPE_REF:
       RETURN (tsubst_qualified_id (t, args, complain, in_decl, /*done=*/true,
 				  /*address_p=*/false));
@@ -14479,8 +14505,7 @@ tsubst_copy_and_build (tree t,
 	       into a non-dependent call.  */
 	    && type_dependent_expression_p_push (t)
 	    && !any_type_dependent_arguments_p (call_args))
-	  function = perform_koenig_lookup (function, call_args, false,
-					    tf_none);
+	  function = perform_koenig_lookup (function, call_args, tf_none);
 
 	if (identifier_p (function)
 	    && !any_type_dependent_arguments_p (call_args))
@@ -15411,9 +15436,9 @@ pack_deducible_p (tree parm, tree fn)
    it.  TARGS is a vector into which the deduced template arguments
    are placed.
 
-   Return zero for success, 2 for an incomplete match that doesn't resolve
-   all the types, and 1 for complete failure.  An error message will be
-   printed only for an incomplete match.
+   Returns either a FUNCTION_DECL for the matching specialization of FN or
+   NULL_TREE if no suitable specialization can be found.  If EXPLAIN_P is
+   true, diagnostics will be printed to explain why it failed.
 
    If FN is a conversion operator, or we are trying to produce a specific
    specialization, RETURN_TYPE is the return type desired.
@@ -16396,7 +16421,7 @@ resolve_overloaded_unification (tree tparms,
 	  if (subargs != error_mark_node
 	      && !any_dependent_template_arguments_p (subargs))
 	    {
-	      elem = tsubst (TREE_TYPE (fn), subargs, tf_none, NULL_TREE);
+	      elem = TREE_TYPE (instantiate_template (fn, subargs, tf_none));
 	      if (try_one_overload (tparms, targs, tempargs, parm,
 				    elem, strict, sub_strict, addr_p, explain_p)
 		  && (!goodfn || !same_type_p (goodfn, elem)))
@@ -18238,7 +18263,7 @@ more_specialized_fn (tree pat1, tree pat2, int len)
     return -1;
 }
 
-/* Determine which of two partial specializations of MAIN_TMPL is more
+/* Determine which of two partial specializations of TMPL is more
    specialized.
 
    PAT1 is a TREE_LIST whose TREE_TYPE is the _TYPE node corresponding
@@ -18254,7 +18279,7 @@ more_specialized_fn (tree pat1, tree pat2, int len)
    two templates is more specialized.  */
 
 static int
-more_specialized_class (tree main_tmpl, tree pat1, tree pat2)
+more_specialized_class (tree tmpl, tree pat1, tree pat2)
 {
   tree targs;
   tree tmpl1, tmpl2;
@@ -18269,7 +18294,7 @@ more_specialized_class (tree main_tmpl, tree pat1, tree pat2)
      types in the arguments, and we need our dependency check functions
      to behave correctly.  */
   ++processing_template_decl;
-  targs = get_class_bindings (main_tmpl, TREE_VALUE (pat1),
+  targs = get_class_bindings (tmpl, TREE_VALUE (pat1),
 			      CLASSTYPE_TI_ARGS (tmpl1),
 			      CLASSTYPE_TI_ARGS (tmpl2));
   if (targs)
@@ -18278,7 +18303,7 @@ more_specialized_class (tree main_tmpl, tree pat1, tree pat2)
       any_deductions = true;
     }
 
-  targs = get_class_bindings (main_tmpl, TREE_VALUE (pat2),
+  targs = get_class_bindings (tmpl, TREE_VALUE (pat2),
 			      CLASSTYPE_TI_ARGS (tmpl2),
 			      CLASSTYPE_TI_ARGS (tmpl1));
   if (targs)
@@ -18359,7 +18384,7 @@ get_bindings (tree fn, tree decl, tree explicit_args, bool check_rettype)
 }
 
 /* Return the innermost template arguments that, when applied to a partial
-   specialization of MAIN_TMPL whose innermost template parameters are
+   specialization of TMPL whose innermost template parameters are
    TPARMS, and whose specialization arguments are SPEC_ARGS, yield the
    ARGS.
 
@@ -18374,7 +18399,7 @@ get_bindings (tree fn, tree decl, tree explicit_args, bool check_rettype)
    is bound to `double'.  */
 
 static tree
-get_class_bindings (tree main_tmpl, tree tparms, tree spec_args, tree args)
+get_class_bindings (tree tmpl, tree tparms, tree spec_args, tree args)
 {
   int i, ntparms = TREE_VEC_LENGTH (tparms);
   tree deduced_args;
@@ -18414,8 +18439,8 @@ get_class_bindings (tree main_tmpl, tree tparms, tree spec_args, tree args)
      `T' is `A' but unify () does not check whether `typename T::X'
      is `int'.  */
   spec_args = tsubst (spec_args, deduced_args, tf_none, NULL_TREE);
-  spec_args = coerce_template_parms (DECL_INNERMOST_TEMPLATE_PARMS (main_tmpl),
-				     spec_args, main_tmpl,
+  spec_args = coerce_template_parms (DECL_INNERMOST_TEMPLATE_PARMS (tmpl),
+				     spec_args, tmpl,
 				     tf_none, false, false);
   if (spec_args == error_mark_node
       /* We only need to check the innermost arguments; the other
@@ -18563,30 +18588,30 @@ most_general_template (tree decl)
 }
 
 /* Return the most specialized of the class template partial
-   specializations of TMPL which can produce TYPE, a specialization of
-   TMPL.  The value returned is actually a TREE_LIST; the TREE_TYPE is
+   specializations which can produce TYPE, a specialization of some class
+   template.  The value returned is actually a TREE_LIST; the TREE_TYPE is
    a _TYPE node corresponding to the partial specialization, while the
    TREE_PURPOSE is the set of template arguments that must be
    substituted into the TREE_TYPE in order to generate TYPE.
 
    If the choice of partial specialization is ambiguous, a diagnostic
    is issued, and the error_mark_node is returned.  If there are no
-   partial specializations of TMPL matching TYPE, then NULL_TREE is
-   returned.  */
+   partial specializations matching TYPE, then NULL_TREE is
+   returned, indicating that the primary template should be used.  */
 
 static tree
-most_specialized_class (tree type, tree tmpl, tsubst_flags_t complain)
+most_specialized_class (tree type, tsubst_flags_t complain)
 {
   tree list = NULL_TREE;
   tree t;
   tree champ;
   int fate;
   bool ambiguous_p;
-  tree args;
   tree outer_args = NULL_TREE;
 
-  tmpl = most_general_template (tmpl);
-  args = CLASSTYPE_TI_ARGS (type);
+  tree tmpl = CLASSTYPE_TI_TEMPLATE (type);
+  tree main_tmpl = most_general_template (tmpl);
+  tree args = CLASSTYPE_TI_ARGS (type);
 
   /* For determining which partial specialization to use, only the
      innermost args are interesting.  */
@@ -18596,7 +18621,7 @@ most_specialized_class (tree type, tree tmpl, tsubst_flags_t complain)
       args = INNERMOST_TEMPLATE_ARGS (args);
     }
 
-  for (t = DECL_TEMPLATE_SPECIALIZATIONS (tmpl); t; t = TREE_CHAIN (t))
+  for (t = DECL_TEMPLATE_SPECIALIZATIONS (main_tmpl); t; t = TREE_CHAIN (t))
     {
       tree partial_spec_args;
       tree spec_args;
@@ -18621,8 +18646,7 @@ most_specialized_class (tree type, tree tmpl, tsubst_flags_t complain)
 
       partial_spec_args =
 	  coerce_template_parms (DECL_INNERMOST_TEMPLATE_PARMS (tmpl),
-				 add_to_template_args (outer_args,
-						       partial_spec_args),
+				 partial_spec_args,
 				 tmpl, tf_none,
 				 /*require_all_args=*/true,
 				 /*use_default_args=*/true);

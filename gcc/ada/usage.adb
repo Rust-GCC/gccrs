@@ -236,6 +236,8 @@ begin
    Write_Switch_Char ("eP");
    Write_Line ("Pure/Prelaborate errors generate warnings rather than errors");
 
+   --  No line for -gnates=? : internal switch
+
    --  Line for -gnateS switch
 
    Write_Switch_Char ("eS");

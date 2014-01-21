@@ -1,6 +1,6 @@
 /* Web construction code for GNU compiler.
    Contributed by Jan Hubicka.
-   Copyright (C) 2001-2013 Free Software Foundation, Inc.
+   Copyright (C) 2001-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -351,7 +351,7 @@ web_main (void)
   df_set_flags (DF_DEFER_INSN_RESCAN);
 
   /* Assign ids to the uses.  */
-  FOR_ALL_BB (bb)
+  FOR_ALL_BB_FN (bb, cfun)
     FOR_BB_INSNS (bb, insn)
     {
       unsigned int uid = INSN_UID (insn);
@@ -379,7 +379,7 @@ web_main (void)
   use_entry = XCNEWVEC (struct web_entry, uses_num);
 
   /* Produce the web.  */
-  FOR_ALL_BB (bb)
+  FOR_ALL_BB_FN (bb, cfun)
     FOR_BB_INSNS (bb, insn)
     {
       unsigned int uid = INSN_UID (insn);
@@ -404,7 +404,7 @@ web_main (void)
 
   /* Update the instruction stream, allocating new registers for split pseudos
      in progress.  */
-  FOR_ALL_BB (bb)
+  FOR_ALL_BB_FN (bb, cfun)
     FOR_BB_INSNS (bb, insn)
     {
       unsigned int uid = INSN_UID (insn);

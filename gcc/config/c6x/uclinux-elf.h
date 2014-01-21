@@ -1,5 +1,5 @@
 /* Definitions for TI C6X running ucLinux using ELF
-   Copyright (C) 2010-2013 Free Software Foundation, Inc.
+   Copyright (C) 2010-2014 Free Software Foundation, Inc.
    Contributed by Andrew Jenner <andrew@codesourcery.com>
    Contributed by Bernd Schmidt <bernds@codesourcery.com>
 
@@ -61,6 +61,3 @@
 		    : "=a" (_beg)					\
 		    : "0" (_beg), "b" (_end), "b" (_scno));	\
 }
-
-#undef TARGET_LIBC_HAS_FUNCTION
-#define TARGET_LIBC_HAS_FUNCTION no_c99_libc_has_function

@@ -1,5 +1,5 @@
 /* Common subexpression elimination for GNU compiler.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -6090,6 +6090,18 @@ cse_process_notes_1 (rtx x, rtx object, bool *changed)
 	return x;
       }
 
+    case UNSIGNED_FLOAT:
+      {
+	rtx new_rtx = cse_process_notes (XEXP (x, 0), object, changed);
+	/* We don't substitute negative VOIDmode constants into these rtx,
+	   since they would impede folding.  */
+	if (GET_MODE (new_rtx) != VOIDmode
+	    || (CONST_INT_P (new_rtx) && INTVAL (new_rtx) >= 0)
+	    || (CONST_DOUBLE_P (new_rtx) && CONST_DOUBLE_HIGH (new_rtx) >= 0))
+	  validate_change (object, &XEXP (x, 0), new_rtx, 0);
+	return x;
+      }
+
     case REG:
       i = REG_QTY (REGNO (x));
 
@@ -6522,7 +6534,7 @@ cse_main (rtx f ATTRIBUTE_UNUSED, int nregs)
 {
   struct cse_basic_block_data ebb_data;
   basic_block bb;
-  int *rc_order = XNEWVEC (int, last_basic_block);
+  int *rc_order = XNEWVEC (int, last_basic_block_for_fn (cfun));
   int i, n_blocks;
 
   df_set_flags (DF_LR_RUN_DCE);
@@ -6551,7 +6563,7 @@ cse_main (rtx f ATTRIBUTE_UNUSED, int nregs)
   reg_eqv_table = XNEWVEC (struct reg_eqv_elem, nregs);
 
   /* Set up the table of already visited basic blocks.  */
-  cse_visited_basic_blocks = sbitmap_alloc (last_basic_block);
+  cse_visited_basic_blocks = sbitmap_alloc (last_basic_block_for_fn (cfun));
   bitmap_clear (cse_visited_basic_blocks);
 
   /* Loop over basic blocks in reverse completion order (RPO),
@@ -6564,7 +6576,7 @@ cse_main (rtx f ATTRIBUTE_UNUSED, int nregs)
 	 processed before.  */
       do
 	{
-	  bb = BASIC_BLOCK (rc_order[i++]);
+	  bb = BASIC_BLOCK_FOR_FN (cfun, rc_order[i++]);
 	}
       while (bitmap_bit_p (cse_visited_basic_blocks, bb->index)
 	     && i < n_blocks);
@@ -7335,7 +7347,7 @@ cse_condition_code_reg (void)
   else
     cc_reg_2 = NULL_RTX;
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       rtx last_insn;
       rtx cc_reg;

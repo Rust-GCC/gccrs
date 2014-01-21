@@ -1,5 +1,5 @@
 /* Command line option handling.
-   Copyright (C) 2002-2013 Free Software Foundation, Inc.
+   Copyright (C) 2002-2014 Free Software Foundation, Inc.
    Contributed by Neil Booth.
 
 This file is part of GCC.
@@ -454,6 +454,9 @@ static const struct default_options default_options_table[] =
     { OPT_LEVELS_1_PLUS, OPT_fcombine_stack_adjustments, NULL, 1 },
     { OPT_LEVELS_1_PLUS, OPT_fcompare_elim, NULL, 1 },
     { OPT_LEVELS_1_PLUS, OPT_ftree_slsr, NULL, 1 },
+    { OPT_LEVELS_1_PLUS_NOT_DEBUG, OPT_fbranch_count_reg, NULL, 1 },
+    { OPT_LEVELS_1_PLUS_NOT_DEBUG, OPT_fmove_loop_invariants, NULL, 1 },
+    { OPT_LEVELS_1_PLUS_NOT_DEBUG, OPT_ftree_pta, NULL, 1 },
 
     /* -O2 optimizations.  */
     { OPT_LEVELS_2_PLUS, OPT_finline_small_functions, NULL, 1 },
@@ -494,7 +497,7 @@ static const struct default_options default_options_table[] =
     { OPT_LEVELS_2_PLUS_SPEED_ONLY, OPT_foptimize_strlen, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_fhoist_adjacent_loads, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_fipa_sem_equality, NULL, 1 },
-    { OPT_LEVELS_2_PLUS, OPT_fisolate_erroneous_paths, NULL, 1 },
+    { OPT_LEVELS_2_PLUS, OPT_fisolate_erroneous_paths_dereference, NULL, 1 },
 
     /* -O3 optimizations.  */
     { OPT_LEVELS_3_PLUS, OPT_ftree_loop_distribute_patterns, NULL, 1 },
@@ -1460,6 +1463,10 @@ common_handle_option (struct gcc_options *opts,
 	      { "vla-bound", SANITIZE_VLA, sizeof "vla-bound" - 1 },
 	      { "return", SANITIZE_RETURN, sizeof "return" - 1 },
 	      { "null", SANITIZE_NULL, sizeof "null" - 1 },
+	      { "signed-integer-overflow", SANITIZE_SI_OVERFLOW,
+		sizeof "signed-integer-overflow" -1 },
+	      { "bool", SANITIZE_BOOL, sizeof "bool" - 1 },
+	      { "enum", SANITIZE_ENUM, sizeof "enum" - 1 },
 	      { NULL, 0, 0 }
 	    };
 	    const char *comma;
@@ -1708,8 +1715,10 @@ common_handle_option (struct gcc_options *opts,
 	opts->x_flag_vect_cost_model = VECT_COST_MODEL_DYNAMIC;
       if (!opts_set->x_flag_tree_loop_distribute_patterns)
 	opts->x_flag_tree_loop_distribute_patterns = value;
+      if (!opts_set->x_flag_profile_reorder_functions)
+	opts->x_flag_profile_reorder_functions = value;
       /* Indirect call profiling should do all useful transformations
- 	 speculative devirutalization does.  */
+ 	 speculative devirtualization does.  */
       if (!opts_set->x_flag_devirtualize_speculatively
 	  && opts->x_flag_value_profile_transformations)
 	opts->x_flag_devirtualize_speculatively = false;

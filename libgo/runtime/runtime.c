@@ -58,11 +58,6 @@ runtime_progname()
   return argc == 0 ? nil : argv[0];
 }
 
-// Information about what cpu features are available.
-// Set on startup in asm_{x86/amd64}.s.
-uint32 runtime_cpuid_ecx;
-uint32 runtime_cpuid_edx;
-
 void
 runtime_goargs(void)
 {
@@ -256,7 +251,7 @@ runtime_minit(void)
 	runtime_signalstack(m->gsignalstack, m->gsignalstacksize);
 	if (sigemptyset(&sigs) != 0)
 		runtime_throw("sigemptyset");
-	sigprocmask(SIG_SETMASK, &sigs, nil);
+	pthread_sigmask(SIG_SETMASK, &sigs, nil);
 }
 
 // Called from dropm to undo the effect of an minit.

@@ -1,7 +1,7 @@
 /* Definitions of target machine for GNU compiler, Lattice Mico32 architecture.
    Contributed by Jon Beniston <jon@beniston.com>
 
-   Copyright (C) 2009-2013 Free Software Foundation, Inc.
+   Copyright (C) 2009-2014 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -73,7 +73,6 @@
 #define BYTES_BIG_ENDIAN 1
 #define WORDS_BIG_ENDIAN 1
 
-#define BITS_PER_UNIT 8
 #define BITS_PER_WORD 32
 #define UNITS_PER_WORD 4
 

@@ -1,5 +1,5 @@
 /* btest.c -- Test for libbacktrace library
-   Copyright (C) 2012-2013 Free Software Foundation, Inc.
+   Copyright (C) 2012-2014 Free Software Foundation, Inc.
    Written by Ian Lance Taylor, Google.
 
 Redistribution and use in source and binary forms, with or without
@@ -129,6 +129,13 @@ check (const char *name, int index, const struct info *all, int want_lineno,
 {
   if (*failed)
     return;
+  if (all[index].filename == NULL || all[index].function == NULL)
+    {
+      fprintf (stderr, "%s: [%d]: missing file name or function name\n",
+	       name, index);
+      *failed = 1;
+      return;
+    }
   if (strcmp (base (all[index].filename), "btest.c") != 0)
     {
       fprintf (stderr, "%s: [%d]: got %s expected test.c\n", name, index,
@@ -307,6 +314,14 @@ f3 (int f1line, int f2line)
   if (i != 0)
     {
       fprintf (stderr, "test1: unexpected return value %d\n", i);
+      data.failed = 1;
+    }
+
+  if (data.index < 3)
+    {
+      fprintf (stderr,
+	       "test1: not enough frames; got %zu, expected at least 3\n",
+	       data.index);
       data.failed = 1;
     }
 

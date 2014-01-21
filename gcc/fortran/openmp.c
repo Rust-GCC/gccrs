@@ -1,5 +1,5 @@
 /* OpenMP directive matching and resolving.
-   Copyright (C) 2005-2013 Free Software Foundation, Inc.
+   Copyright (C) 2005-2014 Free Software Foundation, Inc.
    Contributed by Jakub Jelinek
 
 This file is part of GCC.
@@ -1279,7 +1279,7 @@ resolve_omp_atomic (gfc_code *code)
 	  alt_op = INTRINSIC_EQV;
 	  break;
 	default:
-	  gfc_error ("!$OMP ATOMIC assignment operator must be "
+	  gfc_error ("!$OMP ATOMIC assignment operator must be binary "
 		     "+, *, -, /, .AND., .OR., .EQV. or .NEQV. at %L",
 		     &expr2->where);
 	  return;

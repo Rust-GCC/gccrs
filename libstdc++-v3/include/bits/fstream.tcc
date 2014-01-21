@@ -1,6 +1,6 @@
 // File based streams -*- C++ -*-
 
-// Copyright (C) 1997-2013 Free Software Foundation, Inc.
+// Copyright (C) 1997-2014 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -423,7 +423,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     {
       int_type __ret = traits_type::eof();
       const bool __testeof = traits_type::eq_int_type(__c, __ret);
-      const bool __testout = _M_mode & ios_base::out;
+      const bool __testout = (_M_mode & ios_base::out
+			      || _M_mode & ios_base::app);
       if (__testout)
 	{
           if (_M_reading)
@@ -640,7 +641,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       // Optimization in the always_noconv() case, to be generalized in the
       // future: when __n is sufficiently large we write directly instead of
       // using the buffer.
-      const bool __testout = _M_mode & ios_base::out;
+      const bool __testout = (_M_mode & ios_base::out
+			      || _M_mode & ios_base::app);
       if (__check_facet(_M_codecvt).always_noconv()
  	   && __testout && !_M_reading)
 	{

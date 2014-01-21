@@ -1,5 +1,5 @@
 /* Header file for SSA loop optimizations.
-   Copyright (C) 2013 Free Software Foundation, Inc.
+   Copyright (C) 2013-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -22,14 +22,14 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Affine iv.  */
 
-typedef struct affine_iv_d
+struct affine_iv
 {
   /* Iv = BASE + STEP * i.  */
   tree base, step;
 
   /* True if this iv does not overflow.  */
   bool no_overflow;
-} affine_iv;
+};
 
 /* Description of number of iterations of a loop.  All the expressions inside
    the structure can be evaluated at the end of the loop's preheader

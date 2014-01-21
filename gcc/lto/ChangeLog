@@ -1,3 +1,37 @@
+2014-01-09  Richard Biener  <rguenther@suse.de>
+
+	* lto.c (gimple_canonical_types_compatible_p): Fix comment.
+
+2014-01-09  Richard Biener  <rguenther@suse.de>
+
+	PR lto/45586
+	* lto.c (hash_canonical_type): Do not hash TREE_ADDRESSABLE,
+	TYPE_ALIGN, TYPE_RESTRICT or TYPE_REF_CAN_ALIAS_ALL.
+	(gimple_canonical_types_compatible_p): Do not compare them either.
+
+2014-01-02  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	Update copyright years
+
+2013-12-06  Oleg Endo  <olegendo@gcc.gnu.org>
+
+	* lto.c: Remove struct tags when referring to class varpool_node.
+	* lto-partition.c: Likewise.
+	* lto-symtab.c: Likewise.
+
+2013-11-29  Jakub Jelinek  <jakub@redhat.com>
+	    Richard Biener  <rguenther@suse.de>
+
+	PR lto/59326
+	* lto.c (compare_tree_sccs_1): Handle OMP_CLAUSE.
+
+2013-11-29  Jakub Jelinek  <jakub@redhat.com>
+
+	PR lto/59326
+	* lto.c (mentions_vars_p_omp_clause): New function.
+	(mentions_vars_p): Call it for OMP_CLAUSE.  Remove break;
+	after return stmts.
+
 2013-11-22  Andrew MacLeod  <amacleod@redhat.com>
 
 	* lto.c: Add required include files from gimple.h.

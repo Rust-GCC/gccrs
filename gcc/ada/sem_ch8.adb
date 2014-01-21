@@ -2203,7 +2203,7 @@ package body Sem_Ch8 is
 
          if Is_Actual
            and then Is_Abstract_Subprogram (Formal_Spec)
-           and then Full_Expander_Active
+           and then Expander_Active
          then
             declare
                Stream_Prim : Entity_Id;
@@ -3437,13 +3437,12 @@ package body Sem_Ch8 is
       --  a list of expressions corresponding to the subprogram formals.
       --  A renaming declaration is not a freeze point, and the analysis of
       --  the attribute reference should not freeze the type of the prefix.
+      --  We use the original node in the renaming so that its source location
+      --  is preserved, and checks on stream attributes are properly applied.
 
       else
-         Attr_Node :=
-           Make_Attribute_Reference (Loc,
-             Prefix         => Prefix (Nam),
-             Attribute_Name => Aname,
-             Expressions    => Expr_List);
+         Attr_Node := Relocate_Node (Nam);
+         Set_Expressions (Attr_Node, Expr_List);
 
          Set_Must_Not_Freeze (Attr_Node);
          Set_Must_Not_Freeze (Prefix (Nam));
@@ -3459,8 +3458,8 @@ package body Sem_Ch8 is
 
          Find_Type (Result_Definition (Spec));
          Rewrite (Result_Definition (Spec),
-             New_Reference_To (
-               Base_Type (Entity (Result_Definition (Spec))), Loc));
+           New_Reference_To
+             (Base_Type (Entity (Result_Definition (Spec))), Loc));
 
          Body_Node :=
            Make_Subprogram_Body (Loc,
@@ -3522,7 +3521,12 @@ package body Sem_Ch8 is
                Find_Type (P);
             end if;
 
-            if Is_Tagged_Type (Etype (P)) then
+            --  If the target type is not yet frozen, add the body to the
+            --  actions to be elaborated at freeze time.
+
+            if Is_Tagged_Type (Etype (P))
+              and then In_Open_Scopes (Scope (Etype (P)))
+            then
                Ensure_Freeze_Node (Etype (P));
                Append_Freeze_Action (Etype (P), Body_Node);
             else
@@ -5079,7 +5083,7 @@ package body Sem_Ch8 is
 
             if Is_Object (E)
               and then Present (Renamed_Object (E))
-              and then not SPARK_Mode
+              and then not GNATprove_Mode
             then
                Generate_Reference (E, N);
 
@@ -5171,10 +5175,50 @@ package body Sem_Ch8 is
    --  the scope of its declaration.
 
    procedure Find_Expanded_Name (N : Node_Id) is
+      function In_Pragmas_Depends_Or_Global (N : Node_Id) return Boolean;
+      --  Determine whether an arbitrary node N appears in pragmas [Refined_]
+      --  Depends or [Refined_]Global.
+
+      ----------------------------------
+      -- In_Pragmas_Depends_Or_Global --
+      ----------------------------------
+
+      function In_Pragmas_Depends_Or_Global (N : Node_Id) return Boolean is
+         Par : Node_Id;
+
+      begin
+         --  Climb the parent chain looking for a pragma
+
+         Par := N;
+         while Present (Par) loop
+            if Nkind (Par) = N_Pragma
+              and then Nam_In (Pragma_Name (Par), Name_Depends,
+                                                  Name_Global,
+                                                  Name_Refined_Depends,
+                                                  Name_Refined_Global)
+            then
+               return True;
+
+            --  Prevent the search from going too far
+
+            elsif Is_Body_Or_Package_Declaration (Par) then
+               return False;
+            end if;
+
+            Par := Parent (Par);
+         end loop;
+
+         return False;
+      end In_Pragmas_Depends_Or_Global;
+
+      --  Local variables
+
       Selector  : constant Node_Id := Selector_Name (N);
       Candidate : Entity_Id        := Empty;
       P_Name    : Entity_Id;
       Id        : Entity_Id;
+
+   --  Start of processing for Find_Expanded_Name
 
    begin
       P_Name := Entity (Prefix (N));
@@ -5210,6 +5254,26 @@ package body Sem_Ch8 is
                Candidate        := Id;
                Is_New_Candidate := True;
 
+               --  Handle abstract views of states and variables. These are
+               --  acceptable only when the reference to the view appears in
+               --  pragmas [Refined_]Depends and [Refined_]Global.
+
+               if Ekind (Id) = E_Abstract_State
+                 and then From_Limited_With (Id)
+                 and then Present (Non_Limited_View (Id))
+               then
+                  if In_Pragmas_Depends_Or_Global (N) then
+                     Candidate        := Non_Limited_View (Id);
+                     Is_New_Candidate := True;
+
+                  --  Hide candidate because it is not used in a proper context
+
+                  else
+                     Candidate        := Empty;
+                     Is_New_Candidate := False;
+                  end if;
+               end if;
+
             --  Ada 2005 (AI-217): Handle shadow entities associated with types
             --  declared in limited-withed nested packages. We don't need to
             --  handle E_Incomplete_Subtype entities because the entities in
@@ -5221,9 +5285,8 @@ package body Sem_Ch8 is
             --  The non-limited view may itself be incomplete, in which case
             --  get the full view if available.
 
-            elsif From_Limited_With (Id)
-              and then Is_Type (Id)
-              and then Ekind (Id) = E_Incomplete_Type
+            elsif Ekind (Id) = E_Incomplete_Type
+              and then From_Limited_With (Id)
               and then Present (Non_Limited_View (Id))
               and then Scope (Non_Limited_View (Id)) = P_Name
             then
@@ -5528,8 +5591,7 @@ package body Sem_Ch8 is
          else
             Error_Msg_N
               ("limited withed package can only be used to access "
-               & "incomplete types",
-                N);
+               & "incomplete types", N);
          end if;
       end if;
 
@@ -7337,6 +7399,8 @@ package body Sem_Ch8 is
       Local_Suppress_Stack_Top := SST.Save_Local_Suppress_Stack_Top;
       Check_Policy_List        := SST.Save_Check_Policy_List;
       Default_Pool             := SST.Save_Default_Storage_Pool;
+      SPARK_Mode               := SST.Save_SPARK_Mode;
+      SPARK_Mode_Pragma        := SST.Save_SPARK_Mode_Pragma;
 
       if Debug_Flag_W then
          Write_Str ("<-- exiting scope: ");
@@ -7410,6 +7474,8 @@ package body Sem_Ch8 is
          SST.Save_Local_Suppress_Stack_Top := Local_Suppress_Stack_Top;
          SST.Save_Check_Policy_List        := Check_Policy_List;
          SST.Save_Default_Storage_Pool     := Default_Pool;
+         SST.Save_SPARK_Mode               := SPARK_Mode;
+         SST.Save_SPARK_Mode_Pragma        := SPARK_Mode_Pragma;
 
          if Scope_Stack.Last > Scope_Stack.First then
             SST.Component_Alignment_Default := Scope_Stack.Table

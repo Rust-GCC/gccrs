@@ -1,5 +1,5 @@
 ;;- Machine description for ARM for GNU compiler
-;;  Copyright (C) 1991-2013 Free Software Foundation, Inc.
+;;  Copyright (C) 1991-2014 Free Software Foundation, Inc.
 ;;  Contributed by Pieter `Tiggr' Schoenmakers (rcpieter@win.tue.nl)
 ;;  and Martin Simmons (@harleqn.co.uk).
 ;;  More major hacks by Richard Earnshaw (rearnsha@arm.com).
@@ -293,7 +293,7 @@
           neon_ext, neon_ext_q, neon_rbit, neon_rbit_q,\
           neon_rev, neon_rev_q, neon_mul_b, neon_mul_b_q, neon_mul_h,\
           neon_mul_h_q, neon_mul_s, neon_mul_s_q, neon_mul_b_long,\
-          neon_mul_h_long, neon_mul_s_long, neon_mul_h_scalar,\
+          neon_mul_h_long, neon_mul_s_long, neon_mul_d_long, neon_mul_h_scalar,\
           neon_mul_h_scalar_q, neon_mul_s_scalar, neon_mul_s_scalar_q,\
           neon_mul_h_scalar_long, neon_mul_s_scalar_long, neon_sat_mul_b,\
           neon_sat_mul_b_q, neon_sat_mul_h, neon_sat_mul_h_q,\
@@ -355,7 +355,9 @@
           neon_fp_mla_s_scalar, neon_fp_mla_s_scalar_q, neon_fp_mla_d,\
           neon_fp_mla_d_q, neon_fp_mla_d_scalar_q, neon_fp_sqrt_s,\
           neon_fp_sqrt_s_q, neon_fp_sqrt_d, neon_fp_sqrt_d_q,\
-          neon_fp_div_s, neon_fp_div_s_q, neon_fp_div_d, neon_fp_div_d_q")
+          neon_fp_div_s, neon_fp_div_s_q, neon_fp_div_d, neon_fp_div_d_q, crypto_aes,\
+          crypto_sha1_xor, crypto_sha1_fast, crypto_sha1_slow, crypto_sha256_fast,\
+          crypto_sha256_slow")
         (const_string "yes")
         (const_string "no")))
 
@@ -469,7 +471,7 @@
 
 (define_attr "generic_sched" "yes,no"
   (const (if_then_else
-          (ior (eq_attr "tune" "fa526,fa626,fa606te,fa626te,fmp626,fa726te,arm926ejs,arm1020e,arm1026ejs,arm1136js,arm1136jfs,cortexa5,cortexa7,cortexa8,cortexa9,cortexa15,cortexa53,cortexm4,marvell_pj4")
+          (ior (eq_attr "tune" "fa526,fa626,fa606te,fa626te,fmp626,fa726te,arm926ejs,arm1020e,arm1026ejs,arm1136js,arm1136jfs,cortexa5,cortexa7,cortexa8,cortexa9,cortexa12,cortexa15,cortexa53,cortexm4,marvell_pj4")
 	       (eq_attr "tune_cortexr4" "yes"))
           (const_string "no")
           (const_string "yes"))))
@@ -3726,7 +3728,7 @@
 	 [(match_operand:SI 1 "s_register_operand" "r")
 	  (match_operand:SI 2 "s_register_operand" "r")]))
    (clobber (reg:CC CC_REGNUM))]
-  "TARGET_32BIT && optimize_insn_for_size_p()"
+  "TARGET_32BIT && optimize_function_for_size_p (cfun)"
   "*
   operands[3] = gen_rtx_fmt_ee (minmax_code (operands[3]), SImode,
 				operands[1], operands[2]);
@@ -9927,6 +9929,23 @@
    (set_attr "type" "mov_reg")]
 )
 
+(define_insn "trap"
+  [(trap_if (const_int 1) (const_int 0))]
+  ""
+  "*
+  if (TARGET_ARM)
+    return \".inst\\t0xe7f000f0\";
+  else
+    return \".inst\\t0xdeff\";
+  "
+  [(set (attr "length")
+	(if_then_else (eq_attr "is_thumb" "yes")
+		      (const_int 2)
+		      (const_int 4)))
+   (set_attr "type" "trap")
+   (set_attr "conds" "unconditional")]
+)
+
 
 ;; Patterns to allow combination of arithmetic, cond code and shifts
 
@@ -12236,7 +12255,7 @@
     [(set (match_operand:SI 1 "s_register_operand" "+rk")
           (plus:SI (match_dup 1)
                    (match_operand:SI 2 "const_int_operand" "I")))
-     (set (match_operand:DF 3 "arm_hard_register_operand" "")
+     (set (match_operand:DF 3 "vfp_hard_register_operand" "")
           (mem:DF (match_dup 1)))])]
   "TARGET_32BIT && TARGET_HARD_FLOAT && TARGET_VFP"
   "*
@@ -12853,6 +12872,17 @@
    (set_attr "predicable" "yes")
    (set_attr "predicable_short_it" "no")])
 
+;; ARMv8 CRC32 instructions.
+(define_insn "<crc_variant>"
+  [(set (match_operand:SI 0 "s_register_operand" "=r")
+        (unspec:SI [(match_operand:SI 1 "s_register_operand" "r")
+                    (match_operand:<crc_mode> 2 "s_register_operand" "r")]
+         CRC))]
+  "TARGET_CRC32"
+  "<crc_variant>\\t%0, %1, %2"
+  [(set_attr "type" "crc")
+   (set_attr "conds" "unconditional")]
+)
 
 ;; Load the load/store double peephole optimizations.
 (include "ldrdstrd.md")
@@ -12890,6 +12920,8 @@
 (include "thumb2.md")
 ;; Neon patterns
 (include "neon.md")
+;; Crypto patterns
+(include "crypto.md")
 ;; Synchronization Primitives
 (include "sync.md")
 ;; Fixed-point patterns

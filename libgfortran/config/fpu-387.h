@@ -1,5 +1,5 @@
 /* FPU-related code for x86 and x86_64 processors.
-   Copyright (C) 2005-2013 Free Software Foundation, Inc.
+   Copyright (C) 2005-2014 Free Software Foundation, Inc.
    Contributed by Francois-Xavier Coudert <coudert@clipper.ens.fr>
 
 This file is part of the GNU Fortran 95 runtime library (libgfortran).
@@ -23,7 +23,7 @@ a copy of the GCC Runtime Library Exception along with this program;
 see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 <http://www.gnu.org/licenses/>.  */
 
-#ifndef __x86_64__
+#ifndef __SSE_MATH__
 #include "cpuid.h"
 #endif
 
@@ -50,7 +50,7 @@ sigill_hdlr (int sig __attribute((unused)),
 static int
 has_sse (void)
 {
-#ifndef __x86_64__
+#ifndef __SSE_MATH__
   unsigned int eax, ebx, ecx, edx;
 
   if (!__get_cpuid (1, &eax, &ebx, &ecx, &edx))
@@ -227,7 +227,7 @@ get_fpu_rounding_mode (void)
 {
   int round_mode;
 
-#ifdef __x86_64__
+#ifdef __SSE_MATH__
   unsigned int cw;
 
   __asm__ __volatile__ ("%vstmxcsr\t%0" : "=m" (cw));

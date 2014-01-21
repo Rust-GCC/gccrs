@@ -1,3 +1,71 @@
+2014-01-20  Jerry DeLisle  <jvdelisle@gcc.gnu>
+	    Dominique d'Humieres  <dominiq@lps.ens.fr>
+
+	* io/write_float.def (output_float): Remove inadvertent test
+	code from previous patch.
+
+2014-01-19  Jerry DeLisle  <jvdelisle@gcc.gnu>
+	    Dominique d'Humieres  <dominiq@lps.ens.fr>
+
+	PR libfortran/59771
+	PR libfortran/59774
+	PR libfortran/59836
+	* io/write_float.def (output_float): Fix wrong handling of the
+	Fw.0 format.
+	(output_float_FMT_G_): Fixes rounding issues with -m32.
+
+2014-01-11  Jerry DeLisle  <jvdelisle@gcc.gnu>
+	    Dominique d'Humieres  <dominiq@lps.ens.fr>
+	    Steven G. Kargl  <kargl@gcc.gnu.org>
+
+	PR libfortran/59700
+	PR libfortran/59764
+	* io/io.h (struct st_parameter_dt): Assign expanded_read flag to
+	unused bit. Define new variable line_buffer_pos.
+	* io/list_read.c (free_saved, next_char, l_push_char,
+	read_logical, read_real): Replace use of item_count with
+	line_buffer_pos for line_buffer look ahead.
+	(read_logical, read_integer, parse_real, read_real, check_type):
+	Adjust location of free_line to after generating error messages
+	to retain the correct item count for the message. 
+
+2014-01-02  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	Update copyright years
+
+2013-12-18  Steven G. Kargl  <kargl@gcc.gnu.org>
+
+	* io/read.c (read_f): Convert assert to runtime error.
+
+2013-12-17  Andreas Tobler  <andreast@gcc.gnu.org>
+
+	* io/unix.c (tempfile_open): Only use the needed flag O_CLOEXEC.
+
+2013-12-16  Jerry DeLisle  <jvdelisle@gcc.gnu>
+
+	PR libfortran/59419
+	* io/file_pos.c (st_rewind): Do proper return after
+	generate_error.
+	* io/open.c (edit_modes): Move action code inside block that
+	checks for library ok. (new_unit): Do cleanup after error.
+	(st_open): Do proper return after error.
+	* io/transfer.c (data_transfer_init): Likewise.
+	
+2013-12-11  Tobias Burnus  <burnus@net-b.de>
+
+	* config/fpu-387.h (sigill_hdlr, get_fpu_rounding_mode): Emit SSE
+	instructions when __SSE_MATH__ is defined.
+
+2013-12-06  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* intrinsics/erfc_scaled.c (_M_2_SQRTPI): Define if missing.
+
+2013-12-01  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR libfortran/59313
+	* intrinsics/erfc_scaled.c (erfc_scaled_r16): Also provide for
+	quadruple precision long double variant.
+
 2013-11-20  Francois-Xavier Coudert  <fxcoudert@gcc.gnu.org>
 
 	* intrinsics/erfc_scaled.c (erfc_scaled_r16): Don't define if
@@ -364,7 +432,7 @@
 	(read_character): Likewise.
 	(read_complex): Likewise.
 
-Copyright (C) 2013 Free Software Foundation, Inc.
+Copyright (C) 2013-2014 Free Software Foundation, Inc.
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright

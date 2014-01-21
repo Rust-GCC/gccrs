@@ -1,5 +1,5 @@
 /* Generate the machine mode enumeration and associated tables.
-   Copyright (C) 2003-2013 Free Software Foundation, Inc.
+   Copyright (C) 2003-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -333,7 +333,6 @@ complete_mode (struct mode_data *m)
       break;
 
     case MODE_INT:
-    case MODE_POINTER_BOUNDS:
     case MODE_FLOAT:
     case MODE_DECIMAL_FLOAT:
     case MODE_FRACT:
@@ -535,19 +534,6 @@ make_special_mode (enum mode_class cl, const char *name,
   new_mode (cl, name, file, line);
 }
 
-#define POINTER_BOUNDS_MODE(N, Y) \
-  make_pointer_bounds_mode (#N, Y, __FILE__, __LINE__)
-
-static void ATTRIBUTE_UNUSED
-make_pointer_bounds_mode (const char *name,
-			  unsigned int bytesize,
-			  const char *file, unsigned int line)
-{
-  struct mode_data *m = new_mode (MODE_POINTER_BOUNDS, name, file, line);
-  m->bytesize = bytesize;
-}
-
-
 #define INT_MODE(N, Y) FRACTIONAL_INT_MODE (N, -1U, Y)
 #define FRACTIONAL_INT_MODE(N, B, Y) \
   make_int_mode (#N, B, Y, __FILE__, __LINE__)
@@ -725,10 +711,27 @@ make_vector_mode (enum mode_class bclass,
 #define ADJUST_IBIT(M, X)  _ADD_ADJUST (ibit, M, X, ACCUM, UACCUM)
 #define ADJUST_FBIT(M, X)  _ADD_ADJUST (fbit, M, X, FRACT, UACCUM)
 
+static int bits_per_unit;
+static int max_bitsize_mode_any_int;
+
 static void
 create_modes (void)
 {
 #include "machmode.def"
+
+  /* So put the default value unless the target needs a non standard
+     value. */
+#ifdef BITS_PER_UNIT
+  bits_per_unit = BITS_PER_UNIT;
+#else
+  bits_per_unit = 8;
+#endif
+
+#ifdef MAX_BITSIZE_MODE_ANY_INT
+  max_bitsize_mode_any_int = MAX_BITSIZE_MODE_ANY_INT;
+#else
+  max_bitsize_mode_any_int = 0;
+#endif
 }
 
 /* Processing.  */
@@ -874,23 +877,31 @@ emit_max_int (void)
   int j;
 
   puts ("");
-  for (max = 1, i = modes[MODE_INT]; i; i = i->next)
-    if (max < i->bytesize)
-	max = i->bytesize;
-  mmax = max;
-  for (max = 1, i = modes[MODE_PARTIAL_INT]; i; i = i->next)
-    if (max < i->bytesize)
-	max = i->bytesize;
-  if (max > mmax)
-    mmax = max;
-  printf ("#define MAX_BITSIZE_MODE_ANY_INT %d*BITS_PER_UNIT\n", mmax);
+
+  printf ("#define BITS_PER_UNIT (%d)\n", bits_per_unit); 
+ 
+  if (max_bitsize_mode_any_int == 0)
+    {
+      for (max = 1, i = modes[MODE_INT]; i; i = i->next)
+	if (max < i->bytesize)
+	  max = i->bytesize;
+      mmax = max;
+      for (max = 1, i = modes[MODE_PARTIAL_INT]; i; i = i->next)
+	if (max < i->bytesize)
+	  max = i->bytesize;
+      if (max > mmax)
+	mmax = max;
+      printf ("#define MAX_BITSIZE_MODE_ANY_INT (%d*BITS_PER_UNIT)\n", mmax);
+    }
+  else
+    printf ("#define MAX_BITSIZE_MODE_ANY_INT %d\n", max_bitsize_mode_any_int);
 
   mmax = 0;
   for (j = 0; j < MAX_MODE_CLASS; j++)
     for (i = modes[j]; i; i = i->next)
       if (mmax < i->bytesize)
 	mmax = i->bytesize;
-  printf ("#define MAX_BITSIZE_MODE_ANY_MODE %d*BITS_PER_UNIT\n", mmax);
+  printf ("#define MAX_BITSIZE_MODE_ANY_MODE (%d*BITS_PER_UNIT)\n", mmax);
 }
 
 static void

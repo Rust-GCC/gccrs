@@ -1,5 +1,5 @@
 /* Definitions for C++ parsing and type checking.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com)
 
 This file is part of GCC.
@@ -65,6 +65,7 @@ c-common.h, not after.
       TARGET_EXPR_IMPLICIT_P (in TARGET_EXPR)
       TEMPLATE_PARM_PARAMETER_PACK (in TEMPLATE_PARM_INDEX)
       ATTR_IS_DEPENDENT (in the TREE_LIST for an attribute)
+      ABI_TAG_IMPLICIT (in the TREE_LIST for the argument of abi_tag)
       CONSTRUCTOR_IS_DIRECT_INIT (in CONSTRUCTOR)
       LAMBDA_EXPR_CAPTURES_THIS_P (in LAMBDA_EXPR)
       DECLTYPE_FOR_LAMBDA_CAPTURE (in DECLTYPE_TYPE)
@@ -2588,6 +2589,10 @@ struct GTY((variable_size)) lang_decl {
 /* In a TREE_LIST in an attribute list, indicates that the attribute
    must be applied at instantiation time.  */
 #define ATTR_IS_DEPENDENT(NODE) TREE_LANG_FLAG_0 (TREE_LIST_CHECK (NODE))
+
+/* In a TREE_LIST in the argument of attribute abi_tag, indicates that the tag
+   was inherited from a template parameter, not explicitly indicated.  */
+#define ABI_TAG_IMPLICIT(NODE) TREE_LANG_FLAG_0 (TREE_LIST_CHECK (NODE))
 
 extern tree decl_shadowed_for_var_lookup (tree);
 extern void decl_shadowed_for_var_insert (tree, tree);
@@ -5356,6 +5361,7 @@ extern tree begin_eh_spec_block			(void);
 extern void finish_eh_spec_block		(tree, tree);
 extern tree build_eh_type_type			(tree);
 extern tree cp_protect_cleanup_actions		(void);
+extern tree create_try_catch_expr               (tree, tree);
 
 /* in expr.c */
 extern tree cplus_expand_constant		(tree);
@@ -5743,7 +5749,7 @@ extern tree finish_stmt_expr_expr		(tree, tree);
 extern tree finish_stmt_expr			(tree, bool);
 extern tree stmt_expr_value_expr		(tree);
 bool empty_expr_stmt_p				(tree);
-extern tree perform_koenig_lookup		(tree, vec<tree, va_gc> *, bool,
+extern tree perform_koenig_lookup		(tree, vec<tree, va_gc> *,
 						 tsubst_flags_t);
 extern tree finish_call_expr			(tree, vec<tree, va_gc> **, bool,
 						 bool, tsubst_flags_t);
@@ -6185,6 +6191,9 @@ extern bool cpp_validate_cilk_plus_loop		(tree);
 extern tree expand_array_notation_exprs         (tree);
 bool cilkplus_an_triplet_types_ok_p             (location_t, tree, tree, tree,
 						 tree);
+/* In c-family/cilk.c */
+extern bool cilk_valid_spawn                    (tree);
+
 /* -- end of C++ */
 
 #endif /* ! GCC_CP_TREE_H */

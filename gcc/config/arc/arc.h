@@ -1,6 +1,5 @@
 /* Definitions of target machine for GNU compiler, Synopsys DesignWare ARC cpu.
-   Copyright (C) 1994, 1995, 1997, 1998, 2007-2013
-   Free Software Foundation, Inc.
+   Copyright (C) 1994-2014 Free Software Foundation, Inc.
 
    Sources derived from work done by Sankhya Technologies (www.sankhya.com) on
    behalf of Synopsys Inc.
@@ -302,9 +301,6 @@ along with GCC; see the file COPYING3.  If not see
 /* Define this if most significant word of a multiword number is the lowest
    numbered.  */
 #define WORDS_BIG_ENDIAN (TARGET_BIG_ENDIAN)
-
-/* Number of bits in an addressable storage unit.  */
-#define BITS_PER_UNIT 8
 
 /* Width in bits of a "word", which is the contents of a machine register.
    Note that this is not necessarily the width of data type `int';

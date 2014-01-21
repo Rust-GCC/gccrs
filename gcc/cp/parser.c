@@ -1,5 +1,5 @@
 /* C++ Parser.
-   Copyright (C) 2000-2013 Free Software Foundation, Inc.
+   Copyright (C) 2000-2014 Free Software Foundation, Inc.
    Written by Mark Mitchell <mark@codesourcery.com>.
 
    This file is part of GCC.
@@ -3925,6 +3925,9 @@ cp_parser_userdef_numeric_literal (cp_parser *parser)
   release_tree_vector (args);
 
   error ("unable to find numeric literal operator %qD", name);
+  if (!cpp_get_options (parse_in)->ext_numeric_literals)
+    inform (token->location, "use -std=gnu++11 or -fext-numeric-literals "
+	    "to enable more built-in suffixes");
   return error_mark_node;
 }
 
@@ -5627,6 +5630,7 @@ cp_parser_postfix_expression (cp_parser *parser, bool address_p, bool cast_p,
   cp_id_kind idk = CP_ID_KIND_NONE;
   tree postfix_expression = NULL_TREE;
   bool is_member_access = false;
+  int saved_in_statement = -1;
 
   /* Peek at the next token.  */
   token = cp_lexer_peek_token (parser->lexer);
@@ -5769,6 +5773,72 @@ cp_parser_postfix_expression (cp_parser *parser, bool address_p, bool cast_p,
 						    /*is_declaration=*/false);
 	postfix_expression = cp_parser_functional_cast (parser, type);
       }
+      break;
+
+    case RID_CILK_SPAWN:
+      {
+	cp_lexer_consume_token (parser->lexer);
+	token = cp_lexer_peek_token (parser->lexer);
+	if (token->type == CPP_SEMICOLON)
+	  {
+	    error_at (token->location, "%<_Cilk_spawn%> must be followed by "
+		      "an expression");
+	    postfix_expression = error_mark_node;
+	    break;
+	  }
+	else if (!current_function_decl)
+	  {
+	    error_at (token->location, "%<_Cilk_spawn%> may only be used "
+		      "inside a function");
+	    postfix_expression = error_mark_node;
+	    break;
+	  }
+	else
+	  {
+	    /* Consecutive _Cilk_spawns are not allowed in a statement.  */
+	    saved_in_statement = parser->in_statement;
+	    parser->in_statement |= IN_CILK_SPAWN;
+	  }
+	cfun->calls_cilk_spawn = 1;
+	postfix_expression = 
+	  cp_parser_postfix_expression (parser, false, false, 
+					false, false, &idk);
+	if (!flag_enable_cilkplus)
+	  {
+	    error_at (token->location, "-fcilkplus must be enabled to use"
+		      " %<_Cilk_spawn%>");
+	    cfun->calls_cilk_spawn = 0;
+	  }
+	else if (saved_in_statement & IN_CILK_SPAWN)
+	  {
+	    error_at (token->location, "consecutive %<_Cilk_spawn%> keywords "
+		      "are not permitted");
+	    postfix_expression = error_mark_node;
+	    cfun->calls_cilk_spawn = 0; 
+	  }
+	else
+	  {
+	    postfix_expression = build_cilk_spawn (token->location, 
+						   postfix_expression);
+	    if (postfix_expression != error_mark_node) 
+	      SET_EXPR_LOCATION (postfix_expression, input_location);
+	    parser->in_statement = parser->in_statement & ~IN_CILK_SPAWN;
+	  }
+	break;
+      }
+      
+    case RID_CILK_SYNC:
+      if (flag_enable_cilkplus)
+	{ 
+	  tree sync_expr = build_cilk_sync ();
+	  SET_EXPR_LOCATION (sync_expr, 
+			     cp_lexer_peek_token (parser->lexer)->location);
+	  finish_expr_stmt (sync_expr);
+	}
+      else
+	error_at (token->location, "-fcilkplus must be enabled to use" 
+		  " %<_Cilk_sync%>");
+      cp_lexer_consume_token (parser->lexer);
       break;
 
     case RID_BUILTIN_SHUFFLE:
@@ -6012,7 +6082,6 @@ cp_parser_postfix_expression (cp_parser *parser, bool address_p, bool cast_p,
 			if (!any_type_dependent_arguments_p (args))
 			  postfix_expression
 			    = perform_koenig_lookup (postfix_expression, args,
-						     /*include_std=*/false,
 						     complain);
 		      }
 		    else
@@ -6038,7 +6107,6 @@ cp_parser_postfix_expression (cp_parser *parser, bool address_p, bool cast_p,
 			if (!any_type_dependent_arguments_p (args))
 			  postfix_expression
 			    = perform_koenig_lookup (postfix_expression, args,
-						     /*include_std=*/false,
 						     complain);
 		      }
 		  }
@@ -8676,6 +8744,8 @@ cp_parser_lambda_expression (cp_parser* parser)
         = parser->fully_implicit_function_template_p;
     tree implicit_template_parms = parser->implicit_template_parms;
     cp_binding_level* implicit_template_scope = parser->implicit_template_scope;
+    bool auto_is_implicit_function_template_parm_p
+        = parser->auto_is_implicit_function_template_parm_p;
 
     parser->num_template_parameter_lists = 0;
     parser->in_statement = 0;
@@ -8683,6 +8753,7 @@ cp_parser_lambda_expression (cp_parser* parser)
     parser->fully_implicit_function_template_p = false;
     parser->implicit_template_parms = 0;
     parser->implicit_template_scope = 0;
+    parser->auto_is_implicit_function_template_parm_p = false;
 
     /* By virtue of defining a local class, a lambda expression has access to
        the private variables of enclosing classes.  */
@@ -8710,6 +8781,8 @@ cp_parser_lambda_expression (cp_parser* parser)
 	= fully_implicit_function_template_p;
     parser->implicit_template_parms = implicit_template_parms;
     parser->implicit_template_scope = implicit_template_scope;
+    parser->auto_is_implicit_function_template_parm_p
+	= auto_is_implicit_function_template_parm_p;
   }
 
   pop_deferring_access_checks ();
@@ -8837,6 +8910,11 @@ cp_parser_lambda_introducer (cp_parser* parser, tree lambda_expr)
 	  capture_init_expr = cp_parser_initializer (parser, &direct,
 						     &non_constant);
 	  explicit_init_p = true;
+	  if (capture_init_expr == NULL_TREE)
+	    {
+	      error ("empty initializer for lambda init-capture");
+	      capture_init_expr = error_mark_node;
+	    }
 	}
       else
 	{
@@ -10287,12 +10365,10 @@ cp_parser_perform_range_for_lookup (tree range, tree *begin, tree *end)
 	  vec_safe_push (vec, range);
 
 	  member_begin = perform_koenig_lookup (id_begin, vec,
-						/*include_std=*/true,
 						tf_warning_or_error);
 	  *begin = finish_call_expr (member_begin, &vec, false, true,
 				     tf_warning_or_error);
 	  member_end = perform_koenig_lookup (id_end, vec,
-					      /*include_std=*/true,
 					      tf_warning_or_error);
 	  *end = finish_call_expr (member_end, &vec, false, true,
 				   tf_warning_or_error);
@@ -12912,20 +12988,21 @@ cp_parser_template_parameter (cp_parser* parser, bool *is_non_type,
      = cp_parser_parameter_declaration (parser, /*template_parm_p=*/true,
 					/*parenthesized_p=*/NULL);
 
+  if (!parameter_declarator)
+    return error_mark_node;
+
   /* If the parameter declaration is marked as a parameter pack, set
      *IS_PARAMETER_PACK to notify the caller. Also, unmark the
      declarator's PACK_EXPANSION_P, otherwise we'll get errors from
      grokdeclarator. */
-  if (parameter_declarator
-      && parameter_declarator->declarator
+  if (parameter_declarator->declarator
       && parameter_declarator->declarator->parameter_pack_p)
     {
       *is_parameter_pack = true;
       parameter_declarator->declarator->parameter_pack_p = false;
     }
 
-  if (parameter_declarator
-      && parameter_declarator->default_argument)
+  if (parameter_declarator->default_argument)
     {
       /* Can happen in some cases of erroneous input (c++/34892).  */
       if (cp_lexer_next_token_is (parser->lexer, CPP_ELLIPSIS))
@@ -12949,8 +13026,7 @@ cp_parser_template_parameter (cp_parser* parser, bool *is_non_type,
   /* We might end up with a pack expansion as the type of the non-type
      template parameter, in which case this is a non-type template
      parameter pack.  */
-  else if (parameter_declarator
-	   && parameter_declarator->decl_specifiers.type
+  else if (parameter_declarator->decl_specifiers.type
 	   && PACK_EXPANSION_P (parameter_declarator->decl_specifiers.type))
     {
       *is_parameter_pack = true;
@@ -16709,6 +16785,15 @@ cp_parser_init_declarator (cp_parser* parser,
     if (cp_parser_attributes_opt (parser))
       warning (OPT_Wattributes,
 	       "attributes after parenthesized initializer ignored");
+
+  /* A non-template declaration involving a function parameter list containing
+     an implicit template parameter will have been made into a template.  If it
+     turns out that the resulting declaration is not an actual function then
+     finish the template declaration here.  An error message will already have
+     been issued.  */
+  if (parser->fully_implicit_function_template_p)
+    if (!function_declarator_p (declarator))
+      finish_fully_implicit_template (parser, /*member_decl_opt=*/0);
 
   /* For an in-class declaration, use `grokfield' to create the
      declaration.  */
@@ -24513,7 +24598,7 @@ cp_parser_cache_defarg (cp_parser *parser, bool nsdmi)
 	case CPP_CLOSE_SQUARE:
 	  if (depth == 0
 	      /* Handle correctly int n = sizeof ... ( p );  */
-	      && !(nsdmi && token->type == CPP_ELLIPSIS))
+	      && token->type != CPP_ELLIPSIS)
 	    done = true;
 	  /* Update DEPTH, if necessary.  */
 	  else if (token->type == CPP_CLOSE_PAREN
@@ -29451,12 +29536,16 @@ cp_parser_omp_sections (cp_parser *parser, cp_token *pragma_tok,
 }
 
 /* OpenMP 2.5:
-   # pragma parallel parallel-clause new-line
-   # pragma parallel for parallel-for-clause new-line
-   # pragma parallel sections parallel-sections-clause new-line
+   # pragma omp parallel parallel-clause[optseq] new-line
+     structured-block
+   # pragma omp parallel for parallel-for-clause[optseq] new-line
+     structured-block
+   # pragma omp parallel sections parallel-sections-clause[optseq] new-line
+     structured-block
 
    OpenMP 4.0:
-   # pragma parallel for simd parallel-for-simd-clause new-line */
+   # pragma omp parallel for simd parallel-for-simd-clause[optseq] new-line
+     structured-block */
 
 #define OMP_PARALLEL_CLAUSE_MASK				\
 	( (OMP_CLAUSE_MASK_1 << PRAGMA_OMP_CLAUSE_IF)		\
@@ -29968,10 +30057,10 @@ cp_parser_omp_target (cp_parser *parser, cp_token *pragma_tok,
 
 	  cp_lexer_consume_token (parser->lexer);
 	  strcpy (p_name, "#pragma omp target");
-	  keep_next_level (true);
 	  if (!flag_openmp)  /* flag_openmp_simd  */
 	    return cp_parser_omp_teams (parser, pragma_tok, p_name,
 					OMP_TARGET_CLAUSE_MASK, cclauses);
+	  keep_next_level (true);
 	  tree sb = begin_omp_structured_block ();
 	  unsigned save = cp_parser_begin_omp_structured_block (parser);
 	  tree ret = cp_parser_omp_teams (parser, pragma_tok, p_name,
@@ -31413,10 +31502,10 @@ cp_parser_cilk_simd_linear (cp_parser *parser, tree clauses)
    token is not consumed.  Otherwise, the appropriate enum from the
    pragma_simd_clause is returned and the token is consumed.  */
 
-static pragma_cilk_clause
+static pragma_omp_clause
 cp_parser_cilk_simd_clause_name (cp_parser *parser)
 {
-  pragma_cilk_clause clause_type;
+  pragma_omp_clause clause_type;
   cp_token *token = cp_lexer_peek_token (parser->lexer);
 
   if (token->keyword == RID_PRIVATE)
@@ -31450,7 +31539,7 @@ cp_parser_cilk_simd_all_clauses (cp_parser *parser, cp_token *pragma_token)
   while (cp_lexer_next_token_is_not (parser->lexer, CPP_PRAGMA_EOL)
 	 && clauses != error_mark_node)
     {
-      pragma_cilk_clause c_kind;
+      pragma_omp_clause c_kind;
       c_kind = cp_parser_cilk_simd_clause_name (parser);
       if (c_kind == PRAGMA_CILK_CLAUSE_VECTORLENGTH)
 	clauses = cp_parser_cilk_simd_vectorlength (parser, clauses);

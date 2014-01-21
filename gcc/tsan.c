@@ -1,5 +1,5 @@
 /* GCC instrumentation plugin for ThreadSanitizer.
-   Copyright (C) 2011-2013 Free Software Foundation, Inc.
+   Copyright (C) 2011-2014 Free Software Foundation, Inc.
    Contributed by Dmitry Vyukov <dvyukov@google.com>
 
 This file is part of GCC.
@@ -121,7 +121,7 @@ instrument_expr (gimple_stmt_iterator gsi, tree expr, bool is_write)
   enum machine_mode mode;
   int volatilep = 0, unsignedp = 0;
   base = get_inner_reference (expr, &bitsize, &bitpos, &offset,
-			      &mode, &unsignedp, &volatilep);
+			      &mode, &unsignedp, &volatilep, false);
 
   /* No need to instrument accesses to decls that don't escape,
      they can't escape to other threads then.  */
@@ -609,7 +609,7 @@ instrument_gimple (gimple_stmt_iterator *gsi)
       && (gimple_call_fndecl (stmt)
 	  != builtin_decl_implicit (BUILT_IN_TSAN_INIT)))
     {
-      if (is_gimple_builtin_call (stmt))
+      if (gimple_call_builtin_p (stmt, BUILT_IN_NORMAL))
 	instrument_builtin_call (gsi);
       return true;
     }
@@ -640,7 +640,7 @@ instrument_memory_accesses (void)
   gimple_stmt_iterator gsi;
   bool fentry_exit_instrument = false;
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
       fentry_exit_instrument |= instrument_gimple (&gsi);
   return fentry_exit_instrument;

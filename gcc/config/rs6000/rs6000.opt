@@ -1,6 +1,6 @@
 ; Options for the rs6000 port of the compiler
 ;
-; Copyright (C) 2005-2013 Free Software Foundation, Inc.
+; Copyright (C) 2005-2014 Free Software Foundation, Inc.
 ; Contributed by Aldy Hernandez <aldy@quesejoda.com>.
 ;
 ; This file is part of GCC.
@@ -139,6 +139,14 @@ Use extended PowerPC V2.05 move floating point to/from GPR instructions
 maltivec
 Target Report Mask(ALTIVEC) Var(rs6000_isa_flags)
 Use AltiVec instructions
+
+maltivec=le
+Target Report RejectNegative Var(rs6000_altivec_element_order, 1) Save
+Generate Altivec instructions using little-endian element order
+
+maltivec=be
+Target Report RejectNegative Var(rs6000_altivec_element_order, 2)
+Generate Altivec instructions using big-endian element order
 
 mhard-dfp
 Target Report Mask(DFP) Var(rs6000_isa_flags)

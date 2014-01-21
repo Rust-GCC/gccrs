@@ -1,5 +1,5 @@
 /* Output Dwarf2 format symbol table information from GCC.
-   Copyright (C) 1992-2013 Free Software Foundation, Inc.
+   Copyright (C) 1992-2014 Free Software Foundation, Inc.
    Contributed by Gary Funck (gary@intrepid.com).
    Derived from DWARF 1 implementation of Ron Guilmette (rfg@monkeys.com).
    Extensively modified by Jason Merrill (jason@cygnus.com).
@@ -2308,10 +2308,10 @@ output_loc_sequence_raw (dw_loc_descr_ref loc)
    dw_cfa_location, adding the given OFFSET to the result of the
    expression.  */
 
-struct dw_loc_descr_struct *
+struct dw_loc_descr_node *
 build_cfa_loc (dw_cfa_location *cfa, HOST_WIDE_INT offset)
 {
-  struct dw_loc_descr_struct *head, *tmp;
+  struct dw_loc_descr_node *head, *tmp;
 
   offset += cfa->offset;
 
@@ -2338,11 +2338,11 @@ build_cfa_loc (dw_cfa_location *cfa, HOST_WIDE_INT offset)
    the address at OFFSET from the CFA when stack is aligned to
    ALIGNMENT byte.  */
 
-struct dw_loc_descr_struct *
+struct dw_loc_descr_node *
 build_cfa_aligned_loc (dw_cfa_location *cfa,
 		       HOST_WIDE_INT offset, HOST_WIDE_INT alignment)
 {
-  struct dw_loc_descr_struct *head;
+  struct dw_loc_descr_node *head;
   unsigned int dwarf_fp
     = DWARF_FRAME_REGNUM (HARD_FRAME_POINTER_REGNUM);
 
@@ -3185,6 +3185,7 @@ static inline int is_redundant_typedef (const_tree);
 static bool is_naming_typedef_decl (const_tree);
 static inline dw_die_ref get_context_die (tree);
 static void gen_namespace_die (tree, dw_die_ref);
+static dw_die_ref gen_namelist_decl (tree, dw_die_ref, tree);
 static dw_die_ref gen_decl_die (tree, tree, dw_die_ref);
 static dw_die_ref force_decl_die (tree);
 static dw_die_ref force_type_die (tree);
@@ -9293,7 +9294,7 @@ output_pubnames (vec<pubname_entry, va_gc> *names)
 	      if (type_node != NULL)
 	        die_offset = (type_node->skeleton_die != NULL
 			      ? type_node->skeleton_die->die_offset
-			      : 0);
+			      : comp_unit_die ()->die_offset);
 	    }
 
           output_pubname (die_offset, pub);
@@ -13934,7 +13935,7 @@ loc_list_for_address_of_addr_expr_of_indirect_ref (tree loc, bool toplev)
 
   obj = get_inner_reference (TREE_OPERAND (loc, 0),
 			     &bitsize, &bitpos, &offset, &mode,
-			     &unsignedp, &volatilep);
+			     &unsignedp, &volatilep, false);
   STRIP_NOPS (obj);
   if (bitpos % BITS_PER_UNIT)
     {
@@ -14211,7 +14212,7 @@ loc_list_from_tree (tree loc, int want_address)
 	int unsignedp, volatilep = 0;
 
 	obj = get_inner_reference (loc, &bitsize, &bitpos, &offset, &mode,
-				   &unsignedp, &volatilep);
+				   &unsignedp, &volatilep, false);
 
 	gcc_assert (obj != loc);
 
@@ -15147,7 +15148,7 @@ reference_to_unused (tree * tp, int * walk_subtrees,
     return *tp;
   else if (TREE_CODE (*tp) == VAR_DECL)
     {
-      struct varpool_node *node = varpool_get_node (*tp);
+      varpool_node *node = varpool_get_node (*tp);
       if (!node || !node->definition)
 	return *tp;
     }
@@ -15521,7 +15522,7 @@ fortran_common (tree decl, HOST_WIDE_INT *value)
     return NULL_TREE;
 
   cvar = get_inner_reference (val_expr, &bitsize, &bitpos, &offset,
-			      &mode, &unsignedp, &volatilep);
+			      &mode, &unsignedp, &volatilep, true);
 
   if (cvar == NULL_TREE
       || TREE_CODE (cvar) != VAR_DECL
@@ -17827,7 +17828,7 @@ premark_types_used_by_global_vars_helper (void **slot,
     {
       /* Ask cgraph if the global variable really is to be emitted.
          If yes, then we'll keep the DIE of ENTRY->TYPE.  */
-      struct varpool_node *node = varpool_get_node (entry->var_decl);
+      varpool_node *node = varpool_get_node (entry->var_decl);
       if (node && node->definition)
 	{
 	  die->die_perennial_p = 1;
@@ -18289,7 +18290,7 @@ gen_subprogram_die (tree decl, dw_die_ref context_die)
 	    gen_formal_parameter_pack_die (generic_decl_parm,
 					   parm, subr_die,
 					   &parm);
-	  else if (parm && !POINTER_BOUNDS_P (parm))
+	  else if (parm)
 	    {
 	      dw_die_ref parm_die = gen_decl_die (parm, NULL, subr_die);
 
@@ -18301,8 +18302,6 @@ gen_subprogram_die (tree decl, dw_die_ref context_die)
 
 	      parm = DECL_CHAIN (parm);
 	    }
-	  else if (parm)
-	    parm = DECL_CHAIN (parm);
 
 	  if (generic_decl_parm)
 	    generic_decl_parm = DECL_CHAIN (generic_decl_parm);
@@ -19800,7 +19799,6 @@ gen_type_die_with_usage (tree type, dw_die_ref context_die,
     case FIXED_POINT_TYPE:
     case COMPLEX_TYPE:
     case BOOLEAN_TYPE:
-    case POINTER_BOUNDS_TYPE:
       /* No DIEs needed for fundamental types.  */
       break;
 
@@ -20432,6 +20430,11 @@ gen_decl_die (tree decl, tree origin, dw_die_ref context_die)
 	gen_namespace_die (decl, context_die);
       break;
 
+    case NAMELIST_DECL:
+      gen_namelist_decl (DECL_NAME (decl), context_die,
+			 NAMELIST_DECL_ASSOCIATED_DECL (decl));
+      break;
+
     default:
       /* Probably some frontend-internal decl.  Assume we don't care.  */
       gcc_assert ((int)TREE_CODE (decl) > NUM_TREE_CODES);
@@ -20451,8 +20454,7 @@ dwarf2out_global_decl (tree decl)
      declarations, file-scope (extern) function declarations (which
      had no corresponding body) and file-scope tagged type declarations
      and definitions which have not yet been forced out.  */
-  if ((TREE_CODE (decl) != FUNCTION_DECL || !DECL_INITIAL (decl))
-      && !POINTER_BOUNDS_P (decl))
+  if (TREE_CODE (decl) != FUNCTION_DECL || !DECL_INITIAL (decl))
     dwarf2out_decl (decl);
 }
 
@@ -20522,7 +20524,12 @@ dwarf2out_imported_module_or_decl_1 (tree decl,
 	      gen_type_die_for_member (type, decl,
 				       get_context_die (TYPE_CONTEXT (type)));
 	    }
-	  at_import_die = force_decl_die (decl);
+	  if (TREE_CODE (decl) == NAMELIST_DECL)
+	    at_import_die = gen_namelist_decl (DECL_NAME (decl),
+					 get_context_die (DECL_CONTEXT (decl)),
+					 NULL_TREE);
+	  else
+	    at_import_die = force_decl_die (decl);
 	}
     }
 
@@ -20593,6 +20600,43 @@ dwarf2out_imported_module_or_decl (tree decl, tree name, tree context,
   dwarf2out_imported_module_or_decl_1 (decl, name, context, scope_die);
 
 }
+
+/* Output debug information for namelists.   */
+
+static dw_die_ref
+gen_namelist_decl (tree name, dw_die_ref scope_die, tree item_decls)
+{
+  dw_die_ref nml_die, nml_item_die, nml_item_ref_die;
+  tree value;
+  unsigned i;
+
+  if (debug_info_level <= DINFO_LEVEL_TERSE)
+    return NULL;
+
+  gcc_assert (scope_die != NULL);
+  nml_die = new_die (DW_TAG_namelist, scope_die, NULL);
+  add_AT_string (nml_die, DW_AT_name, IDENTIFIER_POINTER (name));
+
+  /* If there are no item_decls, we have a nondefining namelist, e.g.
+     with USE association; hence, set DW_AT_declaration.  */
+  if (item_decls == NULL_TREE)
+    {
+      add_AT_flag (nml_die, DW_AT_declaration, 1);
+      return nml_die;
+    }
+
+  FOR_EACH_CONSTRUCTOR_VALUE (CONSTRUCTOR_ELTS (item_decls), i, value)
+    {
+      nml_item_ref_die = lookup_decl_die (value);
+      if (!nml_item_ref_die)
+	nml_item_ref_die = force_decl_die (value);
+
+      nml_item_die = new_die (DW_TAG_namelist_item, nml_die, NULL);
+      add_AT_die_ref (nml_item_die, DW_AT_namelist_items, nml_item_ref_die);
+    }
+  return nml_die;
+}
+
 
 /* Write the debugging output for DECL.  */
 
@@ -20712,6 +20756,9 @@ dwarf2out_decl (tree decl)
       if (decl_function_context (decl))
 	context_die = NULL;
 
+      break;
+
+    case NAMELIST_DECL:
       break;
 
     default:

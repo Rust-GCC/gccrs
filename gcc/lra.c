@@ -1,5 +1,5 @@
 /* LRA (local register allocator) driver and LRA utilities.
-   Copyright (C) 2010-2013 Free Software Foundation, Inc.
+   Copyright (C) 2010-2014 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov <vmakarov@redhat.com>.
 
 This file is part of GCC.
@@ -207,7 +207,8 @@ lra_set_regno_unique_value (int regno)
   lra_reg_info[regno].val = get_new_reg_value ();
 }
 
-/* Invalidate INSN related info used by LRA.  */
+/* Invalidate INSN related info used by LRA.  The info should never be
+   used after that.  */
 void
 lra_invalidate_insn_data (rtx insn)
 {
@@ -1071,9 +1072,16 @@ lra_set_insn_recog_data (rtx insn)
       nop = asm_noperands (PATTERN (insn));
       data->operand_loc = data->dup_loc = NULL;
       if (nop < 0)
-	/* Its is a special insn like USE or CLOBBER.  */
-	data->insn_static_data = insn_static_data
-	  = get_static_insn_data (-1, 0, 0, 1);
+	{
+	  /* Its is a special insn like USE or CLOBBER.  We should
+	     recognize any regular insn otherwise LRA can do nothing
+	     with this insn.  */
+	  gcc_assert (GET_CODE (PATTERN (insn)) == USE
+		      || GET_CODE (PATTERN (insn)) == CLOBBER
+		      || GET_CODE (PATTERN (insn)) == ASM_INPUT);
+	  data->insn_static_data = insn_static_data
+	    = get_static_insn_data (-1, 0, 0, 1);
+	}
       else
 	{
 	  /* expand_asm_operands makes sure there aren't too many
@@ -1273,17 +1281,24 @@ lra_update_insn_recog_data (rtx insn)
   int n;
   unsigned int uid = INSN_UID (insn);
   struct lra_static_insn_data *insn_static_data;
+  HOST_WIDE_INT sp_offset = 0;
 
   check_and_expand_insn_recog_data (uid);
   if ((data = lra_insn_recog_data[uid]) != NULL
       && data->icode != INSN_CODE (insn))
     {
+      sp_offset = data->sp_offset;
       invalidate_insn_data_regno_info (data, insn, get_insn_freq (insn));
       invalidate_insn_recog_data (uid);
       data = NULL;
     }
   if (data == NULL)
-    return lra_get_insn_recog_data (insn);
+    {
+      data = lra_get_insn_recog_data (insn);
+      /* Initiate or restore SP offset.  */
+      data->sp_offset = sp_offset;
+      return data;
+    }
   insn_static_data = data->insn_static_data;
   data->used_insn_alternative = -1;
   if (DEBUG_INSN_P (insn))
@@ -1837,6 +1852,20 @@ push_insns (rtx from, rtx to)
       lra_push_insn (insn);
 }
 
+/* Set up sp offset for insn in range [FROM, LAST].  The offset is
+   taken from the next BB insn after LAST or zero if there in such
+   insn.  */
+static void
+setup_sp_offset (rtx from, rtx last)
+{
+  rtx before = next_nonnote_insn_bb (last);
+  HOST_WIDE_INT offset = (before == NULL_RTX || ! INSN_P (before)
+			  ? 0 : lra_get_insn_recog_data (before)->sp_offset);
+
+  for (rtx insn = from; insn != NEXT_INSN (last); insn = NEXT_INSN (insn))
+    lra_get_insn_recog_data (insn)->sp_offset = offset;
+}
+
 /* Emit insns BEFORE before INSN and insns AFTER after INSN.  Put the
    insns onto the stack.  Print about emitting the insns with
    TITLE.  */
@@ -1845,7 +1874,9 @@ lra_process_new_insns (rtx insn, rtx before, rtx after, const char *title)
 {
   rtx last;
 
-  if (lra_dump_file != NULL && (before != NULL_RTX || after != NULL_RTX))
+  if (before == NULL_RTX && after == NULL_RTX)
+    return;
+  if (lra_dump_file != NULL)
     {
       dump_insn_slim (lra_dump_file, insn);
       if (before != NULL_RTX)
@@ -1864,6 +1895,7 @@ lra_process_new_insns (rtx insn, rtx before, rtx after, const char *title)
     {
       emit_insn_before (before, insn);
       push_insns (PREV_INSN (insn), PREV_INSN (before));
+      setup_sp_offset (before, PREV_INSN (insn));
     }
   if (after != NULL_RTX)
     {
@@ -1871,6 +1903,7 @@ lra_process_new_insns (rtx insn, rtx before, rtx after, const char *title)
 	;
       emit_insn_after (after, insn);
       push_insns (last, insn);
+      setup_sp_offset (after, last);
     }
 }
 
@@ -1934,7 +1967,7 @@ remove_scratches (void)
   scratches.create (get_max_uid ());
   bitmap_initialize (&scratch_bitmap, &reg_obstack);
   bitmap_initialize (&scratch_operand_bitmap, &reg_obstack);
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     FOR_BB_INSNS (bb, insn)
     if (INSN_P (insn))
       {
@@ -2023,7 +2056,7 @@ check_rtl (bool final_p)
   rtx insn;
 
   lra_assert (! final_p || reload_completed);
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     FOR_BB_INSNS (bb, insn)
     if (NONDEBUG_INSN_P (insn)
 	&& GET_CODE (PATTERN (insn)) != USE
@@ -2040,8 +2073,9 @@ check_rtl (bool final_p)
 	   correctly decomposed.  LRA can generate reloads for
 	   decomposable addresses.  The decomposition code checks the
 	   correctness of the addresses.  So we don't need to check
-	   the addresses here.  */
-	if (insn_invalid_p (insn, false))
+	   the addresses here.  Don't call insn_invalid_p here, it can
+	   change the code at this stage.  */
+	if (recog_memoized (insn) < 0 && asm_noperands (PATTERN (insn)) < 0)
 	  fatal_insn_not_found (insn);
       }
 }
@@ -2063,7 +2097,7 @@ has_nonexceptional_receiver (void)
   /* First determine which blocks can reach exit via normal paths.  */
   tos = worklist = XNEWVEC (basic_block, n_basic_blocks_for_fn (cfun) + 1);
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     bb->flags &= ~BB_REACHABLE;
 
   /* Place the exit block on our worklist.  */
@@ -2138,7 +2172,7 @@ update_inc_notes (void)
   basic_block bb;
   rtx insn;
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     FOR_BB_INSNS (bb, insn)
     if (NONDEBUG_INSN_P (insn))
       {
@@ -2240,13 +2274,12 @@ lra (FILE *f)
 
   init_insn_recog_data ();
 
-  /* We can not set up reload_in_progress because it prevents new
-     pseudo creation.  */
-  lra_in_progress = 1;
-
 #ifdef ENABLE_CHECKING
+  /* Some quick check on RTL generated by previous passes.  */
   check_rtl (false);
 #endif
+
+  lra_in_progress = 1;
 
   lra_live_range_iter = lra_coalesce_iter = 0;
   lra_constraint_iter = lra_constraint_iter_after_spill = 0;
@@ -2295,6 +2328,7 @@ lra (FILE *f)
        may be a part of the offset computation for register
        elimination.  */
     assign_stack_local (BLKmode, 0, crtl->stack_alignment_needed);
+  lra_init_equiv ();
   for (;;)
     {
       for (;;)
@@ -2314,7 +2348,7 @@ lra (FILE *f)
 	     For example, rs6000 can make
 	     RS6000_PIC_OFFSET_TABLE_REGNUM uneliminable if we started
 	     to use a constant pool.  */
-	  lra_eliminate (false);
+	  lra_eliminate (false, false);
 	  /* Do inheritance only for regular algorithms.  */
 	  if (! lra_simple_p)
 	    lra_inheritance ();
@@ -2368,13 +2402,13 @@ lra (FILE *f)
       lra_spill ();
       /* Assignment of stack slots changes elimination offsets for
 	 some eliminations.  So update the offsets here.  */
-      lra_eliminate (false);
+      lra_eliminate (false, false);
       lra_constraint_new_regno_start = max_reg_num ();
       lra_constraint_new_insn_uid_start = get_max_uid ();
       lra_constraint_iter_after_spill = 0;
     }
   restore_scratches ();
-  lra_eliminate (true);
+  lra_eliminate (true, false);
   lra_final_code_change ();
   lra_in_progress = 0;
   if (live_p)
@@ -2396,7 +2430,7 @@ lra (FILE *f)
   if (cfun->can_throw_non_call_exceptions)
     {
       sbitmap blocks;
-      blocks = sbitmap_alloc (last_basic_block);
+      blocks = sbitmap_alloc (last_basic_block_for_fn (cfun));
       bitmap_ones (blocks);
       find_many_sub_basic_blocks (blocks);
       sbitmap_free (blocks);

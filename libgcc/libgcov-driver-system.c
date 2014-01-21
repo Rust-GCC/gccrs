@@ -1,6 +1,6 @@
 /* Routines required for instrumenting a program.  */
 /* Compile this one with gcc.  */
-/* Copyright (C) 1989-2013 Free Software Foundation, Inc.
+/* Copyright (C) 1989-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -124,7 +124,7 @@ allocate_filename_struct (struct gcov_filename_aux *gf)
       prefix_length = 1;
     }
   /* Allocate and initialize the filename scratch space plus one.  */
-  gi_filename = (char *) malloc (prefix_length + gcov_max_filename + 2);
+  gi_filename = (char *) xmalloc (prefix_length + gcov_max_filename + 2);
   if (prefix_length)
     memcpy (gi_filename, gcov_prefix, prefix_length);
   gi_filename_up = gi_filename + prefix_length;

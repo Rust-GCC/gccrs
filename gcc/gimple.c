@@ -1,6 +1,6 @@
 /* Gimple IR support functions.
 
-   Copyright (C) 2007-2013 Free Software Foundation, Inc.
+   Copyright (C) 2007-2014 Free Software Foundation, Inc.
    Contributed by Aldy Hernandez <aldyh@redhat.com>
 
 This file is part of GCC.
@@ -180,7 +180,7 @@ gimple_build_with_ops_stat (enum gimple_code code, unsigned subcode,
 gimple
 gimple_build_return (tree retval)
 {
-  gimple s = gimple_build_with_ops (GIMPLE_RETURN, ERROR_MARK, 2);
+  gimple s = gimple_build_with_ops (GIMPLE_RETURN, ERROR_MARK, 1);
   if (retval)
     gimple_return_set_retval (s, retval);
   return s;
@@ -701,8 +701,8 @@ gimple_build_wce (gimple_seq cleanup)
 gimple
 gimple_build_resx (int region)
 {
-  gimple_statement_eh_ctrl *p =
-    as_a <gimple_statement_eh_ctrl> (
+  gimple_statement_resx *p =
+    as_a <gimple_statement_resx> (
       gimple_build_with_ops (GIMPLE_RESX, ERROR_MARK, 0));
   p->region = region;
   return p;
@@ -751,8 +751,8 @@ gimple_build_switch (tree index, tree default_label, vec<tree> args)
 gimple
 gimple_build_eh_dispatch (int region)
 {
-  gimple_statement_eh_ctrl *p =
-    as_a <gimple_statement_eh_ctrl> (
+  gimple_statement_eh_dispatch *p =
+    as_a <gimple_statement_eh_dispatch> (
       gimple_build_with_ops (GIMPLE_EH_DISPATCH, ERROR_MARK, 0));
   p->region = region;
   return p;
@@ -1475,17 +1475,19 @@ gimple_set_bb (gimple stmt, basic_block bb)
       uid = LABEL_DECL_UID (t);
       if (uid == -1)
 	{
-	  unsigned old_len = vec_safe_length (label_to_block_map);
+	  unsigned old_len =
+	    vec_safe_length (label_to_block_map_for_fn (cfun));
 	  LABEL_DECL_UID (t) = uid = cfun->cfg->last_label_uid++;
 	  if (old_len <= (unsigned) uid)
 	    {
 	      unsigned new_len = 3 * uid / 2 + 1;
 
-	      vec_safe_grow_cleared (label_to_block_map, new_len);
+	      vec_safe_grow_cleared (label_to_block_map_for_fn (cfun),
+				     new_len);
 	    }
 	}
 
-      (*label_to_block_map)[uid] = bb;
+      (*label_to_block_map_for_fn (cfun))[uid] = bb;
     }
 }
 
@@ -2324,8 +2326,7 @@ gimple_get_alias_set (tree t)
 /* Helper for gimple_ior_addresses_taken_1.  */
 
 static bool
-gimple_ior_addresses_taken_1 (gimple stmt ATTRIBUTE_UNUSED,
-			      tree addr, void *data)
+gimple_ior_addresses_taken_1 (gimple, tree addr, tree, void *data)
 {
   bitmap addresses_taken = (bitmap)data;
   addr = get_base_address (addr);
@@ -2350,27 +2351,37 @@ gimple_ior_addresses_taken (bitmap addresses_taken, gimple stmt)
 }
 
 
-/* Return TRUE iff stmt is a call to a built-in function.  */
-
-bool
-is_gimple_builtin_call (gimple stmt)
-{
-  tree callee;
-
-  if (is_gimple_call (stmt)
-      && (callee = gimple_call_fndecl (stmt))
-      && is_builtin_fn (callee)
-      && DECL_BUILT_IN_CLASS (callee) == BUILT_IN_NORMAL)
-    return true;
-
-  return false;
-}
-
-/* Return true when STMTs arguments match those of FNDECL.  */
+/* Return true if TYPE1 and TYPE2 are compatible enough for builtin
+   processing.  */
 
 static bool
-validate_call (gimple stmt, tree fndecl)
+validate_type (tree type1, tree type2)
 {
+  if (INTEGRAL_TYPE_P (type1)
+      && INTEGRAL_TYPE_P (type2))
+    ;
+  else if (POINTER_TYPE_P (type1)
+	   && POINTER_TYPE_P (type2))
+    ;
+  else if (TREE_CODE (type1)
+	   != TREE_CODE (type2))
+    return false;
+  return true;
+}
+
+/* Return true when STMTs arguments and return value match those of FNDECL,
+   a decl of a builtin function.  */
+
+bool
+gimple_builtin_call_types_compatible_p (gimple stmt, tree fndecl)
+{
+  gcc_checking_assert (DECL_BUILT_IN_CLASS (fndecl) != NOT_BUILT_IN);
+
+  tree ret = gimple_call_lhs (stmt);
+  if (ret
+      && !validate_type (TREE_TYPE (ret), TREE_TYPE (TREE_TYPE (fndecl))))
+    return false;
+
   tree targs = TYPE_ARG_TYPES (TREE_TYPE (fndecl));
   unsigned nargs = gimple_call_num_args (stmt);
   for (unsigned i = 0; i < nargs; ++i)
@@ -2379,20 +2390,26 @@ validate_call (gimple stmt, tree fndecl)
       if (!targs)
 	return true;
       tree arg = gimple_call_arg (stmt, i);
-      if (INTEGRAL_TYPE_P (TREE_TYPE (arg))
-	  && INTEGRAL_TYPE_P (TREE_VALUE (targs)))
-	;
-      else if (POINTER_TYPE_P (TREE_TYPE (arg))
-	       && POINTER_TYPE_P (TREE_VALUE (targs)))
-	;
-      else if (TREE_CODE (TREE_TYPE (arg))
-	       != TREE_CODE (TREE_VALUE (targs)))
+      if (!validate_type (TREE_TYPE (arg), TREE_VALUE (targs)))
 	return false;
       targs = TREE_CHAIN (targs);
     }
   if (targs && !VOID_TYPE_P (TREE_VALUE (targs)))
     return false;
   return true;
+}
+
+/* Return true when STMT is builtins call.  */
+
+bool
+gimple_call_builtin_p (gimple stmt)
+{
+  tree fndecl;
+  if (is_gimple_call (stmt)
+      && (fndecl = gimple_call_fndecl (stmt)) != NULL_TREE
+      && DECL_BUILT_IN_CLASS (fndecl) != NOT_BUILT_IN)
+    return gimple_builtin_call_types_compatible_p (stmt, fndecl);
+  return false;
 }
 
 /* Return true when STMT is builtins call to CLASS.  */
@@ -2404,7 +2421,7 @@ gimple_call_builtin_p (gimple stmt, enum built_in_class klass)
   if (is_gimple_call (stmt)
       && (fndecl = gimple_call_fndecl (stmt)) != NULL_TREE
       && DECL_BUILT_IN_CLASS (fndecl) == klass)
-    return validate_call (stmt, fndecl);
+    return gimple_builtin_call_types_compatible_p (stmt, fndecl);
   return false;
 }
 
@@ -2418,7 +2435,7 @@ gimple_call_builtin_p (gimple stmt, enum built_in_function code)
       && (fndecl = gimple_call_fndecl (stmt)) != NULL_TREE
       && DECL_BUILT_IN_CLASS (fndecl) == BUILT_IN_NORMAL 
       && DECL_FUNCTION_CODE (fndecl) == code)
-    return validate_call (stmt, fndecl);
+    return gimple_builtin_call_types_compatible_p (stmt, fndecl);
   return false;
 }
 
@@ -2494,7 +2511,7 @@ nonfreeing_call_p (gimple call)
    This routine only makes a superficial check for a dereference.  Thus
    it must only be used if it is safe to return a false negative.  */
 static bool
-check_loadstore (gimple stmt ATTRIBUTE_UNUSED, tree op, void *data)
+check_loadstore (gimple, tree op, tree, void *data)
 {
   if ((TREE_CODE (op) == MEM_REF || TREE_CODE (op) == TARGET_MEM_REF)
       && operand_equal_p (TREE_OPERAND (op, 0), (tree)data, 0))
@@ -2502,10 +2519,16 @@ check_loadstore (gimple stmt ATTRIBUTE_UNUSED, tree op, void *data)
   return false;
 }
 
-/* If OP can be inferred to be non-zero after STMT executes, return true.  */
+/* If OP can be inferred to be non-NULL after STMT executes, return true.
+
+   DEREFERENCE is TRUE if we can use a pointer dereference to infer a
+   non-NULL range, FALSE otherwise.
+
+   ATTRIBUTE is TRUE if we can use attributes to infer a non-NULL range
+   for function arguments and return values.  FALSE otherwise.  */
 
 bool
-infer_nonnull_range (gimple stmt, tree op)
+infer_nonnull_range (gimple stmt, tree op, bool dereference, bool attribute)
 {
   /* We can only assume that a pointer dereference will yield
      non-NULL if -fdelete-null-pointer-checks is enabled.  */
@@ -2514,11 +2537,13 @@ infer_nonnull_range (gimple stmt, tree op)
       || gimple_code (stmt) == GIMPLE_ASM)
     return false;
 
-  if (walk_stmt_load_store_ops (stmt, (void *)op,
-				check_loadstore, check_loadstore))
+  if (dereference
+      && walk_stmt_load_store_ops (stmt, (void *)op,
+				   check_loadstore, check_loadstore))
     return true;
 
-  if (is_gimple_call (stmt) && !gimple_call_internal_p (stmt))
+  if (attribute
+      && is_gimple_call (stmt) && !gimple_call_internal_p (stmt))
     {
       tree fntype = gimple_call_fntype (stmt);
       tree attrs = TYPE_ATTRIBUTES (fntype);
@@ -2557,7 +2582,8 @@ infer_nonnull_range (gimple stmt, tree op)
 
   /* If this function is marked as returning non-null, then we can
      infer OP is non-null if it is used in the return statement.  */
-  if (gimple_code (stmt) == GIMPLE_RETURN
+  if (attribute
+      && gimple_code (stmt) == GIMPLE_RETURN
       && gimple_return_retval (stmt)
       && operand_equal_p (gimple_return_retval (stmt), op, 0)
       && lookup_attribute ("returns_nonnull",

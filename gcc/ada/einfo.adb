@@ -214,7 +214,6 @@ package body Einfo is
    --    Stored_Constraint               Elist23
 
    --    Related_Expression              Node24
-   --    Contract                        Node24
 
    --    Interface_Alias                 Node25
    --    Interfaces                      Elist25
@@ -248,11 +247,11 @@ package body Einfo is
 
    --    Thunk_Entity                    Node31
 
-   --    SPARK_Mode_Pragmas              Node32
+   --    SPARK_Pragma                    Node32
 
-   --    (unused)                        Node33
+   --    SPARK_Aux_Pragma                Node33
 
-   --    (unused)                        Node34
+   --    Contract                        Node34
 
    --    (unused)                        Node35
 
@@ -264,8 +263,6 @@ package body Einfo is
    --  present in every entity. However, for many of the flags, it only makes
    --  sense for them to be set true for certain subsets of entity kinds. See
    --  the spec of Einfo for further details.
-
-   --  Note: Flag1-Flag3 are not used, for historical reasons
 
    --    Is_Frozen                       Flag4
    --    Has_Discriminants               Flag5
@@ -554,9 +551,13 @@ package body Einfo is
    --    May_Inherit_Delayed_Rep_Aspects Flag262
    --    Has_Visible_Refinement          Flag263
    --    Has_Body_References             Flag264
+   --    SPARK_Pragma_Inherited          Flag265
+   --    SPARK_Aux_Pragma_Inherited      Flag266
 
-   --    (unused)                        Flag265
-   --    (unused)                        Flag266
+   --    (unused)                        Flag1
+   --    (unused)                        Flag2
+   --    (unused)                        Flag3
+
    --    (unused)                        Flag267
    --    (unused)                        Flag268
    --    (unused)                        Flag269
@@ -1079,10 +1080,11 @@ package body Einfo is
                        E_Generic_Package,
                        E_Package,
                        E_Package_Body,
-                       E_Subprogram_Body)
+                       E_Subprogram_Body,
+                       E_Variable)
           or else Is_Generic_Subprogram (Id)
           or else Is_Subprogram (Id));
-      return Node24 (Id);
+      return Node34 (Id);
    end Contract;
 
    function Entry_Parameters_Type (Id : E) return E is
@@ -1927,7 +1929,6 @@ package body Einfo is
 
    function Is_Descendent_Of_Address (Id : E) return B is
    begin
-      pragma Assert (Is_Type (Id));
       return Flag223 (Id);
    end Is_Descendent_Of_Address;
 
@@ -2497,7 +2498,8 @@ package body Einfo is
 
    function Non_Limited_View (Id : E) return E is
    begin
-      pragma Assert (Ekind (Id) in Incomplete_Kind);
+      pragma Assert
+        (Ekind (Id) in Incomplete_Kind or else Ekind (Id) = E_Abstract_State);
       return Node17 (Id);
    end Non_Limited_View;
 
@@ -2835,7 +2837,25 @@ package body Einfo is
       return Ureal21 (Id);
    end Small_Value;
 
-   function SPARK_Mode_Pragmas (Id : E) return N is
+   function SPARK_Aux_Pragma (Id : E) return N is
+   begin
+      pragma Assert
+        (Ekind_In (Id, E_Generic_Package,  --  package variants
+                       E_Package,
+                       E_Package_Body));
+      return Node33 (Id);
+   end SPARK_Aux_Pragma;
+
+   function SPARK_Aux_Pragma_Inherited (Id : E) return B is
+   begin
+      pragma Assert
+        (Ekind_In (Id, E_Generic_Package,  --  package variants
+                       E_Package,
+                       E_Package_Body));
+      return Flag266 (Id);
+   end SPARK_Aux_Pragma_Inherited;
+
+   function SPARK_Pragma (Id : E) return N is
    begin
       pragma Assert
         (Ekind_In (Id, E_Function,         --  subprogram variants
@@ -2848,7 +2868,22 @@ package body Einfo is
                        E_Package,
                        E_Package_Body));
       return Node32 (Id);
-   end SPARK_Mode_Pragmas;
+   end SPARK_Pragma;
+
+   function SPARK_Pragma_Inherited (Id : E) return B is
+   begin
+      pragma Assert
+        (Ekind_In (Id, E_Function,         --  subprogram variants
+                       E_Generic_Function,
+                       E_Generic_Procedure,
+                       E_Procedure,
+                       E_Subprogram_Body)
+           or else
+         Ekind_In (Id, E_Generic_Package,  --  package variants
+                       E_Package,
+                       E_Package_Body));
+      return Flag265 (Id);
+   end SPARK_Pragma_Inherited;
 
    function Spec_Entity (Id : E) return E is
    begin
@@ -3694,10 +3729,11 @@ package body Einfo is
                        E_Package,
                        E_Package_Body,
                        E_Subprogram_Body,
+                       E_Variable,
                        E_Void)
           or else Is_Generic_Subprogram (Id)
           or else Is_Subprogram (Id));
-      Set_Node24 (Id, V);
+      Set_Node34 (Id, V);
    end Set_Contract;
 
    procedure Set_Entry_Parameters_Type (Id : E; V : E) is
@@ -3865,7 +3901,8 @@ package body Einfo is
 
    procedure Set_From_Limited_With (Id : E; V : B := True) is
    begin
-      pragma Assert (Is_Type (Id) or else Ekind (Id) = E_Package);
+      pragma Assert
+        (Is_Type (Id) or else Ekind_In (Id, E_Abstract_State, E_Package));
       Set_Flag159 (Id, V);
    end Set_From_Limited_With;
 
@@ -5172,7 +5209,8 @@ package body Einfo is
 
    procedure Set_Non_Limited_View (Id : E; V : E) is
    begin
-      pragma Assert (Ekind (Id) in Incomplete_Kind);
+      pragma Assert
+        (Ekind (Id) in Incomplete_Kind or else Ekind (Id) = E_Abstract_State);
       Set_Node17 (Id, V);
    end Set_Non_Limited_View;
 
@@ -5525,7 +5563,27 @@ package body Einfo is
       Set_Ureal21 (Id, V);
    end Set_Small_Value;
 
-   procedure Set_SPARK_Mode_Pragmas (Id : E; V : N) is
+   procedure Set_SPARK_Aux_Pragma (Id : E; V : N) is
+   begin
+      pragma Assert
+        (Ekind_In (Id, E_Generic_Package,  --  package variants
+                       E_Package,
+                       E_Package_Body));
+
+      Set_Node33 (Id, V);
+   end Set_SPARK_Aux_Pragma;
+
+   procedure Set_SPARK_Aux_Pragma_Inherited (Id : E; V : B := True) is
+   begin
+      pragma Assert
+        (Ekind_In (Id, E_Generic_Package,  --  package variants
+                       E_Package,
+                       E_Package_Body));
+
+      Set_Flag266 (Id, V);
+   end Set_SPARK_Aux_Pragma_Inherited;
+
+   procedure Set_SPARK_Pragma (Id : E; V : N) is
    begin
       pragma Assert
         (Ekind_In (Id, E_Function,         --  subprogram variants
@@ -5539,7 +5597,23 @@ package body Einfo is
                        E_Package_Body));
 
       Set_Node32 (Id, V);
-   end Set_SPARK_Mode_Pragmas;
+   end Set_SPARK_Pragma;
+
+   procedure Set_SPARK_Pragma_Inherited (Id : E; V : B := True) is
+   begin
+      pragma Assert
+        (Ekind_In (Id, E_Function,         --  subprogram variants
+                       E_Generic_Function,
+                       E_Generic_Procedure,
+                       E_Procedure,
+                       E_Subprogram_Body)
+           or else
+         Ekind_In (Id, E_Generic_Package,  --  package variants
+                       E_Package,
+                       E_Package_Body));
+
+      Set_Flag265 (Id, V);
+   end Set_SPARK_Pragma_Inherited;
 
    procedure Set_Spec_Entity (Id : E; V : E) is
    begin
@@ -6324,7 +6398,11 @@ package body Einfo is
    function Get_Pragma (E : Entity_Id; Id : Pragma_Id) return Node_Id is
       Is_CDG  : constant Boolean :=
                   Id = Pragma_Abstract_State    or else
+                  Id = Pragma_Async_Readers     or else
+                  Id = Pragma_Async_Writers     or else
                   Id = Pragma_Depends           or else
+                  Id = Pragma_Effective_Reads   or else
+                  Id = Pragma_Effective_Writes  or else
                   Id = Pragma_Global            or else
                   Id = Pragma_Initial_Condition or else
                   Id = Pragma_Initializes       or else
@@ -8225,6 +8303,8 @@ package body Einfo is
       W ("Sec_Stack_Needed_For_Return",     Flag167 (Id));
       W ("Size_Depends_On_Discriminant",    Flag177 (Id));
       W ("Size_Known_At_Compile_Time",      Flag92  (Id));
+      W ("SPARK_Aux_Pragma_Inherited",      Flag266 (Id));
+      W ("SPARK_Pragma_Inherited",          Flag265 (Id));
       W ("Static_Elaboration_Desired",      Flag77  (Id));
       W ("Strict_Alignment",                Flag145 (Id));
       W ("Suppress_Elaboration_Warnings",   Flag148 (Id));
@@ -8787,7 +8867,8 @@ package body Einfo is
          when Modular_Integer_Kind                         =>
             Write_Str ("Modulus");
 
-         when E_Incomplete_Type                            =>
+         when E_Abstract_State                             |
+              E_Incomplete_Type                            =>
             Write_Str ("Non_Limited_View");
 
          when E_Incomplete_Subtype                         =>
@@ -9142,16 +9223,6 @@ package body Einfo is
               Type_Kind                                    =>
             Write_Str ("Related_Expression");
 
-         when E_Entry                                      |
-              E_Entry_Family                               |
-              E_Generic_Package                            |
-              E_Package                                    |
-              E_Package_Body                               |
-              E_Subprogram_Body                            |
-              Generic_Subprogram_Kind                      |
-              Subprogram_Kind                              =>
-            Write_Str ("Contract");
-
          when others                                       =>
             Write_Str ("Field24???");
       end case;
@@ -9363,7 +9434,7 @@ package body Einfo is
               E_Package_Body                               |
               E_Procedure                                  |
               E_Subprogram_Body                            =>
-            Write_Str ("SPARK_Mode_Pragmas");
+            Write_Str ("SPARK_Pragma");
 
          when others                                       =>
             Write_Str ("Field32??");
@@ -9377,6 +9448,11 @@ package body Einfo is
    procedure Write_Field33_Name (Id : Entity_Id) is
    begin
       case Ekind (Id) is
+         when E_Generic_Package                            |
+              E_Package                                    |
+              E_Package_Body                               =>
+            Write_Str ("SPARK_Aux_Pragma");
+
          when others                                       =>
             Write_Str ("Field33??");
       end case;
@@ -9389,6 +9465,17 @@ package body Einfo is
    procedure Write_Field34_Name (Id : Entity_Id) is
    begin
       case Ekind (Id) is
+         when E_Entry                                      |
+              E_Entry_Family                               |
+              E_Generic_Package                            |
+              E_Package                                    |
+              E_Package_Body                               |
+              E_Subprogram_Body                            |
+              E_Variable                                   |
+              Generic_Subprogram_Kind                      |
+              Subprogram_Kind                              =>
+            Write_Str ("Contract");
+
          when others                                       =>
             Write_Str ("Field34??");
       end case;

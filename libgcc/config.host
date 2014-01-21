@@ -1,5 +1,5 @@
 # libgcc host-specific configuration file.
-# Copyright (C) 1997-2013 Free Software Foundation, Inc.
+# Copyright (C) 1997-2014 Free Software Foundation, Inc.
 
 #This file is part of GCC.
 
@@ -145,6 +145,9 @@ mips*-*-*)
 	;;
 nds32*-*)
 	cpu_type=nds32
+	;;
+nios2*-*-*)
+	cpu_type=nios2
 	;;
 powerpc*-*-*)
 	cpu_type=rs6000
@@ -348,10 +351,10 @@ arm*-*-linux*)			# ARM GNU/Linux with ELF
 	;;
 arm*-*-uclinux*)		# ARM ucLinux
 	tmake_file="${tmake_file} t-fixedpoint-gnu-prefix"
+	tmake_file="$tmake_file arm/t-arm arm/t-elf t-softfp-sfdf t-softfp-excl arm/t-softfp t-softfp"
 	tmake_file="${tmake_file} arm/t-bpabi"
 	tm_file="$tm_file arm/bpabi-lib.h"
 	unwind_header=config/arm/unwind-arm.h
-	tmake_file="$tmake_file arm/t-arm arm/t-elf t-softfp-sfdf t-softfp-excl arm/t-softfp t-softfp"
 	extra_parts="$extra_parts crti.o crtn.o"
 	;;
 arm*-*-eabi* | arm*-*-symbianelf* | arm*-*-rtems*)
@@ -754,6 +757,10 @@ microblaze*-*-elf)
 	tmake_file="${tmake_file} microblaze/t-microblaze t-fdpbit"
 	extra_parts="$extra_parts crtbeginS.o crtendS.o crtbeginT.o crti.o crtn.o"
 	;;
+microblaze*-*-rtems*)
+	tmake_file="${tmake_file} microblaze/t-microblaze t-fdpbit"
+	extra_parts="$extra_parts crtbeginS.o crtendS.o crtbeginT.o crti.o crtn.o"
+	;;
 mips*-*-netbsd*)			# NetBSD/mips, either endian.
 	;;
 mips*-*-linux*)				# Linux MIPS, either endian.
@@ -875,6 +882,15 @@ nds32*-elf*)
 		exit 1
 		;;
 	esac
+	;;
+nios2-*-linux*)
+	tmake_file="$tmake_file nios2/t-nios2 nios2/t-linux t-libgcc-pic t-slibgcc-libgcc"
+	extra_parts="$extra_parts crti.o crtn.o"
+	md_unwind_header=nios2/linux-unwind.h
+	;;
+nios2-*-*)
+	tmake_file="$tmake_file nios2/t-nios2 t-softfp-sfdf t-softfp-excl t-softfp"
+	extra_parts="$extra_parts crti.o crtn.o"
 	;;
 pdp11-*-*)
 	tmake_file="pdp11/t-pdp11 t-fdpbit"
@@ -1177,7 +1193,7 @@ xtensa*-*-elf*)
 	extra_parts="$extra_parts crti.o crtn.o"
 	;;
 xtensa*-*-linux*)
-	tmake_file="$tmake_file xtensa/t-xtensa xtensa/t-linux"
+	tmake_file="$tmake_file xtensa/t-xtensa xtensa/t-linux t-slibgcc-libgcc"
 	md_unwind_header=xtensa/linux-unwind.h
 	;;
 am33_2.0-*-linux*)

@@ -1,5 +1,5 @@
 /* SCC value numbering for trees
-   Copyright (C) 2006-2013 Free Software Foundation, Inc.
+   Copyright (C) 2006-2014 Free Software Foundation, Inc.
    Contributed by Daniel Berlin <dan@dberlin.org>
 
 This file is part of GCC.
@@ -2792,7 +2792,7 @@ visit_reference_op_call (tree lhs, gimple stmt)
 
   if (vnresult)
     {
-      if (vnresult->result_vdef)
+      if (vnresult->result_vdef && vdef)
 	changed |= set_ssa_val_to (vdef, vnresult->result_vdef);
 
       if (!vnresult->result && lhs)
@@ -3984,7 +3984,7 @@ init_scc_vn (void)
 
   shared_lookup_phiargs.create (0);
   shared_lookup_references.create (0);
-  rpo_numbers = XNEWVEC (int, last_basic_block);
+  rpo_numbers = XNEWVEC (int, last_basic_block_for_fn (cfun));
   rpo_numbers_temp =
     XNEWVEC (int, n_basic_blocks_for_fn (cfun) - NUM_FIXED_BLOCKS);
   pre_and_rev_post_order_compute (NULL, rpo_numbers_temp, false);

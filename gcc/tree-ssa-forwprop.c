@@ -1,5 +1,5 @@
 /* Forward propagation of expressions for single use variables.
-   Copyright (C) 2004-2013 Free Software Foundation, Inc.
+   Copyright (C) 2004-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -3386,7 +3386,7 @@ ssa_forward_propagate_and_combine (void)
 
   cfg_changed = false;
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       gimple_stmt_iterator gsi;
 

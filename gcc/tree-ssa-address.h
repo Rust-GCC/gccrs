@@ -1,5 +1,5 @@
 /* Header file for memory address lowering and mode selection.
-   Copyright (C) 2013 Free Software Foundation, Inc.
+   Copyright (C) 2013-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -25,7 +25,7 @@ extern rtx addr_for_mem_ref (tree exp, addr_space_t as, bool really_expand);
 extern void get_address_description (tree, struct mem_address *);
 extern tree tree_mem_ref_addr (tree, tree);
 tree create_mem_ref (gimple_stmt_iterator *, tree,
-		     struct affine_tree_combination *, tree, tree, tree, bool);
+		     struct aff_tree *, tree, tree, tree, bool);
 extern void copy_ref_info (tree, tree);
 tree maybe_fold_tmr (tree);
 

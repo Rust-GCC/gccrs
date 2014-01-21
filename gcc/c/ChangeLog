@@ -1,3 +1,130 @@
+2014-01-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/58943
+	* c-typeck.c (build_modify_expr): For lhs op= rhs, if rhs has side
+	effects, preevaluate rhs using SAVE_EXPR first.
+
+2014-01-09  Balaji V. Iyer  <balaji.v.iyer@intel.com>
+
+	PR c++/59631
+	* c-parser.c (c_parser_postfix_expression): Replaced consecutive if
+	statements with if-elseif statements.
+
+2014-01-06  Marek Polacek  <polacek@redhat.com>
+
+	PR c/57773
+	* c-decl.c (check_bitfield_type_and_width): Warn for implementation
+	defined bit-field types only in ISO C.
+
+2014-01-02  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	Update copyright years
+
+2014-01-02  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* c-array-notation.c: Use the standard form for the copyright notice.
+
+2013-12-18  Balaji V. Iyer  <balaji.v.iyer@intel.com>
+
+	* c-parser.c (struct c_parser::cilk_simd_fn_tokens): Added new field.
+	(c_parser_declaration_or_fndef): Added a check if cilk_simd_fn_tokens
+	field in parser is not empty.  If not-empty, call the function
+	c_parser_finish_omp_declare_simd.
+	(c_parser_cilk_clause_vectorlength): Modified function to be shared
+	between SIMD-enabled functions and #pragma simd.  Added new parameter.
+	(c_parser_cilk_all_clauses): Modified the usage of the function
+	c_parser_cilk_clause_vectorlength as mentioned above.
+	(c_parser_cilk_simd_fn_vector_attrs): New function.
+	(c_finish_cilk_simd_fn_tokens): Likewise.
+	(is_cilkplus_vector_p): Likewise.
+	(c_parser_omp_clause_name): Added checking for "vectorlength,"
+	"nomask," and "mask" strings in clause name.
+	(c_parser_omp_all_clauses): Added 3 new case statements:
+	PRAGMA_CILK_CLAUSE_VECTORLENGTH, PRAGMA_CILK_CLAUSE_MASK and
+	PRAGMA_CILK_CLAUSE_NOMASK.
+	(c_parser_attributes): Added a cilk_simd_fn_tokens parameter.  Added a
+	check for vector attribute and if so call the function
+	c_parser_cilk_simd_fn_vector_attrs.  Also, when Cilk plus is enabled,
+	called the function c_finish_cilk_simd_fn_tokens.
+	(c_finish_omp_declare_simd): Added a check if cilk_simd_fn_tokens in
+	parser field is non-empty.  If so, parse them as you would parse
+	the omp declare simd pragma.
+	(c_parser_omp_clause_linear): Added a new bool parm. is_cilk_simd_fn.
+	Added a check when step is a parameter and flag it as error.
+	(CILK_SIMD_FN_CLAUSE_MASK): New #define.
+	(c_parser_cilk_clause_name): Changed pragma_cilk_clause to
+	pragma_omp_clause.
+
+2013-12-17  Thomas Schwinge  <thomas@codesourcery.com>
+
+	* c-parser.c (c_parser_omp_parallel): Fix description.
+
+2013-12-11  Balaji V. Iyer  <balaji.v.iyer@intel.com>
+
+	* c-objc-common.h (LANG_HOOKS_CILKPLUS_FRAME_CLEANUP): Remove.
+	(LANG_HOOKS_CILKPLUS_DETECT_SPAWN_AND_UNWRAP): Likewise.
+	(LANG_HOOKS_CILKPLUS_CILKPLUS_GIMPLIFY_SPAWN): Likewise.
+	* c-typeck.c (cilk_install_body_with_frame_cleanup): New function.
+
+2013-12-04  Joseph Myers  <joseph@codesourcery.com>
+
+	PR c/52023
+	* c-parser.c (c_parser_alignas_specifier): Use
+	c_sizeof_or_alignof_type instead of c_alignof.
+	(c_parser_alignof_expression): Likewise, with min_alignof
+	parameter depending on alignof spelling used.
+
+2013-12-04  Marek Polacek  <polacek@redhat.com>
+
+	PR c/54113
+	* c-decl.c (start_function): Don't warn for missing prototype for
+	inline functions.
+
+2013-12-03  Marek Polacek  <polacek@redhat.com>
+
+	PR c/59351
+	* c-decl.c (build_compound_literal): Allow compound literals with
+	empty initial value.
+
+2013-12-02  Joseph Myers  <joseph@codesourcery.com>
+
+	PR c/58235
+	* c-typeck.c (build_modify_expr): Diagnose assignment to
+	expression with array type.
+
+2013-11-29  Joseph Myers  <joseph@codesourcery.com>
+
+	PR c/42262
+	* c-typeck.c (process_init_element): Do not treat a string as
+	initializing a whole array when used with a designator for an
+	individual element.
+
+2013-11-29  Joseph Myers  <joseph@codesourcery.com>
+
+	PR c/57574
+	* c-decl.c (merge_decls): Clear DECL_EXTERNAL for a definition of
+	an inline function following a static declaration.
+
+2013-11-28  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/59310
+	* c-parser.c (c_parser_omp_target): Copy "#pragma omp target"
+	to p_name before calling c_parser_omp_teams instead of after.
+	(c_parser_cilk_simd): Remove wrong ATTRIBUTE_UNUSED from parser
+	argument.  Remove unused p_name variable.
+
+2013-11-27  Aldy Hernandez  <aldyh@redhat.com>
+	    Jakub Jelinek  <jakub@redhat.com>
+
+	* c-decl.c (c_builtin_function_ext_scope): Avoid binding if
+	external_scope is NULL.
+
+2013-11-27  Tom de Vries  <tom@codesourcery.com>
+	    Marc Glisse  <marc.glisse@inria.fr>
+
+	PR c++/59032
+	* c-typeck.c (build_unary_op): Allow vector increment and decrement.
+
 2013-11-22  Andrew MacLeod  <amacleod@redhat.com>
 
 	* c-typeck.c: Add required include files from gimple.h.
@@ -820,7 +947,7 @@
 	* c-decl.c: Likewise.  Include gt-c-c-decl.h, not gt-c-decl.h.
 	* c-parser.c: Likewise.  Include gt-c-c-parser.h, not gt-c-parser.h.
 
-Copyright (C) 2012-2013 Free Software Foundation, Inc.
+Copyright (C) 2012-2014 Free Software Foundation, Inc.
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright

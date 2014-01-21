@@ -1,3 +1,152 @@
+2014-01-09  Jakub Jelinek  <jakub@redhat.com>
+
+	* sanitizer_common/sanitizer_symbolizer_libbacktrace.h
+	(LibbacktraceSymbolizer::Demangle): New declaration.
+	* sanitizer_common/sanitizer_symbolizer_posix_libcdep.cc
+	(POSIXSymbolizer::Demangle): Use libbacktrace_symbolizer_'s Demangle
+	method if possible.
+	* sanitizer_common/sanitizer_symbolizer_libbacktrace.cc: Include
+	"demangle.h" if SANITIZE_CP_DEMANGLE is defined.
+	(struct CplusV3DemangleData): New type.
+	(CplusV3DemangleCallback, CplusV3Demangle): New functions.
+	(SymbolizeCodePCInfoCallback, SymbolizeCodeCallback,
+	SymbolizeDataCallback): Use CplusV3Demangle.
+	* sanitizer_common/Makefile.am (AM_CXXFLAGS): Add
+	-DSANITIZE_CP_DEMANGLE and -I $(top_srcdir)/../include.
+	* libbacktrace/backtrace-rename.h (cplus_demangle_builtin_types,
+	cplus_demangle_fill_ctor, cplus_demangle_fill_dtor,
+	cplus_demangle_fill_extended_operator, cplus_demangle_fill_name,
+	cplus_demangle_init_info, cplus_demangle_mangled_name,
+	cplus_demangle_operators, cplus_demangle_print,
+	cplus_demangle_print_callback, cplus_demangle_type, cplus_demangle_v3,
+	cplus_demangle_v3_callback, is_gnu_v3_mangled_ctor,
+	is_gnu_v3_mangled_dtor, java_demangle_v3, java_demangle_v3_callback):
+	Define.
+	(__asan_internal_memcmp, __asan_internal_strncmp): New prototypes.
+	(memcmp, strncmp): Redefine.
+	* libbacktrace/Makefile.am (libsanitizer_libbacktrace_la_SOURCES): Add
+	../../libiberty/cp-demangle.c.
+	* libbacktrace/bridge.cc (__asan_internal_memcmp,
+	__asan_internal_strncmp): New functions.
+	* sanitizer_common/Makefile.in: Regenerated.
+	* libbacktrace/Makefile.in: Regenerated.
+	* configure: Regenerated.
+	* configure.ac: Regenerated.
+	* config.h.in: Regenerated.
+
+	* sanitizer_common/Makefile.am (AM_CPPFLAGS): Add
+	-isystem $(top_srcdir)/include/system.
+	* sanitizer_common/Makefile.in: Regenerated.
+	* include/system/linux/aio_abi.h: New header.
+	* include/system/linux/mroute.h: New header.
+	* include/system/linux/mroute6.h: New header.
+	* include/system/linux/perf_event.h: New header.
+	* include/system/linux/types.h: New header.
+
+	PR sanitizer/59136
+	* sanitizer_common/Makefile.am (AM_CXXFLAGS): If
+	LIBBACKTRACE_SUPPORTED add -DSANITIZER_LIBBACKTRACE
+	and -I/-include flags.
+	* lsan/Makefile.am (liblsan_la_LIBADD): Add
+	libsanitizer_libbacktrace.la if LIBBACKTRACE_SUPPORTED.
+	* tsan/Makefile.am (libtsan_la_LIBADD): Likewise.
+	* ubsan/Makefile.am (libubsan_la_LIBADD): Likewise.
+	* asan/Makefile.am (libasan_la_LIBADD): Likewise.
+	* Makefile.am (SUBDIRS): If LIBBACKTRACE_SUPPORTED add
+	libbacktrace.
+	* README.gcc: Document that also lsan and ubsan are
+	maintained in compiler-rt upstream.
+	* libbacktrace/Makefile.am: New file.
+	* libbacktrace/backtrace-rename.h: New file.
+	* libbacktrace/backtrace-supported.h.in: New file.
+	* libbacktrace/bridge.cc: New file.
+	* configure.ac: Add tests needed for libbacktrace build
+	within libsanitizer.
+	* sanitizer_common/Makefile.in: Regenerated.
+	* lsan/Makefile.in: Regenerated.
+	* tsan/Makefile.in: Regenerated.
+	* ubsan/Makefile.in: Regenerated.
+	* libbacktrace/Makefile.in: Generated.
+	* config.h.in: Regenerated.
+	* configure: Regenerated.
+	* Makefile.in: Regenerated.
+	* interception/Makefile.in: Regenerated.
+	* asan/Makefile.in: Regenerated.
+	* aclocal.m4: Regenerated.
+
+2013-12-19  Kostya Serebryany  <kcc@google.com>
+
+        * sanitizer_common/sanitizer_platform_limits_posix.cc:
+	workaround for missing definition of EOWNERDEAD, backport
+	from upstream r196779.
+
+2013-12-06  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* sanitizer_common/sanitizer_platform_limits_posix.h
+	(__sanitizer_shmid_ds): Use u64 on time fields for x32.
+	(__sanitizer_clock_t): Use long long for x32.
+
+2013-12-06  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* sanitizer_common/sanitizer_platform_limits_linux.cc: Include
+	<sys/stat.h>, instead of <asm/stat.h>, if __x86_64__ is defined.
+	(struct___old_kernel_stat_sz): Don't check if __x86_64__ is defined.
+
+2013-12-05  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* configure.ac (link_sanitizer_common): Add -lm.
+	* configure: Regenerated.
+
+2013-12-05  Kostya Serebryany  <kcc@google.com>
+
+	* All source files: Merge from upstream r196489.
+	* merge.sh: Add *.S to the list of merged files.
+
+2013-12-05  Yury Gribov  <y.gribov@samsung.com>
+
+	PR sanitizer/59368
+	* Makefile.am (gcc_version): Added gcc_version.
+	* Makefile.in: Regenerate.
+
+2013-12-05  Kostya Serebryany  <kcc@google.com>
+
+	* All source files: Merge from upstream r196090.
+	* tsan/Makefile.am (tsan_files): Added new files.
+	* tsan/Makefile.in: Regenerate.
+	* sanitizer_common/Makefile.am (sanitizer_common_files): Added new fles.
+	* sanitizer_common/Makefile.in: Regenerate.
+	* lsan/Makefile.am (lsan_files): Added new files.
+	* lsan/Makefile.in: Regenerate.
+
+2013-11-29  Jakub Jelinek  <jakub@redhat.com>
+	    Yury Gribov  <y.gribov@samsung.com>
+
+	PR sanitizer/59063
+	* libsanitizer.spec.in: Add spec file to hold link flags for
+	various sanitizer libs.
+	* configure.ac: Check whether clock_* routines come from librt.
+	* asan/Makefile.am (libasan_la_LDFLAGS): Libs now come from
+	configure.ac.
+	* tsan/Makefile.am (libtsan_la_LDFLAGS): Likewise.
+	* ubsan/Makefile.am (libubsan_la_LDFLAGS): Likewise.
+	* lsan/Makefile.am (liblsan_la_LDFLAGS): Likewise.
+	* asan/Makefile.in: Regenerate.
+	* interception/Makefile.in: Regenerate.
+	* lsan/Makefile.in: Regenerate.
+	* sanitizer_common/Makefile.in: Regenerate.
+	* tsan/Makefile.in: Regenerate.
+	* ubsan/Makefile.in: Regenerate.
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+
+2013-11-28  Jakub Jelinek  <jakub@redhat.com>
+	    Yury Gribov  <y.gribov@samsung.com>
+
+	PR sanitizer/59106
+	* ubsan/Makefile.am (AM_CXXFLAGS): Disable -frtti for files that
+	don't need it.
+	* ubsan/Makefile.in: Regenerated.
+
 2013-11-22  Jakub Jelinek  <jakub@redhat.com>
 
 	PR sanitizer/59061

@@ -36,14 +36,16 @@ asan_files = \
 	asan_win.cc
 
 libasan_la_SOURCES = $(asan_files)
-if USING_MAC_INTERPOSE
 libasan_la_LIBADD = $(top_builddir)/sanitizer_common/libsanitizer_common.la $(top_builddir)/lsan/libsanitizer_lsan.la
-else
-libasan_la_LIBADD = $(top_builddir)/sanitizer_common/libsanitizer_common.la $(top_builddir)/lsan/libsanitizer_lsan.la $(top_builddir)/interception/libinterception.la
+if !USING_MAC_INTERPOSE
+libasan_la_LIBADD += $(top_builddir)/interception/libinterception.la
+endif
+if LIBBACKTRACE_SUPPORTED
+libasan_la_LIBADD += $(top_builddir)/libbacktrace/libsanitizer_libbacktrace.la
 endif
 libasan_la_LIBADD += $(LIBSTDCXX_RAW_CXX_LDFLAGS)
 
-libasan_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` -lpthread -ldl
+libasan_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` $(link_libasan)
 
 libasan_preinit.o: asan_preinit.o
 	cp $< $@

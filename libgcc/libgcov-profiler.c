@@ -1,6 +1,6 @@
 /* Routines required for instrumenting a program.  */
 /* Compile this one with gcc.  */
-/* Copyright (C) 1989-2013 Free Software Foundation, Inc.
+/* Copyright (C) 1989-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -23,15 +23,8 @@ a copy of the GCC Runtime Library Exception along with this program;
 see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 <http://www.gnu.org/licenses/>.  */
 
-#include "tconfig.h"
-#include "tsystem.h"
-#include "coretypes.h"
-#include "tm.h"
-#include "libgcc_tm.h"
-
+#include "libgcov.h"
 #if !defined(inhibit_libc)
-#define IN_LIBGCOV 1
-#include "gcov-io.h"
 
 #ifdef L_gcov_interval_profiler
 /* If VALUE is in interval <START, START + STEPS - 1>, then increases the

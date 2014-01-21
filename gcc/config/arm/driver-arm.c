@@ -1,5 +1,5 @@
 /* Subroutines for the gcc driver.
-   Copyright (C) 2011-2013 Free Software Foundation, Inc.
+   Copyright (C) 2011-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -40,6 +40,7 @@ static struct vendor_cpu arm_cpu_table[] = {
     {"0xc07", "armv7-a", "cortex-a7"},
     {"0xc08", "armv7-a", "cortex-a8"},
     {"0xc09", "armv7-a", "cortex-a9"},
+    {"0xc0d", "armv7-a", "cortex-a12"},
     {"0xc0f", "armv7-a", "cortex-a15"},
     {"0xc14", "armv7-r", "cortex-r4"},
     {"0xc15", "armv7-r", "cortex-r5"},

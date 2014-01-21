@@ -1,5 +1,5 @@
 /* Subroutines for insn-output.c for ATMEL AVR micro controllers
-   Copyright (C) 1998-2013 Free Software Foundation, Inc.
+   Copyright (C) 1998-2014 Free Software Foundation, Inc.
    Contributed by Denis Chertykov (chertykov@gmail.com)
 
    This file is part of GCC.
@@ -313,6 +313,15 @@ avr_option_override (void)
     {
       flag_omit_frame_pointer = 0;
     }
+
+  if (flag_pic == 1)
+    warning (OPT_fpic, "-fpic is not supported");
+  if (flag_pic == 2)
+    warning (OPT_fPIC, "-fPIC is not supported");
+  if (flag_pie == 1)
+    warning (OPT_fpie, "-fpie is not supported");
+  if (flag_pie == 2)
+    warning (OPT_fPIE, "-fPIE is not supported");
 
   avr_current_device = &avr_mcu_types[avr_mcu_index];
   avr_current_arch = &avr_arch_types[avr_current_device->arch];

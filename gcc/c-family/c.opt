@@ -1,5 +1,5 @@
 ; Options for the C, ObjC, C++ and ObjC++ front ends.
-; Copyright (C) 2003-2013 Free Software Foundation, Inc.
+; Copyright (C) 2003-2014 Free Software Foundation, Inc.
 ;
 ; This file is part of GCC.
 ;
@@ -596,6 +596,10 @@ Wold-style-definition
 C ObjC Var(warn_old_style_definition) Warning
 Warn if an old-style parameter definition is used
 
+Wopenmp-simd
+C C++ Var(warn_openmp_simd) Warning LangEnabledBy(C C++,Wall)
+Warn if a simd directive is overridden by the vectorizer cost model
+
 Woverlength-strings
 C ObjC C++ ObjC++ Var(warn_overlength_strings) Warning LangEnabledBy(C ObjC C++ ObjC++,Wpedantic)
 Warn if a string is longer than the maximum portable length specified by the standard
@@ -858,11 +862,6 @@ fcanonical-system-headers
 C ObjC C++ ObjC++
 Where shorter, use canonicalized paths to systems headers.
 
-fcheck-pointer-bounds
-C ObjC C++ ObjC++ LTO Report Var(flag_check_pointer_bounds)
-Add Pointer Bounds Checker instrumentation.  fchkp-* flags are used to
-control instrumentation.
-
 fcilkplus
 C ObjC C++ ObjC++ LTO Report Var(flag_enable_cilkplus) Init(0)
 Enable Cilk Plus
@@ -890,6 +889,10 @@ Emit debug annotations during preprocessing
 fdeduce-init-list
 C++ ObjC++ Var(flag_deduce_init_list) Init(0)
 -fdeduce-init-list	enable deduction of std::initializer_list for a template type parameter from a brace-enclosed initializer-list
+
+fdeclone-ctor-dtor
+C++ ObjC++ Var(flag_declone_ctor_dtor) Init(-1)
+Factor complex constructors and destructors to favor space over speed
 
 fdefault-inline
 C++ ObjC++ Ignore

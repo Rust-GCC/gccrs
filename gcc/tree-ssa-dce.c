@@ -1,5 +1,5 @@
 /* Dead code elimination pass for the GNU compiler.
-   Copyright (C) 2002-2013 Free Software Foundation, Inc.
+   Copyright (C) 2002-2014 Free Software Foundation, Inc.
    Contributed by Ben Elliston <bje@redhat.com>
    and Andrew MacLeod <amacleod@redhat.com>
    Adapted to use control dependence by Steven Bosscher, SUSE Labs.
@@ -374,7 +374,7 @@ find_obviously_necessary_stmts (bool aggressive)
   gimple phi, stmt;
   int flags;
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       /* PHI nodes are never inherently necessary.  */
       for (gsi = gsi_start_phis (bb); !gsi_end_p (gsi); gsi_next (&gsi))
@@ -404,7 +404,7 @@ find_obviously_necessary_stmts (bool aggressive)
       struct loop *loop;
       scev_initialize ();
       if (mark_irreducible_loops ())
-	FOR_EACH_BB (bb)
+	FOR_EACH_BB_FN (bb, cfun)
 	  {
 	    edge_iterator ei;
 	    FOR_EACH_EDGE (e, ei, bb->succs)
@@ -1191,26 +1191,19 @@ eliminate_unnecessary_stmts (void)
 	  stats.total++;
 
 	  /* We can mark a call to free as not necessary if the
-	     defining statement of its argument is an allocation
-	     function and that is not necessary itself.  */
-	  if (gimple_call_builtin_p (stmt, BUILT_IN_FREE))
+	     defining statement of its argument is not necessary
+	     (and thus is getting removed).  */
+	  if (gimple_plf (stmt, STMT_NECESSARY)
+	      && gimple_call_builtin_p (stmt, BUILT_IN_FREE))
 	    {
 	      tree ptr = gimple_call_arg (stmt, 0);
-	      tree callee2;
-	      gimple def_stmt;
-	      if (TREE_CODE (ptr) != SSA_NAME)
-		continue;
-	      def_stmt = SSA_NAME_DEF_STMT (ptr);
-	      if (!is_gimple_call (def_stmt)
-		  || gimple_plf (def_stmt, STMT_NECESSARY))
-		continue;
-	      callee2 = gimple_call_fndecl (def_stmt);
-	      if (callee2 == NULL_TREE
-		  || DECL_BUILT_IN_CLASS (callee2) != BUILT_IN_NORMAL
-		  || (DECL_FUNCTION_CODE (callee2) != BUILT_IN_MALLOC
-		      && DECL_FUNCTION_CODE (callee2) != BUILT_IN_CALLOC))
-		continue;
-	      gimple_set_plf (stmt, STMT_NECESSARY, false);
+	      if (TREE_CODE (ptr) == SSA_NAME)
+		{
+		  gimple def_stmt = SSA_NAME_DEF_STMT (ptr);
+		  if (!gimple_nop_p (def_stmt)
+		      && !gimple_plf (def_stmt, STMT_NECESSARY))
+		    gimple_set_plf (stmt, STMT_NECESSARY, false);
+		}
 	    }
 
 	  /* If GSI is not necessary then remove it.  */
@@ -1332,7 +1325,7 @@ eliminate_unnecessary_stmts (void)
 	    }
 	}
     }
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       /* Remove dead PHI nodes.  */
       something_changed |= remove_dead_phis (bb);
@@ -1371,9 +1364,9 @@ tree_dce_init (bool aggressive)
 
   if (aggressive)
     {
-      last_stmt_necessary = sbitmap_alloc (last_basic_block);
+      last_stmt_necessary = sbitmap_alloc (last_basic_block_for_fn (cfun));
       bitmap_clear (last_stmt_necessary);
-      bb_contains_live_stmts = sbitmap_alloc (last_basic_block);
+      bb_contains_live_stmts = sbitmap_alloc (last_basic_block_for_fn (cfun));
       bitmap_clear (bb_contains_live_stmts);
     }
 
@@ -1439,7 +1432,8 @@ perform_tree_ssa_dce (bool aggressive)
       calculate_dominance_info (CDI_POST_DOMINATORS);
       cd = new control_dependences (create_edge_list ());
 
-      visited_control_parents = sbitmap_alloc (last_basic_block);
+      visited_control_parents =
+	sbitmap_alloc (last_basic_block_for_fn (cfun));
       bitmap_clear (visited_control_parents);
 
       mark_dfs_back_edges ();

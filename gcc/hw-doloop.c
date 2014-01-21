@@ -1,6 +1,6 @@
 /* Code to analyze doloop loops in order for targets to perform late
    optimizations converting doloops to other forms of hardware loops.
-   Copyright (C) 2011-2013 Free Software Foundation, Inc.
+   Copyright (C) 2011-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -252,7 +252,7 @@ discover_loop (hwloop_info loop, basic_block tail_bb, rtx tail_insn, rtx reg)
   loop->head = BRANCH_EDGE (tail_bb)->dest;
   loop->successor = FALLTHRU_EDGE (tail_bb)->dest;
 
-  stack_vec<basic_block, 20> works;
+  auto_vec<basic_block, 20> works;
   works.safe_push (loop->head);
 
   found_tail = false;
@@ -357,7 +357,7 @@ discover_loops (bitmap_obstack *loop_stack, struct hw_doloop_hooks *hooks)
   /* Find all the possible loop tails.  This means searching for every
      loop_end instruction.  For each one found, create a hwloop_info
      structure and add the head block to the work list. */
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       rtx tail = BB_END (bb);
       rtx insn, reg;
@@ -480,7 +480,7 @@ set_bb_indices (void)
   intptr_t index;
 
   index = 0;
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     bb->aux = (void *) index++;
 }
 
@@ -537,7 +537,7 @@ reorder_loops (hwloop_info loops)
       loops = loops->next;
     }
   
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       if (bb->next_bb != EXIT_BLOCK_PTR_FOR_FN (cfun))
 	bb->aux = bb->next_bb;
@@ -661,6 +661,7 @@ reorg_loops (bool do_reorder, struct hw_doloop_hooks *hooks)
     }
 
   free_loops (loops);
+  bitmap_obstack_release (&loop_stack);
 
   if (dump_file)
     print_rtl (dump_file, get_insns ());

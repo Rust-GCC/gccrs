@@ -508,35 +508,35 @@ package Sinfo is
    --      simply ignore these nodes, since they are not relevant to the task
    --      of back annotating representation information.
 
-   ----------------
-   -- SPARK Mode --
-   ----------------
+   --------------------
+   -- GNATprove Mode --
+   --------------------
 
-   --  When a file is compiled in SPARK mode (-gnatd.F), a very light expansion
-   --  is performed and the analysis must generate a tree in a form that meets
-   --  additional requirements.
+   --  When a file is compiled in GNATprove mode (-gnatd.F), a very light
+   --  expansion is performed and the analysis must generate a tree in a
+   --  form that meets additional requirements.
 
-   --  The SPARK expansion does two transformations of the tree, that cannot be
-   --  postponed after the frontend semantic analysis:
+   --  This light expansion does two transformations of the tree, that cannot
+   --  be postponed after the frontend semantic analysis:
 
-   --    1. Replace renamings by renamed (object/subprogram). This requires
-   --       introducing temporaries at the point of the renaming, which must be
-   --       properly analyzed.
+   --    1. Replace object renamings by renamed object. This requires the
+   --       introdtion of temporaries at the point of the renaming, which must
+   --       be properly analyzed.
 
    --    2. Fully qualify entity names. This is needed to generate suitable
-   --       local effects/call-graphs in ALI files, with the completely
+   --       local effects and call-graphs in ALI files, with the completely
    --       qualified names (in particular the suffix to distinguish homonyms).
 
-   --  The tree after SPARK expansion should be fully analyzed semantically,
-   --  which sometimes requires the insertion of semantic pre-analysis, for
-   --  example for subprogram contracts and pragma check/assert. In particular,
-   --  all expression must have their proper type, and semantic links should be
-   --  set between tree nodes (partial to full view, etc.) Some kinds of nodes
-   --  should be either absent, or can be ignored by the formal verification
-   --  backend:
+   --  The tree after this light expansion should be fully analyzed
+   --  semantically, which sometimes requires the insertion of semantic
+   --  pre-analysis, for example for subprogram contracts and pragma
+   --  check/assert. In particular, all expression must have their proper type,
+   --  and semantic links should be set between tree nodes (partial to full
+   --  view, etc.) Some kinds of nodes should be either absent, or can be
+   --  ignored by the formal verification backend:
 
    --      N_Object_Renaming_Declaration: can be ignored safely
-   --      N_Expression_Function:         absent (rewitten)
+   --      N_Expression_Function:         absent (rewritten)
    --      N_Expression_With_Actions:     absent (not generated)
 
    --  SPARK cross-references are generated from the regular cross-references
@@ -544,17 +544,16 @@ package Sinfo is
    --  collected during semantic analysis, in particular on all dereferences.
    --  These SPARK cross-references are output in a separate section of ALI
    --  files, as described in spark_xrefs.adb. They are the basis for the
-   --  computation of data dependences in the formal verification backend.
-   --  This implies that all cross-references should be generated in this mode,
-   --  even those that would not make sense from a user point-of-view, and that
-   --  cross-references that do not lead to data dependences for subprograms
-   --  can be safely ignored.
+   --  computation of data dependences in GNATprove. This implies that all
+   --  cross-references should be generated in this mode, even those that would
+   --  not make sense from a user point-of-view, and that cross-references that
+   --  do not lead to data dependences for subprograms can be safely ignored.
 
    ------------------------
    -- Common Flag Fields --
    ------------------------
 
-   --  The following flag fields appear in all nodes
+   --  The following flag fields appear in all nodes:
 
    --  Analyzed
    --    This flag is used to indicate that a node (and all its children have
@@ -639,9 +638,7 @@ package Sinfo is
    --    A flag set in the N_Subprogram_Body node for a subprogram body which
    --    is acting as its own spec, except in the case of a library level
    --    subprogram, in which case the flag is set on the parent compilation
-   --    unit node instead (see further description in spec of Lib package).
-   --    ??? Above note about Lib is dubious since lib.ads does not mention
-   --    Acts_As_Spec at all.
+   --    unit node instead.
 
    --  Actual_Designated_Subtype (Node4-Sem)
    --    Present in N_Free_Statement and N_Explicit_Dereference nodes. If gigi
@@ -903,14 +900,16 @@ package Sinfo is
    --    that an accessibility check is required for the parameter. It is
    --    not yet decided who takes care of this check (TBD ???).
 
-   --  Do_Discriminant_Check (Flag13-Sem)
+   --  Do_Discriminant_Check (Flag1-Sem)
    --    This flag is set on N_Selected_Component nodes to indicate that a
    --    discriminant check is required using the discriminant check routine
    --    associated with the selector. The actual check is generated by the
    --    expander when processing selected components. In the case of
    --    Unchecked_Union, the flag is also set, but no discriminant check
    --    routine is associated with the selector, and the expander does not
-   --    generate a check.
+   --    generate a check. This flag is also present in assignment statements
+   --    (and set if the assignment requires a discriminant check), and in type
+   --    conversion nodes (and set if the conversion requires a check).
 
    --  Do_Division_Check (Flag13-Sem)
    --    This flag is set on a division operator (/ mod rem) to indicate
@@ -1683,11 +1682,12 @@ package Sinfo is
    --    is undefined and should not be read).
 
    --  No_Ctrl_Actions (Flag7-Sem)
-   --    Present in N_Assignment_Statement to indicate that no finalize nor
-   --    adjust should take place on this assignment even though the rhs is
-   --    controlled. This is used in init procs and aggregate expansions where
-   --    the generated assignments are more initialisations than real
-   --    assignments.
+   --    Present in N_Assignment_Statement to indicate that no Finalize nor
+   --    Adjust should take place on this assignment even though the RHS is
+   --    controlled. Also indicates that the primitive _assign should not be
+   --    used for a tagged assignment. This is used in init procs and aggregate
+   --    expansions where the generated assignments are initializations, not
+   --    real assignments.
 
    --  No_Elaboration_Check (Flag14-Sem)
    --    Present in N_Function_Call and N_Procedure_Call_Statement. Indicates
@@ -3440,7 +3440,7 @@ package Sinfo is
       --  Prefix (Node3)
       --  Selector_Name (Node2)
       --  Associated_Node (Node4-Sem)
-      --  Do_Discriminant_Check (Flag13-Sem)
+      --  Do_Discriminant_Check (Flag1-Sem)
       --  Is_In_Discriminant_Check (Flag11-Sem)
       --  Is_Prefixed_Call (Flag17-Sem)
       --  Atomic_Sync_Required (Flag14-Sem)
@@ -4198,12 +4198,13 @@ package Sinfo is
       --  Sloc points to first token of subtype mark
       --  Subtype_Mark (Node4)
       --  Expression (Node3)
-      --  Do_Tag_Check (Flag13-Sem)
+      --  Do_Discriminant_Check (Flag1-Sem)
       --  Do_Length_Check (Flag4-Sem)
-      --  Do_Overflow_Check (Flag17-Sem)
       --  Float_Truncate (Flag11-Sem)
-      --  Rounded_Result (Flag18-Sem)
+      --  Do_Tag_Check (Flag13-Sem)
       --  Conversion_OK (Flag14-Sem)
+      --  Do_Overflow_Check (Flag17-Sem)
+      --  Rounded_Result (Flag18-Sem)
       --  plus fields for expression
 
       --  Note: if a range check is required, then the Do_Range_Check flag
@@ -4361,6 +4362,7 @@ package Sinfo is
       --  Sloc points to :=
       --  Name (Node2)
       --  Expression (Node3)
+      --  Do_Discriminant_Check (Flag1-Sem)
       --  Do_Tag_Check (Flag13-Sem)
       --  Do_Length_Check (Flag4-Sem)
       --  Forwards_OK (Flag5-Sem)
@@ -7238,7 +7240,11 @@ package Sinfo is
       --  establish dependencies between subprogram or package inputs and
       --  outputs. Currently the following pragmas appear in this list:
       --    Abstract_States
+      --    Async_Readers
+      --    Async_Writers
       --    Depends
+      --    Effective_Reads
+      --    Effective_Writes
       --    Global
       --    Initial_Condition
       --    Initializes
@@ -8681,7 +8687,7 @@ package Sinfo is
      (N : Node_Id) return Boolean;    -- Flag13
 
    function Do_Discriminant_Check
-     (N : Node_Id) return Boolean;    -- Flag13
+     (N : Node_Id) return Boolean;    -- Flag1
 
    function Do_Division_Check
      (N : Node_Id) return Boolean;    -- Flag13
@@ -9683,7 +9689,7 @@ package Sinfo is
      (N : Node_Id; Val : Boolean := True);    -- Flag13
 
    procedure Set_Do_Discriminant_Check
-     (N : Node_Id; Val : Boolean := True);    -- Flag13
+     (N : Node_Id; Val : Boolean := True);    -- Flag1
 
    procedure Set_Do_Division_Check
      (N : Node_Id; Val : Boolean := True);    -- Flag13

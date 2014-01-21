@@ -1,5 +1,5 @@
 /* Output variables, constants and external declarations, for GNU compiler.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -117,8 +117,8 @@ static int compare_constant (const tree, const tree);
 static tree copy_constant (tree);
 static void output_constant_def_contents (rtx);
 static void output_addressed_constants (tree);
-static unsigned HOST_WIDE_INT array_size_for_constructor (tree);
-static unsigned min_align (unsigned, unsigned);
+static unsigned HOST_WIDE_INT output_constant (tree, unsigned HOST_WIDE_INT,
+					       unsigned int);
 static void globalize_decl (tree);
 static bool decl_readonly_section_1 (enum section_category);
 #ifdef BSS_SECTION_ASM_OP
@@ -552,7 +552,14 @@ default_function_section (tree decl, enum node_frequency freq,
      unlikely executed (this happens especially with function splitting
      where we can split away unnecessary parts of static constructors.  */
   if (startup && freq != NODE_FREQUENCY_UNLIKELY_EXECUTED)
-    return get_named_text_section (decl, ".text.startup", NULL);
+  {
+    /* If we do have a profile or(and) LTO phase is executed, we do not need
+       these ELF section.  */
+    if (!in_lto_p || !flag_profile_values)
+      return get_named_text_section (decl, ".text.startup", NULL);
+    else
+      return NULL;
+  }
 
   /* Similarly for exit.  */
   if (exit && freq != NODE_FREQUENCY_UNLIKELY_EXECUTED)
@@ -564,7 +571,10 @@ default_function_section (tree decl, enum node_frequency freq,
       case NODE_FREQUENCY_UNLIKELY_EXECUTED:
 	return get_named_text_section (decl, ".text.unlikely", NULL);
       case NODE_FREQUENCY_HOT:
-	return get_named_text_section (decl, ".text.hot", NULL);
+        /* If we do have a profile or(and) LTO phase is executed, we do not need
+           these ELF section.  */
+        if (!in_lto_p || !flag_profile_values)
+          return get_named_text_section (decl, ".text.hot", NULL);
       default:
 	return NULL;
     }
@@ -2366,7 +2376,7 @@ mark_decl_referenced (tree decl)
     }
   else if (TREE_CODE (decl) == VAR_DECL)
     {
-      struct varpool_node *node = varpool_node_for_decl (decl);
+      varpool_node *node = varpool_node_for_decl (decl);
       /* C++ frontend use mark_decl_references to force COMDAT variables
          to be output that might appear dead otherwise.  */
       node->force_output = true;
@@ -4050,7 +4060,7 @@ compute_reloc_for_constant (tree exp)
 	  break;
 	}
 
-      if (TREE_PUBLIC (tem))
+      if (!targetm.binds_local_p (tem))
 	reloc |= 2;
       else
 	reloc |= 1;
@@ -4574,8 +4584,10 @@ static unsigned HOST_WIDE_INT
    This includes the pseudo-op such as ".int" or ".byte", and a newline.
    Assumes output_addressed_constants has been done on EXP already.
 
-   Generate exactly SIZE bytes of assembler data, padding at the end
-   with zeros if necessary.  SIZE must always be specified.
+   Generate at least SIZE bytes of assembler data, padding at the end
+   with zeros if necessary.  SIZE must always be specified.  The returned
+   value is the actual number of bytes of assembler data generated, which
+   may be bigger than SIZE if the object contains a variable length field.
 
    SIZE is important for structure constructors,
    since trailing members may have been omitted from the constructor.
@@ -4590,14 +4602,14 @@ static unsigned HOST_WIDE_INT
 
    ALIGN is the alignment of the data in bits.  */
 
-void
+static unsigned HOST_WIDE_INT
 output_constant (tree exp, unsigned HOST_WIDE_INT size, unsigned int align)
 {
   enum tree_code code;
   unsigned HOST_WIDE_INT thissize;
 
   if (size == 0 || flag_syntax_only)
-    return;
+    return size;
 
   /* See if we're trying to initialize a pointer in a non-default mode
      to the address of some declaration somewhere.  If the target says
@@ -4662,7 +4674,7 @@ output_constant (tree exp, unsigned HOST_WIDE_INT size, unsigned int align)
       && vec_safe_is_empty (CONSTRUCTOR_ELTS (exp)))
     {
       assemble_zeros (size);
-      return;
+      return size;
     }
 
   if (TREE_CODE (exp) == FDESC_EXPR)
@@ -4674,7 +4686,7 @@ output_constant (tree exp, unsigned HOST_WIDE_INT size, unsigned int align)
 #else
       gcc_unreachable ();
 #endif
-      return;
+      return size;
     }
 
   /* Now output the underlying data.  If we've handling the padding, return.
@@ -4688,7 +4700,6 @@ output_constant (tree exp, unsigned HOST_WIDE_INT size, unsigned int align)
     case REFERENCE_TYPE:
     case OFFSET_TYPE:
     case FIXED_POINT_TYPE:
-    case POINTER_BOUNDS_TYPE:
     case NULLPTR_TYPE:
       if (! assemble_integer (expand_expr (exp, NULL_RTX, VOIDmode,
 					   EXPAND_INITIALIZER),
@@ -4714,8 +4725,7 @@ output_constant (tree exp, unsigned HOST_WIDE_INT size, unsigned int align)
       switch (TREE_CODE (exp))
 	{
 	case CONSTRUCTOR:
-	  output_constructor (exp, size, align, NULL);
-	  return;
+	  return output_constructor (exp, size, align, NULL);
 	case STRING_CST:
 	  thissize
 	    = MIN ((unsigned HOST_WIDE_INT)TREE_STRING_LENGTH (exp), size);
@@ -4743,11 +4753,10 @@ output_constant (tree exp, unsigned HOST_WIDE_INT size, unsigned int align)
     case RECORD_TYPE:
     case UNION_TYPE:
       gcc_assert (TREE_CODE (exp) == CONSTRUCTOR);
-      output_constructor (exp, size, align, NULL);
-      return;
+      return output_constructor (exp, size, align, NULL);
 
     case ERROR_MARK:
-      return;
+      return 0;
 
     default:
       gcc_unreachable ();
@@ -4755,6 +4764,8 @@ output_constant (tree exp, unsigned HOST_WIDE_INT size, unsigned int align)
 
   if (size > thissize)
     assemble_zeros (size - thissize);
+
+  return size;
 }
 
 
@@ -4851,7 +4862,7 @@ output_constructor_array_range (oc_local_state *local)
       if (local->val == NULL_TREE)
 	assemble_zeros (fieldsize);
       else
-	output_constant (local->val, fieldsize, align2);
+	fieldsize = output_constant (local->val, fieldsize, align2);
 
       /* Count its size.  */
       local->total_bytes += fieldsize;
@@ -4900,9 +4911,8 @@ output_constructor_regular_field (oc_local_state *local)
      Note no alignment needed in an array, since that is guaranteed
      if each element has the proper size.  */
   if ((local->field != NULL_TREE || local->index != NULL_TREE)
-      && fieldpos != local->total_bytes)
+      && fieldpos > local->total_bytes)
     {
-      gcc_assert (fieldpos >= local->total_bytes);
       assemble_zeros (fieldpos - local->total_bytes);
       local->total_bytes = fieldpos;
     }
@@ -4939,7 +4949,7 @@ output_constructor_regular_field (oc_local_state *local)
   if (local->val == NULL_TREE)
     assemble_zeros (fieldsize);
   else
-    output_constant (local->val, fieldsize, align2);
+    fieldsize = output_constant (local->val, fieldsize, align2);
 
   /* Count its size.  */
   local->total_bytes += fieldsize;
@@ -6728,7 +6738,7 @@ default_binds_local_p_1 (const_tree exp, int shlib)
   if (TREE_CODE (exp) == VAR_DECL && TREE_PUBLIC (exp)
       && (TREE_STATIC (exp) || DECL_EXTERNAL (exp)))
     {
-      struct varpool_node *vnode = varpool_get_node (exp);
+      varpool_node *vnode = varpool_get_node (exp);
       if (vnode && resolution_local_p (vnode->resolution))
 	resolved_locally = true;
       if (vnode
@@ -6821,7 +6831,7 @@ decl_binds_to_current_def_p (tree decl)
   if (TREE_CODE (decl) == VAR_DECL
       && (TREE_STATIC (decl) || DECL_EXTERNAL (decl)))
     {
-      struct varpool_node *vnode = varpool_get_node (decl);
+      varpool_node *vnode = varpool_get_node (decl);
       if (vnode
 	  && vnode->resolution != LDPR_UNKNOWN)
 	return resolution_to_local_definition_p (vnode->resolution);

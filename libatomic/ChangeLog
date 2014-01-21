@@ -1,3 +1,12 @@
+2014-01-02  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	Update copyright years
+
+2013-12-09  Uros Bizjak  <ubizjak@gmail.com>
+
+	* config/x86/fenv.c (__atomic_feraiseexcept): Emit SSE
+	instructions when __SSE_MATH__ is defined.
+
 2013-11-18  Joseph Myers  <joseph@codesourcery.com>
 
 	* testsuite/libatomic.c/atomic-compare-exchange-1.c,

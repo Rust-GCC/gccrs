@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, for Sun SPARC.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com).
    64-bit SPARC-V9 support by Michael Tiemann, Jim Wilson, and Doug Evans,
    at Cygnus Support.
@@ -1777,3 +1777,6 @@ extern int sparc_indent_opcode;
 #ifndef SUBTARGET_DEFAULT_MEMORY_MODEL
 #define SUBTARGET_DEFAULT_MEMORY_MODEL	SMM_DEFAULT
 #endif
+
+/* Define this to 1 if the FE_EXCEPT values defined in fenv.h start at 1.  */
+#define SPARC_LOW_FE_EXCEPT_VALUES 0

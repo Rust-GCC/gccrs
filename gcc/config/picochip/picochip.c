@@ -1,5 +1,5 @@
 /* Subroutines used for code generation on picoChip processors.
-   Copyright (C) 2001-2013 Free Software Foundation, Inc.
+   Copyright (C) 2001-2014 Free Software Foundation, Inc.
    Contributed by Picochip Ltd. (http://www.picochip.com)
    Maintained by Daniel Towner (daniel.towner@picochip.com) and
    Hariharan Sandanagobalane (hariharan@picochip.com)
@@ -3174,7 +3174,7 @@ reorder_var_tracking_notes (void)
 {
   basic_block bb;
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       rtx insn, next, last_insn = NULL_RTX;
       rtx queue = NULL_RTX;

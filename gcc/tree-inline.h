@@ -1,5 +1,5 @@
 /* Tree inlining hooks and declarations.
-   Copyright (C) 2001-2013 Free Software Foundation, Inc.
+   Copyright (C) 2001-2014 Free Software Foundation, Inc.
    Contributed by Alexandre Oliva  <aoliva@redhat.com>
 
 This file is part of GCC.
@@ -36,7 +36,7 @@ enum copy_body_cge_which
 
 /* Data required for function body duplication.  */
 
-typedef struct copy_body_data
+struct copy_body_data
 {
   /* FUNCTION_DECL for function being inlined, or in general the
      source function providing the original trees.  */
@@ -135,7 +135,7 @@ typedef struct copy_body_data
   /* Cilk keywords currently need to replace some variables that
      ordinary nested functions do not.  */ 
   bool remap_var_for_cilk;
-} copy_body_data;
+};
 
 /* Weights of constructions for estimate_num_insns.  */
 
@@ -162,8 +162,8 @@ typedef struct eni_weights_d
   /* Cost of return.  */
   unsigned return_cost;
 
-  /* True when time of statemnt should be estimated.  Thus i.e
-     cost of switch statement is logarithmic rather than linear in number
+  /* True when time of statement should be estimated.  Thus, the
+     cost of a switch statement is logarithmic rather than linear in number
      of cases.  */
   bool time_based;
 } eni_weights;

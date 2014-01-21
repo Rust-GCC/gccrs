@@ -1,5 +1,5 @@
 /* Combine stack adjustments.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -95,7 +95,7 @@ combine_stack_adjustments (void)
 {
   basic_block bb;
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     combine_stack_adjustments_for_block (bb);
 }
 

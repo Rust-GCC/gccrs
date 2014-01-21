@@ -1,7 +1,7 @@
 # Makefile for GNU Compiler Collection
 # Run 'configure' to generate Makefile from Makefile.in
 
-# Copyright (C) 1987-2013 Free Software Foundation, Inc.
+# Copyright (C) 1987-2014 Free Software Foundation, Inc.
 
 #This file is part of GCC.
 
@@ -929,11 +929,10 @@ CPP_ID_DATA_H = $(CPPLIB_H) $(srcdir)/../libcpp/include/cpp-id-data.h
 CPP_INTERNAL_H = $(srcdir)/../libcpp/internal.h $(CPP_ID_DATA_H)
 TREE_DUMP_H = tree-dump.h $(SPLAY_TREE_H) $(DUMPFILE_H)
 TREE_PASS_H = tree-pass.h $(TIMEVAR_H) $(DUMPFILE_H)
-TREE_FLOW_H = tree-flow.h tree-flow-inline.h tree-ssa-operands.h \
+TREE_SSA_H = tree-ssa.h tree-ssa-operands.h \
 		$(BITMAP_H) sbitmap.h $(BASIC_BLOCK_H) $(GIMPLE_H) \
 		$(HASHTAB_H) $(CGRAPH_H) $(IPA_REFERENCE_H) \
 		tree-ssa-alias.h
-TREE_SSA_H = tree-ssa.h $(TREE_FLOW_H)
 PRETTY_PRINT_H = pretty-print.h $(INPUT_H) $(OBSTACK_H)
 TREE_PRETTY_PRINT_H = tree-pretty-print.h $(PRETTY_PRINT_H)
 GIMPLE_PRETTY_PRINT_H = gimple-pretty-print.h $(TREE_PRETTY_PRINT_H)
@@ -1983,6 +1982,7 @@ CFLAGS-version.o += -DBASEVER=$(BASEVER_s) -DDATESTAMP=$(DATESTAMP_s) \
 	-DREVISION=$(REVISION_s) \
 	-DDEVPHASE=$(DEVPHASE_s) -DPKGVERSION=$(PKGVERSION_s) \
 	-DBUGURL=$(BUGURL_s)
+version.o: $(REVISION) $(DATESTAMP) $(BASEVER) $(DEVPHASE)
 
 # lto-compress.o needs $(ZLIBINC) added to the include flags.
 CFLAGS-lto-compress.o += $(ZLIBINC)
@@ -2793,7 +2793,8 @@ TEXI_GCC_FILES = gcc.texi gcc-common.texi gcc-vers.texi frontends.texi	\
 	 gcov.texi trouble.texi bugreport.texi service.texi		\
 	 contribute.texi compat.texi funding.texi gnu.texi gpl_v3.texi	\
 	 fdl.texi contrib.texi cppenv.texi cppopts.texi avr-mmcu.texi	\
-	 implement-c.texi implement-cxx.texi arm-neon-intrinsics.texi
+	 implement-c.texi implement-cxx.texi arm-neon-intrinsics.texi	\
+	 arm-acle-intrinsics.texi
 
 # we explicitly use $(srcdir)/doc/tm.texi here to avoid confusion with
 # the generated tm.texi; the latter might have a more recent timestamp,
@@ -2806,7 +2807,7 @@ TEXI_GCCINT_FILES = gccint.texi gcc-common.texi gcc-vers.texi		\
 	 configfiles.texi collect2.texi headerdirs.texi funding.texi	\
 	 gnu.texi gpl_v3.texi fdl.texi contrib.texi languages.texi	\
 	 sourcebuild.texi gty.texi libgcc.texi cfg.texi tree-ssa.texi	\
-	 loop.texi generic.texi gimple.texi plugins.texi
+	 loop.texi generic.texi gimple.texi plugins.texi optinfo.texi
 
 TEXI_GCCINSTALL_FILES = install.texi install-old.texi fdl.texi		\
 	 gcc-common.texi gcc-vers.texi
@@ -3117,7 +3118,9 @@ PLUGIN_HEADERS = $(TREE_H) $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
   cppdefault.h flags.h $(MD5_H) params.def params.h prefix.h tree-inline.h \
   $(GIMPLE_PRETTY_PRINT_H) realmpfr.h \
   $(IPA_PROP_H) $(TARGET_H) $(RTL_H) $(TM_P_H) $(CFGLOOP_H) $(EMIT_RTL_H) \
-  version.h stringpool.h
+  version.h stringpool.h gimplify.h gimple-iterator.h gimple-ssa.h \
+  fold-const.h tree-cfg.h tree-into-ssa.h tree-ssanames.h print-tree.h \
+  varasm.h context.h
 
 # generate the 'build fragment' b-header-vars
 s-header-vars: Makefile

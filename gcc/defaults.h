@@ -1,5 +1,5 @@
 /* Definitions of various defaults for tm.h macros.
-   Copyright (C) 1992-2013 Free Software Foundation, Inc.
+   Copyright (C) 1992-2014 Free Software Foundation, Inc.
    Contributed by Ron Guilmette (rfg@monkeys.com)
 
 This file is part of GCC.
@@ -470,10 +470,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 /* Default sizes for base C types.  If the sizes are different for
    your target, you should override these values by defining the
    appropriate symbols in your tm.h file.  */
-
-#ifndef BITS_PER_UNIT
-#define BITS_PER_UNIT 8
-#endif
 
 #ifndef BITS_PER_WORD
 #define BITS_PER_WORD (BITS_PER_UNIT * UNITS_PER_WORD)

@@ -1,5 +1,5 @@
 /* Data structures and function exported by the C++ Parser.
-   Copyright (C) 2010-2013 Free Software Foundation, Inc.
+   Copyright (C) 2010-2014 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -301,6 +301,7 @@ typedef struct GTY(()) cp_parser {
 #define IN_OMP_FOR		8
 #define IN_IF_STMT             16
 #define IN_CILK_SIMD_FOR       32
+#define IN_CILK_SPAWN          64
   unsigned char in_statement;
 
   /* TRUE if we are presently parsing the body of a switch statement.

@@ -1,5 +1,5 @@
 /* Interprocedural constant propagation
-   Copyright (C) 2005-2013 Free Software Foundation, Inc.
+   Copyright (C) 2005-2014 Free Software Foundation, Inc.
 
    Contributed by Razya Ladelsky <RAZYA@il.ibm.com> and Martin Jambor
    <mjambor@suse.cz>
@@ -430,6 +430,17 @@ determine_versionability (struct cgraph_node *node)
     reason = "not a tree_versionable_function";
   else if (cgraph_function_body_availability (node) <= AVAIL_OVERWRITABLE)
     reason = "insufficient body availability";
+  else if (lookup_attribute ("omp declare simd", DECL_ATTRIBUTES (node->decl)))
+    {
+      /* Ideally we should clone the SIMD clones themselves and create
+	 vector copies of them, so IPA-cp and SIMD clones can happily
+	 coexist, but that may not be worth the effort.  */
+      reason = "function has SIMD clones";
+    }
+  /* Don't clone decls local to a comdat group; it breaks and for C++
+     decloned constructors, inlining is always better anyway.  */
+  else if (symtab_comdat_local_p (node))
+    reason = "comdat-local function";
 
   if (reason && dump_file && !node->alias && !node->thunk.thunk_p)
     fprintf (dump_file, "Function %s/%i is not versionable, reason: %s.\n",
@@ -1681,10 +1692,10 @@ good_cloning_opportunity_p (struct cgraph_node *node, int time_benefit,
 /* Return all context independent values from aggregate lattices in PLATS in a
    vector.  Return NULL if there are none.  */
 
-static vec<ipa_agg_jf_item_t, va_gc> *
+static vec<ipa_agg_jf_item, va_gc> *
 context_independent_aggregate_values (struct ipcp_param_lattices *plats)
 {
-  vec<ipa_agg_jf_item_t, va_gc> *res = NULL;
+  vec<ipa_agg_jf_item, va_gc> *res = NULL;
 
   if (plats->aggs_bottom
       || plats->aggs_contain_variable
@@ -1713,7 +1724,7 @@ static bool
 gather_context_independent_values (struct ipa_node_params *info,
 			       vec<tree> *known_csts,
 			       vec<tree> *known_binfos,
-			       vec<ipa_agg_jump_function_t> *known_aggs,
+			       vec<ipa_agg_jump_function> *known_aggs,
 			       int *removable_params_cost)
 {
   int i, count = ipa_get_param_count (info);
@@ -1764,7 +1775,7 @@ gather_context_independent_values (struct ipa_node_params *info,
 
       if (known_aggs)
 	{
-	  vec<ipa_agg_jf_item_t, va_gc> *agg_items;
+	  vec<ipa_agg_jf_item, va_gc> *agg_items;
 	  struct ipa_agg_jump_function *ajf;
 
 	  agg_items = context_independent_aggregate_values (plats);
@@ -1786,7 +1797,7 @@ gather_context_independent_values (struct ipa_node_params *info,
    issue.  */
 
 static vec<ipa_agg_jump_function_p>
-agg_jmp_p_vec_for_t_vec (vec<ipa_agg_jump_function_t> known_aggs)
+agg_jmp_p_vec_for_t_vec (vec<ipa_agg_jump_function> known_aggs)
 {
   vec<ipa_agg_jump_function_p> ret;
   struct ipa_agg_jump_function *ajf;
@@ -1807,7 +1818,7 @@ estimate_local_effects (struct cgraph_node *node)
   struct ipa_node_params *info = IPA_NODE_REF (node);
   int i, count = ipa_get_param_count (info);
   vec<tree> known_csts, known_binfos;
-  vec<ipa_agg_jump_function_t> known_aggs;
+  vec<ipa_agg_jump_function> known_aggs;
   vec<ipa_agg_jump_function_p> known_aggs_ptrs;
   bool always_const;
   int base_time = inline_summary (node)->time;
@@ -2270,7 +2281,7 @@ ipcp_discover_new_direct_edges (struct cgraph_node *node,
 	{
 	  bool agg_contents = ie->indirect_info->agg_contents;
 	  bool polymorphic = ie->indirect_info->polymorphic;
-	  bool param_index = ie->indirect_info->param_index;
+	  int param_index = ie->indirect_info->param_index;
 	  struct cgraph_edge *cs = ipa_make_edge_direct_to_target (ie, target);
 	  found = true;
 
@@ -2310,13 +2321,17 @@ ipcp_discover_new_direct_edges (struct cgraph_node *node,
    edge. */
 
 static vec<cgraph_edge_p> next_edge_clone;
+static vec<cgraph_edge_p> prev_edge_clone;
 
 static inline void
-grow_next_edge_clone_vector (void)
+grow_edge_clone_vectors (void)
 {
   if (next_edge_clone.length ()
       <=  (unsigned) cgraph_edge_max_uid)
     next_edge_clone.safe_grow_cleared (cgraph_edge_max_uid + 1);
+  if (prev_edge_clone.length ()
+      <=  (unsigned) cgraph_edge_max_uid)
+    prev_edge_clone.safe_grow_cleared (cgraph_edge_max_uid + 1);
 }
 
 /* Edge duplication hook to grow the appropriate linked list in
@@ -2324,11 +2339,32 @@ grow_next_edge_clone_vector (void)
 
 static void
 ipcp_edge_duplication_hook (struct cgraph_edge *src, struct cgraph_edge *dst,
-			    __attribute__((unused)) void *data)
+			    void *)
 {
-  grow_next_edge_clone_vector ();
-  next_edge_clone[dst->uid] = next_edge_clone[src->uid];
+  grow_edge_clone_vectors ();
+
+  struct cgraph_edge *old_next = next_edge_clone[src->uid];
+  if (old_next)
+    prev_edge_clone[old_next->uid] = dst;
+  prev_edge_clone[dst->uid] = src;
+
+  next_edge_clone[dst->uid] = old_next;
   next_edge_clone[src->uid] = dst;
+}
+
+/* Hook that is called by cgraph.c when an edge is removed.  */
+
+static void
+ipcp_edge_removal_hook (struct cgraph_edge *cs, void *)
+{
+  grow_edge_clone_vectors ();
+
+  struct cgraph_edge *prev = prev_edge_clone[cs->uid];
+  struct cgraph_edge *next = next_edge_clone[cs->uid];
+  if (prev)
+    next_edge_clone[prev->uid] = next;
+  if (next)
+    prev_edge_clone[next->uid] = prev;
 }
 
 /* See if NODE is a clone with a known aggregate value at a given OFFSET of a
@@ -2765,10 +2801,10 @@ find_more_scalar_values_for_callers_subset (struct cgraph_node *node,
 /* Go through PLATS and create a vector of values consisting of values and
    offsets (minus OFFSET) of lattices that contain only a single value.  */
 
-static vec<ipa_agg_jf_item_t>
+static vec<ipa_agg_jf_item>
 copy_plats_to_inter (struct ipcp_param_lattices *plats, HOST_WIDE_INT offset)
 {
-  vec<ipa_agg_jf_item_t> res = vNULL;
+  vec<ipa_agg_jf_item> res = vNULL;
 
   if (!plats->aggs || plats->aggs_contain_variable || plats->aggs_bottom)
     return vNULL;
@@ -2789,7 +2825,7 @@ copy_plats_to_inter (struct ipcp_param_lattices *plats, HOST_WIDE_INT offset)
 
 static void
 intersect_with_plats (struct ipcp_param_lattices *plats,
-		      vec<ipa_agg_jf_item_t> *inter,
+		      vec<ipa_agg_jf_item> *inter,
 		      HOST_WIDE_INT offset)
 {
   struct ipcp_agg_lattice *aglat;
@@ -2829,12 +2865,12 @@ intersect_with_plats (struct ipcp_param_lattices *plats,
 /* Copy agggregate replacement values of NODE (which is an IPA-CP clone) to the
    vector result while subtracting OFFSET from the individual value offsets.  */
 
-static vec<ipa_agg_jf_item_t>
+static vec<ipa_agg_jf_item>
 agg_replacements_to_vector (struct cgraph_node *node, int index,
 			    HOST_WIDE_INT offset)
 {
   struct ipa_agg_replacement_value *av;
-  vec<ipa_agg_jf_item_t> res = vNULL;
+  vec<ipa_agg_jf_item> res = vNULL;
 
   for (av = ipa_get_agg_replacements_for_node (node); av; av = av->next)
     if (av->index == index
@@ -2856,7 +2892,7 @@ agg_replacements_to_vector (struct cgraph_node *node, int index,
 
 static void
 intersect_with_agg_replacements (struct cgraph_node *node, int index,
-				 vec<ipa_agg_jf_item_t> *inter,
+				 vec<ipa_agg_jf_item> *inter,
 				 HOST_WIDE_INT offset)
 {
   struct ipa_agg_replacement_value *srcvals;
@@ -2897,9 +2933,9 @@ intersect_with_agg_replacements (struct cgraph_node *node, int index,
    copy all incoming values to it.  If we determine we ended up with no values
    whatsoever, return a released vector.  */
 
-static vec<ipa_agg_jf_item_t>
+static vec<ipa_agg_jf_item>
 intersect_aggregates_with_edge (struct cgraph_edge *cs, int index,
-				vec<ipa_agg_jf_item_t> inter)
+				vec<ipa_agg_jf_item> inter)
 {
   struct ipa_jump_func *jfunc;
   jfunc = ipa_get_ith_jump_func (IPA_EDGE_REF (cs), index);
@@ -3008,7 +3044,7 @@ intersect_aggregates_with_edge (struct cgraph_edge *cs, int index,
   else
     {
       inter.release ();
-      return vec<ipa_agg_jf_item_t>();
+      return vec<ipa_agg_jf_item>();
     }
   return inter;
 }
@@ -3035,7 +3071,7 @@ find_aggregate_values_for_callers_subset (struct cgraph_node *node,
   for (i = 0; i < count ; i++)
     {
       struct cgraph_edge *cs;
-      vec<ipa_agg_jf_item_t> inter = vNULL;
+      vec<ipa_agg_jf_item> inter = vNULL;
       struct ipa_agg_jf_item *item;
       struct ipcp_param_lattices *plats = ipa_get_parm_lattices (dest_info, i);
       int j;
@@ -3079,7 +3115,7 @@ find_aggregate_values_for_callers_subset (struct cgraph_node *node,
 /* Turn KNOWN_AGGS into a list of aggreate replacement values.  */
 
 static struct ipa_agg_replacement_value *
-known_aggs_to_agg_replacement_list (vec<ipa_agg_jump_function_t> known_aggs)
+known_aggs_to_agg_replacement_list (vec<ipa_agg_jump_function> known_aggs)
 {
   struct ipa_agg_replacement_value *res = NULL;
   struct ipa_agg_jump_function *aggjf;
@@ -3161,7 +3197,7 @@ cgraph_edge_brings_all_agg_vals_for_node (struct cgraph_edge *cs,
 
   for (i = 0; i < count; i++)
     {
-      static vec<ipa_agg_jf_item_t> values = vec<ipa_agg_jf_item_t>();
+      static vec<ipa_agg_jf_item> values = vec<ipa_agg_jf_item>();
       struct ipcp_param_lattices *plats;
       bool interesting = false;
       for (struct ipa_agg_replacement_value *av = aggval; av; av = av->next)
@@ -3372,7 +3408,7 @@ decide_whether_version_node (struct cgraph_node *node)
   struct ipa_node_params *info = IPA_NODE_REF (node);
   int i, count = ipa_get_param_count (info);
   vec<tree> known_csts, known_binfos;
-  vec<ipa_agg_jump_function_t> known_aggs = vNULL;
+  vec<ipa_agg_jump_function> known_aggs = vNULL;
   bool ret = false;
 
   if (count == 0)
@@ -3557,13 +3593,17 @@ static unsigned int
 ipcp_driver (void)
 {
   struct cgraph_2edge_hook_list *edge_duplication_hook_holder;
+  struct cgraph_edge_hook_list *edge_removal_hook_holder;
   struct topo_info topo;
 
   ipa_check_create_node_params ();
   ipa_check_create_edge_args ();
-  grow_next_edge_clone_vector ();
+  grow_edge_clone_vectors ();
   edge_duplication_hook_holder =
     cgraph_add_edge_duplication_hook (&ipcp_edge_duplication_hook, NULL);
+  edge_removal_hook_holder =
+    cgraph_add_edge_removal_hook (&ipcp_edge_removal_hook, NULL);
+
   ipcp_values_pool = create_alloc_pool ("IPA-CP values",
 					sizeof (struct ipcp_value), 32);
   ipcp_sources_pool = create_alloc_pool ("IPA-CP value sources",
@@ -3589,6 +3629,7 @@ ipcp_driver (void)
   /* Free all IPCP structures.  */
   free_toporder_info (&topo);
   next_edge_clone.release ();
+  cgraph_remove_edge_removal_hook (edge_removal_hook_holder);
   cgraph_remove_edge_duplication_hook (edge_duplication_hook_holder);
   ipa_free_all_structures_after_ipa_cp ();
   if (dump_file)

@@ -1,7 +1,7 @@
 /* Garbage collection for the GNU compiler.  Internal definitions
    for ggc-*.c and stringpool.c.
 
-   Copyright (C) 2009-2013 Free Software Foundation, Inc.
+   Copyright (C) 2009-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -106,11 +106,11 @@ extern size_t ggc_get_size (const void *);
 
 /* This structure contains the statistics common to all collectors.
    Particular collectors can extend this structure.  */
-typedef struct ggc_statistics
+struct ggc_statistics
 {
   /* At present, we don't really gather any interesting statistics.  */
   int unused;
-} ggc_statistics;
+};
 
 /* Used by the various collectors to gather and print statistics that
    do not depend on the collector in use.  */

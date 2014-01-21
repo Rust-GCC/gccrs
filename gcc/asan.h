@@ -1,5 +1,5 @@
 /* AddressSanitizer, a fast memory error detector.
-   Copyright (C) 2011-2013 Free Software Foundation, Inc.
+   Copyright (C) 2011-2014 Free Software Foundation, Inc.
    Contributed by Kostya Serebryany <kcc@google.com>
 
 This file is part of GCC.
@@ -23,10 +23,14 @@ along with GCC; see the file COPYING3.  If not see
 
 extern void asan_function_start (void);
 extern void asan_finish_file (void);
-extern rtx asan_emit_stack_protection (rtx, HOST_WIDE_INT *, tree *, int);
+extern rtx asan_emit_stack_protection (rtx, rtx, unsigned int, HOST_WIDE_INT *,
+				       tree *, int);
 extern bool asan_protect_global (tree);
 extern void initialize_sanitizer_builtins (void);
 extern tree asan_dynamic_init_call (bool);
+
+extern gimple_stmt_iterator create_cond_insert_point
+     (gimple_stmt_iterator *, bool, bool, bool, basic_block *, basic_block *);
 
 /* Alias set for accessing the shadow memory.  */
 extern alias_set_type asan_shadow_set;
@@ -49,8 +53,10 @@ extern alias_set_type asan_shadow_set;
 #define ASAN_STACK_MAGIC_MIDDLE		0xf2
 #define ASAN_STACK_MAGIC_RIGHT		0xf3
 #define ASAN_STACK_MAGIC_PARTIAL	0xf4
+#define ASAN_STACK_MAGIC_USE_AFTER_RET	0xf5
 
-#define ASAN_STACK_FRAME_MAGIC	0x41b58ab3
+#define ASAN_STACK_FRAME_MAGIC		0x41b58ab3
+#define ASAN_STACK_RETIRED_MAGIC	0x45e0360e
 
 /* Return true if DECL should be guarded on the stack.  */
 

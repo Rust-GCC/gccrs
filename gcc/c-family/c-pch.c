@@ -1,5 +1,5 @@
 /* Precompiled header implementation for the C languages.
-   Copyright (C) 2000-2013 Free Software Foundation, Inc.
+   Copyright (C) 2000-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -179,6 +179,8 @@ c_common_write_pch (void)
   targetm.prepare_pch_save ();
 
   (*debug_hooks->handle_pch) (1);
+
+  prepare_target_option_nodes_for_pch ();
 
   cpp_write_pch_deps (parse_in, pch_outfile);
 

@@ -1,6 +1,6 @@
 /* Lower GIMPLE_SWITCH expressions to something more efficient than
    a jump table.
-   Copyright (C) 2006-2013 Free Software Foundation, Inc.
+   Copyright (C) 2006-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1420,7 +1420,7 @@ do_switchconv (void)
 {
   basic_block bb;
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
   {
     const char *failure_reason;
     gimple stmt = last_stmt (bb);

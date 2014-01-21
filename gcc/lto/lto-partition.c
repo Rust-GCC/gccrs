@@ -1,5 +1,5 @@
 /* LTO partitioning logic routines.
-   Copyright (C) 2009-2013 Free Software Foundation, Inc.
+   Copyright (C) 2009-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -286,9 +286,11 @@ add_symbol_to_partition (ltrans_partition part, symtab_node *node)
 
      Be lax about comdats; they may or may not be duplicated and we may
      end up in need to duplicate keyed comdat because it has unkeyed alias.  */
+
   gcc_assert (get_symbol_class (node) == SYMBOL_DUPLICATE
 	      || DECL_COMDAT (node->decl)
 	      || !symbol_partitioned_p (node));
+
   add_symbol_to_partition_1 (part, node);
 }
 
@@ -401,6 +403,25 @@ node_cmp (const void *pa, const void *pb)
 {
   const struct cgraph_node *a = *(const struct cgraph_node * const *) pa;
   const struct cgraph_node *b = *(const struct cgraph_node * const *) pb;
+
+  /* Profile reorder flag enables function reordering based on first execution
+     of a function. All functions with profile are placed in ascending
+     order at the beginning.  */
+
+  if (flag_profile_reorder_functions)
+  {
+    /* Functions with time profile are sorted in ascending order.  */
+    if (a->tp_first_run && b->tp_first_run)
+      return a->tp_first_run != b->tp_first_run
+	? a->tp_first_run - b->tp_first_run
+        : a->order - b->order;
+
+    /* Functions with time profile are sorted before the functions
+       that do not have the profile.  */
+    if (a->tp_first_run || b->tp_first_run)
+      return b->tp_first_run - a->tp_first_run;
+  }
+
   return b->order - a->order;
 }
 
@@ -408,8 +429,8 @@ node_cmp (const void *pa, const void *pb)
 static int
 varpool_node_cmp (const void *pa, const void *pb)
 {
-  const struct varpool_node *a = *(const struct varpool_node * const *) pa;
-  const struct varpool_node *b = *(const struct varpool_node * const *) pb;
+  const varpool_node *a = *(const varpool_node * const *) pa;
+  const varpool_node *b = *(const varpool_node * const *) pb;
   return b->order - a->order;
 }
 
@@ -457,14 +478,14 @@ lto_balanced_map (void)
   int n_nodes = 0;
   int n_varpool_nodes = 0, varpool_pos = 0, best_varpool_pos = 0;
   struct cgraph_node **order = XNEWVEC (struct cgraph_node *, cgraph_max_uid);
-  struct varpool_node **varpool_order = NULL;
+  varpool_node **varpool_order = NULL;
   int i;
   struct cgraph_node *node;
   int total_size = 0, best_total_size = 0;
   int partition_size;
   ltrans_partition partition;
   int last_visited_node = 0;
-  struct varpool_node *vnode;
+  varpool_node *vnode;
   int cost = 0, internal = 0;
   int best_n_nodes = 0, best_i = 0, best_cost =
     INT_MAX, best_internal = 0;
@@ -487,20 +508,23 @@ lto_balanced_map (void)
      get better about minimizing the function bounday, but until that
      things works smoother if we order in source order.  */
   qsort (order, n_nodes, sizeof (struct cgraph_node *), node_cmp);
+
+  if (cgraph_dump_file)
+    for(i = 0; i < n_nodes; i++)
+      fprintf (cgraph_dump_file, "Balanced map symbol order:%s:%u\n", order[i]->name (), order[i]->tp_first_run);
+
   if (!flag_toplevel_reorder)
     {
-      qsort (order, n_nodes, sizeof (struct cgraph_node *), node_cmp);
-
       FOR_EACH_VARIABLE (vnode)
 	if (get_symbol_class (vnode) == SYMBOL_PARTITION)
 	  n_varpool_nodes++;
-      varpool_order = XNEWVEC (struct varpool_node *, n_varpool_nodes);
+      varpool_order = XNEWVEC (varpool_node *, n_varpool_nodes);
 
       n_varpool_nodes = 0;
       FOR_EACH_VARIABLE (vnode)
 	if (get_symbol_class (vnode) == SYMBOL_PARTITION)
 	  varpool_order[n_varpool_nodes++] = vnode;
-      qsort (varpool_order, n_varpool_nodes, sizeof (struct varpool_node *),
+      qsort (varpool_order, n_varpool_nodes, sizeof (varpool_node *),
 	     varpool_node_cmp);
     }
 
@@ -855,7 +879,7 @@ may_need_named_section_p (lto_symtab_encoder_t encoder, symtab_node *node)
    of the same name in partition ENCODER (or in whole compilation unit if
    ENCODER is NULL) and if so, mangle the statics.  Always mangle all
    conflicting statics, so we reduce changes of silently miscompiling
-   asm statemnets referring to them by symbol name.  */
+   asm statements referring to them by symbol name.  */
 
 static void
 rename_statics (lto_symtab_encoder_t encoder, symtab_node *node)

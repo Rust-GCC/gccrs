@@ -1,5 +1,5 @@
 /* Deal with interfaces.
-   Copyright (C) 2000-2013 Free Software Foundation, Inc.
+   Copyright (C) 2000-2014 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of GCC.
@@ -1114,8 +1114,37 @@ check_dummy_characteristics (gfc_symbol *s1, gfc_symbol *s2,
       return false;
     }
 
-  /* FIXME: Do more comprehensive testing of attributes, like e.g.
-	    ASYNCHRONOUS, CONTIGUOUS, VALUE, VOLATILE, etc.  */
+  /* Check ASYNCHRONOUS attribute.  */
+  if (s1->attr.asynchronous != s2->attr.asynchronous)
+    {
+      snprintf (errmsg, err_len, "ASYNCHRONOUS mismatch in argument '%s'",
+		s1->name);
+      return false;
+    }
+
+  /* Check CONTIGUOUS attribute.  */
+  if (s1->attr.contiguous != s2->attr.contiguous)
+    {
+      snprintf (errmsg, err_len, "CONTIGUOUS mismatch in argument '%s'",
+		s1->name);
+      return false;
+    }
+
+  /* Check VALUE attribute.  */
+  if (s1->attr.value != s2->attr.value)
+    {
+      snprintf (errmsg, err_len, "VALUE mismatch in argument '%s'",
+		s1->name);
+      return false;
+    }
+
+  /* Check VOLATILE attribute.  */
+  if (s1->attr.volatile_ != s2->attr.volatile_)
+    {
+      snprintf (errmsg, err_len, "VOLATILE mismatch in argument '%s'",
+		s1->name);
+      return false;
+    }
 
   /* Check interface of dummy procedures.  */
   if (s1->attr.flavor == FL_PROCEDURE)
@@ -2577,7 +2606,7 @@ compare_actual_formal (gfc_actual_arglist **ap, gfc_formal_arglist *formal,
       if (UNLIMITED_POLY (f->sym)
 	  && a->expr->ts.type != BT_DERIVED
 	  && a->expr->ts.type != BT_CLASS)
-	gfc_find_intrinsic_vtab (&a->expr->ts);
+	gfc_find_vtab (&a->expr->ts);
 
       if (a->expr->expr_type == EXPR_NULL
 	  && ((f->sym->ts.type != BT_CLASS && !f->sym->attr.pointer

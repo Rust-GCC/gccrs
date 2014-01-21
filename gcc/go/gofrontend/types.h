@@ -19,6 +19,7 @@ class Float_type;
 class Complex_type;
 class String_type;
 class Function_type;
+class Backend_function_type;
 class Struct_field;
 class Struct_field_list;
 class Struct_type;
@@ -483,6 +484,12 @@ class Type
 		     Typed_identifier_list* parameters,
 		     Typed_identifier_list* results,
 		     Location);
+
+  static Backend_function_type*
+  make_backend_function_type(Typed_identifier* receiver,
+                             Typed_identifier_list* parameters,
+                             Typed_identifier_list* results,
+                             Location);
 
   static Pointer_type*
   make_pointer_type(Type*);
@@ -1797,6 +1804,12 @@ class Function_type : public Type
   Function_type*
   copy_with_receiver(Type*) const;
 
+  // Return a copy of this type with the receiver treated as the first
+  // parameter.  If WANT_POINTER_RECEIVER is true, the receiver is
+  // forced to be a pointer.
+  Function_type*
+  copy_with_receiver_as_param(bool want_pointer_receiver) const;
+
   // Return a copy of this type ignoring any receiver and using dummy
   // names for all parameters.  This is used for thunks for method
   // values.
@@ -1888,6 +1901,23 @@ class Function_type : public Type
   // The backend representation of this type for backend function
   // declarations and definitions.
   Btype* fnbtype_;
+};
+
+// The type of a function's backend representation.
+
+class Backend_function_type : public Function_type
+{
+ public:
+  Backend_function_type(Typed_identifier* receiver,
+                        Typed_identifier_list* parameters,
+                        Typed_identifier_list* results, Location location)
+      : Function_type(receiver, parameters, results, location)
+  { }
+
+ protected:
+  Btype*
+  do_get_backend(Gogo* gogo)
+  { return this->get_backend_fntype(gogo); }
 };
 
 // The type of a pointer.
@@ -2306,17 +2336,17 @@ class Array_type : public Type
   array_has_hidden_fields(const Named_type* within, std::string* reason) const
   { return this->element_type_->has_hidden_fields(within, reason); }
 
-  // Return a tree for the pointer to the values in an array.
-  tree
-  value_pointer_tree(Gogo*, tree array) const;
+  // Return an expression for the pointer to the values in an array.
+  Expression*
+  get_value_pointer(Gogo*, Expression* array) const;
 
-  // Return a tree for the length of an array with this type.
-  tree
-  length_tree(Gogo*, tree array);
+  // Return an expression for the length of an array with this type.
+  Expression*
+  get_length(Gogo*, Expression* array) const;
 
-  // Return a tree for the capacity of an array with this type.
-  tree
-  capacity_tree(Gogo*, tree array);
+  // Return an expression for the capacity of an array with this type.
+  Expression*
+  get_capacity(Gogo*, Expression* array) const;
 
   // Import an array type.
   static Array_type*

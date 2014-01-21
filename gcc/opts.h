@@ -1,5 +1,5 @@
 /* Command line option handling.
-   Copyright (C) 2002-2013 Free Software Foundation, Inc.
+   Copyright (C) 2002-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -249,14 +249,14 @@ struct cl_decoded_option
 /* Structure describing an option deferred for handling after the main
    option handlers.  */
 
-typedef struct
+struct cl_deferred_option
 {
   /* Elements from struct cl_decoded_option used for deferred
      options.  */
   size_t opt_index;
   const char *arg;
   int value;
-} cl_deferred_option;
+};
 
 /* Structure describing a single option-handling callback.  */
 

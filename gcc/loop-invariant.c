@@ -1,5 +1,5 @@
 /* RTL-level loop invariant motion.
-   Copyright (C) 2004-2013 Free Software Foundation, Inc.
+   Copyright (C) 2004-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -652,14 +652,8 @@ may_assign_reg_p (rtx x)
    BODY.  */
 
 static void
-find_defs (struct loop *loop, basic_block *body)
+find_defs (struct loop *loop)
 {
-  unsigned i;
-  bitmap blocks = BITMAP_ALLOC (NULL);
-
-  for (i = 0; i < loop->num_nodes; i++)
-    bitmap_set_bit (blocks, body[i]->index);
-
   if (dump_file)
     {
       fprintf (dump_file,
@@ -670,9 +664,8 @@ find_defs (struct loop *loop, basic_block *body)
   df_remove_problem (df_chain);
   df_process_deferred_rescans ();
   df_chain_add_problem (DF_UD_CHAIN);
-  df_set_blocks (blocks);
   df_set_flags (DF_RD_PRUNE_DEAD_DEFS);
-  df_analyze ();
+  df_analyze_loop (loop);
   check_invariant_table_size ();
 
   if (dump_file)
@@ -682,8 +675,6 @@ find_defs (struct loop *loop, basic_block *body)
 	       "*****ending processing of loop %d ******\n",
 	       loop->num);
     }
-
-  BITMAP_FREE (blocks);
 }
 
 /* Creates a new invariant for definition DEF in INSN, depending on invariants
@@ -1005,7 +996,7 @@ find_invariants (struct loop *loop)
   compute_always_reached (loop, body, may_exit, always_reached);
   compute_always_reached (loop, body, has_exit, always_executed);
 
-  find_defs (loop, body);
+  find_defs (loop);
   find_invariants_body (loop, body, always_reached, always_executed);
   merge_identical_invariants ();
 
@@ -1823,9 +1814,9 @@ calculate_loop_reg_pressure (void)
 	bitmap_initialize (&LOOP_DATA (loop)->regs_ref, &reg_obstack);
 	bitmap_initialize (&LOOP_DATA (loop)->regs_live, &reg_obstack);
       }
-  ira_setup_eliminable_regset (false);
+  ira_setup_eliminable_regset ();
   bitmap_initialize (&curr_regs_live, &reg_obstack);
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       curr_loop = bb->loop_father;
       if (curr_loop == current_loops->tree_root)

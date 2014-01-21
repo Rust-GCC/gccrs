@@ -1,5 +1,5 @@
 /* Language-level data type conversion for GNU C++.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
    Hacked by Michael Tiemann (tiemann@cygnus.com)
 
 This file is part of GCC.
@@ -753,6 +753,7 @@ ocp_convert (tree type, tree expr, int convtype, int flags,
 	     unspecified.  */
 	  if ((complain & tf_warning)
 	      && TREE_CODE (e) == INTEGER_CST
+	      && ENUM_UNDERLYING_TYPE (type)
 	      && !int_fits_type_p (e, ENUM_UNDERLYING_TYPE (type)))
 	    warning_at (loc, OPT_Wconversion, 
 			"the result of the conversion is unspecified because "
@@ -1403,7 +1404,9 @@ convert_to_void (tree expr, impl_conv_void implicit, tsubst_flags_t complain)
 			    || code == PREDECREMENT_EXPR
 			    || code == PREINCREMENT_EXPR
 			    || code == POSTDECREMENT_EXPR
-			    || code == POSTINCREMENT_EXPR)))
+			    || code == POSTINCREMENT_EXPR))
+		   || code == VEC_PERM_EXPR
+		   || code == VEC_COND_EXPR)
                   && (complain & tf_warning))
 		warning_at (loc, OPT_Wunused_value, "value computed is not used");
 	    }
