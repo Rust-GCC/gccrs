@@ -1499,16 +1499,10 @@ package body Errout is
       Cur_Msg := No_Error_Msg;
       List_Pragmas.Init;
 
-      --  Initialize warnings table, if all warnings are suppressed, supply an
-      --  initial dummy entry covering all possible source locations.
+      --  Initialize warnings table
 
       Warnings.Init;
       Specific_Warnings.Init;
-
-      if Warning_Mode = Suppress then
-         Warnings.Append
-           ((Start => Source_Ptr'First, Stop => Source_Ptr'Last));
-      end if;
    end Initialize;
 
    -----------------

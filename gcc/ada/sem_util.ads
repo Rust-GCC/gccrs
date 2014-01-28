@@ -886,6 +886,10 @@ package Sem_Util is
    --  component is present. This function is used to check if "=" has to be
    --  expanded into a bunch component comparisons.
 
+   function Has_Volatile_Component (Typ : Entity_Id) return Boolean;
+   --  Given an arbitrary type, determine whether it contains at least one
+   --  volatile component.
+
    function Implementation_Kind (Subp : Entity_Id) return Name_Id;
    --  Subp is a subprogram marked with pragma Implemented. Return the specific
    --  implementation requirement which the pragma imposes. The return value is
@@ -1015,6 +1019,11 @@ package Sem_Util is
    --  First determine whether type T is an interface and then check whether
    --  it is of protected, synchronized or task kind.
 
+   function Is_Delegate (T : Entity_Id) return Boolean;
+   --  Returns true if type T represents a delegate. A Delegate is the CIL
+   --  object used to represent access-to-subprogram types. This is only
+   --  relevant to CIL, will always return false for other targets.
+
    function Is_Dependent_Component_Of_Mutable_Object
      (Object : Node_Id) return Boolean;
    --  Returns True if Object is the name of a subcomponent that depends on
@@ -1116,6 +1125,9 @@ package Sem_Util is
    --  if Include_Implicit is False, these cases do not count as making the
    --  type be partially initialized.
 
+   function Is_Potentially_Unevaluated (N : Node_Id) return Boolean;
+   --  Predicate to implement definition given in RM 6.1.1 (20/3)
+
    function Is_Potentially_Persistent_Type (T : Entity_Id) return Boolean;
    --  Determines if type T is a potentially persistent type. A potentially
    --  persistent type is defined (recursively) as a scalar type, a non-tagged
@@ -1161,6 +1173,13 @@ package Sem_Util is
 
    function Is_SPARK_Object_Reference (N : Node_Id) return Boolean;
    --  Determines if the tree referenced by N represents an object in SPARK
+
+   function Is_SPARK_Volatile_Object (N : Node_Id) return Boolean;
+   --  Determine whether an arbitrary node denotes a volatile object reference
+   --  according to the semantics of SPARK. To qualify as volatile, an object
+   --  must be subject to aspect/pragma Volatile or Atomic or have a [sub]type
+   --  subject to the same attributes. Note that volatile components do not
+   --  render an object volatile.
 
    function Is_Statement (N : Node_Id) return Boolean;
    pragma Inline (Is_Statement);
@@ -1211,11 +1230,6 @@ package Sem_Util is
    function Is_VMS_Operator (Op : Entity_Id) return Boolean;
    --  Determine whether an operator is one of the intrinsics defined
    --  in the DEC system extension.
-
-   function Is_Delegate (T : Entity_Id) return Boolean;
-   --  Returns true if type T represents a delegate. A Delegate is the CIL
-   --  object used to represent access-to-subprogram types. This is only
-   --  relevant to CIL, will always return false for other targets.
 
    function Is_Variable
      (N                 : Node_Id;
@@ -1750,6 +1764,9 @@ package Sem_Util is
 
    function Within_Init_Proc return Boolean;
    --  Determines if Current_Scope is within an init proc
+
+   function Within_Scope (E : Entity_Id; S : Entity_Id) return Boolean;
+   --  Returns True if entity Id is declared within scope S
 
    procedure Wrong_Type (Expr : Node_Id; Expected_Type : Entity_Id);
    --  Output error message for incorrectly typed expression. Expr is the node

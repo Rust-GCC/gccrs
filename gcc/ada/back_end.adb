@@ -51,7 +51,7 @@ package body Back_End is
 
    flag_stack_check : Int;
    pragma Import (C, flag_stack_check);
-   --  Indicates if stack checking is enabled, imported from decl.c
+   --  Indicates if stack checking is enabled, imported from misc.c
 
    save_argc : Nat;
    pragma Import (C, save_argc);
@@ -258,7 +258,10 @@ package body Back_End is
    --  Start of processing for Scan_Compiler_Arguments
 
    begin
-      --  Acquire stack checking mode directly from GCC
+      --  Acquire stack checking mode directly from GCC. The reason we do this
+      --  is to make sure that the indication of stack checking being enabled
+      --  is the same in the front end and the back end. This status obtained
+      --  from gcc is affected by more than just the switch -fstack-check.
 
       Opt.Stack_Checking_Enabled := (flag_stack_check /= 0);
 

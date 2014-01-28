@@ -26,8 +26,6 @@ included in the section entitled ``GNU Free Documentation License''.
 @end copying
 
 @set EDITION GNAT
-@set DEFAULTLANGUAGEVERSION Ada 2005
-@set NONDEFAULTLANGUAGEVERSION Ada 95
 
 @settitle GNAT Reference Manual
 
@@ -294,6 +292,7 @@ Implementation Defined Aspects
 * Aspect Initializes::
 * Aspect Inline_Always::
 * Aspect Invariant::
+* Aspect Linker_Section::
 * Aspect Object_Size::
 * Aspect Persistent_BSS::
 * Aspect Predicate::
@@ -696,15 +695,15 @@ This manual contains useful information in writing programs using the
 characteristics of @value{EDITION}, including all the information required by
 Annex M of the Ada language standard.
 
-@value{EDITION} implements Ada 95 and Ada 2005, and it may also be invoked in
-Ada 83 compatibility mode.
-By default, @value{EDITION} assumes @value{DEFAULTLANGUAGEVERSION},
+@value{EDITION} implements Ada 95, Ada 2005 and Ada 2012, and it may also be
+invoked in Ada 83 compatibility mode.
+By default, @value{EDITION} assumes Ada 2012,
 but you can override with a compiler switch
 to explicitly specify the language version.
 (Please refer to @ref{Compiling Different Versions of Ada,,, gnat_ugn,
 @value{EDITION} User's Guide}, for details on these switches.)
 Throughout this manual, references to ``Ada'' without a year suffix
-apply to both the Ada 95 and Ada 2005 versions of the language.
+apply to all the Ada versions of the language.
 
 Ada is designed to be highly portable.
 In general, a program will have the same effect even when compiled by
@@ -2971,11 +2970,11 @@ You can use this pragma either to access a predefined @code{System}
 extension supplied with the compiler, for example @code{Aux_DEC} or
 you can construct your own extension unit following the above
 definition.  Note that such a package is a child of @code{System}
-and thus is considered part of the implementation.  To compile
-it you will have to use the appropriate switch for compiling
-system units.
-@xref{Top, @value{EDITION} User's Guide, About This Guide, gnat_ugn, @value{EDITION} User's Guide},
-for details.
+and thus is considered part of the implementation.
+To compile it you will have to use the @option{-gnatg} switch,
+or the @option{/GNAT_INTERNAL} qualifier on OpenVMS,
+for compiling System units, as explained in the
+@value{EDITION} User's Guide.
 
 @node Pragma Extensions_Allowed
 @unnumberedsec Pragma Extensions_Allowed
@@ -4249,14 +4248,33 @@ pragma Linker_Section (
 @end smallexample
 
 @noindent
-@var{LOCAL_NAME} must refer to an object that is declared at the library
-level. This pragma specifies the name of the linker section for the given
-entity. It is equivalent to @code{__attribute__((section))} in GNU C and
-causes @var{LOCAL_NAME} to be placed in the @var{static_string_EXPRESSION}
-section of the executable (assuming the linker doesn't rename the section).
+@var{LOCAL_NAME} must refer to an object, type, or subprogram that is
+declared at the library level. This pragma specifies the name of the
+linker section for the given entity. It is equivalent to
+@code{__attribute__((section))} in GNU C and causes @var{LOCAL_NAME} to
+be placed in the @var{static_string_EXPRESSION} section of the
+executable (assuming the linker doesn't rename the section).
+GNAT also provides an implementation defined aspect of the same name.
 
-The compiler normally places library-level objects in standard sections
-depending on their type: procedures and functions generally go in the
+In the case of specifying this aspect for a type, the effect is to
+specify the corresponding for all library level objects of the type which
+do not have an explicit linker section set. Note that this only applies to
+whole objects, not to components of composite objects.
+
+In the case of a subprogram, the linker section applies to all previously
+declared matching overloaded subprograms in the current declarative part
+which do not already have a linker section assigned. The linker section
+aspect is useful in this case for specifying different linker sections
+for different elements of such an overloaded set.
+
+Note that an empty string specifies that no linker section is specified.
+This is not quite the same as omitting the pragma or aspect, since it
+can be used to specify that one element of an overloaded set of subprograms
+has the default linker section, or that one object of a type for which a
+linker section is specified should has the default linker section.
+
+The compiler normally places library-level entities in standard sections
+depending on the class: procedures and functions generally go in the
 @code{.text} section, initialized variables in the @code{.data} section
 and uninitialized variables in the @code{.bss} section.
 
@@ -4282,6 +4300,12 @@ package IO_Card is
   Port_B : Integer;
   pragma Volatile (Port_B);
   pragma Linker_Section (Port_B, ".bss.port_b");
+
+  type Port_Type is new Integer with Linker_Section => ".bss";
+  PA : Port_Type with Linker_Section => ".bss.PA";
+  PB : Port_Type; --  ends up in linker section ".bss"
+
+  procedure Q with Linker_Section => "Qsection";
 end IO_Card;
 @end smallexample
 
@@ -5059,6 +5083,9 @@ and that optimization of context switch with this task is permitted and
 desired.  If the argument @code{No} is present, the task must not be
 optimized.  GNAT does not attempt to optimize any tasks in this manner
 (since protected objects are available in place of passive tasks).
+
+For more information on the subject of passive tasks, see the section
+``Passive Task Optimization'' in the GNAT Users Guide.
 
 @node Pragma Persistent_BSS
 @unnumberedsec Pragma Persistent_BSS
@@ -6278,7 +6305,7 @@ is needed for error messages issued by all phases of the compiler.
 Syntax:
 
 @smallexample @c ada
-pragma SPARK_Mode [ (On | Off | Auto) ] ;
+pragma SPARK_Mode [(On | Off)] ;
 @end smallexample
 
 @noindent
@@ -6288,16 +6315,14 @@ language. The pragma is intended for use with formal verification tools
 and has no effect on the generated code.
 
 The SPARK_Mode pragma is used to specify the value of the SPARK_Mode aspect
-(a three-valued aspect having values of On, Off, or Auto) of an entity.
+(either Off or On) of an entity.
 More precisely, it is used to specify the aspect value of a ``section''
 of an entity (the term ``section'' is defined below).
 If a Spark_Mode pragma's (optional) argument is omitted,
 an implicit argument of On is assumed.
 
 A SPARK_Mode pragma may be used as a configuration pragma and then has the
-semantics described below. A SPARK_Mode pragma which is not used as a
-configuration pragma (or an equivalent SPARK_Mode aspect_specification)
-shall not have an argument of Auto.
+semantics described below.
 
 A SPARK_Mode pragma can be used as a local pragma only
 in the following contexts:
@@ -6347,8 +6372,7 @@ completion is defined to have 2 ``sections'': its declaration and its
 completion. Any other construct is defined to have 1 section.
 
 The SPARK_Mode aspect value of an arbitrary section of an arbitrary Ada entity
-or construct is then defined to be the following value (except if this yields
-a result of Auto for a non-package; see below):
+or construct is then defined to be the following value:
 
 @itemize
 
@@ -6365,7 +6389,7 @@ else for any of the visible part or body declarations of a library unit package
 or either section of a library unit subprogram, if there is an applicable
 SPARK_Mode configuration pragma then the value specified by the
 pragma; if no such configuration pragma applies, then an implicit
-specification of Auto is assumed;
+specification of Off is assumed;
 
 @item
 else for any subsequent (i.e., not the first) section of a library unit
@@ -6377,12 +6401,11 @@ or subprogram;
 
 @end itemize
 
-If the above computation yields a result of Auto for any construct other than
-one of the four sections of a package, then a result of On or Off is
-determined instead based on the legality (with respect to the rules of
-SPARK 2014) of the construct. The construct's SPARK_Mode is On if and only
-if the construct is in SPARK 2014. [A SPARK_Mode of
-Auto is therefore only possible for sections of a package.]
+If the above computation does not specify a SPARK_Mode setting for any
+construct other than one of the four sections of a package, then a result of On
+or Off is determined instead based on the legality (with respect to the rules
+of SPARK 2014) of the construct. The construct's SPARK_Mode is On if and only
+if the construct is in SPARK 2014.
 
 If an earlier section of an entity has a Spark_Mode of Off, then the
 Spark_Mode aspect of any later section of that entity shall not be
@@ -7627,6 +7650,7 @@ clause.
 * Aspect Initializes::
 * Aspect Inline_Always::
 * Aspect Invariant::
+* Aspect Linker_Section::
 * Aspect Lock_Free::
 * Aspect Object_Size::
 * Aspect Persistent_BSS::
@@ -7819,6 +7843,12 @@ This aspect is equivalent to pragma @code{Inline_Always}.
 This aspect is equivalent to pragma @code{Invariant}. It is a
 synonym for the language defined aspect @code{Type_Invariant} except
 that it is separately controllable using pragma @code{Assertion_Policy}.
+
+@node Aspect Linker_Section
+@unnumberedsec Aspect Linker_Section
+@findex Linker_Section
+@noindent
+This aspect is equivalent to an @code{Linker_Section} pragma.
 
 @node Aspect Lock_Free
 @unnumberedsec Aspect Lock_Free
@@ -12438,7 +12468,7 @@ See A.3.5(3).
 @end cartouche
 @noindent
 @code{Ada.Wide_Characters.Handling.Character_Set_Version} returns
-the string "Unicode 6.2", referring to version 6.2.x of the
+the string "Unicode 4.0", referring to version 4.0 of the
 Unicode specification.
 
 @sp 1

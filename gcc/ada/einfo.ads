@@ -1290,7 +1290,6 @@ package Einfo is
 --
 --          Machine_Attribute pragma
 --          Link_Alias pragma
---          Linker_Section pragma
 --          Linker_Constructor pragma
 --          Linker_Destructor pragma
 --          Weak_External pragma
@@ -1555,7 +1554,6 @@ package Einfo is
 --
 --          Machine_Attribute pragma
 --          Linker_Alias pragma
---          Linker_Section pragma
 --          Linker_Constructor pragma
 --          Linker_Destructor pragma
 --          Weak_External pragma
@@ -1564,7 +1562,7 @@ package Einfo is
 --       If this flag is set, then Gigi should scan the rep item chain to
 --       process any of these items that appear. At least one such item will
 --       be present.
-
+--
 --    Has_Homonym (Flag56)
 --       Defined in all entities. Set if an entity has a homonym in the same
 --       scope. Used by Gigi to generate unique names for such entities.
@@ -2345,11 +2343,15 @@ package Einfo is
 
 --    Is_Ghost_Entity (synthesized)
 --       Applies to all entities. Yields True for a subprogram or a whole
---       object that has convention Ghost.
+--       object that has convention Ghost. For now only functions can have
+--       Ghost convention, so this will be false for other than functions,
+--       but we expect that to change in the future.
 
 --    Is_Ghost_Subprogram (synthesized)
 --       Applies to all entities. Yields True for a subprogram that has a Ghost
---       convention.
+--       convention. Note: for now, only ghost functions are allowed, so this
+--       will always be false for procedures, but that is expected to change in
+--       the future.
 
 --    Is_Hidden (Flag57)
 --       Defined in all entities. Set for all entities declared in the
@@ -2397,10 +2399,6 @@ package Einfo is
 --       be compiled. Is_Inlined is also set on generic subprograms and is
 --       inherited by their instances. It is also set on the body entities
 --       of inlined subprograms. See also Has_Pragma_Inline.
-
---    Is_Input_Only_State (synthesized)
---       Applies to all entities, true for abstract states that are subject to
---       option Input_Only.
 
 --    Is_Instantiated (Flag126)
 --       Defined in generic packages and generic subprograms. Set if the unit
@@ -2591,10 +2589,6 @@ package Einfo is
 --       set right, at which point, these comments can be removed, and the
 --       tests for static subtypes greatly simplified.
 
---    Is_Non_Volatile_State (synthesized)
---       Applies to all entities, true for abstract states that are subject to
---       option Non_Volatile.
-
 --    Is_Null_Init_Proc (Flag178)
 --       Defined in procedure entities. Set for generated init proc procedures
 --       (used to initialize composite types), if the code for the procedure
@@ -2634,10 +2628,6 @@ package Einfo is
 --    Is_Ordinary_Fixed_Point_Type (synthesized)
 --       Applies to all entities, true for ordinary fixed point types and
 --       subtypes.
-
---    Is_Output_Only_State (synthesized)
---       Applies to all entities, true for abstract states that are subject to
---       option Output_Only.
 
 --    Is_Package_Or_Generic_Package (synthesized)
 --       Applies to all entities. True for packages and generic packages.
@@ -3055,7 +3045,14 @@ package Einfo is
 --       fide package with the limited-view list through the first_entity and
 --       first_private attributes. The elements of this list are the shadow
 --       entities created for the types and local packages that are declared
---       in a package appearing in a limited_with clause (Ada 2005: AI-50217)
+--       in a package appearing in a limited_with clause (Ada 2005: AI-50217).
+
+--    Linker_Section_Pragma (Node33)
+--       Present in constant, variable, type and subprogram entities. Points
+--       to a linker section pragma that applies to the entity, or is Empty if
+--       no such pragma applies. Note that for constants and variables, this
+--       field may be set as a result of a linker section pragma applied to the
+--       type of the object.
 
 --    Lit_Indexes (Node15)
 --       Defined in enumeration types and subtypes. Non-empty only for the
@@ -3906,9 +3903,9 @@ package Einfo is
 --       or a copy of the low bound of the index base type if not.
 
 --    Subprograms_For_Type (Node29)
---       Defined in all type entities, and in subprogram entities. This is used
---       to hold a list of subprogram entities for subprograms associated with
---       the type, linked through the Subprogram_List field of the subprogram
+--       Defined in all type and subprogram entities. This is used to hold
+--       a list of subprogram entities for subprograms associated with the
+--       type, linked through the Subprograms_For_Type field of the subprogram
 --       entity. Basically this is a way of multiplexing the single field to
 --       hold more than one entity (since we ran out of space in some type
 --       entities). This is currently used for Invariant_Procedure and also
@@ -5067,6 +5064,7 @@ package Einfo is
    --    Related_Expression                  (Node24)
    --    Current_Use_Clause                  (Node27)
    --    Subprograms_For_Type                (Node29)
+   --    Linker_Section_Pragma               (Node33)
 
    --    Depends_On_Private                  (Flag14)
    --    Discard_Names                       (Flag88)
@@ -5157,10 +5155,7 @@ package Einfo is
    --    Has_Non_Null_Refinement             (synth)
    --    Has_Null_Refinement                 (synth)
    --    Is_External_State                   (synth)
-   --    Is_Input_Only_State                 (synth)
    --    Is_Null_State                       (synth)
-   --    Is_Output_Only_State                (synth)
-   --    Is_Non_Volatile_State               (synth)
 
    --  E_Access_Protected_Subprogram_Type
    --    Equivalent_Type                     (Node18)
@@ -5301,6 +5296,7 @@ package Einfo is
    --    Interface_Name                      (Node21)   (constants only)
    --    Related_Type                        (Node27)   (constants only)
    --    Initialization_Statements           (Node28)
+   --    Linker_Section_Pragma               (Node33)
    --    Has_Alignment_Clause                (Flag46)
    --    Has_Atomic_Components               (Flag86)
    --    Has_Biased_Representation           (Flag139)
@@ -5480,6 +5476,7 @@ package Einfo is
    --    Corresponding_Equality              (Node30)   (implicit /= only)
    --    Thunk_Entity                        (Node31)   (thunk case only)
    --    SPARK_Pragma                        (Node32)
+   --    Linker_Section_Pragma               (Node33)
    --    Contract                            (Node34)
    --    Body_Needed_For_SAL                 (Flag40)
    --    Elaboration_Entity_Required         (Flag174)
@@ -5633,6 +5630,7 @@ package Einfo is
    --    Last_Entity                         (Node20)
    --    Overridden_Operation                (Node26)
    --    Subprograms_For_Type                (Node29)
+   --    Linker_Section_Pragma               (Node33)
    --    Contract                            (Node34)
    --    Has_Invariants                      (Flag232)
    --    Has_Postconditions                  (Flag240)
@@ -5767,6 +5765,7 @@ package Einfo is
    --    Static_Initialization               (Node30)   (init_proc only)
    --    Thunk_Entity                        (Node31)   (thunk case only)
    --    SPARK_Pragma                        (Node32)
+   --    Linker_Section_Pragma               (Node33)
    --    Contract                            (Node34)
    --    Body_Needed_For_SAL                 (Flag40)
    --    Delay_Cleanups                      (Flag114)
@@ -6001,6 +6000,7 @@ package Einfo is
    --    Last_Assignment                     (Node26)
    --    Related_Type                        (Node27)
    --    Initialization_Statements           (Node28)
+   --    Linker_Section_Pragma               (Node33)
    --    Contract                            (Node34)
    --    Has_Alignment_Clause                (Flag46)
    --    Has_Atomic_Components               (Flag86)
@@ -6566,6 +6566,7 @@ package Einfo is
    function Last_Assignment                     (Id : E) return N;
    function Last_Entity                         (Id : E) return E;
    function Limited_View                        (Id : E) return E;
+   function Linker_Section_Pragma               (Id : E) return N;
    function Lit_Indexes                         (Id : E) return E;
    function Lit_Strings                         (Id : E) return E;
    function Low_Bound_Tested                    (Id : E) return B;
@@ -6771,10 +6772,7 @@ package Einfo is
    function Is_Finalizer                        (Id : E) return B;
    function Is_Ghost_Entity                     (Id : E) return B;
    function Is_Ghost_Subprogram                 (Id : E) return B;
-   function Is_Input_Only_State                 (Id : E) return B;
-   function Is_Non_Volatile_State               (Id : E) return B;
    function Is_Null_State                       (Id : E) return B;
-   function Is_Output_Only_State                (Id : E) return B;
    function Is_Package_Or_Generic_Package       (Id : E) return B;
    function Is_Prival                           (Id : E) return B;
    function Is_Protected_Component              (Id : E) return B;
@@ -7192,6 +7190,7 @@ package Einfo is
    procedure Set_Last_Assignment                 (Id : E; V : N);
    procedure Set_Last_Entity                     (Id : E; V : E);
    procedure Set_Limited_View                    (Id : E; V : E);
+   procedure Set_Linker_Section_Pragma           (Id : E; V : N);
    procedure Set_Lit_Indexes                     (Id : E; V : E);
    procedure Set_Lit_Strings                     (Id : E; V : E);
    procedure Set_Low_Bound_Tested                (Id : E; V : B := True);
@@ -7960,6 +7959,7 @@ package Einfo is
    pragma Inline (Last_Assignment);
    pragma Inline (Last_Entity);
    pragma Inline (Limited_View);
+   pragma Inline (Linker_Section_Pragma);
    pragma Inline (Lit_Indexes);
    pragma Inline (Lit_Strings);
    pragma Inline (Low_Bound_Tested);
@@ -8386,6 +8386,7 @@ package Einfo is
    pragma Inline (Set_Last_Assignment);
    pragma Inline (Set_Last_Entity);
    pragma Inline (Set_Limited_View);
+   pragma Inline (Set_Linker_Section_Pragma);
    pragma Inline (Set_Lit_Indexes);
    pragma Inline (Set_Lit_Strings);
    pragma Inline (Set_Low_Bound_Tested);

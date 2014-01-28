@@ -114,11 +114,11 @@ package body Sem_Util is
    --  have a default.
 
    function Has_Enabled_Property
-     (Extern   : Node_Id;
+     (State_Id : Node_Id;
       Prop_Nam : Name_Id) return Boolean;
    --  Subsidiary to routines Async_xxx_Enabled and Effective_xxx_Enabled.
-   --  Given pragma External, determine whether it contains a property denoted
-   --  by its name Prop_Nam and if it does, whether its expression is True.
+   --  Determine whether an abstract state denoted by its entity State_Id has
+   --  enabled property Prop_Name.
 
    function Has_Null_Extension (T : Entity_Id) return Boolean;
    --  T is a derived tagged type. Check whether the type extension is null.
@@ -560,10 +560,7 @@ package body Sem_Util is
    function Async_Readers_Enabled (Id : Entity_Id) return Boolean is
    begin
       if Ekind (Id) = E_Abstract_State then
-         return
-           Has_Enabled_Property
-             (Extern   => Get_Pragma (Id, Pragma_External),
-              Prop_Nam => Name_Async_Readers);
+         return Has_Enabled_Property (Id, Name_Async_Readers);
 
       else pragma Assert (Ekind (Id) = E_Variable);
          return Present (Get_Pragma (Id, Pragma_Async_Readers));
@@ -577,10 +574,7 @@ package body Sem_Util is
    function Async_Writers_Enabled (Id : Entity_Id) return Boolean is
    begin
       if Ekind (Id) = E_Abstract_State then
-         return
-           Has_Enabled_Property
-             (Extern   => Get_Pragma (Id, Pragma_External),
-              Prop_Nam => Name_Async_Writers);
+         return Has_Enabled_Property (Id, Name_Async_Writers);
 
       else pragma Assert (Ekind (Id) = E_Variable);
          return Present (Get_Pragma (Id, Pragma_Async_Writers));
@@ -2240,7 +2234,19 @@ package body Sem_Util is
       end loop;
 
       if Scope (Nam) = Prot and then Ekind (Nam) /= E_Function then
-         if Nkind (N) = N_Subprogram_Renaming_Declaration then
+
+         --  An indirect function call (e.g. a callback within a protected
+         --  function body) is not statically illegal. If the access type is
+         --  anonymous and is the type of an access parameter, the scope of Nam
+         --  will be the protected type, but it is not a protected operation.
+
+         if Ekind (Nam) = E_Subprogram_Type
+           and then
+             Nkind (Associated_Node_For_Itype (Nam)) = N_Function_Specification
+         then
+            null;
+
+         elsif Nkind (N) = N_Subprogram_Renaming_Declaration then
             Error_Msg_N
               ("within protected function cannot use protected "
                & "procedure in renaming or as generic actual", N);
@@ -2618,7 +2624,13 @@ package body Sem_Util is
             elsif Nkind_In (N, N_Expanded_Name, N_Identifier) then
                Ent := Entity (N);
 
-               if No (Ent) or else Ekind (Ent) in Assignable_Kind then
+               --  The entity may be modifiable through an implicit dereference
+
+               if No (Ent)
+                 or else Ekind (Ent) in Assignable_Kind
+                 or else (Is_Access_Type (Etype (Ent))
+                           and then Nkind (Parent (N)) = N_Selected_Component)
+               then
                   Post_State_Seen := True;
                   return Abandon;
                end if;
@@ -3724,7 +3736,8 @@ package body Sem_Util is
             Item_Id := Entity_Of (Item);
 
             return
-              Ekind (Item_Id) = E_Abstract_State
+              Present (Item_Id)
+                and then Ekind (Item_Id) = E_Abstract_State
                 and then Has_Visible_Refinement (Item_Id);
          end if;
       end Is_Refined_State;
@@ -4799,10 +4812,7 @@ package body Sem_Util is
    function Effective_Reads_Enabled (Id : Entity_Id) return Boolean is
    begin
       if Ekind (Id) = E_Abstract_State then
-         return
-           Has_Enabled_Property
-             (Extern   => Get_Pragma (Id, Pragma_External),
-              Prop_Nam => Name_Effective_Reads);
+         return Has_Enabled_Property (Id, Name_Effective_Reads);
 
       else pragma Assert (Ekind (Id) = E_Variable);
          return Present (Get_Pragma (Id, Pragma_Effective_Reads));
@@ -4816,10 +4826,7 @@ package body Sem_Util is
    function Effective_Writes_Enabled (Id : Entity_Id) return Boolean is
    begin
       if Ekind (Id) = E_Abstract_State then
-         return
-           Has_Enabled_Property
-             (Extern   => Get_Pragma (Id, Pragma_External),
-              Prop_Nam => Name_Effective_Writes);
+         return Has_Enabled_Property (Id, Name_Effective_Writes);
 
       else pragma Assert (Ekind (Id) = E_Variable);
          return Present (Get_Pragma (Id, Pragma_Effective_Writes));
@@ -7163,69 +7170,86 @@ package body Sem_Util is
    --------------------------
 
    function Has_Enabled_Property
-     (Extern   : Node_Id;
+     (State_Id : Node_Id;
       Prop_Nam : Name_Id) return Boolean
    is
-      Prop  : Node_Id;
-      Props : Node_Id := Empty;
+      Decl    : constant Node_Id := Parent (State_Id);
+      Opt     : Node_Id;
+      Opt_Nam : Node_Id;
+      Prop    : Node_Id;
+      Props   : Node_Id;
 
    begin
-      --  The related abstract state or variable do not have an Extern pragma,
-      --  the property in question cannot be set.
+      --  The declaration of an external abstract state appears as an extension
+      --  aggregate. If this is not the case, properties can never be set.
 
-      if No (Extern) then
+      if Nkind (Decl) /= N_Extension_Aggregate then
          return False;
-
-      elsif Nkind (Extern) = N_Component_Association then
-         Props := Expression (Extern);
       end if;
 
-      --  External state with properties
+      --  When External appears as a simple option, it automatically enables
+      --  all properties.
 
-      if Present (Props) then
-
-         --  Multiple properties appear as an aggregate
-
-         if Nkind (Props) = N_Aggregate then
-
-            --  Simple property form
-
-            Prop := First (Expressions (Props));
-            while Present (Prop) loop
-               if Chars (Prop) = Prop_Nam then
-                  return True;
-               end if;
-
-               Next (Prop);
-            end loop;
-
-            --  Property with expression form
-
-            Prop := First (Component_Associations (Props));
-            while Present (Prop) loop
-               if Chars (Prop) = Prop_Nam then
-                  return Is_True (Expr_Value (Expression (Prop)));
-               end if;
-
-               Next (Prop);
-            end loop;
-
-            --  Pragma Extern contains properties, but not the one we want
-
-            return False;
-
-         --  Single property
-
-         else
-            return Chars (Prop) = Prop_Nam;
+      Opt := First (Expressions (Decl));
+      while Present (Opt) loop
+         if Nkind (Opt) = N_Identifier
+           and then Chars (Opt) = Name_External
+         then
+            return True;
          end if;
 
-      --  An external state defined without any properties defaults all
-      --  properties to True;
+         Next (Opt);
+      end loop;
 
-      else
-         return True;
-      end if;
+      --  When External specifies particular properties, inspect those and
+      --  find the desired one (if any).
+
+      Opt := First (Component_Associations (Decl));
+      while Present (Opt) loop
+         Opt_Nam := First (Choices (Opt));
+
+         if Nkind (Opt_Nam) = N_Identifier
+           and then Chars (Opt_Nam) = Name_External
+         then
+            Props := Expression (Opt);
+
+            --  Multiple properties appear as an aggregate
+
+            if Nkind (Props) = N_Aggregate then
+
+               --  Simple property form
+
+               Prop := First (Expressions (Props));
+               while Present (Prop) loop
+                  if Chars (Prop) = Prop_Nam then
+                     return True;
+                  end if;
+
+                  Next (Prop);
+               end loop;
+
+               --  Property with expression form
+
+               Prop := First (Component_Associations (Props));
+               while Present (Prop) loop
+                  if Chars (Prop) = Prop_Nam then
+                     return Is_True (Expr_Value (Expression (Prop)));
+                  end if;
+
+                  Next (Prop);
+               end loop;
+
+            --  Single property
+
+            else
+               return Chars (Prop) = Prop_Nam;
+            end if;
+         end if;
+
+         Next (Opt);
+      end loop;
+
+      return False;
    end Has_Enabled_Property;
 
    --------------------
@@ -8084,6 +8108,34 @@ package body Sem_Util is
          return False;
       end if;
    end Has_Tagged_Component;
+
+   ----------------------------
+   -- Has_Volatile_Component --
+   ----------------------------
+
+   function Has_Volatile_Component (Typ : Entity_Id) return Boolean is
+      Comp : Entity_Id;
+
+   begin
+      if Has_Volatile_Components (Typ) then
+         return True;
+
+      elsif Is_Array_Type (Typ) then
+         return Is_Volatile (Component_Type (Typ));
+
+      elsif Is_Record_Type (Typ) then
+         Comp := First_Component (Typ);
+         while Present (Comp) loop
+            if Is_Volatile_Object (Comp) then
+               return True;
+            end if;
+
+            Comp := Next_Component (Comp);
+         end loop;
+      end if;
+
+      return False;
+   end Has_Volatile_Component;
 
    -------------------------
    -- Implementation_Kind --
@@ -9844,20 +9896,53 @@ package body Sem_Util is
    ------------
 
    --  We seem to have a lot of overlapping functions that do similar things
-   --  (testing for left hand sides or lvalues???). Anyway, since this one is
-   --  purely syntactic, it should be in Sem_Aux I would think???
+   --  (testing for left hand sides or lvalues???).
 
    function Is_LHS (N : Node_Id) return Boolean is
       P : constant Node_Id := Parent (N);
 
    begin
+      --  Return True if we are the left hand side of an assignment statement
+
       if Nkind (P) = N_Assignment_Statement then
          return Name (P) = N;
 
-      elsif
-        Nkind_In (P, N_Indexed_Component, N_Selected_Component, N_Slice)
+      --  Case of prefix of indexed or selected component or slice
+
+      elsif Nkind_In (P, N_Indexed_Component, N_Selected_Component, N_Slice)
+        and then N = Prefix (P)
       then
-         return N = Prefix (P) and then Is_LHS (P);
+         --  Here we have the case where the parent P is N.Q or N(Q .. R).
+         --  If P is an LHS, then N is also effectively an LHS, but there
+         --  is an important exception. If N is of an access type, then
+         --  what we really have is N.all.Q (or N.all(Q .. R)). In either
+         --  case this makes N.all a left hand side but not N itself!
+
+         --  Here follows a worrisome kludge. If Etype (N) is not set, which
+         --  for sure happens in the call from Find_Direct_Name, that means we
+         --  don't know if N is of an access type, so we can't give an accurate
+         --  answer. For now, we assume we do not have an access type, which
+         --  means for example that P.Q.R := X will look like a modification
+         --  of P, even if P.Q eventually turns out to be an access type. The
+         --  consequence is at least that in some cases we incorrectly identify
+         --  a reference as a modification. It is not clear if there are any
+         --  other bad consequences. ???
+
+         if No (Etype (N)) then
+            return False;
+
+         --  We have an Etype set, so we can check it
+
+         elsif Is_Access_Type (Etype (N)) then
+            return False;
+
+         --  OK, not access type case, so just test whole expression
+
+         else
+            return Is_LHS (P);
+         end if;
+
+      --  All other cases are not left hand sides
 
       else
          return False;
@@ -10313,6 +10398,55 @@ package body Sem_Util is
       end if;
    end Is_Potentially_Persistent_Type;
 
+   --------------------------------
+   -- Is_Potentially_Unevaluated --
+   --------------------------------
+
+   function Is_Potentially_Unevaluated (N : Node_Id) return Boolean is
+      Par  : Node_Id;
+      Expr : Node_Id;
+
+   begin
+      Expr := N;
+      Par  := Parent (N);
+      while not Nkind_In (Par, N_If_Expression,
+                                N_Case_Expression,
+                                N_And_Then,
+                                N_Or_Else,
+                                N_In,
+                                N_Not_In)
+      loop
+         Expr := Par;
+         Par  := Parent (Par);
+
+         --  If the context is not an expression, or if is the result of
+         --  expansion of an enclosing construct (such as another attribute)
+         --  the predicate does not apply.
+
+         if Nkind (Par) not in N_Subexpr
+           or else not Comes_From_Source (Par)
+         then
+            return False;
+         end if;
+      end loop;
+
+      if Nkind (Par) = N_If_Expression then
+         return Is_Elsif (Par) or else Expr /= First (Expressions (Par));
+
+      elsif Nkind (Par) = N_Case_Expression then
+         return Expr /= Expression (Par);
+
+      elsif Nkind_In (Par, N_And_Then, N_Or_Else) then
+         return Expr = Right_Opnd (Par);
+
+      elsif Nkind_In (Par, N_In, N_Not_In) then
+         return Expr /= Left_Opnd (Par);
+
+      else
+         return False;
+      end if;
+   end Is_Potentially_Unevaluated;
+
    ---------------------------------
    -- Is_Protected_Self_Reference --
    ---------------------------------
@@ -10732,6 +10866,37 @@ package body Sem_Util is
          end case;
       end if;
    end Is_SPARK_Object_Reference;
+
+   ------------------------------
+   -- Is_SPARK_Volatile_Object --
+   ------------------------------
+
+   function Is_SPARK_Volatile_Object (N : Node_Id) return Boolean is
+   begin
+      if Nkind (N) = N_Defining_Identifier then
+         return Is_Volatile (N) or else Is_Volatile (Etype (N));
+
+      elsif Is_Entity_Name (N) then
+         return
+           Is_SPARK_Volatile_Object (Entity (N))
+             or else Is_Volatile (Etype (N));
+
+      elsif Nkind (N) = N_Expanded_Name then
+         return Is_SPARK_Volatile_Object (Entity (N));
+
+      elsif Nkind (N) = N_Indexed_Component then
+         return Is_SPARK_Volatile_Object (Prefix (N));
+
+      elsif Nkind (N) = N_Selected_Component then
+         return
+           Is_SPARK_Volatile_Object (Prefix (N))
+             or else
+           Is_SPARK_Volatile_Object (Selector_Name (N));
+
+      else
+         return False;
+      end if;
+   end Is_SPARK_Volatile_Object;
 
    ------------------
    -- Is_Statement --
@@ -13344,7 +13509,6 @@ package body Sem_Util is
 
       Exp := N;
       loop
-         <<Continue>>
          Ent := Empty;
 
          if Is_Entity_Name (Exp) then
@@ -13370,8 +13534,7 @@ package body Sem_Util is
                end if;
 
                if Nkind (P) = N_Selected_Component
-                 and then
-                   Present (Entry_Formal (Entity (Selector_Name (P))))
+                 and then Present (Entry_Formal (Entity (Selector_Name (P))))
                then
                   --  Case of a reference to an entry formal
 
@@ -13380,8 +13543,8 @@ package body Sem_Util is
                elsif Nkind (P) = N_Identifier
                  and then Nkind (Parent (Entity (P))) = N_Object_Declaration
                  and then Present (Expression (Parent (Entity (P))))
-                 and then Nkind (Expression (Parent (Entity (P))))
-                   = N_Reference
+                 and then Nkind (Expression (Parent (Entity (P)))) =
+                                                               N_Reference
                then
                   --  Case of a reference to a value on which side effects have
                   --  been removed.
@@ -13391,7 +13554,6 @@ package body Sem_Util is
 
                else
                   return;
-
                end if;
             end;
 
@@ -13405,8 +13567,24 @@ package body Sem_Util is
                               N_Indexed_Component,
                               N_Selected_Component)
          then
-            Exp := Prefix (Exp);
-            goto Continue;
+            --  Special check, if the prefix is an access type, then return
+            --  since we are modifying the thing pointed to, not the prefix.
+            --  When we are expanding, most usually the prefix is replaced
+            --  by an explicit dereference, and this test is not needed, but
+            --  in some cases (notably -gnatc mode and generics) when we do
+            --  not do full expansion, we need this special test.
+
+            if Is_Access_Type (Etype (Prefix (Exp))) then
+               return;
+
+            --  Otherwise go to prefix and keep going
+
+            else
+               Exp := Prefix (Exp);
+               goto Continue;
+            end if;
+
+         --  All other cases, not a modification
 
          else
             return;
@@ -13539,6 +13717,9 @@ package body Sem_Util is
 
             return;
          end if;
+
+      <<Continue>>
+         null;
       end loop;
    end Note_Possible_Modification;
 
@@ -15989,6 +16170,25 @@ package body Sem_Util is
 
       return Is_Init_Proc (S);
    end Within_Init_Proc;
+
+   ------------------
+   -- Within_Scope --
+   ------------------
+
+   function Within_Scope (E : Entity_Id; S : Entity_Id) return Boolean is
+      SE : Entity_Id;
+   begin
+      SE := Scope (E);
+      loop
+         if SE = S then
+            return True;
+         elsif SE = Standard_Standard then
+            return False;
+         else
+            SE := Scope (SE);
+         end if;
+      end loop;
+   end Within_Scope;
 
    ----------------
    -- Wrong_Type --

@@ -204,21 +204,23 @@ package body Sem_Prag is
    --  in identifiers to represent these attribute references.
 
    procedure Collect_Global_Items
-     (Prag             : Node_Id;
-      In_Items         : in out Elist_Id;
-      In_Out_Items     : in out Elist_Id;
-      Out_Items        : in out Elist_Id;
-      Has_In_State     : out Boolean;
-      Has_In_Out_State : out Boolean;
-      Has_Out_State    : out Boolean;
-      Has_Null_State   : out Boolean);
+     (Prag               : Node_Id;
+      In_Items           : in out Elist_Id;
+      In_Out_Items       : in out Elist_Id;
+      Out_Items          : in out Elist_Id;
+      Proof_In_Items     : in out Elist_Id;
+      Has_In_State       : out Boolean;
+      Has_In_Out_State   : out Boolean;
+      Has_Out_State      : out Boolean;
+      Has_Proof_In_State : out Boolean;
+      Has_Null_State     : out Boolean);
    --  Subsidiary to the analysis of pragma Refined_Depends/Refined_Global.
-   --  Prag denotes pragma [Refined_]Global. Gather all input, in out and
-   --  output items of Prag in lists In_Items, In_Out_Items and Out_Items.
-   --  Flags Has_In_State, Has_In_Out_State and Has_Out_State are set when
-   --  there is at least one abstract state with visible refinement available
-   --  in the corresponding mode. Flag Has_Null_State is set when at least
-   --  state has a null refinement.
+   --  Prag denotes pragma [Refined_]Global. Gather all input, in out, output
+   --  and Proof_In items of Prag in lists In_Items, In_Out_Items, Out_Items
+   --  and Proof_In_Items. Flags Has_In_State, Has_In_Out_State, Has_Out_State
+   --  and Has_Proof_In_State are set when there is at least one abstract state
+   --  with visible refinement available in the corresponding mode. Flag
+   --  Has_Null_State is set when at least state has a null refinement.
 
    procedure Collect_Subprogram_Inputs_Outputs
      (Subp_Id      : Entity_Id;
@@ -402,16 +404,16 @@ package body Sem_Prag is
             if Nkind (Case_Guard) = N_Others_Choice then
                if Others_Seen then
                   Error_Msg_N
-                    ("only one others choice allowed in aspect Contract_Cases",
-                     Case_Guard);
+                    ("only one others choice allowed in aspect Contract_Cases "
+                     & "(SPARK RM 6.1.3(1))", Case_Guard);
                else
                   Others_Seen := True;
                end if;
 
             elsif Others_Seen then
                Error_Msg_N
-                 ("others must be the last choice in aspect Contract_Cases",
-                  N);
+                 ("others must be the last choice in aspect Contract_Cases "
+                  & "(SPARK RM 6.1.3(1))", N);
             end if;
 
             --  Preanalyze the case guard and consequence
@@ -717,13 +719,15 @@ package body Sem_Prag is
                   Error_Msg_Name_1 := Name_Result;
                   Error_Msg_N
                     ("prefix of attribute % must denote the enclosing "
-                     & "function", Item);
+                     & "function (SPARK RM 6.1.5(11))", Item);
 
                --  Function'Result is allowed to appear on the output side of a
                --  dependency clause.
 
                elsif Is_Input then
-                  Error_Msg_N ("function result cannot act as input", Item);
+                  Error_Msg_N
+                    ("function result cannot act as input (SPARK RM 6.1.5(6))",
+                     Item);
 
                elsif Null_Seen then
                   Error_Msg_N
@@ -753,7 +757,7 @@ package body Sem_Prag is
                      if not Is_Last then
                         Error_Msg_N
                           ("null output list must be the last clause in a "
-                           & "dependency relation", Item);
+                           & "dependency relation (SPARK RM 6.1.5(12))", Item);
 
                      --  Catch a useless dependence of the form:
                      --    null =>+ ...
@@ -783,9 +787,9 @@ package body Sem_Prag is
 
                Item_Id := Entity_Of (Item);
 
-               Record_Possible_Body_Reference (Item, Item_Id);
-
                if Present (Item_Id) then
+                  Record_Possible_Body_Reference (Item, Item_Id);
+
                   if Ekind_In (Item_Id, E_Abstract_State,
                                         E_In_Parameter,
                                         E_In_Out_Parameter,
@@ -817,7 +821,7 @@ package body Sem_Prag is
                      then
                         Error_Msg_N
                           ("input of a null output list appears in multiple "
-                           & "input lists", Item);
+                           & "input lists (SPARK RM 6.1.5(13))", Item);
                      end if;
 
                      --  Add an input or a self-referential output to the list
@@ -852,7 +856,8 @@ package body Sem_Prag is
                         elsif Has_Visible_Refinement (Item_Id) then
                            Error_Msg_NE
                              ("cannot mention state & in global refinement, "
-                              & "use its constituents instead", Item, Item_Id);
+                              & "use its constituents instead (SPARK RM "
+                              & "6.1.5(3))", Item, Item_Id);
                            return;
                         end if;
                      end if;
@@ -871,15 +876,15 @@ package body Sem_Prag is
                   else
                      Error_Msg_N
                         ("item must denote variable, state or formal "
-                         & "parameter", Item);
+                         & "parameter (SPARK RM 6.1.5(1))", Item);
                   end if;
 
                --  All other input/output items are illegal
 
                else
                   Error_Msg_N
-                    ("item must denote variable, state or formal parameter",
-                     Item);
+                    ("item must denote variable, state or formal parameter "
+                     & "(SPARK RM 6.1.5(1))", Item);
                end if;
             end if;
          end Analyze_Input_Output;
@@ -936,8 +941,8 @@ package body Sem_Prag is
       begin
          if Ekind (Spec_Id) = E_Function and then not Result_Seen then
             Error_Msg_NE
-              ("result of & must appear in exactly one output list",
-               N, Spec_Id);
+              ("result of & must appear in exactly one output list (SPARK RM "
+               & "6.1.5(10))", N, Spec_Id);
          end if;
       end Check_Function_Return;
 
@@ -952,22 +957,26 @@ package body Sem_Prag is
          Self_Ref : Boolean)
       is
          procedure Find_Mode
-           (Is_Input  : out Boolean;
-            Is_Output : out Boolean);
+           (Is_Input    : out Boolean;
+            Is_Output   : out Boolean;
+            From_Global : out Boolean);
          --  Find the mode of Item_Id. Flags Is_Input and Is_Output are set
-         --  depending on the mode.
+         --  depending on the mode. Flag From_Global is set when the mode is
+         --  determined by pragma [Refined_]Global.
 
          ---------------
          -- Find_Mode --
          ---------------
 
          procedure Find_Mode
-           (Is_Input  : out Boolean;
-            Is_Output : out Boolean)
+           (Is_Input    : out Boolean;
+            Is_Output   : out Boolean;
+            From_Global : out Boolean)
          is
          begin
-            Is_Input  := False;
-            Is_Output := False;
+            Is_Input    := False;
+            Is_Output   := False;
+            From_Global := False;
 
             --  Abstract state cases
 
@@ -978,27 +987,19 @@ package body Sem_Prag is
 
                if Global_Seen then
                   if Appears_In (Subp_Inputs, Item_Id) then
-                     Is_Input := True;
+                     Is_Input    := True;
+                     From_Global := True;
                   end if;
 
                   if Appears_In (Subp_Outputs, Item_Id) then
-                     Is_Output := True;
+                     Is_Output   := True;
+                     From_Global := True;
                   end if;
 
-               --  Otherwise the mode of the state is the one defined in pragma
-               --  Abstract_State. An In_Out state lacks both Input_Only and
-               --  Output_Only modes.
+               --  Otherwise the state has a default IN OUT mode
 
-               elsif not Is_Input_Only_State (Item_Id)
-                 and then not Is_Output_Only_State (Item_Id)
-               then
+               else
                   Is_Input  := True;
-                  Is_Output := True;
-
-               elsif Is_Input_Only_State (Item_Id) then
-                  Is_Input := True;
-
-               elsif Is_Output_Only_State (Item_Id) then
                   Is_Output := True;
                end if;
 
@@ -1048,11 +1049,13 @@ package body Sem_Prag is
                   if Appears_In (Subp_Inputs, Item_Id)
                     or else Is_Unconstrained_Or_Tagged_Item (Item_Id)
                   then
-                     Is_Input := True;
+                     Is_Input    := True;
+                     From_Global := True;
                   end if;
 
                   if Appears_In (Subp_Outputs, Item_Id) then
-                     Is_Output := True;
+                     Is_Output   := True;
+                     From_Global := True;
                   end if;
 
                --  Otherwise the variable has a default IN OUT mode
@@ -1068,32 +1071,49 @@ package body Sem_Prag is
 
          Item_Is_Input  : Boolean;
          Item_Is_Output : Boolean;
+         From_Global    : Boolean;
 
       --  Start of processing for Check_Mode
 
       begin
-         Find_Mode (Item_Is_Input, Item_Is_Output);
+         Find_Mode (Item_Is_Input, Item_Is_Output, From_Global);
 
          --  Input item
 
          if Is_Input then
             if not Item_Is_Input then
-               Error_Msg_NE
-                 ("item & must have mode `IN` or `IN OUT`", Item, Item_Id);
+               if From_Global then
+                  Error_Msg_NE
+                    ("item & must have mode `IN` or `IN OUT`", Item, Item_Id);
+               else
+                  Error_Msg_NE
+                    ("item & appears as extra in input list", Item, Item_Id);
+               end if;
             end if;
 
          --  Self-referential item
 
          elsif Self_Ref then
             if not Item_Is_Input or else not Item_Is_Output then
-               Error_Msg_NE ("item & must have mode `IN OUT`", Item, Item_Id);
+               if From_Global then
+                  Error_Msg_NE
+                    ("item & must have mode `IN OUT`", Item, Item_Id);
+               else
+                  Error_Msg_NE
+                    ("item & appears as extra in In_Out list", Item, Item_Id);
+               end if;
             end if;
 
          --  Output item
 
          elsif not Item_Is_Output then
-            Error_Msg_NE
-              ("item & must have mode `OUT` or `IN OUT`", Item, Item_Id);
+            if From_Global then
+               Error_Msg_NE
+                 ("item & must have mode `OUT` or `IN OUT`", Item, Item_Id);
+            else
+               Error_Msg_NE
+                 ("item & appears as extra in output list", Item, Item_Id);
+            end if;
          end if;
       end Check_Mode;
 
@@ -1114,15 +1134,61 @@ package body Sem_Prag is
          -----------------
 
          procedure Usage_Error (Item : Node_Id; Item_Id : Entity_Id) is
+            Typ : constant Entity_Id := Etype (Item_Id);
+
          begin
+            --  Input case
+
             if Is_Input then
                Error_Msg_NE
-                 ("item & must appear in at least one input list of aspect "
-                  & "Depends", Item, Item_Id);
+                 ("item & must appear in at least one input dependence list "
+                  & "(SPARK RM 6.1.5(8))", Item, Item_Id);
+
+               --  Refine the error message for unconstrained OUT parameters
+               --  by giving the reason for the illegality.
+
+               if Ekind (Item_Id) = E_Out_Parameter then
+
+                  --  One case is an unconstrained array where the bounds
+                  --  must be read, if we have this case, output a message
+                  --  indicating why the OUT parameter is read.
+
+                  if Is_Array_Type (Typ)
+                    and then not Is_Constrained (Typ)
+                  then
+                     Error_Msg_NE
+                       ("\& is an unconstrained array type, so bounds must be "
+                        & "read", Item, Typ);
+
+                  --  Another case is an unconstrained discriminated record
+                  --  type where the constrained flag must be read (and if
+                  --  set, the discriminants). Again output a message.
+
+                  elsif Is_Record_Type (Typ)
+                    and then Has_Discriminants (Typ)
+                    and then not Is_Constrained (Typ)
+                  then
+                     Error_Msg_NE
+                       ("\& is an unconstrained discriminated record type",
+                        Item, Typ);
+                     Error_Msg_N
+                       ("\constrained flag and possible discriminants must be "
+                        & "read", Item);
+
+                  --  Not clear if there are other cases. Anyway, we will
+                  --  simply ignore any other cases.
+
+                  else
+                     null;
+                  end if;
+               end if;
+
+            --  Output case
+
             else
                Error_Msg_NE
-                 ("item & must appear in exactly one output list of aspect "
-                  & "Depends", Item, Item_Id);
+                 ("item & must appear in exactly one output dependence list "
+                  & "(SPARK RM 6.1.5(10))", Item, Item_Id);
             end if;
          end Usage_Error;
 
@@ -1329,7 +1395,9 @@ package body Sem_Prag is
             --  appear in the input list of a relation.
 
             elsif Is_Attribute_Result (Output) then
-               Error_Msg_N ("function result cannot depend on itself", Output);
+               Error_Msg_N
+                 ("function result cannot depend on itself (SPARK RM "
+                  & "6.1.5(10))", Output);
                return;
             end if;
 
@@ -1637,11 +1705,11 @@ package body Sem_Prag is
       end if;
    end Analyze_Depends_In_Decl_Part;
 
-   -----------------------------------------
-   -- Analyze_External_State_In_Decl_Part --
-   -----------------------------------------
+   --------------------------------------------
+   -- Analyze_External_Property_In_Decl_Part --
+   --------------------------------------------
 
-   procedure Analyze_External_State_In_Decl_Part
+   procedure Analyze_External_Property_In_Decl_Part
      (N        : Node_Id;
       Expr_Val : out Boolean)
    is
@@ -1655,16 +1723,19 @@ package body Sem_Prag is
       --  The Async / Effective pragmas must apply to a volatile object other
       --  than a formal subprogram parameter.
 
-      if Is_Volatile_Object (Obj) then
+      if Is_SPARK_Volatile_Object (Obj) then
          if Is_Entity_Name (Obj)
            and then Present (Entity (Obj))
            and then Is_Formal (Entity (Obj))
          then
             Error_Msg_N
-              ("external state % cannot apply to a formal parameter", N);
+              ("external property % cannot apply to a formal parameter "
+               & "(SPARK RM 7.1.3(2))", N);
          end if;
       else
-         Error_Msg_N ("external state % must apply to a volatile object", N);
+         Error_Msg_N
+           ("external property % must apply to a volatile object (SPARK RM "
+            & "7.1.3(2))", N);
       end if;
 
       --  Ensure that the expression (if present) is static Boolean. A missing
@@ -1679,10 +1750,11 @@ package body Sem_Prag is
             Expr_Val := Is_True (Expr_Value (Expr));
          else
             Error_Msg_Name_1 := Pragma_Name (N);
-            Error_Msg_N ("expression of % must be static", Expr);
+            Error_Msg_N
+              ("expression of % must be static (SPARK RM 7.1.2(5))", Expr);
          end if;
       end if;
-   end Analyze_External_State_In_Decl_Part;
+   end Analyze_External_Property_In_Decl_Part;
 
    ---------------------------------
    -- Analyze_Global_In_Decl_Part --
@@ -1787,18 +1859,30 @@ package body Sem_Prag is
                if Is_Formal (Item_Id) then
                   if Scope (Item_Id) = Spec_Id then
                      Error_Msg_N
-                       ("global item cannot reference formal parameter", Item);
+                       ("global item cannot reference formal parameter "
+                        & "(SPARK RM 6.1.4(6))", Item);
                      return;
                   end if;
+
+               --  A constant cannot act as a global item. Do this check first
+               --  to provide a better error diagnostic.
+
+               elsif Ekind (Item_Id) = E_Constant then
+                  Error_Msg_N
+                    ("global item cannot denote a constant (SPARK RM "
+                     & "6.1.4(7))", Item);
 
                --  The only legal references are those to abstract states and
                --  variables.
 
                elsif not Ekind_In (Item_Id, E_Abstract_State, E_Variable) then
                   Error_Msg_N
-                    ("global item must denote variable or state", Item);
+                    ("global item must denote variable or state (SPARK RM "
+                     & "6.1.4(4))", Item);
                   return;
                end if;
+
+               --  State related checks
 
                if Ekind (Item_Id) = E_Abstract_State then
 
@@ -1822,7 +1906,25 @@ package body Sem_Prag is
                   elsif Has_Visible_Refinement (Item_Id) then
                      Error_Msg_NE
                        ("cannot mention state & in global refinement, use its "
-                        & "constituents instead", Item, Item_Id);
+                        & "constituents instead (SPARK RM 6.1.4(8))",
+                        Item, Item_Id);
+                     return;
+                  end if;
+
+               --  Variable related checks
+
+               else
+                  --  A volatile object with property Effective_Reads set to
+                  --  True must have mode Output or In_Out.
+
+                  if Is_SPARK_Volatile_Object (Item_Id)
+                    and then Effective_Reads_Enabled (Item_Id)
+                    and then Global_Mode = Name_Input
+                  then
+                     Error_Msg_NE
+                       ("volatile global item & with property Effective_Reads "
+                        & "must have mode In_Out or Output (SPARK RM "
+                        & "7.1.3(11))", Item, Item_Id);
                      return;
                   end if;
                end if;
@@ -1838,36 +1940,10 @@ package body Sem_Prag is
             --  Some form of illegal construct masquerading as a name
 
             else
-               Error_Msg_N ("global item must denote variable or state", Item);
+               Error_Msg_N
+                 ("global item must denote variable or state (SPARK RM "
+                  & "6.1.4(4))", Item);
                return;
-            end if;
-
-            --  At this point we know that the global item is one of the two
-            --  valid choices. Perform mode- and usage-specific checks.
-
-            if Ekind (Item_Id) = E_Abstract_State
-              and then Is_External_State (Item_Id)
-            then
-               --  A global item of mode In_Out or Output cannot denote an
-               --  external Input_Only state.
-
-               if Is_Input_Only_State (Item_Id)
-                 and then Nam_In (Global_Mode, Name_In_Out, Name_Output)
-               then
-                  Error_Msg_N
-                    ("global item of mode In_Out or Output cannot reference "
-                     & "External Input_Only state", Item);
-
-               --  A global item of mode In_Out or Input cannot reference an
-               --  external Output_Only state.
-
-               elsif Is_Output_Only_State (Item_Id)
-                 and then Nam_In (Global_Mode, Name_In_Out, Name_Input)
-               then
-                  Error_Msg_N
-                    ("global item of mode In_Out or Input cannot reference "
-                     & "External Output_Only state", Item);
-               end if;
             end if;
 
             --  Verify that an output does not appear as an input in an
@@ -1882,19 +1958,20 @@ package body Sem_Prag is
             --  a standard Ada legality rule.
 
             if SPARK_Mode = On
-              and then Is_Volatile_Object (Item)
+              and then Is_SPARK_Volatile_Object (Item)
               and then Ekind_In (Spec_Id, E_Function, E_Generic_Function)
             then
-               Error_Msg_N
-                 ("volatile object cannot act as global item of a function "
-                  & "(SPARK RM 7.1.3(5))", Item);
+               Error_Msg_NE
+                 ("volatile object & cannot act as global item of a function "
+                  & "(SPARK RM 7.1.3(9))", Item, Item_Id);
             end if;
 
             --  The same entity might be referenced through various way. Check
             --  the entity of the item rather than the item itself.
 
             if Contains (Seen, Item_Id) then
-               Error_Msg_N ("duplicate global item", Item);
+               Error_Msg_N
+                 ("duplicate global item (SPARK RM 6.1.4(11))", Item);
 
             --  Add the entity of the current item to the list of processed
             --  items.
@@ -1914,7 +1991,7 @@ package body Sem_Prag is
          is
          begin
             if Status then
-               Error_Msg_N ("duplicate global mode", Mode);
+               Error_Msg_N ("duplicate global mode (SPARK RM 6.1.4(9))", Mode);
             end if;
 
             Status := True;
@@ -1940,7 +2017,10 @@ package body Sem_Prag is
             Context := Scope (Subp_Id);
             while Present (Context) and then Context /= Standard_Standard loop
                if Is_Subprogram (Context)
-                 and then Present (Get_Pragma (Context, Pragma_Global))
+                 and then
+                   (Present (Get_Pragma (Context, Pragma_Global))
+                      or else
+                    Present (Get_Pragma (Context, Pragma_Refined_Global)))
                then
                   Collect_Subprogram_Inputs_Outputs
                     (Subp_Id      => Context,
@@ -1955,8 +2035,8 @@ package body Sem_Prag is
                     and then not Appears_In (Outputs, Item_Id)
                   then
                      Error_Msg_NE
-                       ("global item & cannot have mode In_Out or Output",
-                        Item, Item_Id);
+                       ("global item & cannot have mode In_Out or Output "
+                        & "(SPARK RM 6.1.4(12))", Item, Item_Id);
                      Error_Msg_NE
                        ("\item already appears as input of subprogram &",
                         Item, Context);
@@ -1979,7 +2059,8 @@ package body Sem_Prag is
          begin
             if Ekind (Spec_Id) = E_Function then
                Error_Msg_N
-                 ("global mode & not applicable to functions", Mode);
+                 ("global mode & is not applicable to functions (SPARK RM "
+                  & "6.1.4(10))", Mode);
             end if;
          end Check_Mode_Restriction_In_Function;
 
@@ -2312,7 +2393,7 @@ package body Sem_Prag is
       end if;
 
       --  The expression is preanalyzed because it has not been moved to its
-      --  final place yet. A direct analysis may generate sife effects and this
+      --  final place yet. A direct analysis may generate side effects and this
       --  is not desired at this point.
 
       Preanalyze_And_Resolve (Expr, Standard_Boolean);
@@ -2414,12 +2495,15 @@ package body Sem_Prag is
                      Error_Msg_Name_1 := Chars (Pack_Id);
                      Error_Msg_NE
                        ("initialization item & must appear in the visible "
-                        & "declarations of package %", Item, Item_Id);
+                        & "declarations of package % (SPARK RM 7.1.5(7))",
+                        Item, Item_Id);
 
                   --  Detect a duplicate use of the same initialization item
 
                   elsif Contains (Items_Seen, Item_Id) then
-                     Error_Msg_N ("duplicate initialization item", Item);
+                     Error_Msg_N
+                       ("duplicate initialization item (SPARK RM 7.1.5(5))",
+                        Item);
 
                   --  The item is legal, add it to the list of processed states
                   --  and variables.
@@ -2433,15 +2517,16 @@ package body Sem_Prag is
 
                else
                   Error_Msg_N
-                    ("initialization item must denote variable or state",
-                     Item);
+                    ("initialization item must denote variable or state "
+                     & "(SPARK RM 7.1.5(3))", Item);
                end if;
 
             --  Some form of illegal construct masquerading as a name
 
             else
                Error_Msg_N
-                 ("initialization item must denote variable or state", Item);
+                 ("initialization item must denote variable or state (SPARK "
+                  & "RM 7.1.5(3))", Item);
             end if;
          end if;
       end Analyze_Initialization_Item;
@@ -2505,16 +2590,18 @@ package body Sem_Prag is
                      --  The input cannot denote states or variables declared
                      --  within the related package.
 
-                     if In_Same_Code_Unit (Item, Input_Id) then
+                     if Within_Scope (Input_Id, Current_Scope) then
                         Error_Msg_Name_1 := Chars (Pack_Id);
                         Error_Msg_NE
                           ("input item & cannot denote a visible variable or "
-                           & "state of package %", Input, Input_Id);
+                           & "state of package % (SPARK RM 7.1.5(4))",
+                           Input, Input_Id);
 
                      --  Detect a duplicate use of the same input item
 
                      elsif Contains (Inputs_Seen, Input_Id) then
-                        Error_Msg_N ("duplicate input item", Input);
+                        Error_Msg_N
+                          ("duplicate input item (SPARK RM 7.1.5(5))", Input);
 
                      --  Input is legal, add it to the list of processed inputs
 
@@ -2631,15 +2718,21 @@ package body Sem_Prag is
    begin
       Set_Analyzed (N);
 
+      --  Nothing to do when the initialization list is empty
+
+      if Nkind (Inits) = N_Null then
+         return;
+      end if;
+
+      --  Single and multiple initialization clauses appear as an aggregate. If
+      --  this is not the case, then either the parser or the analysis of the
+      --  pragma failed to produce an aggregate.
+
+      pragma Assert (Nkind (Inits) = N_Aggregate);
+
       --  Initialize the various lists used during analysis
 
       Collect_States_And_Variables;
-
-      --  Single and multiple initialization clauses must appear as an
-      --  aggregate. If this is not the case, then either the parser of
-      --  the analysis of the pragma failed to produce an aggregate.
-
-      pragma Assert (Nkind (Inits) = N_Aggregate);
 
       if Present (Expressions (Inits)) then
          Init := First (Expressions (Inits));
@@ -2823,6 +2916,8 @@ package body Sem_Prag is
       --  Check if a rep item of the same name as the current pragma is already
       --  chained as a rep pragma to the given entity. If so give a message
       --  about the duplicate, and then raise Pragma_Exit so does not return.
+      --  Note that if E is a type, then this routine avoids flagging a pragma
+      --  which applies to a parent type from which E is derived.
 
       procedure Check_Duplicated_Export_Name (Nam : Node_Id);
       --  Nam is an N_String_Literal node containing the external name set by
@@ -3924,6 +4019,36 @@ package body Sem_Prag is
          P := Get_Rep_Item (E, Pragma_Name (N), Check_Parents => False);
 
          if Present (P) then
+
+            --  If the entity is a type, then we have to make sure that the
+            --  ostensible duplicate is not for a parent type from which this
+            --  type is derived.
+
+            if Is_Type (E) then
+               if Nkind (P) = N_Pragma then
+                  declare
+                     Args : constant List_Id :=
+                              Pragma_Argument_Associations (P);
+                  begin
+                     if Present (Args)
+                       and then Is_Entity_Name (Expression (First (Args)))
+                       and then Is_Type (Entity (Expression (First (Args))))
+                       and then Entity (Expression (First (Args))) /= E
+                     then
+                        return;
+                     end if;
+                  end;
+
+               elsif Nkind (P) = N_Aspect_Specification
+                 and then Is_Type (Entity (P))
+                 and then Entity (P) /= E
+               then
+                  return;
+               end if;
+            end if;
+
+            --  Here we have a definite duplicate
+
             Error_Msg_Name_1 := Pragma_Name (N);
             Error_Msg_Sloc := Sloc (P);
 
@@ -5945,7 +6070,8 @@ package body Sem_Prag is
          --  Set convention in entity E, and also flag that the entity has a
          --  convention pragma. If entity is for a private or incomplete type,
          --  also set convention and flag on underlying type. This procedure
-         --  also deals with the special case of C_Pass_By_Copy convention.
+         --  also deals with the special case of C_Pass_By_Copy convention,
+         --  and error checks for inappropriate convention specification.
 
          -------------------------------
          -- Diagnose_Multiple_Pragmas --
@@ -6107,6 +6233,16 @@ package body Sem_Prag is
 
          procedure Set_Convention_From_Pragma (E : Entity_Id) is
          begin
+            --  Ghost convention is allowed only for functions
+
+            if Ekind (E) /= E_Function and then C = Convention_Ghost then
+               Error_Msg_N
+                 ("& may not have Ghost convention", E);
+               Error_Msg_N
+                 ("\only functions are permitted to have Ghost convention", E);
+               return;
+            end if;
+
             --  Ada 2005 (AI-430): Check invalid attempt to change convention
             --  for an overridden dispatching operation. Technically this is
             --  an amendment and should only be done in Ada 2005 mode. However,
@@ -6117,11 +6253,11 @@ package body Sem_Prag is
               and then Present (Overridden_Operation (E))
               and then C /= Convention (Overridden_Operation (E))
             then
-               --  An attempt to override a subprogram with a ghost subprogram
+               --  An attempt to override a function with a ghost function
                --  appears as a mismatch in conventions.
 
                if C = Convention_Ghost then
-                  Error_Msg_N ("ghost subprogram & cannot be overriding", E);
+                  Error_Msg_N ("ghost function & cannot be overriding", E);
                else
                   Error_Pragma_Arg
                     ("cannot change convention for overridden dispatching "
@@ -6317,7 +6453,7 @@ package body Sem_Prag is
          if Is_Ghost_Subprogram (E)
            and then Present (Overridden_Operation (E))
          then
-            Error_Msg_N ("ghost subprogram & cannot be overriding", E);
+            Error_Msg_N ("ghost function & cannot be overriding", E);
          end if;
 
          --  Go to renamed subprogram if present, since convention applies to
@@ -9579,6 +9715,14 @@ package body Sem_Prag is
                   Status : in out Boolean);
                --  Flag Status denotes whether a particular option has been
                --  seen while processing a state. This routine verifies that
+               --  Opt is not a duplicate option and sets the flag Status.
+
+               procedure Check_Duplicate_Property
+                 (Prop   : Node_Id;
+                  Status : in out Boolean);
+               --  Flag Status denotes whether a particular property has been
+               --  seen while processing option External. This routine verifies
+               --  that Prop is not a duplicate property and sets flag Status.
                --  Opt is not a duplicate property and sets the flag Status.
 
                -----------------------------
@@ -9707,7 +9851,7 @@ package body Sem_Prag is
                      else
                         Error_Msg_N
                           ("expression of external state property must be "
-                           & "static", Expr);
+                           & "static (SPARK RM 7.1.2(5))", Expr);
                      end if;
 
                   --  The lack of expression defaults the property to True
@@ -9720,19 +9864,19 @@ package body Sem_Prag is
 
                   if Nkind (Prop) = N_Identifier then
                      if Chars (Prop) = Name_Async_Readers then
-                        Check_Duplicate_Option (Prop, AR_Seen);
+                        Check_Duplicate_Property (Prop, AR_Seen);
                         AR_Val := Expr_Val;
 
                      elsif Chars (Prop) = Name_Async_Writers then
-                        Check_Duplicate_Option (Prop, AW_Seen);
+                        Check_Duplicate_Property (Prop, AW_Seen);
                         AW_Val := Expr_Val;
 
                      elsif Chars (Prop) = Name_Effective_Reads then
-                        Check_Duplicate_Option (Prop, ER_Seen);
+                        Check_Duplicate_Property (Prop, ER_Seen);
                         ER_Val := Expr_Val;
 
                      else
-                        Check_Duplicate_Option (Prop, EW_Seen);
+                        Check_Duplicate_Property (Prop, EW_Seen);
                         EW_Val := Expr_Val;
                      end if;
 
@@ -9794,11 +9938,30 @@ package body Sem_Prag is
                is
                begin
                   if Status then
-                     Error_Msg_N ("duplicate state option", Opt);
+                     Error_Msg_N
+                       ("duplicate state option (SPARK RM 7.1.4(1))", Opt);
                   end if;
 
                   Status := True;
                end Check_Duplicate_Option;
+
+               ------------------------------
+               -- Check_Duplicate_Property --
+               ------------------------------
+
+               procedure Check_Duplicate_Property
+                 (Prop   : Node_Id;
+                  Status : in out Boolean)
+               is
+               begin
+                  if Status then
+                     Error_Msg_N
+                       ("duplicate external property (SPARK RM 7.1.4(2))",
+                        Prop);
+                  end if;
+
+                  Status := True;
+               end Check_Duplicate_Property;
 
                --  Local variables
 
@@ -9865,10 +10028,20 @@ package body Sem_Prag is
                        and then Chars (Opt) = Name_External
                      then
                         Analyze_External_Option (Opt);
+
+                     --  When an erroneous option Part_Of is without a parent
+                     --  state, it appears in the list of expression of the
+                     --  aggregate rather than the component associations.
+
+                     elsif Chars (Opt) = Name_Part_Of then
+                        Error_Msg_N
+                          ("option Part_Of must denote an abstract state "
+                           & "(SPARK RM 7.1.4(9))", Opt);
+
                      else
                         Error_Msg_N
-                          ("simple option not allowed in state declaration",
-                           Opt);
+                          ("simple option not allowed in state declaration "
+                           & "(SPARK RM 7.1.4(3))", Opt);
                      end if;
 
                      Next (Opt);
@@ -10781,7 +10954,8 @@ package body Sem_Prag is
             --  If we get here, then the pragma applies to a non-object
             --  construct, issue a generic error.
 
-            Error_Pragma ("pragma % must apply to a volatile object");
+            Error_Pragma
+              ("pragma % must apply to a volatile object (SPARK RM 7.1.3(2))");
          end Async_Effective;
 
          ------------------
@@ -15461,7 +15635,11 @@ package body Sem_Prag is
          --      [Entity  =>]  LOCAL_NAME
          --      [Section =>]  static_string_EXPRESSION);
 
-         when Pragma_Linker_Section =>
+         when Pragma_Linker_Section => Linker_Section : declare
+            Arg : Node_Id;
+            Ent : Entity_Id;
+
+         begin
             GNAT_Pragma;
             Check_Arg_Order ((Name_Entity, Name_Section));
             Check_Arg_Count (2);
@@ -15470,25 +15648,52 @@ package body Sem_Prag is
             Check_Arg_Is_Library_Level_Local_Name (Arg1);
             Check_Arg_Is_Static_Expression (Arg2, Standard_String);
 
-            --  This pragma applies to objects and types
+            --  Check kind of entity
 
-            if not Is_Object (Entity (Get_Pragma_Arg (Arg1)))
-              and then not Is_Type (Entity (Get_Pragma_Arg (Arg1)))
-            then
-               Error_Pragma_Arg
-                 ("pragma% applies only to objects and types", Arg1);
-            end if;
+            Arg := Get_Pragma_Arg (Arg1);
+            Ent := Entity (Arg);
 
-            --  The only processing required is to link this item on to the
-            --  list of rep items for the given entity. This is accomplished
-            --  by the call to Rep_Item_Too_Late (when no error is detected
-            --  and False is returned).
+            case Ekind (Ent) is
 
-            if Rep_Item_Too_Late (Entity (Get_Pragma_Arg (Arg1)), N) then
-               return;
-            else
-               Set_Has_Gigi_Rep_Item (Entity (Get_Pragma_Arg (Arg1)));
-            end if;
+               --  Objects (constants and variables) and types. For these cases
+               --  all we need to do is to set the Linker_Section_pragma field.
+
+               when E_Constant | E_Variable | Type_Kind =>
+                  Set_Linker_Section_Pragma (Ent, N);
+
+               --  Subprograms
+
+               when Subprogram_Kind =>
+
+                  --  Aspect case, entity already set
+
+                  if From_Aspect_Specification (N) then
+                     Set_Linker_Section_Pragma
+                       (Entity (Corresponding_Aspect (N)), N);
+
+                  --  Pragma case, we must climb the homonym chain, but skip
+                  --  any for which the linker section is already set.
+
+                  else
+                     loop
+                        if No (Linker_Section_Pragma (Ent)) then
+                           Set_Linker_Section_Pragma (Ent, N);
+                        end if;
+
+                        Ent := Homonym (Ent);
+                        exit when No (Ent)
+                          or else Scope (Ent) /= Current_Scope;
+                     end loop;
+                  end if;
+
+               --  All other cases are illegal
+
+               when others =>
+                  Error_Pragma_Arg
+                    ("pragma% applies only to objects, subprograms, and types",
+                     Arg1);
+            end case;
+         end Linker_Section;
 
          ----------
          -- List --
@@ -17897,7 +18102,7 @@ package body Sem_Prag is
             then
                Error_Msg_NE
                  ("useless refinement, package & does not define abstract "
-                  & "states", N, Spec_Id);
+                  & "states (SPARK RM 7.2.2(3))", N, Spec_Id);
                return;
             end if;
 
@@ -18382,7 +18587,7 @@ package body Sem_Prag is
          -- SPARK_Mode --
          ----------------
 
-         --  pragma SPARK_Mode [(On | Off | Auto)];
+         --  pragma SPARK_Mode [(On | Off)];
 
          when Pragma_SPARK_Mode => Do_SPARK_Mode : declare
             Body_Id : Entity_Id;
@@ -18401,8 +18606,8 @@ package body Sem_Prag is
             --  anything. But if the old mode is OFF, then the only allowed
             --  new mode is also OFF.
 
-            function Get_SPARK_Mode_Name (Id : SPARK_Mode_Type) return Name_Id;
-            --  Convert a value of type SPARK_Mode_Type to corresponding name
+            procedure Check_Library_Level_Entity (E : Entity_Id);
+            --  Verify that pragma is applied to library-level entity E
 
             ------------------------------
             -- Check_Pragma_Conformance --
@@ -18415,41 +18620,45 @@ package body Sem_Prag is
 
                   --  New mode less restrictive than the established mode
 
-                  if Get_SPARK_Mode_From_Pragma (Old_Pragma) < Mode_Id then
-                     Error_Msg_Name_1 := Mode;
-                     Error_Msg_N ("cannot define 'S'P'A'R'K mode %", Arg1);
-
-                     Error_Msg_Name_1 := Get_SPARK_Mode_Name (SPARK_Mode);
-                     Error_Msg_Sloc   := Sloc (SPARK_Mode_Pragma);
+                  if Get_SPARK_Mode_From_Pragma (Old_Pragma) = Off
+                    and then Mode_Id = On
+                  then
                      Error_Msg_N
-                       ("\mode is less restrictive than mode "
-                        & "% defined #", Arg1);
+                       ("cannot change 'S'P'A'R'K_Mode from Off to On", Arg1);
+                     Error_Msg_Sloc := Sloc (SPARK_Mode_Pragma);
+                     Error_Msg_N ("\'S'P'A'R'K_Mode was set to Off#", Arg1);
                      raise Pragma_Exit;
                   end if;
                end if;
             end Check_Pragma_Conformance;
 
-            -------------------------
-            -- Get_SPARK_Mode_Name --
-            -------------------------
+            --------------------------------
+            -- Check_Library_Level_Entity --
+            --------------------------------
 
-            function Get_SPARK_Mode_Name
-              (Id : SPARK_Mode_Type) return Name_Id
-            is
+            procedure Check_Library_Level_Entity (E : Entity_Id) is
+               MsgF : String := "incorrect placement of pragma%";
+
             begin
-               if Id = On then
-                  return Name_On;
-               elsif Id = Off then
-                  return Name_Off;
-               elsif Id = Auto then
-                  return Name_Auto;
+               if not Is_Library_Level_Entity (E) then
+                  Error_Msg_Name_1 := Pname;
+                  Fix_Error (MsgF);
+                  Error_Msg_N (MsgF, N);
 
-               --  Mode "None" should never be used in error message generation
+                  if Ekind_In (E, E_Generic_Package,
+                                  E_Package,
+                                  E_Package_Body)
+                  then
+                     Error_Msg_NE
+                       ("\& is not a library-level package", N, E);
+                  else
+                     Error_Msg_NE
+                       ("\& is not a library-level subprogram", N, E);
+                  end if;
 
-               else
-                  raise Program_Error;
+                  raise Pragma_Exit;
                end if;
-            end Get_SPARK_Mode_Name;
+            end Check_Library_Level_Entity;
 
          --  Start of processing for Do_SPARK_Mode
 
@@ -18461,7 +18670,7 @@ package body Sem_Prag is
             --  Check the legality of the mode (no argument = ON)
 
             if Arg_Count = 1 then
-               Check_Arg_Is_One_Of (Arg1, Name_On, Name_Off, Name_Auto);
+               Check_Arg_Is_One_Of (Arg1, Name_On, Name_Off);
                Mode := Chars (Get_Pragma_Arg (Arg1));
             else
                Mode := Name_On;
@@ -18496,14 +18705,6 @@ package body Sem_Prag is
             --  The pragma applies to a [library unit] subprogram or package
 
             else
-               --  Mode "Auto" can only be used in a configuration pragma
-
-               if Mode_Id = Auto then
-                  Error_Pragma_Arg
-                    ("mode `Auto` is only allowed when pragma % appears as "
-                     & "a configuration pragma", Arg1);
-               end if;
-
                --  Verify the placement of the pragma with respect to package
                --  or subprogram declarations and detect duplicates.
 
@@ -18530,7 +18731,8 @@ package body Sem_Prag is
                   elsif Nkind_In (Stmt, N_Generic_Package_Declaration,
                                         N_Package_Declaration)
                   then
-                     Spec_Id := Defining_Unit_Name (Specification (Stmt));
+                     Spec_Id := Defining_Entity (Stmt);
+                     Check_Library_Level_Entity (Spec_Id);
                      Check_Pragma_Conformance (SPARK_Pragma (Spec_Id));
 
                      Set_SPARK_Pragma               (Spec_Id, N);
@@ -18544,7 +18746,8 @@ package body Sem_Prag is
                   elsif Nkind_In (Stmt, N_Generic_Subprogram_Declaration,
                                         N_Subprogram_Declaration)
                   then
-                     Spec_Id := Defining_Unit_Name (Specification (Stmt));
+                     Spec_Id := Defining_Entity (Stmt);
+                     Check_Library_Level_Entity (Spec_Id);
                      Check_Pragma_Conformance (SPARK_Pragma (Spec_Id));
 
                      Set_SPARK_Pragma               (Spec_Id, N);
@@ -18595,11 +18798,12 @@ package body Sem_Prag is
                --      pragma SPARK_Mode;
 
                if Nkind (Context) = N_Package_Specification then
-                  Spec_Id := Defining_Unit_Name (Context);
+                  Spec_Id := Defining_Entity (Context);
 
                   --  Pragma applies to private part
 
                   if List_Containing (N) = Private_Declarations (Context) then
+                     Check_Library_Level_Entity (Spec_Id);
                      Check_Pragma_Conformance (SPARK_Aux_Pragma (Spec_Id));
                      SPARK_Mode_Pragma := N;
                      SPARK_Mode := Mode_Id;
@@ -18610,6 +18814,7 @@ package body Sem_Prag is
                   --  Pragma applies to public part
 
                   else
+                     Check_Library_Level_Entity (Spec_Id);
                      Check_Pragma_Conformance (SPARK_Pragma (Spec_Id));
                      SPARK_Mode_Pragma := N;
                      SPARK_Mode := Mode_Id;
@@ -18627,7 +18832,8 @@ package body Sem_Prag is
                elsif Nkind_In (Context, N_Function_Specification,
                                         N_Procedure_Specification)
                then
-                  Spec_Id := Defining_Unit_Name (Context);
+                  Spec_Id := Defining_Entity (Context);
+                  Check_Library_Level_Entity (Spec_Id);
                   Check_Pragma_Conformance (SPARK_Pragma (Spec_Id));
 
                   Set_SPARK_Pragma           (Spec_Id, N);
@@ -18641,6 +18847,7 @@ package body Sem_Prag is
                elsif Nkind (Context) = N_Package_Body then
                   Spec_Id := Corresponding_Spec (Context);
                   Body_Id := Defining_Entity (Context);
+                  Check_Library_Level_Entity (Body_Id);
                   Check_Pragma_Conformance (SPARK_Pragma (Body_Id));
                   SPARK_Mode_Pragma := N;
                   SPARK_Mode := Mode_Id;
@@ -18659,6 +18866,7 @@ package body Sem_Prag is
                   Spec_Id := Corresponding_Spec (Context);
                   Context := Specification (Context);
                   Body_Id := Defining_Entity (Context);
+                  Check_Library_Level_Entity (Body_Id);
                   Check_Pragma_Conformance (SPARK_Pragma (Body_Id));
                   SPARK_Mode_Pragma := N;
                   SPARK_Mode := Mode_Id;
@@ -18677,7 +18885,8 @@ package body Sem_Prag is
                then
                   Context := Parent (Context);
                   Spec_Id := Corresponding_Spec (Context);
-                  Body_Id := Defining_Unit_Name (Context);
+                  Body_Id := Defining_Entity (Context);
+                  Check_Library_Level_Entity (Body_Id);
                   Check_Pragma_Conformance (SPARK_Aux_Pragma (Body_Id));
                   SPARK_Mode_Pragma := N;
                   SPARK_Mode := Mode_Id;
@@ -20454,11 +20663,11 @@ package body Sem_Prag is
       Depends      : Node_Id;
       --  The corresponding Depends pragma along with its clauses
 
-      Global : Node_Id := Empty;
-      --  The corresponding Refined_Global pragma (if any)
-
       Out_Items : Elist_Id := No_Elist;
       --  All output items as defined in pragma Refined_Global (if any)
+
+      Ref_Global : Node_Id := Empty;
+      --  The corresponding Refined_Global pragma (if any)
 
       Refinements : List_Id := No_List;
       --  The clauses of pragma Refined_Depends
@@ -20483,14 +20692,6 @@ package body Sem_Prag is
          --  Determine whether the inputs of clause Dep_Clause match those of
          --  clause Ref_Clause. If flag Do_Checks is set, the routine reports
          --  missed or extra input items.
-
-         function Output_Constituents (State_Id : Entity_Id) return Elist_Id;
-         --  Given a state denoted by State_Id, return a list of all output
-         --  constituents that may be referenced within Refined_Depends. The
-         --  contents of the list depend on whether Refined_Global is present.
-
-         procedure Report_Unused_Constituents (Constits : Elist_Id);
-         --  Emit errors for all constituents found in list Constits
 
          ------------------
          -- Inputs_Match --
@@ -20804,86 +21005,6 @@ package body Sem_Prag is
             return Result;
          end Inputs_Match;
 
-         -------------------------
-         -- Output_Constituents --
-         -------------------------
-
-         function Output_Constituents (State_Id : Entity_Id) return Elist_Id is
-            Item_Elmt : Elmt_Id;
-            Item_Id   : Entity_Id;
-            Result    : Elist_Id := No_Elist;
-
-         begin
-            --  The related subprogram is subject to pragma Refined_Global. All
-            --  usable output constituents are defined in its output item list.
-
-            if Present (Global) then
-               Item_Elmt := First_Elmt (Out_Items);
-               while Present (Item_Elmt) loop
-                  Item_Id := Node (Item_Elmt);
-
-                  --  The constituent is part of the refinement of the input
-                  --  state, add it to the result list.
-
-                  if Refined_State (Item_Id) = State_Id then
-                     Add_Item (Item_Id, Result);
-                  end if;
-
-                  Next_Elmt (Item_Elmt);
-               end loop;
-
-            --  When pragma Refined_Global is not present, the usable output
-            --  constituents are all the constituents as defined in pragma
-            --  Refined_State. Note that the elements are copied because the
-            --  algorithm trims the list and this should not be reflected in
-            --  the state itself.
-
-            else
-               Result := New_Copy_Elist (Refinement_Constituents (State_Id));
-            end if;
-
-            return Result;
-         end Output_Constituents;
-
-         --------------------------------
-         -- Report_Unused_Constituents --
-         --------------------------------
-
-         procedure Report_Unused_Constituents (Constits : Elist_Id) is
-            Constit : Entity_Id;
-            Elmt    : Elmt_Id;
-            Posted  : Boolean := False;
-
-         begin
-            if Present (Constits) then
-               Elmt := First_Elmt (Constits);
-               while Present (Elmt) loop
-                  Constit := Node (Elmt);
-
-                  --  A constituent must always refine a state
-
-                  pragma Assert (Present (Refined_State (Constit)));
-
-                  --  When a state has a visible refinement and its mode is
-                  --  Output_Only, all its constituents must be used as
-                  --  outputs.
-
-                  if not Posted then
-                     Posted := True;
-                     Error_Msg_NE
-                       ("output only state & must be replaced by all its "
-                        & "constituents in dependence refinement",
-                        N, Refined_State (Constit));
-                  end if;
-
-                  Error_Msg_NE
-                    ("\  constituent & is missing in output list", N, Constit);
-
-                  Next_Elmt (Elmt);
-               end loop;
-            end if;
-         end Report_Unused_Constituents;
-
          --  Local variables
 
          Dep_Output      : constant Node_Id := First (Choices (Dep_Clause));
@@ -20905,10 +21026,6 @@ package body Sem_Prag is
          Has_Refined_State : Boolean := False;
          --  Flag set when the output of clause Dep_Clause is a state with
          --  visible refinement.
-
-         Out_Constits : Elist_Id := No_Elist;
-         --  This list contains the entities all output constituents of state
-         --  Dep_Id as defined in pragma Refined_State.
 
       --  Start of processing for Check_Dependency_Clause
 
@@ -21012,15 +21129,6 @@ package body Sem_Prag is
                   elsif Has_Non_Null_Refinement (Dep_Id) then
                      Has_Refined_State := True;
 
-                     --  Store the entities of all output constituents of an
-                     --  Output_Only state with visible refinement.
-
-                     if No (Out_Constits)
-                       and then Is_Output_Only_State (Dep_Id)
-                     then
-                        Out_Constits := Output_Constituents (Dep_Id);
-                     end if;
-
                      if Is_Entity_Name (Ref_Output) then
                         Ref_Id := Entity_Of (Ref_Output);
 
@@ -21039,12 +21147,6 @@ package body Sem_Prag is
                         then
                            Has_Constituent := True;
                            Remove (Ref_Clause);
-
-                           --  The matching constituent may act as an output
-                           --  for an Output_Only state. Remove the item from
-                           --  the available output constituents.
-
-                           Remove (Out_Constits, Ref_Id);
                         end if;
                      end if;
 
@@ -21131,11 +21233,6 @@ package body Sem_Prag is
                   Ref_Clause);
             end if;
          end if;
-
-         --  Emit errors for all unused constituents of an Output_Only state
-         --  with visible refinement.
-
-         Report_Unused_Constituents (Out_Constits);
       end Check_Dependency_Clause;
 
       --------------------------
@@ -21178,8 +21275,8 @@ package body Sem_Prag is
       --  The following are dummy variables that capture unused output of
       --  routine Collect_Global_Items.
 
-      D1, D2         : Elist_Id := No_Elist;
-      D3, D4, D5, D6 : Boolean;
+      D1, D2, D3         : Elist_Id := No_Elist;
+      D4, D5, D6, D7, D8 : Boolean;
 
    --  Start of processing for Analyze_Refined_Depends_In_Decl_Part
 
@@ -21192,8 +21289,8 @@ package body Sem_Prag is
 
       if No (Depends) then
          Error_Msg_NE
-           ("useless refinement, subprogram & lacks dependence clauses",
-            N, Spec_Id);
+           ("useless refinement, subprogram & lacks dependence clauses (SPARK "
+            & "RM 7.2.5(2))", N, Spec_Id);
          return;
       end if;
 
@@ -21206,7 +21303,7 @@ package body Sem_Prag is
       if Nkind (Deps) = N_Null then
          Error_Msg_NE
            ("useless refinement, subprogram & does not depend on abstract "
-            & "state with visible refinement", N, Spec_Id);
+            & "state with visible refinement (SPARK RM 7.2.5(2))", N, Spec_Id);
          return;
       end if;
 
@@ -21230,18 +21327,20 @@ package body Sem_Prag is
          --  verifying the use of constituents that apply to output states with
          --  visible refinement.
 
-         Global := Get_Pragma (Body_Id, Pragma_Refined_Global);
+         Ref_Global := Get_Pragma (Body_Id, Pragma_Refined_Global);
 
-         if Present (Global) then
+         if Present (Ref_Global) then
             Collect_Global_Items
-              (Prag             => Global,
-               In_Items         => D1,
-               In_Out_Items     => D2,
-               Out_Items        => Out_Items,
-               Has_In_State     => D3,
-               Has_In_Out_State => D4,
-               Has_Out_State    => D5,
-               Has_Null_State   => D6);
+              (Prag               => Ref_Global,
+               In_Items           => D1,
+               In_Out_Items       => D2,
+               Out_Items          => Out_Items,
+               Proof_In_Items     => D3,
+               Has_In_State       => D4,
+               Has_In_Out_State   => D5,
+               Has_Out_State      => D6,
+               Has_Proof_In_State => D7,
+               Has_Null_State     => D8);
          end if;
 
          if Nkind (Refs) = N_Null then
@@ -21290,29 +21389,32 @@ package body Sem_Prag is
       Global : Node_Id;
       --  The corresponding Global pragma
 
-      Has_In_State     : Boolean := False;
-      Has_In_Out_State : Boolean := False;
-      Has_Out_State    : Boolean := False;
+      Has_In_State       : Boolean := False;
+      Has_In_Out_State   : Boolean := False;
+      Has_Out_State      : Boolean := False;
+      Has_Proof_In_State : Boolean := False;
       --  These flags are set when the corresponding Global pragma has a state
-      --  of mode Input, In_Out and Output respectively with a visible
+      --  of mode Input, In_Out, Output or Proof_In respectively with a visible
       --  refinement.
 
       Has_Null_State : Boolean := False;
       --  This flag is set when the corresponding Global pragma has at least
       --  one state with a null refinement.
 
-      In_Constits     : Elist_Id := No_Elist;
-      In_Out_Constits : Elist_Id := No_Elist;
-      Out_Constits    : Elist_Id := No_Elist;
-      --  These lists contain the entities of all Input, In_Out and Output
-      --  constituents that appear in Refined_Global and participate in state
-      --  refinement.
+      In_Constits       : Elist_Id := No_Elist;
+      In_Out_Constits   : Elist_Id := No_Elist;
+      Out_Constits      : Elist_Id := No_Elist;
+      Proof_In_Constits : Elist_Id := No_Elist;
+      --  These lists contain the entities of all Input, In_Out, Output and
+      --  Proof_In constituents that appear in Refined_Global and participate
+      --  in state refinement.
 
-      In_Items     : Elist_Id := No_Elist;
-      In_Out_Items : Elist_Id := No_Elist;
-      Out_Items    : Elist_Id := No_Elist;
-      --  These list contain the entities of all Input, In_Out and Output items
-      --  defined in the corresponding Global pragma.
+      In_Items       : Elist_Id := No_Elist;
+      In_Out_Items   : Elist_Id := No_Elist;
+      Out_Items      : Elist_Id := No_Elist;
+      Proof_In_Items : Elist_Id := No_Elist;
+      --  These list contain the entities of all Input, In_Out, Output and
+      --  Proof_In items defined in the corresponding Global pragma.
 
       procedure Check_In_Out_States;
       --  Determine whether the corresponding Global pragma mentions In_Out
@@ -21322,22 +21424,29 @@ package body Sem_Prag is
       --    2) there is at least one Input and one Output constituent
       --    3) not all constituents are present and one of them is of mode
       --       Output.
-      --  This routine may remove elements from In_Constits, In_Out_Constits
-      --  and Out_Constits.
+      --  This routine may remove elements from In_Constits, In_Out_Constits,
+      --  Out_Constits and Proof_In_Constits.
 
       procedure Check_Input_States;
       --  Determine whether the corresponding Global pragma mentions Input
       --  states with visible refinement and if so, ensure that at least one of
       --  its constituents appears as an Input item in Refined_Global.
-      --  This routine may remove elements from In_Constits, In_Out_Constits
-      --  and Out_Constits.
+      --  This routine may remove elements from In_Constits, In_Out_Constits,
+      --  Out_Constits and Proof_In_Constits.
 
       procedure Check_Output_States;
       --  Determine whether the corresponding Global pragma mentions Output
       --  states with visible refinement and if so, ensure that all of its
-      --  constituents appear as Output items in Refined_Global. This routine
-      --  may remove elements from In_Constits, In_Out_Constits and
-      --  Out_Constits.
+      --  constituents appear as Output items in Refined_Global.
+      --  This routine may remove elements from In_Constits, In_Out_Constits,
+      --  Out_Constits and Proof_In_Constits.
+
+      procedure Check_Proof_In_States;
+      --  Determine whether the corresponding Global pragma mentions Proof_In
+      --  states with visible refinement and if so, ensure that at least one of
+      --  its constituents appears as a Proof_In item in Refined_Global.
+      --  This routine may remove elements from In_Constits, In_Out_Constits,
+      --  Out_Constits and Proof_In_Constits.
 
       procedure Check_Refined_Global_List
         (List        : Node_Id;
@@ -21399,6 +21508,16 @@ package body Sem_Prag is
                elsif Present_Then_Remove (Out_Constits, Constit_Id) then
                   Out_Seen := True;
 
+               --  A Proof_In constituent cannot participate in the completion
+               --  of an Output state.
+
+               elsif Present_Then_Remove (Proof_In_Constits, Constit_Id) then
+                  Error_Msg_Name_1 := Chars (State_Id);
+                  Error_Msg_NE
+                    ("constituent & of state % must have mode Input, In_Out "
+                     & "or Output in global refinement (SPARK RM 7.2.4(5))",
+                     N, Constit_Id);
+
                else
                   Has_Missing := True;
                end if;
@@ -21426,7 +21545,7 @@ package body Sem_Prag is
             else
                Error_Msg_NE
                  ("global refinement of state & redefines the mode of its "
-                  & "constituents", N, State_Id);
+                  & "constituents (SPARK RM 7.2.4(5))", N, State_Id);
             end if;
          end Check_Constituent_Usage;
 
@@ -21467,7 +21586,8 @@ package body Sem_Prag is
          procedure Check_Constituent_Usage (State_Id : Entity_Id);
          --  Determine whether at least one constituent of state State_Id with
          --  visible refinement is used and has mode Input. Ensure that the
-         --  remaining constituents do not have In_Out or Output modes.
+         --  remaining constituents do not have In_Out, Output or Proof_In
+         --  modes.
 
          -----------------------------
          -- Check_Constituent_Usage --
@@ -21489,15 +21609,16 @@ package body Sem_Prag is
                   In_Seen := True;
 
                --  The constituent appears in the global refinement, but has
-               --  mode In_Out or Output.
+               --  mode In_Out, Output or Proof_In.
 
                elsif Present_Then_Remove (In_Out_Constits, Constit_Id)
                  or else Present_Then_Remove (Out_Constits, Constit_Id)
+                 or else Present_Then_Remove (Proof_In_Constits, Constit_Id)
                then
                   Error_Msg_Name_1 := Chars (State_Id);
                   Error_Msg_NE
                     ("constituent & of state % must have mode Input in global "
-                     & "refinement", N, Constit_Id);
+                     & "refinement (SPARK RM 7.2.4(5))", N, Constit_Id);
                end if;
 
                Next_Elmt (Constit_Elmt);
@@ -21559,6 +21680,7 @@ package body Sem_Prag is
          procedure Check_Constituent_Usage (State_Id : Entity_Id) is
             Constit_Elmt : Elmt_Id;
             Constit_Id   : Entity_Id;
+            Posted       : Boolean := False;
 
          begin
             Constit_Elmt := First_Elmt (Refinement_Constituents (State_Id));
@@ -21568,14 +21690,32 @@ package body Sem_Prag is
                if Present_Then_Remove (Out_Constits, Constit_Id) then
                   null;
 
-               else
-                  Remove (In_Constits, Constit_Id);
-                  Remove (In_Out_Constits, Constit_Id);
+               --  The constituent appears in the global refinement, but has
+               --  mode Input, In_Out or Proof_In.
 
+               elsif Present_Then_Remove (In_Constits, Constit_Id)
+                 or else Present_Then_Remove (In_Out_Constits, Constit_Id)
+                 or else Present_Then_Remove (Proof_In_Constits, Constit_Id)
+               then
                   Error_Msg_Name_1 := Chars (State_Id);
                   Error_Msg_NE
                     ("constituent & of state % must have mode Output in "
-                     & "global refinement", N, Constit_Id);
+                     & "global refinement (SPARK RM 7.2.4(5))", N, Constit_Id);
+
+               --  The constituent is altogether missing
+
+               else
+                  if not Posted then
+                     Posted := True;
+                     Error_Msg_NE
+                       ("output state & must be replaced by all its "
+                        & "constituents in global refinement (SPARK RM "
+                        & "7.2.5(3))", N, State_Id);
+                  end if;
+
+                  Error_Msg_NE
+                    ("\  constituent & is missing in output list",
+                     N, Constit_Id);
                end if;
 
                Next_Elmt (Constit_Elmt);
@@ -21611,6 +21751,90 @@ package body Sem_Prag is
             end loop;
          end if;
       end Check_Output_States;
+
+      ---------------------------
+      -- Check_Proof_In_States --
+      ---------------------------
+
+      procedure Check_Proof_In_States is
+         procedure Check_Constituent_Usage (State_Id : Entity_Id);
+         --  Determine whether at least one constituent of state State_Id with
+         --  visible refinement is used and has mode Proof_In. Ensure that the
+         --  remaining constituents do not have Input, In_Out or Output modes.
+
+         -----------------------------
+         -- Check_Constituent_Usage --
+         -----------------------------
+
+         procedure Check_Constituent_Usage (State_Id : Entity_Id) is
+            Constit_Elmt  : Elmt_Id;
+            Constit_Id    : Entity_Id;
+            Proof_In_Seen : Boolean := False;
+
+         begin
+            Constit_Elmt := First_Elmt (Refinement_Constituents (State_Id));
+            while Present (Constit_Elmt) loop
+               Constit_Id := Node (Constit_Elmt);
+
+               --  At least one of the constituents appears as Proof_In
+
+               if Present_Then_Remove (Proof_In_Constits, Constit_Id) then
+                  Proof_In_Seen := True;
+
+               --  The constituent appears in the global refinement, but has
+               --  mode Input, In_Out or Output.
+
+               elsif Present_Then_Remove (In_Constits, Constit_Id)
+                 or else Present_Then_Remove (In_Out_Constits, Constit_Id)
+                 or else Present_Then_Remove (Out_Constits, Constit_Id)
+               then
+                  Error_Msg_Name_1 := Chars (State_Id);
+                  Error_Msg_NE
+                    ("constituent & of state % must have mode Proof_In in "
+                     & "global refinement (SPARK RM 7.2.4(5))", N, Constit_Id);
+               end if;
+
+               Next_Elmt (Constit_Elmt);
+            end loop;
+
+            --  Not one of the constituents appeared as Proof_In
+
+            if not Proof_In_Seen then
+               Error_Msg_NE
+                 ("global refinement of state & must include at least one "
+                  & "constituent of mode Proof_In", N, State_Id);
+            end if;
+         end Check_Constituent_Usage;
+
+         --  Local variables
+
+         Item_Elmt : Elmt_Id;
+         Item_Id   : Entity_Id;
+
+      --  Start of processing for Check_Proof_In_States
+
+      begin
+         --  Inspect the Proof_In items of the corresponding Global pragma
+         --  looking for a state with a visible refinement.
+
+         if Has_Proof_In_State and then Present (Proof_In_Items) then
+            Item_Elmt := First_Elmt (Proof_In_Items);
+            while Present (Item_Elmt) loop
+               Item_Id := Node (Item_Elmt);
+
+               --  Ensure that at least one of the constituents is utilized and
+               --  is of mode Proof_In
+
+               if Ekind (Item_Id) = E_Abstract_State
+                 and then Has_Non_Null_Refinement (Item_Id)
+               then
+                  Check_Constituent_Usage (Item_Id);
+               end if;
+
+               Next_Elmt (Item_Elmt);
+            end loop;
+         end if;
+      end Check_Proof_In_States;
 
       -------------------------------
       -- Check_Refined_Global_List --
@@ -21671,6 +21895,9 @@ package body Sem_Prag is
 
                elsif Global_Mode = Name_Output then
                   Add_Item (Item_Id, Out_Constits);
+
+               elsif Global_Mode = Name_Proof_In then
+                  Add_Item (Item_Id, Proof_In_Constits);
                end if;
 
             --  When not a constituent, ensure that both occurrences of the
@@ -21691,11 +21918,15 @@ package body Sem_Prag is
                   Inconsistent_Mode_Error (Name_Output);
                end if;
 
+            elsif Contains (Proof_In_Items, Item_Id) then
+               null;
+
             --  The item does not appear in the corresponding Global pragma, it
             --  must be an extra.
 
             else
-               Error_Msg_NE ("extra global item &", Item, Item_Id);
+               Error_Msg_NE
+                 ("extra global item & (SPARK RM 7.2.4(3))", Item, Item_Id);
             end if;
          end Check_Refined_Global_Item;
 
@@ -21816,6 +22047,7 @@ package body Sem_Prag is
          Report_Extra_Constituents_In_List (In_Constits);
          Report_Extra_Constituents_In_List (In_Out_Constits);
          Report_Extra_Constituents_In_List (Out_Constits);
+         Report_Extra_Constituents_In_List (Proof_In_Constits);
       end Report_Extra_Constituents;
 
       --  Local variables
@@ -21843,14 +22075,16 @@ package body Sem_Prag is
       --  Extract all relevant items from the corresponding Global pragma
 
       Collect_Global_Items
-        (Prag             => Global,
-         In_Items         => In_Items,
-         In_Out_Items     => In_Out_Items,
-         Out_Items        => Out_Items,
-         Has_In_State     => Has_In_State,
-         Has_In_Out_State => Has_In_Out_State,
-         Has_Out_State    => Has_Out_State,
-         Has_Null_State   => Has_Null_State);
+        (Prag               => Global,
+         In_Items           => In_Items,
+         In_Out_Items       => In_Out_Items,
+         Out_Items          => Out_Items,
+         Proof_In_Items     => Proof_In_Items,
+         Has_In_State       => Has_In_State,
+         Has_In_Out_State   => Has_In_Out_State,
+         Has_Out_State      => Has_Out_State,
+         Has_Proof_In_State => Has_Proof_In_State,
+         Has_Null_State     => Has_Null_State);
 
       --  The corresponding Global pragma must mention at least one state with
       --  a visible refinement at the point Refined_Global is processed. States
@@ -21859,6 +22093,7 @@ package body Sem_Prag is
       if not Has_In_State
         and then not Has_In_Out_State
         and then not Has_Out_State
+        and then not Has_Proof_In_State
         and then not Has_Null_State
       then
          Error_Msg_NE
@@ -21875,7 +22110,8 @@ package body Sem_Prag is
         and then
           (Present (In_Items)
             or else Present (In_Out_Items)
-            or else Present (Out_Items))
+            or else Present (Out_Items)
+            or else Present (Proof_In_Items))
         and then not Has_Null_State
       then
          Error_Msg_NE
@@ -21916,6 +22152,13 @@ package body Sem_Prag is
 
       if Serious_Errors_Detected = Errors then
          Check_Output_States;
+      end if;
+
+      --  For Proof_In states with visible refinement, at least one constituent
+      --  must be used as Proof_In in the global refinement.
+
+      if Serious_Errors_Detected = Errors then
+         Check_Proof_In_States;
       end if;
 
       --  Emit errors for all constituents that belong to other states with
@@ -21971,24 +22214,44 @@ package body Sem_Prag is
       -------------------------------
 
       procedure Analyze_Refinement_Clause (Clause : Node_Id) is
-         State_Id : Entity_Id := Empty;
-         --  The entity of the state being refined in the current clause
+         AR_Constit : Entity_Id := Empty;
+         AW_Constit : Entity_Id := Empty;
+         ER_Constit : Entity_Id := Empty;
+         EW_Constit : Entity_Id := Empty;
+         --  The entities of external constituents that contain one of the
+         --  following enabled properties: Async_Readers, Async_Writers,
+         --  Effective_Reads and Effective_Writes.
+
+         External_Constit_Seen : Boolean := False;
+         --  Flag used to mark when at least one external constituent is part
+         --  of the state refinement.
 
          Non_Null_Seen : Boolean := False;
          Null_Seen     : Boolean := False;
          --  Flags used to detect multiple uses of null in a single clause or a
          --  mixture of null and non-null constituents.
 
+         State    : Node_Id;
+         State_Id : Entity_Id;
+         --  The state being refined in the current clause
+
          procedure Analyze_Constituent (Constit : Node_Id);
          --  Perform full analysis of a single constituent
 
-         procedure Check_Matching_State
-           (State    : Node_Id;
-            State_Id : Entity_Id);
-         --  Determine whether state State denoted by its name State_Id appears
-         --  in Abstr_States. Emit an error when attempting to re-refine the
-         --  state or when the state is not defined in the package declaration.
-         --  Otherwise remove the state from Abstr_States.
+         procedure Check_External_Property
+           (Prop_Nam : Name_Id;
+            Enabled  : Boolean;
+            Constit  : Entity_Id);
+         --  Determine whether a property denoted by name Prop_Nam is present
+         --  in both the refined state and constituent Constit. Flag Enabled
+         --  should be set when the property applies to the refined state. If
+         --  this is not the case, emit an error message.
+
+         procedure Check_Matching_State;
+         --  Determine whether the state being refined appears in Abstr_States.
+         --  Emit an error when attempting to re-refine the state or when the
+         --  state is not defined in the package declaration. Otherwise remove
+         --  the state from Abstr_States.
 
          -------------------------
          -- Analyze_Constituent --
@@ -22033,6 +22296,29 @@ package body Sem_Prag is
                   --  body declarations end (see routine Analyze_Declarations).
 
                   Set_Has_Visible_Refinement (State_Id);
+
+                  --  When the constituent is external, save its relevant
+                  --  property for further checks.
+
+                  if Async_Readers_Enabled (Constit_Id) then
+                     AR_Constit := Constit_Id;
+                     External_Constit_Seen := True;
+                  end if;
+
+                  if Async_Writers_Enabled (Constit_Id) then
+                     AW_Constit := Constit_Id;
+                     External_Constit_Seen := True;
+                  end if;
+
+                  if Effective_Reads_Enabled (Constit_Id) then
+                     ER_Constit := Constit_Id;
+                     External_Constit_Seen := True;
+                  end if;
+
+                  if Effective_Writes_Enabled (Constit_Id) then
+                     EW_Constit := Constit_Id;
+                     External_Constit_Seen := True;
+                  end if;
                end Collect_Constituent;
 
                --  Local variables
@@ -22110,7 +22396,8 @@ package body Sem_Prag is
                Error_Msg_Name_1 := Chars (Spec_Id);
                Error_Msg_NE
                  ("cannot use & in refinement, constituent is not a hidden "
-                  & "state of package %", Constit, Constit_Id);
+                  & "state of package % (SPARK RM 7.2.2(9))",
+                  Constit, Constit_Id);
             end Check_Matching_Constituent;
 
             --  Local variables
@@ -22170,8 +22457,8 @@ package body Sem_Prag is
 
                   else
                      Error_Msg_NE
-                       ("constituent & must denote a variable or state",
-                        Constit, Constit_Id);
+                       ("constituent & must denote a variable or state (SPARK "
+                        & "RM 7.2.2(5))", Constit, Constit_Id);
                   end if;
 
                --  The constituent is illegal
@@ -22182,14 +22469,44 @@ package body Sem_Prag is
             end if;
          end Analyze_Constituent;
 
+         -----------------------------
+         -- Check_External_Property --
+         -----------------------------
+
+         procedure Check_External_Property
+           (Prop_Nam : Name_Id;
+            Enabled  : Boolean;
+            Constit  : Entity_Id)
+         is
+         begin
+            Error_Msg_Name_1 := Prop_Nam;
+
+            --  The property is enabled in the related Abstract_State pragma
+            --  that defines the state.
+
+            if Enabled then
+               if No (Constit) then
+                  Error_Msg_NE
+                    ("external state & requires at least one constituent with "
+                     & "property % (SPARK RM 7.2.8(3))", State, State_Id);
+               end if;
+
+            --  The property is missing in the declaration of the state, but a
+            --  constituent is introducing it in the state refinement.
+
+            elsif Present (Constit) then
+               Error_Msg_Name_2 := Chars (Constit);
+               Error_Msg_NE
+                 ("external state & lacks property % set by constituent % "
+                  & "(SPARK RM 7.2.8(3))", State, State_Id);
+            end if;
+         end Check_External_Property;
+
          --------------------------
          -- Check_Matching_State --
          --------------------------
 
-         procedure Check_Matching_State
-           (State    : Node_Id;
-            State_Id : Entity_Id)
-         is
+         procedure Check_Matching_State is
             State_Elmt : Elmt_Id;
 
          begin
@@ -22197,7 +22514,8 @@ package body Sem_Prag is
 
             if Contains (Refined_States_Seen, State_Id) then
                Error_Msg_NE
-                 ("duplicate refinement of state &", State, State_Id);
+                 ("duplicate refinement of state & (SPARK RM 7.2.2(8))",
+                  State, State_Id);
                return;
             end if;
 
@@ -22233,8 +22551,10 @@ package body Sem_Prag is
 
          --  Local declarations
 
-         Constit : Node_Id;
-         State   : Node_Id;
+         Body_Ref      : Node_Id;
+         Body_Ref_Elmt : Elmt_Id;
+         Constit       : Node_Id;
+         Extra_State   : Node_Id;
 
       --  Start of processing for Analyze_Refinement_Clause
 
@@ -22242,64 +22562,60 @@ package body Sem_Prag is
          --  Analyze the state name of a refinement clause
 
          State := First (Choices (Clause));
-         while Present (State) loop
-            if Present (State_Id) then
-               Error_Msg_N
-                 ("refinement clause cannot cover multiple states", State);
 
+         Analyze       (State);
+         Resolve_State (State);
+
+         --  Ensure that the state name denotes a valid abstract state that is
+         --  defined in the spec of the related package.
+
+         if Is_Entity_Name (State) then
+            State_Id := Entity_Of (State);
+
+            --  Catch any attempts to re-refine a state or refine a state that
+            --  is not defined in the package declaration.
+
+            if Ekind (State_Id) = E_Abstract_State then
+               Check_Matching_State;
             else
-               Analyze       (State);
-               Resolve_State (State);
-
-               --  Ensure that the state name denotes a valid abstract state
-               --  that is defined in the spec of the related package.
-
-               if Is_Entity_Name (State) then
-                  State_Id := Entity_Of (State);
-
-                  --  Catch any attempts to re-refine a state or refine a
-                  --  state that is not defined in the package declaration.
-
-                  if Ekind (State_Id) = E_Abstract_State then
-                     Check_Matching_State (State, State_Id);
-                  else
-                     Error_Msg_NE
-                       ("& must denote an abstract state", State, State_Id);
-                  end if;
-
-                  --  Enforce SPARK RM (6.1.5(4)): A global item shall not
-                  --  denote a state abstraction whose refinement is visible
-                  --  (a state abstraction cannot be named within its enclosing
-                  --  package's body other than in its refinement).
-
-                  if Has_Body_References (State_Id) then
-                     declare
-                        Ref : Elmt_Id;
-                        Nod : Node_Id;
-                     begin
-                        Ref := First_Elmt (Body_References (State_Id));
-                        while Present (Ref) loop
-                           Nod := Node (Ref);
-                           Error_Msg_N
-                             ("global reference to & not allowed "
-                              & "(SPARK RM 6.1.5(4))", Nod);
-                           Error_Msg_Sloc := Sloc (State);
-                           Error_Msg_N ("\refinement of & is visible#", Nod);
-                           Next_Elmt (Ref);
-                        end loop;
-                     end;
-                  end if;
-
-               --  The state name is illegal
-
-               else
-                  Error_Msg_N
-                    ("malformed state name in refinement clause", State);
-               end if;
+               Error_Msg_NE
+                 ("& must denote an abstract state", State, State_Id);
             end if;
 
-            Next (State);
-         end loop;
+            --  A global item cannot denote a state abstraction whose
+            --  refinement is visible, in other words a state abstraction
+            --  cannot be named within its enclosing package's body other than
+            --  in its refinement.
+
+            if Has_Body_References (State_Id) then
+               Body_Ref_Elmt := First_Elmt (Body_References (State_Id));
+               while Present (Body_Ref_Elmt) loop
+                  Body_Ref := Node (Body_Ref_Elmt);
+
+                  Error_Msg_N
+                    ("global reference to & not allowed (SPARK RM 6.1.4(8))",
+                     Body_Ref);
+                  Error_Msg_Sloc := Sloc (State);
+                  Error_Msg_N ("\refinement of & is visible#", Body_Ref);
+
+                  Next_Elmt (Body_Ref_Elmt);
+               end loop;
+            end if;
+
+            --  The state name is illegal
+
+         else
+            Error_Msg_N ("malformed state name in refinement clause", State);
+         end if;
+
+         --  A refinement clause may only refine one state at a time
+
+         Extra_State := Next (State);
+
+         if Present (Extra_State) then
+            Error_Msg_N
+              ("refinement clause cannot cover multiple states", Extra_State);
+         end if;
 
          --  Analyze all constituents of the refinement. Multiple constituents
          --  appear as an aggregate.
@@ -22326,6 +22642,60 @@ package body Sem_Prag is
 
          else
             Analyze_Constituent (Constit);
+         end if;
+
+         --  A refined external state is subject to special rules with respect
+         --  to its properties and constituents.
+
+         if Is_External_State (State_Id) then
+
+            --  The set of properties that all external constituents yield must
+            --  match that of the refined state. There are two cases to detect:
+            --  the refined state lacks a property or has an extra property.
+
+            if External_Constit_Seen then
+               Check_External_Property
+                 (Prop_Nam => Name_Async_Readers,
+                  Enabled  => Async_Readers_Enabled (State_Id),
+                  Constit  => AR_Constit);
+
+               Check_External_Property
+                 (Prop_Nam => Name_Async_Writers,
+                  Enabled  => Async_Writers_Enabled (State_Id),
+                  Constit  => AW_Constit);
+
+               Check_External_Property
+                 (Prop_Nam => Name_Effective_Reads,
+                  Enabled  => Effective_Reads_Enabled (State_Id),
+                  Constit  => ER_Constit);
+
+               Check_External_Property
+                 (Prop_Nam => Name_Effective_Writes,
+                  Enabled  => Effective_Writes_Enabled (State_Id),
+                  Constit  => EW_Constit);
+
+            --  An external state may be refined to null (SPARK RM 7.2.8(2))
+
+            elsif Null_Seen then
+               null;
+
+            --  The external state has constituents, but none of them are
+            --  external.
+
+            else
+               Error_Msg_NE
+                 ("external state & requires at least one external "
+                  & "constituent or null refinement (SPARK RM 7.2.8(2))",
+                  State, State_Id);
+            end if;
+
+         --  When a refined state is not external, it should not have external
+         --  constituents.
+
+         elsif External_Constit_Seen then
+            Error_Msg_NE
+              ("non-external state & cannot contain external constituents in "
+               & "refinement (SPARK RM 7.2.8(1))", State, State_Id);
          end if;
       end Analyze_Refinement_Clause;
 
@@ -22618,7 +22988,8 @@ package body Sem_Prag is
 
       else
          Error_Msg_N
-           ("illegal combination of external state properties", Item);
+           ("illegal combination of external properties (SPARK RM 7.1.2(6))",
+            Item);
       end if;
    end Check_External_Properties;
 
@@ -22762,14 +23133,16 @@ package body Sem_Prag is
    --------------------------
 
    procedure Collect_Global_Items
-     (Prag             : Node_Id;
-      In_Items         : in out Elist_Id;
-      In_Out_Items     : in out Elist_Id;
-      Out_Items        : in out Elist_Id;
-      Has_In_State     : out Boolean;
-      Has_In_Out_State : out Boolean;
-      Has_Out_State    : out Boolean;
-      Has_Null_State   : out Boolean)
+     (Prag               : Node_Id;
+      In_Items           : in out Elist_Id;
+      In_Out_Items       : in out Elist_Id;
+      Out_Items          : in out Elist_Id;
+      Proof_In_Items     : in out Elist_Id;
+      Has_In_State       : out Boolean;
+      Has_In_Out_State   : out Boolean;
+      Has_Out_State      : out Boolean;
+      Has_Proof_In_State : out Boolean;
+      Has_Null_State     : out Boolean)
    is
       procedure Process_Global_List
         (List : Node_Id;
@@ -22814,6 +23187,8 @@ package body Sem_Prag is
                      Has_In_Out_State := True;
                   elsif Mode = Name_Output then
                      Has_Out_State := True;
+                  elsif Mode = Name_Proof_In then
+                     Has_Proof_In_State := True;
                   end if;
                end if;
             end if;
@@ -22826,6 +23201,8 @@ package body Sem_Prag is
                Add_Item (Item_Id, In_Out_Items);
             elsif Mode = Name_Output then
                Add_Item (Item_Id, Out_Items);
+            elsif Mode = Name_Proof_In then
+               Add_Item (Item_Id, Proof_In_Items);
             end if;
          end Process_Global_Item;
 
@@ -22898,10 +23275,11 @@ package body Sem_Prag is
    begin
       --  Assume that no states have been encountered
 
-      Has_In_State     := False;
-      Has_In_Out_State := False;
-      Has_Out_State    := False;
-      Has_Null_State   := False;
+      Has_In_State       := False;
+      Has_In_Out_State   := False;
+      Has_Out_State      := False;
+      Has_Proof_In_State := False;
+      Has_Null_State     := False;
 
       Process_Global_List (Items);
    end Collect_Global_Items;
@@ -23222,8 +23600,6 @@ package body Sem_Prag is
          return On;
       elsif N = Name_Off then
          return Off;
-      elsif N = Name_Auto then
-         return Auto;
 
       --  Any other argument is erroneous
 
