@@ -79,7 +79,8 @@ typedef enum {
     D_T_BOOL,
 
     C_BREAK_STMT,
-    C_CONT_STMT
+    C_CONT_STMT,
+    C_RETURN_STMT
 } opcode_t ;
 
 typedef enum {
@@ -90,8 +91,7 @@ typedef enum {
 typedef enum {
   ALLOC_AUTO,
   ALLOC_HEAP,
-  ALLOC_STACK,
-  ALLOC_BOX
+  ALLOC_REF
 } ALLOCA_;
 
 typedef struct GTY(()) grs_rdot_tree_common {
@@ -157,7 +157,7 @@ extern rdot rdot_build_decl2 (opcode_t, rdot, rdot);
  * 1 = identifier; 2 = parameters
  * 3 = return type; 4 = suite
  **/
-extern rdot rdot_build_fndecl (rdot, rdot, rdot, rdot);
+extern rdot rdot_build_fndecl (rdot, bool, rdot, rdot, rdot);
 extern rdot rdot_build_integer (const int);
 extern rdot rdot_build_string (const char *);
 extern rdot rdot_build_identifier (const char *);

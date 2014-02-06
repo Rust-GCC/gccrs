@@ -168,7 +168,7 @@ rdot rdot_build_decl2 (opcode_t o, rdot t1, rdot t2)
   return decl;
 }
 
-rdot rdot_build_fndecl (rdot ident, rdot params, rdot rtype, rdot suite)
+rdot rdot_build_fndecl (rdot ident, bool pub, rdot params, rdot rtype, rdot suite)
 {
   rdot decl = RDOT_alloc;
 
@@ -177,6 +177,7 @@ rdot rdot_build_fndecl (rdot ident, rdot params, rdot rtype, rdot suite)
 
   RDOT_FIELD (decl) = ident;
   RDOT_FIELD2 (decl) = rtype;
+  DOT_RETVAL (decl) = pub;
 
   decl->opaT = D_TD_DOT;
   decl->opa.t = params;
@@ -239,7 +240,7 @@ rdot rdot_build_identifier (const char * s)
   decl->opaT = D_TD_COM;
   decl->opa.tc = RDOT_CM_alloc;
   decl->opa.tc->T = D_T_STRING;
-  decl->opa.tc->o.string = (char *) s;
+  decl->opa.tc->o.string = xstrdup (s);
 
   decl->opbT = D_TD_NULL;
 

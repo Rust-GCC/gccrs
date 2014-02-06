@@ -107,12 +107,8 @@ const char * typeStringNode (rdot node)
 	    modifier_char = '~';
 	    break;
 
-	  case ALLOC_STACK:
+	  case ALLOC_REF:
 	    modifier_char = '&';
-	    break;
-
-	  case ALLOC_BOX:
-	    modifier_char = '@';
 	    break;
 	  }
 	size_t blen = strlen (retval) + 5;
@@ -171,7 +167,11 @@ void dot_pass_dump_method (FILE * fd, rdot node, size_t indents)
   const char * rtype = typeStringNode (RDOT_FIELD2 (node));
   rdot parameters = RDOT_lhs_TT (node);
 
-  fprintf (fd, "fn %s ( ", method_id);
+  if (DOT_RETVAL (node))
+    fprintf (fd, "pub fn %s ( ", method_id);
+  else
+    fprintf (fd, "fn %s ( ", method_id);
+  
   if (parameters == NULL_DOT)
     fprintf (fd, "void");
   else
@@ -255,6 +255,21 @@ static
 void dot_pass_dumpExprNode (FILE * fd, rdot node)
 {
   /* print expr tree ... */
+  ALLOCA_ mod = RDOT_MEM_MODIFIER (node);
+  switch (mod)
+    {
+    case ALLOC_AUTO:
+      break;
+
+    case ALLOC_HEAP:
+      fprintf (fd, "~");
+      break;
+
+    case ALLOC_REF:
+      fprintf (fd, "&");
+      break;
+    }
+  
   switch (RDOT_TYPE (node))
     {
     case D_PRIMITIVE:

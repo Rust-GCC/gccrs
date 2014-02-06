@@ -40,11 +40,9 @@ rs-lexer.o: $(srcdir)/rust/rs-lexer.l rs-parser.o
 	$(COMPILER) $(ALL_CFLAGS) $(ALL_COMPILERFLAGS) $(GRS_CFLAGS) $(INCLUDES) \
 	$(LDFLAGS) -c -o $@ lex.rs.c
 
-rs-parser.o: $(srcdir)/rust/rs-parser.y
-	$(BISON) -v --debug --verbose --defines=y.rs.h --output=y.rs.c \
-	$(srcdir)/rust/rs-parser.y
+rs-parser.o: $(srcdir)/rust/rs-parser.cc
 	$(COMPILER) $(ALL_CFLAGS) $(ALL_COMPILERFLAGS) $(GRS_CFLAGS) $(INCLUDES) \
-	$(LDFLAGS) -c -o $@ y.rs.c
+	$(LDFLAGS) -c -o $@ $(srcdir)/rust/rs-parser.cc
 
 rs-pass-manager.o: $(srcdir)/rust/rs-pass-manager.cc $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
   $(FLAGS_H) toplev.h $(GGC_H) $(TREE_H) $(DIAGNOSTIC_H) input.h options.h opts.h \

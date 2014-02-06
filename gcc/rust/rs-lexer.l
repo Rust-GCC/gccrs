@@ -18,18 +18,18 @@
 #include "rust.h"
 #include "y.rs.h"
 
+
 extern int yydebug;
 extern int yyparse (void);
 %}
 
-%option noyywrap
-%option yylineno
 
 DIGIT        [0-9]
 ID           [_a-zA-Z][a-zA_Z0-9_$]*
 QSTRING      \"[^\"\n]*[\"\n]
 
 %x comment
+%option yylineno noyywrap nounput 8bit never-interactive
 %%
 
 "/*"                    {  BEGIN (comment); }
@@ -39,6 +39,7 @@ QSTRING      \"[^\"\n]*[\"\n]
 <comment>"*"+"/"        {  BEGIN (INITIAL); }
 
 as                      {  return AS; }
+pub                     {  return PUB; }
 break                   {  return BREAK; }
 return                  {  return RETURN; }
 continue                {  return CONTINUE; }
@@ -51,6 +52,7 @@ loop                    {  return LOOP; }
 static                  {  return STATIC; }
 struct                  {  return STRUCT; }
 if                      {  return IF; }
+"else if"               {  return ELIF; }
 else                    {  return ELSE; }
 impl                    {  return IMPL; }
 self                    {  return SELF; }
@@ -62,6 +64,8 @@ enum                    {  return ENUM; }
 match                   {  return MATCH; }
 true                    {  return XTRUE; }
 false                   {  return XFALSE; }
+trait                   {  return TRAIT; }
+for                     {  return FOR; }
 
 \[                      {  return '['; }
 \]                      {  return ']'; }
