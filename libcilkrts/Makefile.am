@@ -38,7 +38,7 @@ ACLOCAL_AMFLAGS = -I .. -I ../config
 
 # Compiler and linker flags.
 GENERAL_FLAGS = -I$(top_srcdir)/include -I$(top_srcdir)/runtime -I$(top_srcdir)/runtime/config/$(config_dir) -DIN_CILK_RUNTIME=1
-GENERAL_FLAGS += -D_Cilk_spawn="" -D_Cilk_sync="" -D_Cilk_for=for
+# GENERAL_FLAGS += -D_Cilk_spawn="" -D_Cilk_sync="" -D_Cilk_for=for
 
 # Enable Intel Cilk Plus extension
 GENERAL_FLAGS += -fcilkplus
@@ -108,7 +108,8 @@ endif
 libcilkrts_la_LDFLAGS += -no-undefined
 
 # C/C++ header files for Cilk.
-cilkincludedir = $(includedir)/cilk
+# cilkincludedir = $(includedir)/cilk
+cilkincludedir = $(libdir)/gcc/$(target_alias)/$(gcc_version)/include/cilk
 cilkinclude_HEADERS =              \
   include/cilk/cilk_api.h          \
   include/cilk/cilk_api_linux.h    \

@@ -1,6 +1,6 @@
 // { dg-options "-std=gnu++1y" }
 
-// Copyright (C) 2013 Free Software Foundation, Inc.
+// Copyright (C) 2013-2014 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -63,10 +63,8 @@ test01()
   {
     str02 = str01.substr(csz01);
     VERIFY( str02.size() == 0 );
-  }
-  catch(std::out_of_range& fail)
-  {
-    VERIFY( true ); // No terminating null in basic_string_view
+    VERIFY( str02.begin() == str01.end() );
+    VERIFY( true );
   }
   catch(...)
   {

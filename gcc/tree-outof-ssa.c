@@ -1,5 +1,5 @@
 /* Convert a program in SSA form into Normal form.
-   Copyright (C) 2004-2013 Free Software Foundation, Inc.
+   Copyright (C) 2004-2014 Free Software Foundation, Inc.
    Contributed by Andrew Macleod <amacleod@redhat.com>
 
 This file is part of GCC.
@@ -835,7 +835,7 @@ eliminate_useless_phis (void)
   gimple_stmt_iterator gsi;
   tree result;
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       for (gsi = gsi_start_phis (bb); !gsi_end_p (gsi); )
         {
@@ -893,7 +893,7 @@ rewrite_trees (var_map map ATTRIBUTE_UNUSED)
   /* Search for PHIs where the destination has no partition, but one
      or more arguments has a partition.  This should not happen and can
      create incorrect code.  */
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       gimple_stmt_iterator gsi;
       for (gsi = gsi_start_phis (bb); !gsi_end_p (gsi); gsi_next (&gsi))
@@ -1101,7 +1101,7 @@ insert_backedge_copies (void)
 
   mark_dfs_back_edges ();
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       /* Mark block as possibly needing calculation of UIDs.  */
       bb->aux = &bb->aux;

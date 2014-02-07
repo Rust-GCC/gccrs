@@ -1,5 +1,5 @@
 /* Map logical line numbers to (source file, line number) pairs.
-   Copyright (C) 2001-2013 Free Software Foundation, Inc.
+   Copyright (C) 2001-2014 Free Software Foundation, Inc.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -755,6 +755,14 @@ struct linemap_stats
   long macro_maps_locations_size;
   long duplicated_macro_maps_locations_size;
 };
+
+/* Return the highest location emitted for a given file for which
+   there is a line map in SET.  FILE_NAME is the file name to
+   consider.  If the function returns TRUE, *LOC is set to the highest
+   location emitted for that file.  */
+bool linemap_get_file_highest_location (struct line_maps * set,
+					const char *file_name,
+					source_location *loc);
 
 /* Compute and return statistics about the memory consumption of some
    parts of the line table SET.  */

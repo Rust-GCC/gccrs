@@ -1,5 +1,5 @@
 /* mmap.c -- Memory allocation with mmap.
-   Copyright (C) 2012-2013 Free Software Foundation, Inc.
+   Copyright (C) 2012-2014 Free Software Foundation, Inc.
    Written by Ian Lance Taylor, Google.
 
 Redistribution and use in source and binary forms, with or without
@@ -230,12 +230,19 @@ backtrace_vector_grow (struct backtrace_state *state,size_t size,
 
 /* Finish the current allocation on VEC.  */
 
-void
-backtrace_vector_finish (struct backtrace_state *state ATTRIBUTE_UNUSED,
-			 struct backtrace_vector *vec)
+void *
+backtrace_vector_finish (
+  struct backtrace_state *state ATTRIBUTE_UNUSED,
+  struct backtrace_vector *vec,
+  backtrace_error_callback error_callback ATTRIBUTE_UNUSED,
+  void *data ATTRIBUTE_UNUSED)
 {
+  void *ret;
+
+  ret = vec->base;
   vec->base = (char *) vec->base + vec->size;
   vec->size = 0;
+  return ret;
 }
 
 /* Release any extra space allocated for VEC.  */

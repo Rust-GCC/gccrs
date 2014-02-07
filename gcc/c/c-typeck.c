@@ -1,5 +1,5 @@
 /* Build expressions with type checking for C compiler.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -49,6 +49,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "c-family/c-objc.h"
 #include "c-family/c-common.h"
 #include "c-family/c-ubsan.h"
+#include "cilk.h"
 
 /* Possible cases of implicit bad conversions.  Used to select
    diagnostic messages in convert_for_assignment.  */
@@ -2422,7 +2423,7 @@ build_array_ref (location_t loc, tree array, tree index)
       || TREE_TYPE (index) == error_mark_node)
     return error_mark_node;
 
-  if (flag_enable_cilkplus && contains_array_notation_expr (index))
+  if (flag_cilkplus && contains_array_notation_expr (index))
     {
       size_t rank = 0;
       if (!find_rank (loc, index, index, true, &rank))
@@ -2852,7 +2853,7 @@ build_function_call_vec (location_t loc, tree function,
       if (name && !strncmp (IDENTIFIER_POINTER (name), "__atomic_", 9))
         origtypes = NULL;
 
-      if (flag_enable_cilkplus
+      if (flag_cilkplus
 	  && is_cilkplus_reduce_builtin (function))
 	origtypes = NULL;
     }
@@ -3060,7 +3061,7 @@ convert_arguments (tree typelist, vec<tree, va_gc> *values,
 	  break;
 	}
     }
-  if (flag_enable_cilkplus && fundecl && is_cilkplus_reduce_builtin (fundecl))
+  if (flag_cilkplus && fundecl && is_cilkplus_reduce_builtin (fundecl))
     return vec_safe_length (values);
 
   /* Scan the given expressions and types, producing individual
@@ -3387,11 +3388,11 @@ parser_build_binary_op (location_t location, enum tree_code code,
   /* Check for cases such as x+y<<z which users are likely
      to misinterpret.  */
   if (warn_parentheses)
-    warn_about_parentheses (input_location, code,
-			    code1, arg1.value, code2, arg2.value);
+    warn_about_parentheses (location, code, code1, arg1.value, code2,
+			    arg2.value);
 
   if (warn_logical_op)
-    warn_logical_operator (input_location, code, TREE_TYPE (result.value),
+    warn_logical_operator (location, code, TREE_TYPE (result.value),
 			   code1, arg1.value, code2, arg2.value);
 
   /* Warn about comparisons against string literals, with the exception
@@ -3534,6 +3535,9 @@ pointer_diff (location_t loc, tree op0, tree op1)
 
   /* This generates an error if op0 is pointer to incomplete type.  */
   op1 = c_size_in_bytes (target_type);
+
+  if (pointer_to_zero_sized_aggr_p (TREE_TYPE (orig_op1)))
+    error_at (loc, "arithmetic on pointer to an empty aggregate");
 
   /* Divide by the size, in easiest possible way.  */
   result = fold_build2_loc (loc, EXACT_DIV_EXPR, inttype,
@@ -3982,7 +3986,7 @@ build_unary_op (location_t location,
 
       if (typecode != POINTER_TYPE && typecode != FIXED_POINT_TYPE
 	  && typecode != INTEGER_TYPE && typecode != REAL_TYPE
-	  && typecode != COMPLEX_TYPE)
+	  && typecode != COMPLEX_TYPE && typecode != VECTOR_TYPE)
 	{
 	  if (code == PREINCREMENT_EXPR || code == POSTINCREMENT_EXPR)
 	    error_at (location, "wrong type argument to increment");
@@ -4047,7 +4051,9 @@ build_unary_op (location_t location,
 	  }
 	else
 	  {
-	    inc = integer_one_node;
+	    inc = VECTOR_TYPE_P (argtype)
+	      ? build_one_cst (argtype)
+	      : integer_one_node;
 	    inc = convert (argtype, inc);
 	  }
 
@@ -4705,8 +4711,10 @@ build_conditional_expr (location_t colon_loc, tree ifexp, bool ifexp_bcp,
     {
       if (int_operands)
 	{
-	  op1 = remove_c_maybe_const_expr (op1);
-	  op2 = remove_c_maybe_const_expr (op2);
+	  /* Use c_fully_fold here, since C_MAYBE_CONST_EXPR might be
+	     nested inside of the expression.  */
+	  op1 = c_fully_fold (op1, false, NULL);
+	  op2 = c_fully_fold (op2, false, NULL);
 	}
       ret = build3 (COND_EXPR, result_type, ifexp, op1, op2);
       if (int_operands)
@@ -4731,7 +4739,7 @@ build_compound_expr (location_t loc, tree expr1, tree expr2)
   tree eptype = NULL_TREE;
   tree ret;
 
-  if (flag_enable_cilkplus
+  if (flag_cilkplus
       && (TREE_CODE (expr1) == CILK_SPAWN_STMT
 	  || TREE_CODE (expr2) == CILK_SPAWN_STMT))
     {
@@ -4772,6 +4780,23 @@ build_compound_expr (location_t loc, tree expr1, tree expr2)
 	    warning_at (loc, OPT_Wunused_value,
 			"left-hand operand of comma expression has no effect");
 	}
+    }
+  else if (TREE_CODE (expr1) == COMPOUND_EXPR
+	   && warn_unused_value)
+    {
+      tree r = expr1;
+      location_t cloc = loc;
+      while (TREE_CODE (r) == COMPOUND_EXPR)
+        {
+	  if (EXPR_HAS_LOCATION (r))
+	    cloc = EXPR_LOCATION (r);
+	  r = TREE_OPERAND (r, 1);
+	}
+      if (!TREE_SIDE_EFFECTS (r)
+	  && !VOID_TYPE_P (TREE_TYPE (r))
+	  && !CONVERT_EXPR_P (r))
+	warning_at (cloc, OPT_Wunused_value,
+	            "right-hand operand of comma expression has no effect");
     }
 
   /* With -Wunused, we should also warn if the left-hand operand does have
@@ -5190,6 +5215,7 @@ build_modify_expr (location_t location, tree lhs, tree lhs_origtype,
 {
   tree result;
   tree newrhs;
+  tree rhseval = NULL_TREE;
   tree rhs_semantic_type = NULL_TREE;
   tree lhstype = TREE_TYPE (lhs);
   tree olhstype = lhstype;
@@ -5202,6 +5228,14 @@ build_modify_expr (location_t location, tree lhs, tree lhs_origtype,
   /* Avoid duplicate error messages from operands that had errors.  */
   if (TREE_CODE (lhs) == ERROR_MARK || TREE_CODE (rhs) == ERROR_MARK)
     return error_mark_node;
+
+  /* Ensure an error for assigning a non-lvalue array to an array in
+     C90.  */
+  if (TREE_CODE (lhstype) == ARRAY_TYPE)
+    {
+      error_at (location, "assignment to expression with array type");
+      return error_mark_node;
+    }
 
   /* For ObjC properties, defer this check.  */
   if (!objc_is_property_ref (lhs) && !lvalue_or_else (location, lhs, lv_assign))
@@ -5243,8 +5277,17 @@ build_modify_expr (location_t location, tree lhs, tree lhs_origtype,
       /* Construct the RHS for any non-atomic compound assignemnt. */
       if (!is_atomic_op)
         {
+	  /* If in LHS op= RHS the RHS has side-effects, ensure they
+	     are preevaluated before the rest of the assignment expression's
+	     side-effects, because RHS could contain e.g. function calls
+	     that modify LHS.  */
+	  if (TREE_SIDE_EFFECTS (rhs))
+	    {
+	      newrhs = in_late_binary_op ? save_expr (rhs) : c_save_expr (rhs);
+	      rhseval = newrhs;
+	    }
 	  newrhs = build_binary_op (location,
-				    modifycode, lhs, rhs, 1);
+				    modifycode, lhs, newrhs, 1);
 
 	  /* The original type of the right hand side is no longer
 	     meaningful.  */
@@ -5258,7 +5301,7 @@ build_modify_expr (location_t location, tree lhs, tree lhs_origtype,
 	 if so, we need to generate setter calls.  */
       result = objc_maybe_build_modify_expr (lhs, newrhs);
       if (result)
-	return result;
+	goto return_result;
 
       /* Else, do the check that we postponed for Objective-C.  */
       if (!lvalue_or_else (location, lhs, lv_assign))
@@ -5352,7 +5395,7 @@ build_modify_expr (location_t location, tree lhs, tree lhs_origtype,
       if (result)
 	{
 	  protected_set_expr_location (result, location);
-	  return result;
+	  goto return_result;
 	}
     }
 
@@ -5373,11 +5416,15 @@ build_modify_expr (location_t location, tree lhs, tree lhs_origtype,
      as the LHS argument.  */
 
   if (olhstype == TREE_TYPE (result))
-    return result;
+    goto return_result;
 
   result = convert_for_assignment (location, olhstype, result, rhs_origtype,
 				   ic_assign, false, NULL_TREE, NULL_TREE, 0);
   protected_set_expr_location (result, location);
+
+return_result:
+  if (rhseval)
+    result = build2 (COMPOUND_EXPR, TREE_TYPE (result), rhseval, result);
   return result;
 }
 
@@ -8502,6 +8549,7 @@ process_init_element (struct c_expr value, bool implicit,
   tree orig_value = value.value;
   int string_flag = orig_value != 0 && TREE_CODE (orig_value) == STRING_CST;
   bool strict_string = value.original_code == STRING_CST;
+  bool was_designated = designator_depth != 0;
 
   designator_depth = 0;
   designator_erroneous = 0;
@@ -8510,6 +8558,7 @@ process_init_element (struct c_expr value, bool implicit,
      char x[] = {"foo"}; */
   if (string_flag
       && constructor_type
+      && !was_designated
       && TREE_CODE (constructor_type) == ARRAY_TYPE
       && INTEGRAL_TYPE_P (TREE_TYPE (constructor_type))
       && integer_zerop (constructor_unfilled_index))
@@ -9087,7 +9136,7 @@ c_finish_return (location_t loc, tree retval, tree origtype)
     warning_at (loc, 0,
 		"function declared %<noreturn%> has a %<return%> statement");
 
-  if (flag_enable_cilkplus && contains_array_notation_expr (retval))
+  if (flag_cilkplus && contains_array_notation_expr (retval))
     {
       /* Array notations are allowed in a return statement if it is inside a
 	 built-in array notation reduction function.  */
@@ -9100,7 +9149,7 @@ c_finish_return (location_t loc, tree retval, tree origtype)
 	  return error_mark_node;
 	}
     }
-  if (flag_enable_cilkplus && retval && TREE_CODE (retval) == CILK_SPAWN_STMT)
+  if (flag_cilkplus && retval && TREE_CODE (retval) == CILK_SPAWN_STMT)
     {
       error_at (loc, "use of %<_Cilk_spawn%> in a return statement is not "
 		"allowed");
@@ -9401,7 +9450,7 @@ c_finish_if_stmt (location_t if_locus, tree cond, tree then_block,
      else_block must be either 0 or be equal to the rank of the condition.  If
      the condition does not have array notations then break them up as it is
      broken up in a normal expression.  */
-  if (flag_enable_cilkplus && contains_array_notation_expr (cond))
+  if (flag_cilkplus && contains_array_notation_expr (cond))
     {
       size_t then_rank = 0, cond_rank = 0, else_rank = 0;
       if (!find_rank (if_locus, cond, cond, true, &cond_rank))
@@ -9476,7 +9525,7 @@ c_finish_loop (location_t start_locus, tree cond, tree incr, tree body,
 {
   tree entry = NULL, exit = NULL, t;
 
-  if (flag_enable_cilkplus && contains_array_notation_expr (cond))
+  if (flag_cilkplus && contains_array_notation_expr (cond))
     {
       error_at (start_locus, "array notation expression cannot be used in a "
 		"loop%'s condition");
@@ -9613,6 +9662,23 @@ emit_side_effect_warnings (location_t loc, tree expr)
     {
       if (!VOID_TYPE_P (TREE_TYPE (expr)) && !TREE_NO_WARNING (expr))
 	warning_at (loc, OPT_Wunused_value, "statement with no effect");
+    }
+  else if (TREE_CODE (expr) == COMPOUND_EXPR)
+    {
+      tree r = expr;
+      location_t cloc = loc;
+      while (TREE_CODE (r) == COMPOUND_EXPR)
+	{
+	  if (EXPR_HAS_LOCATION (r))
+	    cloc = EXPR_LOCATION (r);
+	  r = TREE_OPERAND (r, 1);
+	}
+      if (!TREE_SIDE_EFFECTS (r)
+	  && !VOID_TYPE_P (TREE_TYPE (r))
+	  && !CONVERT_EXPR_P (r)
+	  && !TREE_NO_WARNING (expr))
+	warning_at (cloc, OPT_Wunused_value,
+		    "right-hand operand of comma expression has no effect");
     }
   else
     warn_if_unused_value (expr, loc);
@@ -10008,12 +10074,12 @@ build_binary_op (location_t location, enum tree_code code,
   /* When Cilk Plus is enabled and there are array notations inside op0, then
      we check to see if there are builtin array notation functions.  If
      so, then we take on the type of the array notation inside it.  */
-  if (flag_enable_cilkplus && contains_array_notation_expr (op0)) 
+  if (flag_cilkplus && contains_array_notation_expr (op0)) 
     orig_type0 = type0 = find_correct_array_notation_type (op0);
   else
     orig_type0 = type0 = TREE_TYPE (op0);
 
-  if (flag_enable_cilkplus && contains_array_notation_expr (op1))
+  if (flag_cilkplus && contains_array_notation_expr (op1))
     orig_type1 = type1 = find_correct_array_notation_type (op1);
   else 
     orig_type1 = type1 = TREE_TYPE (op1);
@@ -10825,7 +10891,8 @@ build_binary_op (location_t location, enum tree_code code,
 	  tree xop0 = op0, xop1 = op1, xresult_type = result_type;
 	  enum tree_code xresultcode = resultcode;
 	  tree val
-	    = shorten_compare (&xop0, &xop1, &xresult_type, &xresultcode);
+	    = shorten_compare (location, &xop0, &xop1, &xresult_type,
+			       &xresultcode);
 
 	  if (val != 0)
 	    {
@@ -11684,7 +11751,8 @@ c_finish_omp_clauses (tree clauses)
 	  need_implicitly_determined = true;
 	  t = OMP_CLAUSE_DECL (c);
 	  if (OMP_CLAUSE_REDUCTION_PLACEHOLDER (c) == NULL_TREE
-	      && FLOAT_TYPE_P (TREE_TYPE (t)))
+	      && (FLOAT_TYPE_P (TREE_TYPE (t))
+		  || TREE_CODE (TREE_TYPE (t)) == COMPLEX_TYPE))
 	    {
 	      enum tree_code r_code = OMP_CLAUSE_REDUCTION_CODE (c);
 	      const char *r_name = NULL;
@@ -11694,8 +11762,14 @@ c_finish_omp_clauses (tree clauses)
 		case PLUS_EXPR:
 		case MULT_EXPR:
 		case MINUS_EXPR:
+		  break;
 		case MIN_EXPR:
+		  if (TREE_CODE (TREE_TYPE (t)) == COMPLEX_TYPE)
+		    r_name = "min";
+		  break;
 		case MAX_EXPR:
+		  if (TREE_CODE (TREE_TYPE (t)) == COMPLEX_TYPE)
+		    r_name = "max";
 		  break;
 		case BIT_AND_EXPR:
 		  r_name = "&";
@@ -11707,10 +11781,12 @@ c_finish_omp_clauses (tree clauses)
 		  r_name = "|";
 		  break;
 		case TRUTH_ANDIF_EXPR:
-		  r_name = "&&";
+		  if (FLOAT_TYPE_P (TREE_TYPE (t)))
+		    r_name = "&&";
 		  break;
 		case TRUTH_ORIF_EXPR:
-		  r_name = "||";
+		  if (FLOAT_TYPE_P (TREE_TYPE (t)))
+		    r_name = "||";
 		  break;
 		default:
 		  gcc_unreachable ();
@@ -12425,4 +12501,32 @@ c_tree_equal (tree t1, tree t2)
     }
   /* We can get here with --disable-checking.  */
   return false;
+}
+
+/* Inserts "cleanup" functions after the function-body of FNDECL.  FNDECL is a 
+   spawn-helper and BODY is the newly created body for FNDECL.  */
+
+void
+cilk_install_body_with_frame_cleanup (tree fndecl, tree body, void *w)
+{
+  tree list = alloc_stmt_list ();
+  tree frame = make_cilk_frame (fndecl);
+  tree dtor = create_cilk_function_exit (frame, false, true);
+  add_local_decl (cfun, frame);
+  
+  DECL_SAVED_TREE (fndecl) = list;
+  tree frame_ptr = build1 (ADDR_EXPR, build_pointer_type (TREE_TYPE (frame)), 
+			   frame);
+  tree body_list = cilk_install_body_pedigree_operations (frame_ptr);
+  gcc_assert (TREE_CODE (body_list) == STATEMENT_LIST);
+  
+  tree detach_expr = build_call_expr (cilk_detach_fndecl, 1, frame_ptr); 
+  append_to_statement_list (detach_expr, &body_list);
+
+  cilk_outline (fndecl, &body, (struct wrapper_data *) w);
+  body = fold_build_cleanup_point_expr (void_type_node, body);
+
+  append_to_statement_list (body, &body_list);
+  append_to_statement_list (build_stmt (EXPR_LOCATION (body), TRY_FINALLY_EXPR,
+				       	body_list, dtor), &list);
 }

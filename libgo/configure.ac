@@ -174,6 +174,7 @@ dnl N.B. Keep in sync with gcc/testsuite/go.test/go-test.exp (go-set-goarch).
 is_386=no
 is_alpha=no
 is_arm=no
+is_arm64=no
 is_m68k=no
 mips_abi=unknown
 is_ppc=no
@@ -186,6 +187,10 @@ case ${host} in
   alpha*-*-*)
     is_alpha=yes
     GOARCH=alpha
+    ;;
+  aarch64-*-*)
+    is_arm64=yes
+    GOARCH=arm64
     ;;
   arm*-*-* | strongarm*-*-* | ep9312*-*-* | xscale-*-*)
     is_arm=yes
@@ -267,6 +272,7 @@ esac
 AM_CONDITIONAL(LIBGO_IS_386, test $is_386 = yes)
 AM_CONDITIONAL(LIBGO_IS_ALPHA, test $is_alpha = yes)
 AM_CONDITIONAL(LIBGO_IS_ARM, test $is_arm = yes)
+AM_CONDITIONAL(LIBGO_IS_ARM64, test $is_arm64 = yes)
 AM_CONDITIONAL(LIBGO_IS_M68K, test $is_m68k = yes)
 AM_CONDITIONAL(LIBGO_IS_MIPS, test $mips_abi != unknown)
 AM_CONDITIONAL(LIBGO_IS_MIPSO32, test $mips_abi = o32)
@@ -351,10 +357,10 @@ dnl possible for the linker to support this for some targets but not
 dnl others.
 AC_CACHE_CHECK([whether linker supports split stack],
 [libgo_cv_c_linker_supports_split_stack],
-libgo_cv_c_linker_supports_split_stack=no
-if $LD --help 2>/dev/null | grep split-stack-adjust-size >/dev/null 2>&1; then
+[libgo_cv_c_linker_supports_split_stack=no
+if $GOC -Wl,--help 2>/dev/null | grep split-stack-adjust-size >/dev/null 2>&1; then
   libgo_cv_c_linker_supports_split_stack=yes
-fi)
+fi])
 if test "$libgo_cv_c_linker_supports_split_stack" = yes; then
   AC_DEFINE(LINKER_SUPPORTS_SPLIT_STACK, 1,
 	    [Define if the linker support split stack adjustments])

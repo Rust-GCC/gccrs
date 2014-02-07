@@ -1,5 +1,5 @@
 /* Loop manipulation code for GNU compiler.
-   Copyright (C) 2002-2013 Free Software Foundation, Inc.
+   Copyright (C) 2002-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -204,7 +204,7 @@ fix_bb_placements (basic_block from,
       || from == base_loop->header)
     return;
 
-  in_queue = sbitmap_alloc (last_basic_block);
+  in_queue = sbitmap_alloc (last_basic_block_for_fn (cfun));
   bitmap_clear (in_queue);
   bitmap_set_bit (in_queue, from->index);
   /* Prevent us from going out of the base_loop.  */
@@ -348,7 +348,7 @@ remove_path (edge e)
 
   n_bord_bbs = 0;
   bord_bbs = XNEWVEC (basic_block, n_basic_blocks_for_fn (cfun));
-  seen = sbitmap_alloc (last_basic_block);
+  seen = sbitmap_alloc (last_basic_block_for_fn (cfun));
   bitmap_clear (seen);
 
   /* Find "border" hexes -- i.e. those with predecessor in removed path.  */
@@ -623,7 +623,7 @@ update_dominators_in_loop (struct loop *loop)
   basic_block *body;
   unsigned i;
 
-  seen = sbitmap_alloc (last_basic_block);
+  seen = sbitmap_alloc (last_basic_block_for_fn (cfun));
   bitmap_clear (seen);
   body = get_loop_body (loop);
 
@@ -1022,6 +1022,8 @@ copy_loop_info (struct loop *loop, struct loop *target)
   target->any_estimate = loop->any_estimate;
   target->nb_iterations_estimate = loop->nb_iterations_estimate;
   target->estimate_state = loop->estimate_state;
+  target->warned_aggressive_loop_optimizations
+    |= loop->warned_aggressive_loop_optimizations;
 }
 
 /* Copies copy of LOOP as subloop of TARGET loop, placing newly

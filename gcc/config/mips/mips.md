@@ -1,5 +1,5 @@
 ;;  Mips.md	     Machine Description for MIPS based processors
-;;  Copyright (C) 1989-2013 Free Software Foundation, Inc.
+;;  Copyright (C) 1989-2014 Free Software Foundation, Inc.
 ;;  Contributed by   A. Lichnewsky, lich@inria.inria.fr
 ;;  Changes by       Michael Meissner, meissner@osf.org
 ;;  64-bit r4000 support by Ian Lance Taylor, ian@cygnus.com, and
@@ -1312,20 +1312,32 @@
 
 ;; Combiner patterns for unsigned byte-add.
 
-(define_insn "*baddu_si"
+(define_insn "*baddu_si_eb"
   [(set (match_operand:SI 0 "register_operand" "=d")
         (zero_extend:SI
-	 (plus:QI (match_operand:QI 1 "register_operand" "d")
-		  (match_operand:QI 2 "register_operand" "d"))))]
-  "ISA_HAS_BADDU"
+	 (subreg:QI
+	  (plus:SI (match_operand:SI 1 "register_operand" "d")
+		   (match_operand:SI 2 "register_operand" "d")) 3)))]
+  "ISA_HAS_BADDU && BYTES_BIG_ENDIAN"
+  "baddu\\t%0,%1,%2"
+  [(set_attr "alu_type" "add")])
+
+(define_insn "*baddu_si_el"
+  [(set (match_operand:SI 0 "register_operand" "=d")
+        (zero_extend:SI
+	 (subreg:QI
+	  (plus:SI (match_operand:SI 1 "register_operand" "d")
+		   (match_operand:SI 2 "register_operand" "d")) 0)))]
+  "ISA_HAS_BADDU && !BYTES_BIG_ENDIAN"
   "baddu\\t%0,%1,%2"
   [(set_attr "alu_type" "add")])
 
 (define_insn "*baddu_di<mode>"
   [(set (match_operand:GPR 0 "register_operand" "=d")
         (zero_extend:GPR
-	 (plus:QI (truncate:QI (match_operand:DI 1 "register_operand" "d"))
-		  (truncate:QI (match_operand:DI 2 "register_operand" "d")))))]
+	 (truncate:QI
+	  (plus:DI (match_operand:DI 1 "register_operand" "d")
+		   (match_operand:DI 2 "register_operand" "d")))))]
   "ISA_HAS_BADDU && TARGET_64BIT"
   "baddu\\t%0,%1,%2"
   [(set_attr "alu_type" "add")])
@@ -2547,56 +2559,129 @@
 
 ;; VR4120 errata MD(A1): signed division instructions do not work correctly
 ;; with negative operands.  We use special libgcc functions instead.
-;;
+(define_expand "divmod<mode>4"
+  [(parallel
+     [(set (match_operand:GPR 0 "register_operand")
+	   (div:GPR (match_operand:GPR 1 "register_operand")
+		    (match_operand:GPR 2 "register_operand")))
+      (set (match_operand:GPR 3 "register_operand")
+	   (mod:GPR (match_dup 1)
+		    (match_dup 2)))])]
+  "ISA_HAS_<D>DIV && !TARGET_FIX_VR4120"
+{
+  if (TARGET_MIPS16)
+    {
+      rtx lo = gen_rtx_REG (<MODE>mode, LO_REGNUM);
+      emit_insn (gen_divmod<mode>4_mips16 (operands[0], operands[1],
+					   operands[2], operands[3], lo));
+      DONE;
+    }
+})
+
+(define_insn_and_split "*divmod<mode>4"
+  [(set (match_operand:GPR 0 "register_operand" "=l")
+	(div:GPR (match_operand:GPR 1 "register_operand" "d")
+		 (match_operand:GPR 2 "register_operand" "d")))
+   (set (match_operand:GPR 3 "register_operand" "=d")
+	(mod:GPR (match_dup 1)
+		 (match_dup 2)))]
+  "ISA_HAS_<D>DIV && !TARGET_FIX_VR4120 && !TARGET_MIPS16"
+  "#"
+  "&& reload_completed"
+  [(const_int 0)]
+{
+  emit_insn (gen_divmod<mode>4_split (operands[3], operands[1], operands[2]));
+  DONE;
+}
+ [(set_attr "type" "idiv")
+  (set_attr "mode" "<MODE>")
+  (set_attr "insn_count" "2")])
+
 ;; Expand generates divmod instructions for individual division and modulus
 ;; operations.  We then rely on CSE to reuse earlier divmods where possible.
 ;; This means that, when generating MIPS16 code, it is better not to expose
 ;; the fixed LO register until after CSE has finished.  However, it's still
 ;; better to split before register allocation, so that we don't allocate
 ;; one of the scarce MIPS16 registers to an unused result.
-(define_insn_and_split "divmod<mode>4"
-  [(set (match_operand:GPR 0 "register_operand" "=kl")
+(define_insn_and_split "divmod<mode>4_mips16"
+  [(set (match_operand:GPR 0 "register_operand" "=d")
 	(div:GPR (match_operand:GPR 1 "register_operand" "d")
 		 (match_operand:GPR 2 "register_operand" "d")))
    (set (match_operand:GPR 3 "register_operand" "=d")
 	(mod:GPR (match_dup 1)
-		 (match_dup 2)))]
-  "ISA_HAS_<D>DIV && !TARGET_FIX_VR4120"
+		 (match_dup 2)))
+   (clobber (match_operand:GPR 4 "lo_operand" "=l"))]
+  "ISA_HAS_<D>DIV && !TARGET_FIX_VR4120 && TARGET_MIPS16"
   "#"
-  "&& ((TARGET_MIPS16 && cse_not_expected) || reload_completed)"
+  "&& cse_not_expected"
   [(const_int 0)]
 {
   emit_insn (gen_divmod<mode>4_split (operands[3], operands[1], operands[2]));
-  if (TARGET_MIPS16)
-    emit_move_insn (operands[0], gen_rtx_REG (<MODE>mode, LO_REGNUM));
+  emit_move_insn (operands[0], operands[4]);
   DONE;
 }
  [(set_attr "type" "idiv")
   (set_attr "mode" "<MODE>")
-  ;; Worst case for MIPS16.
   (set_attr "insn_count" "3")])
 
-;; See the comment above "divmod<mode>4" for the MIPS16 handling.
-(define_insn_and_split "udivmod<mode>4"
-  [(set (match_operand:GPR 0 "register_operand" "=kl")
+(define_expand "udivmod<mode>4"
+  [(parallel
+     [(set (match_operand:GPR 0 "register_operand")
+	   (udiv:GPR (match_operand:GPR 1 "register_operand")
+		     (match_operand:GPR 2 "register_operand")))
+      (set (match_operand:GPR 3 "register_operand")
+	   (umod:GPR (match_dup 1)
+		     (match_dup 2)))])]
+  "ISA_HAS_<D>DIV && !TARGET_FIX_VR4120"
+{
+  if (TARGET_MIPS16)
+    {
+      rtx lo = gen_rtx_REG (<MODE>mode, LO_REGNUM);
+      emit_insn (gen_udivmod<mode>4_mips16 (operands[0], operands[1],
+					    operands[2], operands[3], lo));
+      DONE;
+    }
+})
+
+(define_insn_and_split "*udivmod<mode>4"
+  [(set (match_operand:GPR 0 "register_operand" "=l")
 	(udiv:GPR (match_operand:GPR 1 "register_operand" "d")
 		  (match_operand:GPR 2 "register_operand" "d")))
    (set (match_operand:GPR 3 "register_operand" "=d")
 	(umod:GPR (match_dup 1)
 		  (match_dup 2)))]
-  "ISA_HAS_<D>DIV"
+  "ISA_HAS_<D>DIV && !TARGET_MIPS16"
   "#"
-  "(TARGET_MIPS16 && cse_not_expected) || reload_completed"
+  "reload_completed"
   [(const_int 0)]
 {
   emit_insn (gen_udivmod<mode>4_split (operands[3], operands[1], operands[2]));
-  if (TARGET_MIPS16)
-    emit_move_insn (operands[0], gen_rtx_REG (<MODE>mode, LO_REGNUM));
   DONE;
 }
   [(set_attr "type" "idiv")
    (set_attr "mode" "<MODE>")
-   ;; Worst case for MIPS16.
+   (set_attr "insn_count" "2")])
+
+;; See the comment above "divmod<mode>4_mips16" for the split timing.
+(define_insn_and_split "udivmod<mode>4_mips16"
+  [(set (match_operand:GPR 0 "register_operand" "=d")
+	(udiv:GPR (match_operand:GPR 1 "register_operand" "d")
+		  (match_operand:GPR 2 "register_operand" "d")))
+   (set (match_operand:GPR 3 "register_operand" "=d")
+	(umod:GPR (match_dup 1)
+		  (match_dup 2)))
+   (clobber (match_operand:GPR 4 "lo_operand" "=l"))]
+  "ISA_HAS_<D>DIV && TARGET_MIPS16"
+  "#"
+  "cse_not_expected"
+  [(const_int 0)]
+{
+  emit_insn (gen_udivmod<mode>4_split (operands[3], operands[1], operands[2]));
+  emit_move_insn (operands[0], operands[4]);
+  DONE;
+}
+  [(set_attr "type" "idiv")
+   (set_attr "mode" "<MODE>")
    (set_attr "insn_count" "3")])
 
 (define_expand "<u>divmod<mode>4_split"
@@ -6149,7 +6234,12 @@
 (define_insn "*<optab>"
   [(any_return)]
   ""
-  "%*j\t$31%/"
+  {
+    if (TARGET_MICROMIPS)
+      return "%*jr%:\t$31";
+    else
+      return "%*j\t$31%/";
+  }
   [(set_attr "type"	"jump")
    (set_attr "mode"	"none")])
 

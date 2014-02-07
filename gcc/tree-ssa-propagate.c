@@ -1,5 +1,5 @@
 /* Generic SSA value propagation engine.
-   Copyright (C) 2004-2013 Free Software Foundation, Inc.
+   Copyright (C) 2004-2014 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@redhat.com>
 
    This file is part of GCC.
@@ -495,10 +495,10 @@ ssa_prop_init (void)
   vec_alloc (interesting_ssa_edges, 20);
   vec_alloc (varying_ssa_edges, 20);
 
-  executable_blocks = sbitmap_alloc (last_basic_block);
+  executable_blocks = sbitmap_alloc (last_basic_block_for_fn (cfun));
   bitmap_clear (executable_blocks);
 
-  bb_in_list = sbitmap_alloc (last_basic_block);
+  bb_in_list = sbitmap_alloc (last_basic_block_for_fn (cfun));
   bitmap_clear (bb_in_list);
 
   if (dump_file && (dump_flags & TDF_DETAILS))
@@ -509,7 +509,7 @@ ssa_prop_init (void)
 
   /* Initially assume that every edge in the CFG is not executable.
      (including the edges coming out of the entry block).  */
-  FOR_ALL_BB (bb)
+  FOR_ALL_BB_FN (bb, cfun)
     {
       gimple_stmt_iterator si;
 
@@ -667,7 +667,7 @@ valid_gimple_call_p (tree expr)
   for (i = 0; i < nargs; i++)
     {
       tree arg = CALL_EXPR_ARG (expr, i);
-      if (is_gimple_reg_type (arg))
+      if (is_gimple_reg_type (TREE_TYPE (arg)))
 	{
 	  if (!is_gimple_val (arg))
 	    return false;
@@ -1097,7 +1097,7 @@ substitute_and_fold (ssa_prop_get_value_fn get_value_fn,
       }
 
   /* Propagate into all uses and fold.  */
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       gimple_stmt_iterator i;
 

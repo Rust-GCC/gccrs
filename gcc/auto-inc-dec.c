@@ -1,5 +1,5 @@
 /* Discovery of auto-inc and auto-dec instructions.
-   Copyright (C) 2006-2013 Free Software Foundation, Inc.
+   Copyright (C) 2006-2014 Free Software Foundation, Inc.
    Contributed by Kenneth Zadeck <zadeck@naturalbridge.com>
 
 This file is part of GCC.
@@ -1480,7 +1480,7 @@ rest_of_handle_auto_inc_dec (void)
   reg_next_use = XCNEWVEC (rtx, max_reg);
   reg_next_inc_use = XCNEWVEC (rtx, max_reg);
   reg_next_def = XCNEWVEC (rtx, max_reg);
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     merge_in_block (max_reg, bb);
 
   free (reg_next_use);

@@ -1,6 +1,6 @@
 // { dg-options "-std=gnu++1y" }
 
-// Copyright (C) 2013 Free Software Foundation, Inc.
+// Copyright (C) 2013-2014 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -41,8 +41,9 @@ test01()
   csz01 = str01.size();
   cref cref1 = str01[csz01 - 1];
   VERIFY( cref1 == L'a' );
-  cref cref2 = str01[csz01];
-  VERIFY( cref2 == wchar_t() );
+  // Undefined behavior at size().
+  //cref cref2 = str01[csz01];
+  //VERIFY( cref2 == wchar_t() );
 
   // const_reference at(size_type pos) const;
   csz01 = str01.size();

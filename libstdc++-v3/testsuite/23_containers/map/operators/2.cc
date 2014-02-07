@@ -1,4 +1,4 @@
-// Copyright (C) 2012-2013 Free Software Foundation, Inc.
+// Copyright (C) 2012-2014 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -17,7 +17,7 @@
 
 // This test verifies that the value type of a map need not be default copyable.
 
-// { dg-options "-std=c++11" }
+// { dg-options "-std=gnu++11" }
 
 #include <map>
 #include <testsuite_hooks.h>

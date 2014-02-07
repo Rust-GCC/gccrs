@@ -1,5 +1,5 @@
 /* Header file for high level statement building routines.
-   Copyright (C) 2013 Free Software Foundation, Inc.
+   Copyright (C) 2013-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -21,7 +21,6 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_GIMPLE_BUILDER_H
 #define GCC_GIMPLE_BUILDER_H
 
-tree create_gimple_tmp (tree, tree lhs = NULL_TREE);
 gimple build_assign (enum tree_code, tree, int, tree lhs = NULL_TREE);
 gimple build_assign (enum tree_code, gimple, int, tree lhs = NULL_TREE);
 gimple build_assign (enum tree_code, tree, tree, tree lhs = NULL_TREE);

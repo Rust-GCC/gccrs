@@ -1,5 +1,5 @@
 /* Top-level LTO routines.
-   Copyright (C) 2009-2013 Free Software Foundation, Inc.
+   Copyright (C) 2009-2014 Free Software Foundation, Inc.
    Contributed by CodeSourcery, Inc.
 
 This file is part of GCC.
@@ -280,8 +280,6 @@ hash_canonical_type (tree type)
      only existing types having the same features as the new type will be
      checked.  */
   v = iterative_hash_hashval_t (TREE_CODE (type), 0);
-  v = iterative_hash_hashval_t (TREE_ADDRESSABLE (type), v);
-  v = iterative_hash_hashval_t (TYPE_ALIGN (type), v);
   v = iterative_hash_hashval_t (TYPE_MODE (type), v);
 
   /* Incorporate common features of numerical types.  */
@@ -308,9 +306,7 @@ hash_canonical_type (tree type)
      pointed to but do not recurse to the pointed-to type.  */
   if (POINTER_TYPE_P (type))
     {
-      v = iterative_hash_hashval_t (TYPE_REF_CAN_ALIAS_ALL (type), v);
       v = iterative_hash_hashval_t (TYPE_ADDR_SPACE (TREE_TYPE (type)), v);
-      v = iterative_hash_hashval_t (TYPE_RESTRICT (type), v);
       v = iterative_hash_hashval_t (TREE_CODE (TREE_TYPE (type)), v);
     }
 
@@ -447,9 +443,6 @@ gimple_canonical_types_compatible_p (tree t1, tree t2)
   if (TREE_CODE (t1) != TREE_CODE (t2))
     return false;
 
-  if (TREE_ADDRESSABLE (t1) != TREE_ADDRESSABLE (t2))
-    return false;
-
   /* Qualifiers do not matter for canonical type comparison purposes.  */
 
   /* Void types and nullptr types are always the same.  */
@@ -457,9 +450,8 @@ gimple_canonical_types_compatible_p (tree t1, tree t2)
       || TREE_CODE (t1) == NULLPTR_TYPE)
     return true;
 
-  /* Can't be the same type if they have different alignment, or mode.  */
-  if (TYPE_ALIGN (t1) != TYPE_ALIGN (t2)
-      || TYPE_MODE (t1) != TYPE_MODE (t2))
+  /* Can't be the same type if they have different mode.  */
+  if (TYPE_MODE (t1) != TYPE_MODE (t2))
     return false;
 
   /* Non-aggregate types can be handled cheaply.  */
@@ -486,16 +478,8 @@ gimple_canonical_types_compatible_p (tree t1, tree t2)
 	 useless_type_conversion_p would do.  */
       if (POINTER_TYPE_P (t1))
 	{
-	  /* If the two pointers have different ref-all attributes,
-	     they can't be the same type.  */
-	  if (TYPE_REF_CAN_ALIAS_ALL (t1) != TYPE_REF_CAN_ALIAS_ALL (t2))
-	    return false;
-
 	  if (TYPE_ADDR_SPACE (TREE_TYPE (t1))
 	      != TYPE_ADDR_SPACE (TREE_TYPE (t2)))
-	    return false;
-
-	  if (TYPE_RESTRICT (t1) != TYPE_RESTRICT (t2))
 	    return false;
 
 	  if (TREE_CODE (TREE_TYPE (t1)) != TREE_CODE (TREE_TYPE (t2)))
@@ -904,6 +888,19 @@ mentions_vars_p_expr (tree t)
   return false;
 }
 
+/* Check presence of pointers to decls in fields of an OMP_CLAUSE T.  */
+
+static bool
+mentions_vars_p_omp_clause (tree t)
+{
+  int i;
+  if (mentions_vars_p_common (t))
+    return true;
+  for (i = omp_clause_num_ops[OMP_CLAUSE_CODE (t)] - 1; i >= 0; --i)
+    CHECK_VAR (OMP_CLAUSE_OPERAND (t, i));
+  return false;
+}
+
 /* Check presence of pointers to decls that needs later fixup in T.  */
 
 static bool
@@ -922,7 +919,6 @@ mentions_vars_p (tree t)
 
     case FIELD_DECL:
       return mentions_vars_p_field_decl (t);
-      break;
 
     case LABEL_DECL:
     case CONST_DECL:
@@ -931,27 +927,21 @@ mentions_vars_p (tree t)
     case IMPORTED_DECL:
     case NAMESPACE_DECL:
       return mentions_vars_p_decl_common (t);
-      break;
 
     case VAR_DECL:
       return mentions_vars_p_decl_with_vis (t);
-      break;
 
     case TYPE_DECL:
       return mentions_vars_p_decl_non_common (t);
-      break;
 
     case FUNCTION_DECL:
       return mentions_vars_p_function (t);
-      break;
 
     case TREE_BINFO:
       return mentions_vars_p_binfo (t);
-      break;
 
     case PLACEHOLDER_EXPR:
       return mentions_vars_p_common (t);
-      break;
 
     case BLOCK:
     case TRANSLATION_UNIT_DECL:
@@ -961,7 +951,9 @@ mentions_vars_p (tree t)
 
     case CONSTRUCTOR:
       return mentions_vars_p_constructor (t);
-      break;
+
+    case OMP_CLAUSE:
+      return mentions_vars_p_omp_clause (t);
 
     default:
       if (TYPE_P (t))
@@ -1402,6 +1394,36 @@ compare_tree_sccs_1 (tree t1, tree t2, tree **map)
 		   TREE_STRING_LENGTH (t1)) != 0)
       return false;
 
+  if (code == OMP_CLAUSE)
+    {
+      compare_values (OMP_CLAUSE_CODE);
+      switch (OMP_CLAUSE_CODE (t1))
+	{
+	case OMP_CLAUSE_DEFAULT:
+	  compare_values (OMP_CLAUSE_DEFAULT_KIND);
+	  break;
+	case OMP_CLAUSE_SCHEDULE:
+	  compare_values (OMP_CLAUSE_SCHEDULE_KIND);
+	  break;
+	case OMP_CLAUSE_DEPEND:
+	  compare_values (OMP_CLAUSE_DEPEND_KIND);
+	  break;
+	case OMP_CLAUSE_MAP:
+	  compare_values (OMP_CLAUSE_MAP_KIND);
+	  break;
+	case OMP_CLAUSE_PROC_BIND:
+	  compare_values (OMP_CLAUSE_PROC_BIND_KIND);
+	  break;
+	case OMP_CLAUSE_REDUCTION:
+	  compare_values (OMP_CLAUSE_REDUCTION_CODE);
+	  compare_values (OMP_CLAUSE_REDUCTION_GIMPLE_INIT);
+	  compare_values (OMP_CLAUSE_REDUCTION_GIMPLE_MERGE);
+	  break;
+	default:
+	  break;
+	}
+    }
+
 #undef compare_values
 
 
@@ -1623,6 +1645,16 @@ compare_tree_sccs_1 (tree t1, tree t2, tree **map)
 	  compare_tree_edges (index, CONSTRUCTOR_ELT (t2, i)->index);
 	  compare_tree_edges (value, CONSTRUCTOR_ELT (t2, i)->value);
 	}
+    }
+
+  if (code == OMP_CLAUSE)
+    {
+      int i;
+
+      for (i = 0; i < omp_clause_num_ops[OMP_CLAUSE_CODE (t1)]; i++)
+	compare_tree_edges (OMP_CLAUSE_OPERAND (t1, i),
+			    OMP_CLAUSE_OPERAND (t2, i));
+      compare_tree_edges (OMP_CLAUSE_CHAIN (t1), OMP_CLAUSE_CHAIN (t2));
     }
 
 #undef compare_tree_edges
@@ -2455,9 +2487,12 @@ lto_wpa_write_files (void)
   /* Sort partitions by size so small ones are compiled last.
      FIXME: Even when not reordering we may want to output one list for parallel make
      and other for final link command.  */
-  ltrans_partitions.qsort (flag_toplevel_reorder
+
+  if (!flag_profile_reorder_functions || !flag_profile_use)
+    ltrans_partitions.qsort (flag_toplevel_reorder
 			   ? cmp_partitions_size
 			   : cmp_partitions_order);
+
   for (i = 0; i < n_sets; i++)
     {
       size_t len;
@@ -3266,7 +3301,7 @@ lto_main (void)
 	do_whole_program_analysis ();
       else
 	{
-	  struct varpool_node *vnode;
+	  varpool_node *vnode;
 
 	  timevar_start (TV_PHASE_OPT_GEN);
 

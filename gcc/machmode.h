@@ -1,5 +1,5 @@
 /* Machine mode definitions for GCC; included by rtl.h and tree.h.
-   Copyright (C) 1991-2013 Free Software Foundation, Inc.
+   Copyright (C) 1991-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -173,9 +173,6 @@ extern const unsigned char mode_class[NUM_MACHINE_MODES];
    || CLASS == MODE_UFRACT                     \
    || CLASS == MODE_ACCUM                      \
    || CLASS == MODE_UACCUM)
-
-#define POINTER_BOUNDS_MODE_P(MODE)      \
-  (GET_MODE_CLASS (MODE) == MODE_POINTER_BOUNDS)
 
 /* Get the size in bytes and bits of an object of mode MODE.  */
 

@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler,
    for Alpha Linux-based GNU systems.
-   Copyright (C) 1996-2013 Free Software Foundation, Inc.
+   Copyright (C) 1996-2014 Free Software Foundation, Inc.
    Contributed by Richard Henderson.
 
 This file is part of GCC.
@@ -70,7 +70,7 @@ along with GCC; see the file COPYING3.  If not see
 /* Determine what functions are present at the runtime;
    this includes full c99 runtime and sincos.  */
 #undef TARGET_LIBC_HAS_FUNCTION
-#define TARGET_LIBC_HAS_FUNCTION linux_android_libc_has_function
+#define TARGET_LIBC_HAS_FUNCTION linux_libc_has_function
 
 #define TARGET_POSIX_IO
 

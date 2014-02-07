@@ -1,6 +1,6 @@
 // Multimap implementation -*- C++ -*-
 
-// Copyright (C) 2001-2013 Free Software Foundation, Inc.
+// Copyright (C) 2001-2014 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -153,6 +153,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
       // [23.3.2] construct/copy/destroy
       // (get_allocator() is also listed in this section)
+
       /**
        *  @brief  Default constructor creates no elements.
        */
@@ -295,8 +296,9 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  @brief  %Multimap move assignment operator.
        *  @param  __x  A %multimap of identical element and allocator types.
        *
-       *  The contents of @a __x are moved into this multimap (without copying).
-       *  @a __x is a valid, but unspecified multimap.
+       *  The contents of @a __x are moved into this multimap (without copying
+       *  if the allocators compare equal or get moved on assignment).
+       *  Afterwards @a __x is in a valid, but unspecified state.
        */
       multimap&
       operator=(multimap&& __x) noexcept(_Alloc_traits::_S_nothrow_move())

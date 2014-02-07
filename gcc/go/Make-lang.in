@@ -1,6 +1,6 @@
 # Make-lang.in -- Top level -*- makefile -*- fragment for gcc Go frontend.
 
-# Copyright (C) 2009-2013 Free Software Foundation, Inc.
+# Copyright (C) 2009-2014 Free Software Foundation, Inc.
 
 # This file is part of GCC.
 
@@ -132,9 +132,10 @@ go.srcman: doc/gccgo.1
 
 lang_checks += check-go
 lang_checks_parallelized += check-go
-check_go_parallelize = go-test.exp=*/test/\[0-57-9a-bd-hj-zA-Z\]* \
+check_go_parallelize = go-test.exp=*/test/\[0-57-9a-bd-hj-qs-zA-Z\]* \
 		       go-test.exp=*/test/c* \
 		       go-test.exp=*/test/i* \
+		       go-test.exp=*/test/r* \
 		       go-test.exp=*/test/6*
 
 # Install hooks.

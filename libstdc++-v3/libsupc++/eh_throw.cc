@@ -1,5 +1,5 @@
 // -*- C++ -*- Exception handling routines for throwing.
-// Copyright (C) 2001-2013 Free Software Foundation, Inc.
+// Copyright (C) 2001-2014 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -61,6 +61,9 @@ __cxxabiv1::__cxa_throw (void *obj, std::type_info *tinfo,
 			 void (_GLIBCXX_CDTOR_CALLABI *dest) (void *))
 {
   PROBE2 (throw, obj, tinfo);
+
+  __cxa_eh_globals *globals = __cxa_get_globals ();
+  globals->uncaughtExceptions += 1;
 
   // Definitely a primary.
   __cxa_refcounted_exception *header

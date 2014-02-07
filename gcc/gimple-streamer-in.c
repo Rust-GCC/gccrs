@@ -1,6 +1,6 @@
 /* Routines for reading GIMPLE from a file stream.
 
-   Copyright (C) 2011-2013 Free Software Foundation, Inc.
+   Copyright (C) 2011-2014 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@google.com>
 
 This file is part of GCC.
@@ -67,7 +67,7 @@ input_phi (struct lto_input_block *ib, basic_block bb, struct data_in *data_in,
       int src_index = streamer_read_uhwi (ib);
       bitpack_d bp = streamer_read_bitpack (ib);
       location_t arg_loc = stream_input_location (&bp, data_in);
-      basic_block sbb = BASIC_BLOCK_FOR_FUNCTION (fn, src_index);
+      basic_block sbb = BASIC_BLOCK_FOR_FN (fn, src_index);
 
       edge e = NULL;
       int j;
@@ -258,7 +258,7 @@ input_bb (struct lto_input_block *ib, enum LTO_tags tag,
   gcc_assert (cfun == fn);
 
   index = streamer_read_uhwi (ib);
-  bb = BASIC_BLOCK_FOR_FUNCTION (fn, index);
+  bb = BASIC_BLOCK_FOR_FN (fn, index);
 
   bb->count = apply_scale (streamer_read_gcov_count (ib),
                            count_materialization_scale);

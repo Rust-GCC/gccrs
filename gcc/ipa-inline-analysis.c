@@ -1,5 +1,5 @@
 /* Inlining decision heuristics.
-   Copyright (C) 2003-2013 Free Software Foundation, Inc.
+   Copyright (C) 2003-2014 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -494,7 +494,7 @@ evaluate_predicate (struct predicate *p, clause_t possible_truths)
 static int
 predicate_probability (conditions conds,
 		       struct predicate *p, clause_t possible_truths,
-		       vec<inline_param_summary_t> inline_param_summary)
+		       vec<inline_param_summary> inline_param_summary)
 {
   int i;
   int combined_prob = REG_BR_PROB_BASE;
@@ -2152,7 +2152,7 @@ param_change_prob (gimple stmt, int i)
 	max = 1;
 
       EXECUTE_IF_SET_IN_BITMAP (info.bb_set, 0, index, bi)
-	max = MIN (max, BASIC_BLOCK (index)->frequency);
+	max = MIN (max, BASIC_BLOCK_FOR_FN (cfun, index)->frequency);
 
       BITMAP_FREE (info.bb_set);
       if (max < bb->frequency)
@@ -2408,7 +2408,7 @@ estimate_function_body_sizes (struct cgraph_node *node, bool early)
   nblocks = pre_and_rev_post_order_compute (NULL, order, false);
   for (n = 0; n < nblocks; n++)
     {
-      bb = BASIC_BLOCK (order[n]);
+      bb = BASIC_BLOCK_FOR_FN (cfun, order[n]);
       freq = compute_call_stmt_bb_frequency (node->decl, bb);
 
       /* TODO: Obviously predicates can be propagated down across CFG.  */
@@ -2502,7 +2502,8 @@ estimate_function_body_sizes (struct cgraph_node *node, bool early)
 	    }
 
 
-	  if (is_gimple_call (stmt))
+	  if (is_gimple_call (stmt)
+	      && !gimple_call_internal_p (stmt))
 	    {
 	      struct cgraph_edge *edge = cgraph_edge (node, stmt);
 	      struct inline_edge_summary *es = inline_edge_summary (edge);
@@ -2795,6 +2796,11 @@ compute_inline_parameters (struct cgraph_node *node, bool early)
     }
   estimate_function_body_sizes (node, early);
 
+  for (e = node->callees; e; e = e->next_callee)
+    if (symtab_comdat_local_p (e->callee))
+      break;
+  node->calls_comdat_local = (e != NULL);
+
   /* Inlining characteristics are maintained by the cgraph_mark_inline.  */
   info->time = info->self_time;
   info->size = info->self_size;
@@ -2982,7 +2988,7 @@ estimate_node_size_and_time (struct cgraph_node *node,
 			     vec<ipa_agg_jump_function_p> known_aggs,
 			     int *ret_size, int *ret_time,
 			     inline_hints *ret_hints,
-			     vec<inline_param_summary_t>
+			     vec<inline_param_summary>
 			     inline_param_summary)
 {
   struct inline_summary *info = inline_summary (node);
@@ -4140,7 +4146,8 @@ inline_free_summary (void)
   if (!inline_edge_summary_vec.exists ())
     return;
   FOR_EACH_DEFINED_FUNCTION (node)
-    reset_inline_summary (node);
+    if (!node->alias)
+      reset_inline_summary (node);
   if (function_insertion_hook_holder)
     cgraph_remove_function_insertion_hook (function_insertion_hook_holder);
   function_insertion_hook_holder = NULL;

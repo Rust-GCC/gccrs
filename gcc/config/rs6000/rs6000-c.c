@@ -1,5 +1,5 @@
 /* Subroutines for the C front end on the PowerPC architecture.
-   Copyright (C) 2002-2013 Free Software Foundation, Inc.
+   Copyright (C) 2002-2014 Free Software Foundation, Inc.
 
    Contributed by Zack Weinberg <zack@codesourcery.com>
    and Paolo Bonzini <bonzini@gnu.org>
@@ -339,6 +339,10 @@ rs6000_target_modify_macros (bool define_p, HOST_WIDE_INT flags,
     rs6000_define_or_undefine_macro (define_p, "__HTM__");
   if ((flags & OPTION_MASK_P8_VECTOR) != 0)
     rs6000_define_or_undefine_macro (define_p, "__POWER8_VECTOR__");
+  if ((flags & OPTION_MASK_QUAD_MEMORY) != 0)
+    rs6000_define_or_undefine_macro (define_p, "__QUAD_MEMORY__");
+  if ((flags & OPTION_MASK_QUAD_MEMORY_ATOMIC) != 0)
+    rs6000_define_or_undefine_macro (define_p, "__QUAD_MEMORY_ATOMIC__");
   if ((flags & OPTION_MASK_CRYPTO) != 0)
     rs6000_define_or_undefine_macro (define_p, "__CRYPTO__");
 
@@ -610,10 +614,6 @@ const struct altivec_builtin_types altivec_overloaded_builtins[] = {
     RS6000_BTI_V4SI, RS6000_BTI_V8HI, 0, 0 },
   { ALTIVEC_BUILTIN_VEC_VUPKHSH, ALTIVEC_BUILTIN_VUPKHSH,
     RS6000_BTI_bool_V4SI, RS6000_BTI_bool_V8HI, 0, 0 },
-  { ALTIVEC_BUILTIN_VEC_UNPACKH, P8V_BUILTIN_VUPKHSW,
-    RS6000_BTI_V2DI, RS6000_BTI_V4SI, 0, 0 },
-  { ALTIVEC_BUILTIN_VEC_UNPACKH, P8V_BUILTIN_VUPKHSW,
-    RS6000_BTI_bool_V2DI, RS6000_BTI_bool_V4SI, 0, 0 },
   { ALTIVEC_BUILTIN_VEC_VUPKHSH, P8V_BUILTIN_VUPKHSW,
     RS6000_BTI_V2DI, RS6000_BTI_V4SI, 0, 0 },
   { ALTIVEC_BUILTIN_VEC_VUPKHSH, P8V_BUILTIN_VUPKHSW,
@@ -4176,7 +4176,7 @@ altivec_resolve_overloaded_builtin (location_t loc, tree fndecl,
 	return build_constructor (type, vec);
     }
 
-  /* For now use pointer tricks to do the extaction, unless we are on VSX
+  /* For now use pointer tricks to do the extraction, unless we are on VSX
      extracting a double from a constant offset.  */
   if (fcode == ALTIVEC_BUILTIN_VEC_EXTRACT)
     {
@@ -4203,6 +4203,17 @@ altivec_resolve_overloaded_builtin (location_t loc, tree fndecl,
 	goto bad; 
       if (!INTEGRAL_TYPE_P (TREE_TYPE (arg2)))
 	goto bad; 
+
+      /* If we are targeting little-endian, but -maltivec=be has been
+	 specified to override the element order, adjust the element
+	 number accordingly.  */
+      if (!BYTES_BIG_ENDIAN && rs6000_altivec_element_order == 2)
+	{
+	  unsigned int last_elem = TYPE_VECTOR_SUBPARTS (arg1_type) - 1;
+	  arg2 = fold_build2_loc (loc, MINUS_EXPR, TREE_TYPE (arg2),
+				  build_int_cstu (TREE_TYPE (arg2), last_elem),
+				  arg2);
+	}
 
       /* If we can use the VSX xxpermdi instruction, use that for extract.  */
       mode = TYPE_MODE (arg1_type);
@@ -4260,7 +4271,7 @@ altivec_resolve_overloaded_builtin (location_t loc, tree fndecl,
       return stmt;
     }
 
-  /* For now use pointer tricks to do the insertation, unless we are on VSX
+  /* For now use pointer tricks to do the insertion, unless we are on VSX
      inserting a double to a constant offset..  */
   if (fcode == ALTIVEC_BUILTIN_VEC_INSERT)
     {
@@ -4289,6 +4300,17 @@ altivec_resolve_overloaded_builtin (location_t loc, tree fndecl,
 	goto bad; 
       if (!INTEGRAL_TYPE_P (TREE_TYPE (arg2)))
 	goto bad; 
+
+      /* If we are targeting little-endian, but -maltivec=be has been
+	 specified to override the element order, adjust the element
+	 number accordingly.  */
+      if (!BYTES_BIG_ENDIAN && rs6000_altivec_element_order == 2)
+	{
+	  unsigned int last_elem = TYPE_VECTOR_SUBPARTS (arg1_type) - 1;
+	  arg2 = fold_build2_loc (loc, MINUS_EXPR, TREE_TYPE (arg2),
+				  build_int_cstu (TREE_TYPE (arg2), last_elem),
+				  arg2);
+	}
 
       /* If we can use the VSX xxpermdi instruction, use that for insert.  */
       mode = TYPE_MODE (arg1_type);

@@ -1,5 +1,5 @@
 /* Statement translation -- generate GCC trees from gfc_code.
-   Copyright (C) 2002-2013 Free Software Foundation, Inc.
+   Copyright (C) 2002-2014 Free Software Foundation, Inc.
    Contributed by Paul Brook <paul@nowt.org>
    and Steven Bosscher <s.bosscher@student.tudelft.nl>
 
@@ -5102,9 +5102,48 @@ gfc_trans_allocate (gfc_code * code)
 	{
 	  gfc_expr *lhs, *rhs;
 	  gfc_se lse;
+	  gfc_ref *ref, *class_ref, *tail;
+
+	  /* Find the last class reference.  */
+	  class_ref = NULL;
+	  for (ref = e->ref; ref; ref = ref->next)
+	    {
+	      if (ref->type == REF_COMPONENT
+		  && ref->u.c.component->ts.type == BT_CLASS)
+		class_ref = ref;
+
+	      if (ref->next == NULL)
+		break;
+	    }
+
+	  /* Remove and store all subsequent references after the
+	     CLASS reference.  */
+	  if (class_ref)
+	    {
+	      tail = class_ref->next;
+	      class_ref->next = NULL;
+	    }
+	  else
+	    {
+	      tail = e->ref;
+	      e->ref = NULL;
+	    }
 
 	  lhs = gfc_expr_to_initialize (e);
 	  gfc_add_vptr_component (lhs);
+
+	  /* Remove the _vptr component and restore the original tail
+	     references.  */
+	  if (class_ref)
+	    {
+	      gfc_free_ref_list (class_ref->next);
+	      class_ref->next = tail;
+	    }
+	  else
+	    {
+	      gfc_free_ref_list (e->ref);
+	      e->ref = tail;
+	    }
 
 	  if (class_expr != NULL_TREE)
 	    {
@@ -5144,10 +5183,7 @@ gfc_trans_allocate (gfc_code * code)
 
 	      if (ts->type == BT_DERIVED || UNLIMITED_POLY (e))
 		{
-		  if (ts->type == BT_DERIVED)
-		  vtab = gfc_find_derived_vtab (ts->u.derived);
-		  else
-		    vtab = gfc_find_intrinsic_vtab (ts);
+		  vtab = gfc_find_vtab (ts);
 		  gcc_assert (vtab);
 		  gfc_init_se (&lse, NULL);
 		  lse.want_pointer = 1;
@@ -5232,12 +5268,8 @@ gfc_trans_allocate (gfc_code * code)
 		  ppc = gfc_copy_expr (rhs);
 		  gfc_add_vptr_component (ppc);
 		}
-	      else if (rhs->ts.type == BT_DERIVED)
-		ppc = gfc_lval_expr_from_sym
-				(gfc_find_derived_vtab (rhs->ts.u.derived));
 	      else
-		ppc = gfc_lval_expr_from_sym
-				(gfc_find_intrinsic_vtab (&rhs->ts));
+		ppc = gfc_lval_expr_from_sym (gfc_find_vtab (&rhs->ts));
 	      gfc_add_component_ref (ppc, "_copy");
 
 	      ppc_code = gfc_get_code (EXEC_CALL);

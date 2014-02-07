@@ -1,6 +1,6 @@
 /* This file is part of the Intel(R) Cilk(TM) Plus support
    This file contains the CilkPlus Intrinsics
-   Copyright (C) 2013 Free Software Foundation, Inc.
+   Copyright (C) 2013-2014 Free Software Foundation, Inc.
    Contributed by Balaji V. Iyer <balaji.v.iyer@intel.com>,
    Intel Corporation
 
@@ -477,9 +477,10 @@ wrapper_local_cb (const void *k_v, void **vp, void *data)
 
 /* Alter a tree STMT from OUTER_FN to form the body of INNER_FN.  */
 
-static void
-cilk_outline (tree inner_fn, tree *stmt_p, struct wrapper_data *wd)
+void
+cilk_outline (tree inner_fn, tree *stmt_p, void *w)
 {
+  struct wrapper_data *wd = (struct wrapper_data *) w;
   const tree outer_fn = wd->context;	      
   const bool nested = (wd->type == CILK_BLOCK_FOR);
   copy_body_data id;
@@ -512,8 +513,7 @@ cilk_outline (tree inner_fn, tree *stmt_p, struct wrapper_data *wd)
   /* We don't want the private variables any more.  */
   pointer_map_traverse (wd->decl_map, nested ? for_local_cb : wrapper_local_cb,
 			&id);
-
-  walk_tree (stmt_p, copy_tree_body_r, &id, NULL);
+  walk_tree (stmt_p, copy_tree_body_r, (void *) &id, NULL);
 
   /* See if this function can throw or calls something that should
      not be spawned.  The exception part is only necessary if
@@ -554,10 +554,8 @@ create_cilk_wrapper_body (tree stmt, struct wrapper_data *wd)
   for (p = wd->parms; p; p = TREE_CHAIN (p))
     DECL_CONTEXT (p) = fndecl;
 
-  cilk_outline (fndecl, &stmt, wd);
-  stmt = fold_build_cleanup_point_expr (void_type_node, stmt);
   gcc_assert (!DECL_SAVED_TREE (fndecl));
-  lang_hooks.cilkplus.install_body_with_frame_cleanup (fndecl, stmt);
+  cilk_install_body_with_frame_cleanup (fndecl, stmt, (void *) wd);
   gcc_assert (DECL_SAVED_TREE (fndecl));
 
   pop_cfun_to (outer);
@@ -733,8 +731,7 @@ create_cilk_wrapper (tree exp, tree *args_out)
    and GS_UNHANDLED, otherwise.  */
 
 int
-gimplify_cilk_spawn (tree *spawn_p, gimple_seq *before ATTRIBUTE_UNUSED,
-		     gimple_seq *after ATTRIBUTE_UNUSED)
+gimplify_cilk_spawn (tree *spawn_p)
 {
   tree expr = *spawn_p;
   tree function, call1, call2, new_args;
@@ -757,7 +754,10 @@ gimplify_cilk_spawn (tree *spawn_p, gimple_seq *before ATTRIBUTE_UNUSED,
 
   /* This should give the number of parameters.  */
   total_args = list_length (new_args);
-  arg_array = XNEWVEC (tree, total_args);
+  if (total_args)
+    arg_array = XNEWVEC (tree, total_args);
+  else
+    arg_array = NULL;
 
   ii_args = new_args;
   for (ii = 0; ii < total_args; ii++)
@@ -771,7 +771,7 @@ gimplify_cilk_spawn (tree *spawn_p, gimple_seq *before ATTRIBUTE_UNUSED,
 
   call1 = cilk_call_setjmp (cfun->cilk_frame_decl);
 
-  if (*arg_array == NULL_TREE)
+  if (arg_array == NULL || *arg_array == NULL_TREE)
     call2 = build_call_expr (function, 0);
   else 
     call2 = build_call_expr_loc_array (EXPR_LOCATION (*spawn_p), function, 
@@ -873,30 +873,6 @@ cilk_install_body_pedigree_operations (tree frame_ptr)
 			 pedigree));
   append_to_statement_list (exp1, &body_list);
   return body_list;
-}
-
-/* Inserts "cleanup" functions after the function-body of FNDECL.  FNDECL is a 
-   spawn-helper and BODY is the newly created body for FNDECL.  */
-
-void
-c_cilk_install_body_w_frame_cleanup (tree fndecl, tree body)
-{
-  tree list = alloc_stmt_list ();
-  tree frame = make_cilk_frame (fndecl);
-  tree dtor = create_cilk_function_exit (frame, false, true);
-  add_local_decl (cfun, frame);
-  
-  DECL_SAVED_TREE (fndecl) = list;
-  tree frame_ptr = build1 (ADDR_EXPR, build_pointer_type (TREE_TYPE (frame)), 
-			   frame);
-  tree body_list = cilk_install_body_pedigree_operations (frame_ptr);
-  gcc_assert (TREE_CODE (body_list) == STATEMENT_LIST);
-  
-  tree detach_expr = build_call_expr (cilk_detach_fndecl, 1, frame_ptr); 
-  append_to_statement_list (detach_expr, &body_list);
-  append_to_statement_list (body, &body_list);
-  append_to_statement_list (build_stmt (EXPR_LOCATION (body), TRY_FINALLY_EXPR,
-				       	body_list, dtor), &list);
 }
 
 /* Add a new variable, VAR to a variable list in WD->DECL_MAP.  HOW indicates
@@ -1059,6 +1035,7 @@ extract_free_variables (tree t, struct wrapper_data *wd,
       extract_free_variables (TREE_OPERAND (t, 0), wd, ADD_READ);
       return;
 
+    case VEC_INIT_EXPR:
     case INIT_EXPR:
       extract_free_variables (TREE_OPERAND (t, 0), wd, ADD_BIND);
       extract_free_variables (TREE_OPERAND (t, 1), wd, ADD_READ);
@@ -1219,6 +1196,15 @@ extract_free_variables (tree t, struct wrapper_data *wd,
 	break;
       }
 
+    case CONSTRUCTOR:
+      {
+	unsigned HOST_WIDE_INT idx = 0;
+	constructor_elt *ce;
+	for (idx = 0; vec_safe_iterate (CONSTRUCTOR_ELTS (t), idx, &ce); idx++)
+	  extract_free_variables (ce->value, wd, ADD_READ);
+	break;
+      }
+
     default:
       if (is_expr)
 	{
@@ -1234,7 +1220,6 @@ extract_free_variables (tree t, struct wrapper_data *wd,
 	}
     }
 }
-
 
 /* Add appropriate frames needed for a Cilk spawned function call, FNDECL. 
    Returns the __cilkrts_stack_frame * variable.  */

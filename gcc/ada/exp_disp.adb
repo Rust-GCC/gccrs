@@ -696,7 +696,7 @@ package body Exp_Disp is
       --  Expand_Dispatching_Call is called directly from the semantics,
       --  so we only proceed if the expander is active.
 
-      if not Full_Expander_Active
+      if not Expander_Active
 
         --  And there is no need to expand the call if we are compiling under
         --  restriction No_Dispatching_Calls; the semantic analyzer has
@@ -777,11 +777,12 @@ package body Exp_Disp is
 
          Param := First_Actual (Call_Node);
          while Present (Param) loop
-            --  Cases in which we may have generated runtime checks
 
-            if Param = Ctrl_Arg
-              or else Subp = Eq_Prim_Op
-            then
+            --  Cases in which we may have generated run-time checks. Note that
+            --  we strip any qualification from Param before comparing with the
+            --  already-stripped controlling argument.
+
+            if Unqualify (Param) = Ctrl_Arg or else Subp = Eq_Prim_Op then
                Append_To (New_Params,
                  Duplicate_Subexpr_Move_Checks (Param));
 

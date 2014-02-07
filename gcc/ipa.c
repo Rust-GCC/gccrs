@@ -1,5 +1,5 @@
 /* Basic IPA optimizations and utilities.
-   Copyright (C) 2003-2013 Free Software Foundation, Inc.
+   Copyright (C) 2003-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -291,7 +291,7 @@ symtab_remove_unreachable_nodes (bool before_inlining_p, FILE *file)
 {
   symtab_node *first = (symtab_node *) (void *) 1;
   struct cgraph_node *node, *next;
-  struct varpool_node *vnode, *vnext;
+  varpool_node *vnode, *vnext;
   bool changed = false;
   struct pointer_set_t *reachable = pointer_set_create ();
   struct pointer_set_t *body_needed_for_clonning = pointer_set_create ();
@@ -362,14 +362,17 @@ symtab_remove_unreachable_nodes (bool before_inlining_p, FILE *file)
 	      enqueue_node (origin_node, &first, reachable);
 	    }
 	  /* If any symbol in a comdat group is reachable, force
-	     all other in the same comdat group to be also reachable.  */
+	     all externally visible symbols in the same comdat
+	     group to be reachable as well.  Comdat-local symbols
+	     can be discarded if all uses were inlined.  */
 	  if (node->same_comdat_group)
 	    {
 	      symtab_node *next;
 	      for (next = node->same_comdat_group;
 		   next != node;
 		   next = next->same_comdat_group)
-		if (!pointer_set_insert (reachable, next))
+		if (!symtab_comdat_local_p (next)
+		    && !pointer_set_insert (reachable, next))
 		  enqueue_node (next, &first, reachable);
 	    }
 	  /* Mark references as reachable.  */
@@ -426,6 +429,19 @@ symtab_remove_unreachable_nodes (bool before_inlining_p, FILE *file)
 		      enqueue_node (cnode, &first, reachable);
 		    }
 		}
+
+	    }
+	  /* If any reachable function has simd clones, mark them as
+	     reachable as well.  */
+	  if (cnode->simd_clones)
+	    {
+	      cgraph_node *next;
+	      for (next = cnode->simd_clones;
+		   next;
+		   next = next->simdclone->next_clone)
+		if (in_boundary_p
+		    || !pointer_set_insert (reachable, next))
+		  enqueue_node (next, &first, reachable);
 	    }
 	}
       /* When we see constructor of external variable, keep referred nodes in the
@@ -593,7 +609,7 @@ symtab_remove_unreachable_nodes (bool before_inlining_p, FILE *file)
 void
 ipa_discover_readonly_nonaddressable_vars (void)
 {
-  struct varpool_node *vnode;
+  varpool_node *vnode;
   if (dump_file)
     fprintf (dump_file, "Clearing variable flags:");
   FOR_EACH_VARIABLE (vnode)
@@ -650,7 +666,7 @@ address_taken_from_non_vtable_p (symtab_node *node)
 					     i, ref); i++)
     if (ref->use == IPA_REF_ADDR)
       {
-	struct varpool_node *node;
+	varpool_node *node;
 	if (is_a <cgraph_node> (ref->referring))
 	  return true;
 	node = ipa_ref_referring_varpool_node (ref);
@@ -788,7 +804,7 @@ cgraph_externally_visible_p (struct cgraph_node *node,
 /* Return true when variable VNODE should be considered externally visible.  */
 
 bool
-varpool_externally_visible_p (struct varpool_node *vnode)
+varpool_externally_visible_p (varpool_node *vnode)
 {
   if (DECL_EXTERNAL (vnode->decl))
     return true;
@@ -882,7 +898,7 @@ static unsigned int
 function_and_variable_visibility (bool whole_program)
 {
   struct cgraph_node *node;
-  struct varpool_node *vnode;
+  varpool_node *vnode;
 
   /* All aliases should be procssed at this point.  */
   gcc_checking_assert (!alias_pairs || !alias_pairs->length ());
@@ -956,14 +972,14 @@ function_and_variable_visibility (bool whole_program)
 	  node->unique_name = ((node->resolution == LDPR_PREVAILING_DEF_IRONLY
 				      || node->resolution == LDPR_PREVAILING_DEF_IRONLY_EXP)
 				      && TREE_PUBLIC (node->decl));
-	  symtab_make_decl_local (node->decl);
 	  node->resolution = LDPR_PREVAILING_DEF_IRONLY;
-	  if (node->same_comdat_group)
+	  if (node->same_comdat_group && TREE_PUBLIC (node->decl))
 	    /* cgraph_externally_visible_p has already checked all other nodes
 	       in the group and they will all be made local.  We need to
 	       dissolve the group at once so that the predicate does not
 	       segfault though. */
 	    symtab_dissolve_same_comdat_group_list (node);
+	  symtab_make_decl_local (node->decl);
 	}
 
       if (node->thunk.thunk_p
@@ -1262,11 +1278,9 @@ make_pass_ipa_whole_program_visibility (gcc::context *ctxt)
 }
 
 /* Generate and emit a static constructor or destructor.  WHICH must
-   be one of 'I' (for a constructor), 'D' (for a destructor), 'P'
-   (for chp static vars constructor) or 'B' (for chkp static bounds
-   constructor).  BODY is a STATEMENT_LIST containing GENERIC
-   statements.  PRIORITY is the initialization priority for this
-   constructor or destructor.
+   be one of 'I' (for a constructor) or 'D' (for a destructor).  BODY
+   is a STATEMENT_LIST containing GENERIC statements.  PRIORITY is the
+   initialization priority for this constructor or destructor. 
 
    FINAL specify whether the externally visible name for collect2 should
    be produced. */
@@ -1325,20 +1339,6 @@ cgraph_build_static_cdtor_1 (char which, tree body, int priority, bool final)
       DECL_STATIC_CONSTRUCTOR (decl) = 1;
       decl_init_priority_insert (decl, priority);
       break;
-    case 'P':
-      DECL_STATIC_CONSTRUCTOR (decl) = 1;
-      DECL_ATTRIBUTES (decl) = tree_cons (get_identifier ("chkp ctor"),
-					  NULL,
-					  NULL_TREE);
-      decl_init_priority_insert (decl, priority);
-      break;
-    case 'B':
-      DECL_STATIC_CONSTRUCTOR (decl) = 1;
-      DECL_ATTRIBUTES (decl) = tree_cons (get_identifier ("bnd_legacy"),
-					  NULL,
-					  NULL_TREE);
-      decl_init_priority_insert (decl, priority);
-      break;
     case 'D':
       DECL_STATIC_DESTRUCTOR (decl) = 1;
       decl_fini_priority_insert (decl, priority);
@@ -1356,11 +1356,9 @@ cgraph_build_static_cdtor_1 (char which, tree body, int priority, bool final)
 }
 
 /* Generate and emit a static constructor or destructor.  WHICH must
-   be one of 'I' (for a constructor), 'D' (for a destructor), 'P'
-   (for chkp static vars constructor) or 'B' (for chkp static bounds
-   constructor).  BODY is a STATEMENT_LIST containing GENERIC
-   statements.  PRIORITY is the initialization priority for this
-   constructor or destructor.  */
+   be one of 'I' (for a constructor) or 'D' (for a destructor).  BODY
+   is a STATEMENT_LIST containing GENERIC statements.  PRIORITY is the
+   initialization priority for this constructor or destructor.  */
 
 void
 cgraph_build_static_cdtor (char which, tree body, int priority)

@@ -1,6 +1,6 @@
 /* Operating system specific defines to be used when targeting GCC for any
    Solaris 2 system.
-   Copyright (C) 2002-2013 Free Software Foundation, Inc.
+   Copyright (C) 2002-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -162,6 +162,9 @@ along with GCC; see the file COPYING3.  If not see
 
 #undef LINK_ARCH_SPEC
 #define LINK_ARCH_SPEC LINK_ARCH32_SPEC
+
+/* C++11 programs need -lrt for nanosleep.  */
+#define TIME_LIBRARY "rt"
 
 #ifndef USE_GLD
 /* With Sun ld, -rdynamic is a no-op.  */

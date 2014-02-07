@@ -193,7 +193,10 @@ package body Sem_Ch6 is
    --  must appear before the type is frozen, and have the same visibility as
    --  that of the type. This procedure checks that this rule is met, and
    --  otherwise emits an error on the subprogram declaration and a warning
-   --  on the earlier freeze point if it is easy to locate.
+   --  on the earlier freeze point if it is easy to locate. In Ada 2012 mode,
+   --  this routine outputs errors (or warnings if -gnatd.E is set). In earlier
+   --  versions of Ada, warnings are output if Warn_On_Ada_2012_Incompatibility
+   --  is set, otherwise the call has no effect.
 
    procedure Enter_Overloaded_Entity (S : Entity_Id);
    --  This procedure makes S, a new overloaded entity, into the first visible
@@ -432,7 +435,11 @@ package body Sem_Ch6 is
          --  To prevent premature freeze action, insert the new body at the end
          --  of the current declarations, or at the end of the package spec.
          --  However, resolve usage names now, to prevent spurious visibility
-         --  on later entities.
+         --  on later entities. Note that the function can now be called in
+         --  the current declarative part, which will appear to be prior to
+         --  the presence of the body in the code. There are nevertheless no
+         --  order of elaboration issues because all name resolution has taken
+         --  place at the point of declaration.
 
          declare
             Decls : List_Id            := List_Containing (N);
@@ -452,15 +459,19 @@ package body Sem_Ch6 is
             Push_Scope (Id);
             Install_Formals (Id);
 
-            --  Do a preanalysis of the expression on a separate copy, to
-            --  prevent visibility issues later with operators in instances.
-            --  Attach copy to tree so that parent links are available.
+            --  Preanalyze the expression for name capture, except in an
+            --  instance, where this has been done during generic analysis,
+            --  and will be redone when analyzing the body.
 
             declare
-               Expr : constant Node_Id := New_Copy_Tree (Expression (Ret));
+               Expr : constant Node_Id := Expression (Ret);
+
             begin
                Set_Parent (Expr, Ret);
-               Preanalyze_Spec_Expression (Expr, Etype (Id));
+
+               if not In_Instance then
+                  Preanalyze_Spec_Expression (Expr, Etype (Id));
+               end if;
             end;
 
             End_Scope;
@@ -979,11 +990,9 @@ package body Sem_Ch6 is
                    Reason => PE_Accessibility_Check_Failed));
                Analyze (N);
 
-               Error_Msg_N
-                 ("cannot return a local value by reference??", N);
-               Error_Msg_NE
-                 ("\& will be raised at run time??",
-                   N, Standard_Program_Error);
+               Error_Msg_Warn := SPARK_Mode /= On;
+               Error_Msg_N ("cannot return a local value by reference<<", N);
+               Error_Msg_NE ("\& [<<", N, Standard_Program_Error);
             end if;
          end if;
 
@@ -1151,7 +1160,7 @@ package body Sem_Ch6 is
          --  prepares the contract assertions for generic subprograms or for
          --  ASIS. Do not generate contract checks in SPARK mode.
 
-         if not SPARK_Mode then
+         if not GNATprove_Mode then
             Expand_Subprogram_Contract (N, Gen_Id, Body_Id);
          end if;
 
@@ -1183,6 +1192,9 @@ package body Sem_Ch6 is
                Next (Cond);
             end loop;
          end;
+
+         Set_SPARK_Pragma (Body_Id, SPARK_Mode_Pragma);
+         Set_SPARK_Pragma_Inherited (Body_Id, True);
 
          Analyze_Declarations (Declarations (N));
          Check_Completion;
@@ -1276,7 +1288,6 @@ package body Sem_Ch6 is
          return;
 
       else
-
          --  Resolve the types of the formals now, because the freeze point
          --  may appear in a different context, e.g. an instantiation.
 
@@ -1362,13 +1373,11 @@ package body Sem_Ch6 is
       Par : constant Node_Id := Parent (N);
 
    begin
-      if        (Nkind (Par) = N_Function_Call
-                  and then N = Name (Par))
+      if        (Nkind (Par) = N_Function_Call and then N = Name (Par))
         or else  Nkind (Par) = N_Function_Instantiation
-        or else (Nkind (Par) = N_Indexed_Component
-                   and then N = Prefix (Par))
+        or else (Nkind (Par) = N_Indexed_Component and then N = Prefix (Par))
         or else (Nkind (Par) = N_Pragma_Argument_Association
-                   and then not Is_Pragma_String_Literal (Par))
+                  and then not Is_Pragma_String_Literal (Par))
         or else  Nkind (Par) = N_Subprogram_Renaming_Declaration
         or else (Nkind (Par) = N_Attribute_Reference
                   and then Attribute_Name (Par) /= Name_Value)
@@ -2924,6 +2933,8 @@ package body Sem_Ch6 is
             Reference_Body_Formals (Spec_Id, Body_Id);
          end if;
 
+         Set_Ekind (Body_Id, E_Subprogram_Body);
+
          if Nkind (N) = N_Subprogram_Body_Stub then
             Set_Corresponding_Spec_Of_Stub (N, Spec_Id);
 
@@ -2988,6 +2999,35 @@ package body Sem_Ch6 is
 
             Push_Scope (Spec_Id);
 
+            --  Set SPARK_Mode
+
+            --  For internally generated subprogram, always off. But generic
+            --  instances are not generated implicitly, so are never considered
+            --  as internal, even though Comes_From_Source is false.
+
+            if not Comes_From_Source (Spec_Id)
+              and then not Is_Generic_Instance (Spec_Id)
+            then
+               SPARK_Mode := Off;
+               SPARK_Mode_Pragma := Empty;
+
+            --  Inherited from spec
+
+            elsif Present (SPARK_Pragma (Spec_Id))
+              and then not SPARK_Pragma_Inherited (Spec_Id)
+            then
+               SPARK_Mode_Pragma := SPARK_Pragma (Spec_Id);
+               SPARK_Mode := Get_SPARK_Mode_From_Pragma (SPARK_Mode_Pragma);
+               Set_SPARK_Pragma (Body_Id, SPARK_Pragma (Spec_Id));
+               Set_SPARK_Pragma_Inherited (Body_Id, True);
+
+            --  Otherwise set from context
+
+            else
+               Set_SPARK_Pragma (Body_Id, SPARK_Mode_Pragma);
+               Set_SPARK_Pragma_Inherited (Body_Id, True);
+            end if;
+
             --  Make sure that the subprogram is immediately visible. For
             --  child units that have no separate spec this is indispensable.
             --  Otherwise it is safe albeit redundant.
@@ -2997,7 +3037,6 @@ package body Sem_Ch6 is
 
          Set_Corresponding_Body (Unit_Declaration_Node (Spec_Id), Body_Id);
          Set_Contract (Body_Id, Make_Contract (Sloc (Body_Id)));
-         Set_Ekind (Body_Id, E_Subprogram_Body);
          Set_Scope (Body_Id, Scope (Spec_Id));
          Set_Is_Obsolescent (Body_Id, Is_Obsolescent (Spec_Id));
 
@@ -3034,7 +3073,20 @@ package body Sem_Ch6 is
             Generate_Reference
               (Body_Id, Body_Id, 'b', Set_Ref => False, Force => True);
             Install_Formals (Body_Id);
+
             Push_Scope (Body_Id);
+
+            --  Set SPARK_Mode from context or OFF for internal routine
+
+            if Comes_From_Source (Body_Id) then
+               Set_SPARK_Pragma (Body_Id, SPARK_Mode_Pragma);
+               Set_SPARK_Pragma_Inherited (Body_Id, True);
+            else
+               Set_SPARK_Pragma (Body_Id, Empty);
+               Set_SPARK_Pragma_Inherited (Body_Id, False);
+               SPARK_Mode := Off;
+               SPARK_Mode_Pragma := Empty;
+            end if;
          end if;
 
          --  For stubs and bodies with no previous spec, generate references to
@@ -3188,7 +3240,7 @@ package body Sem_Ch6 is
       --  prepares the contract assertions for generic subprograms or for ASIS.
       --  Do not generate contract checks in SPARK mode.
 
-      if not SPARK_Mode then
+      if not GNATprove_Mode then
          Expand_Subprogram_Contract (N, Spec_Id, Body_Id);
       end if;
 
@@ -3197,13 +3249,13 @@ package body Sem_Ch6 is
       --  family index (if applicable). This form of early expansion is done
       --  when the Expander is active because Install_Private_Data_Declarations
       --  references entities which were created during regular expansion. The
-      --  body may be the rewritting of an expression function, and we need to
-      --  verify that the original node is in the source.
+      --  subprogram entity must come from source, and not be an internally
+      --  generated subprogram.
 
-      if Full_Expander_Active
-        and then Comes_From_Source (Original_Node (N))
+      if Expander_Active
         and then Present (Prot_Typ)
         and then Present (Spec_Id)
+        and then Comes_From_Source (Spec_Id)
         and then not Is_Eliminated (Spec_Id)
       then
          Install_Private_Data_Declarations
@@ -3423,190 +3475,15 @@ package body Sem_Ch6 is
    ---------------------------------
 
    procedure Analyze_Subprogram_Contract (Subp : Entity_Id) is
-      Result_Seen : Boolean := False;
-      --  A flag which keeps track of whether at least one postcondition or
-      --  contract-case mentions attribute 'Result (set True if so).
-
-      procedure Check_Result_And_Post_State
-        (Prag      : Node_Id;
-         Error_Nod : in out Node_Id);
-      --  Determine whether pragma Prag mentions attribute 'Result and whether
-      --  the pragma contains an expression that evaluates differently in pre-
-      --  and post-state. Prag is a postcondition or a contract-cases pragma.
-      --  Error_Nod denotes the proper error node.
-
-      ---------------------------------
-      -- Check_Result_And_Post_State --
-      ---------------------------------
-
-      procedure Check_Result_And_Post_State
-        (Prag      : Node_Id;
-         Error_Nod : in out Node_Id)
-      is
-         procedure Check_Expression (Expr : Node_Id);
-         --  Perform the 'Result and post-state checks on a given expression
-
-         function Is_Function_Result (N : Node_Id) return Traverse_Result;
-         --  Attempt to find attribute 'Result in a subtree denoted by N
-
-         function Is_Trivial_Boolean (N : Node_Id) return Boolean;
-         --  Determine whether source node N denotes "True" or "False"
-
-         function Mentions_Post_State (N : Node_Id) return Boolean;
-         --  Determine whether a subtree denoted by N mentions any construct
-         --  that denotes a post-state.
-
-         procedure Check_Function_Result is
-           new Traverse_Proc (Is_Function_Result);
-
-         ----------------------
-         -- Check_Expression --
-         ----------------------
-
-         procedure Check_Expression (Expr : Node_Id) is
-         begin
-            if not Is_Trivial_Boolean (Expr) then
-               Check_Function_Result (Expr);
-
-               if not Mentions_Post_State (Expr) then
-                  if Pragma_Name (Prag) = Name_Contract_Cases then
-                     Error_Msg_N
-                       ("contract case refers only to pre-state?T?", Expr);
-                  else
-                     Error_Msg_N
-                       ("postcondition refers only to pre-state?T?", Prag);
-                  end if;
-               end if;
-            end if;
-         end Check_Expression;
-
-         ------------------------
-         -- Is_Function_Result --
-         ------------------------
-
-         function Is_Function_Result (N : Node_Id) return Traverse_Result is
-         begin
-            if Nkind (N) = N_Attribute_Reference
-              and then Attribute_Name (N) = Name_Result
-            then
-               Result_Seen := True;
-               return Abandon;
-
-            --  Continue the traversal
-
-            else
-               return OK;
-            end if;
-         end Is_Function_Result;
-
-         ------------------------
-         -- Is_Trivial_Boolean --
-         ------------------------
-
-         function Is_Trivial_Boolean (N : Node_Id) return Boolean is
-         begin
-            return
-              Comes_From_Source (N)
-                and then Is_Entity_Name (N)
-                and then (Entity (N) = Standard_True
-                            or else Entity (N) = Standard_False);
-         end Is_Trivial_Boolean;
-
-         -------------------------
-         -- Mentions_Post_State --
-         -------------------------
-
-         function Mentions_Post_State (N : Node_Id) return Boolean is
-            Post_State_Seen : Boolean := False;
-
-            function Is_Post_State (N : Node_Id) return Traverse_Result;
-            --  Attempt to find a construct that denotes a post-state. If this
-            --  is the case, set flag Post_State_Seen.
-
-            -------------------
-            -- Is_Post_State --
-            -------------------
-
-            function Is_Post_State (N : Node_Id) return Traverse_Result is
-               Ent : Entity_Id;
-
-            begin
-               if Nkind_In (N, N_Explicit_Dereference, N_Function_Call) then
-                  Post_State_Seen := True;
-                  return Abandon;
-
-               elsif Nkind_In (N, N_Expanded_Name, N_Identifier) then
-                  Ent := Entity (N);
-
-                  if No (Ent) or else Ekind (Ent) in Assignable_Kind then
-                     Post_State_Seen := True;
-                     return Abandon;
-                  end if;
-
-               elsif Nkind (N) = N_Attribute_Reference then
-                  if Attribute_Name (N) = Name_Old then
-                     return Skip;
-                  elsif Attribute_Name (N) = Name_Result then
-                     Post_State_Seen := True;
-                     return Abandon;
-                  end if;
-               end if;
-
-               return OK;
-            end Is_Post_State;
-
-            procedure Find_Post_State is new Traverse_Proc (Is_Post_State);
-
-         --  Start of processing for Mentions_Post_State
-
-         begin
-            Find_Post_State (N);
-            return Post_State_Seen;
-         end Mentions_Post_State;
-
-         --  Local variables
-
-         Expr  : constant Node_Id :=
-                   Expression (First (Pragma_Argument_Associations (Prag)));
-         Nam   : constant Name_Id := Pragma_Name (Prag);
-         CCase : Node_Id;
-
-      --  Start of processing for Check_Result_And_Post_State
-
-      begin
-         if No (Error_Nod) then
-            Error_Nod := Prag;
-         end if;
-
-         --  Examine all consequences
-
-         if Nam = Name_Contract_Cases then
-            CCase := First (Component_Associations (Expr));
-            while Present (CCase) loop
-               Check_Expression (Expression (CCase));
-
-               Next (CCase);
-            end loop;
-
-         --  Examine the expression of a postcondition
-
-         else
-            pragma Assert (Nam = Name_Postcondition);
-            Check_Expression (Expr);
-         end if;
-      end Check_Result_And_Post_State;
-
-      --  Local variables
-
-      Items       : constant Node_Id := Contract (Subp);
-      Depends     : Node_Id := Empty;
-      Error_CCase : Node_Id := Empty;
-      Error_Post  : Node_Id := Empty;
-      Global      : Node_Id := Empty;
-      Nam         : Name_Id;
-      Prag        : Node_Id;
-
-   --  Start of processing for Analyze_Subprogram_Contract
+      Items        : constant Node_Id := Contract (Subp);
+      Case_Prag    : Node_Id := Empty;
+      Depends      : Node_Id := Empty;
+      Global       : Node_Id := Empty;
+      Nam          : Name_Id;
+      Post_Prag    : Node_Id := Empty;
+      Prag         : Node_Id;
+      Seen_In_Case : Boolean := False;
+      Seen_In_Post : Boolean := False;
 
    begin
       if Present (Items) then
@@ -3623,7 +3500,8 @@ package body Sem_Ch6 is
             if Warn_On_Suspicious_Contract
               and then Pragma_Name (Prag) = Name_Postcondition
             then
-               Check_Result_And_Post_State (Prag, Error_Post);
+               Post_Prag := Prag;
+               Check_Result_And_Post_State (Prag, Seen_In_Post);
             end if;
 
             Prag := Next_Pragma (Prag);
@@ -3645,7 +3523,8 @@ package body Sem_Ch6 is
                if Warn_On_Suspicious_Contract
                  and then not Error_Posted (Prag)
                then
-                  Check_Result_And_Post_State (Prag, Error_CCase);
+                  Case_Prag := Prag;
+                  Check_Result_And_Post_State (Prag, Seen_In_Case);
                end if;
 
             else
@@ -3658,7 +3537,7 @@ package body Sem_Ch6 is
 
          --  Analyze classification pragmas
 
-         Prag := Classifications (Contract (Subp));
+         Prag := Classifications (Items);
          while Present (Prag) loop
             Nam := Pragma_Name (Prag);
 
@@ -3686,26 +3565,28 @@ package body Sem_Ch6 is
          end if;
       end if;
 
-      --  Emit an error when none of the postconditions or contract-cases
+      --  Emit an error when neither the postconditions nor the contract-cases
       --  mention attribute 'Result in the context of a function.
 
       if Warn_On_Suspicious_Contract
         and then Ekind_In (Subp, E_Function, E_Generic_Function)
-        and then not Result_Seen
       then
-         if Present (Error_Post) and then Present (Error_CCase) then
+         if Present (Case_Prag)
+           and then not Seen_In_Case
+           and then Present (Post_Prag)
+           and then not Seen_In_Post
+         then
             Error_Msg_N
               ("neither function postcondition nor contract cases mention "
-               & "result?T?", Error_Post);
+               & "result?T?", Post_Prag);
 
-         elsif Present (Error_Post) then
+         elsif Present (Case_Prag) and then not Seen_In_Case then
             Error_Msg_N
-              ("function postcondition does not mention result?T?",
-               Error_Post);
+              ("contract cases do not mention result?T?", Case_Prag);
 
-         elsif Present (Error_CCase) then
+         elsif Present (Post_Prag) and then not Seen_In_Post then
             Error_Msg_N
-              ("contract cases do not mention result?T?", Error_CCase);
+              ("function postcondition does not mention result?T?", Post_Prag);
          end if;
       end if;
    end Analyze_Subprogram_Contract;
@@ -3715,8 +3596,9 @@ package body Sem_Ch6 is
    ------------------------------------
 
    procedure Analyze_Subprogram_Declaration (N : Node_Id) is
-      Scop       : constant Entity_Id  := Current_Scope;
+      Scop       : constant Entity_Id := Current_Scope;
       Designator : Entity_Id;
+
       Is_Completion : Boolean;
       --  Indicates whether a null procedure declaration is a completion
 
@@ -3749,6 +3631,17 @@ package body Sem_Ch6 is
       --  declarations that are the rewriting of an expression function.
 
       Generate_Definition (Designator);
+
+      --  Set SPARK mode, always off for internal routines, otherwise set
+      --  from current context (may be overwritten later with explicit pragma)
+
+      if Comes_From_Source (Designator) then
+         Set_SPARK_Pragma (Designator, SPARK_Mode_Pragma);
+         Set_SPARK_Pragma_Inherited (Designator, True);
+      else
+         Set_SPARK_Pragma (Designator, Empty);
+         Set_SPARK_Pragma_Inherited (Designator, False);
+      end if;
 
       if Debug_Flag_C then
          Write_Str ("==> subprogram spec ");
@@ -7392,12 +7285,15 @@ package body Sem_Ch6 is
 
          if Mode = 'F' then
             if not Raise_Exception_Call then
+
+               --  In GNATprove mode, it is an error to have a missing return
+
+               Error_Msg_Warn := SPARK_Mode /= On;
                Error_Msg_N
-                 ("RETURN statement missing following this statement??!",
+                 ("RETURN statement missing following this statement<<!",
                   Last_Stm);
                Error_Msg_N
-                 ("\Program_Error may be raised at run time??!",
-                  Last_Stm);
+                 ("\Program_Error ]<<!", Last_Stm);
             end if;
 
             --  Note: we set Err even though we have not issued a warning
@@ -7411,13 +7307,19 @@ package body Sem_Ch6 is
 
          else
             if not Raise_Exception_Call then
-               Error_Msg_N
-                 ("implied return after this statement " &
-                  "will raise Program_Error??",
-                  Last_Stm);
+               if GNATprove_Mode then
+                  Error_Msg_N
+                    ("implied return after this statement "
+                     & "would have raised Program_Error", Last_Stm);
+               else
+                  Error_Msg_N
+                    ("implied return after this statement "
+                     & "will raise Program_Error??", Last_Stm);
+               end if;
+
+               Error_Msg_Warn := SPARK_Mode /= On;
                Error_Msg_NE
-                 ("\procedure & is marked as No_Return??!",
-                  Last_Stm, Proc);
+                 ("\procedure & is marked as No_Return<<!", Last_Stm, Proc);
             end if;
 
             declare
@@ -8338,63 +8240,140 @@ package body Sem_Ch6 is
       Obj_Decl : Node_Id;
 
    begin
-      if Nkind (Decl) = N_Subprogram_Declaration
-        and then Is_Record_Type (Typ)
-        and then not Is_Tagged_Type (Typ)
+      --  This check applies only if we have a subprogram declaration with a
+      --  non-tagged record type.
+
+      if Nkind (Decl) /= N_Subprogram_Declaration
+        or else not Is_Record_Type (Typ)
+        or else Is_Tagged_Type (Typ)
       then
-         --  If the type is not declared in a package, or if we are in the
-         --  body of the package or in some other scope, the new operation is
-         --  not primitive, and therefore legal, though suspicious. If the
-         --  type is a generic actual (sub)type, the operation is not primitive
-         --  either because the base type is declared elsewhere.
+         return;
+      end if;
 
-         if Is_Frozen (Typ) then
-            if Ekind (Scope (Typ)) /= E_Package
-              or else Scope (Typ) /= Current_Scope
-            then
-               null;
+      --  In Ada 2012 case, we will output errors or warnings depending on
+      --  the setting of debug flag -gnatd.E.
 
-            elsif Is_Generic_Actual_Type (Typ) then
-               null;
+      if Ada_Version >= Ada_2012 then
+         Error_Msg_Warn := Debug_Flag_Dot_EE;
 
-            elsif In_Package_Body (Scope (Typ)) then
+      --  In earlier versions of Ada, nothing to do unless we are warning on
+      --  Ada 2012 incompatibilities (Warn_On_Ada_2012_Incompatibility set).
+
+      else
+         if not Warn_On_Ada_2012_Compatibility then
+            return;
+         end if;
+      end if;
+
+      --  Cases where the type has already been frozen
+
+      if Is_Frozen (Typ) then
+
+         --  If the type is not declared in a package, or if we are in the body
+         --  of the package or in some other scope, the new operation is not
+         --  primitive, and therefore legal, though suspicious. Should we
+         --  generate a warning in this case ???
+
+         if Ekind (Scope (Typ)) /= E_Package
+           or else Scope (Typ) /= Current_Scope
+         then
+            return;
+
+         --  If the type is a generic actual (sub)type, the operation is not
+         --  primitive either because the base type is declared elsewhere.
+
+         elsif Is_Generic_Actual_Type (Typ) then
+            return;
+
+         --  Here we have a definite error of declaration after freezing
+
+         else
+            if Ada_Version >= Ada_2012 then
                Error_Msg_NE
-                 ("equality operator must be declared "
-                   & "before type& is frozen", Eq_Op, Typ);
-               Error_Msg_N
-                 ("\move declaration to package spec", Eq_Op);
+                 ("equality operator must be declared before type& is "
+                  & "frozen (RM 4.5.2 (9.8)) (Ada 2012)<<", Eq_Op, Typ);
+
+               --  In Ada 2012 mode with error turned to warning, output one
+               --  more warning to warn that the equality operation may not
+               --  compose. This is the consequence of ignoring the error.
+
+               if Error_Msg_Warn then
+                  Error_Msg_N ("\equality operation may not compose??", Eq_Op);
+               end if;
 
             else
                Error_Msg_NE
-                 ("equality operator must be declared "
-                   & "before type& is frozen", Eq_Op, Typ);
+                 ("equality operator must be declared before type& is "
+                  & "frozen (RM 4.5.2 (9.8)) (Ada 2012)?y?", Eq_Op, Typ);
+            end if;
 
+            --  If we are in the package body, we could just move the
+            --  declaration to the package spec, so add a message saying that.
+
+            if In_Package_Body (Scope (Typ)) then
+               if Ada_Version >= Ada_2012 then
+                  Error_Msg_N
+                    ("\move declaration to package spec<<", Eq_Op);
+               else
+                  Error_Msg_N
+                    ("\move declaration to package spec (Ada 2012)?y?", Eq_Op);
+               end if;
+
+            --  Otherwise try to find the freezing point
+
+            else
                Obj_Decl := Next (Parent (Typ));
                while Present (Obj_Decl) and then Obj_Decl /= Decl loop
                   if Nkind (Obj_Decl) = N_Object_Declaration
                     and then Etype (Defining_Identifier (Obj_Decl)) = Typ
                   then
-                     Error_Msg_NE
-                       ("type& is frozen by declaration??", Obj_Decl, Typ);
-                     Error_Msg_N
-                       ("\an equality operator cannot be declared after this "
-                         & "point (RM 4.5.2 (9.8)) (Ada 2012))??", Obj_Decl);
+                     --  Freezing point, output warnings
+
+                     if Ada_Version >= Ada_2012 then
+                        Error_Msg_NE
+                          ("type& is frozen by declaration??", Obj_Decl, Typ);
+                        Error_Msg_N
+                          ("\an equality operator cannot be declared after "
+                           & "this point??",
+                           Obj_Decl);
+                     else
+                        Error_Msg_NE
+                          ("type& is frozen by declaration (Ada 2012)?y?",
+                           Obj_Decl, Typ);
+                        Error_Msg_N
+                          ("\an equality operator cannot be declared after "
+                           & "this point (Ada 2012)?y?",
+                           Obj_Decl);
+                     end if;
+
                      exit;
                   end if;
 
                   Next (Obj_Decl);
                end loop;
             end if;
-
-         elsif not In_Same_List (Parent (Typ), Decl)
-           and then not Is_Limited_Type (Typ)
-         then
-
-            --  This makes it illegal to have a primitive equality declared in
-            --  the private part if the type is visible.
-
-            Error_Msg_N ("equality operator appears too late", Eq_Op);
          end if;
+
+      --  Here if type is not frozen yet. It is illegal to have a primitive
+      --  equality declared in the private part if the type is visible.
+
+      elsif not In_Same_List (Parent (Typ), Decl)
+        and then not Is_Limited_Type (Typ)
+      then
+         --  Shouldn't we give an RM reference here???
+
+         if Ada_Version >= Ada_2012 then
+            Error_Msg_N
+              ("equality operator appears too late<<", Eq_Op);
+         else
+            Error_Msg_N
+              ("equality operator appears too late (Ada 2012)?y?", Eq_Op);
+         end if;
+
+      --  No error detected
+
+      else
+         return;
       end if;
    end Check_Untagged_Equality;
 
@@ -10513,6 +10492,16 @@ package body Sem_Ch6 is
             if Scope (E) /= Current_Scope then
                null;
 
+            --  A function can overload the name of an abstract state. The
+            --  state can be viewed as a function with a profile that cannot
+            --  be matched by anything.
+
+            elsif Ekind (S) = E_Function
+              and then Ekind (E) = E_Abstract_State
+            then
+               Enter_Overloaded_Entity (S);
+               return;
+
             --  Ada 2012 (AI05-0165): For internally generated bodies of null
             --  procedures locate the internally generated spec. We enforce
             --  mode conformance since a tagged type may inherit from
@@ -10926,10 +10915,7 @@ package body Sem_Ch6 is
            and then not Is_Dispatching_Operation (S)
          then
             Make_Inequality_Operator (S);
-
-            if Ada_Version >= Ada_2012 then
-               Check_Untagged_Equality (S);
-            end if;
+            Check_Untagged_Equality (S);
          end if;
    end New_Overloaded_Entity;
 
@@ -11247,6 +11233,28 @@ package body Sem_Ch6 is
             Null_Exclusion_Static_Checks (Param_Spec);
          end if;
 
+         --  The following checks are relevant when SPARK_Mode is on as these
+         --  are not standard Ada legality rules.
+
+         if SPARK_Mode = On
+           and then Ekind_In (Scope (Formal), E_Function, E_Generic_Function)
+         then
+            --  A function cannot have a parameter of mode IN OUT or OUT
+
+            if Ekind_In (Formal, E_In_Out_Parameter, E_Out_Parameter) then
+               Error_Msg_N
+                 ("function cannot have parameter of mode `OUT` or `IN OUT` "
+                  & "(SPARK RM 6.1)", Formal);
+
+            --  A function cannot have a volatile formal parameter
+
+            elsif Is_SPARK_Volatile_Object (Formal) then
+               Error_Msg_N
+                 ("function cannot have a volatile formal parameter (SPARK RM "
+                  & "7.1.3(10))", Formal);
+            end if;
+         end if;
+
       <<Continue>>
          Next (Param_Spec);
       end loop;
@@ -11447,7 +11455,7 @@ package body Sem_Ch6 is
                --  parameter block, and it is this local variable that may
                --  require an actual subtype.
 
-               if Full_Expander_Active then
+               if Expander_Active then
                   Decl := Build_Actual_Subtype (T, Renamed_Object (Formal));
                else
                   Decl := Build_Actual_Subtype (T, Formal);
@@ -11483,10 +11491,17 @@ package body Sem_Ch6 is
             if Present (First_Stmt) then
                Insert_List_Before_And_Analyze (First_Stmt,
                  Freeze_Entity (Defining_Identifier (Decl), N));
+
+            --  Ditto if the type has a dynamic predicate, because the
+            --  generated function will mention the actual subtype.
+
+            elsif Has_Dynamic_Predicate_Aspect (T) then
+               Insert_List_Before_And_Analyze (Decl,
+                 Freeze_Entity (Defining_Identifier (Decl), N));
             end if;
 
             if Nkind (N) = N_Accept_Statement
-              and then Full_Expander_Active
+              and then Expander_Active
             then
                Set_Actual_Subtype (Renamed_Object (Formal),
                  Defining_Identifier (Decl));

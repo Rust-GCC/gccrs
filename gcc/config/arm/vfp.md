@@ -1,5 +1,5 @@
 ;; ARM VFP instruction patterns
-;; Copyright (C) 2003-2013 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2014 Free Software Foundation, Inc.
 ;; Written by CodeSourcery.
 ;;
 ;; This file is part of GCC.
@@ -1253,6 +1253,20 @@
    (set_attr "length" "8")]
 )
 
+(define_insn "*combine_vcvtf2i"
+  [(set (match_operand:SI 0 "s_register_operand" "=r")
+	(fix:SI (fix:SF (mult:SF (match_operand:SF 1 "s_register_operand" "t")
+				 (match_operand 2
+				 "const_double_vcvt_power_of_two" "Dp")))))]
+  "TARGET_32BIT && TARGET_HARD_FLOAT && TARGET_VFP3 && !flag_rounding_math"
+  "vcvt%?.s32.f32\\t%1, %1, %v2\;vmov%?\\t%0, %1"
+  [(set_attr "predicable" "yes")
+   (set_attr "predicable_short_it" "no")
+   (set_attr "ce_count" "2")
+   (set_attr "type" "f_cvtf2i")
+   (set_attr "length" "8")]
+ )
+
 ;; Store multiple insn used in function prologue.
 (define_insn "*push_multi_vfp"
   [(match_parallel 2 "multi_register_push"
@@ -1277,7 +1291,8 @@
   "vrint<vrint_variant>%?.<V_if_elem>\\t%<V_reg>0, %<V_reg>1"
   [(set_attr "predicable" "<vrint_predicable>")
    (set_attr "predicable_short_it" "no")
-   (set_attr "type" "f_rint<vfp_type>")]
+   (set_attr "type" "f_rint<vfp_type>")
+   (set_attr "conds" "<vrint_conds>")]
 )
 
 ;; MIN_EXPR and MAX_EXPR eventually map to 'smin' and 'smax' in RTL.
@@ -1293,7 +1308,8 @@
 		  (match_operand:SDF 2 "register_operand" "<F_constraint>")))]
   "TARGET_HARD_FLOAT && TARGET_FPU_ARMV8 <vfp_double_cond>"
   "vmaxnm.<V_if_elem>\\t%<V_reg>0, %<V_reg>1, %<V_reg>2"
-  [(set_attr "type" "f_minmax<vfp_type>")]
+  [(set_attr "type" "f_minmax<vfp_type>")
+   (set_attr "conds" "unconditional")]
 )
 
 (define_insn "smin<mode>3"
@@ -1302,7 +1318,8 @@
 		  (match_operand:SDF 2 "register_operand" "<F_constraint>")))]
   "TARGET_HARD_FLOAT && TARGET_FPU_ARMV8 <vfp_double_cond>"
   "vminnm.<V_if_elem>\\t%<V_reg>0, %<V_reg>1, %<V_reg>2"
-  [(set_attr "type" "f_minmax<vfp_type>")]
+  [(set_attr "type" "f_minmax<vfp_type>")
+   (set_attr "conds" "unconditional")]
 )
 
 ;; Unimplemented insns:

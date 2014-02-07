@@ -1,5 +1,5 @@
 /* Interface for -fdump-ada-spec capability.
-   Copyright (C) 2010-2013 Free Software Foundation, Inc.
+   Copyright (C) 2010-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -37,6 +37,6 @@ extern location_t decl_sloc (const_tree, bool);
 extern void collect_ada_nodes (tree, const char *);
 extern void collect_source_ref (const char *);
 extern void dump_ada_specs (void (*)(const char *),
-			    int (*)(const_tree, cpp_operation));
+			    int (*)(tree, cpp_operation));
 
 #endif /* ! C_ADA_SPEC_H */

@@ -1,5 +1,5 @@
 /* Handle #pragma, system V.4 style.  Supports #pragma weak and #pragma pack.
-   Copyright (C) 1992-2013 Free Software Foundation, Inc.
+   Copyright (C) 1992-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1384,7 +1384,7 @@ init_pragma (void)
 				      omp_pragmas_simd[i].id, true, true);
     }
 
-  if (flag_enable_cilkplus && !flag_preprocess_only)
+  if (flag_cilkplus && !flag_preprocess_only)
     cpp_register_deferred_pragma (parse_in, NULL, "simd", PRAGMA_CILK_SIMD,
 				  true, false);
 

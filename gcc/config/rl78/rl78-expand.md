@@ -1,5 +1,5 @@
 ;;  Machine Description for Renesas RL78 processors
-;;  Copyright (C) 2011-2013 Free Software Foundation, Inc.
+;;  Copyright (C) 2011-2014 Free Software Foundation, Inc.
 ;;  Contributed by Red Hat.
 
 ;; This file is part of GCC.
@@ -177,7 +177,7 @@
 (define_expand "one_cmplqi2"
   [(set (match_operand:QI         0 "nonimmediate_operand")
 	(xor:QI (match_operand:QI 1 "general_operand")
-		(const_int 255)))
+		(const_int -1)))
    ]
   ""
   "if (rl78_force_nonfar_2 (operands, gen_one_cmplqi2))

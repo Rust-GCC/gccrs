@@ -1,5 +1,5 @@
 /* Compiler driver program that can handle many languages.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -104,6 +104,9 @@ static int verbose_only_flag;
 /* Flag indicating how to print command line options of sub-processes.  */
 
 static int print_subprocess_help;
+
+/* Linker suffix passed to -fuse-ld=... */
+static const char *use_ld;
 
 /* Whether we should report subprocess execution times to a file.  */
 
@@ -535,20 +538,16 @@ proper position among the other output files.  */
 #define STACK_SPLIT_SPEC " %{fsplit-stack: --wrap=pthread_create}"
 
 #ifndef LIBASAN_SPEC
-#ifdef STATIC_LIBASAN_LIBS
-#define ADD_STATIC_LIBASAN_LIBS \
-  " %{static-libasan:" STATIC_LIBASAN_LIBS "}"
-#else
-#define ADD_STATIC_LIBASAN_LIBS
-#endif
+#define STATIC_LIBASAN_LIBS \
+  " %{static-libasan:%:include(libsanitizer.spec)%(link_libasan)}"
 #ifdef LIBASAN_EARLY_SPEC
-#define LIBASAN_SPEC ADD_STATIC_LIBASAN_LIBS
+#define LIBASAN_SPEC STATIC_LIBASAN_LIBS
 #elif defined(HAVE_LD_STATIC_DYNAMIC)
 #define LIBASAN_SPEC "%{static-libasan:" LD_STATIC_OPTION \
 		     "} -lasan %{static-libasan:" LD_DYNAMIC_OPTION "}" \
-		     ADD_STATIC_LIBASAN_LIBS
+		     STATIC_LIBASAN_LIBS
 #else
-#define LIBASAN_SPEC "-lasan" ADD_STATIC_LIBASAN_LIBS
+#define LIBASAN_SPEC "-lasan" STATIC_LIBASAN_LIBS
 #endif
 #endif
 
@@ -557,20 +556,16 @@ proper position among the other output files.  */
 #endif
 
 #ifndef LIBTSAN_SPEC
-#ifdef STATIC_LIBTSAN_LIBS
-#define ADD_STATIC_LIBTSAN_LIBS \
-  " %{static-libtsan:" STATIC_LIBTSAN_LIBS "}"
-#else
-#define ADD_STATIC_LIBTSAN_LIBS
-#endif
+#define STATIC_LIBTSAN_LIBS \
+  " %{static-libtsan:%:include(libsanitizer.spec)%(link_libtsan)}"
 #ifdef LIBTSAN_EARLY_SPEC
-#define LIBTSAN_SPEC ADD_STATIC_LIBTSAN_LIBS
+#define LIBTSAN_SPEC STATIC_LIBTSAN_LIBS
 #elif defined(HAVE_LD_STATIC_DYNAMIC)
 #define LIBTSAN_SPEC "%{static-libtsan:" LD_STATIC_OPTION \
 		     "} -ltsan %{static-libtsan:" LD_DYNAMIC_OPTION "}" \
-		     ADD_STATIC_LIBTSAN_LIBS
+		     STATIC_LIBTSAN_LIBS
 #else
-#define LIBTSAN_SPEC "-ltsan" ADD_STATIC_LIBTSAN_LIBS
+#define LIBTSAN_SPEC "-ltsan" STATIC_LIBTSAN_LIBS
 #endif
 #endif
 
@@ -579,34 +574,26 @@ proper position among the other output files.  */
 #endif
 
 #ifndef LIBLSAN_SPEC
-#ifdef STATIC_LIBLSAN_LIBS
-#define ADD_STATIC_LIBLSAN_LIBS \
-  " %{static-liblsan:" STATIC_LIBLSAN_LIBS "}"
-#else
-#define ADD_STATIC_LIBLSAN_LIBS
-#endif
+#define STATIC_LIBLSAN_LIBS \
+  " %{static-liblsan:%:include(libsanitizer.spec)%(link_liblsan)}"
 #ifdef HAVE_LD_STATIC_DYNAMIC
 #define LIBLSAN_SPEC "%{!shared:%{static-liblsan:" LD_STATIC_OPTION \
 		     "} -llsan %{static-liblsan:" LD_DYNAMIC_OPTION "}" \
-		     ADD_STATIC_LIBLSAN_LIBS "}"
+		     STATIC_LIBLSAN_LIBS "}"
 #else
-#define LIBLSAN_SPEC "%{!shared:-llsan" ADD_STATIC_LIBLSAN_LIBS "}"
+#define LIBLSAN_SPEC "%{!shared:-llsan" STATIC_LIBLSAN_LIBS "}"
 #endif
 #endif
 
 #ifndef LIBUBSAN_SPEC
-#ifdef STATIC_LIBUBSAN_LIBS
-#define ADD_STATIC_LIBUBSAN_LIBS \
-  " %{static-libubsan:" STATIC_LIBUBSAN_LIBS "}"
-#else
-#define ADD_STATIC_LIBUBSAN_LIBS
-#endif
+#define STATIC_LIBUBSAN_LIBS \
+  " %{static-libubsan:%:include(libsanitizer.spec)%(link_libubsan)}"
 #ifdef HAVE_LD_STATIC_DYNAMIC
 #define LIBUBSAN_SPEC "%{static-libubsan:" LD_STATIC_OPTION \
 		     "} -lubsan %{static-libubsan:" LD_DYNAMIC_OPTION "}" \
-		     ADD_STATIC_LIBUBSAN_LIBS
+		     STATIC_LIBUBSAN_LIBS
 #else
-#define LIBUBSAN_SPEC "-lubsan" ADD_STATIC_LIBUBSAN_LIBS
+#define LIBUBSAN_SPEC "-lubsan" STATIC_LIBUBSAN_LIBS
 #endif
 #endif
 
@@ -3395,6 +3382,14 @@ driver_handle_option (struct gcc_options *opts,
       print_file_name = "libgcc.a";
       do_save = false;
       break;
+
+    case OPT_fuse_ld_bfd:
+       use_ld = ".bfd";
+       break;
+
+    case OPT_fuse_ld_gold:
+       use_ld = ".gold";
+       break;
 
     case OPT_fcompare_debug_second:
       compare_debug_second = 1;
@@ -6724,6 +6719,38 @@ main (int argc, char **argv)
 
   if (print_prog_name)
     {
+      if (use_ld != NULL && ! strcmp (print_prog_name, "ld"))
+	{
+	  /* Append USE_LD to to the default linker.  */
+#ifdef DEFAULT_LINKER
+	  char *ld;
+# ifdef HAVE_HOST_EXECUTABLE_SUFFIX
+	  int len = (sizeof (DEFAULT_LINKER)
+		     - sizeof (HOST_EXECUTABLE_SUFFIX));
+	  ld = NULL;
+	  if (len > 0)
+	    {
+	      char *default_linker = xstrdup (DEFAULT_LINKER);
+	      /* Strip HOST_EXECUTABLE_SUFFIX if DEFAULT_LINKER contains
+		 HOST_EXECUTABLE_SUFFIX.  */
+	      if (! strcmp (&default_linker[len], HOST_EXECUTABLE_SUFFIX))
+		{
+		  default_linker[len] = '\0';
+		  ld = concat (default_linker, use_ld,
+			       HOST_EXECUTABLE_SUFFIX, NULL);
+		}
+	    }
+	  if (ld == NULL)
+# endif
+	  ld = concat (DEFAULT_LINKER, use_ld, NULL);
+	  if (access (ld, X_OK) == 0)
+	    {
+	      printf ("%s\n", ld);
+	      return (0);
+	    }
+#endif
+	  print_prog_name = concat (print_prog_name, use_ld, NULL);
+	}
       char *newname = find_a_file (&exec_prefixes, print_prog_name, X_OK, 0);
       printf ("%s\n", (newname ? newname : print_prog_name));
       return (0);
@@ -6813,7 +6840,7 @@ main (int argc, char **argv)
     {
       printf (_("%s %s%s\n"), progname, pkgversion_string,
 	      version_string);
-      printf ("Copyright %s 2013 Free Software Foundation, Inc.\n",
+      printf ("Copyright %s 2014 Free Software Foundation, Inc.\n",
 	      _("(C)"));
       fputs (_("This is free software; see the source for copying conditions.  There is NO\n\
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"),

@@ -35,6 +35,12 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
+@LIBBACKTRACE_SUPPORTED_TRUE@am__append_1 = -DSANITIZER_LIBBACKTRACE -DSANITIZER_CP_DEMANGLE \
+@LIBBACKTRACE_SUPPORTED_TRUE@	       -I $(top_srcdir)/../libbacktrace \
+@LIBBACKTRACE_SUPPORTED_TRUE@	       -I $(top_builddir)/libbacktrace \
+@LIBBACKTRACE_SUPPORTED_TRUE@	       -I $(top_srcdir)/../include \
+@LIBBACKTRACE_SUPPORTED_TRUE@	       -include $(top_srcdir)/libbacktrace/backtrace-rename.h
+
 subdir = sanitizer_common
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -44,6 +50,7 @@ am__aclocal_m4_deps = $(top_srcdir)/../config/acx.m4 \
 	$(top_srcdir)/../config/libstdc++-raw-cxx.m4 \
 	$(top_srcdir)/../config/multi.m4 \
 	$(top_srcdir)/../config/override.m4 \
+	$(top_srcdir)/../config/stdint.m4 \
 	$(top_srcdir)/../ltoptions.m4 $(top_srcdir)/../ltsugar.m4 \
 	$(top_srcdir)/../ltversion.m4 $(top_srcdir)/../lt~obsolete.m4 \
 	$(top_srcdir)/acinclude.m4 $(top_srcdir)/../libtool.m4 \
@@ -51,26 +58,29 @@ am__aclocal_m4_deps = $(top_srcdir)/../config/acx.m4 \
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/../mkinstalldirs
+CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libsanitizer_common_la_LIBADD =
 am__objects_1 = sanitizer_allocator.lo sanitizer_common.lo \
-	sanitizer_common_libcdep.lo sanitizer_flags.lo \
-	sanitizer_libc.lo sanitizer_linux.lo \
-	sanitizer_linux_libcdep.lo sanitizer_mac.lo \
+	sanitizer_common_libcdep.lo sanitizer_coverage.lo \
+	sanitizer_flags.lo sanitizer_libc.lo sanitizer_libignore.lo \
+	sanitizer_linux.lo sanitizer_linux_libcdep.lo sanitizer_mac.lo \
 	sanitizer_platform_limits_linux.lo \
-	sanitizer_platform_limits_posix.lo sanitizer_posix.lo \
-	sanitizer_posix_libcdep.lo sanitizer_printf.lo \
-	sanitizer_stackdepot.lo sanitizer_stacktrace.lo \
+	sanitizer_platform_limits_posix.lo sanitizer_posix_libcdep.lo \
+	sanitizer_posix.lo sanitizer_printf.lo sanitizer_stackdepot.lo \
+	sanitizer_stacktrace.lo sanitizer_stacktrace_libcdep.lo \
 	sanitizer_stoptheworld_linux_libcdep.lo \
 	sanitizer_suppressions.lo \
 	sanitizer_symbolizer_posix_libcdep.lo \
-	sanitizer_symbolizer_win.lo sanitizer_thread_registry.lo \
+	sanitizer_symbolizer_win.lo sanitizer_symbolizer.lo \
+	sanitizer_symbolizer_libbacktrace.lo \
+	sanitizer_symbolizer_libcdep.lo sanitizer_thread_registry.lo \
 	sanitizer_win.lo
 am_libsanitizer_common_la_OBJECTS = $(am__objects_1)
 libsanitizer_common_la_OBJECTS = $(am_libsanitizer_common_la_OBJECTS)
-DEFAULT_INCLUDES = -I.@am__isrc@
+DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/../depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
@@ -87,12 +97,16 @@ SOURCES = $(libsanitizer_common_la_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 ACLOCAL = @ACLOCAL@
+ALLOC_FILE = @ALLOC_FILE@
 AMTAR = @AMTAR@
 AR = @AR@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
+BACKTRACE_SUPPORTED = @BACKTRACE_SUPPORTED@
+BACKTRACE_SUPPORTS_THREADS = @BACKTRACE_SUPPORTS_THREADS@
+BACKTRACE_USES_MALLOC = @BACKTRACE_USES_MALLOC@
 CC = @CC@
 CCAS = @CCAS@
 CCASDEPMODE = @CCASDEPMODE@
@@ -116,6 +130,7 @@ ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 FGREP = @FGREP@
+FORMAT_FILE = @FORMAT_FILE@
 GREP = @GREP@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
@@ -155,6 +170,7 @@ SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
 VERSION = @VERSION@
+VIEW_FILE = @VIEW_FILE@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
 abs_top_builddir = @abs_top_builddir@
@@ -192,6 +208,10 @@ infodir = @infodir@
 install_sh = @install_sh@
 libdir = @libdir@
 libexecdir = @libexecdir@
+link_libasan = @link_libasan@
+link_liblsan = @link_liblsan@
+link_libtsan = @link_libtsan@
+link_libubsan = @link_libubsan@
 localedir = @localedir@
 localstatedir = @localstatedir@
 mandir = @mandir@
@@ -217,36 +237,43 @@ toolexeclibdir = @toolexeclibdir@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-AM_CPPFLAGS = -I $(top_srcdir)/include 
+AM_CPPFLAGS = -I $(top_srcdir)/include -isystem $(top_srcdir)/include/system
 
 # May be used by toolexeclibdir.
 gcc_version := $(shell cat $(top_srcdir)/../gcc/BASE-VER)
 AM_CXXFLAGS = -Wall -W -Wno-unused-parameter -Wwrite-strings -pedantic \
 	-Wno-long-long -fPIC -fno-builtin -fno-exceptions -fno-rtti \
 	-fomit-frame-pointer -funwind-tables -fvisibility=hidden \
-	-Wno-variadic-macros $(LIBSTDCXX_RAW_CXX_CXXFLAGS)
+	-Wno-variadic-macros $(LIBSTDCXX_RAW_CXX_CXXFLAGS) \
+	$(am__append_1)
 ACLOCAL_AMFLAGS = -I m4
 noinst_LTLIBRARIES = libsanitizer_common.la
 sanitizer_common_files = \
 	sanitizer_allocator.cc \
 	sanitizer_common.cc \
 	sanitizer_common_libcdep.cc \
+	sanitizer_coverage.cc \
 	sanitizer_flags.cc \
 	sanitizer_libc.cc \
+	sanitizer_libignore.cc \
 	sanitizer_linux.cc \
 	sanitizer_linux_libcdep.cc \
 	sanitizer_mac.cc \
 	sanitizer_platform_limits_linux.cc \
 	sanitizer_platform_limits_posix.cc \
-	sanitizer_posix.cc \
 	sanitizer_posix_libcdep.cc \
+	sanitizer_posix.cc \
 	sanitizer_printf.cc \
 	sanitizer_stackdepot.cc \
 	sanitizer_stacktrace.cc \
+	sanitizer_stacktrace_libcdep.cc \
 	sanitizer_stoptheworld_linux_libcdep.cc \
 	sanitizer_suppressions.cc \
 	sanitizer_symbolizer_posix_libcdep.cc \
 	sanitizer_symbolizer_win.cc \
+	sanitizer_symbolizer.cc \
+	sanitizer_symbolizer_libbacktrace.cc \
+	sanitizer_symbolizer_libcdep.cc \
 	sanitizer_thread_registry.cc \
 	sanitizer_win.cc
 
@@ -346,8 +373,10 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_allocator.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_common.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_common_libcdep.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_coverage.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_flags.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_libc.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_libignore.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_linux.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_linux_libcdep.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_mac.Plo@am__quote@
@@ -358,8 +387,12 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_printf.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_stackdepot.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_stacktrace.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_stacktrace_libcdep.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_stoptheworld_linux_libcdep.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_suppressions.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_symbolizer.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_symbolizer_libbacktrace.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_symbolizer_libcdep.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_symbolizer_posix_libcdep.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_symbolizer_win.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sanitizer_thread_registry.Plo@am__quote@

@@ -941,7 +941,7 @@ package body Exp_Ch3 is
       Rec_Id            : Entity_Id;
       Loc               : Source_Ptr;
       Enclosing_Func_Id : Entity_Id;
-      Sequence          : Nat     := 1;
+      Sequence          : Nat := 1;
       Type_Def          : Node_Id;
       V                 : Node_Id;
 
@@ -984,7 +984,7 @@ package body Exp_Ch3 is
       begin
          Case_Node := New_Node (N_Case_Statement, Loc);
 
-         --  Replace the discriminant which controls the variant, with the name
+         --  Replace the discriminant which controls the variant with the name
          --  of the formal of the checking function.
 
          Set_Expression (Case_Node, Make_Identifier (Loc, Chars (Case_Id)));
@@ -1863,9 +1863,7 @@ package body Exp_Ch3 is
          --  Suppress the tag adjustment when VM_Target because VM tags are
          --  represented implicitly in objects.
 
-         if Is_Tagged_Type (Typ)
-           and then Tagged_Type_Expansion
-         then
+         if Is_Tagged_Type (Typ) and then Tagged_Type_Expansion then
             Append_To (Res,
               Make_Assignment_Statement (N_Loc,
                 Name       =>
@@ -2386,10 +2384,16 @@ package body Exp_Ch3 is
                               Component_List (Record_Extension_Node));
 
                begin
-                  --  The parent field must be initialized first because
-                  --  the offset of the new discriminants may depend on it
+                  --  The parent field must be initialized first because the
+                  --  offset of the new discriminants may depend on it. This is
+                  --  not needed if the parent is an interface type because in
+                  --  such case the initialization of the _parent field was not
+                  --  generated.
 
-                  Prepend_To (Body_Stmts, Remove_Head (Stmts));
+                  if not Is_Interface (Etype (Rec_Ent)) then
+                     Prepend_To (Body_Stmts, Remove_Head (Stmts));
+                  end if;
+
                   Append_List_To (Body_Stmts, Stmts);
                end;
             end if;
@@ -5500,7 +5504,9 @@ package body Exp_Ch3 is
                   --  itypes may have been generated already, and the full
                   --  chain must be preserved for final freezing. Finally,
                   --  preserve Comes_From_Source setting, so that debugging
-                  --  and cross-referencing information is properly kept.
+                  --  and cross-referencing information is properly kept, and
+                  --  preserve source location, to prevent spurious errors when
+                  --  entities are declared (they must have their own Sloc).
 
                   declare
                      New_Id    : constant Entity_Id := Defining_Identifier (N);
@@ -5515,6 +5521,7 @@ package body Exp_Ch3 is
                      Set_Chars   (Defining_Identifier (N), Chars   (Def_Id));
                      Set_Homonym (Defining_Identifier (N), Homonym (Def_Id));
                      Set_Ekind   (Defining_Identifier (N), Ekind   (Def_Id));
+                     Set_Sloc    (Defining_Identifier (N), Sloc    (Def_Id));
 
                      Set_Comes_From_Source (Def_Id, False);
                      Exchange_Entities (Defining_Identifier (N), Def_Id);
@@ -5554,7 +5561,7 @@ package body Exp_Ch3 is
                   Apply_Constraint_Check (Expr, Typ);
 
                   --  If the expression has been marked as requiring a range
-                  --  generate it now and reset the flag.
+                  --  check, generate it now and reset the flag.
 
                   if Do_Range_Check (Expr) then
                      Set_Do_Range_Check (Expr, False);

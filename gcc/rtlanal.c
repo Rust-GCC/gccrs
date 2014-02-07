@@ -1,5 +1,5 @@
 /* Analyze RTL for GNU compiler.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1178,6 +1178,27 @@ set_noop_p (const_rtx set)
 	return 0;
       src = SUBREG_REG (src);
       dst = SUBREG_REG (dst);
+    }
+
+  /* It is a NOOP if destination overlaps with selected src vector
+     elements.  */
+  if (GET_CODE (src) == VEC_SELECT
+      && REG_P (XEXP (src, 0)) && REG_P (dst)
+      && HARD_REGISTER_P (XEXP (src, 0))
+      && HARD_REGISTER_P (dst))
+    {
+      int i;
+      rtx par = XEXP (src, 1);
+      rtx src0 = XEXP (src, 0);
+      int c0 = INTVAL (XVECEXP (par, 0, 0));
+      HOST_WIDE_INT offset = GET_MODE_UNIT_SIZE (GET_MODE (src0)) * c0;
+
+      for (i = 1; i < XVECLEN (par, 0); i++)
+	if (INTVAL (XVECEXP (par, 0, i)) != c0 + i)
+	  return 0;
+      return
+	simplify_subreg_regno (REGNO (src0), GET_MODE (src0),
+			       offset, GET_MODE (dst)) == (int) REGNO (dst);
     }
 
   return (REG_P (src) && REG_P (dst)
@@ -5030,23 +5051,24 @@ canonicalize_condition (rtx insn, rtx cond, int reverse, rtx *earliest,
 
 	     ??? This mode check should perhaps look more like the mode check
 	     in simplify_comparison in combine.  */
-
-	  if ((GET_CODE (SET_SRC (set)) == COMPARE
-	       || (((code == NE
-		     || (code == LT
-			 && val_signbit_known_set_p (inner_mode,
-						     STORE_FLAG_VALUE))
+	  if (((GET_MODE_CLASS (mode) == MODE_CC)
+	       != (GET_MODE_CLASS (inner_mode) == MODE_CC))
+	      && mode != VOIDmode
+	      && inner_mode != VOIDmode)
+	    break;
+	  if (GET_CODE (SET_SRC (set)) == COMPARE
+	      || (((code == NE
+		    || (code == LT
+			&& val_signbit_known_set_p (inner_mode,
+						    STORE_FLAG_VALUE))
 #ifdef FLOAT_STORE_FLAG_VALUE
-		     || (code == LT
-			 && SCALAR_FLOAT_MODE_P (inner_mode)
-			 && (fsfv = FLOAT_STORE_FLAG_VALUE (inner_mode),
-			     REAL_VALUE_NEGATIVE (fsfv)))
+		    || (code == LT
+			&& SCALAR_FLOAT_MODE_P (inner_mode)
+			&& (fsfv = FLOAT_STORE_FLAG_VALUE (inner_mode),
+			    REAL_VALUE_NEGATIVE (fsfv)))
 #endif
-		     ))
-		   && COMPARISON_P (SET_SRC (set))))
-	      && (((GET_MODE_CLASS (mode) == MODE_CC)
-		   == (GET_MODE_CLASS (inner_mode) == MODE_CC))
-		  || mode == VOIDmode || inner_mode == VOIDmode))
+		    ))
+		  && COMPARISON_P (SET_SRC (set))))
 	    x = SET_SRC (set);
 	  else if (((code == EQ
 		     || (code == GE
@@ -5059,15 +5081,25 @@ canonicalize_condition (rtx insn, rtx cond, int reverse, rtx *earliest,
 			     REAL_VALUE_NEGATIVE (fsfv)))
 #endif
 		     ))
-		   && COMPARISON_P (SET_SRC (set))
-		   && (((GET_MODE_CLASS (mode) == MODE_CC)
-			== (GET_MODE_CLASS (inner_mode) == MODE_CC))
-		       || mode == VOIDmode || inner_mode == VOIDmode))
-
+		   && COMPARISON_P (SET_SRC (set)))
 	    {
 	      reverse_code = 1;
 	      x = SET_SRC (set);
 	    }
+	  else if ((code == EQ || code == NE)
+		   && GET_CODE (SET_SRC (set)) == XOR)
+	    /* Handle sequences like:
+
+	       (set op0 (xor X Y))
+	       ...(eq|ne op0 (const_int 0))...
+
+	       in which case:
+
+	       (eq op0 (const_int 0)) reduces to (eq X Y)
+	       (ne op0 (const_int 0)) reduces to (ne X Y)
+
+	       This is the form used by MIPS16, for example.  */
+	    x = SET_SRC (set);
 	  else
 	    break;
 	}

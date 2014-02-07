@@ -1,5 +1,5 @@
 /* Language-dependent hooks for LTO.
-   Copyright (C) 2009-2013 Free Software Foundation, Inc.
+   Copyright (C) 2009-2014 Free Software Foundation, Inc.
    Contributed by CodeSourcery, Inc.
 
 This file is part of GCC.
@@ -1183,7 +1183,7 @@ lto_init (void)
 			   build_reference_type (va_list_type_node));
     }
   
-  if (flag_enable_cilkplus)
+  if (flag_cilkplus)
     cilk_init_builtins ();
 
   targetm.init_builtins ();

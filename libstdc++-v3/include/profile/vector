@@ -1,6 +1,6 @@
 // Profiling vector implementation -*- C++ -*-
 
-// Copyright (C) 2009-2013 Free Software Foundation, Inc.
+// Copyright (C) 2009-2014 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -77,8 +77,16 @@ namespace __profile
       _M_base() const _GLIBCXX_NOEXCEPT { return *this; }
 
       // 23.2.4.1 construct/copy/destroy:
+
+      vector() _GLIBCXX_NOEXCEPT
+      : _Base()
+      {
+        __profcxx_vector_construct(this, this->capacity());
+        __profcxx_vector_construct2(this);
+      }
+
       explicit
-      vector(const _Allocator& __a = _Allocator()) _GLIBCXX_NOEXCEPT
+      vector(const _Allocator& __a) _GLIBCXX_NOEXCEPT
       : _Base(__a)
       {
         __profcxx_vector_construct(this, this->capacity());

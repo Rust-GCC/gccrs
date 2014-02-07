@@ -1,6 +1,6 @@
 ;; Instruction Classification for ARM for GNU compiler.
 
-;; Copyright (C) 1991-2013 Free Software Foundation, Inc.
+;; Copyright (C) 1991-2014 Free Software Foundation, Inc.
 ;; Contributed by ARM Ltd.
 
 ;; This file is part of GCC.
@@ -152,6 +152,7 @@
 ; store2             store 2 words to memory from arm registers.
 ; store3             store 3 words to memory from arm registers.
 ; store4             store 4 (or more) words to memory from arm registers.
+; trap               cause a trap in the kernel.
 ; udiv               unsigned division.
 ; umaal              unsigned multiply accumulate accumulate long.
 ; umlal              unsigned multiply accumulate long.
@@ -326,6 +327,7 @@
 ; neon_mul_b_long
 ; neon_mul_h_long
 ; neon_mul_s_long
+; neon_mul_d_long
 ; neon_mul_h_scalar
 ; neon_mul_h_scalar_q
 ; neon_mul_s_scalar
@@ -519,6 +521,15 @@
 ; neon_fp_div_s_q
 ; neon_fp_div_d
 ; neon_fp_div_d_q
+;
+; The classification below is for Crypto instructions.
+;
+; crypto_aes
+; crypto_sha1_xor
+; crypto_sha1_fast
+; crypto_sha1_slow
+; crypto_sha256_fast
+; crypto_sha256_slow
 
 (define_attr "type"
  "adc_imm,\
@@ -543,6 +554,7 @@
   clz,\
   no_insn,\
   csel,\
+  crc,\
   extend,\
   f_cvt,\
   f_cvtf2i,\
@@ -645,6 +657,7 @@
   store2,\
   store3,\
   store4,\
+  trap,\
   udiv,\
   umaal,\
   umlal,\
@@ -821,6 +834,7 @@
   neon_mul_b_long,\
   neon_mul_h_long,\
   neon_mul_s_long,\
+  neon_mul_d_long,\
   neon_mul_h_scalar,\
   neon_mul_h_scalar_q,\
   neon_mul_s_scalar,\
@@ -1035,7 +1049,14 @@
   neon_fp_div_s,\
   neon_fp_div_s_q,\
   neon_fp_div_d,\
-  neon_fp_div_d_q"
+  neon_fp_div_d_q,\
+\
+  crypto_aes,\
+  crypto_sha1_xor,\
+  crypto_sha1_fast,\
+  crypto_sha1_slow,\
+  crypto_sha256_fast,\
+  crypto_sha256_slow"
    (const_string "untyped"))
 
 ; Is this an (integer side) multiply with a 32-bit (or smaller) result?

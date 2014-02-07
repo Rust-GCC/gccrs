@@ -1,5 +1,5 @@
 /* Data and Control Flow Analysis for Trees.
-   Copyright (C) 2001-2013 Free Software Foundation, Inc.
+   Copyright (C) 2001-2014 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@redhat.com>
 
 This file is part of GCC.
@@ -93,5 +93,6 @@ extern tree gimplify_build1 (gimple_stmt_iterator *, enum tree_code,
 			     tree, tree);
 extern void extract_true_false_edges_from_block (basic_block, edge *, edge *);
 extern unsigned int execute_fixup_cfg (void);
+extern unsigned int split_critical_edges (void);
 
 #endif /* _TREE_CFG_H  */

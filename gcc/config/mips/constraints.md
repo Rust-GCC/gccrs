@@ -1,5 +1,5 @@
 ;; Constraint definitions for MIPS.
-;; Copyright (C) 2006-2013 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2014 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -91,12 +91,6 @@
 ;; instructions.  The core MIPS32 ISA provides a hi/lo madd,
 ;; but the DSP version allows any accumulator target.
 (define_register_constraint "ka" "ISA_HAS_DSP_MULT ? ACC_REGS : MD_REGS")
-
-;; The register class to use for an allocatable division result.
-;; MIPS16 uses M16_REGS because LO is fixed.
-(define_register_constraint "kl"
-  "TARGET_MIPS16 ? M16_REGS : TARGET_BIG_ENDIAN ? MD1_REG : MD0_REG"
-  "@internal")
 
 (define_constraint "kf"
   "@internal"

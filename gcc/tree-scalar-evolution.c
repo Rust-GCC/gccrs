@@ -1,5 +1,5 @@
 /* Scalar evolution detector.
-   Copyright (C) 2003-2013 Free Software Foundation, Inc.
+   Copyright (C) 2003-2014 Free Software Foundation, Inc.
    Contributed by Sebastian Pop <s.pop@laposte.net>
 
 This file is part of GCC.
@@ -280,10 +280,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-ssa.h"
 #include "cfgloop.h"
 #include "tree-chrec.h"
+#include "pointer-set.h"
+#include "tree-affine.h"
 #include "tree-scalar-evolution.h"
 #include "dumpfile.h"
 #include "params.h"
 #include "tree-ssa-propagate.h"
+#include "gimple-fold.h"
+#include "gimplify-me.h"
 
 static tree analyze_scalar_evolution_1 (struct loop *, tree, tree);
 static tree analyze_scalar_evolution_for_address_of (struct loop *loop,
@@ -1380,6 +1384,64 @@ follow_ssa_edge (struct loop *loop, gimple def, gimple halting_phi,
 }
 
 
+/* Simplify PEELED_CHREC represented by (init_cond, arg) in LOOP.
+   Handle below case and return the corresponding POLYNOMIAL_CHREC:
+
+   # i_17 = PHI <i_13(5), 0(3)>
+   # _20 = PHI <_5(5), start_4(D)(3)>
+   ...
+   i_13 = i_17 + 1;
+   _5 = start_4(D) + i_13;
+
+   Though variable _20 appears as a PEELED_CHREC in the form of
+   (start_4, _5)_LOOP, it's a POLYNOMIAL_CHREC like {start_4, 1}_LOOP.
+
+   See PR41488.  */
+
+static tree
+simplify_peeled_chrec (struct loop *loop, tree arg, tree init_cond)
+{
+  aff_tree aff1, aff2;
+  tree ev, left, right, type, step_val;
+  pointer_map_t *peeled_chrec_map = NULL;
+
+  ev = instantiate_parameters (loop, analyze_scalar_evolution (loop, arg));
+  if (ev == NULL_TREE || TREE_CODE (ev) != POLYNOMIAL_CHREC)
+    return chrec_dont_know;
+
+  left = CHREC_LEFT (ev);
+  right = CHREC_RIGHT (ev);
+  type = TREE_TYPE (left);
+  step_val = chrec_fold_plus (type, init_cond, right);
+
+  /* Transform (init, {left, right}_LOOP)_LOOP to {init, right}_LOOP
+     if "left" equals to "init + right".  */
+  if (operand_equal_p (left, step_val, 0))
+    {
+      if (dump_file && (dump_flags & TDF_SCEV))
+	fprintf (dump_file, "Simplify PEELED_CHREC into POLYNOMIAL_CHREC.\n");
+
+      return build_polynomial_chrec (loop->num, init_cond, right);
+    }
+
+  /* Try harder to check if they are equal.  */
+  tree_to_aff_combination_expand (left, type, &aff1, &peeled_chrec_map);
+  tree_to_aff_combination_expand (step_val, type, &aff2, &peeled_chrec_map);
+  free_affine_expand_cache (&peeled_chrec_map);
+  aff_combination_scale (&aff2, double_int_minus_one);
+  aff_combination_add (&aff1, &aff2);
+
+  /* Transform (init, {left, right}_LOOP)_LOOP to {init, right}_LOOP
+     if "left" equals to "init + right".  */
+  if (aff_combination_zero_p (&aff1))
+    {
+      if (dump_file && (dump_flags & TDF_SCEV))
+	fprintf (dump_file, "Simplify PEELED_CHREC into POLYNOMIAL_CHREC.\n");
+
+      return build_polynomial_chrec (loop->num, init_cond, right);
+    }
+  return chrec_dont_know;
+}
 
 /* Given a LOOP_PHI_NODE, this function determines the evolution
    function from LOOP_PHI_NODE to LOOP_PHI_NODE in the loop.  */
@@ -1392,6 +1454,7 @@ analyze_evolution_in_loop (gimple loop_phi_node,
   tree evolution_function = chrec_not_analyzed_yet;
   struct loop *loop = loop_containing_stmt (loop_phi_node);
   basic_block bb;
+  static bool simplify_peeled_chrec_p = true;
 
   if (dump_file && (dump_flags & TDF_SCEV))
     {
@@ -1442,7 +1505,19 @@ analyze_evolution_in_loop (gimple loop_phi_node,
 	 all the other iterations it has the value of ARG.
 	 For the moment, PEELED_CHREC nodes are not built.  */
       if (res != t_true)
-	ev_fn = chrec_dont_know;
+	{
+	  ev_fn = chrec_dont_know;
+	  /* Try to recognize POLYNOMIAL_CHREC which appears in
+	     the form of PEELED_CHREC, but guard the process with
+	     a bool variable to keep the analyzer from infinite
+	     recurrence for real PEELED_RECs.  */
+	  if (simplify_peeled_chrec_p && TREE_CODE (arg) == SSA_NAME)
+	    {
+	      simplify_peeled_chrec_p = false;
+	      ev_fn = simplify_peeled_chrec (loop, arg, init_cond);
+	      simplify_peeled_chrec_p = true;
+	    }
+	}
 
       /* When there are multiple back edges of the loop (which in fact never
 	 happens currently, but nevertheless), merge their evolutions.  */
@@ -1658,7 +1733,7 @@ interpret_rhs_expr (struct loop *loop, gimple at_stmt,
 
 	  base = get_inner_reference (TREE_OPERAND (rhs1, 0),
 				      &bitsize, &bitpos, &offset,
-				      &mode, &unsignedp, &volatilep);
+				      &mode, &unsignedp, &volatilep, false);
 
 	  if (TREE_CODE (base) == MEM_REF)
 	    {
@@ -3276,7 +3351,7 @@ scev_const_prop (void)
   if (number_of_loops (cfun) <= 1)
     return 0;
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       loop = bb->loop_father;
 
@@ -3336,7 +3411,7 @@ scev_const_prop (void)
     {
       edge exit;
       tree def, rslt, niter;
-      gimple_stmt_iterator bsi;
+      gimple_stmt_iterator gsi;
 
       /* If we do not know exact number of iterations of the loop, we cannot
 	 replace the final value.  */
@@ -3351,7 +3426,7 @@ scev_const_prop (void)
       /* Ensure that it is possible to insert new statements somewhere.  */
       if (!single_pred_p (exit->dest))
 	split_loop_exit_edge (exit);
-      bsi = gsi_after_labels (exit->dest);
+      gsi = gsi_after_labels (exit->dest);
 
       ex_loop = superloop_at_depth (loop,
 				    loop_depth (exit->dest->loop_father) + 1);
@@ -3374,7 +3449,9 @@ scev_const_prop (void)
 	      continue;
 	    }
 
-	  def = analyze_scalar_evolution_in_loop (ex_loop, loop, def, NULL);
+	  bool folded_casts;
+	  def = analyze_scalar_evolution_in_loop (ex_loop, loop, def,
+						  &folded_casts);
 	  def = compute_overall_effect_of_inner_loop (ex_loop, def);
 	  if (!tree_does_not_contain_chrecs (def)
 	      || chrec_contains_symbols_defined_in_loop (def, ex_loop->num)
@@ -3412,10 +3489,37 @@ scev_const_prop (void)
 	  def = unshare_expr (def);
 	  remove_phi_node (&psi, false);
 
-	  def = force_gimple_operand_gsi (&bsi, def, false, NULL_TREE,
-      					  true, GSI_SAME_STMT);
+	  /* If def's type has undefined overflow and there were folded
+	     casts, rewrite all stmts added for def into arithmetics
+	     with defined overflow behavior.  */
+	  if (folded_casts && TYPE_OVERFLOW_UNDEFINED (TREE_TYPE (def)))
+	    {
+	      gimple_seq stmts;
+	      gimple_stmt_iterator gsi2;
+	      def = force_gimple_operand (def, &stmts, true, NULL_TREE);
+	      gsi2 = gsi_start (stmts);
+	      while (!gsi_end_p (gsi2))
+		{
+		  gimple stmt = gsi_stmt (gsi2);
+		  gimple_stmt_iterator gsi3 = gsi2;
+		  gsi_next (&gsi2);
+		  gsi_remove (&gsi3, false);
+		  if (is_gimple_assign (stmt)
+		      && arith_code_with_undefined_signed_overflow
+					(gimple_assign_rhs_code (stmt)))
+		    gsi_insert_seq_before (&gsi,
+					   rewrite_to_defined_overflow (stmt),
+					   GSI_SAME_STMT);
+		  else
+		    gsi_insert_before (&gsi, stmt, GSI_SAME_STMT);
+		}
+	    }
+	  else
+	    def = force_gimple_operand_gsi (&gsi, def, false, NULL_TREE,
+					    true, GSI_SAME_STMT);
+
 	  ass = gimple_build_assign (rslt, def);
-	  gsi_insert_before (&bsi, ass, GSI_SAME_STMT);
+	  gsi_insert_before (&gsi, ass, GSI_SAME_STMT);
 	  if (dump_file)
 	    {
 	      print_gimple_stmt (dump_file, ass, 0, 0);

@@ -1,5 +1,5 @@
 /* Combine stack adjustments.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -95,7 +95,7 @@ combine_stack_adjustments (void)
 {
   basic_block bb;
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     combine_stack_adjustments_for_block (bb);
 }
 
@@ -567,6 +567,7 @@ combine_stack_adjustments_for_block (basic_block bb)
 	      && try_apply_stack_adjustment (insn, reflist, 0,
 					     -last_sp_adjust))
 	    {
+	      rtx note;
 	      if (last2_sp_set)
 		maybe_move_args_size_note (last2_sp_set, last_sp_set, false);
 	      else
@@ -576,6 +577,11 @@ combine_stack_adjustments_for_block (basic_block bb)
 	      reflist = NULL;
 	      last_sp_set = NULL_RTX;
 	      last_sp_adjust = 0;
+	      /* We no longer adjust stack size.  Whoever adjusted it earlier
+		 hopefully got the note right.  */
+	      note = find_reg_note (insn, REG_ARGS_SIZE, NULL_RTX);
+	      if (note)
+		remove_note (insn, note);
 	      continue;
 	    }
 	}

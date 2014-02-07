@@ -1,11 +1,18 @@
-AM_CPPFLAGS = -I $(top_srcdir)/include 
- 
+AM_CPPFLAGS = -I $(top_srcdir)/include -isystem $(top_srcdir)/include/system
+
 # May be used by toolexeclibdir.
 gcc_version := $(shell cat $(top_srcdir)/../gcc/BASE-VER)
 
 DEFS = -D_GNU_SOURCE -D_DEBUG -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS 
 AM_CXXFLAGS = -Wall -W -Wno-unused-parameter -Wwrite-strings -pedantic -Wno-long-long  -fPIC -fno-builtin -fno-exceptions -fno-rtti -fomit-frame-pointer -funwind-tables -fvisibility=hidden -Wno-variadic-macros
 AM_CXXFLAGS += $(LIBSTDCXX_RAW_CXX_CXXFLAGS)
+if LIBBACKTRACE_SUPPORTED
+AM_CXXFLAGS += -DSANITIZER_LIBBACKTRACE -DSANITIZER_CP_DEMANGLE \
+	       -I $(top_srcdir)/../libbacktrace \
+	       -I $(top_builddir)/libbacktrace \
+	       -I $(top_srcdir)/../include \
+	       -include $(top_srcdir)/libbacktrace/backtrace-rename.h
+endif
 ACLOCAL_AMFLAGS = -I m4
 
 noinst_LTLIBRARIES = libsanitizer_common.la
@@ -14,22 +21,28 @@ sanitizer_common_files = \
 	sanitizer_allocator.cc \
 	sanitizer_common.cc \
 	sanitizer_common_libcdep.cc \
+	sanitizer_coverage.cc \
 	sanitizer_flags.cc \
 	sanitizer_libc.cc \
+	sanitizer_libignore.cc \
 	sanitizer_linux.cc \
 	sanitizer_linux_libcdep.cc \
 	sanitizer_mac.cc \
 	sanitizer_platform_limits_linux.cc \
 	sanitizer_platform_limits_posix.cc \
-	sanitizer_posix.cc \
 	sanitizer_posix_libcdep.cc \
+	sanitizer_posix.cc \
 	sanitizer_printf.cc \
 	sanitizer_stackdepot.cc \
 	sanitizer_stacktrace.cc \
+	sanitizer_stacktrace_libcdep.cc \
 	sanitizer_stoptheworld_linux_libcdep.cc \
 	sanitizer_suppressions.cc \
 	sanitizer_symbolizer_posix_libcdep.cc \
 	sanitizer_symbolizer_win.cc \
+	sanitizer_symbolizer.cc \
+	sanitizer_symbolizer_libbacktrace.cc \
+	sanitizer_symbolizer_libcdep.cc \
 	sanitizer_thread_registry.cc \
 	sanitizer_win.cc
 

@@ -1,6 +1,6 @@
 /* Declarations for insn-output.c and other code to write to asm_out_file.
    These functions are defined in final.c, and varasm.c.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -289,16 +289,6 @@ extern void output_shared_constant_pool (void);
 extern void output_object_blocks (void);
 
 extern void output_quoted_string (FILE *, const char *);
-
-/* Output assembler code for constant EXP to FILE, with no label.
-   This includes the pseudo-op such as ".int" or ".byte", and a newline.
-   Assumes output_addressed_constants has been done on EXP already.
-
-   Generate exactly SIZE bytes of assembler data, padding at the end
-   with zeros if necessary.  SIZE must always be specified.
-
-   ALIGN is the alignment in bits that may be assumed for the data.  */
-extern void output_constant (tree, unsigned HOST_WIDE_INT, unsigned int);
 
 /* When outputting delayed branch sequences, this rtx holds the
    sequence being output.  It is null when no delayed branch

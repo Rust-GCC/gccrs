@@ -1,5 +1,5 @@
 /* Subroutines for insn-output.c for HPPA.
-   Copyright (C) 1992-2013 Free Software Foundation, Inc.
+   Copyright (C) 1992-2014 Free Software Foundation, Inc.
    Contributed by Tim Moore (moore@cs.utah.edu), based on sparc.c
 
 This file is part of GCC.
@@ -7534,7 +7534,7 @@ pa_attr_length_millicode_call (rtx insn)
       if (!TARGET_LONG_CALLS && distance < MAX_PCREL17F_OFFSET)
 	return 8;
 
-      if (TARGET_LONG_ABS_CALL && !flag_pic)
+      if (!flag_pic)
 	return 12;
 
       return 24;
@@ -8099,16 +8099,17 @@ pa_attr_length_indirect_call (rtx insn)
     return 12;
 
   if (TARGET_FAST_INDIRECT_CALLS
-      || (!TARGET_PORTABLE_RUNTIME
+      || (!TARGET_LONG_CALLS
+	  && !TARGET_PORTABLE_RUNTIME
 	  && ((TARGET_PA_20 && !TARGET_SOM && distance < 7600000)
 	      || distance < MAX_PCREL17F_OFFSET)))
     return 8;
 
   if (flag_pic)
-    return 24;
+    return 20;
 
   if (TARGET_PORTABLE_RUNTIME)
-    return 20;
+    return 16;
 
   /* Out of reach, can use ble.  */
   return 12;
@@ -8153,28 +8154,28 @@ pa_output_indirect_call (rtx insn, rtx call_dest)
     return ".CALL\tARGW0=GR\n\tldil L'$$dyncall,%%r2\n\tble R'$$dyncall(%%sr4,%%r2)\n\tcopy %%r31,%%r2";
 
   /* Long millicode call for portable runtime.  */
-  if (pa_attr_length_indirect_call (insn) == 20)
-    return "ldil L'$$dyncall,%%r31\n\tldo R'$$dyncall(%%r31),%%r31\n\tblr %%r0,%%r2\n\tbv,n %%r0(%%r31)\n\tnop";
+  if (pa_attr_length_indirect_call (insn) == 16)
+    return "ldil L'$$dyncall,%%r31\n\tldo R'$$dyncall(%%r31),%%r31\n\tblr %%r0,%%r2\n\tbv,n %%r0(%%r31)";
 
   /* We need a long PIC call to $$dyncall.  */
   xoperands[0] = NULL_RTX;
-  output_asm_insn ("{bl|b,l} .+8,%%r1", xoperands);
+  output_asm_insn ("{bl|b,l} .+8,%%r2", xoperands);
   if (TARGET_SOM || !TARGET_GAS)
     {
       xoperands[0] = gen_label_rtx ();
-      output_asm_insn ("addil L'$$dyncall-%0,%%r1", xoperands);
+      output_asm_insn ("addil L'$$dyncall-%0,%%r2", xoperands);
       targetm.asm_out.internal_label (asm_out_file, "L",
 				      CODE_LABEL_NUMBER (xoperands[0]));
       output_asm_insn ("ldo R'$$dyncall-%0(%%r1),%%r1", xoperands);
     }
   else
     {
-      output_asm_insn ("addil L'$$dyncall-$PIC_pcrel$0+4,%%r1", xoperands);
+      output_asm_insn ("addil L'$$dyncall-$PIC_pcrel$0+4,%%r2", xoperands);
       output_asm_insn ("ldo R'$$dyncall-$PIC_pcrel$0+8(%%r1),%%r1",
 		       xoperands);
     }
-  output_asm_insn ("blr %%r0,%%r2", xoperands);
-  output_asm_insn ("bv,n %%r0(%%r1)\n\tnop", xoperands);
+  output_asm_insn ("bv %%r0(%%r1)", xoperands);
+  output_asm_insn ("ldo 12(%%r2),%%r2", xoperands);
   return "";
 }
 
@@ -10424,13 +10425,13 @@ pa_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
 
 	  /* When INT14_OK_STRICT is false, a secondary reload is needed
 	     to adjust the displacement of SImode and DImode floating point
-	     instructions.  So, we return false when STRICT is true.  We
+	     instructions but this may fail when the register also needs
+	     reloading.  So, we return false when STRICT is true.  We
 	     also reject long displacements for float mode addresses since
 	     the majority of accesses will use floating point instructions
 	     that don't support 14-bit offsets.  */
 	  if (!INT14_OK_STRICT
-	      && reload_in_progress
-	      && strict
+	      && (strict || !(reload_in_progress || reload_completed))
 	      && mode != QImode
 	      && mode != HImode)
 	    return false;
@@ -10490,8 +10491,7 @@ pa_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
 	    return true;
 
 	  if (!INT14_OK_STRICT
-	      && reload_in_progress
-	      && strict
+	      && (strict || !(reload_in_progress || reload_completed))
 	      && mode != QImode
 	      && mode != HImode)
 	    return false;

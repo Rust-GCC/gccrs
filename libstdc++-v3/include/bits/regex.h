@@ -1,6 +1,6 @@
 // class template regex -*- C++ -*-
 
-// Copyright (C) 2010-2013 Free Software Foundation, Inc.
+// Copyright (C) 2010-2014 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,6 +30,15 @@
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
+  template<typename, typename>
+    class basic_regex;
+
+  template<typename, typename>
+    class match_results;
+
+_GLIBCXX_END_NAMESPACE_VERSION
+
 namespace __detail
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
@@ -47,6 +56,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		      match_results<_BiIter, _Alloc>&      __m,
 		      const basic_regex<_CharT, _TraitsT>& __re,
 		      regex_constants::match_flag_type     __flags);
+
+  template<typename, typename, typename, bool>
+    class _Executor;
+
+  template<typename _TraitsT>
+    inline std::shared_ptr<_NFA<_TraitsT>>
+    __compile_nfa(const typename _TraitsT::char_type* __first,
+		  const typename _TraitsT::char_type* __last,
+		  const _TraitsT& __traits,
+		  regex_constants::syntax_option_type __flags);
 
 _GLIBCXX_END_NAMESPACE_VERSION
 }
@@ -501,7 +520,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	basic_regex(_FwdIter __first, _FwdIter __last,
 		    flag_type __f = ECMAScript)
 	: _M_flags(__f),
-	  _M_automaton(__detail::__compile_nfa(__first, __last, _M_traits,
+	  _M_original_str(__first, __last),
+	  _M_automaton(__detail::__compile_nfa(_M_original_str.c_str(),
+					       _M_original_str.c_str()
+						 + _M_original_str.size(),
+					       _M_traits,
 					       _M_flags))
 	{ }
 
@@ -637,7 +660,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	       flag_type __flags = ECMAScript)
 	{
 	  _M_flags = __flags;
-	  _M_automaton = __detail::__compile_nfa(__s.begin(), __s.end(),
+	  _M_original_str.assign(__s.begin(), __s.end());
+	  auto __p = _M_original_str.c_str();
+	  _M_automaton = __detail::__compile_nfa(__p,
+						 __p + _M_original_str.size(),
 						 _M_traits, _M_flags);
 	  return *this;
 	}
@@ -701,7 +727,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
        */
       locale_type
       imbue(locale_type __loc)
-      { return _M_traits.imbue(__loc); }
+      {
+	auto __ret = _M_traits.imbue(__loc);
+	this->assign(_M_original_str, _M_flags);
+	return __ret;
+      }
 
       /**
        * @brief Gets the locale currently imbued in the regular expression
@@ -744,9 +774,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       template<typename, typename, typename, bool>
 	friend class __detail::_Executor;
 
-      flag_type     _M_flags;
-      _Rx_traits    _M_traits;
-      _AutomatonPtr _M_automaton;
+      flag_type              _M_flags;
+      _Rx_traits             _M_traits;
+      basic_string<_Ch_type> _M_original_str;
+      _AutomatonPtr          _M_automaton;
     };
 
   /** @brief Standard regular expressions. */

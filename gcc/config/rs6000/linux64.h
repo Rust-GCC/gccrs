@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler,
    for 64 bit PowerPC linux.
-   Copyright (C) 2000-2013 Free Software Foundation, Inc.
+   Copyright (C) 2000-2014 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -312,7 +312,7 @@ extern int dot_symbols;
 /* Determine what functions are present at the runtime;
    this includes full c99 runtime and sincos.  */
 #undef TARGET_LIBC_HAS_FUNCTION
-#define TARGET_LIBC_HAS_FUNCTION linux_android_libc_has_function
+#define TARGET_LIBC_HAS_FUNCTION linux_libc_has_function
 
 #undef  TARGET_OS_CPP_BUILTINS
 #define TARGET_OS_CPP_BUILTINS()			\

@@ -1,5 +1,5 @@
 /* Definitions of target machine for GCC for IA-32.
-   Copyright (C) 1988-2013 Free Software Foundation, Inc.
+   Copyright (C) 1988-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -242,8 +242,6 @@ extern void ix86_expand_mul_widen_hilo (rtx, rtx, rtx, bool, bool);
 extern void ix86_expand_sse2_mulv4si3 (rtx, rtx, rtx);
 extern void ix86_expand_sse2_mulvxdi3 (rtx, rtx, rtx);
 extern void ix86_expand_sse2_abs (rtx, rtx);
-
-extern bool ix86_bnd_prefixed_insn_p (rtx);
 
 /* In i386-c.c  */
 extern void ix86_target_macros (void);

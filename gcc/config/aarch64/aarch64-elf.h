@@ -1,5 +1,5 @@
 /* Machine description for AArch64 architecture.
-   Copyright (C) 2009-2013 Free Software Foundation, Inc.
+   Copyright (C) 2009-2014 Free Software Foundation, Inc.
    Contributed by ARM Ltd.
 
    This file is part of GCC.
@@ -134,13 +134,19 @@
   " %{!mbig-endian:%{!mlittle-endian:" ENDIAN_SPEC "}}" \
   " %{!mabi=*:" ABI_SPEC "}"
 
+#ifdef HAVE_AS_MABI_OPTION
+#define ASM_MABI_SPEC	"%{mabi=*:-mabi=%*}"
+#else
+#define ASM_MABI_SPEC	"%{mabi=lp64:}"
+#endif
+
 #ifndef ASM_SPEC
 #define ASM_SPEC "\
 %{mbig-endian:-EB} \
 %{mlittle-endian:-EL} \
-%{mcpu=*:-mcpu=%*} \
 %{march=*:-march=%*} \
-%{mabi=*:-mabi=%*}"
+%(asm_cpu_spec)" \
+ASM_MABI_SPEC
 #endif
 
 #undef TYPE_OPERAND_FMT

@@ -1,5 +1,5 @@
 /* Subroutines used by or related to instruction recognition.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -315,8 +315,7 @@ insn_invalid_p (rtx insn, bool in_group)
   int icode = recog (pat, insn,
 		     (GET_CODE (pat) == SET
 		      && ! reload_completed 
-                      && ! reload_in_progress
-                      && ! lra_in_progress)
+                      && ! reload_in_progress)
 		     ? &num_clobbers : 0);
   int is_asm = icode < 0 && asm_noperands (PATTERN (insn)) >= 0;
 
@@ -1022,8 +1021,12 @@ general_operand (rtx op, enum machine_mode mode)
       if (! volatile_ok && MEM_VOLATILE_P (op))
 	return 0;
 
-      /* Use the mem's mode, since it will be reloaded thus.  */
-      if (memory_address_addr_space_p (GET_MODE (op), y, MEM_ADDR_SPACE (op)))
+      /* Use the mem's mode, since it will be reloaded thus.  LRA can
+	 generate move insn with invalid addresses which is made valid
+	 and efficiently calculated by LRA through further numerous
+	 transformations.  */
+      if (lra_in_progress
+	  || memory_address_addr_space_p (GET_MODE (op), y, MEM_ADDR_SPACE (op)))
 	return 1;
     }
 
@@ -1615,6 +1618,50 @@ decode_asm_operands (rtx body, rtx *operands, rtx **operand_locs,
     *loc = ASM_OPERANDS_SOURCE_LOCATION (asmop);
 
   return ASM_OPERANDS_TEMPLATE (asmop);
+}
+
+/* Parse inline assembly string STRING and determine which operands are
+   referenced by % markers.  For the first NOPERANDS operands, set USED[I]
+   to true if operand I is referenced.
+
+   This is intended to distinguish barrier-like asms such as:
+
+      asm ("" : "=m" (...));
+
+   from real references such as:
+
+      asm ("sw\t$0, %0" : "=m" (...));  */
+
+void
+get_referenced_operands (const char *string, bool *used,
+			 unsigned int noperands)
+{
+  memset (used, 0, sizeof (bool) * noperands);
+  const char *p = string;
+  while (*p)
+    switch (*p)
+      {
+      case '%':
+	p += 1;
+	/* A letter followed by a digit indicates an operand number.  */
+	if (ISALPHA (p[0]) && ISDIGIT (p[1]))
+	  p += 1;
+	if (ISDIGIT (*p))
+	  {
+	    char *endptr;
+	    unsigned long opnum = strtoul (p, &endptr, 10);
+	    if (endptr != p && opnum < noperands)
+	      used[opnum] = true;
+	    p = endptr;
+	  }
+	else
+	  p += 1;
+	break;
+
+      default:
+	p++;
+	break;
+      }
 }
 
 /* Check if an asm_operand matches its constraints.
@@ -2899,11 +2946,11 @@ split_all_insns (void)
   bool changed;
   basic_block bb;
 
-  blocks = sbitmap_alloc (last_basic_block);
+  blocks = sbitmap_alloc (last_basic_block_for_fn (cfun));
   bitmap_clear (blocks);
   changed = false;
 
-  FOR_EACH_BB_REVERSE (bb)
+  FOR_EACH_BB_REVERSE_FN (bb, cfun)
     {
       rtx insn, next;
       bool finish = false;
@@ -3557,7 +3604,7 @@ peephole2_optimize (void)
   search_ofs = 0;
   live = BITMAP_ALLOC (&reg_obstack);
 
-  FOR_EACH_BB_REVERSE (bb)
+  FOR_EACH_BB_REVERSE_FN (bb, cfun)
     {
       bool past_end = false;
       int pos;

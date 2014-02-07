@@ -1,5 +1,5 @@
 /* Iterator routines for manipulating GENERIC tree statement list.
-   Copyright (C) 2003-2013 Free Software Foundation, Inc.
+   Copyright (C) 2003-2014 Free Software Foundation, Inc.
    Contributed by Andrew MacLeod  <amacleod@redhat.com>
 
 This file is part of GCC.
@@ -29,10 +29,10 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Iterator object for GENERIC or GIMPLE TREE statements.  */
 
-typedef struct {
+struct tree_stmt_iterator {
   struct tree_statement_list_node *ptr;
   tree container;
-} tree_stmt_iterator;
+};
 
 static inline tree_stmt_iterator
 tsi_start (tree t)

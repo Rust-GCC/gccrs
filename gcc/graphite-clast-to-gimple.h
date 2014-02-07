@@ -1,5 +1,5 @@
 /* Translation of CLAST (CLooG AST) to Gimple.
-   Copyright (C) 2009-2013 Free Software Foundation, Inc.
+   Copyright (C) 2009-2014 Free Software Foundation, Inc.
    Contributed by Sebastian Pop <sebastian.pop@amd.com>.
 
 This file is part of GCC.
@@ -25,18 +25,18 @@ extern CloogState *cloog_state;
 
 /* Data structure for CLooG program representation.  */
 
-typedef struct cloog_prog_clast {
+struct cloog_prog_clast {
   CloogProgram *prog;
   struct clast_stmt *stmt;
-} cloog_prog_clast;
+};
 
 /* Stores BB's related PBB.  */
 
-typedef struct bb_pbb_def
+struct bb_pbb_def
 {
   basic_block bb;
   poly_bb_p pbb;
-} bb_pbb_def;
+};
 
 extern void debug_clast_stmt (struct clast_stmt *);
 extern void print_clast_stmt (FILE *, struct clast_stmt *);

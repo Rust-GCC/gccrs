@@ -1,5 +1,5 @@
 /* Definitions of C specific functions for TILEPro.
-   Copyright (C) 2011-2013 Free Software Foundation, Inc.
+   Copyright (C) 2011-2014 Free Software Foundation, Inc.
    Contributed by Walter Lee (walt@tilera.com)
 
    This file is part of GCC.
@@ -43,6 +43,11 @@ tilepro_cpu_cpp_builtins (struct cpp_reader *pfile)
   builtin_assert ("machine=tile");
   builtin_define ("__tile_chip__=1");
   builtin_define ("__tile_chip_rev__=0");
+
+  builtin_define ("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_1");
+  builtin_define ("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2");
+  builtin_define ("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4");
+  builtin_define ("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8");
 
   TILEPRO_CPU_CPP_ENDIAN_BUILTINS ();
   GNU_USER_TARGET_OS_CPP_BUILTINS ();

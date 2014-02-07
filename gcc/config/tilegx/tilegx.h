@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler for TILE-Gx.
-   Copyright (C) 2011-2013 Free Software Foundation, Inc.
+   Copyright (C) 2011-2014 Free Software Foundation, Inc.
    Contributed by Walter Lee (walt@tilera.com)
 
    This file is part of GCC.
@@ -59,9 +59,9 @@
 
 #define UNITS_PER_WORD 8
 #define PARM_BOUNDARY BITS_PER_WORD
-#define STACK_BOUNDARY 64
+#define STACK_BOUNDARY 128
 #define FUNCTION_BOUNDARY 64
-#define BIGGEST_ALIGNMENT 64
+#define BIGGEST_ALIGNMENT 128
 #define STRICT_ALIGNMENT 1
 
 #define INT_TYPE_SIZE         32
@@ -74,7 +74,7 @@
 
 #define PCC_BITFIELD_TYPE_MATTERS 1
 #define FASTEST_ALIGNMENT 64
-#define BIGGEST_FIELD_ALIGNMENT 64
+#define BIGGEST_FIELD_ALIGNMENT 128
 #define WIDEST_HARDWARE_FP_SIZE 64
 
 /* Unaligned moves trap and are very slow.  */

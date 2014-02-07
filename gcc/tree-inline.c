@@ -1,5 +1,5 @@
 /* Tree inlining.
-   Copyright (C) 2001-2013 Free Software Foundation, Inc.
+   Copyright (C) 2001-2014 Free Software Foundation, Inc.
    Contributed by Alexandre Oliva <aoliva@redhat.com>
 
 This file is part of GCC.
@@ -1273,7 +1273,9 @@ remap_gimple_stmt (gimple stmt, copy_body_data *id)
 		  || ! SSA_NAME_VAR (retval)
 		  || TREE_CODE (SSA_NAME_VAR (retval)) != RESULT_DECL)))
         {
-	  copy = gimple_build_assign (id->retvar, retval);
+	  copy = gimple_build_assign (id->do_not_unshare
+				      ? id->retvar : unshare_expr (id->retvar),
+				      retval);
 	  /* id->retvar is already substituted.  Skip it on later remapping.  */
 	  skip_first = true;
 	}
@@ -1792,7 +1794,7 @@ copy_bb (copy_body_data *id, basic_block bb, int frequency_scale,
 			{
 			  edge->frequency = new_freq;
 			  if (dump_file
-			      && profile_status_for_function (cfun) != PROFILE_ABSENT
+			      && profile_status_for_fn (cfun) != PROFILE_ABSENT
 			      && (edge_freq > edge->frequency + 10
 				  || edge_freq < edge->frequency - 10))
 			    {
@@ -2208,7 +2210,7 @@ initialize_cfun (tree new_fndecl, tree callee_fndecl, gcov_type count)
 
   init_empty_tree_cfg ();
 
-  profile_status_for_function (cfun) = profile_status_for_function (src_cfun);
+  profile_status_for_fn (cfun) = profile_status_for_fn (src_cfun);
   ENTRY_BLOCK_PTR_FOR_FN (cfun)->count =
     (ENTRY_BLOCK_PTR_FOR_FN (src_cfun)->count * count_scale /
      REG_BR_PROB_BASE);
@@ -2488,7 +2490,7 @@ copy_cfg_body (copy_body_data * id, gcov_type count, int frequency_scale,
 	new_bb->loop_father = entry_block_map->loop_father;
       }
 
-  last = last_basic_block;
+  last = last_basic_block_for_fn (cfun);
 
   /* Now that we've duplicated the blocks, duplicate their edges.  */
   bool can_make_abormal_goto
@@ -2544,15 +2546,16 @@ copy_cfg_body (copy_body_data * id, gcov_type count, int frequency_scale,
 
   /* Zero out AUX fields of newly created block during EH edge
      insertion. */
-  for (; last < last_basic_block; last++)
+  for (; last < last_basic_block_for_fn (cfun); last++)
     {
       if (need_debug_cleanup)
-	maybe_move_debug_stmts_to_successors (id, BASIC_BLOCK (last));
-      BASIC_BLOCK (last)->aux = NULL;
+	maybe_move_debug_stmts_to_successors (id,
+					      BASIC_BLOCK_FOR_FN (cfun, last));
+      BASIC_BLOCK_FOR_FN (cfun, last)->aux = NULL;
       /* Update call edge destinations.  This can not be done before loop
 	 info is updated, because we may split basic blocks.  */
       if (id->transform_call_graph_edges == CB_CGE_DUPLICATE)
-	redirect_all_calls (id, BASIC_BLOCK (last));
+	redirect_all_calls (id, BASIC_BLOCK_FOR_FN (cfun, last));
     }
   entry_block_map->aux = NULL;
   exit_block_map->aux = NULL;
@@ -3797,12 +3800,16 @@ estimate_num_insns (gimple stmt, eni_weights *weights)
 
     case GIMPLE_CALL:
       {
-	tree decl = gimple_call_fndecl (stmt);
+	tree decl;
 	struct cgraph_node *node = NULL;
 
 	/* Do not special case builtins where we see the body.
 	   This just confuse inliner.  */
-	if (!decl || !(node = cgraph_get_node (decl)) || node->definition)
+	if (gimple_call_internal_p (stmt))
+	  return 0;
+	else if (!(decl = gimple_call_fndecl (stmt))
+		 || !(node = cgraph_get_node (decl))
+		 || node->definition)
 	  ;
 	/* For buitins that are likely expanded to nothing or
 	   inlined do not account operand costs.  */
@@ -4109,7 +4116,8 @@ expand_call_inline (basic_block bb, gimple stmt, copy_body_data *id)
 	  /* During early inline pass, report only when optimization is
 	     not turned on.  */
 	  && (cgraph_global_info_ready
-	      || !optimize)
+	      || !optimize
+	      || cgraph_inline_failed_type (reason) == CIF_FINAL_ERROR)
 	  /* PR 20090218-1_0.c. Body can be provided by another module. */
 	  && (reason != CIF_BODY_NOT_AVAILABLE || !flag_generate_lto))
 	{
@@ -4423,6 +4431,7 @@ gimple_expand_calls_inline (basic_block bb, copy_body_data *id)
       gimple stmt = gsi_stmt (gsi);
 
       if (is_gimple_call (stmt)
+	  && !gimple_call_internal_p (stmt)
 	  && expand_call_inline (bb, stmt, id))
 	return true;
     }
@@ -4438,11 +4447,11 @@ static void
 fold_marked_statements (int first, struct pointer_set_t *statements)
 {
   for (; first < n_basic_blocks_for_fn (cfun); first++)
-    if (BASIC_BLOCK (first))
+    if (BASIC_BLOCK_FOR_FN (cfun, first))
       {
         gimple_stmt_iterator gsi;
 
-	for (gsi = gsi_start_bb (BASIC_BLOCK (first));
+	for (gsi = gsi_start_bb (BASIC_BLOCK_FOR_FN (cfun, first));
 	     !gsi_end_p (gsi);
 	     gsi_next (&gsi))
 	  if (pointer_set_contains (statements, gsi_stmt (gsi)))
@@ -4468,7 +4477,7 @@ fold_marked_statements (int first, struct pointer_set_t *statements)
 			  break;
 			}
 		      if (gsi_end_p (i2))
-			i2 = gsi_start_bb (BASIC_BLOCK (first));
+			i2 = gsi_start_bb (BASIC_BLOCK_FOR_FN (cfun, first));
 		      else
 			gsi_next (&i2);
 		      while (1)
@@ -4492,7 +4501,8 @@ fold_marked_statements (int first, struct pointer_set_t *statements)
 				 is mood anyway.  */
 			      if (maybe_clean_or_replace_eh_stmt (old_stmt,
 								  new_stmt))
-				gimple_purge_dead_eh_edges (BASIC_BLOCK (first));
+				gimple_purge_dead_eh_edges (
+				  BASIC_BLOCK_FOR_FN (cfun, first));
 			      break;
 			    }
 			  gsi_next (&i2);
@@ -4512,7 +4522,8 @@ fold_marked_statements (int first, struct pointer_set_t *statements)
 						       new_stmt);
 
 		  if (maybe_clean_or_replace_eh_stmt (old_stmt, new_stmt))
-		    gimple_purge_dead_eh_edges (BASIC_BLOCK (first));
+		    gimple_purge_dead_eh_edges (BASIC_BLOCK_FOR_FN (cfun,
+								    first));
 		}
 	    }
       }
@@ -4561,7 +4572,7 @@ optimize_inline_calls (tree fn)
      will split id->current_basic_block, and the new blocks will
      follow it; we'll trudge through them, processing their CALL_EXPRs
      along the way.  */
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     inlined_p |= gimple_expand_calls_inline (bb, &id);
 
   pop_gimplify_context (NULL);
@@ -4604,7 +4615,8 @@ optimize_inline_calls (tree fn)
 	  | TODO_cleanup_cfg
 	  | (gimple_in_ssa_p (cfun) ? TODO_remove_unused_locals : 0)
 	  | (gimple_in_ssa_p (cfun) ? TODO_update_address_taken : 0)
-	  | (profile_status != PROFILE_ABSENT ? TODO_rebuild_frequencies : 0));
+	  | (profile_status_for_fn (cfun) != PROFILE_ABSENT
+	     ? TODO_rebuild_frequencies : 0));
 }
 
 /* Passed to walk_tree.  Copies the node pointed to, if appropriate.  */
@@ -5229,7 +5241,7 @@ tree_function_versioning (tree old_decl, tree new_decl,
   unsigned i;
   struct ipa_replace_map *replace_info;
   basic_block old_entry_block, bb;
-  stack_vec<gimple, 10> init_stmts;
+  auto_vec<gimple, 10> init_stmts;
   tree vars = NULL_TREE;
 
   gcc_assert (TREE_CODE (old_decl) == FUNCTION_DECL

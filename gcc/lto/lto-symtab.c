@@ -1,5 +1,5 @@
 /* LTO symbol table.
-   Copyright (C) 2009-2013 Free Software Foundation, Inc.
+   Copyright (C) 2009-2014 Free Software Foundation, Inc.
    Contributed by CodeSourcery, Inc.
 
 This file is part of GCC.
@@ -103,8 +103,8 @@ lto_cgraph_replace_node (struct cgraph_node *node,
    all edges and removing the old node.  */
 
 static void
-lto_varpool_replace_node (struct varpool_node *vnode,
-			  struct varpool_node *prevailing_node)
+lto_varpool_replace_node (varpool_node *vnode,
+			  varpool_node *prevailing_node)
 {
   gcc_assert (!vnode->definition || prevailing_node->definition);
   gcc_assert (!vnode->analyzed || prevailing_node->analyzed);

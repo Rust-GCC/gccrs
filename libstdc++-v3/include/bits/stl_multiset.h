@@ -1,6 +1,6 @@
 // Multiset implementation -*- C++ -*-
 
-// Copyright (C) 2001-2013 Free Software Foundation, Inc.
+// Copyright (C) 2001-2014 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -267,9 +267,9 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  @brief  %Multiset move assignment operator.
        *  @param  __x  A %multiset of identical element and allocator types.
        *
-       *  The contents of @a __x are moved into this %multiset
-       *  (without copying).  @a __x is a valid, but unspecified
-       *  %multiset.
+       *  The contents of @a __x are moved into this %multiset (without
+       *  copying if the allocators compare equal or get moved on assignment).
+       *  Afterwards @a __x is in a valid, but unspecified state.
        */
       multiset&
       operator=(multiset&& __x) noexcept(_Alloc_traits::_S_nothrow_move())

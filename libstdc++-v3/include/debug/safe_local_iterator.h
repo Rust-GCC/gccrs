@@ -1,6 +1,6 @@
 // Safe iterator implementation  -*- C++ -*-
 
-// Copyright (C) 2011-2013 Free Software Foundation, Inc.
+// Copyright (C) 2011-2014 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -219,7 +219,7 @@ namespace __gnu_debug
        * @brief Return the bucket
        */
       size_type
-      bucket() const { return _M_current._M_bucket; }
+      bucket() const { return _M_current._M_get_bucket(); }
 
       /**
        * @brief Conversion to underlying non-debug iterator to allow

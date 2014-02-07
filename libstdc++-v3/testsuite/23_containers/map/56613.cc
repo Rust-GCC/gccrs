@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2013 Free Software Foundation, Inc.
+// Copyright (C) 2013-2014 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -24,7 +24,6 @@
 // { dg-options "-std=gnu++11" }
 
 // libstdc++/56613
-#include <map>
 
 // A conforming C++03 allocator, should still work in C++11 mode.
 template<typename T>

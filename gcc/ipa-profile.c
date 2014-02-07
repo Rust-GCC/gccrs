@@ -1,5 +1,5 @@
 /* Basic IPA optimizations based on profile.
-   Copyright (C) 2003-2013 Free Software Foundation, Inc.
+   Copyright (C) 2003-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -210,6 +210,8 @@ ipa_profile_generate_summary (void)
 		    if (h->hvalue.counters[2])
 		      {
 			struct cgraph_edge * e = cgraph_edge (node, stmt);
+			if (e && !e->indirect_unknown_callee)
+			  continue;
 			e->indirect_info->common_target_id
 			  = h->hvalue.counters [0];
 			e->indirect_info->common_target_probability

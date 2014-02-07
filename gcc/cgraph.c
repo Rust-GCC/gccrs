@@ -1,5 +1,5 @@
 /* Callgraph handling code.
-   Copyright (C) 2003-2013 Free Software Foundation, Inc.
+   Copyright (C) 2003-2014 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -1468,7 +1468,7 @@ cgraph_redirect_edge_call_stmt_to_callee (struct cgraph_edge *e)
     {
       new_stmt = e->call_stmt;
       gimple_call_set_fndecl (new_stmt, e->callee->decl);
-      update_stmt (new_stmt);
+      update_stmt_fn (DECL_STRUCT_FUNCTION (e->caller->decl), new_stmt);
     }
 
   cgraph_set_call_stmt_including_clones (e->caller, e->call_stmt, new_stmt, false);
@@ -1877,7 +1877,7 @@ const char*
 cgraph_inline_failed_string (cgraph_inline_failed_t reason)
 {
 #undef DEFCIFCODE
-#define DEFCIFCODE(code, string)	string,
+#define DEFCIFCODE(code, type, string)	string,
 
   static const char *cif_string_table[CIF_N_REASONS] = {
 #include "cif-code.def"
@@ -1887,6 +1887,24 @@ cgraph_inline_failed_string (cgraph_inline_failed_t reason)
      to unsigned before testing. */
   gcc_assert ((unsigned) reason < CIF_N_REASONS);
   return cif_string_table[reason];
+}
+
+/* Return a type describing the failure REASON.  */
+
+cgraph_inline_failed_type_t
+cgraph_inline_failed_type (cgraph_inline_failed_t reason)
+{
+#undef DEFCIFCODE
+#define DEFCIFCODE(code, type, string)	type,
+
+  static cgraph_inline_failed_type_t cif_type_table[CIF_N_REASONS] = {
+#include "cif-code.def"
+  };
+
+  /* Signedness of an enum type is implementation defined, so cast it
+     to unsigned before testing. */
+  gcc_assert ((unsigned) reason < CIF_N_REASONS);
+  return cif_type_table[reason];
 }
 
 /* Names used to print out the availability enum.  */
@@ -2666,10 +2684,18 @@ verify_cgraph_node (struct cgraph_node *node)
 	  error_found = true;
 	}
     }
+  bool check_comdat = symtab_comdat_local_p (node);
   for (e = node->callers; e; e = e->next_caller)
     {
       if (verify_edge_count_and_frequency (e))
 	error_found = true;
+      if (check_comdat
+	  && !symtab_in_same_comdat_p (e->caller, node))
+	{
+	  error ("comdat-local function called by %s outside its comdat",
+		 identifier_to_locale (e->caller->name ()));
+	  error_found = true;
+	}
       if (!e->inline_failed)
 	{
 	  if (node->global.inlined_to
@@ -3027,6 +3053,7 @@ gimple_check_call_args (gimple stmt, tree fndecl, bool args_count_match)
 	    break;
 	  arg = gimple_call_arg (stmt, i);
 	  if (p == error_mark_node
+	      || DECL_ARG_TYPE (p) == error_mark_node
 	      || arg == error_mark_node
 	      || (!types_compatible_p (DECL_ARG_TYPE (p), TREE_TYPE (arg))
 		  && !fold_convertible_p (DECL_ARG_TYPE (p), arg)))

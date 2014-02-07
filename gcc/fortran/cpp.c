@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2013 Free Software Foundation, Inc.
+/* Copyright (C) 2008-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -363,6 +363,7 @@ gfc_cpp_handle_option (size_t scode, const char *arg, int value ATTRIBUTE_UNUSED
 
     case OPT_Wdate_time:
       gfc_cpp_option.warn_date_time = value;
+      break;
 
     case OPT_A:
     case OPT_D:

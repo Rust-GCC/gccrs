@@ -1,5 +1,5 @@
 /* Language hooks common to C++ and ObjC++ front ends.
-   Copyright (C) 2004-2013 Free Software Foundation, Inc.
+   Copyright (C) 2004-2014 Free Software Foundation, Inc.
    Contributed by Ziemowit Laski  <zlaski@apple.com>
 
 This file is part of GCC.
@@ -153,5 +153,4 @@ extern void cp_common_init_ts (void);
 
 #undef LANG_HOOKS_EH_PROTECT_CLEANUP_ACTIONS
 #define LANG_HOOKS_EH_PROTECT_CLEANUP_ACTIONS cp_protect_cleanup_actions
-
 #endif /* GCC_CP_OBJCP_COMMON */

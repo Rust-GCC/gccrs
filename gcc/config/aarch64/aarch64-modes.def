@@ -1,5 +1,5 @@
 /* Machine description for AArch64 architecture.
-   Copyright (C) 2009-2013 Free Software Foundation, Inc.
+   Copyright (C) 2009-2014 Free Software Foundation, Inc.
    Contributed by ARM Ltd.
 
    This file is part of GCC.
@@ -24,6 +24,7 @@ CC_MODE (CC_SWP);
 CC_MODE (CC_ZESWP); /* zero-extend LHS (but swap to make it RHS).  */
 CC_MODE (CC_SESWP); /* sign-extend LHS (but swap to make it RHS).  */
 CC_MODE (CC_NZ);    /* Only N and Z bits of condition flags are valid.  */
+CC_MODE (CC_Z);     /* Only Z bit of condition flags is valid.  */
 
 /* Vector modes.  */
 VECTOR_MODES (INT, 8);        /*       V8QI V4HI V2SI.  */

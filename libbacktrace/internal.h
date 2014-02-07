@@ -1,5 +1,5 @@
 /* internal.h -- Internal header file for stack backtrace library.
-   Copyright (C) 2012-2013 Free Software Foundation, Inc.
+   Copyright (C) 2012-2014 Free Software Foundation, Inc.
    Written by Ian Lance Taylor, Google.
 
 Redistribution and use in source and binary forms, with or without
@@ -233,13 +233,17 @@ extern void *backtrace_vector_grow (struct backtrace_state *state, size_t size,
 				    struct backtrace_vector *vec);
 
 /* Finish the current allocation on VEC.  Prepare to start a new
-   allocation.  The finished allocation will never be freed.  */
+   allocation.  The finished allocation will never be freed.  Returns
+   a pointer to the base of the finished entries, or NULL on
+   failure.  */
 
-extern void backtrace_vector_finish (struct backtrace_state *state,
-				     struct backtrace_vector *vec);
+extern void* backtrace_vector_finish (struct backtrace_state *state,
+				      struct backtrace_vector *vec,
+				      backtrace_error_callback error_callback,
+				      void *data);
 
-/* Release any extra space allocated for VEC.  Returns 1 on success, 0
-   on failure.  */
+/* Release any extra space allocated for VEC.  This may change
+   VEC->base.  Returns 1 on success, 0 on failure.  */
 
 extern int backtrace_vector_release (struct backtrace_state *state,
 				     struct backtrace_vector *vec,

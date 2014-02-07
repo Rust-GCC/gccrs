@@ -1,5 +1,5 @@
 /* Default language-specific hooks.
-   Copyright (C) 2001-2013 Free Software Foundation, Inc.
+   Copyright (C) 2001-2014 Free Software Foundation, Inc.
    Contributed by Alexandre Oliva  <aoliva@redhat.com>
 
 This file is part of GCC.
@@ -675,19 +675,4 @@ lhd_end_section (void)
       switch_to_section (saved_section);
       saved_section = NULL;
     }
-}
-
-/* Empty function that is replaced with appropriate language dependent
-   frame cleanup function for _Cilk_spawn.  */
-
-void
-lhd_install_body_with_frame_cleanup (tree, tree)
-{
-}
-
-/* Empty function to handle cilk_valid_spawn.  */
-bool
-lhd_cilk_detect_spawn (tree *)
-{
-  return false;
 }

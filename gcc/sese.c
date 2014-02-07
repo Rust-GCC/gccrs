@@ -1,5 +1,5 @@
 /* Single entry single exit control flow regions.
-   Copyright (C) 2008-2013 Free Software Foundation, Inc.
+   Copyright (C) 2008-2014 Free Software Foundation, Inc.
    Contributed by Jan Sjodin <jan.sjodin@amd.com> and
    Sebastian Pop <sebastian.pop@amd.com>.
 
@@ -156,7 +156,7 @@ build_sese_loop_nests (sese region)
   basic_block bb;
   struct loop *loop0, *loop1;
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     if (bb_in_sese_p (bb, region))
       {
 	struct loop *loop = bb->loop_father;
@@ -303,10 +303,10 @@ sese_build_liveouts (sese region, bitmap liveouts)
 {
   basic_block bb;
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     sese_build_liveouts_bb (region, liveouts, bb);
   if (MAY_HAVE_DEBUG_STMTS)
-    FOR_EACH_BB (bb)
+    FOR_EACH_BB_FN (bb, cfun)
       sese_reset_debug_liveouts_bb (region, liveouts, bb);
 }
 

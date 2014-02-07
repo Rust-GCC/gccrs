@@ -1,5 +1,5 @@
 /* Function splitting pass
-   Copyright (C) 2010-2013 Free Software Foundation, Inc.
+   Copyright (C) 2010-2014 Free Software Foundation, Inc.
    Contributed by Jan Hubicka  <jh@suse.cz>
 
 This file is part of GCC.
@@ -156,7 +156,7 @@ static tree find_retval (basic_block return_bb);
    variable, check it if it is present in bitmap passed via DATA.  */
 
 static bool
-test_nonssa_use (gimple stmt ATTRIBUTE_UNUSED, tree t, void *data)
+test_nonssa_use (gimple, tree t, tree, void *data)
 {
   t = get_base_address (t);
 
@@ -249,7 +249,7 @@ verify_non_ssa_vars (struct split_point *current, bitmap non_ssa_vars,
 	    }
 	  if (gimple_code (stmt) == GIMPLE_LABEL
 	      && test_nonssa_use (stmt, gimple_label_label (stmt),
-				  non_ssa_vars))
+				  NULL_TREE, non_ssa_vars))
 	  {
 	    ok = false;
 	    goto done;
@@ -278,7 +278,7 @@ verify_non_ssa_vars (struct split_point *current, bitmap non_ssa_vars,
 	      if (virtual_operand_p (gimple_phi_result (stmt)))
 		continue;
 	      if (TREE_CODE (op) != SSA_NAME
-		  && test_nonssa_use (stmt, op, non_ssa_vars))
+		  && test_nonssa_use (stmt, op, op, non_ssa_vars))
 		{
 		  ok = false;
 		  goto done;
@@ -362,7 +362,8 @@ dominated_by_forbidden (basic_block bb)
 
   EXECUTE_IF_SET_IN_BITMAP (forbidden_dominators, 1, dom_bb, bi)
     {
-      if (dominated_by_p (CDI_DOMINATORS, bb, BASIC_BLOCK (dom_bb)))
+      if (dominated_by_p (CDI_DOMINATORS, bb,
+			  BASIC_BLOCK_FOR_FN (cfun, dom_bb)))
 	return true;
     }
 
@@ -410,7 +411,7 @@ consider_split (struct split_point *current, bitmap non_ssa_vars,
 	 a loop, enable splitting since inlining code skipping the loop
 	 is likely noticeable win.  */
       if (back_edge
-	  && profile_status != PROFILE_READ
+	  && profile_status_for_fn (cfun) != PROFILE_READ
 	  && incoming_freq < ENTRY_BLOCK_PTR_FOR_FN (cfun)->frequency)
 	{
 	  if (dump_file && (dump_flags & TDF_DETAILS))
@@ -713,7 +714,7 @@ find_retval (basic_block return_bb)
    Return true when access to T prevents splitting the function.  */
 
 static bool
-mark_nonssa_use (gimple stmt ATTRIBUTE_UNUSED, tree t, void *data)
+mark_nonssa_use (gimple, tree t, tree, void *data)
 {
   t = get_base_address (t);
 
@@ -873,7 +874,7 @@ visit_bb (basic_block bb, basic_block return_bb,
 	    if (TREE_CODE (op) == SSA_NAME)
 	      bitmap_set_bit (used_ssa_names, SSA_NAME_VERSION (op));
 	    else
-	      can_split &= !mark_nonssa_use (stmt, op, non_ssa_vars);
+	      can_split &= !mark_nonssa_use (stmt, op, op, non_ssa_vars);
 	  }
       }
   return can_split;
@@ -949,7 +950,9 @@ find_split_points (int overall_time, int overall_size)
   first.earliest = INT_MAX;
   first.set_ssa_names = 0;
   first.used_ssa_names = 0;
+  first.non_ssa_vars = 0;
   first.bbs_visited = 0;
+  first.can_split = false;
   stack.safe_push (first);
   ENTRY_BLOCK_PTR_FOR_FN (cfun)->aux = (void *)(intptr_t)-1;
 
@@ -1069,7 +1072,7 @@ find_split_points (int overall_time, int overall_size)
         stack.pop ();
     }
   ENTRY_BLOCK_PTR_FOR_FN (cfun)->aux = NULL;
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     bb->aux = NULL;
   stack.release ();
   BITMAP_FREE (current.ssa_names_to_pass);
@@ -1233,6 +1236,10 @@ split_function (struct split_point *split_point)
 				     !split_part_return_p,
 				     split_point->split_bbs,
 				     split_point->entry_bb, "part");
+
+  /* Let's take a time profile for splitted function.  */
+  node->tp_first_run = cur_node->tp_first_run + 1;
+
   /* For usual cloning it is enough to clear builtin only when signature
      changes.  For partial inlining we however can not expect the part
      of builtin implementation to have same semantic as the whole.  */
@@ -1584,7 +1591,7 @@ execute_split_functions (void)
 
   /* We enforce splitting after loop headers when profile info is not
      available.  */
-  if (profile_status != PROFILE_READ)
+  if (profile_status_for_fn (cfun) != PROFILE_READ)
     mark_dfs_back_edges ();
 
   /* Initialize bitmap to track forbidden calls.  */
@@ -1592,9 +1599,9 @@ execute_split_functions (void)
   calculate_dominance_info (CDI_DOMINATORS);
 
   /* Compute local info about basic blocks and determine function size/time.  */
-  bb_info_vec.safe_grow_cleared (last_basic_block + 1);
+  bb_info_vec.safe_grow_cleared (last_basic_block_for_fn (cfun) + 1);
   memset (&best_split_point, 0, sizeof (best_split_point));
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       int time = 0;
       int size = 0;

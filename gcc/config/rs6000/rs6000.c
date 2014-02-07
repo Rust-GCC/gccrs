@@ -1,5 +1,5 @@
 /* Subroutines used for code generation on IBM RS/6000.
-   Copyright (C) 1991-2013 Free Software Foundation, Inc.
+   Copyright (C) 1991-2014 Free Software Foundation, Inc.
    Contributed by Richard Kenner (kenner@vlsi1.ultra.nyu.edu)
 
    This file is part of GCC.
@@ -78,6 +78,7 @@
 #include "tree-vectorizer.h"
 #include "dumpfile.h"
 #include "cgraph.h"
+#include "target-globals.h"
 #if TARGET_XCOFF
 #include "xcoffout.h"  /* get declarations of xcoff_*_section_name */
 #endif
@@ -3038,7 +3039,8 @@ rs6000_option_override_internal (bool global_init_p)
      calculation works better for RTL loop invariant motion on targets
      with enough (>= 32) registers.  It is an expensive optimization.
      So it is on only for peak performance.  */
-  if (optimize >= 3 && global_init_p)
+  if (optimize >= 3 && global_init_p
+      && !global_options_set.x_flag_ira_loop_pressure)
     flag_ira_loop_pressure = 1;
 
   /* Set the pointer size.  */
@@ -3238,6 +3240,18 @@ rs6000_option_override_internal (bool global_init_p)
       && !(processor_target_table[tune_index].target_enable & OPTION_MASK_HTM))
     rs6000_isa_flags |= ~rs6000_isa_flags_explicit & OPTION_MASK_STRICT_ALIGN;
 
+  /* -maltivec={le,be} implies -maltivec.  */
+  if (rs6000_altivec_element_order != 0)
+    rs6000_isa_flags |= OPTION_MASK_ALTIVEC;
+
+  /* Disallow -maltivec=le in big endian mode for now.  This is not
+     known to be useful for anyone.  */
+  if (BYTES_BIG_ENDIAN && rs6000_altivec_element_order == 1)
+    {
+      warning (0, N_("-maltivec=le not allowed for big-endian targets"));
+      rs6000_altivec_element_order = 0;
+    }
+
   /* Add some warnings for VSX.  */
   if (TARGET_VSX)
     {
@@ -3343,13 +3357,36 @@ rs6000_option_override_internal (bool global_init_p)
 
   /* The quad memory instructions only works in 64-bit mode. In 32-bit mode,
      silently turn off quad memory mode.  */
-  if (TARGET_QUAD_MEMORY && !TARGET_POWERPC64)
+  if ((TARGET_QUAD_MEMORY || TARGET_QUAD_MEMORY_ATOMIC) && !TARGET_POWERPC64)
     {
       if ((rs6000_isa_flags_explicit & OPTION_MASK_QUAD_MEMORY) != 0)
 	warning (0, N_("-mquad-memory requires 64-bit mode"));
 
+      if ((rs6000_isa_flags_explicit & OPTION_MASK_QUAD_MEMORY_ATOMIC) != 0)
+	warning (0, N_("-mquad-memory-atomic requires 64-bit mode"));
+
+      rs6000_isa_flags &= ~(OPTION_MASK_QUAD_MEMORY
+			    | OPTION_MASK_QUAD_MEMORY_ATOMIC);
+    }
+
+  /* Non-atomic quad memory load/store are disabled for little endian, since
+     the words are reversed, but atomic operations can still be done by
+     swapping the words.  */
+  if (TARGET_QUAD_MEMORY && !WORDS_BIG_ENDIAN)
+    {
+      if ((rs6000_isa_flags_explicit & OPTION_MASK_QUAD_MEMORY) != 0)
+	warning (0, N_("-mquad-memory is not available in little endian mode"));
+
       rs6000_isa_flags &= ~OPTION_MASK_QUAD_MEMORY;
     }
+
+  /* Assume if the user asked for normal quad memory instructions, they want
+     the atomic versions as well, unless they explicity told us not to use quad
+     word atomic instructions.  */
+  if (TARGET_QUAD_MEMORY
+      && !TARGET_QUAD_MEMORY_ATOMIC
+      && ((rs6000_isa_flags_explicit & OPTION_MASK_QUAD_MEMORY_ATOMIC) == 0))
+    rs6000_isa_flags |= OPTION_MASK_QUAD_MEMORY_ATOMIC;
 
   /* Enable power8 fusion if we are tuning for power8, even if we aren't
      generating power8 instructions.  */
@@ -5926,7 +5963,8 @@ direct_move_p (rtx op0, rtx op1)
   return false;
 }
 
-/* Return true if this is a load or store quad operation.  */
+/* Return true if this is a load or store quad operation.  This function does
+   not handle the atomic quad memory instructions.  */
 
 bool
 quad_load_store_p (rtx op0, rtx op1)
@@ -6321,13 +6359,14 @@ rs6000_legitimate_offset_address_p (enum machine_mode mode, rtx x,
       break;
 
     case TFmode:
-    case TDmode:
-    case TImode:
-    case PTImode:
       if (TARGET_E500_DOUBLE)
 	return (SPE_CONST_OFFSET_OK (offset)
 		&& SPE_CONST_OFFSET_OK (offset + 8));
+      /* fall through */
 
+    case TDmode:
+    case TImode:
+    case PTImode:
       extra = 8;
       if (!worst_case)
 	break;
@@ -11456,6 +11495,48 @@ rs6000_expand_zeroop_builtin (enum insn_code icode, rtx target)
 
 
 static rtx
+rs6000_expand_mtfsf_builtin (enum insn_code icode, tree exp)
+{
+  rtx pat;
+  tree arg0 = CALL_EXPR_ARG (exp, 0);
+  tree arg1 = CALL_EXPR_ARG (exp, 1);
+  rtx op0 = expand_normal (arg0);
+  rtx op1 = expand_normal (arg1);
+  enum machine_mode mode0 = insn_data[icode].operand[0].mode;
+  enum machine_mode mode1 = insn_data[icode].operand[1].mode;
+
+  if (icode == CODE_FOR_nothing)
+    /* Builtin not supported on this processor.  */
+    return 0;
+
+  /* If we got invalid arguments bail out before generating bad rtl.  */
+  if (arg0 == error_mark_node || arg1 == error_mark_node)
+    return const0_rtx;
+
+  if (GET_CODE (op0) != CONST_INT
+      || INTVAL (op0) > 255
+      || INTVAL (op0) < 0)
+    {
+      error ("argument 1 must be an 8-bit field value");
+      return const0_rtx;
+    }
+
+  if (! (*insn_data[icode].operand[0].predicate) (op0, mode0))
+    op0 = copy_to_mode_reg (mode0, op0);
+
+  if (! (*insn_data[icode].operand[1].predicate) (op1, mode1))
+    op1 = copy_to_mode_reg (mode1, op1);
+
+  pat = GEN_FCN (icode) (op0, op1);
+  if (! pat)
+    return const0_rtx;
+  emit_insn (pat);
+
+  return NULL_RTX;
+}
+
+
+static rtx
 rs6000_expand_unop_builtin (enum insn_code icode, tree exp, rtx target)
 {
   rtx pat;
@@ -13264,6 +13345,12 @@ rs6000_expand_builtin (tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
 					    : CODE_FOR_rs6000_mftb_si),
 					   target);
 
+    case RS6000_BUILTIN_MFFS:
+      return rs6000_expand_zeroop_builtin (CODE_FOR_rs6000_mffs, target);
+
+    case RS6000_BUILTIN_MTFSF:
+      return rs6000_expand_mtfsf_builtin (CODE_FOR_rs6000_mtfsf, exp);
+
     case ALTIVEC_BUILTIN_MASK_FOR_LOAD:
     case ALTIVEC_BUILTIN_MASK_FOR_STORE:
       {
@@ -13570,6 +13657,14 @@ rs6000_init_builtins (void)
     ftype = build_function_type_list (unsigned_intSI_type_node,
 				      NULL_TREE);
   def_builtin ("__builtin_ppc_mftb", ftype, RS6000_BUILTIN_MFTB);
+
+  ftype = build_function_type_list (double_type_node, NULL_TREE);
+  def_builtin ("__builtin_mffs", ftype, RS6000_BUILTIN_MFFS);
+
+  ftype = build_function_type_list (void_type_node,
+				    intSI_type_node, double_type_node,
+				    NULL_TREE);
+  def_builtin ("__builtin_mtfsf", ftype, RS6000_BUILTIN_MTFSF);
 
 #if TARGET_XCOFF
   /* AIX libm provides clog as __clog.  */
@@ -16395,7 +16490,7 @@ rs6000_alloc_sdmode_stack_slot (void)
   if (TARGET_NO_SDMODE_STACK)
     return;
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
       {
 	tree ret = walk_gimple_op (gsi_stmt (gsi), rs6000_check_sdmode, NULL);
@@ -23128,7 +23223,7 @@ rs6000_output_function_prologue (FILE *file,
   /* Output -mprofile-kernel code.  This needs to be done here instead of
      in output_function_profile since it must go after the ELFv2 ABI
      local entry point.  */
-  if (TARGET_PROFILE_KERNEL)
+  if (TARGET_PROFILE_KERNEL && crtl->profile)
     {
       gcc_assert (DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_ELFv2);
       gcc_assert (!TARGET_32BIT);
@@ -30045,22 +30140,6 @@ rs6000_expand_vec_perm_const_1 (rtx target, rtx op0, rtx op1,
       vmode = GET_MODE (target);
       gcc_assert (GET_MODE_NUNITS (vmode) == 2);
       dmode = mode_for_vector (GET_MODE_INNER (vmode), 4);
-
-      /* For little endian, swap operands and invert/swap selectors
-	 to get the correct xxpermdi.  The operand swap sets up the
-	 inputs as a little endian array.  The selectors are swapped
-	 because they are defined to use big endian ordering.  The
-	 selectors are inverted to get the correct doublewords for
-	 little endian ordering.  */
-      if (!BYTES_BIG_ENDIAN)
-	{
-	  int n;
-	  perm0 = 3 - perm0;
-	  perm1 = 3 - perm1;
-	  n = perm0, perm0 = perm1, perm1 = n;
-	  x = op0, op0 = op1, op1 = x;
-	}
-
       x = gen_rtx_VEC_CONCAT (dmode, op0, op1);
       v = gen_rtvec (2, GEN_INT (perm0), GEN_INT (perm1));
       x = gen_rtx_VEC_SELECT (vmode, x, gen_rtx_PARALLEL (VOIDmode, v));
@@ -30683,6 +30762,7 @@ static struct rs6000_opt_mask const rs6000_opt_masks[] =
   { "powerpc-gfxopt",		OPTION_MASK_PPC_GFXOPT,		false, true  },
   { "powerpc-gpopt",		OPTION_MASK_PPC_GPOPT,		false, true  },
   { "quad-memory",		OPTION_MASK_QUAD_MEMORY,	false, true  },
+  { "quad-memory-atomic",	OPTION_MASK_QUAD_MEMORY_ATOMIC,	false, true  },
   { "recip-precision",		OPTION_MASK_RECIP_PRECISION,	false, true  },
   { "string",			OPTION_MASK_STRING,		false, true  },
   { "update",			OPTION_MASK_NO_UPDATE,		true , true  },
@@ -31186,16 +31266,25 @@ rs6000_set_current_function (tree fndecl)
 	{
 	  cl_target_option_restore (&global_options,
 				    TREE_TARGET_OPTION (new_tree));
-	  target_reinit ();
+	  if (TREE_TARGET_GLOBALS (new_tree))
+	    restore_target_globals (TREE_TARGET_GLOBALS (new_tree));
+	  else
+	    TREE_TARGET_GLOBALS (new_tree)
+	      = save_target_globals_default_opts ();
 	}
 
       else if (old_tree)
 	{
-	  struct cl_target_option *def
-	    = TREE_TARGET_OPTION (target_option_current_node);
-
-	  cl_target_option_restore (&global_options, def);
-	  target_reinit ();
+	  new_tree = target_option_current_node;
+	  cl_target_option_restore (&global_options,
+				    TREE_TARGET_OPTION (new_tree));
+	  if (TREE_TARGET_GLOBALS (new_tree))
+	    restore_target_globals (TREE_TARGET_GLOBALS (new_tree));
+	  else if (new_tree == target_option_default_node)
+	    restore_target_globals (&default_target_globals);
+	  else
+	    TREE_TARGET_GLOBALS (new_tree)
+	      = save_target_globals_default_opts ();
 	}
     }
 }

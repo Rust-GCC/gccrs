@@ -1,5 +1,5 @@
 /* SLP - Basic Block Vectorization
-   Copyright (C) 2007-2013 Free Software Foundation, Inc.
+   Copyright (C) 2007-2014 Free Software Foundation, Inc.
    Contributed by Dorit Naishlos <dorit@il.ibm.com>
    and Ira Rosen <irar@il.ibm.com>
 
@@ -2029,7 +2029,7 @@ vect_bb_vectorization_profitable_p (bb_vec_info bb_vinfo)
   /* Calculate scalar cost.  */
   FOR_EACH_VEC_ELT (slp_instances, i, instance)
     {
-      stack_vec<bool, 20> life;
+      auto_vec<bool, 20> life;
       life.safe_grow_cleared (SLP_INSTANCE_GROUP_SIZE (instance));
       scalar_cost += vect_bb_slp_scalar_cost (BB_VINFO_BB (bb_vinfo),
 					      SLP_INSTANCE_TREE (instance),
@@ -2110,17 +2110,6 @@ vect_slp_analyze_bb_1 (basic_block bb)
 
   vect_pattern_recog (NULL, bb_vinfo);
 
-  if (!vect_slp_analyze_data_ref_dependences (bb_vinfo))
-     {
-       if (dump_enabled_p ())
-	 dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
-			  "not vectorized: unhandled data dependence "
-			  "in basic block.\n");
-
-       destroy_bb_vec_info (bb_vinfo);
-       return NULL;
-     }
-
   if (!vect_analyze_data_refs_alignment (NULL, bb_vinfo))
     {
       if (dump_enabled_p ())
@@ -2155,6 +2144,29 @@ vect_slp_analyze_bb_1 (basic_block bb)
       vect_mark_slp_stmts_relevant (SLP_INSTANCE_TREE (instance));
     }
 
+  /* Mark all the statements that we do not want to vectorize.  */
+  for (gimple_stmt_iterator gsi = gsi_start_bb (BB_VINFO_BB (bb_vinfo));
+       !gsi_end_p (gsi); gsi_next (&gsi))
+    {
+      stmt_vec_info vinfo = vinfo_for_stmt (gsi_stmt (gsi));
+      if (STMT_SLP_TYPE (vinfo) != pure_slp)
+	STMT_VINFO_VECTORIZABLE (vinfo) = false;
+    }
+
+  /* Analyze dependences.  At this point all stmts not participating in
+     vectorization have to be marked.  Dependence analysis assumes
+     that we either vectorize all SLP instances or none at all.  */
+  if (!vect_slp_analyze_data_ref_dependences (bb_vinfo))
+     {
+       if (dump_enabled_p ())
+	 dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
+			  "not vectorized: unhandled data dependence "
+			  "in basic block.\n");
+
+       destroy_bb_vec_info (bb_vinfo);
+       return NULL;
+     }
+
   if (!vect_verify_datarefs_alignment (NULL, bb_vinfo))
     {
       if (dump_enabled_p ())
@@ -2176,7 +2188,7 @@ vect_slp_analyze_bb_1 (basic_block bb)
     }
 
   /* Cost model: check if the vectorization is worthwhile.  */
-  if (!unlimited_cost_model ()
+  if (!unlimited_cost_model (NULL)
       && !vect_bb_vectorization_profitable_p (bb_vinfo))
     {
       if (dump_enabled_p ())

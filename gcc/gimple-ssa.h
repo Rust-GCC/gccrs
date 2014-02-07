@@ -1,6 +1,6 @@
 /* Header file for routines that straddle the border between GIMPLE and
    SSA in gimple.
-   Copyright (C) 2009-2013 Free Software Foundation, Inc.
+   Copyright (C) 2009-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -141,7 +141,7 @@ update_stmt (gimple s)
   if (gimple_has_ops (s))
     {
       gimple_set_modified (s, true);
-      update_stmt_operands (s);
+      update_stmt_operands (cfun, s);
     }
 }
 
@@ -151,7 +151,19 @@ static inline void
 update_stmt_if_modified (gimple s)
 {
   if (gimple_modified_p (s))
-    update_stmt_operands (s);
+    update_stmt_operands (cfun, s);
+}
+
+/* Mark statement S as modified, and update it.  */
+
+static inline void
+update_stmt_fn (struct function *fn, gimple s)
+{
+  if (gimple_has_ops (s))
+    {
+      gimple_set_modified (s, true);
+      update_stmt_operands (fn, s);
+    }
 }
 
 

@@ -1,5 +1,5 @@
 /* Parse C expressions for cpplib.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
    Contributed by Per Bothner, 1994.
 
 This program is free software; you can redistribute it and/or modify it
@@ -1836,7 +1836,22 @@ num_binary_op (cpp_reader *pfile, cpp_num lhs, cpp_num rhs, enum cpp_ttype op)
 
       /* Arithmetic.  */
     case CPP_MINUS:
-      rhs = num_negate (rhs, precision);
+      result.low = lhs.low - rhs.low;
+      result.high = lhs.high - rhs.high;
+      if (result.low > lhs.low)
+	result.high--;
+      result.unsignedp = lhs.unsignedp || rhs.unsignedp;
+      result.overflow = false;
+
+      result = num_trim (result, precision);
+      if (!result.unsignedp)
+	{
+	  bool lhsp = num_positive (lhs, precision);
+	  result.overflow = (lhsp != num_positive (rhs, precision)
+			     && lhsp != num_positive (result, precision));
+	}
+      return result;
+
     case CPP_PLUS:
       result.low = lhs.low + rhs.low;
       result.high = lhs.high + rhs.high;

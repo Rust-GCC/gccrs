@@ -9477,7 +9477,7 @@ package body Exp_Ch6 is
       --          <postconditions from body>
       --          <postconditions from spec>
       --          <inherited postconditions>
-      --          <contract cases>
+      --          <contract case consequences>
       --          <invariant check of function result (if applicable)>
       --          <invariant and predicate checks of parameters>
       --       end _Postconditions;
@@ -9486,6 +9486,7 @@ package body Exp_Ch6 is
       --       <preconditions from spec>
       --       <preconditions from body>
       --       <refined preconditions from body>
+      --       <contract case conditions>
 
       --       <source declarations>
       --    begin
@@ -9603,7 +9604,7 @@ package body Exp_Ch6 is
       --  may end up with a call that is neither resolved to an entity, nor
       --  an indirect call.
 
-      if not Full_Expander_Active then
+      if not Expander_Active then
          return False;
       end if;
 

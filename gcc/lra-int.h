@@ -1,5 +1,5 @@
 /* Local Register Allocator (LRA) intercommunication header file.
-   Copyright (C) 2010-2013 Free Software Foundation, Inc.
+   Copyright (C) 2010-2014 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov <vmakarov@redhat.com>.
 
 This file is part of GCC.
@@ -207,6 +207,12 @@ struct lra_insn_recog_data
 {
   /* The insn code.  */
   int icode;
+  /* The alternative should be used for the insn, -1 if invalid, or we
+     should try to use any alternative, or the insn is a debug
+     insn.  */
+  int used_insn_alternative;
+  /* SP offset before the insn relative to one at the func start.  */
+  HOST_WIDE_INT sp_offset;
   /* The insn itself.  */
   rtx insn;
   /* Common data for insns with the same ICODE.  Asm insns (their
@@ -222,10 +228,6 @@ struct lra_insn_recog_data
   int *arg_hard_regs;
   /* Alternative enabled for the insn.	NULL for debug insns.  */
   bool *alternative_enabled_p;
-  /* The alternative should be used for the insn, -1 if invalid, or we
-     should try to use any alternative, or the insn is a debug
-     insn.  */
-  int used_insn_alternative;
   /* The following member value is always NULL for a debug insn.  */
   struct lra_insn_reg *regs;
 };
@@ -317,6 +319,7 @@ extern int lra_constraint_new_insn_uid_start;
 
 /* lra-constraints.c: */
 
+extern void lra_init_equiv (void);
 extern int lra_constraint_offset (int, enum machine_mode);
 
 extern int lra_constraint_iter;
@@ -377,8 +380,8 @@ extern void lra_final_code_change (void);
 
 extern void lra_debug_elim_table (void);
 extern int lra_get_elimination_hard_regno (int);
-extern rtx lra_eliminate_regs_1 (rtx, enum machine_mode, bool, bool, bool);
-extern void lra_eliminate (bool);
+extern rtx lra_eliminate_regs_1 (rtx, rtx, enum machine_mode, bool, bool, bool);
+extern void lra_eliminate (bool, bool);
 
 extern void lra_eliminate_reg_if_possible (rtx *);
 

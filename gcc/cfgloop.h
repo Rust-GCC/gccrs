@@ -1,5 +1,5 @@
 /* Natural loop functions
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -175,6 +175,9 @@ struct GTY ((chain_next ("%h.next"))) loop {
 
   /* True if we should try harder to vectorize this loop.  */
   bool force_vect;
+
+  /* True if this loop should never be vectorized.  */
+  bool dont_vectorize;
 
   /* For SIMD loops, this is a unique identifier of the loop, referenced
      by IFN_GOMP_SIMD_VF, IFN_GOMP_SIMD_LANE and IFN_GOMP_SIMD_LAST_LANE

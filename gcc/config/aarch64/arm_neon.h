@@ -1,6 +1,6 @@
 /* ARM NEON intrinsics include file.
 
-   Copyright (C) 2011-2013 Free Software Foundation, Inc.
+   Copyright (C) 2011-2014 Free Software Foundation, Inc.
    Contributed by ARM Ltd.
 
    This file is part of GCC.
@@ -75,6 +75,8 @@ typedef __builtin_aarch64_simd_poly8 poly8x16_t
   __attribute__ ((__vector_size__ (16)));
 typedef __builtin_aarch64_simd_poly16 poly16x8_t
   __attribute__ ((__vector_size__ (16)));
+typedef __builtin_aarch64_simd_poly64 poly64x2_t
+  __attribute__ ((__vector_size__ (16)));
 typedef __builtin_aarch64_simd_uqi uint8x16_t
   __attribute__ ((__vector_size__ (16)));
 typedef __builtin_aarch64_simd_uhi uint16x8_t
@@ -88,6 +90,8 @@ typedef float float32_t;
 typedef double float64_t;
 typedef __builtin_aarch64_simd_poly8 poly8_t;
 typedef __builtin_aarch64_simd_poly16 poly16_t;
+typedef __builtin_aarch64_simd_poly64 poly64_t;
+typedef __builtin_aarch64_simd_poly128 poly128_t;
 
 typedef struct int8x8x2_t
 {
@@ -453,7 +457,7 @@ typedef struct poly16x8x4_t
 
 #define __aarch64_vget_lane_any(__size, __cast_ret, __cast_a, __a, __b) \
   (__cast_ret								\
-     __builtin_aarch64_get_lane##__size (__cast_a __a, __b))
+     __builtin_aarch64_be_checked_get_lane##__size (__cast_a __a, __b))
 
 #define __aarch64_vget_lane_f32(__a, __b) \
   __aarch64_vget_lane_any (v2sf, , , __a, __b)
@@ -15307,30 +15311,24 @@ vaddd_u64 (uint64x1_t __a, uint64x1_t __b)
   return __a + __b;
 }
 
-#if __AARCH64EB__
-#define __LANE0(__t) ((__t) - 1)
-#else
-#define __LANE0(__t) 0
-#endif
-
 /* vaddv */
 
 __extension__ static __inline int8_t __attribute__ ((__always_inline__))
 vaddv_s8 (int8x8_t __a)
 {
-  return vget_lane_s8 (__builtin_aarch64_reduc_splus_v8qi (__a), __LANE0 (8));
+  return vget_lane_s8 (__builtin_aarch64_reduc_splus_v8qi (__a), 0);
 }
 
 __extension__ static __inline int16_t __attribute__ ((__always_inline__))
 vaddv_s16 (int16x4_t __a)
 {
-  return vget_lane_s16 (__builtin_aarch64_reduc_splus_v4hi (__a), __LANE0 (4));
+  return vget_lane_s16 (__builtin_aarch64_reduc_splus_v4hi (__a), 0);
 }
 
 __extension__ static __inline int32_t __attribute__ ((__always_inline__))
 vaddv_s32 (int32x2_t __a)
 {
-  return vget_lane_s32 (__builtin_aarch64_reduc_splus_v2si (__a), __LANE0 (2));
+  return vget_lane_s32 (__builtin_aarch64_reduc_splus_v2si (__a), 0);
 }
 
 __extension__ static __inline uint8_t __attribute__ ((__always_inline__))
@@ -15338,7 +15336,7 @@ vaddv_u8 (uint8x8_t __a)
 {
   return vget_lane_u8 ((uint8x8_t)
 		__builtin_aarch64_reduc_uplus_v8qi ((int8x8_t) __a),
-		__LANE0 (8));
+		0);
 }
 
 __extension__ static __inline uint16_t __attribute__ ((__always_inline__))
@@ -15346,7 +15344,7 @@ vaddv_u16 (uint16x4_t __a)
 {
   return vget_lane_u16 ((uint16x4_t)
 		__builtin_aarch64_reduc_uplus_v4hi ((int16x4_t) __a),
-		__LANE0 (4));
+		0);
 }
 
 __extension__ static __inline uint32_t __attribute__ ((__always_inline__))
@@ -15354,32 +15352,32 @@ vaddv_u32 (uint32x2_t __a)
 {
   return vget_lane_u32 ((uint32x2_t)
 		__builtin_aarch64_reduc_uplus_v2si ((int32x2_t) __a),
-		__LANE0 (2));
+		0);
 }
 
 __extension__ static __inline int8_t __attribute__ ((__always_inline__))
 vaddvq_s8 (int8x16_t __a)
 {
   return vgetq_lane_s8 (__builtin_aarch64_reduc_splus_v16qi (__a),
-			__LANE0 (16));
+			0);
 }
 
 __extension__ static __inline int16_t __attribute__ ((__always_inline__))
 vaddvq_s16 (int16x8_t __a)
 {
-  return vgetq_lane_s16 (__builtin_aarch64_reduc_splus_v8hi (__a), __LANE0 (8));
+  return vgetq_lane_s16 (__builtin_aarch64_reduc_splus_v8hi (__a), 0);
 }
 
 __extension__ static __inline int32_t __attribute__ ((__always_inline__))
 vaddvq_s32 (int32x4_t __a)
 {
-  return vgetq_lane_s32 (__builtin_aarch64_reduc_splus_v4si (__a), __LANE0 (4));
+  return vgetq_lane_s32 (__builtin_aarch64_reduc_splus_v4si (__a), 0);
 }
 
 __extension__ static __inline int64_t __attribute__ ((__always_inline__))
 vaddvq_s64 (int64x2_t __a)
 {
-  return vgetq_lane_s64 (__builtin_aarch64_reduc_splus_v2di (__a), __LANE0 (2));
+  return vgetq_lane_s64 (__builtin_aarch64_reduc_splus_v2di (__a), 0);
 }
 
 __extension__ static __inline uint8_t __attribute__ ((__always_inline__))
@@ -15387,7 +15385,7 @@ vaddvq_u8 (uint8x16_t __a)
 {
   return vgetq_lane_u8 ((uint8x16_t)
 		__builtin_aarch64_reduc_uplus_v16qi ((int8x16_t) __a),
-		__LANE0 (16));
+		0);
 }
 
 __extension__ static __inline uint16_t __attribute__ ((__always_inline__))
@@ -15395,7 +15393,7 @@ vaddvq_u16 (uint16x8_t __a)
 {
   return vgetq_lane_u16 ((uint16x8_t)
 		__builtin_aarch64_reduc_uplus_v8hi ((int16x8_t) __a),
-		__LANE0 (8));
+		0);
 }
 
 __extension__ static __inline uint32_t __attribute__ ((__always_inline__))
@@ -15403,7 +15401,7 @@ vaddvq_u32 (uint32x4_t __a)
 {
   return vgetq_lane_u32 ((uint32x4_t)
 		__builtin_aarch64_reduc_uplus_v4si ((int32x4_t) __a),
-		__LANE0 (4));
+		0);
 }
 
 __extension__ static __inline uint64_t __attribute__ ((__always_inline__))
@@ -15411,28 +15409,28 @@ vaddvq_u64 (uint64x2_t __a)
 {
   return vgetq_lane_u64 ((uint64x2_t)
 		__builtin_aarch64_reduc_uplus_v2di ((int64x2_t) __a),
-		__LANE0 (2));
+		0);
 }
 
 __extension__ static __inline float32_t __attribute__ ((__always_inline__))
 vaddv_f32 (float32x2_t __a)
 {
   float32x2_t __t = __builtin_aarch64_reduc_splus_v2sf (__a);
-  return vget_lane_f32 (__t, __LANE0 (2));
+  return vget_lane_f32 (__t, 0);
 }
 
 __extension__ static __inline float32_t __attribute__ ((__always_inline__))
 vaddvq_f32 (float32x4_t __a)
 {
   float32x4_t __t = __builtin_aarch64_reduc_splus_v4sf (__a);
-  return vgetq_lane_f32 (__t, __LANE0 (4));
+  return vgetq_lane_f32 (__t, 0);
 }
 
 __extension__ static __inline float64_t __attribute__ ((__always_inline__))
 vaddvq_f64 (float64x2_t __a)
 {
   float64x2_t __t = __builtin_aarch64_reduc_splus_v2df (__a);
-  return vgetq_lane_f64 (__t, __LANE0 (2));
+  return vgetq_lane_f64 (__t, 0);
 }
 
 /* vbsl  */
@@ -15574,6 +15572,36 @@ vbslq_u64 (uint64x2_t __a, uint64x2_t __b, uint64x2_t __c)
 {
   return __builtin_aarch64_simd_bslv2di_uuuu (__a, __b, __c);
 }
+
+#ifdef __ARM_FEATURE_CRYPTO
+
+/* vaes  */
+
+static __inline uint8x16_t
+vaeseq_u8 (uint8x16_t data, uint8x16_t key)
+{
+  return __builtin_aarch64_crypto_aesev16qi_uuu (data, key);
+}
+
+static __inline uint8x16_t
+vaesdq_u8 (uint8x16_t data, uint8x16_t key)
+{
+  return __builtin_aarch64_crypto_aesdv16qi_uuu (data, key);
+}
+
+static __inline uint8x16_t
+vaesmcq_u8 (uint8x16_t data)
+{
+  return __builtin_aarch64_crypto_aesmcv16qi_uu (data);
+}
+
+static __inline uint8x16_t
+vaesimcq_u8 (uint8x16_t data)
+{
+  return __builtin_aarch64_crypto_aesimcv16qi_uu (data);
+}
+
+#endif
 
 /* vcage  */
 
@@ -19814,25 +19842,25 @@ __extension__ static __inline float32_t __attribute__ ((__always_inline__))
 vmaxv_f32 (float32x2_t __a)
 {
   return vget_lane_f32 (__builtin_aarch64_reduc_smax_nan_v2sf (__a),
-			__LANE0 (2));
+			0);
 }
 
 __extension__ static __inline int8_t __attribute__ ((__always_inline__))
 vmaxv_s8 (int8x8_t __a)
 {
-  return vget_lane_s8 (__builtin_aarch64_reduc_smax_v8qi (__a), __LANE0 (8));
+  return vget_lane_s8 (__builtin_aarch64_reduc_smax_v8qi (__a), 0);
 }
 
 __extension__ static __inline int16_t __attribute__ ((__always_inline__))
 vmaxv_s16 (int16x4_t __a)
 {
-  return vget_lane_s16 (__builtin_aarch64_reduc_smax_v4hi (__a), __LANE0 (4));
+  return vget_lane_s16 (__builtin_aarch64_reduc_smax_v4hi (__a), 0);
 }
 
 __extension__ static __inline int32_t __attribute__ ((__always_inline__))
 vmaxv_s32 (int32x2_t __a)
 {
-  return vget_lane_s32 (__builtin_aarch64_reduc_smax_v2si (__a), __LANE0 (2));
+  return vget_lane_s32 (__builtin_aarch64_reduc_smax_v2si (__a), 0);
 }
 
 __extension__ static __inline uint8_t __attribute__ ((__always_inline__))
@@ -19840,7 +19868,7 @@ vmaxv_u8 (uint8x8_t __a)
 {
   return vget_lane_u8 ((uint8x8_t)
 		__builtin_aarch64_reduc_umax_v8qi ((int8x8_t) __a),
-		__LANE0 (8));
+		0);
 }
 
 __extension__ static __inline uint16_t __attribute__ ((__always_inline__))
@@ -19848,7 +19876,7 @@ vmaxv_u16 (uint16x4_t __a)
 {
   return vget_lane_u16 ((uint16x4_t)
 		__builtin_aarch64_reduc_umax_v4hi ((int16x4_t) __a),
-		__LANE0 (4));
+		0);
 }
 
 __extension__ static __inline uint32_t __attribute__ ((__always_inline__))
@@ -19856,39 +19884,39 @@ vmaxv_u32 (uint32x2_t __a)
 {
   return vget_lane_u32 ((uint32x2_t)
 		__builtin_aarch64_reduc_umax_v2si ((int32x2_t) __a),
-		__LANE0 (2));
+		0);
 }
 
 __extension__ static __inline float32_t __attribute__ ((__always_inline__))
 vmaxvq_f32 (float32x4_t __a)
 {
   return vgetq_lane_f32 (__builtin_aarch64_reduc_smax_nan_v4sf (__a),
-			 __LANE0 (4));
+			 0);
 }
 
 __extension__ static __inline float64_t __attribute__ ((__always_inline__))
 vmaxvq_f64 (float64x2_t __a)
 {
   return vgetq_lane_f64 (__builtin_aarch64_reduc_smax_nan_v2df (__a),
-			 __LANE0 (2));
+			 0);
 }
 
 __extension__ static __inline int8_t __attribute__ ((__always_inline__))
 vmaxvq_s8 (int8x16_t __a)
 {
-  return vgetq_lane_s8 (__builtin_aarch64_reduc_smax_v16qi (__a), __LANE0 (16));
+  return vgetq_lane_s8 (__builtin_aarch64_reduc_smax_v16qi (__a), 0);
 }
 
 __extension__ static __inline int16_t __attribute__ ((__always_inline__))
 vmaxvq_s16 (int16x8_t __a)
 {
-  return vgetq_lane_s16 (__builtin_aarch64_reduc_smax_v8hi (__a), __LANE0 (8));
+  return vgetq_lane_s16 (__builtin_aarch64_reduc_smax_v8hi (__a), 0);
 }
 
 __extension__ static __inline int32_t __attribute__ ((__always_inline__))
 vmaxvq_s32 (int32x4_t __a)
 {
-  return vgetq_lane_s32 (__builtin_aarch64_reduc_smax_v4si (__a), __LANE0 (4));
+  return vgetq_lane_s32 (__builtin_aarch64_reduc_smax_v4si (__a), 0);
 }
 
 __extension__ static __inline uint8_t __attribute__ ((__always_inline__))
@@ -19896,7 +19924,7 @@ vmaxvq_u8 (uint8x16_t __a)
 {
   return vgetq_lane_u8 ((uint8x16_t)
 		__builtin_aarch64_reduc_umax_v16qi ((int8x16_t) __a),
-		__LANE0 (16));
+		0);
 }
 
 __extension__ static __inline uint16_t __attribute__ ((__always_inline__))
@@ -19904,7 +19932,7 @@ vmaxvq_u16 (uint16x8_t __a)
 {
   return vgetq_lane_u16 ((uint16x8_t)
 		__builtin_aarch64_reduc_umax_v8hi ((int16x8_t) __a),
-		__LANE0 (8));
+		0);
 }
 
 __extension__ static __inline uint32_t __attribute__ ((__always_inline__))
@@ -19912,7 +19940,7 @@ vmaxvq_u32 (uint32x4_t __a)
 {
   return vgetq_lane_u32 ((uint32x4_t)
 		__builtin_aarch64_reduc_umax_v4si ((int32x4_t) __a),
-		__LANE0 (4));
+		0);
 }
 
 /* vmaxnmv  */
@@ -19921,19 +19949,19 @@ __extension__ static __inline float32_t __attribute__ ((__always_inline__))
 vmaxnmv_f32 (float32x2_t __a)
 {
   return vget_lane_f32 (__builtin_aarch64_reduc_smax_v2sf (__a),
-			__LANE0 (2));
+			0);
 }
 
 __extension__ static __inline float32_t __attribute__ ((__always_inline__))
 vmaxnmvq_f32 (float32x4_t __a)
 {
-  return vgetq_lane_f32 (__builtin_aarch64_reduc_smax_v4sf (__a), __LANE0 (4));
+  return vgetq_lane_f32 (__builtin_aarch64_reduc_smax_v4sf (__a), 0);
 }
 
 __extension__ static __inline float64_t __attribute__ ((__always_inline__))
 vmaxnmvq_f64 (float64x2_t __a)
 {
-  return vgetq_lane_f64 (__builtin_aarch64_reduc_smax_v2df (__a), __LANE0 (2));
+  return vgetq_lane_f64 (__builtin_aarch64_reduc_smax_v2df (__a), 0);
 }
 
 /* vmin  */
@@ -20060,26 +20088,26 @@ __extension__ static __inline float32_t __attribute__ ((__always_inline__))
 vminv_f32 (float32x2_t __a)
 {
   return vget_lane_f32 (__builtin_aarch64_reduc_smin_nan_v2sf (__a),
-			__LANE0 (2));
+			0);
 }
 
 __extension__ static __inline int8_t __attribute__ ((__always_inline__))
 vminv_s8 (int8x8_t __a)
 {
   return vget_lane_s8 (__builtin_aarch64_reduc_smin_v8qi (__a),
-		       __LANE0 (8));
+		       0);
 }
 
 __extension__ static __inline int16_t __attribute__ ((__always_inline__))
 vminv_s16 (int16x4_t __a)
 {
-  return vget_lane_s16 (__builtin_aarch64_reduc_smin_v4hi (__a), __LANE0 (4));
+  return vget_lane_s16 (__builtin_aarch64_reduc_smin_v4hi (__a), 0);
 }
 
 __extension__ static __inline int32_t __attribute__ ((__always_inline__))
 vminv_s32 (int32x2_t __a)
 {
-  return vget_lane_s32 (__builtin_aarch64_reduc_smin_v2si (__a), __LANE0 (2));
+  return vget_lane_s32 (__builtin_aarch64_reduc_smin_v2si (__a), 0);
 }
 
 __extension__ static __inline uint8_t __attribute__ ((__always_inline__))
@@ -20087,7 +20115,7 @@ vminv_u8 (uint8x8_t __a)
 {
   return vget_lane_u8 ((uint8x8_t)
 		__builtin_aarch64_reduc_umin_v8qi ((int8x8_t) __a),
-		__LANE0 (8));
+		0);
 }
 
 __extension__ static __inline uint16_t __attribute__ ((__always_inline__))
@@ -20095,7 +20123,7 @@ vminv_u16 (uint16x4_t __a)
 {
   return vget_lane_u16 ((uint16x4_t)
 		__builtin_aarch64_reduc_umin_v4hi ((int16x4_t) __a),
-		__LANE0 (4));
+		0);
 }
 
 __extension__ static __inline uint32_t __attribute__ ((__always_inline__))
@@ -20103,39 +20131,39 @@ vminv_u32 (uint32x2_t __a)
 {
   return vget_lane_u32 ((uint32x2_t)
 		__builtin_aarch64_reduc_umin_v2si ((int32x2_t) __a),
-		__LANE0 (2));
+		0);
 }
 
 __extension__ static __inline float32_t __attribute__ ((__always_inline__))
 vminvq_f32 (float32x4_t __a)
 {
   return vgetq_lane_f32 (__builtin_aarch64_reduc_smin_nan_v4sf (__a),
-			 __LANE0 (4));
+			 0);
 }
 
 __extension__ static __inline float64_t __attribute__ ((__always_inline__))
 vminvq_f64 (float64x2_t __a)
 {
   return vgetq_lane_f64 (__builtin_aarch64_reduc_smin_nan_v2df (__a),
-			 __LANE0 (2));
+			 0);
 }
 
 __extension__ static __inline int8_t __attribute__ ((__always_inline__))
 vminvq_s8 (int8x16_t __a)
 {
-  return vgetq_lane_s8 (__builtin_aarch64_reduc_smin_v16qi (__a), __LANE0 (16));
+  return vgetq_lane_s8 (__builtin_aarch64_reduc_smin_v16qi (__a), 0);
 }
 
 __extension__ static __inline int16_t __attribute__ ((__always_inline__))
 vminvq_s16 (int16x8_t __a)
 {
-  return vgetq_lane_s16 (__builtin_aarch64_reduc_smin_v8hi (__a), __LANE0 (8));
+  return vgetq_lane_s16 (__builtin_aarch64_reduc_smin_v8hi (__a), 0);
 }
 
 __extension__ static __inline int32_t __attribute__ ((__always_inline__))
 vminvq_s32 (int32x4_t __a)
 {
-  return vgetq_lane_s32 (__builtin_aarch64_reduc_smin_v4si (__a), __LANE0 (4));
+  return vgetq_lane_s32 (__builtin_aarch64_reduc_smin_v4si (__a), 0);
 }
 
 __extension__ static __inline uint8_t __attribute__ ((__always_inline__))
@@ -20143,7 +20171,7 @@ vminvq_u8 (uint8x16_t __a)
 {
   return vgetq_lane_u8 ((uint8x16_t)
 		__builtin_aarch64_reduc_umin_v16qi ((int8x16_t) __a),
-		__LANE0 (16));
+		0);
 }
 
 __extension__ static __inline uint16_t __attribute__ ((__always_inline__))
@@ -20151,7 +20179,7 @@ vminvq_u16 (uint16x8_t __a)
 {
   return vgetq_lane_u16 ((uint16x8_t)
 		__builtin_aarch64_reduc_umin_v8hi ((int16x8_t) __a),
-		__LANE0 (8));
+		0);
 }
 
 __extension__ static __inline uint32_t __attribute__ ((__always_inline__))
@@ -20159,7 +20187,7 @@ vminvq_u32 (uint32x4_t __a)
 {
   return vgetq_lane_u32 ((uint32x4_t)
 		__builtin_aarch64_reduc_umin_v4si ((int32x4_t) __a),
-		__LANE0 (4));
+		0);
 }
 
 /* vminnmv  */
@@ -20167,19 +20195,19 @@ vminvq_u32 (uint32x4_t __a)
 __extension__ static __inline float32_t __attribute__ ((__always_inline__))
 vminnmv_f32 (float32x2_t __a)
 {
-  return vget_lane_f32 (__builtin_aarch64_reduc_smin_v2sf (__a), __LANE0 (2));
+  return vget_lane_f32 (__builtin_aarch64_reduc_smin_v2sf (__a), 0);
 }
 
 __extension__ static __inline float32_t __attribute__ ((__always_inline__))
 vminnmvq_f32 (float32x4_t __a)
 {
-  return vgetq_lane_f32 (__builtin_aarch64_reduc_smin_v4sf (__a), __LANE0 (4));
+  return vgetq_lane_f32 (__builtin_aarch64_reduc_smin_v4sf (__a), 0);
 }
 
 __extension__ static __inline float64_t __attribute__ ((__always_inline__))
 vminnmvq_f64 (float64x2_t __a)
 {
-  return vgetq_lane_f64 (__builtin_aarch64_reduc_smin_v2df (__a), __LANE0 (2));
+  return vgetq_lane_f64 (__builtin_aarch64_reduc_smin_v2df (__a), 0);
 }
 
 /* vmla */
@@ -22922,6 +22950,83 @@ vrsrad_n_u64 (uint64x1_t __a, uint64x1_t __b, const int __c)
   return (uint64x1_t) __builtin_aarch64_ursra_ndi (__a, __b, __c);
 }
 
+#ifdef __ARM_FEATURE_CRYPTO
+
+/* vsha1  */
+
+static __inline uint32x4_t
+vsha1cq_u32 (uint32x4_t hash_abcd, uint32_t hash_e, uint32x4_t wk)
+{
+  return __builtin_aarch64_crypto_sha1cv4si_uuuu (hash_abcd, hash_e, wk);
+}
+static __inline uint32x4_t
+vsha1mq_u32 (uint32x4_t hash_abcd, uint32_t hash_e, uint32x4_t wk)
+{
+  return __builtin_aarch64_crypto_sha1mv4si_uuuu (hash_abcd, hash_e, wk);
+}
+static __inline uint32x4_t
+vsha1pq_u32 (uint32x4_t hash_abcd, uint32_t hash_e, uint32x4_t wk)
+{
+  return __builtin_aarch64_crypto_sha1pv4si_uuuu (hash_abcd, hash_e, wk);
+}
+
+static __inline uint32_t
+vsha1h_u32 (uint32_t hash_e)
+{
+  return __builtin_aarch64_crypto_sha1hsi_uu (hash_e);
+}
+
+static __inline uint32x4_t
+vsha1su0q_u32 (uint32x4_t w0_3, uint32x4_t w4_7, uint32x4_t w8_11)
+{
+  return __builtin_aarch64_crypto_sha1su0v4si_uuuu (w0_3, w4_7, w8_11);
+}
+
+static __inline uint32x4_t
+vsha1su1q_u32 (uint32x4_t tw0_3, uint32x4_t w12_15)
+{
+  return __builtin_aarch64_crypto_sha1su1v4si_uuu (tw0_3, w12_15);
+}
+
+static __inline uint32x4_t
+vsha256hq_u32 (uint32x4_t hash_abcd, uint32x4_t hash_efgh, uint32x4_t wk)
+{
+  return __builtin_aarch64_crypto_sha256hv4si_uuuu (hash_abcd, hash_efgh, wk);
+}
+
+static __inline uint32x4_t
+vsha256h2q_u32 (uint32x4_t hash_efgh, uint32x4_t hash_abcd, uint32x4_t wk)
+{
+  return __builtin_aarch64_crypto_sha256h2v4si_uuuu (hash_efgh, hash_abcd, wk);
+}
+
+static __inline uint32x4_t
+vsha256su0q_u32 (uint32x4_t w0_3, uint32x4_t w4_7)
+{
+  return __builtin_aarch64_crypto_sha256su0v4si_uuu (w0_3, w4_7);
+}
+
+static __inline uint32x4_t
+vsha256su1q_u32 (uint32x4_t tw0_3, uint32x4_t w8_11, uint32x4_t w12_15)
+{
+  return __builtin_aarch64_crypto_sha256su1v4si_uuuu (tw0_3, w8_11, w12_15);
+}
+
+static __inline poly128_t
+vmull_p64 (poly64_t a, poly64_t b)
+{
+  return
+    __builtin_aarch64_crypto_pmulldi_ppp (a, b);
+}
+
+static __inline poly128_t
+vmull_high_p64 (poly64x2_t a, poly64x2_t b)
+{
+  return __builtin_aarch64_crypto_pmullv2di_ppp (a, b);
+}
+
+#endif
+
 /* vshl */
 
 __extension__ static __inline int8x8_t __attribute__ ((__always_inline__))
@@ -23235,7 +23340,7 @@ vshr_n_s32 (int32x2_t __a, const int __b)
 __extension__ static __inline int64x1_t __attribute__ ((__always_inline__))
 vshr_n_s64 (int64x1_t __a, const int __b)
 {
-  return (int64x1_t) __builtin_aarch64_ashrdi (__a, __b);
+  return (int64x1_t) __builtin_aarch64_ashr_simddi (__a, __b);
 }
 
 __extension__ static __inline uint8x8_t __attribute__ ((__always_inline__))
@@ -23313,7 +23418,7 @@ vshrq_n_u64 (uint64x2_t __a, const int __b)
 __extension__ static __inline int64x1_t __attribute__ ((__always_inline__))
 vshrd_n_s64 (int64x1_t __a, const int __b)
 {
-  return (int64x1_t) __builtin_aarch64_ashrdi (__a, __b);
+  return (int64x1_t) __builtin_aarch64_ashr_simddi (__a, __b);
 }
 
 __extension__ static __inline uint64x1_t __attribute__ ((__always_inline__))
@@ -25217,8 +25322,6 @@ __INTERLEAVE_LIST (zip)
 #undef __DEFINTERLEAVE
 
 /* End of optimal implementations in approved order.  */
-
-#undef __LANE0
 
 #undef __aarch64_vget_lane_any
 #undef __aarch64_vget_lane_f32

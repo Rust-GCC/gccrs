@@ -1,6 +1,6 @@
 /* Garbage collection for the GNU compiler.
 
-   Copyright (C) 1998-2013 Free Software Foundation, Inc.
+   Copyright (C) 1998-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -273,6 +273,13 @@ static inline struct gimple_statement_base *
 ggc_alloc_cleared_gimple_statement_stat (size_t s MEM_STAT_DECL)
 {
   return (struct gimple_statement_base *)
+    ggc_internal_cleared_alloc_stat (s PASS_MEM_STAT);
+}
+
+static inline struct simd_clone *
+ggc_alloc_cleared_simd_clone_stat (size_t s MEM_STAT_DECL)
+{
+  return (struct simd_clone *)
     ggc_internal_cleared_alloc_stat (s PASS_MEM_STAT);
 }
 

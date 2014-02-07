@@ -1,5 +1,5 @@
 /* IO Code translation/library interface
-   Copyright (C) 2002-2013 Free Software Foundation, Inc.
+   Copyright (C) 2002-2014 Free Software Foundation, Inc.
    Contributed by Paul Brook
 
 This file is part of GCC.
@@ -2152,7 +2152,7 @@ transfer_expr (gfc_se * se, gfc_typespec * ts, tree addr_expr, gfc_code * code)
 	 function, if only referenced in an io statement, requires this
 	 check (see PR58771).  */
       if (ts->u.derived->backend_decl == NULL_TREE)
-	tmp = gfc_typenode_for_spec (ts);
+	(void) gfc_typenode_for_spec (ts);
 
       for (c = ts->u.derived->components; c; c = c->next)
 	{

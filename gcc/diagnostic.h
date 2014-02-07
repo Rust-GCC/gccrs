@@ -1,5 +1,5 @@
 /* Various declarations for language-independent diagnostics subroutines.
-   Copyright (C) 2000-2013 Free Software Foundation, Inc.
+   Copyright (C) 2000-2014 Free Software Foundation, Inc.
    Contributed by Gabriel Dos Reis <gdr@codesourcery.com>
 
 This file is part of GCC.
@@ -27,7 +27,7 @@ along with GCC; see the file COPYING3.  If not see
 /* A diagnostic is described by the MESSAGE to send, the FILE and LINE of
    its context and its KIND (ice, error, warning, note, ...)  See complete
    list in diagnostic.def.  */
-typedef struct diagnostic_info
+struct diagnostic_info
 {
   text_info message;
   location_t location;
@@ -38,17 +38,17 @@ typedef struct diagnostic_info
   diagnostic_t kind;
   /* Which OPT_* directly controls this diagnostic.  */
   int option_index;
-} diagnostic_info;
+};
 
 /* Each time a diagnostic's classification is changed with a pragma,
    we record the change and the location of the change in an array of
    these structs.  */
-typedef struct diagnostic_classification_change_t
+struct diagnostic_classification_change_t
 {
   location_t location;
   int option;
   diagnostic_t kind;
-} diagnostic_classification_change_t;
+};
 
 /*  Forward declarations.  */
 typedef void (*diagnostic_starter_fn) (diagnostic_context *,
@@ -291,6 +291,7 @@ void default_diagnostic_starter (diagnostic_context *, diagnostic_info *);
 void default_diagnostic_finalizer (diagnostic_context *, diagnostic_info *);
 void diagnostic_set_caret_max_width (diagnostic_context *context, int value);
 
+void diagnostic_file_cache_fini (void);
 
 /* Pure text formatting support functions.  */
 extern char *file_name_as_prefix (diagnostic_context *, const char *);

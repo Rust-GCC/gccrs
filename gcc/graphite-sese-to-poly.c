@@ -1,5 +1,5 @@
 /* Conversion of SESE regions to Polyhedra.
-   Copyright (C) 2009-2013 Free Software Foundation, Inc.
+   Copyright (C) 2009-2014 Free Software Foundation, Inc.
    Contributed by Sebastian Pop <sebastian.pop@amd.com>.
 
 This file is part of GCC.
@@ -423,7 +423,7 @@ build_scop_bbs_1 (scop_p scop, sbitmap visited, basic_block bb)
 static void
 build_scop_bbs (scop_p scop)
 {
-  sbitmap visited = sbitmap_alloc (last_basic_block);
+  sbitmap visited = sbitmap_alloc (last_basic_block_for_fn (cfun));
   sese region = SCOP_REGION (scop);
 
   bitmap_clear (visited);
@@ -1245,7 +1245,7 @@ public:
   virtual void after_dom_children (basic_block);
 
 private:
-  stack_vec<gimple, 3> m_conditions, m_cases;
+  auto_vec<gimple, 3> m_conditions, m_cases;
   sese m_region;
 };
 
@@ -1890,7 +1890,7 @@ build_scop_drs (scop_p scop)
   int i, j;
   poly_bb_p pbb;
   data_reference_p dr;
-  stack_vec<data_reference_p, 3> drs;
+  auto_vec<data_reference_p, 3> drs;
 
   /* Remove all the PBBs that do not have data references: these basic
      blocks are not handled in the polyhedral representation.  */
@@ -1988,7 +1988,7 @@ insert_stmts (scop_p scop, gimple stmt, gimple_seq stmts,
 	      gimple_stmt_iterator insert_gsi)
 {
   gimple_stmt_iterator gsi;
-  stack_vec<gimple, 3> x;
+  auto_vec<gimple, 3> x;
 
   gimple_seq_add_stmt (&stmts, stmt);
   for (gsi = gsi_start (stmts); !gsi_end_p (gsi); gsi_next (&gsi))
@@ -2007,7 +2007,7 @@ insert_out_of_ssa_copy (scop_p scop, tree res, tree expr, gimple after_stmt)
   gimple_stmt_iterator gsi;
   tree var = force_gimple_operand (expr, &stmts, true, NULL_TREE);
   gimple stmt = gimple_build_assign (unshare_expr (res), var);
-  stack_vec<gimple, 3> x;
+  auto_vec<gimple, 3> x;
 
   gimple_seq_add_stmt (&stmts, stmt);
   for (gsi = gsi_start (stmts); !gsi_end_p (gsi); gsi_next (&gsi))
@@ -2062,7 +2062,7 @@ insert_out_of_ssa_copy_on_edge (scop_p scop, edge e, tree res, tree expr)
   tree var = force_gimple_operand (expr, &stmts, true, NULL_TREE);
   gimple stmt = gimple_build_assign (unshare_expr (res), var);
   basic_block bb;
-  stack_vec<gimple, 3> x;
+  auto_vec<gimple, 3> x;
 
   gimple_seq_add_stmt (&stmts, stmt);
   for (gsi = gsi_start (stmts); !gsi_end_p (gsi); gsi_next (&gsi))
@@ -2295,7 +2295,7 @@ rewrite_reductions_out_of_ssa (scop_p scop)
   gimple_stmt_iterator psi;
   sese region = SCOP_REGION (scop);
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     if (bb_in_sese_p (bb, region))
       for (psi = gsi_start_phis (bb); !gsi_end_p (psi);)
 	{
@@ -2489,7 +2489,7 @@ rewrite_cross_bb_scalar_deps_out_of_ssa (scop_p scop)
   /* Create an extra empty BB after the scop.  */
   split_edge (SESE_EXIT (region));
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     if (bb_in_sese_p (bb, region))
       for (psi = gsi_start_bb (bb); !gsi_end_p (psi); gsi_next (&psi))
 	changed |= rewrite_cross_bb_scalar_deps (scop, &psi);
@@ -2870,7 +2870,7 @@ remove_phi (gimple phi)
   tree def;
   use_operand_p use_p;
   gimple_stmt_iterator gsi;
-  stack_vec<gimple, 3> update;
+  auto_vec<gimple, 3> update;
   unsigned int i;
   gimple stmt;
 
@@ -3028,8 +3028,8 @@ rewrite_commutative_reductions_out_of_ssa_close_phi (scop_p scop,
 						     gimple close_phi)
 {
   bool res;
-  stack_vec<gimple, 10> in;
-  stack_vec<gimple, 10> out;
+  auto_vec<gimple, 10> in;
+  auto_vec<gimple, 10> out;
 
   detect_commutative_reduction (scop, close_phi, &in, &out);
   res = in.length () > 1;

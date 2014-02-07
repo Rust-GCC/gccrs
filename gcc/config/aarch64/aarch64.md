@@ -1,5 +1,5 @@
 ;; Machine description for AArch64 architecture.
-;; Copyright (C) 2009-2013 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2014 Free Software Foundation, Inc.
 ;; Contributed by ARM Ltd.
 ;;
 ;; This file is part of GCC.
@@ -81,6 +81,7 @@
     UNSPEC_GOTSMALLPIC
     UNSPEC_GOTSMALLTLS
     UNSPEC_GOTTINYPIC
+    UNSPEC_LD1
     UNSPEC_LD2
     UNSPEC_LD3
     UNSPEC_LD4
@@ -92,6 +93,8 @@
     UNSPEC_SISD_SSHL
     UNSPEC_SISD_USHL
     UNSPEC_SSHL_2S
+    UNSPEC_SSHR64
+    UNSPEC_ST1
     UNSPEC_ST2
     UNSPEC_ST3
     UNSPEC_ST4
@@ -289,6 +292,12 @@
   "nop"
   [(set_attr "type" "no_insn")]
 )
+
+(define_insn "trap"
+  [(trap_if (const_int 1) (const_int 8))]
+  ""
+  "brk #1000"
+  [(set_attr "type" "trap")])
 
 (define_expand "prologue"
   [(clobber (const_int 0))]
@@ -1244,8 +1253,8 @@
 )
 
 (define_insn "*compare_neg<mode>"
-  [(set (reg:CC_SWP CC_REGNUM)
-	(compare:CC_SWP
+  [(set (reg:CC_Z CC_REGNUM)
+	(compare:CC_Z
 	 (neg:GPI (match_operand:GPI 0 "register_operand" "r"))
 	 (match_operand:GPI 1 "register_operand" "r")))]
   ""

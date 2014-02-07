@@ -2,7 +2,7 @@
 --                                                                          --
 --                         GNAT COMPILER COMPONENTS                         --
 --                                                                          --
---                              S E M . C H 7                               --
+--                              S E M _ C H 7                               --
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
@@ -56,6 +56,7 @@ with Sem_Ch12; use Sem_Ch12;
 with Sem_Ch13; use Sem_Ch13;
 with Sem_Disp; use Sem_Disp;
 with Sem_Eval; use Sem_Eval;
+with Sem_Prag; use Sem_Prag;
 with Sem_Util; use Sem_Util;
 with Sem_Warn; use Sem_Warn;
 with Snames;   use Snames;
@@ -344,6 +345,29 @@ package body Sem_Ch7 is
       end if;
 
       Push_Scope (Spec_Id);
+
+      --  Set SPARK_Mode from private part of spec if it has a SPARK pragma.
+      --  Note that in the default case, SPARK_Aux_Pragma will be a copy of
+      --  SPARK_Pragma in the spec, so this properly handles the case where
+      --  there is no explicit SPARK_Pragma mode in the private part.
+
+      if Present (SPARK_Pragma (Spec_Id)) then
+         SPARK_Mode_Pragma := SPARK_Aux_Pragma (Spec_Id);
+         SPARK_Mode := Get_SPARK_Mode_From_Pragma (SPARK_Mode_Pragma);
+         Set_SPARK_Pragma (Body_Id, SPARK_Mode_Pragma);
+         Set_SPARK_Pragma_Inherited (Body_Id, True);
+
+      --  Otherwise set from context
+
+      else
+         Set_SPARK_Pragma (Body_Id, SPARK_Mode_Pragma);
+         Set_SPARK_Pragma_Inherited (Body_Id, True);
+      end if;
+
+      --  Set elaboration code SPARK mode the same for now
+
+      Set_SPARK_Aux_Pragma (Body_Id, SPARK_Pragma (Body_Id));
+      Set_SPARK_Aux_Pragma_Inherited (Body_Id, True);
 
       Set_Categorization_From_Pragmas (N);
 
@@ -789,6 +813,13 @@ package body Sem_Ch7 is
       Set_Ekind    (Id, E_Package);
       Set_Etype    (Id, Standard_Void_Type);
       Set_Contract (Id, Make_Contract (Sloc (Id)));
+
+      --  Inherit spark mode from context for now
+
+      Set_SPARK_Pragma               (Id, SPARK_Mode_Pragma);
+      Set_SPARK_Aux_Pragma           (Id, SPARK_Mode_Pragma);
+      Set_SPARK_Pragma_Inherited     (Id, True);
+      Set_SPARK_Aux_Pragma_Inherited (Id, True);
 
       --  Analyze aspect specifications immediately, since we need to recognize
       --  things like Pure early enough to diagnose violations during analysis.
