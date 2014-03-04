@@ -261,7 +261,7 @@ package body Exp_Disp is
                          Make_Selected_Component (Loc,
                            Prefix => New_Value (Ctrl_Arg),
                            Selector_Name =>
-                             New_Reference_To
+                             New_Occurrence_Of
                                (First_Tag_Component (Typ), Loc)),
 
                        Right_Opnd =>
@@ -269,7 +269,7 @@ package body Exp_Disp is
                            Prefix =>
                              Unchecked_Convert_To (Typ, New_Value (Param)),
                            Selector_Name =>
-                             New_Reference_To
+                             New_Occurrence_Of
                                (First_Tag_Component (Typ), Loc))),
 
                    Then_Statements =>
@@ -913,7 +913,7 @@ package body Exp_Disp is
          Controlling_Tag :=
            Make_Selected_Component (Loc,
              Prefix        => Duplicate_Subexpr_Move_Checks (Ctrl_Arg),
-             Selector_Name => New_Reference_To (DTC_Entity (Subp), Loc));
+             Selector_Name => New_Occurrence_Of (DTC_Entity (Subp), Loc));
       end if;
 
       --  Handle dispatching calls to predefined primitives
@@ -1034,7 +1034,7 @@ package body Exp_Disp is
                          Make_Selected_Component (Loc,
                            Prefix        => New_Value (Param),
                            Selector_Name =>
-                             New_Reference_To (First_Tag_Component (Typ),
+                             New_Occurrence_Of (First_Tag_Component (Typ),
                                                Loc)),
 
                        Right_Opnd =>
@@ -1043,7 +1043,7 @@ package body Exp_Disp is
                              Unchecked_Convert_To (Typ,
                                New_Value (Next_Actual (Param))),
                            Selector_Name =>
-                             New_Reference_To
+                             New_Occurrence_Of
                                (First_Tag_Component (Typ), Loc))),
                 Right_Opnd => New_Call);
 
@@ -1181,7 +1181,7 @@ package body Exp_Disp is
                        Prefix         => Duplicate_Subexpr (Expression (N)),
                        Attribute_Name => Name_Tag),
                      Make_Attribute_Reference (Loc,
-                       Prefix         => New_Reference_To (Iface_Typ, Loc),
+                       Prefix         => New_Occurrence_Of (Iface_Typ, Loc),
                        Attribute_Name => Name_Tag))));
             end if;
 
@@ -1218,7 +1218,7 @@ package body Exp_Disp is
             Rewrite (N,
               Unchecked_Convert_To (Etype (N),
                 Make_Function_Call (Loc,
-                  Name => New_Reference_To (RTE (RE_Displace), Loc),
+                  Name => New_Occurrence_Of (RTE (RE_Displace), Loc),
                   Parameter_Associations => New_List (
 
                     Unchecked_Convert_To (RTE (RE_Address),
@@ -1234,7 +1234,7 @@ package body Exp_Disp is
 
          Rewrite (N,
            Make_Function_Call (Loc,
-             Name => New_Reference_To (RTE (RE_Displace), Loc),
+             Name => New_Occurrence_Of (RTE (RE_Displace), Loc),
              Parameter_Associations => New_List (
                Make_Attribute_Reference (Loc,
                  Prefix => Relocate_Node (Expression (N)),
@@ -1287,11 +1287,11 @@ package body Exp_Disp is
                Selector_Name => New_Occurrence_Of (Iface_Tag, Loc))));
 
       else
-         --  Build internal function to handle the case in which the
-         --  actual is null. If the actual is null returns null because
-         --  no displacement is required; otherwise performs a type
-         --  conversion that will be expanded in the code that returns
-         --  the value of the displaced actual. That is:
+         --  Build internal function to handle the case in which the actual is
+         --  null. If the actual is null returns null because no displacement
+         --  is required; otherwise performs a type conversion that will be
+         --  expanded in the code that returns the value of the displaced
+         --  actual. That is:
 
          --     function Func (O : Address) return Iface_Typ is
          --        type Op_Typ is access all Operand_Typ;
@@ -1331,7 +1331,7 @@ package body Exp_Disp is
                     Null_Exclusion_Present => False,
                     Constant_Present       => False,
                     Subtype_Indication     =>
-                      New_Reference_To (Desig_Typ, Loc)));
+                      New_Occurrence_Of (Desig_Typ, Loc)));
 
             Stats := New_List (
               Make_Simple_Return_Statement (Loc,
@@ -1356,7 +1356,7 @@ package body Exp_Disp is
                   Condition       =>
                     Make_Op_Eq (Loc,
                        Left_Opnd  => Make_Identifier (Loc, Name_uO),
-                       Right_Opnd => New_Reference_To
+                       Right_Opnd => New_Occurrence_Of
                                        (RTE (RE_Null_Address), Loc)),
 
                  Then_Statements => New_List (
@@ -1377,10 +1377,10 @@ package body Exp_Disp is
                         Defining_Identifier =>
                           Make_Defining_Identifier (Loc, Name_uO),
                         Parameter_Type =>
-                          New_Reference_To (RTE (RE_Address), Loc))),
+                          New_Occurrence_Of (RTE (RE_Address), Loc))),
 
                     Result_Definition =>
-                      New_Reference_To (Etype (N), Loc)),
+                      New_Occurrence_Of (Etype (N), Loc)),
 
                 Declarations => New_List (New_Typ_Decl),
 
@@ -1402,7 +1402,7 @@ package body Exp_Disp is
 
                Rewrite (N,
                  Make_Function_Call (Loc,
-                   Name => New_Reference_To (Fent, Loc),
+                   Name => New_Occurrence_Of (Fent, Loc),
                    Parameter_Associations => New_List (
                      Unchecked_Convert_To (RTE (RE_Address),
                        Relocate_Node (Expression (N))))));
@@ -1412,7 +1412,7 @@ package body Exp_Disp is
 
                Rewrite (N,
                  Make_Function_Call (Loc,
-                   Name => New_Reference_To (Fent, Loc),
+                   Name => New_Occurrence_Of (Fent, Loc),
                    Parameter_Associations => New_List (
                      Make_Attribute_Reference (Loc,
                        Prefix  => Unchecked_Convert_To (Operand_Typ,
@@ -1705,7 +1705,7 @@ package body Exp_Disp is
                  Chars => Chars (Formal)),
              In_Present => In_Present (Parent (Formal)),
              Out_Present => Out_Present (Parent (Formal)),
-             Parameter_Type => New_Reference_To (Ftyp, Loc),
+             Parameter_Type => New_Occurrence_Of (Ftyp, Loc),
              Expression => Expr));
 
          if not Is_Predefined_Dispatching_Operation (Prim) then
@@ -1757,11 +1757,11 @@ package body Exp_Disp is
                     Null_Exclusion_Present => False,
                     Constant_Present       => False,
                     Subtype_Indication     =>
-                      New_Reference_To (Ftyp, Loc)));
+                      New_Occurrence_Of (Ftyp, Loc)));
 
             New_Arg :=
               Unchecked_Convert_To (RTE (RE_Address),
-                New_Reference_To (Defining_Identifier (Formal), Loc));
+                New_Occurrence_Of (Defining_Identifier (Formal), Loc));
 
             if not RTE_Available (RE_Offset_To_Top) then
                Offset_To_Top :=
@@ -1769,7 +1769,7 @@ package body Exp_Disp is
             else
                Offset_To_Top :=
                  Make_Function_Call (Loc,
-                   Name => New_Reference_To (RTE (RE_Offset_To_Top), Loc),
+                   Name => New_Occurrence_Of (RTE (RE_Offset_To_Top), Loc),
                    Parameter_Associations => New_List (New_Arg));
             end if;
 
@@ -1778,13 +1778,14 @@ package body Exp_Disp is
                 Defining_Identifier => Make_Temporary (Loc, 'S'),
                 Constant_Present    => True,
                 Object_Definition   =>
-                  New_Reference_To (RTE (RE_Storage_Offset), Loc),
+                  New_Occurrence_Of (RTE (RE_Storage_Offset), Loc),
                 Expression          =>
                   Make_Op_Subtract (Loc,
                     Left_Opnd  =>
                       Unchecked_Convert_To
                         (RTE (RE_Storage_Offset),
-                         New_Reference_To (Defining_Identifier (Formal), Loc)),
+                         New_Occurrence_Of
+                           (Defining_Identifier (Formal), Loc)),
                      Right_Opnd =>
                        Offset_To_Top));
 
@@ -1797,7 +1798,7 @@ package body Exp_Disp is
             Append_To (Actuals,
               Unchecked_Convert_To
                 (Defining_Identifier (Decl_2),
-                 New_Reference_To (Defining_Identifier (Decl_1), Loc)));
+                 New_Occurrence_Of (Defining_Identifier (Decl_1), Loc)));
 
          elsif Is_Controlling_Formal (Target_Formal) then
 
@@ -1809,7 +1810,7 @@ package body Exp_Disp is
             New_Arg :=
               Make_Attribute_Reference (Loc,
                 Prefix =>
-                  New_Reference_To (Defining_Identifier (Formal), Loc),
+                  New_Occurrence_Of (Defining_Identifier (Formal), Loc),
                 Attribute_Name =>
                   Name_Address);
 
@@ -1819,7 +1820,7 @@ package body Exp_Disp is
             else
                Offset_To_Top :=
                  Make_Function_Call (Loc,
-                   Name => New_Reference_To (RTE (RE_Offset_To_Top), Loc),
+                   Name => New_Occurrence_Of (RTE (RE_Offset_To_Top), Loc),
                    Parameter_Associations => New_List (New_Arg));
             end if;
 
@@ -1828,7 +1829,7 @@ package body Exp_Disp is
                 Defining_Identifier => Make_Temporary (Loc, 'S'),
                 Constant_Present    => True,
                 Object_Definition   =>
-                  New_Reference_To (RTE (RE_Storage_Offset), Loc),
+                  New_Occurrence_Of (RTE (RE_Storage_Offset), Loc),
                 Expression          =>
                   Make_Op_Subtract (Loc,
                     Left_Opnd =>
@@ -1836,7 +1837,7 @@ package body Exp_Disp is
                         (RTE (RE_Storage_Offset),
                          Make_Attribute_Reference (Loc,
                            Prefix =>
-                             New_Reference_To
+                             New_Occurrence_Of
                                (Defining_Identifier (Formal), Loc),
                            Attribute_Name => Name_Address)),
                     Right_Opnd =>
@@ -1847,11 +1848,11 @@ package body Exp_Disp is
                 Defining_Identifier => Make_Temporary (Loc, 'S'),
                 Constant_Present    => True,
                 Object_Definition   =>
-                  New_Reference_To (RTE (RE_Addr_Ptr), Loc),
+                  New_Occurrence_Of (RTE (RE_Addr_Ptr), Loc),
                 Expression          =>
                   Unchecked_Convert_To
                     (RTE (RE_Addr_Ptr),
-                     New_Reference_To (Defining_Identifier (Decl_1), Loc)));
+                     New_Occurrence_Of (Defining_Identifier (Decl_1), Loc)));
 
             Append_To (Decl, Decl_1);
             Append_To (Decl, Decl_2);
@@ -1862,7 +1863,7 @@ package body Exp_Disp is
             Append_To (Actuals,
               Unchecked_Convert_To (Ftyp,
                  Make_Explicit_Dereference (Loc,
-                   New_Reference_To (Defining_Identifier (Decl_2), Loc))));
+                   New_Occurrence_Of (Defining_Identifier (Decl_2), Loc))));
 
          --  Ensure proper matching of access types. Required to avoid
          --  reporting spurious errors.
@@ -1870,13 +1871,13 @@ package body Exp_Disp is
          elsif Is_Access_Type (Etype (Target_Formal)) then
             Append_To (Actuals,
               Unchecked_Convert_To (Base_Type (Etype (Target_Formal)),
-                New_Reference_To (Defining_Identifier (Formal), Loc)));
+                New_Occurrence_Of (Defining_Identifier (Formal), Loc)));
 
          --  No special management required for this actual
 
          else
             Append_To (Actuals,
-               New_Reference_To (Defining_Identifier (Formal), Loc));
+               New_Occurrence_Of (Defining_Identifier (Formal), Loc));
          end if;
 
          Next_Formal (Target_Formal);
@@ -2239,7 +2240,7 @@ package body Exp_Disp is
                Make_Handled_Sequence_Of_Statements (Loc,
                  New_List (Make_Assignment_Statement (Loc,
                    Name       => Make_Identifier (Loc, Name_uF),
-                   Expression => New_Reference_To (Standard_False, Loc)))));
+                   Expression => New_Occurrence_Of (Standard_False, Loc)))));
       end if;
 
       if Is_Concurrent_Record_Type (Typ) then
@@ -2255,12 +2256,12 @@ package body Exp_Disp is
          if Tagged_Type_Expansion then
             Tag_Node :=
               Unchecked_Convert_To (RTE (RE_Tag),
-                New_Reference_To
+                New_Occurrence_Of
                   (Node (First_Elmt (Access_Disp_Table (Typ))), Loc));
          else
             Tag_Node :=
               Make_Attribute_Reference (Loc,
-                Prefix => New_Reference_To (Typ, Loc),
+                Prefix => New_Occurrence_Of (Typ, Loc),
                 Attribute_Name => Name_Tag);
          end if;
 
@@ -2269,11 +2270,11 @@ package body Exp_Disp is
              Defining_Identifier =>
                Make_Defining_Identifier (Loc, Name_uI),
              Object_Definition =>
-               New_Reference_To (Standard_Integer, Loc),
+               New_Occurrence_Of (Standard_Integer, Loc),
              Expression =>
                Make_Function_Call (Loc,
                  Name =>
-                   New_Reference_To (RTE (RE_Get_Entry_Index), Loc),
+                   New_Occurrence_Of (RTE (RE_Get_Entry_Index), Loc),
                  Parameter_Associations =>
                    New_List (
                      Tag_Node,
@@ -2290,7 +2291,7 @@ package body Exp_Disp is
                 Defining_Identifier =>
                   Com_Block,
                 Object_Definition =>
-                  New_Reference_To (RTE (RE_Communication_Block), Loc)));
+                  New_Occurrence_Of (RTE (RE_Communication_Block), Loc)));
 
             --  Build T._object'Access for calls below
 
@@ -2320,46 +2321,22 @@ package body Exp_Disp is
                   Append_To (Stmts,
                     Make_Procedure_Call_Statement (Loc,
                       Name =>
-                        New_Reference_To (RTE (RE_Protected_Entry_Call), Loc),
+                        New_Occurrence_Of (RTE (RE_Protected_Entry_Call), Loc),
                       Parameter_Associations =>
                         New_List (
                           Obj_Ref,
 
                           Make_Unchecked_Type_Conversion (Loc,  --  entry index
                             Subtype_Mark =>
-                              New_Reference_To
+                              New_Occurrence_Of
                                 (RTE (RE_Protected_Entry_Index), Loc),
                             Expression => Make_Identifier (Loc, Name_uI)),
 
                           Make_Identifier (Loc, Name_uP), --  parameter block
-                          New_Reference_To                --  Asynchronous_Call
+                          New_Occurrence_Of               --  Asynchronous_Call
                             (RTE (RE_Asynchronous_Call), Loc),
-
-                          New_Reference_To (Com_Block, Loc)))); -- comm block
-
-               when System_Tasking_Protected_Objects_Single_Entry =>
-
-                  --  Generate:
-                  --    procedure Protected_Single_Entry_Call
-                  --      (Object              : Protection_Entry_Access;
-                  --       Uninterpreted_Data  : System.Address;
-                  --       Mode                : Call_Modes);
-
-                  Append_To (Stmts,
-                    Make_Procedure_Call_Statement (Loc,
-                      Name =>
-                        New_Reference_To
-                          (RTE (RE_Protected_Single_Entry_Call), Loc),
-                      Parameter_Associations =>
-                        New_List (
-                          Obj_Ref,
-
-                          Make_Attribute_Reference (Loc,
-                            Prefix         => Make_Identifier (Loc, Name_uP),
-                            Attribute_Name => Name_Address),
-
-                            New_Reference_To
-                             (RTE (RE_Asynchronous_Call), Loc))));
+                          New_Occurrence_Of               -- comm block
+                            (Com_Block, Loc))));
 
                when others =>
                   raise Program_Error;
@@ -2374,10 +2351,10 @@ package body Exp_Disp is
                 Expression =>
                   Make_Unchecked_Type_Conversion (Loc,
                     Subtype_Mark =>
-                      New_Reference_To (
+                      New_Occurrence_Of (
                         RTE (RE_Dummy_Communication_Block), Loc),
                     Expression =>
-                      New_Reference_To (Com_Block, Loc))));
+                      New_Occurrence_Of (Com_Block, Loc))));
 
             --  Generate:
             --    F := False;
@@ -2385,7 +2362,7 @@ package body Exp_Disp is
             Append_To (Stmts,
               Make_Assignment_Statement (Loc,
                 Name       => Make_Identifier (Loc, Name_uF),
-                Expression => New_Reference_To (Standard_False, Loc)));
+                Expression => New_Occurrence_Of (Standard_False, Loc)));
 
          else
             pragma Assert (Ekind (Conc_Typ) = E_Task_Type);
@@ -2404,7 +2381,7 @@ package body Exp_Disp is
             Append_To (Stmts,
               Make_Procedure_Call_Statement (Loc,
                 Name =>
-                  New_Reference_To (RTE (RE_Task_Entry_Call), Loc),
+                  New_Occurrence_Of (RTE (RE_Task_Entry_Call), Loc),
                 Parameter_Associations =>
                   New_List (
                     Make_Selected_Component (Loc,         -- T._task_id
@@ -2413,11 +2390,11 @@ package body Exp_Disp is
 
                     Make_Unchecked_Type_Conversion (Loc,  --  entry index
                       Subtype_Mark =>
-                        New_Reference_To (RTE (RE_Task_Entry_Index), Loc),
+                        New_Occurrence_Of (RTE (RE_Task_Entry_Index), Loc),
                       Expression => Make_Identifier (Loc, Name_uI)),
 
                     Make_Identifier (Loc, Name_uP),       --  parameter block
-                    New_Reference_To                      --  Asynchronous_Call
+                    New_Occurrence_Of                     --  Asynchronous_Call
                       (RTE (RE_Asynchronous_Call), Loc),
                     Make_Identifier (Loc, Name_uF))));    --  status flag
          end if;
@@ -2428,7 +2405,7 @@ package body Exp_Disp is
          Append_To (Stmts,
            Make_Assignment_Statement (Loc,
              Name       => Make_Identifier (Loc, Name_uF),
-             Expression => New_Reference_To (Standard_False, Loc)));
+             Expression => New_Occurrence_Of (Standard_False, Loc)));
       end if;
 
       return
@@ -2468,7 +2445,7 @@ package body Exp_Disp is
           Defining_Identifier =>
             Make_Defining_Identifier (Loc, Name_uT),
           Parameter_Type =>
-            New_Reference_To (Typ, Loc),
+            New_Occurrence_Of (Typ, Loc),
           In_Present  => True,
           Out_Present => True),
 
@@ -2476,26 +2453,26 @@ package body Exp_Disp is
           Defining_Identifier =>
             Make_Defining_Identifier (Loc, Name_uS),
           Parameter_Type =>
-            New_Reference_To (Standard_Integer, Loc)),
+            New_Occurrence_Of (Standard_Integer, Loc)),
 
         Make_Parameter_Specification (Loc,
           Defining_Identifier =>
             Make_Defining_Identifier (Loc, Name_uP),
           Parameter_Type =>
-            New_Reference_To (RTE (RE_Address), Loc)),
+            New_Occurrence_Of (RTE (RE_Address), Loc)),
 
         Make_Parameter_Specification (Loc,
           Defining_Identifier =>
             Make_Defining_Identifier (Loc, Name_uB),
           Parameter_Type =>
-            New_Reference_To (RTE (RE_Dummy_Communication_Block), Loc),
+            New_Occurrence_Of (RTE (RE_Dummy_Communication_Block), Loc),
           Out_Present => True),
 
         Make_Parameter_Specification (Loc,
           Defining_Identifier =>
             Make_Defining_Identifier (Loc, Name_uF),
           Parameter_Type =>
-            New_Reference_To (Standard_Boolean, Loc),
+            New_Occurrence_Of (Standard_Boolean, Loc),
           Out_Present => True)));
 
       return
@@ -2604,7 +2581,7 @@ package body Exp_Disp is
                Make_Handled_Sequence_Of_Statements (Loc,
                  New_List (Make_Assignment_Statement (Loc,
                    Name       => Make_Identifier (Loc, Name_uF),
-                   Expression => New_Reference_To (Standard_False, Loc)))));
+                   Expression => New_Occurrence_Of (Standard_False, Loc)))));
       end if;
 
       if Is_Concurrent_Record_Type (Typ) then
@@ -2621,7 +2598,7 @@ package body Exp_Disp is
              Defining_Identifier =>
                Make_Defining_Identifier (Loc, Name_uI),
              Object_Definition =>
-               New_Reference_To (Standard_Integer, Loc)));
+               New_Occurrence_Of (Standard_Integer, Loc)));
 
          --  Generate:
          --    C := Ada.Tags.Get_Prim_Op_Kind (Ada.Tags.Tag! (<type>VP), S);
@@ -2648,7 +2625,7 @@ package body Exp_Disp is
              Defining_Identifier =>
                Blk_Nam,
              Object_Definition =>
-               New_Reference_To (RTE (RE_Communication_Block), Loc)));
+               New_Occurrence_Of (RTE (RE_Communication_Block), Loc)));
 
          --  Generate:
          --    I := Ada.Tags.Get_Entry_Index (Ada.Tags.Tag! (<type>VP), S);
@@ -2658,13 +2635,13 @@ package body Exp_Disp is
          if Tagged_Type_Expansion then
             Tag_Node :=
               Unchecked_Convert_To (RTE (RE_Tag),
-                New_Reference_To
+                New_Occurrence_Of
                   (Node (First_Elmt (Access_Disp_Table (Typ))), Loc));
 
          else
             Tag_Node :=
               Make_Attribute_Reference (Loc,
-                Prefix => New_Reference_To (Typ, Loc),
+                Prefix => New_Occurrence_Of (Typ, Loc),
                 Attribute_Name => Name_Tag);
          end if;
 
@@ -2674,7 +2651,7 @@ package body Exp_Disp is
              Expression =>
                Make_Function_Call (Loc,
                  Name =>
-                   New_Reference_To (RTE (RE_Get_Entry_Index), Loc),
+                   New_Occurrence_Of (RTE (RE_Get_Entry_Index), Loc),
                  Parameter_Associations =>
                    New_List (
                      Tag_Node,
@@ -2708,23 +2685,23 @@ package body Exp_Disp is
                   Append_To (Stmts,
                     Make_Procedure_Call_Statement (Loc,
                       Name =>
-                        New_Reference_To (RTE (RE_Protected_Entry_Call), Loc),
+                        New_Occurrence_Of (RTE (RE_Protected_Entry_Call), Loc),
                       Parameter_Associations =>
                         New_List (
                           Obj_Ref,
 
                           Make_Unchecked_Type_Conversion (Loc,  --  entry index
                             Subtype_Mark =>
-                              New_Reference_To
+                              New_Occurrence_Of
                                  (RTE (RE_Protected_Entry_Index), Loc),
                             Expression => Make_Identifier (Loc, Name_uI)),
 
                           Make_Identifier (Loc, Name_uP),  --  parameter block
 
-                          New_Reference_To (               --  Conditional_Call
-                            RTE (RE_Conditional_Call), Loc),
-                          New_Reference_To (               --  Bnn
-                            Blk_Nam, Loc))));
+                          New_Occurrence_Of                --  Conditional_Call
+                            (RTE (RE_Conditional_Call), Loc),
+                          New_Occurrence_Of                --  Bnn
+                            (Blk_Nam, Loc))));
 
                when System_Tasking_Protected_Objects_Single_Entry =>
 
@@ -2734,7 +2711,7 @@ package body Exp_Disp is
                   Append_To (Stmts,
                     Make_Procedure_Call_Statement (Loc,
                       Name =>
-                        New_Reference_To
+                        New_Occurrence_Of
                           (RTE (RE_Protected_Single_Entry_Call), Loc),
                       Parameter_Associations =>
                         New_List (
@@ -2744,7 +2721,7 @@ package body Exp_Disp is
                             Prefix         => Make_Identifier (Loc, Name_uP),
                             Attribute_Name => Name_Address),
 
-                            New_Reference_To
+                            New_Occurrence_Of
                              (RTE (RE_Conditional_Call), Loc))));
                when others =>
                   raise Program_Error;
@@ -2764,10 +2741,10 @@ package body Exp_Disp is
                     Right_Opnd =>
                       Make_Function_Call (Loc,
                         Name =>
-                          New_Reference_To (RTE (RE_Cancelled), Loc),
+                          New_Occurrence_Of (RTE (RE_Cancelled), Loc),
                         Parameter_Associations =>
                           New_List (
-                            New_Reference_To (Blk_Nam, Loc))))));
+                            New_Occurrence_Of (Blk_Nam, Loc))))));
          else
             pragma Assert (Ekind (Conc_Typ) = E_Task_Type);
 
@@ -2785,7 +2762,7 @@ package body Exp_Disp is
             Append_To (Stmts,
               Make_Procedure_Call_Statement (Loc,
                 Name =>
-                  New_Reference_To (RTE (RE_Task_Entry_Call), Loc),
+                  New_Occurrence_Of (RTE (RE_Task_Entry_Call), Loc),
                 Parameter_Associations =>
                   New_List (
 
@@ -2795,11 +2772,11 @@ package body Exp_Disp is
 
                     Make_Unchecked_Type_Conversion (Loc,  --  entry index
                       Subtype_Mark =>
-                        New_Reference_To (RTE (RE_Task_Entry_Index), Loc),
+                        New_Occurrence_Of (RTE (RE_Task_Entry_Index), Loc),
                       Expression   => Make_Identifier (Loc, Name_uI)),
 
                     Make_Identifier (Loc, Name_uP),       --  parameter block
-                    New_Reference_To                      --  Conditional_Call
+                    New_Occurrence_Of                      --  Conditional_Call
                       (RTE (RE_Conditional_Call), Loc),
                     Make_Identifier (Loc, Name_uF))));    --  status flag
          end if;
@@ -2810,11 +2787,11 @@ package body Exp_Disp is
          Append_To (Stmts,
            Make_Assignment_Statement (Loc,
              Name       => Make_Identifier (Loc, Name_uF),
-             Expression => New_Reference_To (Standard_False, Loc)));
+             Expression => New_Occurrence_Of (Standard_False, Loc)));
          Append_To (Stmts,
            Make_Assignment_Statement (Loc,
              Name       => Make_Identifier (Loc, Name_uC),
-             Expression => New_Reference_To (RTE (RE_POK_Function), Loc)));
+             Expression => New_Occurrence_Of (RTE (RE_POK_Function), Loc)));
       end if;
 
       return
@@ -2854,7 +2831,7 @@ package body Exp_Disp is
           Defining_Identifier =>
             Make_Defining_Identifier (Loc, Name_uT),
           Parameter_Type =>
-            New_Reference_To (Typ, Loc),
+            New_Occurrence_Of (Typ, Loc),
           In_Present  => True,
           Out_Present => True),
 
@@ -2862,26 +2839,26 @@ package body Exp_Disp is
           Defining_Identifier =>
             Make_Defining_Identifier (Loc, Name_uS),
           Parameter_Type =>
-            New_Reference_To (Standard_Integer, Loc)),
+            New_Occurrence_Of (Standard_Integer, Loc)),
 
         Make_Parameter_Specification (Loc,
           Defining_Identifier =>
             Make_Defining_Identifier (Loc, Name_uP),
           Parameter_Type =>
-            New_Reference_To (RTE (RE_Address), Loc)),
+            New_Occurrence_Of (RTE (RE_Address), Loc)),
 
         Make_Parameter_Specification (Loc,
           Defining_Identifier =>
             Make_Defining_Identifier (Loc, Name_uC),
           Parameter_Type =>
-            New_Reference_To (RTE (RE_Prim_Op_Kind), Loc),
+            New_Occurrence_Of (RTE (RE_Prim_Op_Kind), Loc),
           Out_Present => True),
 
         Make_Parameter_Specification (Loc,
           Defining_Identifier =>
             Make_Defining_Identifier (Loc, Name_uF),
           Parameter_Type =>
-            New_Reference_To (Standard_Boolean, Loc),
+            New_Occurrence_Of (Standard_Boolean, Loc),
           Out_Present => True)));
 
       return
@@ -2924,13 +2901,13 @@ package body Exp_Disp is
       if Tagged_Type_Expansion then
          Tag_Node :=
            Unchecked_Convert_To (RTE (RE_Tag),
-             New_Reference_To
+             New_Occurrence_Of
               (Node (First_Elmt (Access_Disp_Table (Typ))), Loc));
 
       else
          Tag_Node :=
            Make_Attribute_Reference (Loc,
-             Prefix => New_Reference_To (Typ, Loc),
+             Prefix => New_Occurrence_Of (Typ, Loc),
              Attribute_Name => Name_Tag);
       end if;
 
@@ -2949,7 +2926,7 @@ package body Exp_Disp is
                   Expression =>
                     Make_Function_Call (Loc,
                       Name =>
-                        New_Reference_To (RTE (RE_Get_Prim_Op_Kind), Loc),
+                        New_Occurrence_Of (RTE (RE_Get_Prim_Op_Kind), Loc),
                       Parameter_Associations => New_List (
                         Tag_Node,
                         Make_Identifier (Loc, Name_uS)))))));
@@ -2981,7 +2958,7 @@ package body Exp_Disp is
           Defining_Identifier =>
             Make_Defining_Identifier (Loc, Name_uT),
           Parameter_Type =>
-            New_Reference_To (Typ, Loc),
+            New_Occurrence_Of (Typ, Loc),
           In_Present  => True,
           Out_Present => True),
 
@@ -2989,13 +2966,13 @@ package body Exp_Disp is
           Defining_Identifier =>
             Make_Defining_Identifier (Loc, Name_uS),
           Parameter_Type =>
-            New_Reference_To (Standard_Integer, Loc)),
+            New_Occurrence_Of (Standard_Integer, Loc)),
 
         Make_Parameter_Specification (Loc,
           Defining_Identifier =>
             Make_Defining_Identifier (Loc, Name_uC),
           Parameter_Type =>
-            New_Reference_To (RTE (RE_Prim_Op_Kind), Loc),
+            New_Occurrence_Of (RTE (RE_Prim_Op_Kind), Loc),
           Out_Present => True)));
 
       return
@@ -3028,7 +3005,7 @@ package body Exp_Disp is
              Expression =>
                Make_Unchecked_Type_Conversion (Loc,
                  Subtype_Mark =>
-                   New_Reference_To (RTE (RE_Address), Loc),
+                   New_Occurrence_Of (RTE (RE_Address), Loc),
                  Expression =>
                    Make_Selected_Component (Loc,
                      Prefix        => Make_Identifier (Loc, Name_uT),
@@ -3043,7 +3020,7 @@ package body Exp_Disp is
          Ret :=
            Make_Simple_Return_Statement (Loc,
              Expression =>
-               New_Reference_To (RTE (RE_Null_Address), Loc));
+               New_Occurrence_Of (RTE (RE_Null_Address), Loc));
       end if;
 
       return
@@ -3078,9 +3055,9 @@ package body Exp_Disp is
               Defining_Identifier =>
                 Make_Defining_Identifier (Loc, Name_uT),
               Parameter_Type =>
-                New_Reference_To (Typ, Loc))),
+                New_Occurrence_Of (Typ, Loc))),
           Result_Definition =>
-            New_Reference_To (RTE (RE_Address), Loc));
+            New_Occurrence_Of (RTE (RE_Address), Loc));
    end Make_Disp_Get_Task_Id_Spec;
 
    ----------------------------
@@ -3148,14 +3125,14 @@ package body Exp_Disp is
 
                     Make_Procedure_Call_Statement (Loc,
                       Name =>
-                        New_Reference_To (
+                        New_Occurrence_Of (
                           RTE (RE_Requeue_Protected_Entry), Loc),
                       Parameter_Associations =>
                         New_List (
 
                           Make_Unchecked_Type_Conversion (Loc,  -- PEA (P)
                             Subtype_Mark =>
-                              New_Reference_To (
+                              New_Occurrence_Of (
                                 RTE (RE_Protection_Entries_Access), Loc),
                             Expression =>
                               Make_Identifier (Loc, Name_uP)),
@@ -3172,7 +3149,7 @@ package body Exp_Disp is
 
                           Make_Unchecked_Type_Conversion (Loc,  -- entry index
                             Subtype_Mark =>
-                              New_Reference_To (
+                              New_Occurrence_Of (
                                 RTE (RE_Protected_Entry_Index), Loc),
                             Expression => Make_Identifier (Loc, Name_uI)),
 
@@ -3185,7 +3162,7 @@ package body Exp_Disp is
 
                     Make_Procedure_Call_Statement (Loc,
                       Name =>
-                        New_Reference_To (
+                        New_Occurrence_Of (
                           RTE (RE_Requeue_Task_To_Protected_Entry), Loc),
                       Parameter_Associations =>
                         New_List (
@@ -3202,7 +3179,7 @@ package body Exp_Disp is
 
                           Make_Unchecked_Type_Conversion (Loc, -- entry index
                             Subtype_Mark =>
-                              New_Reference_To (
+                              New_Occurrence_Of (
                                 RTE (RE_Protected_Entry_Index), Loc),
                             Expression =>
                               Make_Identifier (Loc, Name_uI)),
@@ -3236,14 +3213,14 @@ package body Exp_Disp is
 
                Make_Procedure_Call_Statement (Loc,
                  Name =>
-                   New_Reference_To
+                   New_Occurrence_Of
                      (RTE (RE_Requeue_Protected_To_Task_Entry), Loc),
 
                  Parameter_Associations => New_List (
 
                    Make_Unchecked_Type_Conversion (Loc,  -- PEA (P)
                      Subtype_Mark =>
-                       New_Reference_To
+                       New_Occurrence_Of
                          (RTE (RE_Protection_Entries_Access), Loc),
                           Expression => Make_Identifier (Loc, Name_uP)),
 
@@ -3253,7 +3230,7 @@ package body Exp_Disp is
 
                    Make_Unchecked_Type_Conversion (Loc,  -- entry index
                      Subtype_Mark =>
-                       New_Reference_To (RTE (RE_Task_Entry_Index), Loc),
+                       New_Occurrence_Of (RTE (RE_Task_Entry_Index), Loc),
                      Expression   => Make_Identifier (Loc, Name_uI)),
 
                    Make_Identifier (Loc, Name_uA)))),    -- abort status
@@ -3263,7 +3240,7 @@ package body Exp_Disp is
                --  Call to Requeue_Task_Entry
 
                Make_Procedure_Call_Statement (Loc,
-                 Name => New_Reference_To (RTE (RE_Requeue_Task_Entry), Loc),
+                 Name => New_Occurrence_Of (RTE (RE_Requeue_Task_Entry), Loc),
 
                  Parameter_Associations => New_List (
 
@@ -3273,7 +3250,7 @@ package body Exp_Disp is
 
                    Make_Unchecked_Type_Conversion (Loc,  -- entry index
                      Subtype_Mark =>
-                       New_Reference_To (RTE (RE_Task_Entry_Index), Loc),
+                       New_Occurrence_Of (RTE (RE_Task_Entry_Index), Loc),
                      Expression   => Make_Identifier (Loc, Name_uI)),
 
                    Make_Identifier (Loc, Name_uA))))));  -- abort status
@@ -3326,7 +3303,7 @@ package body Exp_Disp is
                 Defining_Identifier =>
                   Make_Defining_Identifier (Loc, Name_uO),
                 Parameter_Type =>
-                  New_Reference_To (Typ, Loc),
+                  New_Occurrence_Of (Typ, Loc),
                 In_Present  => True,
                 Out_Present => True),
 
@@ -3334,25 +3311,25 @@ package body Exp_Disp is
                 Defining_Identifier =>
                   Make_Defining_Identifier (Loc, Name_uF),
                 Parameter_Type =>
-                  New_Reference_To (Standard_Boolean, Loc)),
+                  New_Occurrence_Of (Standard_Boolean, Loc)),
 
               Make_Parameter_Specification (Loc,             --  P
                 Defining_Identifier =>
                   Make_Defining_Identifier (Loc, Name_uP),
                 Parameter_Type =>
-                  New_Reference_To (RTE (RE_Address), Loc)),
+                  New_Occurrence_Of (RTE (RE_Address), Loc)),
 
               Make_Parameter_Specification (Loc,             --  I
                 Defining_Identifier =>
                   Make_Defining_Identifier (Loc, Name_uI),
                 Parameter_Type =>
-                  New_Reference_To (Standard_Integer, Loc)),
+                  New_Occurrence_Of (Standard_Integer, Loc)),
 
               Make_Parameter_Specification (Loc,             --  A
                 Defining_Identifier =>
                   Make_Defining_Identifier (Loc, Name_uA),
                 Parameter_Type =>
-                  New_Reference_To (Standard_Boolean, Loc))));
+                  New_Occurrence_Of (Standard_Boolean, Loc))));
    end Make_Disp_Requeue_Spec;
 
    ---------------------------------
@@ -3461,7 +3438,7 @@ package body Exp_Disp is
                  New_List (
                    Make_Assignment_Statement (Loc,
                      Name       => Make_Identifier (Loc, Name_uF),
-                     Expression => New_Reference_To (Standard_False, Loc)))));
+                     Expression => New_Occurrence_Of (Standard_False, Loc)))));
       end if;
 
       if Is_Concurrent_Record_Type (Typ) then
@@ -3476,7 +3453,8 @@ package body Exp_Disp is
          Append_To (Decls,
            Make_Object_Declaration (Loc,
              Defining_Identifier => Make_Defining_Identifier (Loc, Name_uI),
-             Object_Definition   => New_Reference_To (Standard_Integer, Loc)));
+             Object_Definition   =>
+               New_Occurrence_Of (Standard_Integer, Loc)));
 
          --  Generate:
          --    C := Get_Prim_Op_Kind (tag! (<type>VP), S);
@@ -3499,13 +3477,13 @@ package body Exp_Disp is
          if Tagged_Type_Expansion then
             Tag_Node :=
               Unchecked_Convert_To (RTE (RE_Tag),
-                New_Reference_To
+                New_Occurrence_Of
                   (Node (First_Elmt (Access_Disp_Table (Typ))), Loc));
 
          else
             Tag_Node :=
               Make_Attribute_Reference (Loc,
-                Prefix         => New_Reference_To (Typ, Loc),
+                Prefix         => New_Occurrence_Of (Typ, Loc),
                 Attribute_Name => Name_Tag);
          end if;
 
@@ -3514,7 +3492,7 @@ package body Exp_Disp is
              Name       => Make_Identifier (Loc, Name_uI),
              Expression =>
                Make_Function_Call (Loc,
-                 Name => New_Reference_To (RTE (RE_Get_Entry_Index), Loc),
+                 Name => New_Occurrence_Of (RTE (RE_Get_Entry_Index), Loc),
                  Parameter_Associations =>
                    New_List (
                      Tag_Node,
@@ -3546,12 +3524,20 @@ package body Exp_Disp is
             --  the wrapped parameters, D is the delay amount, M is the delay
             --  mode and F is the status flag.
 
+            --  Historically, there was also an implementation for single
+            --  entry protected types (in s-tposen). However, it was removed
+            --  by also testing for no No_Select_Statements restriction in
+            --  Exp_Utils.Corresponding_Runtime_Package. This simplified the
+            --  implementation of s-tposen.adb and provided consistency between
+            --  all versions of System.Tasking.Protected_Objects.Single_Entry
+            --  (s-tposen*.adb).
+
             case Corresponding_Runtime_Package (Conc_Typ) is
                when System_Tasking_Protected_Objects_Entries =>
                   Append_To (Stmts,
                     Make_Procedure_Call_Statement (Loc,
                       Name =>
-                        New_Reference_To
+                        New_Occurrence_Of
                           (RTE (RE_Timed_Protected_Entry_Call), Loc),
                       Parameter_Associations =>
                         New_List (
@@ -3559,34 +3545,11 @@ package body Exp_Disp is
 
                           Make_Unchecked_Type_Conversion (Loc,  --  entry index
                             Subtype_Mark =>
-                              New_Reference_To
+                              New_Occurrence_Of
                                 (RTE (RE_Protected_Entry_Index), Loc),
                             Expression =>
                               Make_Identifier (Loc, Name_uI)),
 
-                          Make_Identifier (Loc, Name_uP),   --  parameter block
-                          Make_Identifier (Loc, Name_uD),   --  delay
-                          Make_Identifier (Loc, Name_uM),   --  delay mode
-                          Make_Identifier (Loc, Name_uF)))); --  status flag
-
-               when System_Tasking_Protected_Objects_Single_Entry =>
-                  --  Generate:
-
-                  --   Timed_Protected_Single_Entry_Call
-                  --     (T._object'access, P, D, M, F);
-
-                  --  where T is the protected object, P is the wrapped
-                  --  parameters, D is the delay amount, M is the delay mode, F
-                  --  is the status flag.
-
-                  Append_To (Stmts,
-                    Make_Procedure_Call_Statement (Loc,
-                      Name =>
-                        New_Reference_To
-                          (RTE (RE_Timed_Protected_Single_Entry_Call), Loc),
-                      Parameter_Associations =>
-                        New_List (
-                          Obj_Ref,
                           Make_Identifier (Loc, Name_uP),   --  parameter block
                           Make_Identifier (Loc, Name_uD),   --  delay
                           Make_Identifier (Loc, Name_uM),   --  delay mode
@@ -3617,7 +3580,7 @@ package body Exp_Disp is
             Append_To (Stmts,
               Make_Procedure_Call_Statement (Loc,
                 Name =>
-                  New_Reference_To (RTE (RE_Timed_Task_Entry_Call), Loc),
+                  New_Occurrence_Of (RTE (RE_Timed_Task_Entry_Call), Loc),
                 Parameter_Associations =>
                   New_List (
 
@@ -3627,7 +3590,7 @@ package body Exp_Disp is
 
                     Make_Unchecked_Type_Conversion (Loc,  --  entry index
                       Subtype_Mark =>
-                        New_Reference_To (RTE (RE_Task_Entry_Index), Loc),
+                        New_Occurrence_Of (RTE (RE_Task_Entry_Index), Loc),
                       Expression   => Make_Identifier (Loc, Name_uI)),
 
                     Make_Identifier (Loc, Name_uP),       --  parameter block
@@ -3642,11 +3605,11 @@ package body Exp_Disp is
          Append_To (Stmts,
            Make_Assignment_Statement (Loc,
              Name       => Make_Identifier (Loc, Name_uF),
-             Expression => New_Reference_To (Standard_False, Loc)));
+             Expression => New_Occurrence_Of (Standard_False, Loc)));
          Append_To (Stmts,
            Make_Assignment_Statement (Loc,
              Name       => Make_Identifier (Loc, Name_uC),
-             Expression => New_Reference_To (RTE (RE_POK_Function), Loc)));
+             Expression => New_Occurrence_Of (RTE (RE_POK_Function), Loc)));
       end if;
 
       return
@@ -3687,7 +3650,7 @@ package body Exp_Disp is
           Defining_Identifier =>
             Make_Defining_Identifier (Loc, Name_uT),
           Parameter_Type =>
-            New_Reference_To (Typ, Loc),
+            New_Occurrence_Of (Typ, Loc),
           In_Present  => True,
           Out_Present => True),
 
@@ -3695,31 +3658,31 @@ package body Exp_Disp is
           Defining_Identifier =>
             Make_Defining_Identifier (Loc, Name_uS),
           Parameter_Type =>
-            New_Reference_To (Standard_Integer, Loc)),
+            New_Occurrence_Of (Standard_Integer, Loc)),
 
         Make_Parameter_Specification (Loc,
           Defining_Identifier =>
             Make_Defining_Identifier (Loc, Name_uP),
           Parameter_Type =>
-            New_Reference_To (RTE (RE_Address), Loc)),
+            New_Occurrence_Of (RTE (RE_Address), Loc)),
 
         Make_Parameter_Specification (Loc,
           Defining_Identifier =>
             Make_Defining_Identifier (Loc, Name_uD),
           Parameter_Type =>
-            New_Reference_To (Standard_Duration, Loc)),
+            New_Occurrence_Of (Standard_Duration, Loc)),
 
         Make_Parameter_Specification (Loc,
           Defining_Identifier =>
             Make_Defining_Identifier (Loc, Name_uM),
           Parameter_Type =>
-            New_Reference_To (Standard_Integer, Loc)),
+            New_Occurrence_Of (Standard_Integer, Loc)),
 
         Make_Parameter_Specification (Loc,
           Defining_Identifier =>
             Make_Defining_Identifier (Loc, Name_uC),
           Parameter_Type =>
-            New_Reference_To (RTE (RE_Prim_Op_Kind), Loc),
+            New_Occurrence_Of (RTE (RE_Prim_Op_Kind), Loc),
           Out_Present => True)));
 
       Append_To (Params,
@@ -3727,7 +3690,7 @@ package body Exp_Disp is
           Defining_Identifier =>
             Make_Defining_Identifier (Loc, Name_uF),
           Parameter_Type =>
-            New_Reference_To (Standard_Boolean, Loc),
+            New_Occurrence_Of (Standard_Boolean, Loc),
           Out_Present => True));
 
       return
@@ -4111,7 +4074,7 @@ package body Exp_Disp is
                   New_Node :=
                     Unchecked_Convert_To (RTE (RE_Prim_Ptr),
                       Make_Attribute_Reference (Loc,
-                        Prefix => New_Reference_To (Prim_Table (J), Loc),
+                        Prefix => New_Occurrence_Of (Prim_Table (J), Loc),
                         Attribute_Name => Name_Unrestricted_Access));
                else
                   New_Node := Make_Null (Loc);
@@ -4132,7 +4095,7 @@ package body Exp_Disp is
               Make_Subtype_Declaration (Loc,
                 Defining_Identifier => Make_Temporary (Loc, 'S'),
                 Subtype_Indication  =>
-                  New_Reference_To (RTE (RE_Address_Array), Loc));
+                  New_Occurrence_Of (RTE (RE_Address_Array), Loc));
 
             Append_To (Result, Decl);
 
@@ -4141,18 +4104,18 @@ package body Exp_Disp is
                 Defining_Identifier => Predef_Prims,
                 Constant_Present    => Building_Static_DT (Typ),
                 Aliased_Present     => True,
-                Object_Definition   => New_Reference_To
+                Object_Definition   => New_Occurrence_Of
                                          (Defining_Identifier (Decl), Loc),
                 Expression => New_Node));
 
             Append_To (Result,
               Make_Attribute_Definition_Clause (Loc,
-                Name       => New_Reference_To (Predef_Prims, Loc),
+                Name       => New_Occurrence_Of (Predef_Prims, Loc),
                 Chars      => Name_Alignment,
                 Expression =>
                   Make_Attribute_Reference (Loc,
                     Prefix =>
-                      New_Reference_To (RTE (RE_Integer_Address), Loc),
+                      New_Occurrence_Of (RTE (RE_Integer_Address), Loc),
                     Attribute_Name => Name_Alignment)));
          end;
 
@@ -4189,7 +4152,7 @@ package body Exp_Disp is
 
          if RTE_Record_Component_Available (RE_Signature) then
             Append_To (DT_Aggr_List,
-              New_Reference_To (RTE (RE_Secondary_DT), Loc));
+              New_Occurrence_Of (RTE (RE_Secondary_DT), Loc));
          end if;
 
          --  Tag_Kind
@@ -4202,7 +4165,7 @@ package body Exp_Disp is
 
          Append_To (DT_Aggr_List,
            Make_Attribute_Reference (Loc,
-             Prefix => New_Reference_To (Predef_Prims, Loc),
+             Prefix => New_Occurrence_Of (Predef_Prims, Loc),
              Attribute_Name => Name_Address));
 
          --  Note: The correct value of Offset_To_Top will be set by the init
@@ -4225,7 +4188,7 @@ package body Exp_Disp is
             --  No OSD table required
 
             Append_To (DT_Aggr_List,
-              New_Reference_To (RTE (RE_Null_Address), Loc));
+              New_Occurrence_Of (RTE (RE_Null_Address), Loc));
 
          else
             OSD_Aggr_List := New_List;
@@ -4288,7 +4251,7 @@ package body Exp_Disp is
                 Object_Definition   =>
                   Make_Subtype_Indication (Loc,
                     Subtype_Mark =>
-                      New_Reference_To (RTE (RE_Object_Specific_Data), Loc),
+                      New_Occurrence_Of (RTE (RE_Object_Specific_Data), Loc),
                     Constraint =>
                       Make_Index_Or_Discriminant_Constraint (Loc,
                         Constraints => New_List (
@@ -4313,12 +4276,12 @@ package body Exp_Disp is
 
             Append_To (Result,
               Make_Attribute_Definition_Clause (Loc,
-                Name       => New_Reference_To (OSD, Loc),
+                Name       => New_Occurrence_Of (OSD, Loc),
                 Chars      => Name_Alignment,
                 Expression =>
                   Make_Attribute_Reference (Loc,
                     Prefix =>
-                      New_Reference_To (RTE (RE_Integer_Address), Loc),
+                      New_Occurrence_Of (RTE (RE_Integer_Address), Loc),
                     Attribute_Name => Name_Alignment)));
 
             --  In secondary dispatch tables the Typeinfo component contains
@@ -4326,7 +4289,7 @@ package body Exp_Disp is
 
             Append_To (DT_Aggr_List,
               Make_Attribute_Reference (Loc,
-                Prefix => New_Reference_To (OSD, Loc),
+                Prefix => New_Occurrence_Of (OSD, Loc),
                 Attribute_Name => Name_Address));
          end if;
 
@@ -4411,7 +4374,7 @@ package body Exp_Disp is
                      New_Node :=
                        Unchecked_Convert_To (RTE (RE_Prim_Ptr),
                          Make_Attribute_Reference (Loc,
-                           Prefix => New_Reference_To (Prim_Table (J), Loc),
+                           Prefix => New_Occurrence_Of (Prim_Table (J), Loc),
                            Attribute_Name => Name_Unrestricted_Access));
 
                   else
@@ -4445,7 +4408,7 @@ package body Exp_Disp is
 
              Object_Definition   =>
                Make_Subtype_Indication (Loc,
-                 Subtype_Mark => New_Reference_To
+                 Subtype_Mark => New_Occurrence_Of
                                    (RTE (RE_Dispatch_Table_Wrapper), Loc),
                  Constraint   => Make_Index_Or_Discriminant_Constraint (Loc,
                                    Constraints => DT_Constr_List)),
@@ -4456,13 +4419,13 @@ package body Exp_Disp is
 
          Append_To (Result,
            Make_Attribute_Definition_Clause (Loc,
-             Name       => New_Reference_To (Iface_DT, Loc),
+             Name       => New_Occurrence_Of (Iface_DT, Loc),
              Chars      => Name_Alignment,
 
              Expression =>
                Make_Attribute_Reference (Loc,
                  Prefix         =>
-                   New_Reference_To (RTE (RE_Integer_Address), Loc),
+                   New_Occurrence_Of (RTE (RE_Integer_Address), Loc),
                  Attribute_Name => Name_Alignment)));
 
          if Exporting_Table then
@@ -4482,14 +4445,14 @@ package body Exp_Disp is
                 Constant_Present    => True,
 
                 Object_Definition   =>
-                  New_Reference_To (RTE (RE_Interface_Tag), Loc),
+                  New_Occurrence_Of (RTE (RE_Interface_Tag), Loc),
 
                 Expression          =>
                   Unchecked_Convert_To (RTE (RE_Interface_Tag),
                     Make_Attribute_Reference (Loc,
                       Prefix         =>
                         Make_Selected_Component (Loc,
-                          Prefix        => New_Reference_To (Iface_DT, Loc),
+                          Prefix        => New_Occurrence_Of (Iface_DT, Loc),
                           Selector_Name =>
                             New_Occurrence_Of
                               (RTE_Record_Component (RE_Prims_Ptr), Loc)),
@@ -4502,13 +4465,13 @@ package body Exp_Disp is
              Constant_Present    => True,
 
              Object_Definition   =>
-               New_Reference_To (RTE (RE_Address), Loc),
+               New_Occurrence_Of (RTE (RE_Address), Loc),
 
              Expression          =>
                Make_Attribute_Reference (Loc,
                  Prefix         =>
                    Make_Selected_Component (Loc,
-                     Prefix        => New_Reference_To (Iface_DT, Loc),
+                     Prefix        => New_Occurrence_Of (Iface_DT, Loc),
                      Selector_Name =>
                        New_Occurrence_Of
                          (RTE_Record_Component (RE_Predef_Prims), Loc)),
@@ -4609,11 +4572,11 @@ package body Exp_Disp is
            Make_Object_Declaration (Loc,
              Defining_Identifier => Node (First_Elmt
                                            (Access_Disp_Table (Typ))),
-             Object_Definition   => New_Reference_To (RTE (RE_Tag), Loc),
+             Object_Definition   => New_Occurrence_Of (RTE (RE_Tag), Loc),
              Constant_Present    => True,
              Expression =>
                Unchecked_Convert_To (RTE (RE_Tag),
-                 New_Reference_To (RTE (RE_Null_Address), Loc))));
+                 New_Occurrence_Of (RTE (RE_Null_Address), Loc))));
 
          Analyze_List (Result, Suppress => All_Checks);
          Error_Msg_CRT ("tagged types", Typ);
@@ -4793,30 +4756,30 @@ package body Exp_Disp is
                 Aliased_Present     => True,
                 Constant_Present    => False,
                 Object_Definition   =>
-                  New_Reference_To
+                  New_Occurrence_Of
                     (RTE (RE_No_Dispatch_Table_Wrapper), Loc)));
 
             Append_To (Result,
               Make_Attribute_Definition_Clause (Loc,
-                Name       => New_Reference_To (DT, Loc),
+                Name       => New_Occurrence_Of (DT, Loc),
                 Chars      => Name_Alignment,
                 Expression =>
                   Make_Attribute_Reference (Loc,
                     Prefix =>
-                      New_Reference_To (RTE (RE_Integer_Address), Loc),
+                      New_Occurrence_Of (RTE (RE_Integer_Address), Loc),
                     Attribute_Name => Name_Alignment)));
 
             Append_To (Result,
               Make_Object_Declaration (Loc,
                 Defining_Identifier => DT_Ptr,
-                Object_Definition   => New_Reference_To (RTE (RE_Tag), Loc),
+                Object_Definition   => New_Occurrence_Of (RTE (RE_Tag), Loc),
                 Constant_Present    => True,
                 Expression =>
                   Unchecked_Convert_To (RTE (RE_Tag),
                     Make_Attribute_Reference (Loc,
                       Prefix =>
                         Make_Selected_Component (Loc,
-                          Prefix => New_Reference_To (DT, Loc),
+                          Prefix => New_Occurrence_Of (DT, Loc),
                         Selector_Name =>
                           New_Occurrence_Of
                             (RTE_Record_Component (RE_NDT_Prims_Ptr), Loc)),
@@ -4860,31 +4823,31 @@ package body Exp_Disp is
                 Object_Definition   =>
                   Make_Subtype_Indication (Loc,
                     Subtype_Mark =>
-                      New_Reference_To (RTE (RE_Dispatch_Table_Wrapper), Loc),
+                      New_Occurrence_Of (RTE (RE_Dispatch_Table_Wrapper), Loc),
                     Constraint => Make_Index_Or_Discriminant_Constraint (Loc,
                                     Constraints => DT_Constr_List))));
 
             Append_To (Result,
               Make_Attribute_Definition_Clause (Loc,
-                Name       => New_Reference_To (DT, Loc),
+                Name       => New_Occurrence_Of (DT, Loc),
                 Chars      => Name_Alignment,
                 Expression =>
                   Make_Attribute_Reference (Loc,
                     Prefix =>
-                      New_Reference_To (RTE (RE_Integer_Address), Loc),
+                      New_Occurrence_Of (RTE (RE_Integer_Address), Loc),
                     Attribute_Name => Name_Alignment)));
 
             Append_To (Result,
               Make_Object_Declaration (Loc,
                 Defining_Identifier => DT_Ptr,
-                Object_Definition   => New_Reference_To (RTE (RE_Tag), Loc),
+                Object_Definition   => New_Occurrence_Of (RTE (RE_Tag), Loc),
                 Constant_Present    => True,
                 Expression =>
                   Unchecked_Convert_To (RTE (RE_Tag),
                     Make_Attribute_Reference (Loc,
                       Prefix =>
                         Make_Selected_Component (Loc,
-                          Prefix => New_Reference_To (DT, Loc),
+                          Prefix => New_Occurrence_Of (DT, Loc),
                         Selector_Name =>
                           New_Occurrence_Of
                             (RTE_Record_Component (RE_Prims_Ptr), Loc)),
@@ -4908,13 +4871,13 @@ package body Exp_Disp is
                 Defining_Identifier =>
                   Node (Next_Elmt (First_Elmt (Access_Disp_Table (Typ)))),
                 Constant_Present    => True,
-                Object_Definition   => New_Reference_To
+                Object_Definition   => New_Occurrence_Of
                                             (RTE (RE_Address), Loc),
                 Expression =>
                   Make_Attribute_Reference (Loc,
                     Prefix =>
                       Make_Selected_Component (Loc,
-                        Prefix => New_Reference_To (DT, Loc),
+                        Prefix => New_Occurrence_Of (DT, Loc),
                       Selector_Name =>
                         New_Occurrence_Of
                           (RTE_Record_Component (RE_Predef_Prims), Loc)),
@@ -4930,7 +4893,7 @@ package body Exp_Disp is
         Make_Object_Declaration (Loc,
           Defining_Identifier => Exname,
           Constant_Present    => True,
-          Object_Definition   => New_Reference_To (Standard_String, Loc),
+          Object_Definition   => New_Occurrence_Of (Standard_String, Loc),
           Expression =>
             Make_String_Literal (Loc,
               Fully_Qualified_Name_String (First_Subtype (Typ)))));
@@ -4944,7 +4907,7 @@ package body Exp_Disp is
          Append_To (Result,
            Make_Object_Declaration (Loc,
              Defining_Identifier => HT_Link,
-             Object_Definition   => New_Reference_To (RTE (RE_Tag), Loc)));
+             Object_Definition   => New_Occurrence_Of (RTE (RE_Tag), Loc)));
       end if;
 
       --  Generate code to create the storage for the type specific data object
@@ -5017,7 +4980,7 @@ package body Exp_Disp is
       else
          Append_To (TSD_Aggr_List,
            Make_Attribute_Reference (Loc,
-             Prefix => New_Reference_To (Typ, Loc),
+             Prefix => New_Occurrence_Of (Typ, Loc),
              Attribute_Name => Name_Alignment));
       end if;
 
@@ -5026,7 +4989,7 @@ package body Exp_Disp is
       Append_To (TSD_Aggr_List,
         Unchecked_Convert_To (RTE (RE_Cstring_Ptr),
           Make_Attribute_Reference (Loc,
-            Prefix         => New_Reference_To (Exname, Loc),
+            Prefix         => New_Occurrence_Of (Exname, Loc),
             Attribute_Name => Name_Address)));
 
       --  External_Tag of a local tagged type
@@ -5050,7 +5013,7 @@ package body Exp_Disp is
 
       --  Of course this value will only be valid if the tagged type is still
       --  in scope, but it clearly must be erroneous to compute the internal
-      --  tag of a tagged type that is out of scope!
+      --  tag of a tagged type that is out of scope.
 
       --  We don't do this processing if an explicit external tag has been
       --  specified. That's an odd case for which we have already issued a
@@ -5094,7 +5057,7 @@ package body Exp_Disp is
                  Make_Object_Declaration (Loc,
                    Defining_Identifier => Exname,
                    Constant_Present    => True,
-                   Object_Definition   => New_Reference_To
+                   Object_Definition   => New_Occurrence_Of
                                             (Standard_String, Loc),
                    Expression =>
                      Make_Op_Concat (Loc,
@@ -5105,11 +5068,11 @@ package body Exp_Disp is
                            Left_Opnd =>
                              Make_Function_Call (Loc,
                                Name =>
-                                 New_Reference_To
+                                 New_Occurrence_Of
                                    (RTE (RE_Address_Image), Loc),
                                Parameter_Associations => New_List (
                                  Unchecked_Convert_To (RTE (RE_Address),
-                                   New_Reference_To (DT_Ptr, Loc)))),
+                                   New_Occurrence_Of (DT_Ptr, Loc)))),
                            Right_Opnd =>
                              Make_String_Literal (Loc, Str2_Id)))));
 
@@ -5118,7 +5081,7 @@ package body Exp_Disp is
                  Make_Object_Declaration (Loc,
                    Defining_Identifier => Exname,
                    Constant_Present    => True,
-                   Object_Definition   => New_Reference_To
+                   Object_Definition   => New_Occurrence_Of
                                             (Standard_String, Loc),
                    Expression =>
                      Make_Op_Concat (Loc,
@@ -5131,7 +5094,7 @@ package body Exp_Disp is
             New_Node :=
               Unchecked_Convert_To (RTE (RE_Cstring_Ptr),
                 Make_Attribute_Reference (Loc,
-                  Prefix => New_Reference_To (Exname, Loc),
+                  Prefix => New_Occurrence_Of (Exname, Loc),
                   Attribute_Name => Name_Address));
          end;
 
@@ -5160,7 +5123,7 @@ package body Exp_Disp is
                New_Node :=
                  Unchecked_Convert_To (RTE (RE_Cstring_Ptr),
                    Make_Attribute_Reference (Loc,
-                     Prefix         => New_Reference_To (Exname, Loc),
+                     Prefix         => New_Occurrence_Of (Exname, Loc),
                      Attribute_Name => Name_Address));
             else
                Old_Val := Strval (Expr_Value_S (Expression (Def)));
@@ -5193,14 +5156,14 @@ package body Exp_Disp is
                    Defining_Identifier => E,
                    Constant_Present    => True,
                    Object_Definition   =>
-                     New_Reference_To (Standard_String, Loc),
+                     New_Occurrence_Of (Standard_String, Loc),
                    Expression          =>
                      Make_String_Literal (Loc, New_Val)));
 
                New_Node :=
                  Unchecked_Convert_To (RTE (RE_Cstring_Ptr),
                    Make_Attribute_Reference (Loc,
-                     Prefix => New_Reference_To (E, Loc),
+                     Prefix => New_Occurrence_Of (E, Loc),
                      Attribute_Name => Name_Address));
             end if;
          end;
@@ -5214,12 +5177,12 @@ package body Exp_Disp is
          Append_To (TSD_Aggr_List,
            Unchecked_Convert_To (RTE (RE_Tag_Ptr),
              Make_Attribute_Reference (Loc,
-               Prefix => New_Reference_To (HT_Link, Loc),
+               Prefix => New_Occurrence_Of (HT_Link, Loc),
                Attribute_Name => Name_Address)));
       else
          Append_To (TSD_Aggr_List,
            Unchecked_Convert_To (RTE (RE_Tag_Ptr),
-             New_Reference_To (RTE (RE_Null_Address), Loc)));
+             New_Occurrence_Of (RTE (RE_Null_Address), Loc)));
       end if;
 
       --  Transportable: Set for types that can be used in remote calls
@@ -5283,7 +5246,7 @@ package body Exp_Disp is
          if not Building_Static_DT (Typ) or else not Has_DT (Typ) then
             Append_To (TSD_Aggr_List,
               Unchecked_Convert_To (RTE (RE_Size_Ptr),
-                New_Reference_To (RTE (RE_Null_Address), Loc)));
+                New_Occurrence_Of (RTE (RE_Null_Address), Loc)));
 
          else
             declare
@@ -5302,12 +5265,12 @@ package body Exp_Disp is
                      if Is_Abstract_Subprogram (Prim) then
                         Size_Comp :=
                           Unchecked_Convert_To (RTE (RE_Size_Ptr),
-                            New_Reference_To (RTE (RE_Null_Address), Loc));
+                            New_Occurrence_Of (RTE (RE_Null_Address), Loc));
                      else
                         Size_Comp :=
                           Unchecked_Convert_To (RTE (RE_Size_Ptr),
                             Make_Attribute_Reference (Loc,
-                              Prefix => New_Reference_To (Prim, Loc),
+                              Prefix => New_Occurrence_Of (Prim, Loc),
                               Attribute_Name => Name_Unrestricted_Access));
                      end if;
 
@@ -5353,7 +5316,7 @@ package body Exp_Disp is
                while Present (AI) loop
                   if Is_Ancestor (Node (AI), Typ, Use_Full_View => True) then
                      Sec_DT_Tag :=
-                       New_Reference_To (DT_Ptr, Loc);
+                       New_Occurrence_Of (DT_Ptr, Loc);
                   else
                      Elmt :=
                        Next_Elmt
@@ -5379,7 +5342,7 @@ package body Exp_Disp is
                        and then not
                          Has_Thunks (Node (Next_Elmt (Next_Elmt (Elmt)))));
                      Sec_DT_Tag :=
-                       New_Reference_To (Node (Next_Elmt (Next_Elmt (Elmt))),
+                       New_Occurrence_Of (Node (Next_Elmt (Next_Elmt (Elmt))),
                                          Loc);
                   end if;
 
@@ -5390,13 +5353,13 @@ package body Exp_Disp is
                         --  Iface_Tag
 
                         Unchecked_Convert_To (RTE (RE_Tag),
-                          New_Reference_To
+                          New_Occurrence_Of
                             (Node (First_Elmt (Access_Disp_Table (Node (AI)))),
                              Loc)),
 
                         --  Static_Offset_To_Top
 
-                        New_Reference_To (Standard_True, Loc),
+                        New_Occurrence_Of (Standard_True, Loc),
 
                         --  Offset_To_Top_Value
 
@@ -5434,7 +5397,7 @@ package body Exp_Disp is
                    Object_Definition   =>
                      Make_Subtype_Indication (Loc,
                        Subtype_Mark =>
-                         New_Reference_To (RTE (RE_Interface_Data), Loc),
+                         New_Occurrence_Of (RTE (RE_Interface_Data), Loc),
                        Constraint => Make_Index_Or_Discriminant_Constraint
                          (Loc,
                           Constraints => New_List (
@@ -5448,17 +5411,17 @@ package body Exp_Disp is
 
                Append_To (Result,
                  Make_Attribute_Definition_Clause (Loc,
-                   Name       => New_Reference_To (ITable, Loc),
+                   Name       => New_Occurrence_Of (ITable, Loc),
                    Chars      => Name_Alignment,
                    Expression =>
                      Make_Attribute_Reference (Loc,
                        Prefix =>
-                         New_Reference_To (RTE (RE_Integer_Address), Loc),
+                         New_Occurrence_Of (RTE (RE_Integer_Address), Loc),
                        Attribute_Name => Name_Alignment)));
 
                Iface_Table_Node :=
                  Make_Attribute_Reference (Loc,
-                   Prefix         => New_Reference_To (ITable, Loc),
+                   Prefix         => New_Occurrence_Of (ITable, Loc),
                    Attribute_Name => Name_Unchecked_Access);
             end;
          end if;
@@ -5487,7 +5450,7 @@ package body Exp_Disp is
                 Aliased_Present     => True,
                 Object_Definition   =>
                   Make_Subtype_Indication (Loc,
-                    Subtype_Mark => New_Reference_To (
+                    Subtype_Mark => New_Occurrence_Of (
                       RTE (RE_Select_Specific_Data), Loc),
                     Constraint   =>
                       Make_Index_Or_Discriminant_Constraint (Loc,
@@ -5496,12 +5459,12 @@ package body Exp_Disp is
 
             Append_To (Result,
               Make_Attribute_Definition_Clause (Loc,
-                Name       => New_Reference_To (SSD, Loc),
+                Name       => New_Occurrence_Of (SSD, Loc),
                 Chars      => Name_Alignment,
                 Expression =>
                   Make_Attribute_Reference (Loc,
                     Prefix =>
-                      New_Reference_To (RTE (RE_Integer_Address), Loc),
+                      New_Occurrence_Of (RTE (RE_Integer_Address), Loc),
                     Attribute_Name => Name_Alignment)));
 
             --  This table is initialized by Make_Select_Specific_Data_Table,
@@ -5509,7 +5472,7 @@ package body Exp_Disp is
 
             Append_To (TSD_Aggr_List,
               Make_Attribute_Reference (Loc,
-                Prefix => New_Reference_To (SSD, Loc),
+                Prefix => New_Occurrence_Of (SSD, Loc),
                 Attribute_Name => Name_Unchecked_Access));
          else
             Append_To (TSD_Aggr_List, Make_Null (Loc));
@@ -5530,13 +5493,13 @@ package body Exp_Disp is
       then
          Append_To (TSD_Tags_List,
            Unchecked_Convert_To (RTE (RE_Tag),
-             New_Reference_To (RTE (RE_Null_Address), Loc)));
+             New_Occurrence_Of (RTE (RE_Null_Address), Loc)));
 
       --  Otherwise we can safely reference the tag
 
       else
          Append_To (TSD_Tags_List,
-           New_Reference_To (DT_Ptr, Loc));
+           New_Occurrence_Of (DT_Ptr, Loc));
       end if;
 
       --  Fill the rest of the table with the tags of the ancestors
@@ -5566,10 +5529,10 @@ package body Exp_Disp is
 
                Append_To (TSD_Tags_List,
                  Unchecked_Convert_To (RTE (RE_Tag),
-                   New_Reference_To (RTE (RE_Null_Address), Loc)));
+                   New_Occurrence_Of (RTE (RE_Null_Address), Loc)));
             else
                Append_To (TSD_Tags_List,
-                 New_Reference_To
+                 New_Occurrence_Of
                    (Node (First_Elmt (Access_Disp_Table (Parent_Typ))),
                     Loc));
             end if;
@@ -5594,7 +5557,7 @@ package body Exp_Disp is
           Constant_Present    => Building_Static_DT (Typ),
           Object_Definition   =>
             Make_Subtype_Indication (Loc,
-              Subtype_Mark => New_Reference_To (
+              Subtype_Mark => New_Occurrence_Of (
                 RTE (RE_Type_Specific_Data), Loc),
               Constraint =>
                 Make_Index_Or_Discriminant_Constraint (Loc,
@@ -5608,11 +5571,11 @@ package body Exp_Disp is
 
       Append_To (Result,
         Make_Attribute_Definition_Clause (Loc,
-          Name       => New_Reference_To (TSD, Loc),
+          Name       => New_Occurrence_Of (TSD, Loc),
           Chars      => Name_Alignment,
           Expression =>
             Make_Attribute_Reference (Loc,
-              Prefix => New_Reference_To (RTE (RE_Integer_Address), Loc),
+              Prefix => New_Occurrence_Of (RTE (RE_Integer_Address), Loc),
               Attribute_Name => Name_Alignment)));
 
       --  Initialize or declare the dispatch table object
@@ -5625,7 +5588,7 @@ package body Exp_Disp is
 
          New_Node :=
            Make_Attribute_Reference (Loc,
-             Prefix => New_Reference_To (TSD, Loc),
+             Prefix => New_Occurrence_Of (TSD, Loc),
              Attribute_Name => Name_Address);
 
          Append_To (DT_Constr_List, New_Node);
@@ -5641,7 +5604,7 @@ package body Exp_Disp is
          if not Building_Static_DT (Typ) then
             Append_To (Result,
               Make_Assignment_Statement (Loc,
-                Name => New_Reference_To (DT, Loc),
+                Name => New_Occurrence_Of (DT, Loc),
                 Expression => Make_Aggregate (Loc,
                   Expressions => DT_Aggr_List)));
 
@@ -5662,18 +5625,18 @@ package body Exp_Disp is
                 Aliased_Present     => True,
                 Constant_Present    => True,
                 Object_Definition   =>
-                  New_Reference_To (RTE (RE_No_Dispatch_Table_Wrapper), Loc),
+                  New_Occurrence_Of (RTE (RE_No_Dispatch_Table_Wrapper), Loc),
                 Expression => Make_Aggregate (Loc,
                   Expressions => DT_Aggr_List)));
 
             Append_To (Result,
               Make_Attribute_Definition_Clause (Loc,
-                Name       => New_Reference_To (DT, Loc),
+                Name       => New_Occurrence_Of (DT, Loc),
                 Chars      => Name_Alignment,
                 Expression =>
                   Make_Attribute_Reference (Loc,
                     Prefix =>
-                      New_Reference_To (RTE (RE_Integer_Address), Loc),
+                      New_Occurrence_Of (RTE (RE_Integer_Address), Loc),
                     Attribute_Name => Name_Alignment)));
 
             Export_DT (Typ, DT);
@@ -5765,7 +5728,7 @@ package body Exp_Disp is
                      New_Node :=
                        Unchecked_Convert_To (RTE (RE_Prim_Ptr),
                          Make_Attribute_Reference (Loc,
-                           Prefix => New_Reference_To (Prim_Table (J), Loc),
+                           Prefix => New_Occurrence_Of (Prim_Table (J), Loc),
                            Attribute_Name => Name_Unrestricted_Access));
                   else
                      New_Node := Make_Null (Loc);
@@ -5782,7 +5745,7 @@ package body Exp_Disp is
                  Make_Subtype_Declaration (Loc,
                    Defining_Identifier => Make_Temporary (Loc, 'S'),
                    Subtype_Indication  =>
-                     New_Reference_To (RTE (RE_Address_Array), Loc));
+                     New_Occurrence_Of (RTE (RE_Address_Array), Loc));
 
                Append_To (Result, Decl);
 
@@ -5791,7 +5754,7 @@ package body Exp_Disp is
                    Defining_Identifier => Predef_Prims,
                    Aliased_Present     => True,
                    Constant_Present    => Building_Static_DT (Typ),
-                   Object_Definition   => New_Reference_To
+                   Object_Definition   => New_Occurrence_Of
                                            (Defining_Identifier (Decl), Loc),
                    Expression => New_Node));
 
@@ -5801,12 +5764,12 @@ package body Exp_Disp is
 
                Append_To (Result,
                  Make_Attribute_Definition_Clause (Loc,
-                   Name       => New_Reference_To (Predef_Prims, Loc),
+                   Name       => New_Occurrence_Of (Predef_Prims, Loc),
                    Chars      => Name_Alignment,
                    Expression =>
                      Make_Attribute_Reference (Loc,
                        Prefix =>
-                         New_Reference_To (RTE (RE_Integer_Address), Loc),
+                         New_Occurrence_Of (RTE (RE_Integer_Address), Loc),
                        Attribute_Name => Name_Alignment)));
             end;
          end;
@@ -5832,7 +5795,7 @@ package body Exp_Disp is
 
          if RTE_Record_Component_Available (RE_Signature) then
             Append_To (DT_Aggr_List,
-              New_Reference_To (RTE (RE_Primary_DT), Loc));
+              New_Occurrence_Of (RTE (RE_Primary_DT), Loc));
          end if;
 
          --  Tag_Kind
@@ -5845,7 +5808,7 @@ package body Exp_Disp is
 
          Append_To (DT_Aggr_List,
            Make_Attribute_Reference (Loc,
-             Prefix => New_Reference_To (Predef_Prims, Loc),
+             Prefix => New_Occurrence_Of (Predef_Prims, Loc),
              Attribute_Name => Name_Address));
 
          --  Offset_To_Top
@@ -5856,7 +5819,7 @@ package body Exp_Disp is
 
          Append_To (DT_Aggr_List,
            Make_Attribute_Reference (Loc,
-             Prefix => New_Reference_To (TSD, Loc),
+             Prefix => New_Occurrence_Of (TSD, Loc),
              Attribute_Name => Name_Address));
 
          --  Stage 2: Initialize the table of user-defined primitive operations
@@ -5923,7 +5886,7 @@ package body Exp_Disp is
                      New_Node :=
                        Unchecked_Convert_To (RTE (RE_Prim_Ptr),
                          Make_Attribute_Reference (Loc,
-                           Prefix => New_Reference_To (Prim_Table (J), Loc),
+                           Prefix => New_Occurrence_Of (Prim_Table (J), Loc),
                            Attribute_Name => Name_Unrestricted_Access));
                   else
                      New_Node := Make_Null (Loc);
@@ -5951,7 +5914,7 @@ package body Exp_Disp is
          if not Building_Static_DT (Typ) then
             Append_To (Result,
               Make_Assignment_Statement (Loc,
-                Name => New_Reference_To (DT, Loc),
+                Name => New_Occurrence_Of (DT, Loc),
                 Expression => Make_Aggregate (Loc,
                   Expressions => DT_Aggr_List)));
 
@@ -5966,7 +5929,7 @@ package body Exp_Disp is
                 Constant_Present    => True,
                 Object_Definition   =>
                   Make_Subtype_Indication (Loc,
-                    Subtype_Mark => New_Reference_To
+                    Subtype_Mark => New_Occurrence_Of
                                       (RTE (RE_Dispatch_Table_Wrapper), Loc),
                     Constraint   => Make_Index_Or_Discriminant_Constraint (Loc,
                                       Constraints => DT_Constr_List)),
@@ -5975,12 +5938,12 @@ package body Exp_Disp is
 
             Append_To (Result,
               Make_Attribute_Definition_Clause (Loc,
-                Name       => New_Reference_To (DT, Loc),
+                Name       => New_Occurrence_Of (DT, Loc),
                 Chars      => Name_Alignment,
                 Expression =>
                   Make_Attribute_Reference (Loc,
                     Prefix =>
-                      New_Reference_To (RTE (RE_Integer_Address), Loc),
+                      New_Occurrence_Of (RTE (RE_Integer_Address), Loc),
                     Attribute_Name => Name_Alignment)));
 
             Export_DT (Typ, DT);
@@ -6001,15 +5964,15 @@ package body Exp_Disp is
                  Prefix =>
                    Make_Selected_Component (Loc,
                      Prefix =>
-                       New_Reference_To (TSD, Loc),
+                       New_Occurrence_Of (TSD, Loc),
                      Selector_Name =>
-                       New_Reference_To
+                       New_Occurrence_Of
                          (RTE_Record_Component (RE_Tags_Table), Loc)),
                  Expressions =>
                     New_List (Make_Integer_Literal (Loc, 0))),
 
              Expression =>
-               New_Reference_To
+               New_Occurrence_Of
                  (Node (First_Elmt (Access_Disp_Table (Typ))), Loc)));
       end if;
 
@@ -6049,13 +6012,13 @@ package body Exp_Disp is
                   Append_To (Elab_Code,
                     Build_Inherit_Predefined_Prims (Loc,
                       Old_Tag_Node =>
-                        New_Reference_To
+                        New_Occurrence_Of
                           (Node
                            (Next_Elmt
                             (First_Elmt
                              (Access_Disp_Table (Parent_Typ)))), Loc),
                       New_Tag_Node =>
-                        New_Reference_To
+                        New_Occurrence_Of
                           (Node
                            (Next_Elmt
                             (First_Elmt
@@ -6066,11 +6029,11 @@ package body Exp_Disp is
                        Build_Inherit_Prims (Loc,
                          Typ          => Typ,
                          Old_Tag_Node =>
-                           New_Reference_To
+                           New_Occurrence_Of
                              (Node
                               (First_Elmt
                                (Access_Disp_Table (Parent_Typ))), Loc),
-                         New_Tag_Node => New_Reference_To (DT_Ptr, Loc),
+                         New_Tag_Node => New_Occurrence_Of (DT_Ptr, Loc),
                          Num_Prims    => Nb_Prims));
                   end if;
                end;
@@ -6139,13 +6102,13 @@ package body Exp_Disp is
                                       Build_Inherit_Predefined_Prims (Loc,
                                         Old_Tag_Node =>
                                           Unchecked_Convert_To (RTE (RE_Tag),
-                                            New_Reference_To
+                                            New_Occurrence_Of
                                               (Node
                                                 (Next_Elmt (Sec_DT_Ancestor)),
                                                Loc)),
                                         New_Tag_Node =>
                                           Unchecked_Convert_To (RTE (RE_Tag),
-                                            New_Reference_To
+                                            New_Occurrence_Of
                                               (Node (Next_Elmt (Sec_DT_Typ)),
                                                Loc))));
 
@@ -6156,13 +6119,13 @@ package body Exp_Disp is
                                            Old_Tag_Node =>
                                              Unchecked_Convert_To
                                                (RTE (RE_Tag),
-                                                New_Reference_To
+                                                New_Occurrence_Of
                                                   (Node (Sec_DT_Ancestor),
                                                    Loc)),
                                            New_Tag_Node =>
                                              Unchecked_Convert_To
                                               (RTE (RE_Tag),
-                                               New_Reference_To
+                                               New_Occurrence_Of
                                                  (Node (Sec_DT_Typ), Loc)),
                                            Num_Prims    => Num_Prims));
                                     end if;
@@ -6185,13 +6148,13 @@ package body Exp_Disp is
                                       Build_Inherit_Predefined_Prims (Loc,
                                         Old_Tag_Node =>
                                           Unchecked_Convert_To (RTE (RE_Tag),
-                                             New_Reference_To
+                                             New_Occurrence_Of
                                                (Node
                                                  (Next_Elmt (Sec_DT_Ancestor)),
                                                 Loc)),
                                         New_Tag_Node =>
                                           Unchecked_Convert_To (RTE (RE_Tag),
-                                            New_Reference_To
+                                            New_Occurrence_Of
                                               (Node (Next_Elmt (Sec_DT_Typ)),
                                                Loc))));
 
@@ -6202,13 +6165,13 @@ package body Exp_Disp is
                                            Old_Tag_Node =>
                                              Unchecked_Convert_To
                                                (RTE (RE_Tag),
-                                                New_Reference_To
+                                                New_Occurrence_Of
                                                   (Node (Sec_DT_Ancestor),
                                                    Loc)),
                                            New_Tag_Node =>
                                              Unchecked_Convert_To
                                               (RTE (RE_Tag),
-                                               New_Reference_To
+                                               New_Occurrence_Of
                                                  (Node (Sec_DT_Typ), Loc)),
                                            Num_Prims    => Num_Prims));
                                     end if;
@@ -6272,10 +6235,10 @@ package body Exp_Disp is
       then
          Append_To (Elab_Code,
            Make_Procedure_Call_Statement (Loc,
-             Name => New_Reference_To (RTE (RE_Check_TSD), Loc),
+             Name => New_Occurrence_Of (RTE (RE_Check_TSD), Loc),
              Parameter_Associations => New_List (
                Make_Attribute_Reference (Loc,
-                 Prefix => New_Reference_To (TSD, Loc),
+                 Prefix => New_Occurrence_Of (TSD, Loc),
                  Attribute_Name => Name_Unchecked_Access))));
       end if;
 
@@ -6297,9 +6260,9 @@ package body Exp_Disp is
       then
          Append_To (Elab_Code,
            Make_Procedure_Call_Statement (Loc,
-             Name => New_Reference_To (RTE (RE_Register_Tag), Loc),
+             Name => New_Occurrence_Of (RTE (RE_Register_Tag), Loc),
              Parameter_Associations =>
-               New_List (New_Reference_To (DT_Ptr, Loc))));
+               New_List (New_Occurrence_Of (DT_Ptr, Loc))));
       end if;
 
       if not Is_Empty_List (Elab_Code) then
@@ -6506,7 +6469,7 @@ package body Exp_Disp is
                 Object_Definition   =>
                   Make_Subtype_Indication (Loc,
                     Subtype_Mark =>
-                      New_Reference_To (RTE (RE_Object_Specific_Data), Loc),
+                      New_Occurrence_Of (RTE (RE_Object_Specific_Data), Loc),
                     Constraint =>
                       Make_Index_Or_Discriminant_Constraint (Loc,
                         Constraints => New_List (
@@ -6531,7 +6494,7 @@ package body Exp_Disp is
 
             return
               Make_Attribute_Reference (Loc,
-                Prefix => New_Reference_To (OSD, Loc),
+                Prefix => New_Occurrence_Of (OSD, Loc),
                 Attribute_Name => Name_Unchecked_Access);
          end if;
       end Make_OSD;
@@ -6629,7 +6592,7 @@ package body Exp_Disp is
       else
          Append_To (TSD_Aggr_List,
            Make_Attribute_Reference (Loc,
-             Prefix         => New_Reference_To (Typ, Loc),
+             Prefix         => New_Occurrence_Of (Typ, Loc),
              Attribute_Name => Name_Alignment));
       end if;
 
@@ -6700,7 +6663,7 @@ package body Exp_Disp is
                          --  Iface_Tag
 
                          Make_Attribute_Reference (Loc,
-                           Prefix         => New_Reference_To (Iface, Loc),
+                           Prefix         => New_Occurrence_Of (Iface, Loc),
                            Attribute_Name => Name_Tag),
 
                          --  OSD
@@ -6720,7 +6683,7 @@ package body Exp_Disp is
                    Object_Definition   =>
                      Make_Subtype_Indication (Loc,
                        Subtype_Mark =>
-                         New_Reference_To (RTE (RE_Interface_Data), Loc),
+                         New_Occurrence_Of (RTE (RE_Interface_Data), Loc),
                        Constraint   => Make_Index_Or_Discriminant_Constraint
                          (Loc,
                           Constraints => New_List (
@@ -6734,7 +6697,7 @@ package body Exp_Disp is
 
                Iface_Table_Node :=
                  Make_Attribute_Reference (Loc,
-                   Prefix         => New_Reference_To (ITable, Loc),
+                   Prefix         => New_Occurrence_Of (ITable, Loc),
                    Attribute_Name => Name_Unchecked_Access);
             end;
          end if;
@@ -6763,7 +6726,7 @@ package body Exp_Disp is
                 Aliased_Present     => True,
                 Object_Definition   =>
                   Make_Subtype_Indication (Loc,
-                    Subtype_Mark => New_Reference_To (
+                    Subtype_Mark => New_Occurrence_Of (
                       RTE (RE_Select_Specific_Data), Loc),
                     Constraint   =>
                       Make_Index_Or_Discriminant_Constraint (Loc,
@@ -6775,7 +6738,7 @@ package body Exp_Disp is
 
             Append_To (TSD_Aggr_List,
               Make_Attribute_Reference (Loc,
-                Prefix         => New_Reference_To (SSD, Loc),
+                Prefix         => New_Occurrence_Of (SSD, Loc),
                 Attribute_Name => Name_Unchecked_Access));
          else
             Append_To (TSD_Aggr_List, Make_Null (Loc));
@@ -6791,7 +6754,7 @@ package body Exp_Disp is
 
       Append_To (TSD_Tags_List,
         Make_Attribute_Reference (Loc,
-          Prefix         => New_Reference_To (Typ, Loc),
+          Prefix         => New_Occurrence_Of (Typ, Loc),
           Attribute_Name => Name_Tag));
 
       --  Fill the rest of the table with the tags of the ancestors
@@ -6816,7 +6779,7 @@ package body Exp_Disp is
 
             Append_To (TSD_Tags_List,
               Make_Attribute_Reference (Loc,
-                Prefix         => New_Reference_To (Parent_Typ, Loc),
+                Prefix         => New_Occurrence_Of (Parent_Typ, Loc),
                 Attribute_Name => Name_Tag));
 
             Pos := Pos + 1;
@@ -6839,7 +6802,7 @@ package body Exp_Disp is
           Constant_Present    => True,
           Object_Definition   =>
             Make_Subtype_Indication (Loc,
-              Subtype_Mark => New_Reference_To (
+              Subtype_Mark => New_Occurrence_Of (
                 RTE (RE_Type_Specific_Data), Loc),
               Constraint =>
                 Make_Index_Or_Discriminant_Constraint (Loc,
@@ -6861,10 +6824,10 @@ package body Exp_Disp is
       then
          Append_To (Result,
            Make_Procedure_Call_Statement (Loc,
-             Name => New_Reference_To (RTE (RE_Check_TSD), Loc),
+             Name => New_Occurrence_Of (RTE (RE_Check_TSD), Loc),
              Parameter_Associations => New_List (
                Make_Attribute_Reference (Loc,
-                 Prefix         => New_Reference_To (TSD, Loc),
+                 Prefix         => New_Occurrence_Of (TSD, Loc),
                  Attribute_Name => Name_Unrestricted_Access))));
       end if;
 
@@ -6873,10 +6836,10 @@ package body Exp_Disp is
 
       Append_To (Result,
         Make_Procedure_Call_Statement (Loc,
-          Name => New_Reference_To (RTE (RE_Register_TSD), Loc),
+          Name => New_Occurrence_Of (RTE (RE_Register_TSD), Loc),
           Parameter_Associations => New_List (
             Make_Attribute_Reference (Loc,
-              Prefix         => New_Reference_To (TSD, Loc),
+              Prefix         => New_Occurrence_Of (TSD, Loc),
               Attribute_Name => Name_Unrestricted_Access))));
 
       --  Populate the two auxiliary tables used for dispatching asynchronous,
@@ -7018,19 +6981,19 @@ package body Exp_Disp is
 
                if Tagged_Type_Expansion then
                   Tag_Node :=
-                    New_Reference_To
+                    New_Occurrence_Of
                      (Node (First_Elmt (Access_Disp_Table (Typ))), Loc);
 
                else
                   Tag_Node :=
                     Make_Attribute_Reference (Loc,
-                      Prefix         => New_Reference_To (Typ, Loc),
+                      Prefix         => New_Occurrence_Of (Typ, Loc),
                       Attribute_Name => Name_Tag);
                end if;
 
                Append_To (Assignments,
                  Make_Procedure_Call_Statement (Loc,
-                   Name => New_Reference_To (RTE (RE_Set_Prim_Op_Kind), Loc),
+                   Name => New_Occurrence_Of (RTE (RE_Set_Prim_Op_Kind), Loc),
                    Parameter_Associations => New_List (
                      Tag_Node,
                      Make_Integer_Literal (Loc, Prim_Pos),
@@ -7052,19 +7015,19 @@ package body Exp_Disp is
 
                   if Tagged_Type_Expansion then
                      Tag_Node :=
-                       New_Reference_To
+                       New_Occurrence_Of
                          (Node (First_Elmt (Access_Disp_Table (Typ))), Loc);
                   else
                      Tag_Node :=
                        Make_Attribute_Reference (Loc,
-                         Prefix         => New_Reference_To (Typ, Loc),
+                         Prefix         => New_Occurrence_Of (Typ, Loc),
                          Attribute_Name => Name_Tag);
                   end if;
 
                   Append_To (Assignments,
                     Make_Procedure_Call_Statement (Loc,
                       Name =>
-                        New_Reference_To (RTE (RE_Set_Entry_Index), Loc),
+                        New_Occurrence_Of (RTE (RE_Set_Entry_Index), Loc),
                       Parameter_Associations => New_List (
                         Tag_Node,
                         Make_Integer_Literal (Loc, Prim_Pos),
@@ -7146,7 +7109,8 @@ package body Exp_Disp is
                 Aliased_Present     => True,
                 Constant_Present    => True,
                 Object_Definition   =>
-                  New_Reference_To (RTE (RE_No_Dispatch_Table_Wrapper), Loc)));
+                  New_Occurrence_Of
+                    (RTE (RE_No_Dispatch_Table_Wrapper), Loc)));
 
          else
             --  Calculate the number of primitives of the dispatch table and
@@ -7174,7 +7138,7 @@ package body Exp_Disp is
                 Object_Definition   =>
                   Make_Subtype_Indication (Loc,
                     Subtype_Mark =>
-                      New_Reference_To (RTE (RE_Dispatch_Table_Wrapper), Loc),
+                      New_Occurrence_Of (RTE (RE_Dispatch_Table_Wrapper), Loc),
                     Constraint => Make_Index_Or_Discriminant_Constraint (Loc,
                                     Constraints => DT_Constr_List))));
          end if;
@@ -7217,7 +7181,7 @@ package body Exp_Disp is
       --  the decoration required by the backend.
 
       --  Odd comment, the back end cannot require anything not properly
-      --  documented in einfo! ???
+      --  documented in einfo. ???
 
       Set_Is_Dispatch_Table_Entity (RTE (RE_Prim_Ptr));
       Set_Is_Dispatch_Table_Entity (RTE (RE_Predef_Prims_Table_Ptr));
@@ -7233,10 +7197,10 @@ package body Exp_Disp is
             Append_To (Result,
               Make_Object_Declaration (Loc,
                 Defining_Identifier => DT_Ptr,
-                Object_Definition   => New_Reference_To (RTE (RE_Tag), Loc),
+                Object_Definition   => New_Occurrence_Of (RTE (RE_Tag), Loc),
                 Expression =>
                   Unchecked_Convert_To (RTE (RE_Tag),
-                    New_Reference_To (RTE (RE_Null_Address), Loc))));
+                    New_Occurrence_Of (RTE (RE_Null_Address), Loc))));
 
             Set_Is_Statically_Allocated (DT_Ptr,
               Is_Library_Level_Tagged_Type (Typ));
@@ -7270,13 +7234,14 @@ package body Exp_Disp is
                  Make_Object_Declaration (Loc,
                    Defining_Identifier => DT_Ptr,
                    Constant_Present    => True,
-                   Object_Definition   => New_Reference_To (RTE (RE_Tag), Loc),
+                   Object_Definition   =>
+                     New_Occurrence_Of (RTE (RE_Tag), Loc),
                    Expression          =>
                      Unchecked_Convert_To (RTE (RE_Tag),
                        Make_Attribute_Reference (Loc,
                          Prefix         =>
                            Make_Selected_Component (Loc,
-                             Prefix        => New_Reference_To (DT, Loc),
+                             Prefix        => New_Occurrence_Of (DT, Loc),
                              Selector_Name =>
                                New_Occurrence_Of
                                  (RTE_Record_Component (RE_Prims_Ptr), Loc)),
@@ -7297,12 +7262,12 @@ package body Exp_Disp is
                    Defining_Identifier => Predef_Prims_Ptr,
                    Constant_Present    => True,
                    Object_Definition   =>
-                     New_Reference_To (RTE (RE_Address), Loc),
+                     New_Occurrence_Of (RTE (RE_Address), Loc),
                    Expression          =>
                      Make_Attribute_Reference (Loc,
                        Prefix         =>
                          Make_Selected_Component (Loc,
-                           Prefix        => New_Reference_To (DT, Loc),
+                           Prefix        => New_Occurrence_Of (DT, Loc),
                            Selector_Name =>
                              New_Occurrence_Of
                                (RTE_Record_Component (RE_Predef_Prims), Loc)),
@@ -7315,13 +7280,14 @@ package body Exp_Disp is
                  Make_Object_Declaration (Loc,
                    Defining_Identifier => DT_Ptr,
                    Constant_Present    => True,
-                   Object_Definition   => New_Reference_To (RTE (RE_Tag), Loc),
+                   Object_Definition   =>
+                     New_Occurrence_Of (RTE (RE_Tag), Loc),
                    Expression          =>
                      Unchecked_Convert_To (RTE (RE_Tag),
                        Make_Attribute_Reference (Loc,
                          Prefix         =>
                            Make_Selected_Component (Loc,
-                             Prefix => New_Reference_To (DT, Loc),
+                             Prefix => New_Occurrence_Of (DT, Loc),
                              Selector_Name =>
                                New_Occurrence_Of
                                  (RTE_Record_Component (RE_NDT_Prims_Ptr),
@@ -7379,11 +7345,11 @@ package body Exp_Disp is
                Append_To (Result,
                  Make_Object_Declaration (Loc,
                    Defining_Identifier => Iface_DT_Ptr,
-                   Object_Definition   => New_Reference_To
+                   Object_Definition   => New_Occurrence_Of
                                             (RTE (RE_Interface_Tag), Loc),
                    Expression =>
                      Unchecked_Convert_To (RTE (RE_Interface_Tag),
-                       New_Reference_To (RTE (RE_Null_Address), Loc))));
+                       New_Occurrence_Of (RTE (RE_Null_Address), Loc))));
 
                Set_Is_Statically_Allocated (Iface_DT_Ptr,
                  Is_Library_Level_Tagged_Type (Typ));
@@ -7433,7 +7399,7 @@ package body Exp_Disp is
                     Make_Object_Declaration (Loc,
                       Defining_Identifier => Iface_DT_Ptr,
                       Constant_Present    => True,
-                      Object_Definition   => New_Reference_To
+                      Object_Definition   => New_Occurrence_Of
                                                (RTE (RE_Interface_Tag), Loc),
                       Expression          =>
                         Unchecked_Convert_To (RTE (RE_Interface_Tag),
@@ -7441,7 +7407,7 @@ package body Exp_Disp is
                             Prefix         =>
                               Make_Selected_Component (Loc,
                                 Prefix        =>
-                                  New_Reference_To (Iface_DT, Loc),
+                                  New_Occurrence_Of (Iface_DT, Loc),
                                 Selector_Name =>
                                   New_Occurrence_Of
                                     (RTE_Record_Component (RE_Prims_Ptr),
@@ -7541,7 +7507,7 @@ package body Exp_Disp is
                     Component_Definition =>
                       Make_Component_Definition (Loc,
                         Subtype_Indication =>
-                          New_Reference_To (RTE (RE_Prim_Ptr), Loc)))));
+                          New_Occurrence_Of (RTE (RE_Prim_Ptr), Loc)))));
 
             Append_To (Result,
               Make_Full_Type_Declaration (Loc,
@@ -7684,17 +7650,17 @@ package body Exp_Disp is
          --  Protected function
 
          if Ekind (Full_Typ) = E_Protected_Type then
-            return New_Reference_To (RTE (RE_POK_Protected_Function), Loc);
+            return New_Occurrence_Of (RTE (RE_POK_Protected_Function), Loc);
 
          --  Task function
 
          elsif Ekind (Full_Typ) = E_Task_Type then
-            return New_Reference_To (RTE (RE_POK_Task_Function), Loc);
+            return New_Occurrence_Of (RTE (RE_POK_Task_Function), Loc);
 
          --  Regular function
 
          else
-            return New_Reference_To (RTE (RE_POK_Function), Loc);
+            return New_Occurrence_Of (RTE (RE_POK_Function), Loc);
          end if;
 
       else
@@ -7707,12 +7673,13 @@ package body Exp_Disp is
             if Is_Primitive_Wrapper (Prim_Op)
               and then Ekind (Wrapped_Entity (Prim_Op)) = E_Entry
             then
-               return New_Reference_To (RTE (RE_POK_Protected_Entry), Loc);
+               return New_Occurrence_Of (RTE (RE_POK_Protected_Entry), Loc);
 
             --  Protected procedure
 
             else
-               return New_Reference_To (RTE (RE_POK_Protected_Procedure), Loc);
+               return
+                 New_Occurrence_Of (RTE (RE_POK_Protected_Procedure), Loc);
             end if;
 
          elsif Ekind (Full_Typ) = E_Task_Type then
@@ -7722,19 +7689,19 @@ package body Exp_Disp is
             if Is_Primitive_Wrapper (Prim_Op)
               and then Ekind (Wrapped_Entity (Prim_Op)) = E_Entry
             then
-               return New_Reference_To (RTE (RE_POK_Task_Entry), Loc);
+               return New_Occurrence_Of (RTE (RE_POK_Task_Entry), Loc);
 
             --  Task "procedure". These are the internally Expander-generated
             --  procedures (task body for instance).
 
             else
-               return New_Reference_To (RTE (RE_POK_Task_Procedure), Loc);
+               return New_Occurrence_Of (RTE (RE_POK_Task_Procedure), Loc);
             end if;
 
          --  Regular procedure
 
          else
-            return New_Reference_To (RTE (RE_POK_Procedure), Loc);
+            return New_Occurrence_Of (RTE (RE_POK_Procedure), Loc);
          end if;
       end if;
    end Prim_Op_Kind;
@@ -7784,12 +7751,12 @@ package body Exp_Disp is
 
             Append_To (L,
               Build_Set_Predefined_Prim_Op_Address (Loc,
-                Tag_Node     => New_Reference_To (DT_Ptr, Loc),
+                Tag_Node     => New_Occurrence_Of (DT_Ptr, Loc),
                 Position     => Pos,
                 Address_Node =>
                   Unchecked_Convert_To (RTE (RE_Prim_Ptr),
                     Make_Attribute_Reference (Loc,
-                      Prefix         => New_Reference_To (Prim, Loc),
+                      Prefix         => New_Occurrence_Of (Prim, Loc),
                       Attribute_Name => Name_Unrestricted_Access))));
 
             --  Register copy of the pointer to the 'size primitive in the TSD
@@ -7800,7 +7767,7 @@ package body Exp_Disp is
                DT_Ptr := Node (First_Elmt (Access_Disp_Table (Tag_Typ)));
                Append_To (L,
                  Build_Set_Size_Function (Loc,
-                   Tag_Node  => New_Reference_To (DT_Ptr, Loc),
+                   Tag_Node  => New_Occurrence_Of (DT_Ptr, Loc),
                    Size_Func => Prim));
             end if;
 
@@ -7817,12 +7784,12 @@ package body Exp_Disp is
                Append_To (L,
                  Build_Set_Prim_Op_Address (Loc,
                    Typ          => Tag_Typ,
-                   Tag_Node     => New_Reference_To (DT_Ptr, Loc),
+                   Tag_Node     => New_Occurrence_Of (DT_Ptr, Loc),
                    Position     => Pos,
                    Address_Node =>
                      Unchecked_Convert_To (RTE (RE_Prim_Ptr),
                        Make_Attribute_Reference (Loc,
-                         Prefix         => New_Reference_To (Prim, Loc),
+                         Prefix         => New_Occurrence_Of (Prim, Loc),
                          Attribute_Name => Name_Unrestricted_Access))));
             end if;
          end if;
@@ -7881,12 +7848,12 @@ package body Exp_Disp is
                Append_To (L,
                  Build_Set_Predefined_Prim_Op_Address (Loc,
                    Tag_Node =>
-                     New_Reference_To (Node (Next_Elmt (Iface_DT_Elmt)), Loc),
+                     New_Occurrence_Of (Node (Next_Elmt (Iface_DT_Elmt)), Loc),
                    Position => Pos,
                    Address_Node =>
                      Unchecked_Convert_To (RTE (RE_Prim_Ptr),
                        Make_Attribute_Reference (Loc,
-                         Prefix          => New_Reference_To (Thunk_Id, Loc),
+                         Prefix          => New_Occurrence_Of (Thunk_Id, Loc),
                          Attribute_Name  => Name_Unrestricted_Access))));
 
                Next_Elmt (Iface_DT_Elmt);
@@ -7897,13 +7864,13 @@ package body Exp_Disp is
                Append_To (L,
                  Build_Set_Predefined_Prim_Op_Address (Loc,
                    Tag_Node =>
-                     New_Reference_To (Node (Next_Elmt (Iface_DT_Elmt)), Loc),
+                     New_Occurrence_Of (Node (Next_Elmt (Iface_DT_Elmt)), Loc),
                    Position => Pos,
                    Address_Node =>
                      Unchecked_Convert_To (RTE (RE_Prim_Ptr),
                        Make_Attribute_Reference (Loc,
                          Prefix          =>
-                           New_Reference_To (Alias (Prim), Loc),
+                           New_Occurrence_Of (Alias (Prim), Loc),
                          Attribute_Name  => Name_Unrestricted_Access))));
 
             else
@@ -7913,12 +7880,12 @@ package body Exp_Disp is
                Append_To (L,
                  Build_Set_Prim_Op_Address (Loc,
                    Typ          => Iface_Typ,
-                   Tag_Node     => New_Reference_To (Iface_DT_Ptr, Loc),
+                   Tag_Node     => New_Occurrence_Of (Iface_DT_Ptr, Loc),
                    Position     => Pos,
                    Address_Node =>
                      Unchecked_Convert_To (RTE (RE_Prim_Ptr),
                        Make_Attribute_Reference (Loc,
-                         Prefix => New_Reference_To (Thunk_Id, Loc),
+                         Prefix => New_Occurrence_Of (Thunk_Id, Loc),
                          Attribute_Name => Name_Unrestricted_Access))));
 
                Next_Elmt (Iface_DT_Elmt);
@@ -7929,13 +7896,13 @@ package body Exp_Disp is
                Append_To (L,
                  Build_Set_Prim_Op_Address (Loc,
                    Typ          => Iface_Typ,
-                   Tag_Node     => New_Reference_To (Iface_DT_Ptr, Loc),
+                   Tag_Node     => New_Occurrence_Of (Iface_DT_Ptr, Loc),
                    Position     => Pos,
                    Address_Node =>
                      Unchecked_Convert_To (RTE (RE_Prim_Ptr),
                        Make_Attribute_Reference (Loc,
                          Prefix         =>
-                           New_Reference_To (Alias (Prim), Loc),
+                           New_Occurrence_Of (Alias (Prim), Loc),
                          Attribute_Name => Name_Unrestricted_Access))));
 
             end if;
@@ -8517,7 +8484,7 @@ package body Exp_Disp is
              Make_Parameter_Specification (Loc,
                Defining_Identifier =>
                  Make_Defining_Identifier (Loc, Name_uInit),
-               Parameter_Type      => New_Reference_To (Typ, Loc)));
+               Parameter_Type      => New_Occurrence_Of (Typ, Loc)));
 
          if Present (Parameter_Specifications (Parent (E))) then
             P := First (Parameter_Specifications (Parent (E)));
@@ -8644,13 +8611,13 @@ package body Exp_Disp is
                      P := First (Parms);
                      while Present (P) loop
                         Append_To (Actuals,
-                          New_Reference_To (Defining_Identifier (P), Loc));
+                          New_Occurrence_Of (Defining_Identifier (P), Loc));
                         Next (P);
                      end loop;
 
                      Append_To (Body_Stmts,
                        Make_Procedure_Call_Statement (Loc,
-                         Name => New_Reference_To (Constructor_Id, Loc),
+                         Name => New_Occurrence_Of (Constructor_Id, Loc),
                          Parameter_Associations => Actuals));
                   end;
 
@@ -8681,13 +8648,13 @@ package body Exp_Disp is
                         Append_To (Init_Tags_List,
                           Make_Assignment_Statement (Loc,
                             Name =>
-                              New_Reference_To (Node (Tag_Elmt), Loc),
+                              New_Occurrence_Of (Node (Tag_Elmt), Loc),
                             Expression =>
                               Make_Selected_Component (Loc,
                                 Prefix        =>
                                   Make_Identifier (Loc, Name_uInit),
                                 Selector_Name =>
-                                  New_Reference_To (Tag_Comp, Loc))));
+                                  New_Occurrence_Of (Tag_Comp, Loc))));
 
                         Tag_Comp := Next_Tag_Component (Tag_Comp);
                         Next_Elmt (Tag_Elmt);
@@ -8699,12 +8666,12 @@ package body Exp_Disp is
                       Condition =>
                         Make_Op_Eq (Loc,
                           Left_Opnd =>
-                            New_Reference_To
+                            New_Occurrence_Of
                               (Node (First_Elmt (Access_Disp_Table (Typ))),
                                Loc),
                           Right_Opnd =>
                             Unchecked_Convert_To (RTE (RE_Tag),
-                              New_Reference_To (RTE (RE_Null_Address), Loc))),
+                              New_Occurrence_Of (RTE (RE_Null_Address), Loc))),
                       Then_Statements => Init_Tags_List));
 
                   IP_Body :=
@@ -8760,7 +8727,7 @@ package body Exp_Disp is
             Body_Stmts := New_List (
               Make_Procedure_Call_Statement (Loc,
                 Name                   =>
-                  New_Reference_To (Covers_Default_Constructor, Loc),
+                  New_Occurrence_Of (Covers_Default_Constructor, Loc),
                 Parameter_Associations => New_List (
                   Make_Identifier (Loc, Name_uInit))));
 
@@ -8775,7 +8742,7 @@ package body Exp_Disp is
                       Make_Parameter_Specification (Loc,
                         Defining_Identifier =>
                           Make_Defining_Identifier (Loc, Name_uInit),
-                        Parameter_Type      => New_Reference_To (Typ, Loc)))),
+                        Parameter_Type      => New_Occurrence_Of (Typ, Loc)))),
 
                 Declarations               => No_List,
 
@@ -8840,9 +8807,11 @@ package body Exp_Disp is
 
       if Is_Abstract_Type (T) then
          if Is_Limited_Record (T) then
-            return New_Reference_To (RTE (RE_TK_Abstract_Limited_Tagged), Loc);
+            return New_Occurrence_Of
+              (RTE (RE_TK_Abstract_Limited_Tagged), Loc);
          else
-            return New_Reference_To (RTE (RE_TK_Abstract_Tagged), Loc);
+            return New_Occurrence_Of
+              (RTE (RE_TK_Abstract_Tagged), Loc);
          end if;
 
       --  Concurrent kinds
@@ -8855,19 +8824,19 @@ package body Exp_Disp is
          end if;
 
          if Ekind (Conc_Typ) = E_Protected_Type then
-            return New_Reference_To (RTE (RE_TK_Protected), Loc);
+            return New_Occurrence_Of (RTE (RE_TK_Protected), Loc);
          else
             pragma Assert (Ekind (Conc_Typ) = E_Task_Type);
-            return New_Reference_To (RTE (RE_TK_Task), Loc);
+            return New_Occurrence_Of (RTE (RE_TK_Task), Loc);
          end if;
 
       --  Regular tagged kinds
 
       else
          if Is_Limited_Record (T) then
-            return New_Reference_To (RTE (RE_TK_Limited_Tagged), Loc);
+            return New_Occurrence_Of (RTE (RE_TK_Limited_Tagged), Loc);
          else
-            return New_Reference_To (RTE (RE_TK_Tagged), Loc);
+            return New_Occurrence_Of (RTE (RE_TK_Tagged), Loc);
          end if;
       end if;
    end Tagged_Kind;

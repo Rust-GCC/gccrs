@@ -37,6 +37,7 @@ with Opt;      use Opt;
 with Repinfo;  use Repinfo;
 with Sem;      use Sem;
 with Sem_Aux;  use Sem_Aux;
+with Sem_Case; use Sem_Case;
 with Sem_Ch13; use Sem_Ch13;
 with Sem_Eval; use Sem_Eval;
 with Sem_Util; use Sem_Util;
@@ -751,7 +752,7 @@ package body Layout is
          then
             S := Expr_Value (Hi) - Expr_Value (Lo) + 1;
 
-            --  If known flat bound, entire size of array is zero!
+            --  If known flat bound, entire size of array is zero
 
             if S <= 0 then
                return Make_Integer_Literal (Loc, 0);
@@ -1088,7 +1089,7 @@ package body Layout is
          then
             S := Expr_Value (Hi) - Expr_Value (Lo) + 1;
 
-            --  If known flat bound, entire size of array is zero!
+            --  If known flat bound, entire size of array is zero
 
             if S <= 0 then
                Set_Esize (E, Uint_0);
@@ -1688,7 +1689,7 @@ package body Layout is
 
          --  Set size of component from type. We use the Esize except in a
          --  packed record, where we use the RM_Size (since that is what the
-         --  RM_Size value, as distinct from the Object_Size is useful for!)
+         --  RM_Size value, as distinct from the Object_Size is useful for).
 
          if Is_Packed (E) then
             Set_Esize (Comp, RM_Size (Ctyp));
@@ -1771,7 +1772,7 @@ package body Layout is
          End_NPMax : SO_Ref;
 
       begin
-         --  Only lay out components if there are some to lay out!
+         --  Only lay out components if there are some to lay out
 
          if Present (From) then
 
@@ -2224,9 +2225,54 @@ package body Layout is
             end if;
          end Layout_Component_List;
 
+         Others_Present : Boolean;
+         pragma Warnings (Off, Others_Present);
+         --  Indicates others present, not used in this case
+
+         procedure Non_Static_Choice_Error (Choice : Node_Id);
+         --  Error routine invoked by the generic instantiation below when
+         --  the variant part has a nonstatic choice.
+
+         package Variant_Choices_Processing is new
+           Generic_Check_Choices
+             (Process_Empty_Choice      => No_OP,
+              Process_Non_Static_Choice => Non_Static_Choice_Error,
+              Process_Associated_Node   => No_OP);
+         use Variant_Choices_Processing;
+
+         -----------------------------
+         -- Non_Static_Choice_Error --
+         -----------------------------
+
+         procedure Non_Static_Choice_Error (Choice : Node_Id) is
+         begin
+            Flag_Non_Static_Expr
+              ("choice given in case expression is not static!", Choice);
+         end Non_Static_Choice_Error;
+
       --  Start of processing for Layout_Variant_Record
 
       begin
+         --  Call Check_Choices here to ensure that Others_Discrete_Choices
+         --  gets set on any 'others' choice before the discriminant-checking
+         --  functions are generated. Otherwise the function for the 'others'
+         --  alternative will unconditionally return True, causing discriminant
+         --  checks to fail. However, Check_Choices is now normally delayed
+         --  until the type's freeze entity is processed, due to requirements
+         --  coming from subtype predicates, so doing it at this point is
+         --  probably not right in general, but it's not clear how else to deal
+         --  with this situation. Perhaps we should only generate declarations
+         --  for the checking functions here, and somehow delay generation of
+         --  their bodies, but that would be a nontrivial change. ???
+
+         declare
+            VP : constant Node_Id :=
+                   Variant_Part (Component_List (Type_Definition (Decl)));
+         begin
+            Check_Choices
+              (VP, Variants (VP), Etype (Name (VP)), Others_Present);
+         end;
+
          --  We need the discriminant checking functions, since we generate
          --  calls to these functions for the RM_Size expression, so make
          --  sure that these functions have been constructed in time.
@@ -2276,9 +2322,7 @@ package body Layout is
       --  original, nothing else needs to be done in this case, since the
       --  components themselves are all shared.
 
-      if (Ekind (E) = E_Record_Subtype
-            or else
-          Ekind (E) = E_Class_Wide_Subtype)
+      if Ekind_In (E, E_Record_Subtype, E_Class_Wide_Subtype)
         and then Present (Cloned_Subtype (E))
       then
          Set_Esize     (E, Esize     (Cloned_Subtype (E)));
@@ -2508,7 +2552,7 @@ package body Layout is
          --  since this is part of the earlier processing and the front end is
          --  always required to lay out the sizes of such types (since they are
          --  available as static attributes). All we do is to check that this
-         --  rule is indeed obeyed!
+         --  rule is indeed obeyed.
 
          if Is_Discrete_Type (E) then
 

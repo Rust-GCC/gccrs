@@ -9977,16 +9977,10 @@ build_common_builtin_nodes (void)
 			BUILT_IN_SETJMP_SETUP,
 			"__builtin_setjmp_setup", ECF_NOTHROW);
 
-  ftype = build_function_type_list (ptr_type_node, ptr_type_node, NULL_TREE);
-  local_define_builtin ("__builtin_setjmp_dispatcher", ftype,
-			BUILT_IN_SETJMP_DISPATCHER,
-			"__builtin_setjmp_dispatcher",
-			ECF_PURE | ECF_NOTHROW);
-
   ftype = build_function_type_list (void_type_node, ptr_type_node, NULL_TREE);
   local_define_builtin ("__builtin_setjmp_receiver", ftype,
 			BUILT_IN_SETJMP_RECEIVER,
-			"__builtin_setjmp_receiver", ECF_NOTHROW);
+			"__builtin_setjmp_receiver", ECF_NOTHROW | ECF_LEAF);
 
   ftype = build_function_type_list (ptr_type_node, NULL_TREE);
   local_define_builtin ("__builtin_stack_save", ftype, BUILT_IN_STACK_SAVE,
@@ -10823,6 +10817,7 @@ walk_type_fields (tree type, walk_tree_fn func, void *data,
     {
     case POINTER_TYPE:
     case REFERENCE_TYPE:
+    case VECTOR_TYPE:
       /* We have to worry about mutually recursive pointers.  These can't
 	 be written in C.  They can in Ada.  It's pathological, but
 	 there's an ACATS test (c38102a) that checks it.  Deal with this
@@ -12010,10 +12005,15 @@ get_binfo_at_offset (tree binfo, HOST_WIDE_INT offset, tree expected_type)
 		    break;
 		  }
 		else
-		  if (BINFO_OFFSET (base_binfo) - BINFO_OFFSET (binfo) < pos
+		  if ((tree_to_shwi (BINFO_OFFSET (base_binfo)) 
+		       - tree_to_shwi (BINFO_OFFSET (binfo)))
+		      * BITS_PER_UNIT < pos
+		      /* Rule out types with no virtual methods or we can get confused
+			 here by zero sized bases.  */
+		      && BINFO_VTABLE (TYPE_BINFO (BINFO_TYPE (base_binfo)))
 		      && (!containing_binfo
-			  || (BINFO_OFFSET (containing_binfo)
-			      < BINFO_OFFSET (base_binfo))))
+			  || (tree_to_shwi (BINFO_OFFSET (containing_binfo))
+			      < tree_to_shwi (BINFO_OFFSET (base_binfo)))))
 		    containing_binfo = base_binfo;
 	      if (found_binfo)
 		{

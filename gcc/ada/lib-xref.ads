@@ -434,94 +434,81 @@ package Lib.Xref is
    --  these letters are replaced in the xref by 'x' and 'y' respectively.
 
    Xref_Entity_Letters : array (Entity_Kind) of Character :=
-     (E_Void                                       => ' ',
-      E_Variable                                   => '*',
+     (E_Abstract_State                             => '@',
+      E_Access_Attribute_Type                      => 'P',
+      E_Access_Protected_Subprogram_Type           => 'P',
+      E_Access_Subprogram_Type                     => 'P',
+      E_Access_Subtype                             => 'P',
+      E_Access_Type                                => 'P',
+      E_Allocator_Type                             => ' ',
+      E_Anonymous_Access_Protected_Subprogram_Type => ' ',
+      E_Anonymous_Access_Subprogram_Type           => ' ',
+      E_Anonymous_Access_Type                      => ' ',
+      E_Array_Subtype                              => 'A',
+      E_Array_Type                                 => 'A',
+      E_Block                                      => 'q',
+      E_Class_Wide_Subtype                         => 'C',
+      E_Class_Wide_Type                            => 'C',
       E_Component                                  => '*',
       E_Constant                                   => '*',
-      E_Discriminant                               => '*',
-
-      E_Loop_Parameter                             => '*',
-      E_In_Parameter                               => '*',
-      E_Out_Parameter                              => '*',
-      E_In_Out_Parameter                           => '*',
-      E_Generic_In_Out_Parameter                   => '*',
-
-      E_Generic_In_Parameter                       => '*',
-      E_Named_Integer                              => 'N',
-      E_Named_Real                                 => 'N',
-      E_Enumeration_Type                           => 'E',  -- B for boolean
-      E_Enumeration_Subtype                        => 'E',  -- B for boolean
-
-      E_Signed_Integer_Type                        => 'I',
-      E_Signed_Integer_Subtype                     => 'I',
-      E_Modular_Integer_Type                       => 'M',
-      E_Modular_Integer_Subtype                    => 'M',
-      E_Ordinary_Fixed_Point_Type                  => 'O',
-
-      E_Ordinary_Fixed_Point_Subtype               => 'O',
-      E_Decimal_Fixed_Point_Type                   => 'D',
       E_Decimal_Fixed_Point_Subtype                => 'D',
-      E_Floating_Point_Type                        => 'F',
-      E_Floating_Point_Subtype                     => 'F',
-
-      E_Access_Type                                => 'P',
-      E_Access_Subtype                             => 'P',
-      E_Access_Attribute_Type                      => 'P',
-      E_Allocator_Type                             => ' ',
-      E_General_Access_Type                        => 'P',
-
-      E_Access_Subprogram_Type                     => 'P',
-      E_Access_Protected_Subprogram_Type           => 'P',
-      E_Anonymous_Access_Subprogram_Type           => ' ',
-      E_Anonymous_Access_Protected_Subprogram_Type => ' ',
-      E_Anonymous_Access_Type                      => ' ',
-
-      E_Array_Type                                 => 'A',
-      E_Array_Subtype                              => 'A',
-      E_String_Type                                => 'S',
-      E_String_Subtype                             => 'S',
-      E_String_Literal_Subtype                     => ' ',
-
-      E_Class_Wide_Type                            => 'C',
-      E_Class_Wide_Subtype                         => 'C',
-      E_Record_Type                                => 'R',
-      E_Record_Subtype                             => 'R',
-      E_Record_Type_With_Private                   => 'R',
-
-      E_Record_Subtype_With_Private                => 'R',
-      E_Private_Type                               => '+',
-      E_Private_Subtype                            => '+',
-      E_Limited_Private_Type                       => '+',
-      E_Limited_Private_Subtype                    => '+',
-
-      E_Incomplete_Type                            => '+',
-      E_Incomplete_Subtype                         => '+',
-      E_Task_Type                                  => 'T',
-      E_Task_Subtype                               => 'T',
-      E_Protected_Type                             => 'W',
-
-      E_Protected_Subtype                          => 'W',
-      E_Exception_Type                             => ' ',
-      E_Subprogram_Type                            => ' ',
-      E_Enumeration_Literal                        => 'n',
-      E_Function                                   => 'V',
-
-      E_Operator                                   => 'V',
-      E_Procedure                                  => 'U',
+      E_Decimal_Fixed_Point_Type                   => 'D',
+      E_Discriminant                               => '*',
       E_Entry                                      => 'Y',
       E_Entry_Family                               => 'Y',
-      E_Block                                      => 'q',
-
       E_Entry_Index_Parameter                      => '*',
+      E_Enumeration_Literal                        => 'n',
+      E_Enumeration_Subtype                        => 'E',  -- B for boolean
+      E_Enumeration_Type                           => 'E',  -- B for boolean
       E_Exception                                  => 'X',
+      E_Exception_Type                             => ' ',
+      E_Floating_Point_Subtype                     => 'F',
+      E_Floating_Point_Type                        => 'F',
+      E_Function                                   => 'V',
+      E_General_Access_Type                        => 'P',
       E_Generic_Function                           => 'v',
+      E_Generic_In_Out_Parameter                   => '*',
+      E_Generic_In_Parameter                       => '*',
       E_Generic_Package                            => 'k',
       E_Generic_Procedure                          => 'u',
-
       E_Label                                      => 'L',
+      E_Limited_Private_Subtype                    => '+',
+      E_Limited_Private_Type                       => '+',
       E_Loop                                       => 'l',
-      E_Return_Statement                           => ' ',
+      E_Loop_Parameter                             => '*',
+      E_In_Out_Parameter                           => '*',
+      E_In_Parameter                               => '*',
+      E_Incomplete_Subtype                         => '+',
+      E_Incomplete_Type                            => '+',
+      E_Modular_Integer_Subtype                    => 'M',
+      E_Modular_Integer_Type                       => 'M',
+      E_Named_Integer                              => 'N',
+      E_Named_Real                                 => 'N',
+      E_Operator                                   => 'V',
+      E_Ordinary_Fixed_Point_Subtype               => 'O',
+      E_Ordinary_Fixed_Point_Type                  => 'O',
+      E_Out_Parameter                              => '*',
       E_Package                                    => 'K',
+      E_Private_Subtype                            => '+',
+      E_Private_Type                               => '+',
+      E_Procedure                                  => 'U',
+      E_Protected_Subtype                          => 'W',
+      E_Protected_Type                             => 'W',
+      E_Record_Subtype                             => 'R',
+      E_Record_Subtype_With_Private                => 'R',
+      E_Record_Type                                => 'R',
+      E_Record_Type_With_Private                   => 'R',
+      E_Return_Statement                           => ' ',
+      E_Signed_Integer_Subtype                     => 'I',
+      E_Signed_Integer_Type                        => 'I',
+      E_String_Literal_Subtype                     => ' ',
+      E_String_Subtype                             => 'S',
+      E_String_Type                                => 'S',
+      E_Subprogram_Type                            => ' ',
+      E_Task_Subtype                               => 'T',
+      E_Task_Type                                  => 'T',
+      E_Variable                                   => '*',
+      E_Void                                       => ' ',
 
       --  The following entities are not ones to which we gather the cross-
       --  references, since it does not make sense to do so (e.g. references to
@@ -529,15 +516,10 @@ package Lib.Xref is
       --  body entity is considered to be a reference to the spec entity.
 
       E_Package_Body                               => ' ',
-      E_Protected_Object                           => ' ',
       E_Protected_Body                             => ' ',
-      E_Task_Body                                  => ' ',
+      E_Protected_Object                           => ' ',
       E_Subprogram_Body                            => ' ',
-
-      --  ??? The following letter is added for completion, proper design and
-      --  implementation of abstract state cross-referencing to follow.
-
-      E_Abstract_State                             => ' ');
+      E_Task_Body                                  => ' ');
 
    --  The following table is for information purposes. It shows the use of
    --  each character appearing as an entity type.
@@ -599,6 +581,39 @@ package Lib.Xref is
    --  indicates that procedure exported_proc, declared at line 3, has a pragma
    --  Export at line 4, that its body is exported to C, and that the link name
    --  as given in the pragma is "here".
+
+   -------------------------
+   -- Deferred_References --
+   -------------------------
+
+   --  Normally we generate references as we go along, but as discussed in
+   --  Sem_Util.Is_LHS, and Sem_Ch8.Find_Direct_Name/Find_Selected_Component,
+   --  we have one case where that is tricky, which is when we have something
+   --  like X.A := 3, where we don't know until we know the type of X whether
+   --  this is a reference (if X is an access type, so what we really have is
+   --  X.all.A := 3) or a modification, where X is not an access type.
+
+   --  What we do in such cases is to gather nodes, where we would have liked
+   --  to call Generate_Reference but we couldn't because we didn't know enough
+   --  into this table, Then we deal with generating references later on when
+   --  we have sufficient information to do it right.
+
+   type Deferred_Reference_Entry is record
+      E : Entity_Id;
+      N : Node_Id;
+   end record;
+   --  One entry, E, N are as required for Generate_Reference call
+
+   package Deferred_References is new Table.Table (
+     Table_Component_Type => Deferred_Reference_Entry,
+     Table_Index_Type     => Int,
+     Table_Low_Bound      => 0,
+     Table_Initial        => 512,
+     Table_Increment      => 200,
+     Table_Name           => "Name_Deferred_References");
+
+   procedure Process_Deferred_References;
+   --  This procedure is called from Frontend to process these table entries.
 
    -----------------------------
    -- SPARK Xrefs Information --

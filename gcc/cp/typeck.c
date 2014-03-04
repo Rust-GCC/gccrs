@@ -2486,6 +2486,10 @@ lookup_destructor (tree object, tree scope, tree dtor_name,
   tree dtor_type = TREE_OPERAND (dtor_name, 0);
   tree expr;
 
+  /* We've already complained about this destructor.  */
+  if (dtor_type == error_mark_node)
+    return error_mark_node;
+
   if (scope && !check_dtor_name (scope, dtor_type))
     {
       if (complain & tf_error)
@@ -3353,7 +3357,7 @@ build_function_call (location_t /*loc*/,
 
 /* Used by the C-common bits.  */
 tree
-build_function_call_vec (location_t /*loc*/,
+build_function_call_vec (location_t /*loc*/, vec<location_t> /*arg_loc*/,
 			 tree function, vec<tree, va_gc> *params,
 			 vec<tree, va_gc> * /*origtypes*/)
 {
@@ -4173,6 +4177,11 @@ cp_build_binary_op (location_t location,
     case TRUTH_ORIF_EXPR:
     case TRUTH_AND_EXPR:
     case TRUTH_OR_EXPR:
+      if (VECTOR_TYPE_P (type0) || VECTOR_TYPE_P (type1))
+	{
+	  sorry ("logical operation on vector type");
+	  return error_mark_node;
+	}
       result_type = boolean_type_node;
       break;
 
@@ -6278,8 +6287,7 @@ void
 maybe_warn_about_useless_cast (tree type, tree expr, tsubst_flags_t complain)
 {
   if (warn_useless_cast
-      && complain & tf_warning
-      && c_inhibit_evaluation_warnings == 0)
+      && complain & tf_warning)
     {
       if (REFERENCE_REF_P (expr))
 	expr = TREE_OPERAND (expr, 0);
@@ -7711,7 +7719,7 @@ build_ptrmemfunc1 (tree type, tree delta, tree pfn)
   delta_field = DECL_CHAIN (pfn_field);
 
   /* Make sure DELTA has the type we want.  */
-  delta = convert_and_check (delta_type_node, delta);
+  delta = convert_and_check (input_location, delta_type_node, delta);
 
   /* Convert to the correct target type if necessary.  */
   pfn = fold_convert (TREE_TYPE (pfn_field), pfn);

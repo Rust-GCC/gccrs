@@ -455,11 +455,16 @@ package body Sem_Aggr is
       end if;
 
       --  This is really expansion activity, so make sure that expansion is
-      --  on and is allowed. In GNATprove mode, we also want check flags to be
-      --  added in the tree, so that the formal verification can rely on those
-      --  to be present.
+      --  on and is allowed. In GNATprove mode, we also want check flags to
+      --  be added in the tree, so that the formal verification can rely on
+      --  those to be present. In GNATprove mode for formal verification, some
+      --  treatment typically only done during expansion needs to be performed
+      --  on the tree, but it should not be applied inside generics. Otherwise,
+      --  this breaks the name resolution mechanism for generic instances.
 
-      if not (Expander_Active or GNATprove_Mode) or In_Spec_Expression then
+      if not Expander_Active
+        and (Inside_A_Generic or not Full_Analysis or not GNATprove_Mode)
+      then
          return;
       end if;
 
@@ -761,7 +766,7 @@ package body Sem_Aggr is
    begin
       --  All the components of List are matched against Component and a count
       --  is maintained of possible misspellings. When at the end of the the
-      --  analysis there are one or two (not more!) possible misspellings,
+      --  analysis there are one or two (not more) possible misspellings,
       --  these misspellings will be suggested as possible correction.
 
       Component_Elmt := First_Elmt (Elements);
@@ -1372,7 +1377,7 @@ package body Sem_Aggr is
                Expr :=
                  Make_Attribute_Reference
                    (Loc,
-                    Prefix         => New_Reference_To (Index_Typ, Loc),
+                    Prefix         => New_Occurrence_Of (Index_Typ, Loc),
                     Attribute_Name => Name_Val,
                     Expressions    => New_List (Expr_Pos));
             end if;
@@ -1395,7 +1400,7 @@ package body Sem_Aggr is
             To_Pos :=
               Make_Attribute_Reference
                 (Loc,
-                 Prefix         => New_Reference_To (Index_Typ, Loc),
+                 Prefix         => New_Occurrence_Of (Index_Typ, Loc),
                  Attribute_Name => Name_Pos,
                  Expressions    => New_List (Duplicate_Subexpr (To)));
 
@@ -1407,7 +1412,7 @@ package body Sem_Aggr is
             Expr :=
               Make_Attribute_Reference
                 (Loc,
-                 Prefix         => New_Reference_To (Index_Typ, Loc),
+                 Prefix         => New_Occurrence_Of (Index_Typ, Loc),
                  Attribute_Name => Name_Val,
                  Expressions    => New_List (Expr_Pos));
 
@@ -1427,11 +1432,12 @@ package body Sem_Aggr is
                   Insert_Action (N,
                     Make_Object_Declaration (Loc,
                       Defining_Identifier => Def_Id,
-                      Object_Definition   => New_Reference_To (Index_Typ, Loc),
+                      Object_Definition   =>
+                        New_Occurrence_Of (Index_Typ, Loc),
                       Constant_Present    => True,
                       Expression          => Relocate_Node (Expr)));
 
-                  Expr := New_Reference_To (Def_Id, Loc);
+                  Expr := New_Occurrence_Of (Def_Id, Loc);
                end;
             end if;
          end if;
@@ -1937,6 +1943,25 @@ package body Sem_Aggr is
             Errors_Posted_On_Choices : Boolean := False;
             --  Keeps track of whether any choices have semantic errors
 
+            function Empty_Range (A : Node_Id)  return Boolean;
+            --  If an association covers an empty range, some warnings on the
+            --  expression of the association can be disabled.
+
+            -----------------
+            -- Empty_Range --
+            -----------------
+
+            function Empty_Range (A : Node_Id)  return Boolean is
+               R : constant Node_Id := First (Choices (A));
+            begin
+               return No (Next (R))
+                 and then Nkind (R) = N_Range
+                 and then Compile_Time_Compare
+                            (Low_Bound (R), High_Bound (R), False) = GT;
+            end Empty_Range;
+
+         --  Start of processing for Step_2
+
          begin
             --  STEP 2 (A): Check discrete choices validity
 
@@ -2059,6 +2084,7 @@ package body Sem_Aggr is
 
                if Ada_Version >= Ada_2005
                  and then Known_Null (Expression (Assoc))
+                 and then not Empty_Range (Assoc)
                then
                   Check_Can_Never_Be_Null (Etype (N), Expression (Assoc));
                end if;
@@ -4717,16 +4743,17 @@ package body Sem_Aggr is
          --  Apply_Compile_Time_Constraint_Error here to the Expr, which might
          --  seem the more natural approach. That's because in some cases the
          --  components are rewritten, and the replacement would be missed.
+         --  We do not mark the whole aggregate as raising a constraint error,
+         --  because the association may be a null array range.
 
-         Insert_Action
-           (Compile_Time_Constraint_Error
-              (Expr,
-               "(Ada 2005) null not allowed in null-excluding component??"),
-            Make_Raise_Constraint_Error
-              (Sloc (Expr), Reason => CE_Access_Check_Failed));
+         Error_Msg_N
+           ("(Ada 2005) null not allowed in null-excluding component??", Expr);
+         Error_Msg_N
+           ("\Constraint_Error will be raised at run time?", Expr);
 
-         --  Set proper type for bogus component (why is this needed???)
-
+         Rewrite (Expr,
+           Make_Raise_Constraint_Error
+             (Sloc (Expr), Reason => CE_Access_Check_Failed));
          Set_Etype    (Expr, Comp_Typ);
          Set_Analyzed (Expr);
       end if;

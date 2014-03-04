@@ -57,7 +57,7 @@ package body Expander is
    --  The following table is used to save values of the Expander_Active flag
    --  when they are saved by Expander_Mode_Save_And_Set. We use an extendible
    --  table (which is a bit of overkill) because it is easier than figuring
-   --  out a maximum value or bothering with range checks!
+   --  out a maximum value or bothering with range checks.
 
    package Expander_Flags is new Table.Table (
      Table_Component_Type => Boolean,
@@ -89,8 +89,12 @@ package body Expander is
       --  Full_Analysis flag indicates whether we are performing a complete
       --  analysis, in which case Full_Analysis = True or a pre-analysis in
       --  which case Full_Analysis = False. See the spec of Sem for more info
-      --  on this. Additionally, the GNATprove_Mode flag indicates that a light
-      --  expansion for formal verification should be used.
+      --  on this.
+
+      --  Additionally, the GNATprove_Mode flag indicates that a light
+      --  expansion for formal verification should be used. This expansion is
+      --  never done inside generics, because otherwise, this breaks the name
+      --  resolution mechanism for generic instances
 
       --  The second reason for the Expander_Active flag to be False is that
       --  we are performing a pre-analysis. During pre-analysis all expansion
@@ -108,7 +112,9 @@ package body Expander is
       --  given that the expansion actions that would normally process it will
       --  not take place. This prevents cascaded errors due to stack mismatch.
 
-      if not (Expander_Active or (Full_Analysis and GNATprove_Mode)) then
+      if not Expander_Active
+        and (Inside_A_Generic or not Full_Analysis or not GNATprove_Mode)
+      then
          Set_Analyzed (N, Full_Analysis);
 
          if Serious_Errors_Detected > 0 and then Scope_Is_Transient then
@@ -132,6 +138,14 @@ package body Expander is
 
             if GNATprove_Mode then
                Expand_SPARK (N);
+               Set_Analyzed (N);
+
+               --  Regular expansion is normally followed by special handling
+               --  for transient scopes for unconstrained results, etc. but
+               --  this is not needed, and in general cannot be done correctly,
+               --  in this mode, so we are all done.
+
+               return;
 
             --  Here for normal non-SPARK mode
 

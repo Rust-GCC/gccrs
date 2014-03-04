@@ -55,6 +55,7 @@ with Sdefault;
 with SFN_Scan;
 with Sinput.P;
 with Snames;   use Snames;
+with Stringt;
 
 pragma Warnings (Off);
 with System.HTable;
@@ -6411,6 +6412,7 @@ package body Make is
 
       Csets.Initialize;
       Snames.Initialize;
+      Stringt.Initialize;
 
       Prj.Initialize (Project_Tree);
 
@@ -6615,6 +6617,13 @@ package body Make is
          if Main_Project = No_Project then
             Make_Failed
               ("""" & Project_File_Name.all & """ processing failed");
+         end if;
+
+         if Main_Project.Qualifier = Aggregate then
+            Make_Failed ("aggregate projects are not supported");
+
+         elsif Aggregate_Libraries_In (Project_Tree) then
+            Make_Failed ("aggregate library projects are not supported");
          end if;
 
          Create_Mapping_File := True;

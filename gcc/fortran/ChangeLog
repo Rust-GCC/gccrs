@@ -1,3 +1,120 @@
+2014-03-01  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/60341
+	* frontend-passes.c (optimize_comparison): Guard two union accesses
+	with the corresponding tag checks.
+
+2014-02-28  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/60359
+	* class.c (find_intrinsic_vtab): Prevent duplicate creation of copy
+	procedure for characters.
+
+2014-02-21  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/60302
+	* check.c (gfc_check_c_f_pointer): Only clear 'size' if 'gfc_array_size'
+	is successful.
+
+2014-02-21  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/60234
+	* gfortran.h (gfc_build_class_symbol): Removed argument.
+	* class.c (gfc_add_component_ref): Fix up missing vtype if necessary.
+	(gfc_build_class_symbol): Remove argument 'delayed_vtab'. vtab is always
+	delayed now, except for unlimited polymorphics.
+	(comp_is_finalizable): Procedure pointer components are not finalizable.
+	* decl. (build_sym, build_struct, attr_decl1): Removed argument of
+	'gfc_build_class_symbol'.
+	* match.c (copy_ts_from_selector_to_associate, select_type_set_tmp):
+	Ditto.
+	* symbol.c (gfc_set_default_type): Ditto.
+
+2014-02-19  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/60232
+	* expr.c (gfc_get_variable_expr): Don't add REF_ARRAY for dimensionful
+	functions, which are used as procedure pointer target.
+
+2014-02-18  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/49397
+	* expr.c (gfc_check_pointer_assign): Add check for
+	F2008Cor2, C729.
+	* trans-decl.c (gfc_get_symbol_decl): Correctly generate external
+	decl in a corner case.
+
+2014-02-18  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/60231
+	* resolve.c (check_generic_tbp_ambiguity): Check for presence of dummy
+	arguments to prevent ICE.
+
+2014-02-17  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/55907
+	* resolve.c (build_default_init_expr): Don't initialize character
+	variable if -fno-automatic is given.
+
+2014-02-15  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/59599
+	* trans-intrinsic.c (gfc_conv_intrinsic_ichar): Calculate the
+	number of arguments.
+
+2014-02-11  Jakub Jelinek  <jakub@redhat.com>
+
+	PR fortran/52370
+	* trans-decl.c (gfc_build_dummy_array_decl): Set TREE_NO_WARNING
+	on decl if sym->attr.optional.
+
+2014-02-09  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/57522
+	* resolve.c (resolve_assoc_var): Set the subref_array_pointer
+	attribute for the 'associate-name' if necessary.
+	* trans-stmt.c (trans_associate_var): If the 'associate-name'
+	is a subref_array_pointer, assign the element size of the
+	associate variable to 'span'.
+
+2014-02-09  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/59026
+	* trans-expr.c (gfc_conv_procedure_call): Pass the value of the
+	actual argument to a formal argument with the value attribute
+	in an elemental procedure.
+
+2014-02-08  Janus Weil  <janus@gcc.gnu.org>
+	    Mikael Morin <mikael.morin@gcc.gnu.org>
+
+	PR fortran/58470
+	* class.c (generate_finalization_wrapper): Assert that proc_tree has
+	been set in gfc_resolve_finalizers.
+	* resolve.c (resolve_fl_derived0): Remove unnecessary call to
+	gfc_is_finalizable.
+
+2014-02-07  Benno Schulenberg  <bensberg@justemail.net>
+
+	PR translation/52289
+	* fortran/resolve.c (resolve_ordinary_assign): Fix typoed word
+	in an error message.
+
+2014-02-02  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/57033
+	* primary.c (gfc_convert_to_structure_constructor): Avoid null pointer
+	dereference.
+
+2014-02-01  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/59906
+	* trans-stmt.c (gfc_add_loop_ss_code): In the case of character
+	SS_REFERENCE, use gfc_conv_string_parameter to ensure that a
+	pointer to the string is stored.
+	* trans-expr.c (gfc_conv_expr_reference): Likewise, use
+	gfc_conv_string_parameter to ensure that a pointer to is passed
+	to the elemental function.
+
 2014-01-28  Paul Thomas  <pault@gcc.gnu.org>
 
 	PR fortran/59414

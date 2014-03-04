@@ -157,6 +157,46 @@ package body Exp_Ch13 is
                  (Exp, Make_Integer_Literal (Loc, Expr_Value (Exp)));
             end if;
 
+            --  A complex case arises if the alignment clause applies to an
+            --  unconstrained object initialized with a function call. The
+            --  result of the call is placed on the secondary stack, and the
+            --  declaration is rewritten as a renaming of a dereference, which
+            --  fails expansion. We must introduce a temporary and assign its
+            --  value to the existing entity.
+
+            if Nkind (Parent (Ent)) = N_Object_Renaming_Declaration
+              and then not Is_Entity_Name (Renamed_Object (Ent))
+            then
+               declare
+                  Loc      : constant Source_Ptr := Sloc (N);
+                  Decl     : constant Node_Id    := Parent (Ent);
+                  Temp     : constant Entity_Id  := Make_Temporary (Loc, 'T');
+                  New_Decl : Node_Id;
+
+               begin
+                  --  Replace entity with temporary and reanalyze
+
+                  Set_Defining_Identifier (Decl, Temp);
+                  Set_Analyzed (Decl, False);
+                  Analyze (Decl);
+
+                  --  Introduce new declaration for entity but do not reanalyze
+                  --  because entity is already in scope. Type and expression
+                  --  are already resolved.
+
+                  New_Decl :=
+                    Make_Object_Declaration (Loc,
+                      Defining_Identifier => Ent,
+                      Object_Definition   =>
+                        New_Occurrence_Of (Etype (Ent), Loc),
+                      Expression          => New_Occurrence_Of (Temp, Loc));
+
+                  Set_Renamed_Object (Ent, Empty);
+                  Insert_After (Decl, New_Decl);
+                  Set_Analyzed (Decl);
+               end;
+            end if;
+
          ------------------
          -- Storage_Size --
          ------------------
@@ -180,7 +220,7 @@ package body Exp_Ch13 is
                   Assign :=
                     Make_Assignment_Statement (Loc,
                       Name =>
-                        New_Reference_To (Storage_Size_Variable (Ent), Loc),
+                        New_Occurrence_Of (Storage_Size_Variable (Ent), Loc),
                       Expression =>
                         Convert_To (RTE (RE_Size_Type), Expression (N)));
 
@@ -220,7 +260,7 @@ package body Exp_Ch13 is
                     Make_Object_Declaration (Loc,
                       Defining_Identifier => V,
                       Object_Definition  =>
-                        New_Reference_To (RTE (RE_Storage_Offset), Loc),
+                        New_Occurrence_Of (RTE (RE_Storage_Offset), Loc),
                       Expression =>
                         Convert_To (RTE (RE_Storage_Offset), Expression (N))));
 
@@ -304,11 +344,11 @@ package body Exp_Ch13 is
               Make_Object_Declaration (Loc,
                 Defining_Identifier => Temp_Id,
                 Object_Definition =>
-                  New_Reference_To (Expr_Typ, Loc),
+                  New_Occurrence_Of (Expr_Typ, Loc),
                 Expression =>
                   Relocate_Node (Expr)));
 
-            New_Expr := New_Reference_To (Temp_Id, Loc);
+            New_Expr := New_Occurrence_Of (Temp_Id, Loc);
             Set_Etype (New_Expr, Expr_Typ);
 
             Set_Expression (N, New_Expr);
@@ -628,7 +668,7 @@ package body Exp_Ch13 is
 
          AtM_Nod :=
            Make_Attribute_Definition_Clause (Loc,
-             Name       => New_Reference_To (Base_Type (Rectype), Loc),
+             Name       => New_Occurrence_Of (Base_Type (Rectype), Loc),
              Chars      => Name_Alignment,
              Expression => Make_Integer_Literal (Loc, Mod_Val));
 

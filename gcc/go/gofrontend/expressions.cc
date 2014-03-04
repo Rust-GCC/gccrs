@@ -3792,6 +3792,12 @@ Unary_expression::do_lower(Gogo*, Named_object*, Statement_inserter*, int)
 	      if (e == expr)
 		{
 		  // *&x == x.
+		  if (!ue->expr_->is_addressable() && !ue->create_temp_)
+		    {
+		      error_at(ue->location(),
+			       "invalid operand for unary %<&%>");
+		      this->set_is_error();
+		    }
 		  return ue->expr_;
 		}
 	      ue->set_does_not_escape();
@@ -3828,6 +3834,9 @@ Expression*
 Unary_expression::do_flatten(Gogo* gogo, Named_object*,
                              Statement_inserter* inserter)
 {
+  if (this->is_error_expression() || this->expr_->is_error_expression())
+    return Expression::make_error(this->location());
+
   Location location = this->location();
   if (this->op_ == OPERATOR_MULT
       && !this->expr_->is_variable())
@@ -4167,7 +4176,10 @@ Unary_expression::do_check_types(Gogo*)
       if (!this->expr_->is_addressable())
 	{
 	  if (!this->create_temp_)
-	    this->report_error(_("invalid operand for unary %<&%>"));
+	    {
+	      error_at(this->location(), "invalid operand for unary %<&%>");
+	      this->set_is_error();
+	    }
 	}
       else
         {
@@ -15038,6 +15050,103 @@ Expression*
 Expression::make_label_addr(Label* label, Location location)
 {
   return new Label_addr_expression(label, location);
+}
+
+// Conditional expressions.
+
+class Conditional_expression : public Expression
+{
+ public:
+  Conditional_expression(Expression* cond, Expression* then_expr,
+                         Expression* else_expr, Location location)
+      : Expression(EXPRESSION_CONDITIONAL, location),
+        cond_(cond), then_(then_expr), else_(else_expr)
+  {}
+
+ protected:
+  Type*
+  do_type();
+
+  void
+  do_determine_type(const Type_context*)
+  { }
+
+  Expression*
+  do_copy()
+  {
+    return new Conditional_expression(this->cond_->copy(), this->then_->copy(),
+                                      this->else_->copy(), this->location());
+  }
+
+  tree
+  do_get_tree(Translate_context* context);
+
+  void
+  do_dump_expression(Ast_dump_context*) const;
+
+ private:
+  // The condition to be checked.
+  Expression* cond_;
+  // The expression to execute if the condition is true.
+  Expression* then_;
+  // The expression to execute if the condition is false.
+  Expression* else_;
+};
+
+// Return the type of the conditional expression.
+
+Type*
+Conditional_expression::do_type()
+{
+  Type* result_type = Type::make_void_type();
+  if (this->then_->type() == this->else_->type())
+    result_type = this->then_->type();
+  else if (this->then_->is_nil_expression()
+           || this->else_->is_nil_expression())
+    result_type = (!this->then_->is_nil_expression()
+                   ? this->then_->type()
+                   : this->else_->type());
+  return result_type;
+}
+
+// Get the backend representation of a conditional expression.
+
+tree
+Conditional_expression::do_get_tree(Translate_context* context)
+{
+  Gogo* gogo = context->gogo();
+  Btype* result_btype = this->type()->get_backend(gogo);
+  Bexpression* cond = tree_to_expr(this->cond_->get_tree(context));
+  Bexpression* then = tree_to_expr(this->then_->get_tree(context));
+  Bexpression* belse = tree_to_expr(this->else_->get_tree(context));
+  Bexpression* ret =
+      gogo->backend()->conditional_expression(result_btype, cond, then, belse,
+                                              this->location());
+  return expr_to_tree(ret);
+}
+
+// Dump ast representation of a conditional expression.
+
+void
+Conditional_expression::do_dump_expression(
+    Ast_dump_context* ast_dump_context) const
+{
+  ast_dump_context->ostream() << "(";
+  ast_dump_context->dump_expression(this->cond_);
+  ast_dump_context->ostream() << " ? ";
+  ast_dump_context->dump_expression(this->then_);
+  ast_dump_context->ostream() << " : ";
+  ast_dump_context->dump_expression(this->else_);
+  ast_dump_context->ostream() << ") ";
+}
+
+// Make a conditional expression.
+
+Expression*
+Expression::make_conditional(Expression* cond, Expression* then,
+                             Expression* else_expr, Location location)
+{
+  return new Conditional_expression(cond, then, else_expr, location);
 }
 
 // Import an expression.  This comes at the end in order to see the

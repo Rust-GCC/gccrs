@@ -1723,8 +1723,10 @@ vect_analyze_loop_2 (loop_vec_info loop_vinfo)
     {
       if (dump_enabled_p ())
 	dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
-			 "too long list of versioning for alias "
-			 "run-time tests.\n");
+			 "number of versioning for alias "
+			 "run-time tests exceeds %d "
+			 "(--param vect-max-version-for-alias-checks)\n",
+			 PARAM_VALUE (PARAM_VECT_MAX_VERSION_FOR_ALIAS_CHECKS));
       return false;
     }
 
@@ -1966,10 +1968,8 @@ vect_is_slp_reduction (loop_vec_info loop_info, gimple phi, gimple first_stmt)
       FOR_EACH_IMM_USE_FAST (use_p, imm_iter, lhs)
         {
 	  gimple use_stmt = USE_STMT (use_p);
-          if (is_gimple_debug (use_stmt))
-            continue;
-
-	  use_stmt = USE_STMT (use_p);
+	  if (is_gimple_debug (use_stmt))
+	    continue;
 
           /* Check if we got back to the reduction phi.  */
 	  if (use_stmt == phi)
@@ -3505,9 +3505,13 @@ get_initial_def_for_induction (gimple iv_phi)
       exit_phi = NULL;
       FOR_EACH_IMM_USE_FAST (use_p, imm_iter, loop_arg)
         {
-	  if (!flow_bb_inside_loop_p (iv_loop, gimple_bb (USE_STMT (use_p))))
+	  gimple use_stmt = USE_STMT (use_p);
+	  if (is_gimple_debug (use_stmt))
+	    continue;
+
+	  if (!flow_bb_inside_loop_p (iv_loop, gimple_bb (use_stmt)))
 	    {
-	      exit_phi = USE_STMT (use_p);
+	      exit_phi = use_stmt;
 	      break;
 	    }
         }
@@ -5411,10 +5415,13 @@ vectorizable_induction (gimple phi, gimple_stmt_iterator *gsi ATTRIBUTE_UNUSED,
       loop_arg = PHI_ARG_DEF_FROM_EDGE (phi, latch_e);
       FOR_EACH_IMM_USE_FAST (use_p, imm_iter, loop_arg)
 	{
-	  if (!flow_bb_inside_loop_p (loop->inner,
-				      gimple_bb (USE_STMT (use_p))))
+	  gimple use_stmt = USE_STMT (use_p);
+	  if (is_gimple_debug (use_stmt))
+	    continue;
+
+	  if (!flow_bb_inside_loop_p (loop->inner, gimple_bb (use_stmt)))
 	    {
-	      exit_phi = USE_STMT (use_p);
+	      exit_phi = use_stmt;
 	      break;
 	    }
 	}
@@ -5512,7 +5519,7 @@ vectorizable_live_operation (gimple stmt,
 	    {
 	      gimple use_stmt = USE_STMT (use_p);
 	      if (gimple_code (use_stmt) == GIMPLE_PHI
-		  || gimple_bb (use_stmt) == merge_bb)
+		  && gimple_bb (use_stmt) == merge_bb)
 		{
 		  if (vec_stmt)
 		    {
@@ -5869,8 +5876,9 @@ vect_transform_loop (loop_vec_info loop_vinfo)
 	      && !STMT_VINFO_LIVE_P (stmt_info))
 	    continue;
 
-	  if ((TYPE_VECTOR_SUBPARTS (STMT_VINFO_VECTYPE (stmt_info))
-	        != (unsigned HOST_WIDE_INT) vectorization_factor)
+	  if (STMT_VINFO_VECTYPE (stmt_info)
+	      && (TYPE_VECTOR_SUBPARTS (STMT_VINFO_VECTYPE (stmt_info))
+		  != (unsigned HOST_WIDE_INT) vectorization_factor)
 	      && dump_enabled_p ())
 	    dump_printf_loc (MSG_NOTE, vect_location, "multiple-types.\n");
 
@@ -6053,7 +6061,6 @@ vect_transform_loop (loop_vec_info loop_vinfo)
 		     the chain.  */
 		  gsi_next (&si);
 		  vect_remove_stores (GROUP_FIRST_ELEMENT (stmt_info));
- 		  continue;
 		}
 	      else
 		{
@@ -6063,11 +6070,13 @@ vect_transform_loop (loop_vec_info loop_vinfo)
 		  unlink_stmt_vdef (store);
 		  gsi_remove (&si, true);
 		  release_defs (store);
-		  continue;
 		}
-	    }
 
-	  if (!transform_pattern_stmt && gsi_end_p (pattern_def_si))
+	      /* Stores can only appear at the end of pattern statements.  */
+	      gcc_assert (!transform_pattern_stmt);
+	      pattern_def_seq = NULL;
+	    }
+	  else if (!transform_pattern_stmt && gsi_end_p (pattern_def_si))
 	    {
 	      pattern_def_seq = NULL;
 	      gsi_next (&si);

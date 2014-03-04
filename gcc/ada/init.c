@@ -452,7 +452,8 @@ void fake_linux_sigemptyset (sigset_t *set)
 
 #endif
 
-#if defined (i386) || defined (__x86_64__) || defined (__ia64__)
+#if defined (i386) || defined (__x86_64__) || defined (__ia64__) \
+    || defined (__ARMEL__)
 
 #define HAVE_GNAT_ADJUST_CONTEXT_FOR_RAISE
 
@@ -496,6 +497,9 @@ __gnat_adjust_context_for_raise (int signo ATTRIBUTE_UNUSED, void *ucontext)
 #elif defined (__ia64__)
   /* ??? The IA-64 unwinder doesn't compensate for signals.  */
   mcontext->sc_ip++;
+#elif defined (__ARMEL__)
+  /* ARM Bump has to be an even number because of odd/even architecture.  */
+  mcontext->arm_pc+=2;
 #endif
 }
 
@@ -1508,6 +1512,14 @@ __gnat_set_stack_limit (void)
 #endif
 }
 
+#ifdef IN_RTS
+extern int SYS$IEEE_SET_FP_CONTROL (void *, void *, void *);
+#define K_TRUE 1
+#define __int64 long long
+#define __NEW_STARLET
+#include <vms/ieeedef.h>
+#endif
+
 /* Feature logical name and global variable address pair.
    If we ever add another feature logical to this list, the
    feature struct will need to be enhanced to take into account
@@ -1517,8 +1529,20 @@ struct feature {
   int *gl_addr;
 };
 
-/* Default values for GNAT features set by environment.  */
+/* Default values for GNAT features set by environment or binder.  */
 int __gl_heap_size = 64;
+
+/* Default float format is 'I' meaning IEEE.  If gnatbind detetcts that a
+   VAX Float format is specified, it will set this global variable to 'V'.
+   Subsequently __gnat_set_features will test the variable and if set for
+   VAX Float will call a Starlet function to enable trapping for invalid
+   operation, drivide by zero, and overflow. This will prevent the VMS runtime
+   (specifically OTS$CHECK_FP_MODE) from complaining about inconsistent
+   floating point settings in a mixed language program. Ideally the setting
+   would be determined at link time based on setttings in the object files,
+   however the VMS linker seems to take the setting from the first object
+   in the link, e.g. pcrt0.o which is float representation neutral.  */
+char __gl_float_format = 'I';
 
 /* Array feature logical names and global variable addresses.  */
 static const struct feature features[] =
@@ -1532,6 +1556,12 @@ __gnat_set_features (void)
 {
   int i;
   char buff[16];
+#ifdef IN_RTS
+  IEEE clrmsk, setmsk, prvmsk;
+
+  clrmsk.ieee$q_flags = 0LL;
+  setmsk.ieee$q_flags = 0LL;
+#endif
 
   /* Loop through features array and test name for enable/disable.  */
   for (i = 0; features[i].name; i++)
@@ -1550,6 +1580,16 @@ __gnat_set_features (void)
 
   /* Features to artificially limit the stack size.  */
   __gnat_set_stack_limit ();
+
+#ifdef IN_RTS
+  if (__gl_float_format == 'V')
+    {
+      setmsk.ieee$v_trap_enable_inv = K_TRUE;
+      setmsk.ieee$v_trap_enable_dze = K_TRUE;
+      setmsk.ieee$v_trap_enable_ovf = K_TRUE;
+      SYS$IEEE_SET_FP_CONTROL (&clrmsk, &setmsk, &prvmsk);
+    }
+#endif
 
   __gnat_features_set = 1;
 }
@@ -1866,7 +1906,7 @@ __gnat_error_handler (int sig, siginfo_t *si, void *sc)
   sigdelset (&mask, sig);
   sigprocmask (SIG_SETMASK, &mask, NULL);
 
-#if defined (__PPC__) && defined(_WRS_KERNEL)
+#if (defined (__ARMEL__) || defined (__PPC__)) && defined(_WRS_KERNEL)
   /* On PowerPC, kernel mode, we process signals through a Call Frame Info
      trampoline, voiding the need for myriads of fallback_frame_state
      variants in the ZCX runtime.  We have no simple way to distinguish ZCX

@@ -1221,6 +1221,13 @@ c_pp_lookup_pragma (unsigned int id, const char **space, const char **name)
 	return;
       }
 
+  if (id == PRAGMA_CILK_SIMD)
+    {
+      *space = NULL;
+      *name = "simd";
+      return;
+    }
+
   if (id >= PRAGMA_FIRST_EXTERNAL
       && (id < PRAGMA_FIRST_EXTERNAL + registered_pp_pragmas.length ()))
     {
@@ -1384,7 +1391,7 @@ init_pragma (void)
 				      omp_pragmas_simd[i].id, true, true);
     }
 
-  if (flag_cilkplus && !flag_preprocess_only)
+  if (flag_cilkplus)
     cpp_register_deferred_pragma (parse_in, NULL, "simd", PRAGMA_CILK_SIMD,
 				  true, false);
 
@@ -1392,8 +1399,9 @@ init_pragma (void)
     cpp_register_deferred_pragma (parse_in, "GCC", "pch_preprocess",
 				  PRAGMA_GCC_PCH_PREPROCESS, false, false);
 
-  cpp_register_deferred_pragma (parse_in, "GCC", "ivdep", PRAGMA_IVDEP, false,
-				false);
+  if (!flag_preprocess_only)
+    cpp_register_deferred_pragma (parse_in, "GCC", "ivdep", PRAGMA_IVDEP, false,
+				  false);
 #ifdef HANDLE_PRAGMA_PACK_WITH_EXPANSION
   c_register_pragma_with_expansion (0, "pack", handle_pragma_pack);
 #else

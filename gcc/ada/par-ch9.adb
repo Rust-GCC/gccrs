@@ -144,6 +144,17 @@ package body Ch9 is
             end if;
 
             Parse_Decls_Begin_End (Task_Node);
+
+            --  The statement list of a task body needs to include at least a
+            --  null statement, so if a parsing error produces an empty list,
+            --  patch it now.
+
+            if No (First (Statements
+                           (Handled_Statement_Sequence (Task_Node))))
+            then
+               Set_Statements (Handled_Statement_Sequence (Task_Node),
+                 New_List (Make_Null_Statement (Token_Ptr)));
+            end if;
          end if;
 
          return Task_Node;
@@ -267,7 +278,7 @@ package body Ch9 is
    --  regard the semicolon after end as part of the Task_Definition, and in
    --  the official syntax, it's part of the enclosing declaration. The reason
    --  for this deviation is that otherwise the end processing would have to
-   --  be special cased, which would be a nuisance!
+   --  be special cased, which would be a nuisance.
 
    --  Error recovery:  cannot raise Error_Resync
 
@@ -1036,7 +1047,7 @@ package body Ch9 is
 
             else
                Restore_Scan_State (Scan_State); -- to left paren
-               Scan; -- past left paren (again!)
+               Scan; -- past left paren (again)
                Set_Entry_Index (Accept_Node, P_Expression);
                T_Right_Paren;
                Set_Parameter_Specifications (Accept_Node, P_Parameter_Profile);
@@ -1280,7 +1291,7 @@ package body Ch9 is
       Scan; -- past DELAY
 
       --  The following check for delay until misused in Ada 83 doesn't catch
-      --  all cases, but it's good enough to catch most of them!
+      --  all cases, but it's good enough to catch most of them.
 
       if Token_Name = Name_Until then
          Check_95_Keyword (Tok_Until, Tok_Left_Paren);

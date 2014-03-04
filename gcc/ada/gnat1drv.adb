@@ -117,6 +117,12 @@ procedure Gnat1drv is
          Relaxed_RM_Semantics := True;
       end if;
 
+      --  -gnatd.V or -gnatd.u enables special C expansion mode
+
+      if Debug_Flag_Dot_VV or Debug_Flag_Dot_U then
+         Modify_Tree_For_C := True;
+      end if;
+
       --  -gnatd.E sets Error_To_Warning mode, causing selected error messages
       --  to be treated as warnings instead of errors.
 
@@ -283,7 +289,7 @@ procedure Gnat1drv is
 
          --  Make the Ada front-end more liberal so that the compiler will
          --  allow illegal code that is allowed by other compilers. CodePeer
-         --  is in the business of finding problems, not enforcing rules!
+         --  is in the business of finding problems, not enforcing rules.
          --  This is useful when using CodePeer mode with other compilers.
 
          Relaxed_RM_Semantics := True;
@@ -378,6 +384,12 @@ procedure Gnat1drv is
 
          Assertions_Enabled := True;
 
+         --  Disable validity checks, since it generates code raising
+         --  exceptions for invalid data, which confuses GNATprove. Invalid
+         --  data is directly detected by GNATprove's flow analysis.
+
+         Validity_Checks_On := False;
+
          --  Turn off style check options since we are not interested in any
          --  front-end warnings when we are getting SPARK output.
 
@@ -441,7 +453,7 @@ procedure Gnat1drv is
 
       --  Deal with forcing OpenVMS switches True if debug flag M is set, but
       --  record the setting of Targparm.Open_VMS_On_Target in True_VMS_Target
-      --  before doing this, so we know if we are in real OpenVMS or not!
+      --  before doing this, so we know if we are in real OpenVMS or not.
 
       Opt.True_VMS_Target := Targparm.OpenVMS_On_Target;
 
@@ -696,8 +708,8 @@ procedure Gnat1drv is
                   --  Remaining cases are packages and generic packages. Here
                   --  we only do the test if there are no previous errors,
                   --  because if there are errors, they may lead us to
-                  --  incorrectly believe that a package does not allow a body
-                  --  when in fact it does.
+                  --  incorrectly believe that a package does not allow a
+                  --  body when in fact it does.
 
                elsif not Compilation_Errors then
                   if Main_Kind = N_Package_Declaration then
@@ -1258,7 +1270,7 @@ begin
       when Storage_Error =>
 
          --  Assume this is a bug. If it is real, the message will in any case
-         --  say Storage_Error, giving a strong hint!
+         --  say Storage_Error, giving a strong hint.
 
          Comperr.Compiler_Abort ("Storage_Error");
    end;

@@ -1069,7 +1069,7 @@ package body Lib.Xref is
             end if;
 
             Add_Entry
-              ((Ent      => Ent,
+              ((Ent       => Ent,
                 Loc       => Ref,
                 Typ       => Actual_Typ,
                 Eun       => Get_Source_Unit (Def),
@@ -1088,15 +1088,29 @@ package body Lib.Xref is
               and then Present (First_Private_Entity (E))
               and then In_Extended_Main_Source_Unit (N)
             then
-               Add_Entry
-                 ((Ent       => Ent,
-                   Loc       => Sloc (First_Private_Entity (E)),
-                   Typ       => 'E',
-                   Eun       => Get_Source_Unit (Def),
-                   Lun       => Get_Source_Unit (Ref),
-                   Ref_Scope => Empty,
-                   Ent_Scope => Empty),
-                  Ent_Scope_File => No_Unit);
+               --  Handle case in which the full-view and partial-view of the
+               --  first private entity are swapped
+
+               declare
+                  First_Private : Entity_Id := First_Private_Entity (E);
+
+               begin
+                  if Is_Private_Type (First_Private)
+                    and then Present (Full_View (First_Private))
+                  then
+                     First_Private := Full_View (First_Private);
+                  end if;
+
+                  Add_Entry
+                    ((Ent       => Ent,
+                      Loc       => Sloc (First_Private),
+                      Typ       => 'E',
+                      Eun       => Get_Source_Unit (Def),
+                      Lun       => Get_Source_Unit (Ref),
+                      Ref_Scope => Empty,
+                      Ent_Scope => Empty),
+                     Ent_Scope_File => No_Unit);
+               end;
             end if;
          end if;
       end if;
@@ -1598,11 +1612,11 @@ package body Lib.Xref is
               and then Sloc (E) > No_Location
             then
                Add_Entry
-                 ((Ent => E,
-                   Loc => No_Location,
-                   Typ => Character'First,
-                   Eun => Get_Source_Unit (Original_Location (Sloc (E))),
-                   Lun => No_Unit,
+                 ((Ent       => E,
+                   Loc       => No_Location,
+                   Typ       => Character'First,
+                   Eun       => Get_Source_Unit (Original_Location (Sloc (E))),
+                   Lun       => No_Unit,
                    Ref_Scope => Empty,
                    Ent_Scope => Empty),
                   Ent_Scope_File => No_Unit);
@@ -1686,11 +1700,11 @@ package body Lib.Xref is
 
                      if Present (Prim) then
                         Add_Entry
-                          ((Ent => Prim,
-                            Loc => No_Location,
-                            Typ => Character'First,
-                            Eun => Get_Source_Unit (Sloc (Prim)),
-                            Lun => No_Unit,
+                          ((Ent       => Prim,
+                            Loc       => No_Location,
+                            Typ       => Character'First,
+                            Eun       => Get_Source_Unit (Sloc (Prim)),
+                            Lun       => No_Unit,
                             Ref_Scope => Empty,
                             Ent_Scope => Empty),
                            Ent_Scope_File => No_Unit);
@@ -1705,8 +1719,8 @@ package body Lib.Xref is
          end loop;
       end Handle_Orphan_Type_References;
 
-      --  Now we have all the references, including those for any embedded
-      --  type references, so we can sort them, and output them.
+      --  Now we have all the references, including those for any embedded type
+      --  references, so we can sort them, and output them.
 
       Output_Refs : declare
 
@@ -2562,6 +2576,38 @@ package body Lib.Xref is
          Write_Info_EOL;
       end Output_Refs;
    end Output_References;
+
+   ---------------------------------
+   -- Process_Deferred_References --
+   ---------------------------------
+
+   procedure Process_Deferred_References is
+   begin
+      for J in Deferred_References.First .. Deferred_References.Last loop
+         declare
+            D : Deferred_Reference_Entry renames Deferred_References.Table (J);
+
+         begin
+            case Is_LHS (D.N) is
+               when Yes =>
+                  Generate_Reference (D.E, D.N, 'm');
+
+               when No =>
+                  Generate_Reference (D.E, D.N, 'r');
+
+               --  Not clear if Unknown can occur at this stage, but if it
+               --  does we will treat it as a normal reference.
+
+               when Unknown =>
+                  Generate_Reference (D.E, D.N, 'r');
+            end case;
+         end;
+      end loop;
+
+      --  Clear processed entries from table
+
+      Deferred_References.Init;
+   end Process_Deferred_References;
 
 --  Start of elaboration for Lib.Xref
 

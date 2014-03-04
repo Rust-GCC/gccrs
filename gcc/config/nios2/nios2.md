@@ -73,6 +73,7 @@
   UNSPEC_LOAD_GOT_REGISTER
   UNSPEC_PIC_SYM
   UNSPEC_PIC_CALL_SYM
+  UNSPEC_PIC_GOTOFF_SYM
   UNSPEC_TLS
   UNSPEC_TLS_LDM
   UNSPEC_LOAD_TLS_IE
@@ -1015,8 +1016,8 @@
   ""
   "nextpc\\t%0
 \\t1:
-\\tmovhi\\t%1, %%hiadj(_GLOBAL_OFFSET_TABLE_ - 1b)
-\\taddi\\t%1, %1, %%lo(_GLOBAL_OFFSET_TABLE_ - 1b)"
+\\tmovhi\\t%1, %%hiadj(_gp_got - 1b)
+\\taddi\\t%1, %1, %%lo(_gp_got - 1b)"
   [(set_attr "length" "12")])
 
 ;; Read thread pointer register

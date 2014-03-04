@@ -174,6 +174,34 @@ package body Sem_Ch7 is
       end if;
    end Analyze_Package_Body;
 
+   -----------------------------------
+   -- Analyze_Package_Body_Contract --
+   -----------------------------------
+
+   procedure Analyze_Package_Body_Contract (Body_Id : Entity_Id) is
+      Spec_Id : constant Entity_Id := Spec_Entity (Body_Id);
+      Prag    : Node_Id;
+
+   begin
+      Prag := Get_Pragma (Body_Id, Pragma_Refined_State);
+
+      --  The analysis of pragma Refined_State detects whether the spec has
+      --  abstract states available for refinement.
+
+      if Present (Prag) then
+         Analyze_Refined_State_In_Decl_Part (Prag);
+
+      --  State refinement is required when the package declaration defines at
+      --  least one abstract state. Null states are not considered. Refinement
+      --  is not envorced when SPARK checks are turned off.
+
+      elsif SPARK_Mode /= Off
+        and then Requires_State_Refinement (Spec_Id, Body_Id)
+      then
+         Error_Msg_N ("package & requires state refinement", Spec_Id);
+      end if;
+   end Analyze_Package_Body_Contract;
+
    ---------------------------------
    -- Analyze_Package_Body_Helper --
    ---------------------------------
@@ -302,6 +330,11 @@ package body Sem_Ch7 is
          New_N := Copy_Generic_Node (N, Empty, Instantiating => False);
          Rewrite (N, New_N);
 
+         --  Once the contents of the generic copy and the template are
+         --  swapped, do the same for their respective aspect specifications.
+
+         Exchange_Aspects (N, New_N);
+
          --  Update Body_Id to point to the copied node for the remainder of
          --  the processing.
 
@@ -346,28 +379,20 @@ package body Sem_Ch7 is
 
       Push_Scope (Spec_Id);
 
-      --  Set SPARK_Mode from private part of spec if it has a SPARK pragma.
-      --  Note that in the default case, SPARK_Aux_Pragma will be a copy of
-      --  SPARK_Pragma in the spec, so this properly handles the case where
-      --  there is no explicit SPARK_Pragma mode in the private part.
+      --  Set SPARK_Mode only for non-generic package
 
-      if Present (SPARK_Pragma (Spec_Id)) then
-         SPARK_Mode_Pragma := SPARK_Aux_Pragma (Spec_Id);
-         SPARK_Mode := Get_SPARK_Mode_From_Pragma (SPARK_Mode_Pragma);
+      if Ekind (Spec_Id) = E_Package then
+
+         --  Set SPARK_Mode from context
+
          Set_SPARK_Pragma (Body_Id, SPARK_Mode_Pragma);
          Set_SPARK_Pragma_Inherited (Body_Id, True);
 
-      --  Otherwise set from context
+         --  Set elaboration code SPARK mode the same for now
 
-      else
-         Set_SPARK_Pragma (Body_Id, SPARK_Mode_Pragma);
-         Set_SPARK_Pragma_Inherited (Body_Id, True);
+         Set_SPARK_Aux_Pragma (Body_Id, SPARK_Pragma (Body_Id));
+         Set_SPARK_Aux_Pragma_Inherited (Body_Id, True);
       end if;
-
-      --  Set elaboration code SPARK mode the same for now
-
-      Set_SPARK_Aux_Pragma (Body_Id, SPARK_Pragma (Body_Id));
-      Set_SPARK_Aux_Pragma_Inherited (Body_Id, True);
 
       Set_Categorization_From_Pragmas (N);
 
@@ -398,6 +423,32 @@ package body Sem_Ch7 is
       if Present (Declarations (N)) then
          Analyze_Declarations (Declarations (N));
          Inspect_Deferred_Constant_Completion (Declarations (N));
+      end if;
+
+      --  After declarations have been analyzed, the body has been set to have
+      --  the final value of SPARK_Mode. Check that the SPARK_Mode for the body
+      --  is consistent with the SPARK_Mode for the spec.
+
+      if Present (SPARK_Pragma (Body_Id)) then
+         if Present (SPARK_Aux_Pragma (Spec_Id)) then
+            if Get_SPARK_Mode_From_Pragma (SPARK_Aux_Pragma (Spec_Id)) = Off
+                 and then
+               Get_SPARK_Mode_From_Pragma (SPARK_Pragma (Body_Id)) = On
+            then
+               Error_Msg_Sloc := Sloc (SPARK_Pragma (Body_Id));
+               Error_Msg_N ("incorrect application of SPARK_Mode#", N);
+               Error_Msg_Sloc := Sloc (SPARK_Aux_Pragma (Spec_Id));
+               Error_Msg_NE
+                 ("\value Off was set for SPARK_Mode on & #", N, Spec_Id);
+            end if;
+
+         else
+            Error_Msg_Sloc := Sloc (SPARK_Pragma (Body_Id));
+            Error_Msg_N ("incorrect application of SPARK_Mode#", N);
+            Error_Msg_Sloc := Sloc (Spec_Id);
+            Error_Msg_NE
+              ("\no value was set for SPARK_Mode on & #", N, Spec_Id);
+         end if;
       end if;
 
       --  Analyze_Declarations has caused freezing of all types. Now generate
@@ -522,12 +573,13 @@ package body Sem_Ch7 is
             function Has_Referencer
               (L     : List_Id;
                Outer : Boolean) return  Boolean;
-            --  Traverse the given list of declarations in reverse order.
-            --  Return True if a referencer is present. Return False if none is
-            --  found. The Outer parameter is True for the outer level call and
-            --  False for inner level calls for nested packages. If Outer is
-            --  True, then any entities up to the point of hitting a referencer
-            --  get their Is_Public flag cleared, so that the entities will be
+            --  Traverse given list of declarations in reverse order. Return
+            --  True if a referencer is present. Return False if none is found.
+            --
+            --  The Outer parameter is True for the outer level call and False
+            --  for inner level calls for nested packages. If Outer is True,
+            --  then any entities up to the point of hitting a referencer get
+            --  their Is_Public flag cleared, so that the entities will be
             --  treated as static entities in the C sense, and need not have
             --  fully qualified names. Furthermore, if the referencer is an
             --  inlined subprogram that doesn't reference other subprograms,
@@ -782,6 +834,41 @@ package body Sem_Ch7 is
       end if;
    end Analyze_Package_Body_Helper;
 
+   ------------------------------
+   -- Analyze_Package_Contract --
+   ------------------------------
+
+   procedure Analyze_Package_Contract (Pack_Id : Entity_Id) is
+      Prag : Node_Id;
+
+   begin
+      --  Analyze the initialization related pragmas. Initializes must come
+      --  before Initial_Condition due to item dependencies.
+
+      Prag := Get_Pragma (Pack_Id, Pragma_Initializes);
+
+      if Present (Prag) then
+         Analyze_Initializes_In_Decl_Part (Prag);
+      end if;
+
+      Prag := Get_Pragma (Pack_Id, Pragma_Initial_Condition);
+
+      if Present (Prag) then
+         Analyze_Initial_Condition_In_Decl_Part (Prag);
+      end if;
+
+      --  Check whether the lack of indicator Part_Of agrees with the placement
+      --  of the package instantiation with respect to the state space.
+
+      if Is_Generic_Instance (Pack_Id) then
+         Prag := Get_Pragma (Pack_Id, Pragma_Part_Of);
+
+         if No (Prag) then
+            Check_Missing_Part_Of (Pack_Id);
+         end if;
+      end if;
+   end Analyze_Package_Contract;
+
    ---------------------------------
    -- Analyze_Package_Declaration --
    ---------------------------------
@@ -814,12 +901,14 @@ package body Sem_Ch7 is
       Set_Etype    (Id, Standard_Void_Type);
       Set_Contract (Id, Make_Contract (Sloc (Id)));
 
-      --  Inherit spark mode from context for now
+      --  Set SPARK_Mode from context only for non-generic package
 
-      Set_SPARK_Pragma               (Id, SPARK_Mode_Pragma);
-      Set_SPARK_Aux_Pragma           (Id, SPARK_Mode_Pragma);
-      Set_SPARK_Pragma_Inherited     (Id, True);
-      Set_SPARK_Aux_Pragma_Inherited (Id, True);
+      if Ekind (Id) = E_Package then
+         Set_SPARK_Pragma               (Id, SPARK_Mode_Pragma);
+         Set_SPARK_Aux_Pragma           (Id, SPARK_Mode_Pragma);
+         Set_SPARK_Pragma_Inherited     (Id, True);
+         Set_SPARK_Aux_Pragma_Inherited (Id, True);
+      end if;
 
       --  Analyze aspect specifications immediately, since we need to recognize
       --  things like Pure early enough to diagnose violations during analysis.
@@ -1791,6 +1880,15 @@ package body Sem_Ch7 is
                   end if;
 
                   Next_Entity (Prim_Op);
+
+                  --  Derived operations appear immediately after the type
+                  --  declaration (or the following subtype indication for
+                  --  a derived scalar type). Further declarations cannot
+                  --  include inherited operations of the type.
+
+                  if Present (Prim_Op) then
+                     exit when Ekind (Prim_Op) not in Overloadable_Kind;
+                  end if;
                end loop;
             end if;
          end if;
@@ -2513,11 +2611,15 @@ package body Sem_Ch7 is
 
             Set_Is_Potentially_Use_Visible (Id, In_Use (P));
 
+            --  The following test may be redundant, as this is already
+            --  diagnosed in sem_ch3. ???
+
             if  Is_Indefinite_Subtype (Full)
               and then not Is_Indefinite_Subtype (Id)
             then
-               Error_Msg_N
-                 ("full view of type must be definite subtype", Full);
+               Error_Msg_Sloc := Sloc (Parent (Id));
+               Error_Msg_NE
+                 ("full view of& not compatible with declaration#", Full, Id);
             end if;
 
             --  Swap out the subtypes and derived types of Id that
@@ -2820,8 +2922,7 @@ package body Sem_Ch7 is
           not Is_Null_State (Node (First_Elmt (Abstract_States (P))))
       then
          Error_Msg_N
-           ("?Y?info: & requires body (non-null abstract state aspect)",
-            P);
+           ("?Y?info: & requires body (non-null abstract state aspect)", P);
       end if;
 
       --  Otherwise search entity chain for entity requiring completion

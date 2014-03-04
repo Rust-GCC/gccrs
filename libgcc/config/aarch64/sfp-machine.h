@@ -26,7 +26,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define _FP_W_TYPE_SIZE		64
 #define _FP_W_TYPE		unsigned long long
 #define _FP_WS_TYPE		signed long long
-#define _FP_I_TYPE		int
+#define _FP_I_TYPE		long long
 
 typedef int TItype __attribute__ ((mode (TI)));
 typedef unsigned int UTItype __attribute__ ((mode (TI)));
@@ -79,6 +79,8 @@ typedef int __gcc_CMPtype __attribute__ ((mode (__libgcc_cmp_return__)));
 #define FP_EX_ALL \
 	(FP_EX_INVALID | FP_EX_DIVZERO | FP_EX_OVERFLOW | FP_EX_UNDERFLOW \
 	 | FP_EX_INEXACT)
+
+#define _FP_TININESS_AFTER_ROUNDING 0
 
 void __sfp_handle_exceptions (int);
 

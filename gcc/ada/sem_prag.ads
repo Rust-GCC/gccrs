@@ -33,6 +33,32 @@ with Types;  use Types;
 
 package Sem_Prag is
 
+   --  The following table lists all pragmas that act as an assertion
+   --  expression.
+
+   Assertion_Expression_Pragma : constant array (Pragma_Id) of Boolean :=
+     (Pragma_Assert               => True,
+      Pragma_Assert_And_Cut       => True,
+      Pragma_Assume               => True,
+      Pragma_Check                => True,
+      Pragma_Contract_Cases       => True,
+      Pragma_Initial_Condition    => True,
+      Pragma_Invariant            => True,
+      Pragma_Loop_Invariant       => True,
+      Pragma_Loop_Variant         => True,
+      Pragma_Post                 => True,
+      Pragma_Post_Class           => True,
+      Pragma_Postcondition        => True,
+      Pragma_Pre                  => True,
+      Pragma_Pre_Class            => True,
+      Pragma_Precondition         => True,
+      Pragma_Predicate            => True,
+      Pragma_Refined_Post         => True,
+      Pragma_Test_Case            => True,
+      Pragma_Type_Invariant       => True,
+      Pragma_Type_Invariant_Class => True,
+      others                      => False);
+
    --  The following table lists all the implementation-defined pragmas that
    --  may apply to a body stub (no language defined pragmas apply). The table
    --  should be synchronized with Aspect_On_Body_Or_Stub_OK in unit Aspects if
@@ -138,6 +164,11 @@ package Sem_Prag is
    --  Async_Readers, Async_Writers, Effective_Reads and Effective_Writes. Item
    --  is the related variable or state. Ensure legality of the combination and
    --  issue an error for an illegal combination.
+
+   procedure Check_Missing_Part_Of (Item_Id : Entity_Id);
+   --  Determine whether the placement within the state space of an abstract
+   --  state, variable or package instantiation denoted by Item_Id requires the
+   --  use of indicator/option Part_Of. If this is the case, emit an error.
 
    function Delay_Config_Pragma_Analyze (N : Node_Id) return Boolean;
    --  N is a pragma appearing in a configuration pragma file. Most such

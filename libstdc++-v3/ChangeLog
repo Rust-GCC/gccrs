@@ -1,3 +1,121 @@
+2014-02-26  Tim Shen  <timshen91@gmail.com>
+
+	* include/bits/regex.tcc (match_results<>::format,
+	regex_replace<>): Update __out after calling std::copy.
+	* testsuite/28_regex/algorithms/regex_replace/char/dr2213.cc:
+	Add testcase.
+	* testsuite/28_regex/match_results/format.cc: Likewise.
+
+2014-02-22  Marc Glisse  <marc.glisse@inria.fr>
+
+	PR libstdc++/60308
+	* include/bits/stl_deque.h (_Deque_base::_Deque_base(const
+	allocator_type&)): Remove redundant call to _M_initialize_map.
+	(deque::deque(const allocator_type&)): Initialize _Base with a
+	constructor that calls _M_initialize_map.
+
+	Partial revert:
+
+	2013-09-20  Marc Glisse  <marc.glisse@inria.fr>
+	PR libstdc++/58338
+	(_Deque_base) [_Deque_base(const allocator_type&)]: Add missing call to
+	_M_initialize_map.
+
+2014-02-21  Ed Smith-Rowland  <3dw4rd@verizon.net>
+
+	Rename testsuite directory shared_mutex to shared_timed_mutex
+	for consistency.
+	* testsuite/30_threads/shared_mutex: Moved to...
+	* testsuite/30_threads/shared_timed_mutex: ...here
+
+2014-02-20  Ed Smith-Rowland  <3dw4rd@verizon.net>
+
+	Rename shared_mutex to shared_timed_mutex per C++14 acceptance of N3891.
+	* include/std/shared_mutex: Rename shared_mutex to shared_timed_mutex.
+	* testsuite/30_threads/shared_lock/locking/2.cc: Ditto.
+	* testsuite/30_threads/shared_lock/locking/4.cc: Ditto.
+	* testsuite/30_threads/shared_lock/locking/1.cc: Ditto.
+	* testsuite/30_threads/shared_lock/locking/3.cc: Ditto.
+	* testsuite/30_threads/shared_lock/requirements/
+	explicit_instantiation.cc: Ditto.
+	* testsuite/30_threads/shared_lock/requirements/typedefs.cc: Ditto.
+	* testsuite/30_threads/shared_lock/cons/2.cc: Ditto.
+	* testsuite/30_threads/shared_lock/cons/4.cc: Ditto.
+	* testsuite/30_threads/shared_lock/cons/1.cc: Ditto.
+	* testsuite/30_threads/shared_lock/cons/6.cc: Ditto.
+	* testsuite/30_threads/shared_lock/cons/3.cc: Ditto.
+	* testsuite/30_threads/shared_lock/cons/5.cc: Ditto.
+	* testsuite/30_threads/shared_lock/modifiers/2.cc: Ditto.
+	* testsuite/30_threads/shared_lock/modifiers/1.cc: Ditto.
+	* testsuite/30_threads/shared_mutex/requirements/
+	standard_layout.cc: Ditto.
+	* testsuite/30_threads/shared_mutex/cons/copy_neg.cc: Ditto.
+	* testsuite/30_threads/shared_mutex/cons/1.cc: Ditto.
+	* testsuite/30_threads/shared_mutex/cons/assign_neg.cc: Ditto.
+	* testsuite/30_threads/shared_mutex/try_lock/2.cc: Ditto.
+	* testsuite/30_threads/shared_mutex/try_lock/1.cc: Ditto.
+
+2014-02-10  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* testsuite/22_locale/num_put/put/char/14220.cc: Don't xfail
+	execution on i?86-*-solaris2.9, remove comment.
+	* testsuite/22_locale/num_put/put/wchar_t/14220.cc: Likewise.
+
+2014-02-09  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* config/abi/post/mips64-linux-gnu/32/baseline_symbols.txt: New file.
+	* config/abi/post/mips64-linux-gnu/baseline_symbols.txt: Update.
+	* config/abi/post/mips64-linux-gnu/64/baseline_symbols.txt: Likewise.
+
+2014-01-29  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/alloc_traits.h (allocator_traits::_S_allocate): Do
+	not use varargs when argument could be non-POD.
+	(__alloctr_rebind_helper): Eliminate static const bool member by
+	using true_type and false_type.
+	(allocator_traits::__allocate_helper): Likewise.
+	(allocator_traits::__construct_helper): Likewise.
+	(allocator_traits::__destroy_helper): Likewise.
+	(allocator_traits::__maxsize_helper): Likewise.
+	(allocator_traits::__select_helper): Likewise.
+	* include/bits/ptr_traits.h (__ptrtr_rebind_helper): Likewise.
+	* include/bits/stl_tree.h (_Rb_tree::operator=(const _Rb_tree&)):
+	Remove redundant condition.
+	* include/bits/stl_vector.h (vector::operator=(const vector&)):
+	Likewise.
+	(_Vector_impl::_M_allocate, _Vector_impl::_M_deallocate): Use
+	indirection through __alloc_traits.
+	* include/ext/alloc_traits.h (__allocator_always_compares_equal):
+	Eliminate static const bool members by using true_type and false_type.
+	(__gnu_cxx::__alloc_traits::__is_custom_pointer): Optimize.
+	* testsuite/util/testsuite_allocator.h (PointerBase): Define.
+	* testsuite/20_util/allocator_traits/members/allocate_hint_nonpod.cc:
+	New.
+	* testsuite/20_util/allocator_traits/requirements/typedefs2.cc: New.
+
+	PR libstdc++/59829
+	* include/bits/stl_vector.h (vector::data()): Call _M_data_ptr.
+	(vector::_M_data_ptr): New overloaded functions to ensure empty
+	vectors do not dereference the pointer.
+	* testsuite/23_containers/vector/59829.cc: New.
+	* testsuite/23_containers/vector/requirements/dr438/assign_neg.cc:
+	Adjust dg-error line number.
+	* testsuite/23_containers/vector/requirements/dr438/
+	constructor_1_neg.cc: Likewise.
+	* testsuite/23_containers/vector/requirements/dr438/
+	constructor_2_neg.cc: Likewise.
+	* testsuite/23_containers/vector/requirements/dr438/insert_neg.cc:
+	Likewise.
+
+	PR libstdc++/21609
+	* include/ext/array_allocator.h: Add deprecated attribute.
+
+	PR libstdc++/57226
+	* doc/xml/manual/debug.xml (debug.gdb): Update documentation for
+	installation and use of python printers.
+	* doc/xml/manual/status_cxx2011.xml: Update.
+	* doc/html/*: Regenerate.
+
 2014-01-28  Jonathan Wakely  <jwakely@redhat.com>
 	    Kyle Lippincott  <spectral@google.com>
 
