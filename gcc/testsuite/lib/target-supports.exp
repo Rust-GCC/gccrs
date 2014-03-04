@@ -2259,6 +2259,19 @@ proc check_effective_target_arm_vfp_ok { } {
     }
 }
 
+# Return 1 if this is an ARM target supporting -mfpu=vfp3
+# -mfloat-abi=softfp.
+
+proc check_effective_target_arm_vfp3_ok { } {
+    if { [check_effective_target_arm32] } {
+	return [check_no_compiler_messages arm_vfp3_ok object {
+	    int dummy;
+	} "-mfpu=vfp3 -mfloat-abi=softfp"]
+    } else {
+	return 0
+    }
+}
+
 # Return 1 if this is an ARM target supporting -mfpu=fp-armv8
 # -mfloat-abi=softfp.
 proc check_effective_target_arm_v8_vfp_ok {} {
@@ -2404,6 +2417,14 @@ proc add_options_for_arm_neonv2 { flags } {
     }
     global et_arm_neonv2_flags
     return "$flags $et_arm_neonv2_flags"
+}
+
+# Add the options needed for vfp3.
+proc add_options_for_arm_vfp3 { flags } {
+    if { ! [check_effective_target_arm_vfp3_ok] } {
+        return "$flags"
+    }
+    return "$flags -mfpu=vfp3 -mfloat-abi=softfp"
 }
 
 # Return 1 if this is an ARM target supporting -mfpu=neon
@@ -2630,6 +2651,7 @@ foreach { armfunc armflag armdef } { v4 "-march=armv4 -marm" __ARM_ARCH_4__
 				     v6z "-march=armv6z" __ARM_ARCH_6Z__
 				     v6m "-march=armv6-m -mthumb" __ARM_ARCH_6M__
 				     v7a "-march=armv7-a" __ARM_ARCH_7A__
+				     v7ve "-march=armv7ve" __ARM_ARCH_7A__
 				     v7r "-march=armv7-r" __ARM_ARCH_7R__
 				     v7m "-march=armv7-m -mthumb" __ARM_ARCH_7M__
 				     v7em "-march=armv7e-m -mthumb" __ARM_ARCH_7EM__
@@ -5666,6 +5688,19 @@ proc check_effective_target_fenv_exceptions {} {
 	    abort ();
 	}
     } "-std=gnu99"]
+}
+
+# Return 1 if LOGICAL_OP_NON_SHORT_CIRCUIT is set to 0 for the current target.
+
+proc check_effective_target_logical_op_short_circuit {} {
+    if { [istarget mips*-*-*]
+	 || [istarget arc*-*-*]
+	 || [istarget avr*-*-*]
+	 || [istarget crisv32-*-*] || [istarget cris-*-*]
+	 || [check_effective_target_arm_cortex_m] } {
+	return 1
+    }
+    return 0
 }
 
 # Record that dg-final test TEST requires convential compilation.

@@ -2792,9 +2792,7 @@ out:
     {
       fold_stmt_inplace (gsi);
       update_stmt (stmt);
-      if (maybe_clean_or_replace_eh_stmt (stmt, stmt)
-	  && gimple_purge_dead_eh_edges (gimple_bb (stmt)))
-	return true;
+      return true;
     }
 
   return false;
@@ -2804,7 +2802,7 @@ out:
    true if anything changed, false otherwise.  */
 
 static bool
-associate_pointerplus (gimple_stmt_iterator *gsi)
+associate_pointerplus_align (gimple_stmt_iterator *gsi)
 {
   gimple stmt = gsi_stmt (*gsi);
   gimple def_stmt;
@@ -2847,6 +2845,105 @@ associate_pointerplus (gimple_stmt_iterator *gsi)
   algn = double_int_to_tree (TREE_TYPE (ptr), ~tree_to_double_int (algn));
   gimple_assign_set_rhs_with_ops (gsi, BIT_AND_EXPR, ptr, algn);
   fold_stmt_inplace (gsi);
+  update_stmt (stmt);
+
+  return true;
+}
+
+/* Associate operands of a POINTER_PLUS_EXPR assignmen at *GSI.  Returns
+   true if anything changed, false otherwise.  */
+
+static bool
+associate_pointerplus_diff (gimple_stmt_iterator *gsi)
+{
+  gimple stmt = gsi_stmt (*gsi);
+  gimple def_stmt;
+  tree ptr1, rhs;
+
+  /* Pattern match
+       tem1 = (long) ptr1;
+       tem2 = (long) ptr2;
+       tem3 = tem2 - tem1;
+       tem4 = (unsigned long) tem3;
+       tem5 = ptr1 + tem4;
+     and produce
+       tem5 = ptr2;  */
+  ptr1 = gimple_assign_rhs1 (stmt);
+  rhs = gimple_assign_rhs2 (stmt);
+  if (TREE_CODE (rhs) != SSA_NAME)
+    return false;
+  gimple minus = SSA_NAME_DEF_STMT (rhs);
+  /* Conditionally look through a sign-changing conversion.  */
+  if (is_gimple_assign (minus)
+      && CONVERT_EXPR_CODE_P (gimple_assign_rhs_code (minus))
+      && (TYPE_PRECISION (TREE_TYPE (gimple_assign_rhs1 (minus)))
+	  == TYPE_PRECISION (TREE_TYPE (rhs)))
+      && TREE_CODE (gimple_assign_rhs1 (minus)) == SSA_NAME)
+    minus = SSA_NAME_DEF_STMT (gimple_assign_rhs1 (minus));
+  if (!is_gimple_assign (minus))
+    return false;
+  if (gimple_assign_rhs_code (minus) != MINUS_EXPR)
+    return false;
+  rhs = gimple_assign_rhs2 (minus);
+  if (TREE_CODE (rhs) != SSA_NAME)
+    return false;
+  def_stmt = SSA_NAME_DEF_STMT (rhs);
+  if (!is_gimple_assign (def_stmt)
+      || ! CONVERT_EXPR_CODE_P (gimple_assign_rhs_code (def_stmt))
+      || gimple_assign_rhs1 (def_stmt) != ptr1)
+    return false;
+  rhs = gimple_assign_rhs1 (minus);
+  if (TREE_CODE (rhs) != SSA_NAME)
+    return false;
+  def_stmt = SSA_NAME_DEF_STMT (rhs);
+  if (!is_gimple_assign (def_stmt)
+      || ! CONVERT_EXPR_CODE_P (gimple_assign_rhs_code (def_stmt)))
+    return false;
+  rhs = gimple_assign_rhs1 (def_stmt);
+  if (! useless_type_conversion_p (TREE_TYPE (ptr1), TREE_TYPE (rhs)))
+    return false;
+
+  gimple_assign_set_rhs_with_ops (gsi, TREE_CODE (rhs), rhs, NULL_TREE);
+  update_stmt (stmt);
+
+  return true;
+}
+
+/* Associate operands of a POINTER_PLUS_EXPR assignmen at *GSI.  Returns
+   true if anything changed, false otherwise.  */
+
+static bool
+associate_pointerplus (gimple_stmt_iterator *gsi)
+{
+  gimple stmt = gsi_stmt (*gsi);
+  gimple def_stmt;
+  tree ptr, off1, off2;
+
+  if (associate_pointerplus_align (gsi)
+      || associate_pointerplus_diff (gsi))
+    return true;
+
+  /* Associate (p +p off1) +p off2 as (p +p (off1 + off2)).  */
+  ptr = gimple_assign_rhs1 (stmt);
+  off1 = gimple_assign_rhs2 (stmt);
+  if (TREE_CODE (ptr) != SSA_NAME
+      || !has_single_use (ptr))
+    return false;
+  def_stmt = SSA_NAME_DEF_STMT (ptr);
+  if (!is_gimple_assign (def_stmt)
+      || gimple_assign_rhs_code (def_stmt) != POINTER_PLUS_EXPR
+      || !can_propagate_from (def_stmt))
+    return false;
+  ptr = gimple_assign_rhs1 (def_stmt);
+  off2 = gimple_assign_rhs2 (def_stmt);
+  if (!types_compatible_p (TREE_TYPE (off1), TREE_TYPE (off2)))
+    return false;
+
+  tree off = make_ssa_name (TREE_TYPE (off1), NULL);
+  gimple ostmt = gimple_build_assign_with_ops (PLUS_EXPR, off, off1, off2);
+  gsi_insert_before (gsi, ostmt, GSI_SAME_STMT);
+
+  gimple_assign_set_rhs_with_ops (gsi, POINTER_PLUS_EXPR, ptr, off);
   update_stmt (stmt);
 
   return true;
@@ -3425,6 +3522,53 @@ simplify_vector_constructor (gimple_stmt_iterator *gsi)
   return true;
 }
 
+/* Simplify multiplications.
+   Return true if a transformation applied, otherwise return false.  */
+
+static bool
+simplify_mult (gimple_stmt_iterator *gsi)
+{
+  gimple stmt = gsi_stmt (*gsi);
+  tree arg1 = gimple_assign_rhs1 (stmt);
+  tree arg2 = gimple_assign_rhs2 (stmt);
+
+  if (TREE_CODE (arg1) != SSA_NAME)
+    return false;
+
+  gimple def_stmt = SSA_NAME_DEF_STMT (arg1);
+  if (!is_gimple_assign (def_stmt))
+    return false;
+
+  /* Look through a sign-changing conversion.  */
+  if (CONVERT_EXPR_CODE_P (gimple_assign_rhs_code (def_stmt)))
+    {
+      if (TYPE_PRECISION (TREE_TYPE (gimple_assign_lhs (def_stmt)))
+	  != TYPE_PRECISION (TREE_TYPE (gimple_assign_rhs1 (def_stmt)))
+	  || TREE_CODE (gimple_assign_rhs1 (def_stmt)) != SSA_NAME)
+	return false;
+      def_stmt = SSA_NAME_DEF_STMT (gimple_assign_rhs1 (def_stmt));
+      if (!is_gimple_assign (def_stmt))
+	return false;
+    }
+
+  if (gimple_assign_rhs_code (def_stmt) == EXACT_DIV_EXPR)
+    {
+      if (operand_equal_p (gimple_assign_rhs2 (def_stmt), arg2, 0))
+	{
+	  tree res = gimple_assign_rhs1 (def_stmt);
+	  if (useless_type_conversion_p (TREE_TYPE (arg1), TREE_TYPE (res)))
+	    gimple_assign_set_rhs_with_ops (gsi, TREE_CODE (res), res,
+					    NULL_TREE);
+	  else
+	    gimple_assign_set_rhs_with_ops (gsi, NOP_EXPR, res, NULL_TREE);
+	  gcc_assert (gsi_stmt (*gsi) == stmt);
+	  update_stmt (stmt);
+	  return true;
+	}
+    }
+
+  return false;
+}
 /* Main entry point for the forward propagation and statement combine
    optimizer.  */
 
@@ -3576,9 +3720,23 @@ ssa_forward_propagate_and_combine (void)
 			 || code == BIT_IOR_EXPR
 			 || code == BIT_XOR_EXPR)
 		  changed = simplify_bitwise_binary (&gsi);
+		else if (code == MULT_EXPR)
+		  {
+		    changed = simplify_mult (&gsi);
+		    if (changed
+			&& maybe_clean_or_replace_eh_stmt (stmt, stmt)
+			&& gimple_purge_dead_eh_edges (bb))
+		      cfg_changed = true;
+		  }
 		else if (code == PLUS_EXPR
 			 || code == MINUS_EXPR)
-		  changed = associate_plusminus (&gsi);
+		  {
+		    changed = associate_plusminus (&gsi);
+		    if (changed
+			&& maybe_clean_or_replace_eh_stmt (stmt, stmt)
+			&& gimple_purge_dead_eh_edges (bb))
+		      cfg_changed = true;
+		  }
 		else if (code == POINTER_PLUS_EXPR)
 		  changed = associate_pointerplus (&gsi);
 		else if (CONVERT_EXPR_CODE_P (code)

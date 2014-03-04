@@ -39,10 +39,13 @@ package Sem_Warn is
 
    type Warnings_Off_Entry is record
       N : Node_Id;
-      --  A pragma Warnings (Off, ent) node
+      --  A pragma Warnings (Off, ent [,Reason]) node
 
       E : Entity_Id;
       --  The entity involved
+
+      R : String_Id;
+      --  Warning reason if present, or null if not (not currently used)
    end record;
 
    --  An entry is made in the following table for any valid Pragma Warnings
@@ -127,7 +130,7 @@ package Sem_Warn is
    --  the end of the compilation process (see body of this routine for a
    --  discussion of why this is done). This procedure outputs the warnings.
    --  Note: this should be called before Output_Unreferenced_Messages, since
-   --  if we have an IN OUT warning, that's the one we want to see!
+   --  if we have an IN OUT warning, that's the one we want to see.
 
    procedure Output_Obsolescent_Entity_Warnings (N : Node_Id; E : Entity_Id);
    --  N is a reference to obsolescent entity E, for which appropriate warning

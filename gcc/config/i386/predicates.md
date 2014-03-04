@@ -660,6 +660,14 @@
   return i == 2 || i == 4 || i == 8;
 })
 
+;; Match 2, 3, 5, or 6
+(define_predicate "const2356_operand"
+  (match_code "const_int")
+{
+  HOST_WIDE_INT i = INTVAL (op);
+  return i == 2 || i == 3 || i == 5 || i == 6;
+})
+
 ;; Match 1, 2, 4, or 8
 (define_predicate "const1248_operand"
   (match_code "const_int")
@@ -674,6 +682,22 @@
 {
   HOST_WIDE_INT i = INTVAL (op);
   return i == 3 || i == 5 || i == 9;
+})
+
+;; Match 4 or 8 to 11.  Used for embeded rounding.
+(define_predicate "const_4_or_8_to_11_operand"
+  (match_code "const_int")
+{
+  HOST_WIDE_INT i = INTVAL (op);
+  return i == 4 || (i >= 8 && i <= 11);
+})
+
+;; Match 4 or 8. Used for SAE.
+(define_predicate "const48_operand"
+  (match_code "const_int")
+{
+  HOST_WIDE_INT i = INTVAL (op);
+  return i == 4 || i == 8;
 })
 
 ;; Match 0 or 1.

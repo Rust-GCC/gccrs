@@ -260,7 +260,7 @@ package Lib.Writ is
 
    --    Note: The P line must be present. Even in Ignore_Errors mode, Scan_ALI
    --    insists on finding a P line. So if changes are made to the ALI format,
-   --    they should not include removing the P line!
+   --    they should not include removing the P line.
 
    --  ---------------------
    --  -- R  Restrictions --
@@ -847,6 +847,15 @@ package Lib.Writ is
    --  The SPARK cross-reference information follows the SCO information. See
    --  the spec of SPARK_Xrefs in file spark_xrefs.ads for full details of the
    --  format.
+
+   -------------------------------
+   -- ALI File Generation for C --
+   -------------------------------
+
+   --  The C compiler can also generate ALI files for use by the IDE's in
+   --  providing navigation services in C. These ALI files are a subset of
+   --  the specification above, lacking all Ada-specific output. Primarily
+   --  the IDE uses the cross-reference sections of such files.
 
    ----------------------
    -- Global Variables --

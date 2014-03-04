@@ -44,7 +44,6 @@ with Sinfo;    use Sinfo;
 with Sinput;   use Sinput;
 with Snames;   use Snames;
 with Tbuild;   use Tbuild;
-with Uintp;    use Uintp;
 
 package body Exp_Ch2 is
 
@@ -380,7 +379,7 @@ package body Exp_Ch2 is
         and then Is_Scalar_Type (Etype (N))
         and then (Is_Assignable (E) or else Is_Constant_Object (E))
         and then Comes_From_Source (N)
-        and then not Is_LHS (N)
+        and then Is_LHS (N) = No
         and then not Is_Actual_Out_Parameter (N)
         and then (Nkind (Parent (N)) /= N_Attribute_Reference
                    or else Attribute_Name (Parent (N)) /= Name_Valid)
@@ -575,9 +574,9 @@ package body Exp_Ch2 is
           Prefix =>
             Make_Explicit_Dereference (Loc,
               Unchecked_Convert_To (Parm_Type,
-                New_Reference_To (Addr_Ent, Loc))),
+                New_Occurrence_Of (Addr_Ent, Loc))),
           Selector_Name =>
-            New_Reference_To (Entry_Component (Ent_Formal), Loc));
+            New_Occurrence_Of (Entry_Component (Ent_Formal), Loc));
 
       --  For all types of parameters, the constructed parameter record object
       --  contains a pointer to the parameter. Thus we must dereference them to

@@ -7238,9 +7238,12 @@ emit_input_reload_insns (struct insn_chain *chain, struct reload *rl,
   /* delete_output_reload is only invoked properly if old contains
      the original pseudo register.  Since this is replaced with a
      hard reg when RELOAD_OVERRIDE_IN is set, see if we can
-     find the pseudo in RELOAD_IN_REG.  */
+     find the pseudo in RELOAD_IN_REG.  This is also used to
+     determine whether a secondary reload is needed.  */
   if (reload_override_in[j]
-      && REG_P (rl->in_reg))
+      && (REG_P (rl->in_reg)
+	  || (GET_CODE (rl->in_reg) == SUBREG
+	      && REG_P (SUBREG_REG (rl->in_reg)))))
     {
       oldequiv = old;
       old = rl->in_reg;
@@ -7362,9 +7365,18 @@ emit_input_reload_insns (struct insn_chain *chain, struct reload *rl,
 	  /* Store into the reload register instead of the pseudo.  */
 	  SET_DEST (PATTERN (temp)) = reloadreg;
 
-	  /* Verify that resulting insn is valid.  */
+	  /* Verify that resulting insn is valid. 
+
+	     Note that we have replaced the destination of TEMP with
+	     RELOADREG.  If TEMP references RELOADREG within an
+	     autoincrement addressing mode, then the resulting insn
+	     is ill-formed and we must reject this optimization.  */
 	  extract_insn (temp);
-	  if (constrain_operands (1))
+	  if (constrain_operands (1)
+#ifdef AUTO_INC_DEC
+	      && ! find_reg_note (temp, REG_INC, reloadreg)
+#endif
+	      )
 	    {
 	      /* If the previous insn is an output reload, the source is
 		 a reload register, and its spill_reg_store entry will

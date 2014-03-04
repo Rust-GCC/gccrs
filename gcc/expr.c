@@ -3221,7 +3221,7 @@ emit_move_via_integer (enum machine_mode mode, rtx x, rtx y, bool force)
 /* A subroutine of emit_move_insn_1.  X is a push_operand in MODE.
    Return an equivalent MEM that does not use an auto-increment.  */
 
-static rtx
+rtx
 emit_move_resolve_push (enum machine_mode mode, rtx x)
 {
   enum rtx_code code = GET_CODE (XEXP (x, 0));
@@ -3726,12 +3726,21 @@ compress_float_constant (rtx x, rtx y)
 	 into a new pseudo.  This constant may be used in different modes,
 	 and if not, combine will put things back together for us.  */
       trunc_y = force_reg (srcmode, trunc_y);
-      emit_unop_insn (ic, x, trunc_y, UNKNOWN);
+
+      /* If x is a hard register, perform the extension into a pseudo,
+	 so that e.g. stack realignment code is aware of it.  */
+      rtx target = x;
+      if (REG_P (x) && HARD_REGISTER_P (x))
+	target = gen_reg_rtx (dstmode);
+
+      emit_unop_insn (ic, target, trunc_y, UNKNOWN);
       last_insn = get_last_insn ();
 
-      if (REG_P (x))
+      if (REG_P (target))
 	set_unique_reg_note (last_insn, REG_EQUAL, y);
 
+      if (target != x)
+	return emit_move_insn (x, target);
       return last_insn;
     }
 
@@ -4070,7 +4079,7 @@ emit_single_push_insn_1 (enum machine_mode mode, rtx x, tree type)
     {
       set_mem_attributes (dest, type, 1);
 
-      if (flag_optimize_sibling_calls)
+      if (cfun->tail_call_marked)
 	/* Function incoming arguments may overlap with sibling call
 	   outgoing arguments and we cannot allow reordering of reads
 	   from function arguments with stores to outgoing arguments
@@ -7708,6 +7717,11 @@ expand_expr_addr_expr_1 (tree exp, rtx target, enum machine_mode tmode,
 			 modifier == EXPAND_INITIALIZER
 			  ? EXPAND_INITIALIZER : EXPAND_NORMAL);
 
+      /* expand_expr is allowed to return an object in a mode other
+	 than TMODE.  If it did, we need to convert.  */
+      if (GET_MODE (tmp) != VOIDmode && tmode != GET_MODE (tmp))
+	tmp = convert_modes (tmode, GET_MODE (tmp),
+			     tmp, TYPE_UNSIGNED (TREE_TYPE (offset)));
       result = convert_memory_address_addr_space (tmode, result, as);
       tmp = convert_memory_address_addr_space (tmode, tmp, as);
 
@@ -10422,6 +10436,11 @@ expand_expr_real_1 (tree exp, rtx target, enum machine_mode tmode,
       else if (INTEGRAL_TYPE_P (type) && INTEGRAL_TYPE_P (TREE_TYPE (treeop0)))
 	op0 = convert_modes (mode, GET_MODE (op0), op0,
 			     TYPE_UNSIGNED (TREE_TYPE (treeop0)));
+      /* If the output type is a bit-field type, do an extraction.  */
+      else if (reduce_bit_field)
+	return extract_bit_field (op0, TYPE_PRECISION (type), 0,
+				  TYPE_UNSIGNED (type), NULL_RTX,
+				  mode, mode);
       /* As a last resort, spill op0 to memory, and reload it in a
 	 different mode.  */
       else if (!MEM_P (op0))
@@ -10444,10 +10463,10 @@ expand_expr_real_1 (tree exp, rtx target, enum machine_mode tmode,
 	  op0 = target;
 	}
 
-      /* At this point, OP0 is in the correct mode.  If the output type is
-	 such that the operand is known to be aligned, indicate that it is.
-	 Otherwise, we need only be concerned about alignment for non-BLKmode
-	 results.  */
+      /* If OP0 is (now) a MEM, we need to deal with alignment issues.  If the
+	 output type is such that the operand is known to be aligned, indicate
+	 that it is.  Otherwise, we need only be concerned about alignment for
+	 non-BLKmode results.  */
       if (MEM_P (op0))
 	{
 	  enum insn_code icode;

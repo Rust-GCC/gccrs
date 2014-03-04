@@ -53,7 +53,7 @@ package System.Dim.Mks is
         (Unit_Name => Kilogram, Unit_Symbol => "kg",  Dim_Symbol => 'M'),
         (Unit_Name => Second,   Unit_Symbol => 's',   Dim_Symbol => 'T'),
         (Unit_Name => Ampere,   Unit_Symbol => 'A',   Dim_Symbol => 'I'),
-        (Unit_Name => Kelvin,   Unit_Symbol => 'K',   Dim_Symbol => "Θ"),
+        (Unit_Name => Kelvin,   Unit_Symbol => 'K',   Dim_Symbol => '@'),
         (Unit_Name => Mole,     Unit_Symbol => "mol", Dim_Symbol => 'N'),
         (Unit_Name => Candela,  Unit_Symbol => "cd",  Dim_Symbol => 'J'));
 
@@ -105,7 +105,7 @@ package System.Dim.Mks is
 
    --  Turn off the all the dimension warnings for these basic assignments
    --  since otherwise we would get complaints about assigning dimensionless
-   --  values to dimensioned subtypes (we can't assign 1.0*m to m!).
+   --  values to dimensioned subtypes (we can't assign 1.0*m to m).
 
    pragma Warnings (Off, "*assumed to be*");
 

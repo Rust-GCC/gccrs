@@ -356,7 +356,7 @@ package Opt is
    CodePeer_Mode : Boolean := False;
    --  GNAT, GNATBIND, GPRBUILD
    --  Enable full CodePeer mode (SCIL generation, disable switches that
-   --  interact badly with it, etc...).
+   --  interact badly with it, etc...). This is turned on by -gnatC.
 
    Commands_To_Stdout : Boolean := False;
    --  GNATMAKE
@@ -509,9 +509,13 @@ package Opt is
    --  GNATBIND
    --  Set to True to output chosen elaboration order
 
+   Elab_Info_Messages : Boolean := False;
+   --  GNAT
+   --  Set to True to output info messages for static elabmodel (-gnatel)
+
    Elab_Warnings : Boolean := False;
    --  GNAT
-   --  Set to True to generate full elaboration warnings (-gnatwl)
+   --  Set to True to generate elaboration warnings (-gnatwl)
 
    Error_Msg_Line_Length : Nat := 0;
    --  GNAT
@@ -662,6 +666,11 @@ package Opt is
    --  Set to file name to generate full source listing to named file (or if
    --  the name is of the form .xxx, then to name.xxx where name is the source
    --  file name with extension stripped.
+
+   Generate_CodePeer_Messages : Boolean := False;
+   --  GNAT
+   --  Generate CodePeer messages. Ignored if CodePeer_Mode is false.
+   --  This is turned on by -gnateC.
 
    Generate_Processed_File : Boolean := False;
    --  GNAT
@@ -996,6 +1005,13 @@ package Opt is
    --  GNATMAKE
    --  Set to True if minimal recompilation mode requested
 
+   Modify_Tree_For_C : Boolean := False;
+   --  GNAT
+   --  If this switch is set True (currently it is set only by -gnatd.V), then
+   --  certain meaning-preserving transformations are applied to the tree to
+   --  make it easier to interface with back ends that implement C semantics.
+   --  There is a section in Sinfo which describes the transformations made.
+
    Multiple_Unit_Index : Int := 0;
    --  GNAT
    --  This is set non-zero if the current unit is being compiled in multiple
@@ -1292,8 +1308,8 @@ package Opt is
 
    Sprint_Line_Limit : Nat := 72;
    --  GNAT
-   --  Limit values for chopping long lines in Sprint output, can be reset by
-   --  use of NNN parameter with -gnatG or -gnatD switches.
+   --  Limit values for chopping long lines in Cprint/Sprint output, can be
+   --  reset by use of NNN parameter with -gnatG or -gnatD switches.
 
    Stack_Checking_Enabled : Boolean := False;
    --  GNAT
@@ -1729,7 +1745,10 @@ package Opt is
    --  GNAT
    --  Set to True to generate warnings for use of Pragma Warnings (Off, ent),
    --  where either the pragma is never used, or it could be replaced by a
-   --  pragma Unmodified or Unreferenced. Modified by use of -gnatw.w/.W.
+   --  pragma Unmodified or Unreferenced. Also generates warnings for pragma
+   --  Warning (Off, string) which either has no matching pragma Warning On,
+   --  or where no warning has been suppressed by the use of the pragma.
+   --  Modified by use of -gnatw.w/.W.
 
    type Warning_Mode_Type is (Suppress, Normal, Treat_As_Error);
    Warning_Mode : Warning_Mode_Type := Normal;
@@ -1741,6 +1760,10 @@ package Opt is
    --  causes pragma Warnings to be ignored (except for legality checks),
    --  unless we are in GNATprove_Mode, which requires pragma Warnings to
    --  be stored for the formal verification backend.
+
+   Warnings_As_Errors_Count : Natural;
+   --  GNAT
+   --  Number of entries stored in Warnings_As_Errors table
 
    Wide_Character_Encoding_Method : WC_Encoding_Method := WCEM_Brackets;
    --  GNAT, GNATBIND
@@ -1933,6 +1956,10 @@ package Opt is
    --  is ignored for internal and predefined units (which are always compiled
    --  with the standard Size semantics).
 
+   Warnings_As_Errors_Count_Config : Natural;
+   --  GNAT
+   --  Count of pattern strings stored from Warning_As_Error pragmas
+
    type Config_Switches_Type is private;
    --  Type used to save values of the switches set from Config values
 
@@ -2036,6 +2063,26 @@ package Opt is
    --  that this is completely separate from the SPARK restriction defined in
    --  GNAT to detect violations of a subset of SPARK 2005 rules.
 
+   ---------------------------
+   -- Error/Warning Control --
+   ---------------------------
+
+   --  The following array would more reasonably be located in Err_Vars or
+   --  Errour, but but we put them here to deal with licensing issues (we need
+   --  this to have the GPL exception licensing, since these variables and
+   --  subprograms are accessed from units with this licensing).
+
+   Warnings_As_Errors : array (1 .. 10_000) of String_Ptr;
+   --  Table for recording Warning_As_Error pragmas as they are processed.
+   --  It would be nicer to use Table, but there are circular elaboration
+   --  problems if we try to do this, and an attempt to find some other
+   --  appropriately licensed unit to declare this as a Table failed with
+   --  various elaboration circularities. Memory is getting cheap these days!
+
+   --------------------------
+   -- Private Declarations --
+   --------------------------
+
 private
 
    --  The following type is used to save and restore settings of switches in
@@ -2070,6 +2117,7 @@ private
       SPARK_Mode                     : SPARK_Mode_Type;
       SPARK_Mode_Pragma              : Node_Id;
       Use_VADS_Size                  : Boolean;
+      Warnings_As_Errors_Count       : Natural;
    end record;
 
    --  The following declarations are for GCC version dependent flags. We do

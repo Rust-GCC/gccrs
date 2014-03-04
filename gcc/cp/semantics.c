@@ -503,7 +503,7 @@ begin_maybe_infinite_loop (tree cond)
   bool maybe_infinite = true;
   if (cond)
     {
-      cond = fold_non_dependent_expr (cond);
+      cond = fold_non_dependent_expr_sfinae (cond, tf_none);
       cond = maybe_constant_value (cond);
       maybe_infinite = integer_nonzerop (cond);
     }
@@ -2630,7 +2630,8 @@ finish_fname (tree id)
   tree decl;
 
   decl = fname_decl (input_location, C_RID_CODE (id), id);
-  if (processing_template_decl && current_function_decl)
+  if (processing_template_decl && current_function_decl
+      && decl != error_mark_node)
     decl = DECL_NAME (decl);
   return decl;
 }
@@ -3940,8 +3941,7 @@ static inline bool
 is_instantiation_of_constexpr (tree fun)
 {
   return (DECL_TEMPLOID_INSTANTIATION (fun)
-	  && DECL_DECLARED_CONSTEXPR_P (DECL_TEMPLATE_RESULT
-					(DECL_TI_TEMPLATE (fun))));
+	  && DECL_DECLARED_CONSTEXPR_P (DECL_TI_TEMPLATE (fun)));
 }
 
 /* Generate RTL for FN.  */
@@ -3976,25 +3976,7 @@ expand_or_defer_fn_1 (tree fn)
 	/* We've already made a decision as to how this function will
 	   be handled.  */;
       else if (!at_eof)
-	{
-	  DECL_EXTERNAL (fn) = 1;
-	  DECL_NOT_REALLY_EXTERN (fn) = 1;
-	  note_vague_linkage_fn (fn);
-	  /* A non-template inline function with external linkage will
-	     always be COMDAT.  As we must eventually determine the
-	     linkage of all functions, and as that causes writes to
-	     the data mapped in from the PCH file, it's advantageous
-	     to mark the functions at this point.  */
-	  if (!DECL_IMPLICIT_INSTANTIATION (fn))
-	    {
-	      /* This function must have external linkage, as
-		 otherwise DECL_INTERFACE_KNOWN would have been
-		 set.  */
-	      gcc_assert (TREE_PUBLIC (fn));
-	      comdat_linkage (fn);
-	      DECL_INTERFACE_KNOWN (fn) = 1;
-	    }
-	}
+	tentative_decl_linkage (fn);
       else
 	import_export_decl (fn);
 
@@ -5021,7 +5003,9 @@ finish_omp_reduction_clause (tree c, bool *need_default_ctor, bool *need_dtor)
   tree type = TREE_TYPE (t);
   if (TREE_CODE (type) == REFERENCE_TYPE)
     type = TREE_TYPE (type);
-  if (ARITHMETIC_TYPE_P (type))
+  if (type == error_mark_node)
+    return true;
+  else if (ARITHMETIC_TYPE_P (type))
     switch (OMP_CLAUSE_REDUCTION_CODE (c))
       {
       case PLUS_EXPR:
@@ -7378,7 +7362,8 @@ ensure_literal_type_for_constexpr_object (tree decl)
   if (VAR_P (decl) && DECL_DECLARED_CONSTEXPR_P (decl)
       && !processing_template_decl)
     {
-      if (CLASS_TYPE_P (type) && !COMPLETE_TYPE_P (complete_type (type)))
+      tree stype = strip_array_types (type);
+      if (CLASS_TYPE_P (stype) && !COMPLETE_TYPE_P (complete_type (stype)))
 	/* Don't complain here, we'll complain about incompleteness
 	   when we try to initialize the variable.  */;
       else if (!literal_type_p (type))
@@ -9674,7 +9659,7 @@ cxx_eval_constant_expression (const constexpr_call *call, tree t,
 	     build_non_dependent_expr,  because any expression that
 	     calls or takes the address of the function will have
 	     pulled a FUNCTION_DECL out of the COMPONENT_REF.  */
-	  gcc_checking_assert (allow_non_constant);
+	  gcc_checking_assert (allow_non_constant || errorcount);
 	  *non_constant_p = true;
 	  return t;
 	}

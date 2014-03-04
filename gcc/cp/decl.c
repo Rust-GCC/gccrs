@@ -1381,7 +1381,7 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 
 		    if (TYPE_PTR_P (t)
 			&& TYPE_NAME (TREE_TYPE (t))
-			&& DECL_NAME (TYPE_NAME (TREE_TYPE (t)))
+			&& TYPE_IDENTIFIER (TREE_TYPE (t))
 			   == get_identifier ("FILE")
 			&& compparms (TREE_CHAIN (t1), TREE_CHAIN (t2)))
 		      {
@@ -3213,7 +3213,7 @@ typename_hash (const void* k)
   const_tree const t = (const_tree) k;
 
   hash = (htab_hash_pointer (TYPE_CONTEXT (t))
-	  ^ htab_hash_pointer (DECL_NAME (TYPE_NAME (t))));
+	  ^ htab_hash_pointer (TYPE_IDENTIFIER (t)));
 
   return hash;
 }
@@ -3235,7 +3235,7 @@ typename_compare (const void * k1, const void * k2)
   const_tree const t1 = (const_tree) k1;
   const typename_info *const t2 = (const typename_info *) k2;
 
-  return (DECL_NAME (TYPE_NAME (t1)) == t2->name
+  return (TYPE_IDENTIFIER (t1) == t2->name
 	  && TYPE_CONTEXT (t1) == t2->scope
 	  && TYPENAME_TYPE_FULLNAME (t1) == t2->template_id
 	  && TYPENAME_IS_ENUM_P (t1) == t2->enum_p
@@ -4880,7 +4880,7 @@ maybe_deduce_size_from_array_init (tree decl, tree init)
 	 those are not supported in GNU C++, and as the middle-end
 	 will crash if presented with a non-numeric designated
 	 initializer.  */
-      if (initializer && TREE_CODE (initializer) == CONSTRUCTOR)
+      if (initializer && BRACE_ENCLOSED_INITIALIZER_P (initializer))
 	{
 	  vec<constructor_elt, va_gc> *v = CONSTRUCTOR_ELTS (initializer);
 	  constructor_elt *ce;
@@ -6709,8 +6709,11 @@ get_dso_handle_node (void)
 					ptr_type_node);
 
 #ifdef HAVE_GAS_HIDDEN
-  DECL_VISIBILITY (dso_handle_node) = VISIBILITY_HIDDEN;
-  DECL_VISIBILITY_SPECIFIED (dso_handle_node) = 1;
+  if (dso_handle_node != error_mark_node)
+    {
+      DECL_VISIBILITY (dso_handle_node) = VISIBILITY_HIDDEN;
+      DECL_VISIBILITY_SPECIFIED (dso_handle_node) = 1;
+    }
 #endif
 
   return dso_handle_node;
@@ -7095,6 +7098,11 @@ cp_complete_array_type (tree *ptype, tree initial_value, bool do_default)
 {
   int failure;
   tree type, elt_type;
+
+  /* Don't get confused by a CONSTRUCTOR for some other type.  */
+  if (initial_value && TREE_CODE (initial_value) == CONSTRUCTOR
+      && !BRACE_ENCLOSED_INITIALIZER_P (initial_value))
+    return 1;
 
   if (initial_value)
     {
@@ -7561,29 +7569,7 @@ grokfndecl (tree ctype,
 	 declare an entity with linkage.
 
 	 DR 757 relaxes this restriction for C++0x.  */
-      t = no_linkage_check (TREE_TYPE (decl),
-			    /*relaxed_p=*/false);
-      if (t)
-	{
-	  if (TYPE_ANONYMOUS_P (t))
-	    {
-	      if (DECL_EXTERN_C_P (decl))
-		/* Allow this; it's pretty common in C.  */;
-	      else
-		{
-		  permerror (input_location, "anonymous type with no linkage "
-			     "used to declare function %q#D with linkage",
-			     decl);
-		  if (DECL_ORIGINAL_TYPE (TYPE_NAME (t)))
-		    permerror (input_location, "%q+#D does not refer to the unqualified "
-			       "type, so it is not used for linkage",
-			       TYPE_NAME (t));
-		}
-	    }
-	  else
-	    permerror (input_location, "type %qT with no linkage used to "
-		       "declare function %q#D with linkage", t, decl);
-	}
+      no_linkage_error (decl);
     }
 
   TREE_PUBLIC (decl) = publicp;
@@ -7866,7 +7852,7 @@ set_linkage_for_static_data_member (tree decl)
 
    If SCOPE is non-NULL, it is the class type or namespace containing
    the variable.  If SCOPE is NULL, the variable should is created in
-   the innermost enclosings scope.  */
+   the innermost enclosing scope.  */
 
 static tree
 grokvardecl (tree type,
@@ -7964,33 +7950,8 @@ grokvardecl (tree type,
 	 declare an entity with linkage.
 
 	 DR 757 relaxes this restriction for C++0x.  */
-      tree t = (cxx_dialect > cxx98 ? NULL_TREE
-		: no_linkage_check (TREE_TYPE (decl), /*relaxed_p=*/false));
-      if (t)
-	{
-	  if (TYPE_ANONYMOUS_P (t))
-	    {
-	      if (DECL_EXTERN_C_P (decl))
-		/* Allow this; it's pretty common in C.  */
-		;
-	      else
-		{
-		  /* DRs 132, 319 and 389 seem to indicate types with
-		     no linkage can only be used to declare extern "C"
-		     entities.  Since it's not always an error in the
-		     ISO C++ 90 Standard, we only issue a warning.  */
-		  warning (0, "anonymous type with no linkage used to declare "
-			   "variable %q#D with linkage", decl);
-		  if (DECL_ORIGINAL_TYPE (TYPE_NAME (t)))
-		    warning (0, "%q+#D does not refer to the unqualified "
-			     "type, so it is not used for linkage",
-			     TYPE_NAME (t));
-		}
-	    }
-	  else
-	    warning (0, "type %qT with no linkage used to declare variable "
-		     "%q#D with linkage", t, decl);
-	}
+      if (cxx_dialect < cxx11)
+	no_linkage_error (decl);
     }
   else
     DECL_INTERFACE_KNOWN (decl) = 1;
@@ -8660,23 +8621,6 @@ check_var_type (tree identifier, tree type)
     }
 
   return type;
-}
-
-/* Functions for adjusting the visibility of a tagged type and its nested
-   types when it gets a name for linkage purposes from a typedef.  */
-
-static void bt_reset_linkage (binding_entry, void *);
-static void
-reset_type_linkage (tree type)
-{
-  set_linkage_according_to_type (type, TYPE_MAIN_DECL (type));
-  if (CLASS_TYPE_P (type))
-    binding_table_foreach (CLASSTYPE_NESTED_UTDS (type), bt_reset_linkage, NULL);
-}
-static void
-bt_reset_linkage (binding_entry b, void */*data*/)
-{
-  reset_type_linkage (b->type);
 }
 
 /* Given declspecs and a declarator (abstract or otherwise), determine
@@ -10213,6 +10157,7 @@ grokdeclarator (const cp_declarator *declarator,
 	  && TREE_CODE (TYPE_NAME (type)) == TYPE_DECL
 	  && TYPE_ANONYMOUS_P (type)
 	  && declspecs->type_definition_p
+	  && attributes_naming_typedef_ok (*attrlist)
 	  && cp_type_quals (type) == TYPE_UNQUALIFIED)
 	{
 	  tree t;
@@ -14353,6 +14298,13 @@ cxx_maybe_build_cleanup (tree decl, tsubst_flags_t complain)
      destructor call instead.  */
   if (cleanup != NULL && EXPR_P (cleanup))
     SET_EXPR_LOCATION (cleanup, UNKNOWN_LOCATION);
+
+  if (cleanup
+      && !lookup_attribute ("warn_unused", TYPE_ATTRIBUTES (TREE_TYPE (decl))))
+    /* Treat objects with destructors as used; the destructor may do
+       something substantive.  */
+    mark_used (decl);
+
   return cleanup;
 }
 

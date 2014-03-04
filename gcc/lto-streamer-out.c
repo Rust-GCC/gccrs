@@ -139,7 +139,8 @@ tree_is_indexable (tree t)
     return variably_modified_type_p (TREE_TYPE (DECL_CONTEXT (t)), NULL_TREE);
   else if (((TREE_CODE (t) == VAR_DECL && !TREE_STATIC (t))
 	    || TREE_CODE (t) == TYPE_DECL
-	    || TREE_CODE (t) == CONST_DECL)
+	    || TREE_CODE (t) == CONST_DECL
+	    || TREE_CODE (t) == NAMELIST_DECL)
 	   && decl_function_context (t))
     return false;
   else if (TREE_CODE (t) == DEBUG_EXPR_DECL)
@@ -255,19 +256,9 @@ lto_output_tree_ref (struct output_block *ob, tree expr)
       break;
 
     case NAMELIST_DECL:
-      {
-	unsigned i;
-	tree value, tmp;
-
-	streamer_write_record_start (ob, LTO_namelist_decl_ref);
-	stream_write_tree (ob, DECL_NAME (expr), true);
-	tmp = NAMELIST_DECL_ASSOCIATED_DECL (expr);
-	gcc_assert (tmp != NULL_TREE);
-	streamer_write_uhwi (ob, CONSTRUCTOR_ELTS (tmp)->length());
-	FOR_EACH_CONSTRUCTOR_VALUE (CONSTRUCTOR_ELTS (tmp), i, value)
-	  lto_output_var_decl_index (ob->decl_state, ob->main_stream, value);
-	break;
-      }
+      streamer_write_record_start (ob, LTO_namelist_decl_ref);
+      lto_output_var_decl_index (ob->decl_state, ob->main_stream, expr);
+      break;
 
     case NAMESPACE_DECL:
       streamer_write_record_start (ob, LTO_namespace_decl_ref);
@@ -559,7 +550,7 @@ DFS_write_tree_body (struct output_block *ob,
   if (CODE_CONTAINS_STRUCT (code, TS_FUNCTION_DECL))
     {
       DFS_follow_tree_edge (DECL_FUNCTION_PERSONALITY (expr));
-      DFS_follow_tree_edge (DECL_FUNCTION_SPECIFIC_TARGET (expr));
+      /* Do not DECL_FUNCTION_SPECIFIC_TARGET.  They will be regenerated.  */
       DFS_follow_tree_edge (DECL_FUNCTION_SPECIFIC_OPTIMIZATION (expr));
     }
 
@@ -894,7 +885,7 @@ hash_tree (struct streamer_tree_cache_d *cache, tree t)
 			strlen (TRANSLATION_UNIT_LANGUAGE (t)), v);
 
   if (CODE_CONTAINS_STRUCT (code, TS_TARGET_OPTION))
-    v = iterative_hash (t, sizeof (struct cl_target_option), v);
+    gcc_unreachable ();
 
   if (CODE_CONTAINS_STRUCT (code, TS_OPTIMIZATION))
     v = iterative_hash (t, sizeof (struct cl_optimization), v);
@@ -995,7 +986,7 @@ hash_tree (struct streamer_tree_cache_d *cache, tree t)
   if (CODE_CONTAINS_STRUCT (code, TS_FUNCTION_DECL))
     {
       visit (DECL_FUNCTION_PERSONALITY (t));
-      visit (DECL_FUNCTION_SPECIFIC_TARGET (t));
+      /* Do not follow DECL_FUNCTION_SPECIFIC_TARGET.  */
       visit (DECL_FUNCTION_SPECIFIC_OPTIMIZATION (t));
     }
 

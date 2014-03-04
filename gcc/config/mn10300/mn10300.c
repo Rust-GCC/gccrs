@@ -68,7 +68,6 @@ static int cc_flags_for_mode(enum machine_mode);
 static int cc_flags_for_code(enum rtx_code);
 
 /* Implement TARGET_OPTION_OVERRIDE.  */
-
 static void
 mn10300_option_override (void)
 {
@@ -742,16 +741,31 @@ mn10300_gen_multiple_store (unsigned int mask)
   F (emit_insn (x));
 }
 
+static inline unsigned int
+popcount (unsigned int mask)
+{
+  unsigned int count = 0;
+  
+  while (mask)
+    {
+      ++ count;
+      mask &= ~ (mask & - mask);
+    }
+  return count;
+}
+
 void
 mn10300_expand_prologue (void)
 {
   HOST_WIDE_INT size = mn10300_frame_size ();
+  unsigned int mask;
+
+  mask = mn10300_get_live_callee_saved_regs (NULL);
+  /* If we use any of the callee-saved registers, save them now.  */
+  mn10300_gen_multiple_store (mask);
 
   if (flag_stack_usage_info)
-    current_function_static_stack_size = size;
-
-  /* If we use any of the callee-saved registers, save them now.  */
-  mn10300_gen_multiple_store (mn10300_get_live_callee_saved_regs (NULL));
+    current_function_static_stack_size = size + popcount (mask) * 4;
 
   if (TARGET_AM33_2 && fp_regs_to_save ())
     {
@@ -767,6 +781,9 @@ mn10300_expand_prologue (void)
       } strategy;
       unsigned int strategy_size = (unsigned)-1, this_strategy_size;
       rtx reg;
+
+      if (flag_stack_usage_info)
+	current_function_static_stack_size += num_regs_to_save * 4;
 
       /* We have several different strategies to save FP registers.
 	 We can store them using SP offsets, which is beneficial if
@@ -1239,8 +1256,8 @@ mn10300_expand_epilogue (void)
    parallel.  If OP is a multiple store, return a mask indicating which
    registers it saves.  Return 0 otherwise.  */
 
-int
-mn10300_store_multiple_operation_p (rtx op)
+unsigned int
+mn10300_store_multiple_regs (rtx op)
 {
   int count;
   int mask;
@@ -1413,7 +1430,6 @@ mn10300_secondary_reload (bool in_p, rtx x, reg_class_t rclass_i,
       if (addr && CONSTANT_ADDRESS_P (addr))
 	return GENERAL_REGS;
     }
-
   /* Otherwise assume no secondary reloads are needed.  */
   return NO_REGS;
 }
@@ -2614,7 +2630,10 @@ mn10300_hard_regno_mode_ok (unsigned int regno, enum machine_mode mode)
       || REGNO_REG_CLASS (regno) == FP_ACC_REGS)
     /* Do not store integer values in FP registers.  */
     return GET_MODE_CLASS (mode) == MODE_FLOAT && ((regno & 1) == 0);
-  
+
+  if (! TARGET_AM33 && REGNO_REG_CLASS (regno) == EXTENDED_REGS)
+    return false;
+
   if (((regno) & 1) == 0 || GET_MODE_SIZE (mode) == 4)
     return true;
 

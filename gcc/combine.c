@@ -3712,6 +3712,9 @@ try_combine (rtx i3, rtx i2, rtx i1, rtx i0, int *new_direct_jump_p,
 #ifdef HAVE_cc0
 	  && !reg_referenced_p (cc0_rtx, set0)
 #endif
+	  /* If I3 is a jump, ensure that set0 is a jump so that
+	     we do not create invalid RTL.  */
+	  && (!JUMP_P (i3) || SET_DEST (set0) == pc_rtx)
 	 )
 	{
 	  newi2pat = set1;
@@ -3726,6 +3729,9 @@ try_combine (rtx i3, rtx i2, rtx i1, rtx i0, int *new_direct_jump_p,
 #ifdef HAVE_cc0
 	       && !reg_referenced_p (cc0_rtx, set1)
 #endif
+	       /* If I3 is a jump, ensure that set1 is a jump so that
+		  we do not create invalid RTL.  */
+	       && (!JUMP_P (i3) || SET_DEST (set1) == pc_rtx)
 	      )
 	{
 	  newi2pat = set0;
@@ -3894,15 +3900,19 @@ try_combine (rtx i3, rtx i2, rtx i1, rtx i0, int *new_direct_jump_p,
 
       PATTERN (undobuf.other_insn) = other_pat;
 
-      /* If any of the notes in OTHER_INSN were REG_UNUSED, ensure that they
-	 are still valid.  Then add any non-duplicate notes added by
-	 recog_for_combine.  */
+      /* If any of the notes in OTHER_INSN were REG_DEAD or REG_UNUSED,
+	 ensure that they are still valid.  Then add any non-duplicate
+	 notes added by recog_for_combine.  */
       for (note = REG_NOTES (undobuf.other_insn); note; note = next)
 	{
 	  next = XEXP (note, 1);
 
-	  if (REG_NOTE_KIND (note) == REG_UNUSED
-	      && ! reg_set_p (XEXP (note, 0), PATTERN (undobuf.other_insn)))
+	  if ((REG_NOTE_KIND (note) == REG_DEAD
+	       && !reg_referenced_p (XEXP (note, 0),
+				     PATTERN (undobuf.other_insn)))
+	      ||(REG_NOTE_KIND (note) == REG_UNUSED
+		 && !reg_set_p (XEXP (note, 0),
+				PATTERN (undobuf.other_insn))))
 	    remove_note (undobuf.other_insn, note);
 	}
 

@@ -235,6 +235,16 @@ static const struct tune_params cortexa53_tunings =
   NAMED_PARAM (issue_rate, 2)
 };
 
+static const struct tune_params cortexa57_tunings =
+{
+  &cortexa57_extra_costs,
+  &generic_addrcost_table,
+  &generic_regmove_cost,
+  &generic_vector_cost,
+  NAMED_PARAM (memmov_cost, 4),
+  NAMED_PARAM (issue_rate, 3)
+};
+
 /* A processor implementing AArch64.  */
 struct processor
 {
@@ -916,7 +926,7 @@ aarch64_expand_mov_immediate (rtx dest, rtx imm)
 	  if (offset != const0_rtx
 	      && targetm.cannot_force_const_mem (mode, imm))
 	    {
-	      gcc_assert(can_create_pseudo_p ());
+	      gcc_assert (can_create_pseudo_p ());
 	      base = aarch64_force_temporary (mode, dest, base);
 	      base = aarch64_add_offset (mode, NULL, base, INTVAL (offset));
 	      aarch64_emit_move (dest, base);
@@ -1187,14 +1197,10 @@ aarch64_pass_by_reference (cumulative_args_t pcum ATTRIBUTE_UNUSED,
   size = (mode == BLKmode && type)
     ? int_size_in_bytes (type) : (int) GET_MODE_SIZE (mode);
 
-  if (type)
+  /* Aggregates are passed by reference based on their size.  */
+  if (type && AGGREGATE_TYPE_P (type))
     {
-      /* Arrays always passed by reference.  */
-      if (TREE_CODE (type) == ARRAY_TYPE)
-	return true;
-      /* Other aggregates based on their size.  */
-      if (AGGREGATE_TYPE_P (type))
-	size = int_size_in_bytes (type);
+      size = int_size_in_bytes (type);
     }
 
   /* Variable sized arguments are always returned by reference.  */
@@ -3249,7 +3255,7 @@ aarch64_legitimate_address_hook_p (enum machine_mode mode, rtx x, bool strict_p)
    pair operation.  */
 bool
 aarch64_legitimate_address_p (enum machine_mode mode, rtx x,
-			   RTX_CODE outer_code, bool strict_p)
+			      RTX_CODE outer_code, bool strict_p)
 {
   struct aarch64_address_info addr;
 
@@ -4256,7 +4262,7 @@ aarch64_class_max_nregs (reg_class_t regclass, enum machine_mode mode)
     case FP_LO_REGS:
       return
 	aarch64_vector_mode_p (mode) ? (GET_MODE_SIZE (mode) + 15) / 16 :
- 				       (GET_MODE_SIZE (mode) + 7) / 8;
+				       (GET_MODE_SIZE (mode) + 7) / 8;
     case STACK_REG:
       return 1;
 
@@ -5244,7 +5250,7 @@ aarch64_override_options (void)
 
   /* If the user did not specify a processor, choose the default
      one for them.  This will be the CPU set during configuration using
-     --with-cpu, otherwise it is "coretex-a53".  */
+     --with-cpu, otherwise it is "cortex-a53".  */
   if (!selected_cpu)
     {
       selected_cpu = &all_cores[TARGET_CPU_DEFAULT & 0x3f];
@@ -5400,9 +5406,8 @@ aarch64_classify_symbol (rtx x,
 
   if (GET_CODE (x) == SYMBOL_REF)
     {
-      if (aarch64_cmodel == AARCH64_CMODEL_LARGE
-	  || CONSTANT_POOL_ADDRESS_P (x))
-	return SYMBOL_FORCE_TO_MEM;
+      if (aarch64_cmodel == AARCH64_CMODEL_LARGE)
+	  return SYMBOL_FORCE_TO_MEM;
 
       if (aarch64_tls_symbol_p (x))
 	return aarch64_classify_tls_symbol (x);

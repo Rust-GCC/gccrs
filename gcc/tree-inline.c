@@ -1745,7 +1745,6 @@ copy_bb (copy_body_data *id, basic_block bb, int frequency_scale,
 	  if (is_gimple_call (stmt))
 	    {
 	      struct cgraph_edge *edge;
-	      int flags;
 
 	      switch (id->transform_call_graph_edges)
 		{
@@ -1868,11 +1867,7 @@ copy_bb (copy_body_data *id, basic_block bb, int frequency_scale,
 		    }
 		}
 
-	      flags = gimple_call_flags (stmt);
-	      if (flags & ECF_MAY_BE_ALLOCA)
-		cfun->calls_alloca = true;
-	      if (flags & ECF_RETURNS_TWICE)
-		cfun->calls_setjmp = true;
+	      notice_special_calls (stmt);
 	    }
 
 	  maybe_duplicate_eh_stmt_fn (cfun, stmt, id->src_cfun, orig_stmt,
@@ -1967,7 +1962,7 @@ update_ssa_across_abnormal_edges (basic_block bb, basic_block ret_bb,
 
 static bool
 copy_edges_for_bb (basic_block bb, gcov_type count_scale, basic_block ret_bb,
-		   bool can_make_abnormal_goto)
+		   basic_block abnormal_goto_dest)
 {
   basic_block new_bb = (basic_block) bb->aux;
   edge_iterator ei;
@@ -2021,7 +2016,9 @@ copy_edges_for_bb (basic_block bb, gcov_type count_scale, basic_block ret_bb,
          into a COMPONENT_REF which doesn't.  If the copy
          can throw, the original could also throw.  */
       can_throw = stmt_can_throw_internal (copy_stmt);
-      nonlocal_goto = stmt_can_make_abnormal_goto (copy_stmt);
+      nonlocal_goto
+	= (stmt_can_make_abnormal_goto (copy_stmt)
+	   && !computed_goto_p (copy_stmt));
 
       if (can_throw || nonlocal_goto)
 	{
@@ -2052,9 +2049,26 @@ copy_edges_for_bb (basic_block bb, gcov_type count_scale, basic_block ret_bb,
       /* If the call we inline cannot make abnormal goto do not add
          additional abnormal edges but only retain those already present
 	 in the original function body.  */
-      nonlocal_goto &= can_make_abnormal_goto;
+      if (abnormal_goto_dest == NULL)
+	nonlocal_goto = false;
       if (nonlocal_goto)
-	make_abnormal_goto_edges (gimple_bb (copy_stmt), true);
+	{
+	  basic_block copy_stmt_bb = gimple_bb (copy_stmt);
+
+	  if (get_abnormal_succ_dispatcher (copy_stmt_bb))
+	    nonlocal_goto = false;
+	  /* ABNORMAL_DISPATCHER (1) is for longjmp/setjmp or nonlocal gotos
+	     in OpenMP regions which aren't allowed to be left abnormally.
+	     So, no need to add abnormal edge in that case.  */
+	  else if (is_gimple_call (copy_stmt)
+		   && gimple_call_internal_p (copy_stmt)
+		   && (gimple_call_internal_fn (copy_stmt)
+		       == IFN_ABNORMAL_DISPATCHER)
+		   && gimple_call_arg (copy_stmt, 0) == boolean_true_node)
+	    nonlocal_goto = false;
+	  else
+	    make_edge (copy_stmt_bb, abnormal_goto_dest, EDGE_ABNORMAL);
+	}
 
       if ((can_throw || nonlocal_goto)
 	  && gimple_in_ssa_p (cfun))
@@ -2493,13 +2507,22 @@ copy_cfg_body (copy_body_data * id, gcov_type count, int frequency_scale,
   last = last_basic_block_for_fn (cfun);
 
   /* Now that we've duplicated the blocks, duplicate their edges.  */
-  bool can_make_abormal_goto
-    = id->gimple_call && stmt_can_make_abnormal_goto (id->gimple_call);
+  basic_block abnormal_goto_dest = NULL;
+  if (id->gimple_call
+      && stmt_can_make_abnormal_goto (id->gimple_call))
+    {
+      gimple_stmt_iterator gsi = gsi_for_stmt (id->gimple_call);
+
+      bb = gimple_bb (id->gimple_call);
+      gsi_next (&gsi);
+      if (gsi_end_p (gsi))
+	abnormal_goto_dest = get_abnormal_succ_dispatcher (bb);
+    }
   FOR_ALL_BB_FN (bb, cfun_to_copy)
     if (!id->blocks_to_copy
 	|| (bb->index > 0 && bitmap_bit_p (id->blocks_to_copy, bb->index)))
       need_debug_cleanup |= copy_edges_for_bb (bb, count_scale, exit_block_map,
-					       can_make_abormal_goto);
+					       abnormal_goto_dest);
 
   if (new_entry)
     {
@@ -3801,46 +3824,49 @@ estimate_num_insns (gimple stmt, eni_weights *weights)
     case GIMPLE_CALL:
       {
 	tree decl;
-	struct cgraph_node *node = NULL;
 
-	/* Do not special case builtins where we see the body.
-	   This just confuse inliner.  */
 	if (gimple_call_internal_p (stmt))
 	  return 0;
-	else if (!(decl = gimple_call_fndecl (stmt))
-		 || !(node = cgraph_get_node (decl))
-		 || node->definition)
-	  ;
-	/* For buitins that are likely expanded to nothing or
-	   inlined do not account operand costs.  */
-	else if (is_simple_builtin (decl))
-	  return 0;
-	else if (is_inexpensive_builtin (decl))
-	  return weights->target_builtin_call_cost;
-	else if (DECL_BUILT_IN_CLASS (decl) == BUILT_IN_NORMAL)
+	else if ((decl = gimple_call_fndecl (stmt))
+		 && DECL_BUILT_IN (decl))
 	  {
-	    /* We canonicalize x * x to pow (x, 2.0) with -ffast-math, so
-	       specialize the cheap expansion we do here.
-	       ???  This asks for a more general solution.  */
-	    switch (DECL_FUNCTION_CODE (decl))
+	    /* Do not special case builtins where we see the body.
+	       This just confuse inliner.  */
+	    struct cgraph_node *node;
+	    if (!(node = cgraph_get_node (decl))
+		|| node->definition)
+	      ;
+	    /* For buitins that are likely expanded to nothing or
+	       inlined do not account operand costs.  */
+	    else if (is_simple_builtin (decl))
+	      return 0;
+	    else if (is_inexpensive_builtin (decl))
+	      return weights->target_builtin_call_cost;
+	    else if (DECL_BUILT_IN_CLASS (decl) == BUILT_IN_NORMAL)
 	      {
-		case BUILT_IN_POW:
-		case BUILT_IN_POWF:
-		case BUILT_IN_POWL:
-		  if (TREE_CODE (gimple_call_arg (stmt, 1)) == REAL_CST
-		      && REAL_VALUES_EQUAL
-			   (TREE_REAL_CST (gimple_call_arg (stmt, 1)), dconst2))
-		    return estimate_operator_cost (MULT_EXPR, weights,
-						   gimple_call_arg (stmt, 0),
-						   gimple_call_arg (stmt, 0));
-		  break;
+		/* We canonicalize x * x to pow (x, 2.0) with -ffast-math, so
+		   specialize the cheap expansion we do here.
+		   ???  This asks for a more general solution.  */
+		switch (DECL_FUNCTION_CODE (decl))
+		  {
+		    case BUILT_IN_POW:
+		    case BUILT_IN_POWF:
+		    case BUILT_IN_POWL:
+		      if (TREE_CODE (gimple_call_arg (stmt, 1)) == REAL_CST
+			  && REAL_VALUES_EQUAL
+			  (TREE_REAL_CST (gimple_call_arg (stmt, 1)), dconst2))
+			return estimate_operator_cost
+			    (MULT_EXPR, weights, gimple_call_arg (stmt, 0),
+			     gimple_call_arg (stmt, 0));
+		      break;
 
-		default:
-		  break;
+		    default:
+		      break;
+		  }
 	      }
 	  }
 
-	cost = node ? weights->call_cost : weights->indirect_call_cost;
+	cost = decl ? weights->call_cost : weights->indirect_call_cost;
 	if (gimple_call_lhs (stmt))
 	  cost += estimate_move_cost (TREE_TYPE (gimple_call_lhs (stmt)));
 	for (i = 0; i < gimple_call_num_args (stmt); i++)
@@ -4341,6 +4367,9 @@ expand_call_inline (basic_block bb, gimple stmt, copy_body_data *id)
 
   /* Unlink the calls virtual operands before replacing it.  */
   unlink_stmt_vdef (stmt);
+  if (gimple_vdef (stmt)
+      && TREE_CODE (gimple_vdef (stmt)) == SSA_NAME)
+    release_ssa_name (gimple_vdef (stmt));
 
   /* If the inlined function returns a result that we care about,
      substitute the GIMPLE_CALL with an assignment of the return

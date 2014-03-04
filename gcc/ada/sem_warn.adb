@@ -30,6 +30,7 @@ with Errout;   use Errout;
 with Exp_Code; use Exp_Code;
 with Fname;    use Fname;
 with Lib;      use Lib;
+with Lib.Xref; use Lib.Xref;
 with Namet;    use Namet;
 with Nlists;   use Nlists;
 with Opt;      use Opt;
@@ -307,7 +308,7 @@ package body Sem_Warn is
                return;
 
             --  Forget it if function name is suspicious. A strange test
-            --  but warning generation is in the heuristics business!
+            --  but warning generation is in the heuristics business.
 
             elsif Is_Suspicious_Function_Name (Entity (Name (N))) then
                return;
@@ -495,7 +496,7 @@ package body Sem_Warn is
                      --  going on (perhaps a node with no parent that should
                      --  have one but does not?) As always, for a warning we
                      --  prefer to just abandon the warning than get into the
-                     --  business of complaining about the tree structure here!
+                     --  business of complaining about the tree structure here.
 
                      if No (P)
                        or else Nkind (P) = N_Procedure_Call_Statement
@@ -998,6 +999,8 @@ package body Sem_Warn is
    --  Start of processing for Check_References
 
    begin
+      Process_Deferred_References;
+
       --  No messages if warnings are suppressed, or if we have detected any
       --  real errors so far (this last check avoids junk messages resulting
       --  from errors, e.g. a subunit that is not loaded).
@@ -1144,7 +1147,7 @@ package body Sem_Warn is
                   --  No warning if fully initialized type, except that for
                   --  this purpose we do not consider access types to qualify
                   --  as fully initialized types (relying on an access type
-                  --  variable being null when it is never set is a bit odd!)
+                  --  variable being null when it is never set is a bit odd).
 
                   --  Also we generate warning for an out parameter that is
                   --  never referenced, since again it seems odd to rely on
@@ -1262,6 +1265,7 @@ package body Sem_Warn is
                      if Referenced (E1) then
                         if not Has_Unmodified (E1)
                           and then not Warnings_Off_E1
+                          and then not Is_Junk_Name (Chars (E1))
                         then
                            Output_Reference_Error
                              ("?v?variable& is read but never assigned!");
@@ -1269,6 +1273,7 @@ package body Sem_Warn is
 
                      elsif not Has_Unreferenced (E1)
                        and then not Warnings_Off_E1
+                       and then not Is_Junk_Name (Chars (E1))
                      then
                         Output_Reference_Error -- CODEFIX
                           ("?v?variable& is never read and never assigned!");
@@ -1314,6 +1319,14 @@ package body Sem_Warn is
                   loop
                      UR := Expression (UR);
                   end loop;
+
+                  --  Don't issue warning if appearing inside Initial_Condition
+                  --  pragma or aspect, since that expression is not evaluated
+                  --  at the point where it occurs in the source.
+
+                  if In_Pragma_Expression (UR, Name_Initial_Condition) then
+                     goto Continue;
+                  end if;
 
                   --  Here we issue the warning, all checks completed
 
@@ -1380,7 +1393,6 @@ package body Sem_Warn is
                               end if;
                            end if;
                         end if;
-
                         --  All other cases of unset reference active
 
                      elsif not Warnings_Off_E1 then
@@ -1507,7 +1519,7 @@ package body Sem_Warn is
                and then Ekind (E1) /= E_Class_Wide_Type
 
                --  Objects other than parameters of task types are allowed to
-               --  be non-referenced, since they start up tasks!
+               --  be non-referenced, since they start up tasks.
 
                and then ((Ekind (E1) /= E_Variable
                            and then Ekind (E1) /= E_Constant
@@ -1768,7 +1780,7 @@ package body Sem_Warn is
                   --  allow the reference to appear in a loop, block, or
                   --  package spec that is nested within the declaring scope.
                   --  As always, it is possible to construct cases where the
-                  --  warning is wrong, that is why it is a warning!
+                  --  warning is wrong, that is why it is a warning.
 
                   Potential_Unset_Reference : declare
                      SR : Entity_Id;
@@ -2341,7 +2353,7 @@ package body Sem_Warn is
                   end if;
 
                --  If main unit is a renaming of this unit, then we consider
-               --  the with to be OK (obviously it is needed in this case!)
+               --  the with to be OK (obviously it is needed in this case).
                --  This may be transitive: the unit in the with_clause may
                --  itself be a renaming, in which case both it and the main
                --  unit rename the same ultimate package.
@@ -2558,6 +2570,8 @@ package body Sem_Warn is
       if not Opt.Check_Withs or else Operating_Mode = Check_Syntax then
          return;
       end if;
+
+      Process_Deferred_References;
 
       --  Flag any unused with clauses. For a subunit, check only the units
       --  in its context, not those of the parent, which may be needed by other
@@ -3004,7 +3018,7 @@ package body Sem_Warn is
             E      : Node_Id renames Wentry.E;
 
          begin
-            --  Turn off Warnings_Off, or we won't get the warning!
+            --  Turn off Warnings_Off, or we won't get the warning
 
             Set_Warnings_Off (E, False);
 
@@ -3632,7 +3646,7 @@ package body Sem_Warn is
          --  Nothing to do if subscript does not come from source (we don't
          --  want to give garbage warnings on compiler expanded code, e.g. the
          --  loops generated for slice assignments. Such junk warnings would
-         --  be placed on source constructs with no subscript in sight!)
+         --  be placed on source constructs with no subscript in sight).
 
          if not Comes_From_Source (Original_Node (X)) then
             return;
@@ -3730,7 +3744,7 @@ package body Sem_Warn is
                      end if;
 
                      --  If we have a 'Range reference, then this is a case
-                     --  where we cannot easily give a replacement. Don't try!
+                     --  where we cannot easily give a replacement. Don't try.
 
                      if Tref (Sref .. Sref + 4) = "range"
                        and then Tref (Sref - 1) < 'A'
@@ -3887,6 +3901,7 @@ package body Sem_Warn is
       if not Referenced_Check_Spec (E)
         and then not Has_Pragma_Unreferenced_Check_Spec (E)
         and then not Warnings_Off_Check_Spec (E)
+        and then not Is_Junk_Name (Chars (Spec_E))
       then
          case Ekind (E) is
             when E_Variable =>
@@ -4093,6 +4108,7 @@ package body Sem_Warn is
         and then not Is_Exported (Ent)
         and then Safe_To_Capture_Value (N, Ent)
         and then not Has_Pragma_Unreferenced_Check_Spec (Ent)
+        and then not Is_Junk_Name (Chars (Ent))
       then
          --  Before we issue the message, check covering exception handlers.
          --  Search up tree for enclosing statement sequences and handlers.
@@ -4232,7 +4248,10 @@ package body Sem_Warn is
 
    procedure Warn_On_Useless_Assignments (E : Entity_Id) is
       Ent : Entity_Id;
+
    begin
+      Process_Deferred_References;
+
       if Warn_On_Modified_Unread
         and then In_Extended_Main_Source_Unit (E)
       then

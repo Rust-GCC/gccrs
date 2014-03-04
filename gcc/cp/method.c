@@ -1366,7 +1366,7 @@ synthesized_method_walk (tree ctype, special_function_kind sfk, bool const_p,
     }
 
   vbases = CLASSTYPE_VBASECLASSES (ctype);
-  if (vbases == NULL)
+  if (vec_safe_is_empty (vbases))
     /* No virtual bases to worry about.  */;
   else if (!assign_p)
     {
@@ -1645,9 +1645,8 @@ implicitly_declare_fn (special_function_kind kind, tree type,
       /* For an inheriting constructor template, just copy these flags from
 	 the inherited constructor template for now.  */
       raises = TYPE_RAISES_EXCEPTIONS (TREE_TYPE (inherited_ctor));
-      deleted_p = DECL_DELETED_FN (DECL_TEMPLATE_RESULT (inherited_ctor));
-      constexpr_p
-	= DECL_DECLARED_CONSTEXPR_P (DECL_TEMPLATE_RESULT (inherited_ctor));
+      deleted_p = DECL_DELETED_FN (inherited_ctor);
+      constexpr_p = DECL_DECLARED_CONSTEXPR_P (inherited_ctor);
     }
   else
     synthesized_method_walk (type, kind, const_p, &raises, &trivial_p,
@@ -1656,10 +1655,12 @@ implicitly_declare_fn (special_function_kind kind, tree type,
   /* Don't bother marking a deleted constructor as constexpr.  */
   if (deleted_p)
     constexpr_p = false;
-  /* A trivial copy/move constructor is also a constexpr constructor.  */
+  /* A trivial copy/move constructor is also a constexpr constructor,
+     unless the class has virtual bases (7.1.5p4).  */
   else if (trivial_p && cxx_dialect >= cxx11
 	   && (kind == sfk_copy_constructor
-	       || kind == sfk_move_constructor))
+	       || kind == sfk_move_constructor)
+	   && !CLASSTYPE_VBASECLASSES (type))
     gcc_assert (constexpr_p);
 
   if (!trivial_p && type_has_trivial_fn (type, kind))
@@ -1724,8 +1725,7 @@ implicitly_declare_fn (special_function_kind kind, tree type,
       TREE_PROTECTED (fn) = TREE_PROTECTED (inherited_ctor);
       /* Copy constexpr from the inherited constructor even if the
 	 inheriting constructor doesn't satisfy the requirements.  */
-      constexpr_p
-	= DECL_DECLARED_CONSTEXPR_P (STRIP_TEMPLATE (inherited_ctor));
+      constexpr_p = DECL_DECLARED_CONSTEXPR_P (inherited_ctor);
     }
   /* Add the "this" parameter.  */
   this_parm = build_this_parm (fn_type, TYPE_UNQUALIFIED);

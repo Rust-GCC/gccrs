@@ -7820,6 +7820,8 @@ resolve_assoc_var (gfc_symbol* sym, bool resolve_target)
 
       sym->attr.target = tsym->attr.target
 			 || gfc_expr_attr (target).pointer;
+      if (is_subref_array (target))
+	sym->attr.subref_array_pointer = 1;
     }
 
   /* Get type if this was not already set.  Note that it can be
@@ -9218,7 +9220,7 @@ resolve_ordinary_assign (gfc_code *code, gfc_namespace *ns)
   /* F2008, Section 7.2.1.2.  */
   if (gfc_is_coindexed (lhs) && gfc_has_ultimate_allocatable (lhs))
     {
-      gfc_error ("Coindexed variable must not be have an allocatable ultimate "
+      gfc_error ("Coindexed variable must not have an allocatable ultimate "
 		 "component in assignment at %L", &lhs->where);
       return false;
     }
@@ -10528,7 +10530,7 @@ build_default_init_expr (gfc_symbol *sym)
 	  init_expr = NULL;
 	}
       if (!init_expr && gfc_option.flag_init_character == GFC_INIT_CHARACTER_ON
-	  && sym->ts.u.cl->length)
+	  && sym->ts.u.cl->length && gfc_option.flag_max_stack_var_size != 0)
 	{
 	  gfc_actual_arglist *arg;
 	  init_expr = gfc_get_expr ();
@@ -11360,6 +11362,7 @@ check_generic_tbp_ambiguity (gfc_tbp_generic* t1, gfc_tbp_generic* t2,
 {
   gfc_symbol *sym1, *sym2;
   const char *pass1, *pass2;
+  gfc_formal_arglist *dummy_args;
 
   gcc_assert (t1->specific && t2->specific);
   gcc_assert (!t1->specific->is_generic);
@@ -11382,19 +11385,33 @@ check_generic_tbp_ambiguity (gfc_tbp_generic* t1, gfc_tbp_generic* t2,
       return false;
     }
 
-  /* Compare the interfaces.  */
+  /* Determine PASS arguments.  */
   if (t1->specific->nopass)
     pass1 = NULL;
   else if (t1->specific->pass_arg)
     pass1 = t1->specific->pass_arg;
   else
-    pass1 = gfc_sym_get_dummy_args (t1->specific->u.specific->n.sym)->sym->name;
+    {
+      dummy_args = gfc_sym_get_dummy_args (t1->specific->u.specific->n.sym);
+      if (dummy_args)
+	pass1 = dummy_args->sym->name;
+      else
+	pass1 = NULL;
+    }
   if (t2->specific->nopass)
     pass2 = NULL;
   else if (t2->specific->pass_arg)
     pass2 = t2->specific->pass_arg;
   else
-    pass2 = gfc_sym_get_dummy_args (t2->specific->u.specific->n.sym)->sym->name;
+    {
+      dummy_args = gfc_sym_get_dummy_args (t2->specific->u.specific->n.sym);
+      if (dummy_args)
+	pass2 = dummy_args->sym->name;
+      else
+	pass2 = NULL;
+    }
+
+  /* Compare the interfaces.  */
   if (gfc_compare_interfaces (sym1, sym2, sym2->name, !t1->is_operator, 0,
 			      NULL, 0, pass1, pass2))
     {
@@ -12454,10 +12471,6 @@ resolve_fl_derived0 (gfc_symbol *sym)
 
   /* Add derived type to the derived type list.  */
   add_dt_to_dt_list (sym);
-
-  /* Check if the type is finalizable. This is done in order to ensure that the
-     finalization wrapper is generated early enough.  */
-  gfc_is_finalizable (sym, NULL);
 
   return true;
 }

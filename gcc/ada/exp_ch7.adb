@@ -557,10 +557,10 @@ package body Exp_Ch7 is
          Append_To (Stmts,
            Make_Procedure_Call_Statement (Loc,
              Name =>
-               New_Reference_To
+               New_Occurrence_Of
                  (RTE (RE_Expunge_Unactivated_Tasks), Loc),
              Parameter_Associations => New_List (
-               New_Reference_To (Activation_Chain_Entity (N), Loc))));
+               New_Occurrence_Of (Activation_Chain_Entity (N), Loc))));
 
       --  Attempt to cancel an asynchronous entry call whenever the block which
       --  contains the abortable part is exited.
@@ -586,17 +586,17 @@ package body Exp_Ch7 is
                    Condition =>
                      Make_Function_Call (Loc,
                        Name                   =>
-                         New_Reference_To (RTE (RE_Enqueued), Loc),
+                         New_Occurrence_Of (RTE (RE_Enqueued), Loc),
                        Parameter_Associations => New_List (
-                         New_Reference_To (Cancel_Param, Loc))),
+                         New_Occurrence_Of (Cancel_Param, Loc))),
 
                    Then_Statements => New_List (
                      Make_Procedure_Call_Statement (Loc,
                        Name =>
-                         New_Reference_To
+                         New_Occurrence_Of
                            (RTE (RE_Cancel_Protected_Entry_Call), Loc),
                          Parameter_Associations => New_List (
-                           New_Reference_To (Cancel_Param, Loc))))));
+                           New_Occurrence_Of (Cancel_Param, Loc))))));
 
             --  Asynchronous delay, generate:
             --    Cancel_Async_Delay (Cancel_Param);
@@ -605,11 +605,11 @@ package body Exp_Ch7 is
                Append_To (Stmts,
                  Make_Procedure_Call_Statement (Loc,
                    Name                   =>
-                     New_Reference_To (RTE (RE_Cancel_Async_Delay), Loc),
+                     New_Occurrence_Of (RTE (RE_Cancel_Async_Delay), Loc),
                    Parameter_Associations => New_List (
                      Make_Attribute_Reference (Loc,
                        Prefix         =>
-                         New_Reference_To (Cancel_Param, Loc),
+                         New_Occurrence_Of (Cancel_Param, Loc),
                        Attribute_Name => Name_Unchecked_Access))));
 
             --  Task entry call, generate:
@@ -619,9 +619,9 @@ package body Exp_Ch7 is
                Append_To (Stmts,
                  Make_Procedure_Call_Statement (Loc,
                    Name                   =>
-                     New_Reference_To (RTE (RE_Cancel_Task_Entry_Call), Loc),
+                     New_Occurrence_Of (RTE (RE_Cancel_Task_Entry_Call), Loc),
                    Parameter_Associations => New_List (
-                     New_Reference_To (Cancel_Param, Loc))));
+                     New_Occurrence_Of (Cancel_Param, Loc))));
             end if;
          end;
       end if;
@@ -672,7 +672,7 @@ package body Exp_Ch7 is
                 Name =>
                   Make_Explicit_Dereference (Data.Loc,
                     Prefix =>
-                      New_Reference_To
+                      New_Occurrence_Of
                         (RTE (RE_Get_Current_Excep), Data.Loc)));
 
          else
@@ -695,7 +695,7 @@ package body Exp_Ch7 is
 
             Actuals :=
               New_List (
-                New_Reference_To (Data.E_Id, Data.Loc),
+                New_Occurrence_Of (Data.E_Id, Data.Loc),
                 Make_Explicit_Dereference (Data.Loc, Except));
          end if;
 
@@ -715,16 +715,16 @@ package body Exp_Ch7 is
              Make_If_Statement (Data.Loc,
                Condition       =>
                  Make_Op_Not (Data.Loc,
-                   Right_Opnd => New_Reference_To (Data.Raised_Id, Data.Loc)),
+                   Right_Opnd => New_Occurrence_Of (Data.Raised_Id, Data.Loc)),
 
                Then_Statements => New_List (
                  Make_Assignment_Statement (Data.Loc,
-                   Name       => New_Reference_To (Data.Raised_Id, Data.Loc),
-                   Expression => New_Reference_To (Standard_True, Data.Loc)),
+                   Name       => New_Occurrence_Of (Data.Raised_Id, Data.Loc),
+                   Expression => New_Occurrence_Of (Standard_True, Data.Loc)),
 
                  Make_Procedure_Call_Statement (Data.Loc,
                    Name                   =>
-                     New_Reference_To (Proc_To_Call, Data.Loc),
+                     New_Occurrence_Of (Proc_To_Call, Data.Loc),
                    Parameter_Associations => Actuals))));
 
       else
@@ -734,8 +734,8 @@ package body Exp_Ch7 is
 
          Stmts := New_List (
            Make_Assignment_Statement (Data.Loc,
-             Name       => New_Reference_To (Data.Raised_Id, Data.Loc),
-             Expression => New_Reference_To (Standard_True, Data.Loc)));
+             Name       => New_Occurrence_Of (Data.Raised_Id, Data.Loc),
+             Expression => New_Occurrence_Of (Standard_True, Data.Loc)));
       end if;
 
       --  Generate:
@@ -907,7 +907,7 @@ package body Exp_Ch7 is
              Defining_Identifier => Fin_Mas_Id,
              Aliased_Present     => True,
              Object_Definition   =>
-               New_Reference_To (RTE (RE_Finalization_Master), Loc)));
+               New_Occurrence_Of (RTE (RE_Finalization_Master), Loc)));
 
          --  Storage pool selection and attribute decoration of the generated
          --  master. Since .NET/JVM compilers do not support pools, this step
@@ -934,11 +934,11 @@ package body Exp_Ch7 is
             Append_To (Actions,
               Make_Procedure_Call_Statement (Loc,
                 Name                   =>
-                  New_Reference_To (RTE (RE_Set_Base_Pool), Loc),
+                  New_Occurrence_Of (RTE (RE_Set_Base_Pool), Loc),
                 Parameter_Associations => New_List (
-                  New_Reference_To (Fin_Mas_Id, Loc),
+                  New_Occurrence_Of (Fin_Mas_Id, Loc),
                   Make_Attribute_Reference (Loc,
-                    Prefix         => New_Reference_To (Pool_Id, Loc),
+                    Prefix         => New_Occurrence_Of (Pool_Id, Loc),
                     Attribute_Name => Name_Unrestricted_Access))));
          end if;
 
@@ -1201,7 +1201,7 @@ package body Exp_Ch7 is
                 Defining_Identifier => Counter_Typ,
                 Subtype_Indication  =>
                   Make_Subtype_Indication (Loc,
-                    Subtype_Mark => New_Reference_To (Standard_Natural, Loc),
+                    Subtype_Mark => New_Occurrence_Of (Standard_Natural, Loc),
                     Constraint   =>
                       Make_Range_Constraint (Loc,
                         Range_Expression =>
@@ -1218,7 +1218,7 @@ package body Exp_Ch7 is
             Counter_Decl :=
               Make_Object_Declaration (Loc,
                 Defining_Identifier => Counter_Id,
-                Object_Definition   => New_Reference_To (Counter_Typ, Loc),
+                Object_Definition   => New_Occurrence_Of (Counter_Typ, Loc),
                 Expression          => Make_Integer_Literal (Loc, 0));
 
             --  Set the type of the counter explicitly to prevent errors when
@@ -1421,7 +1421,7 @@ package body Exp_Ch7 is
                 Discrete_Choices => New_List (Make_Others_Choice (Loc)),
                 Statements       => New_List (
                   Make_Goto_Statement (Loc,
-                    Name => New_Reference_To (Entity (Label_Id), Loc)))));
+                    Name => New_Occurrence_Of (Entity (Label_Id), Loc)))));
 
             --  Generate:
             --    <<L0>>
@@ -1472,9 +1472,9 @@ package body Exp_Ch7 is
             Append_To (Finalizer_Stmts,
               Make_Procedure_Call_Statement (Loc,
                 Name                   =>
-                  New_Reference_To (RTE (RE_SS_Release), Loc),
+                  New_Occurrence_Of (RTE (RE_SS_Release), Loc),
                 Parameter_Associations => New_List (
-                  New_Reference_To (Mark_Id, Loc))));
+                  New_Occurrence_Of (Mark_Id, Loc))));
          end if;
 
          --  Protect the statements with abort defer/undefer. This is only when
@@ -1487,11 +1487,11 @@ package body Exp_Ch7 is
          then
             Prepend_To (Finalizer_Stmts,
               Make_Procedure_Call_Statement (Loc,
-                Name => New_Reference_To (RTE (RE_Abort_Defer), Loc)));
+                Name => New_Occurrence_Of (RTE (RE_Abort_Defer), Loc)));
 
             Append_To (Finalizer_Stmts,
               Make_Procedure_Call_Statement (Loc,
-                Name => New_Reference_To (RTE (RE_Abort_Undefer), Loc)));
+                Name => New_Occurrence_Of (RTE (RE_Abort_Undefer), Loc)));
          end if;
 
          --  The local exception does not need to be reraised for library-level
@@ -2149,16 +2149,17 @@ package body Exp_Ch7 is
               Make_Object_Renaming_Declaration (Loc,
                 Defining_Identifier => Pool_Id,
                 Subtype_Mark        =>
-                  New_Reference_To (RTE (RE_Root_Storage_Pool), Loc),
+                  New_Occurrence_Of (RTE (RE_Root_Storage_Pool), Loc),
                 Name                =>
                   Make_Explicit_Dereference (Loc,
                     Prefix =>
                       Make_Function_Call (Loc,
                         Name                   =>
-                          New_Reference_To (RTE (RE_Base_Pool), Loc),
+                          New_Occurrence_Of (RTE (RE_Base_Pool), Loc),
                         Parameter_Associations => New_List (
                           Make_Explicit_Dereference (Loc,
-                            Prefix => New_Reference_To (Fin_Mas_Id, Loc)))))));
+                            Prefix =>
+                              New_Occurrence_Of (Fin_Mas_Id, Loc)))))));
 
             --  Create an access type which uses the storage pool of the
             --  caller's finalization master.
@@ -2173,7 +2174,7 @@ package body Exp_Ch7 is
                 Defining_Identifier => Ptr_Typ,
                 Type_Definition     =>
                   Make_Access_To_Object_Definition (Loc,
-                    Subtype_Indication => New_Reference_To (Obj_Typ, Loc))));
+                    Subtype_Indication => New_Occurrence_Of (Obj_Typ, Loc))));
 
             --  Perform minor decoration in order to set the master and the
             --  storage pool attributes.
@@ -2189,7 +2190,7 @@ package body Exp_Ch7 is
               Make_Free_Statement (Loc,
                 Expression =>
                   Unchecked_Convert_To (Ptr_Typ,
-                    New_Reference_To (Temp_Id, Loc)));
+                    New_Occurrence_Of (Temp_Id, Loc)));
 
             Set_Storage_Pool (Free_Stmt, Pool_Id);
 
@@ -2215,7 +2216,7 @@ package body Exp_Ch7 is
 
             Cond :=
               Make_Op_Ne (Loc,
-                Left_Opnd  => New_Reference_To (Fin_Mas_Id, Loc),
+                Left_Opnd  => New_Occurrence_Of (Fin_Mas_Id, Loc),
                 Right_Opnd => Make_Null (Loc));
 
             --  For constrained or tagged results escalate the condition to
@@ -2236,7 +2237,7 @@ package body Exp_Ch7 is
                     Make_And_Then (Loc,
                       Left_Opnd  =>
                         Make_Op_Gt (Loc,
-                          Left_Opnd  => New_Reference_To (Alloc, Loc),
+                          Left_Opnd  => New_Occurrence_Of (Alloc, Loc),
                           Right_Opnd =>
                             Make_Integer_Literal (Loc,
                               UI_From_Int
@@ -2431,7 +2432,7 @@ package body Exp_Ch7 is
       --  Start of processing for Process_Object_Declaration
 
       begin
-         Obj_Ref := New_Reference_To (Obj_Id, Loc);
+         Obj_Ref := New_Occurrence_Of (Obj_Id, Loc);
          Obj_Typ := Base_Type (Etype (Obj_Id));
 
          --  Handle access types
@@ -2450,15 +2451,26 @@ package body Exp_Ch7 is
 
          Inc_Decl :=
            Make_Assignment_Statement (Loc,
-             Name       => New_Reference_To (Counter_Id, Loc),
+             Name       => New_Occurrence_Of (Counter_Id, Loc),
              Expression => Make_Integer_Literal (Loc, Counter_Val));
 
          --  Insert the counter after all initialization has been done. The
-         --  place of insertion depends on the context. When dealing with a
-         --  controlled function, the counter is inserted directly after the
-         --  declaration because such objects lack init calls.
+         --  place of insertion depends on the context. If an object is being
+         --  initialized via an aggregate, then the counter must be inserted
+         --  after the last aggregate assignment.
 
-         Find_Last_Init (Decl, Obj_Typ, Count_Ins, Body_Ins);
+         if Ekind (Obj_Id) = E_Variable
+           and then Present (Last_Aggregate_Assignment (Obj_Id))
+         then
+            Count_Ins := Last_Aggregate_Assignment (Obj_Id);
+            Body_Ins  := Empty;
+
+         --  In all other cases the counter is inserted after the last call to
+         --  either [Deep_]Initialize or the type specific init proc.
+
+         else
+            Find_Last_Init (Decl, Obj_Typ, Count_Ins, Body_Ins);
+         end if;
 
          Insert_After (Count_Ins, Inc_Decl);
          Analyze (Inc_Decl);
@@ -2506,7 +2518,7 @@ package body Exp_Ch7 is
                Make_Integer_Literal (Loc, Counter_Val)),
              Statements       => New_List (
                Make_Goto_Statement (Loc,
-                 Name => New_Reference_To (Entity (Label_Id), Loc)))));
+                 Name => New_Occurrence_Of (Entity (Label_Id), Loc)))));
 
          --  Insert the jump destination, generate:
          --
@@ -2682,7 +2694,7 @@ package body Exp_Ch7 is
                     Make_If_Statement (Loc,
                       Condition       =>
                         Make_Op_Ne (Loc,
-                          Left_Opnd  => New_Reference_To (Obj_Id, Loc),
+                          Left_Opnd  => New_Occurrence_Of (Obj_Id, Loc),
                           Right_Opnd => Make_Null (Loc)),
                       Then_Statements => Fin_Stmts));
 
@@ -2700,7 +2712,7 @@ package body Exp_Ch7 is
                       Condition     =>
                         Make_Op_Not (Loc,
                           Right_Opnd =>
-                            New_Reference_To
+                            New_Occurrence_Of
                               (Status_Flag_Or_Transient_Decl (Obj_Id), Loc)),
 
                     Then_Statements => Fin_Stmts));
@@ -2732,9 +2744,9 @@ package body Exp_Ch7 is
          Append_To (Tagged_Type_Stmts,
            Make_Procedure_Call_Statement (Loc,
              Name                   =>
-               New_Reference_To (RTE (RE_Unregister_Tag), Loc),
+               New_Occurrence_Of (RTE (RE_Unregister_Tag), Loc),
              Parameter_Associations => New_List (
-               New_Reference_To (DT_Ptr, Loc))));
+               New_Occurrence_Of (DT_Ptr, Loc))));
       end Process_Tagged_Type_Declaration;
 
    --  Start of processing for Build_Finalizer
@@ -2960,7 +2972,7 @@ package body Exp_Ch7 is
          end;
       end if;
 
-      Set_At_End_Proc (HSS, New_Reference_To (Fin_Id, Loc));
+      Set_At_End_Proc (HSS, New_Occurrence_Of (Fin_Id, Loc));
 
       Analyze (At_End_Proc (HSS));
       Expand_At_End_Handler (HSS, Empty);
@@ -3032,7 +3044,7 @@ package body Exp_Ch7 is
       then
          Data.Abort_Id  := Make_Temporary (Loc, 'A');
 
-         A_Expr := New_Reference_To (RTE (RE_Triggered_By_Abort), Loc);
+         A_Expr := New_Occurrence_Of (RTE (RE_Triggered_By_Abort), Loc);
 
          --  Generate:
 
@@ -3042,7 +3054,7 @@ package body Exp_Ch7 is
            Make_Object_Declaration (Loc,
              Defining_Identifier => Data.Abort_Id,
              Constant_Present    => True,
-             Object_Definition   => New_Reference_To (Standard_Boolean, Loc),
+             Object_Definition   => New_Occurrence_Of (Standard_Boolean, Loc),
              Expression          => A_Expr));
 
       else
@@ -3062,7 +3074,7 @@ package body Exp_Ch7 is
            Make_Object_Declaration (Loc,
              Defining_Identifier => Data.E_Id,
              Object_Definition   =>
-               New_Reference_To (RTE (RE_Exception_Occurrence), Loc));
+               New_Occurrence_Of (RTE (RE_Exception_Occurrence), Loc));
          Set_No_Initialization (E_Decl);
 
          Append_To (Decls, E_Decl);
@@ -3078,8 +3090,8 @@ package body Exp_Ch7 is
       Append_To (Decls,
         Make_Object_Declaration (Loc,
           Defining_Identifier => Data.Raised_Id,
-          Object_Definition   => New_Reference_To (Standard_Boolean, Loc),
-          Expression          => New_Reference_To (Standard_False, Loc)));
+          Object_Definition   => New_Occurrence_Of (Standard_Boolean, Loc),
+          Expression          => New_Occurrence_Of (Standard_False, Loc)));
    end Build_Object_Declarations;
 
    ---------------------------
@@ -3102,10 +3114,10 @@ package body Exp_Ch7 is
          Stmt :=
            Make_Procedure_Call_Statement (Data.Loc,
               Name                   =>
-                New_Reference_To
+                New_Occurrence_Of
                   (RTE (RE_Raise_From_Controlled_Operation), Data.Loc),
               Parameter_Associations =>
-                New_List (New_Reference_To (Data.E_Id, Data.Loc)));
+                New_List (New_Occurrence_Of (Data.E_Id, Data.Loc)));
 
       --  Restricted run-time: exception messages are not supported and hence
       --  Raise_From_Controlled_Operation is not supported. Raise Program_Error
@@ -3123,14 +3135,14 @@ package body Exp_Ch7 is
       --      <or>
       --    Raised_Id
 
-      Expr := New_Reference_To (Data.Raised_Id, Data.Loc);
+      Expr := New_Occurrence_Of (Data.Raised_Id, Data.Loc);
 
       if Present (Data.Abort_Id) then
          Expr := Make_And_Then (Data.Loc,
            Left_Opnd  => Expr,
            Right_Opnd =>
              Make_Op_Not (Data.Loc,
-               Right_Opnd => New_Reference_To (Data.Abort_Id, Data.Loc)));
+               Right_Opnd => New_Occurrence_Of (Data.Abort_Id, Data.Loc)));
       end if;
 
       --  Generate:
@@ -3259,7 +3271,7 @@ package body Exp_Ch7 is
 
          else
             Index := Make_Temporary (Loc, 'J');
-            Append (New_Reference_To (Index, Loc), Index_List);
+            Append (New_Occurrence_Of (Index, Loc), Index_List);
 
             return New_List (
               Make_Implicit_Loop_Statement (N,
@@ -3378,7 +3390,7 @@ package body Exp_Ch7 is
          return
            Make_Procedure_Call_Statement (Loc,
              Name                   =>
-               New_Reference_To (RTE (RE_Finalize_Protection), Loc),
+               New_Occurrence_Of (RTE (RE_Finalize_Protection), Loc),
              Parameter_Associations => New_List (Concurrent_Ref (Ref)));
       end if;
    end Cleanup_Protected_Object;
@@ -3405,7 +3417,7 @@ package body Exp_Ch7 is
          return
            Make_Procedure_Call_Statement (Loc,
              Name                   =>
-               New_Reference_To (RTE (RE_Free_Task), Loc),
+               New_Occurrence_Of (RTE (RE_Free_Task), Loc),
              Parameter_Associations => New_List (Concurrent_Ref (Ref)));
       end if;
    end Cleanup_Task;
@@ -3546,6 +3558,7 @@ package body Exp_Ch7 is
 
    procedure Establish_Transient_Scope (N : Node_Id; Sec_Stack : Boolean) is
       Loc       : constant Source_Ptr := Sloc (N);
+      Iter_Loop : Entity_Id;
       Wrap_Node : Node_Id;
 
    begin
@@ -3559,8 +3572,7 @@ package body Exp_Ch7 is
 
             return;
 
-         --  If we have encountered Standard there are no enclosing
-         --  transient scopes.
+         --  If we encounter Standard there are no enclosing transient scopes
 
          elsif Scope_Stack.Table (S).Entity = Standard_Standard then
             exit;
@@ -3569,17 +3581,17 @@ package body Exp_Ch7 is
 
       Wrap_Node := Find_Node_To_Be_Wrapped (N);
 
-      --  Case of no wrap node, false alert, no transient scope needed
+      --  The context does not contain a node that requires a transient scope,
+      --  nothing to do.
 
       if No (Wrap_Node) then
          null;
 
-      --  If the node to wrap is an iteration_scheme, the expression is
-      --  one of the bounds, and the expansion will make an explicit
-      --  declaration for it (see Analyze_Iteration_Scheme, sem_ch5.adb),
-      --  so do not apply any transformations here. Same for an Ada 2012
-      --  iterator specification, where a block is created for the expression
-      --  that build the container.
+      --  If the node to wrap is an iteration_scheme, the expression is one of
+      --  the bounds, and the expansion will make an explicit declaration for
+      --  it (see Analyze_Iteration_Scheme, sem_ch5.adb), so do not apply any
+      --  transformations here. Same for an Ada 2012 iterator specification,
+      --  where a block is created for the expression that build the container.
 
       elsif Nkind_In (Wrap_Node, N_Iteration_Scheme,
                                  N_Iterator_Specification)
@@ -3596,13 +3608,51 @@ package body Exp_Ch7 is
       then
          null;
 
+      --  Create a block entity to act as a transient scope. Note that when the
+      --  node to be wrapped is an expression or a statement, a real physical
+      --  block is constructed (see routines Wrap_Transient_Expression and
+      --  Wrap_Transient_Statement) and inserted into the tree.
+
       else
          Push_Scope (New_Internal_Entity (E_Block, Current_Scope, Loc, 'B'));
          Set_Scope_Is_Transient;
 
+         --  The transient scope must also take care of the secondary stack
+         --  management.
+
          if Sec_Stack then
             Set_Uses_Sec_Stack (Current_Scope);
             Check_Restriction (No_Secondary_Stack, N);
+
+            --  The expansion of iterator loops generates references to objects
+            --  in order to extract elements from a container:
+
+            --    Ref : Reference_Type_Ptr := Reference (Container, Cursor);
+            --    Obj : <object type> renames Ref.all.Element.all;
+
+            --  These references are controlled and returned on the secondary
+            --  stack. A new reference is created at each iteration of the loop
+            --  and as a result it must be finalized and the space occupied by
+            --  it on the secondary stack reclaimed at the end of the current
+            --  iteration.
+
+            --  When the context that requires a transient scope is a call to
+            --  routine Reference, the node to be wrapped is the source object:
+
+            --    for Obj of Container loop
+
+            --  Routine Wrap_Transient_Declaration however does not generate a
+            --  physical block as wrapping a declaration will kill it too ealy.
+            --  To handle this peculiar case, mark the related iterator loop as
+            --  requiring the secondary stack. This signals the finalization
+            --  machinery to manage the secondary stack (see routine
+            --  Process_Statements_For_Controlled_Objects).
+
+            Iter_Loop := Find_Enclosing_Iterator_Loop (Current_Scope);
+
+            if Present (Iter_Loop) then
+               Set_Uses_Sec_Stack (Iter_Loop);
+            end if;
          end if;
 
          Set_Etype (Current_Scope, Standard_Void_Type);
@@ -3767,10 +3817,10 @@ package body Exp_Ch7 is
               Make_Object_Declaration (Loc,
                 Defining_Identifier => Mark,
                 Object_Definition   =>
-                  New_Reference_To (RTE (RE_Mark_Id), Loc),
+                  New_Occurrence_Of (RTE (RE_Mark_Id), Loc),
                 Expression          =>
                   Make_Function_Call (Loc,
-                    Name => New_Reference_To (RTE (RE_SS_Mark), Loc))));
+                    Name => New_Occurrence_Of (RTE (RE_SS_Mark), Loc))));
 
             Set_Uses_Sec_Stack (Scop, False);
          end if;
@@ -4173,10 +4223,15 @@ package body Exp_Ch7 is
 
             --  Usually assignments are good candidate for wrapping except
             --  when they have been generated as part of a controlled aggregate
-            --  where the wrapping should take place more globally.
+            --  where the wrapping should take place more globally. Note that
+            --  No_Ctrl_Actions may be set also for non-controlled assignements
+            --  in order to disable the use of dispatching _assign, so we need
+            --  to test explicitly for a controlled type here.
 
             when N_Assignment_Statement =>
-               if No_Ctrl_Actions (The_Parent) then
+               if No_Ctrl_Actions (The_Parent)
+                 and then Needs_Finalization (Etype (Name (The_Parent)))
+               then
                   null;
                else
                   return The_Parent;
@@ -4419,23 +4474,45 @@ package body Exp_Ch7 is
          function Is_Subprogram_Call (N : Node_Id) return Traverse_Result;
          --  Determine whether an arbitrary node denotes a subprogram call
 
+         procedure Detect_Subprogram_Call is
+           new Traverse_Proc (Is_Subprogram_Call);
+
          ------------------------
          -- Is_Subprogram_Call --
          ------------------------
 
          function Is_Subprogram_Call (N : Node_Id) return Traverse_Result is
          begin
-            --  A regular procedure or function call
+            --  Complex constructs are factored out by the expander and their
+            --  occurrences are replaced with references to temporaries. Due to
+            --  this expansion activity, inspect the original tree to detect
+            --  subprogram calls.
 
-            if Nkind (N) in N_Subprogram_Call then
+            if Nkind (N) = N_Identifier and then Original_Node (N) /= N then
+               Detect_Subprogram_Call (Original_Node (N));
+
+               --  The original construct contains a subprogram call, there is
+               --  no point in continuing the tree traversal.
+
+               if Must_Hook then
+                  return Abandon;
+               else
+                  return OK;
+               end if;
+
+            --  The original construct contains a subprogram call, there is no
+            --  point in continuing the tree traversal.
+
+            elsif Nkind (N) = N_Object_Declaration
+              and then Present (Expression (N))
+              and then Nkind (Original_Node (Expression (N))) = N_Function_Call
+            then
                Must_Hook := True;
                return Abandon;
 
-            --  Detect a call to a function that returns on the secondary stack
+            --  A regular procedure or function call
 
-            elsif Nkind (N) = N_Object_Declaration
-              and then Nkind (Original_Node (Expression (N))) = N_Function_Call
-            then
+            elsif Nkind (N) in N_Subprogram_Call then
                Must_Hook := True;
                return Abandon;
 
@@ -4446,34 +4523,58 @@ package body Exp_Ch7 is
             end if;
          end Is_Subprogram_Call;
 
-         procedure Detect_Subprogram_Call is
-           new Traverse_Proc (Is_Subprogram_Call);
-
          --  Local variables
 
          Built     : Boolean := False;
          Desig_Typ : Entity_Id;
+         Expr      : Node_Id;
          Fin_Block : Node_Id;
          Fin_Data  : Finalization_Exception_Data;
          Fin_Decls : List_Id;
+         Fin_Insrt : Node_Id;
          Last_Fin  : Node_Id := Empty;
          Loc       : Source_Ptr;
          Obj_Id    : Entity_Id;
          Obj_Ref   : Node_Id;
          Obj_Typ   : Entity_Id;
          Prev_Fin  : Node_Id := Empty;
+         Ptr_Id    : Entity_Id;
          Stmt      : Node_Id;
          Stmts     : List_Id;
          Temp_Id   : Entity_Id;
+         Temp_Ins  : Node_Id;
 
       --  Start of processing for Process_Transient_Objects
 
       begin
+         --  Recognize a scenario where the transient context is an object
+         --  declaration initialized by a build-in-place function call:
+
+         --    Obj : ... := BIP_Function_Call (Ctrl_Func_Call);
+
+         --  The rough expansion of the above is:
+
+         --    Temp : ... := Ctrl_Func_Call;
+         --    Obj  : ...;
+         --    Res  : ... := BIP_Func_Call (..., Obj, ...);
+
+         --  The finalization of any controlled transient must happen after
+         --  the build-in-place function call is executed.
+
+         if Nkind (N) = N_Object_Declaration
+           and then Present (BIP_Initialization_Call (Defining_Identifier (N)))
+         then
+            Must_Hook := True;
+            Fin_Insrt := BIP_Initialization_Call (Defining_Identifier (N));
+
          --  Search the context for at least one subprogram call. If found, the
          --  machinery exports all transient objects to the enclosing finalizer
          --  due to the possibility of abnormal call termination.
 
-         Detect_Subprogram_Call (N);
+         else
+            Detect_Subprogram_Call (N);
+            Fin_Insrt := Last_Object;
+         end if;
 
          --  Examine all objects in the list First_Object .. Last_Object
 
@@ -4505,11 +4606,10 @@ package body Exp_Ch7 is
                --  time around.
 
                if not Built then
+                  Built     := True;
                   Fin_Decls := New_List;
 
                   Build_Object_Declarations (Fin_Data, Fin_Decls, Loc);
-
-                  Built := True;
                end if;
 
                --  Transient variables associated with subprogram calls need
@@ -4524,69 +4624,80 @@ package body Exp_Ch7 is
                --  "hooks" are picked up by the finalization machinery.
 
                if Must_Hook then
-                  declare
-                     Expr   : Node_Id;
-                     Ptr_Id : Entity_Id;
 
-                  begin
-                     --  Step 1: Create an access type which provides a
-                     --  reference to the transient object. Generate:
+                  --  Step 1: Create an access type which provides a reference
+                  --  to the transient object. Generate:
 
-                     --    Ann : access [all] <Desig_Typ>;
+                  --    Ann : access [all] <Desig_Typ>;
 
-                     Ptr_Id := Make_Temporary (Loc, 'A');
+                  Ptr_Id := Make_Temporary (Loc, 'A');
 
-                     Insert_Action (Stmt,
-                       Make_Full_Type_Declaration (Loc,
-                         Defining_Identifier => Ptr_Id,
-                         Type_Definition     =>
-                           Make_Access_To_Object_Definition (Loc,
-                             All_Present        =>
-                               Ekind (Obj_Typ) = E_General_Access_Type,
-                             Subtype_Indication =>
-                               New_Reference_To (Desig_Typ, Loc))));
+                  Insert_Action (Stmt,
+                    Make_Full_Type_Declaration (Loc,
+                      Defining_Identifier => Ptr_Id,
+                      Type_Definition     =>
+                        Make_Access_To_Object_Definition (Loc,
+                          All_Present        =>
+                            Ekind (Obj_Typ) = E_General_Access_Type,
+                          Subtype_Indication =>
+                            New_Occurrence_Of (Desig_Typ, Loc))));
 
-                     --  Step 2: Create a temporary which acts as a hook to
-                     --  the transient object. Generate:
+                  --  Step 2: Create a temporary which acts as a hook to the
+                  --  transient object. Generate:
 
-                     --    Temp : Ptr_Id := null;
+                  --    Temp : Ptr_Id := null;
 
-                     Temp_Id := Make_Temporary (Loc, 'T');
+                  Temp_Id := Make_Temporary (Loc, 'T');
 
-                     Insert_Action (Stmt,
-                       Make_Object_Declaration (Loc,
-                         Defining_Identifier => Temp_Id,
-                         Object_Definition   =>
-                           New_Reference_To (Ptr_Id, Loc)));
+                  Insert_Action (Stmt,
+                    Make_Object_Declaration (Loc,
+                      Defining_Identifier => Temp_Id,
+                      Object_Definition   =>
+                        New_Occurrence_Of (Ptr_Id, Loc)));
 
-                     --  Mark the temporary as a transient hook. This signals
-                     --  the machinery in Build_Finalizer to recognize this
-                     --  special case.
+                  --  Mark the temporary as a transient hook. This signals the
+                  --  machinery in Build_Finalizer to recognize this special
+                  --  case.
 
-                     Set_Status_Flag_Or_Transient_Decl (Temp_Id, Stmt);
+                  Set_Status_Flag_Or_Transient_Decl (Temp_Id, Stmt);
 
-                     --  Step 3: Hook the transient object to the temporary
+                  --  Step 3: Hook the transient object to the temporary
 
-                     if Is_Access_Type (Obj_Typ) then
-                        Expr :=
-                          Convert_To (Ptr_Id, New_Reference_To (Obj_Id, Loc));
-                     else
-                        Expr :=
-                          Make_Attribute_Reference (Loc,
-                            Prefix         => New_Reference_To (Obj_Id, Loc),
-                            Attribute_Name => Name_Unrestricted_Access);
-                     end if;
+                  if Is_Access_Type (Obj_Typ) then
+                     Expr :=
+                       Convert_To (Ptr_Id, New_Occurrence_Of (Obj_Id, Loc));
+                  else
+                     Expr :=
+                       Make_Attribute_Reference (Loc,
+                         Prefix         => New_Occurrence_Of (Obj_Id, Loc),
+                         Attribute_Name => Name_Unrestricted_Access);
+                  end if;
 
-                     --  Generate:
-                     --    Temp := Ptr_Id (Obj_Id);
-                     --      <or>
-                     --    Temp := Obj_Id'Unrestricted_Access;
+                  --  Generate:
+                  --    Temp := Ptr_Id (Obj_Id);
+                  --      <or>
+                  --    Temp := Obj_Id'Unrestricted_Access;
 
-                     Insert_After_And_Analyze (Stmt,
-                       Make_Assignment_Statement (Loc,
-                         Name       => New_Reference_To (Temp_Id, Loc),
-                         Expression => Expr));
-                  end;
+                  --  When the transient object is initialized by an aggregate,
+                  --  the hook must capture the object after the last component
+                  --  assignment takes place. Only then is the object fully
+                  --  initialized.
+
+                  if Ekind (Obj_Id) = E_Variable
+                    and then Present (Last_Aggregate_Assignment (Obj_Id))
+                  then
+                     Temp_Ins := Last_Aggregate_Assignment (Obj_Id);
+
+                  --  Otherwise the hook seizes the related object immediately
+
+                  else
+                     Temp_Ins := Stmt;
+                  end if;
+
+                  Insert_After_And_Analyze (Temp_Ins,
+                    Make_Assignment_Statement (Loc,
+                      Name       => New_Occurrence_Of (Temp_Id, Loc),
+                      Expression => Expr));
                end if;
 
                Stmts := New_List;
@@ -4601,14 +4712,14 @@ package body Exp_Ch7 is
                if Must_Hook then
                   Append_To (Stmts,
                     Make_Assignment_Statement (Loc,
-                      Name       => New_Reference_To (Temp_Id, Loc),
+                      Name       => New_Occurrence_Of (Temp_Id, Loc),
                       Expression => Make_Null (Loc)));
                end if;
 
                --  Generate:
                --    [Deep_]Finalize (Obj_Ref);
 
-               Obj_Ref := New_Reference_To (Obj_Id, Loc);
+               Obj_Ref := New_Occurrence_Of (Obj_Id, Loc);
 
                if Is_Access_Type (Obj_Typ) then
                   Obj_Ref := Make_Explicit_Dereference (Loc, Obj_Ref);
@@ -4646,7 +4757,7 @@ package body Exp_Ch7 is
                if Present (Prev_Fin) then
                   Insert_Before_And_Analyze (Prev_Fin, Fin_Block);
                else
-                  Insert_After_And_Analyze (Last_Object,
+                  Insert_After_And_Analyze (Fin_Insrt,
                     Make_Block_Statement (Loc,
                       Declarations => Fin_Decls,
                       Handled_Statement_Sequence =>
@@ -4674,9 +4785,7 @@ package body Exp_Ch7 is
          --       Raise_From_Controlled_Operation (E);
          --    end if;
 
-         if Built
-           and then Present (Last_Fin)
-         then
+         if Built and then Present (Last_Fin) then
             Insert_After_And_Analyze (Last_Fin,
               Build_Raise_Statement (Fin_Data));
          end if;
@@ -4897,9 +5006,9 @@ package body Exp_Ch7 is
       return
         Make_Procedure_Call_Statement (Loc,
           Name                   =>
-            New_Reference_To (RTE (RE_Attach), Loc),
+            New_Occurrence_Of (RTE (RE_Attach), Loc),
           Parameter_Associations => New_List (
-            New_Reference_To (Finalization_Master (Ptr_Typ), Loc),
+            New_Occurrence_Of (Finalization_Master (Ptr_Typ), Loc),
             Unchecked_Convert_To (RTE (RE_Root_Controlled_Ptr), Obj_Ref)));
    end Make_Attach_Call;
 
@@ -4914,7 +5023,7 @@ package body Exp_Ch7 is
       return
         Make_Procedure_Call_Statement (Loc,
           Name                   =>
-            New_Reference_To (RTE (RE_Detach), Loc),
+            New_Occurrence_Of (RTE (RE_Detach), Loc),
           Parameter_Associations => New_List (
             Unchecked_Convert_To (RTE (RE_Root_Controlled_Ptr), Obj_Ref)));
    end Make_Detach_Call;
@@ -4937,12 +5046,12 @@ package body Exp_Ch7 is
       --  the corresponding flag a False value.
 
       if For_Parent then
-         Append_To (Params, New_Reference_To (Standard_False, Loc));
+         Append_To (Params, New_Occurrence_Of (Standard_False, Loc));
       end if;
 
       return
         Make_Procedure_Call_Statement (Loc,
-          Name                   => New_Reference_To (Proc_Id, Loc),
+          Name                   => New_Occurrence_Of (Proc_Id, Loc),
           Parameter_Associations => Params);
    end Make_Call;
 
@@ -5314,11 +5423,11 @@ package body Exp_Ch7 is
 
             return
               Make_Assignment_Statement (Loc,
-                Name       => New_Reference_To (Counter_Id, Loc),
+                Name       => New_Occurrence_Of (Counter_Id, Loc),
                 Expression =>
                   Make_Op_Subtract (Loc,
                     Left_Opnd  => Expr,
-                    Right_Opnd => New_Reference_To (Counter_Id, Loc)));
+                    Right_Opnd => New_Occurrence_Of (Counter_Id, Loc)));
          end Build_Counter_Assignment;
 
          -----------------------------
@@ -5425,15 +5534,15 @@ package body Exp_Ch7 is
            Make_If_Statement (Loc,
              Condition =>
                Make_Op_Gt (Loc,
-                 Left_Opnd  => New_Reference_To (Counter_Id, Loc),
+                 Left_Opnd  => New_Occurrence_Of (Counter_Id, Loc),
                  Right_Opnd => Make_Integer_Literal (Loc, 0)),
 
              Then_Statements => New_List (
                Make_Assignment_Statement (Loc,
-                 Name       => New_Reference_To (Counter_Id, Loc),
+                 Name       => New_Occurrence_Of (Counter_Id, Loc),
                  Expression =>
                    Make_Op_Subtract (Loc,
-                     Left_Opnd  => New_Reference_To (Counter_Id, Loc),
+                     Left_Opnd  => New_Occurrence_Of (Counter_Id, Loc),
                      Right_Opnd => Make_Integer_Literal (Loc, 1)))),
 
              Else_Statements => New_List (Fin_Stmt));
@@ -5541,10 +5650,10 @@ package body Exp_Ch7 is
 
          Append_To (Statements (Handled_Statement_Sequence (Init_Loop)),
            Make_Assignment_Statement (Loc,
-             Name       => New_Reference_To (Counter_Id, Loc),
+             Name       => New_Occurrence_Of (Counter_Id, Loc),
              Expression =>
                Make_Op_Add (Loc,
-                 Left_Opnd  => New_Reference_To (Counter_Id, Loc),
+                 Left_Opnd  => New_Occurrence_Of (Counter_Id, Loc),
                  Right_Opnd => Make_Integer_Literal (Loc, 1))));
 
          --  Generate all initialization loops starting from the innermost
@@ -5597,7 +5706,7 @@ package body Exp_Ch7 is
                  Make_Object_Declaration (Loc,
                    Defining_Identifier => Counter_Id,
                    Object_Definition   =>
-                     New_Reference_To (Standard_Integer, Loc),
+                     New_Occurrence_Of (Standard_Integer, Loc),
                    Expression          => Make_Integer_Literal (Loc, 0))),
 
                Handled_Statement_Sequence =>
@@ -5619,7 +5728,7 @@ package body Exp_Ch7 is
       begin
          Id := First (L);
          while Present (Id) loop
-            Append_To (Refs, New_Reference_To (Id, Loc));
+            Append_To (Refs, New_Occurrence_Of (Id, Loc));
             Next (Id);
          end loop;
 
@@ -5663,7 +5772,8 @@ package body Exp_Ch7 is
          Formals := New_List (
            Make_Parameter_Specification (Loc,
              Defining_Identifier => Make_Defining_Identifier (Loc, Name_V),
-             Parameter_Type      => New_Reference_To (RTE (RE_Address), Loc)));
+             Parameter_Type      =>
+               New_Occurrence_Of (RTE (RE_Address), Loc)));
 
       --  Default case
 
@@ -5675,7 +5785,7 @@ package body Exp_Ch7 is
              Defining_Identifier => Make_Defining_Identifier (Loc, Name_V),
              In_Present          => True,
              Out_Present         => True,
-             Parameter_Type      => New_Reference_To (Typ, Loc)));
+             Parameter_Type      => New_Occurrence_Of (Typ, Loc)));
 
          --  F : Boolean := True
 
@@ -5686,9 +5796,9 @@ package body Exp_Ch7 is
               Make_Parameter_Specification (Loc,
                 Defining_Identifier => Make_Defining_Identifier (Loc, Name_F),
                 Parameter_Type      =>
-                  New_Reference_To (Standard_Boolean, Loc),
+                  New_Occurrence_Of (Standard_Boolean, Loc),
                 Expression          =>
-                  New_Reference_To (Standard_True, Loc)));
+                  New_Occurrence_Of (Standard_True, Loc)));
          end if;
       end if;
 
@@ -6226,7 +6336,7 @@ package body Exp_Ch7 is
                if Present (Proc) then
                   Adj_Stmt :=
                     Make_Procedure_Call_Statement (Loc,
-                      Name                   => New_Reference_To (Proc, Loc),
+                      Name                   => New_Occurrence_Of (Proc, Loc),
                       Parameter_Associations => New_List (
                         Make_Identifier (Loc, Name_V)));
 
@@ -6392,7 +6502,7 @@ package body Exp_Ch7 is
                          Statements => New_List (
                            Make_Goto_Statement (Loc,
                              Name =>
-                               New_Reference_To (Entity (Label_Id), Loc)))));
+                               New_Occurrence_Of (Entity (Label_Id), Loc)))));
 
                      --  Generate:
                      --    <<LN>>
@@ -6638,7 +6748,7 @@ package body Exp_Ch7 is
 
                    Statements => New_List (
                      Make_Goto_Statement (Loc,
-                       Name => New_Reference_To (Entity (Label_Id), Loc)))));
+                       Name => New_Occurrence_Of (Entity (Label_Id), Loc)))));
 
                Append_To (Stmts, Label);  --  statement
 
@@ -6806,7 +6916,7 @@ package body Exp_Ch7 is
                if Present (Proc) then
                   Fin_Stmt :=
                     Make_Procedure_Call_Statement (Loc,
-                      Name                   => New_Reference_To (Proc, Loc),
+                      Name                   => New_Occurrence_Of (Proc, Loc),
                       Parameter_Associations => New_List (
                         Make_Identifier (Loc, Name_V)));
 
@@ -6952,7 +7062,7 @@ package body Exp_Ch7 is
                   return New_List (
                     Make_Procedure_Call_Statement (Loc,
                       Name                   =>
-                        New_Reference_To
+                        New_Occurrence_Of
                           (Find_Prim_Op (Typ, Name_Of (Prim)), Loc),
                       Parameter_Associations => New_List (
                         Make_Identifier (Loc, Name_V))));
@@ -7207,7 +7317,7 @@ package body Exp_Ch7 is
                   Defining_Identifier =>
                     Make_Defining_Identifier (Loc, Name_V),
                   Parameter_Type =>
-                    New_Reference_To (RTE (RE_Address), Loc)))),
+                    New_Occurrence_Of (RTE (RE_Address), Loc)))),
 
           Declarations => No_List,
 
@@ -7285,10 +7395,10 @@ package body Exp_Ch7 is
           Type_Definition     =>
             Make_Access_To_Object_Definition (Loc,
               All_Present        => True,
-              Subtype_Indication => New_Reference_To (Desg_Typ, Loc))),
+              Subtype_Indication => New_Occurrence_Of (Desg_Typ, Loc))),
 
         Make_Attribute_Definition_Clause (Loc,
-          Name       => New_Reference_To (Ptr_Typ, Loc),
+          Name       => New_Occurrence_Of (Ptr_Typ, Loc),
           Chars      => Name_Storage_Size,
           Expression => Make_Integer_Literal (Loc, 0)));
 
@@ -7311,7 +7421,7 @@ package body Exp_Ch7 is
 
             Append_To (Decls,
               Make_Attribute_Definition_Clause (Loc,
-                Name       => New_Reference_To (Ptr_Typ, Loc),
+                Name       => New_Occurrence_Of (Ptr_Typ, Loc),
                 Chars      => Name_Size,
                 Expression =>
                   Make_Integer_Literal (Loc, System_Address_Size)));
@@ -7327,12 +7437,12 @@ package body Exp_Ch7 is
                 Defining_Identifier => Dope_Id,
                 Constant_Present    => True,
                 Object_Definition   =>
-                  New_Reference_To (RTE (RE_Storage_Offset), Loc),
+                  New_Occurrence_Of (RTE (RE_Storage_Offset), Loc),
                 Expression          =>
                   Make_Op_Divide (Loc,
                     Left_Opnd  =>
                       Make_Attribute_Reference (Loc,
-                        Prefix         => New_Reference_To (Desg_Typ, Loc),
+                        Prefix         => New_Occurrence_Of (Desg_Typ, Loc),
                         Attribute_Name => Name_Descriptor_Size),
                     Right_Opnd =>
                       Make_Integer_Literal (Loc, System_Storage_Unit))));
@@ -7348,10 +7458,10 @@ package body Exp_Ch7 is
             Obj_Expr :=
               Make_Function_Call (Loc,
                 Name                   =>
-                  New_Reference_To (RTE (RE_Add_Offset_To_Address), Loc),
+                  New_Occurrence_Of (RTE (RE_Add_Offset_To_Address), Loc),
                 Parameter_Associations => New_List (
                   Obj_Expr,
-                  New_Reference_To (Dope_Id, Loc)));
+                  New_Occurrence_Of (Dope_Id, Loc)));
          end;
       end if;
 
@@ -7407,10 +7517,10 @@ package body Exp_Ch7 is
          Raise_Node :=
            Make_Procedure_Call_Statement (Loc,
              Name                   =>
-               New_Reference_To
+               New_Occurrence_Of
                  (RTE (RE_Raise_From_Controlled_Operation), Loc),
              Parameter_Associations => New_List (
-               New_Reference_To (E_Occ, Loc)));
+               New_Occurrence_Of (E_Occ, Loc)));
 
       --  Restricted run-time: exception messages are not supported
 
@@ -7512,7 +7622,7 @@ package body Exp_Ch7 is
       return
         Make_Procedure_Call_Statement (Loc,
           Name =>
-            New_Reference_To (Proc, Loc),
+            New_Occurrence_Of (Proc, Loc),
           Parameter_Associations => New_List (Ref));
    end Make_Init_Call;
 
@@ -7536,14 +7646,14 @@ package body Exp_Ch7 is
           Defining_Identifier => Make_Defining_Identifier (Loc, Name_V),
           In_Present          => True,
           Out_Present         => True,
-          Parameter_Type      => New_Reference_To (Typ, Loc)),
+          Parameter_Type      => New_Occurrence_Of (Typ, Loc)),
 
          --  F : Boolean := True
 
         Make_Parameter_Specification (Loc,
           Defining_Identifier => Make_Defining_Identifier (Loc, Name_F),
-          Parameter_Type      => New_Reference_To (Standard_Boolean, Loc),
-          Expression          => New_Reference_To (Standard_True, Loc)));
+          Parameter_Type      => New_Occurrence_Of (Standard_Boolean, Loc),
+          Expression          => New_Occurrence_Of (Standard_True, Loc)));
 
       --  Add the necessary number of counters to represent the initialization
       --  state of an object.
@@ -7641,12 +7751,12 @@ package body Exp_Ch7 is
       return
         Make_Procedure_Call_Statement (Loc,
           Name                   =>
-            New_Reference_To (RTE (RE_Set_Finalize_Address), Loc),
+            New_Occurrence_Of (RTE (RE_Set_Finalize_Address), Loc),
           Parameter_Associations => New_List (
             Fin_Mas_Ref,
             Make_Attribute_Reference (Loc,
               Prefix         =>
-                New_Reference_To (TSS (Utyp, TSS_Finalize_Address), Loc),
+                New_Occurrence_Of (TSS (Utyp, TSS_Finalize_Address), Loc),
               Attribute_Name => Name_Unrestricted_Access)));
    end Make_Set_Finalize_Address_Call;
 
@@ -7726,7 +7836,7 @@ package body Exp_Ch7 is
 
       Block :=
         Make_Block_Statement (Loc,
-          Identifier                 => New_Reference_To (Current_Scope, Loc),
+          Identifier                 => New_Occurrence_Of (Current_Scope, Loc),
           Declarations               => Decls,
           Handled_Statement_Sequence =>
             Make_Handled_Sequence_Of_Statements (Loc, Statements => Instrs),
@@ -7932,16 +8042,16 @@ package body Exp_Ch7 is
       Insert_Actions (N, New_List (
         Make_Object_Declaration (Loc,
           Defining_Identifier => Temp,
-          Object_Definition   => New_Reference_To (Typ, Loc)),
+          Object_Definition   => New_Occurrence_Of (Typ, Loc)),
 
         Make_Transient_Block (Loc,
           Action =>
             Make_Assignment_Statement (Loc,
-              Name       => New_Reference_To (Temp, Loc),
+              Name       => New_Occurrence_Of (Temp, Loc),
               Expression => Expr),
           Par    => Parent (N))));
 
-      Rewrite (N, New_Reference_To (Temp, Loc));
+      Rewrite (N, New_Occurrence_Of (Temp, Loc));
       Analyze_And_Resolve (N, Typ);
    end Wrap_Transient_Expression;
 

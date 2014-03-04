@@ -309,13 +309,18 @@ package body Sem_Ch6 is
       if Present (Parameter_Specifications (New_Spec)) then
          declare
             Formal_Spec : Node_Id;
+            Def         : Entity_Id;
+
          begin
             Formal_Spec := First (Parameter_Specifications (New_Spec));
+
+            --  Create a new formal parameter at the same source position
+
             while Present (Formal_Spec) loop
-               Set_Defining_Identifier
-                 (Formal_Spec,
-                  Make_Defining_Identifier (Sloc (Formal_Spec),
-                    Chars => Chars (Defining_Identifier (Formal_Spec))));
+               Def := Defining_Identifier (Formal_Spec);
+               Set_Defining_Identifier (Formal_Spec,
+                 Make_Defining_Identifier (Sloc (Def),
+                   Chars => Chars (Def)));
                Next (Formal_Spec);
             end loop;
          end;
@@ -369,10 +374,31 @@ package body Sem_Ch6 is
       elsif Present (Prev) and then Comes_From_Source (Prev) then
          Set_Has_Completion (Prev, False);
 
+         --  An expression function that is a completion freezes the
+         --  expression. This means freezing the return type, and if it is
+         --  an access type, freezing its designated type as well.
+
+         --  Note that we cannot defer this freezing to the analysis of the
+         --  expression itself, because a freeze node might appear in a nested
+         --  scope, leading to an elaboration order issue in gigi.
+
+         Freeze_Before (N, Etype (Prev));
+
+         if Is_Access_Type (Etype (Prev)) then
+            Freeze_Before (N, Designated_Type (Etype (Prev)));
+         end if;
+
          --  For navigation purposes, indicate that the function is a body
 
          Generate_Reference (Prev, Defining_Entity (N), 'b', Force => True);
          Rewrite (N, New_Body);
+
+         --  Correct the parent pointer of the aspect specification list to
+         --  reference the rewritten node.
+
+         if Has_Aspects (N) then
+            Set_Parent (Aspect_Specifications (N), N);
+         end if;
 
          --  Propagate any pragmas that apply to the expression function to the
          --  proper body when the expression function acts as a completion.
@@ -429,6 +455,14 @@ package body Sem_Ch6 is
            Make_Subprogram_Declaration (Loc, Specification => Spec);
 
          Rewrite (N, New_Decl);
+
+         --  Correct the parent pointer of the aspect specification list to
+         --  reference the rewritten node.
+
+         if Has_Aspects (N) then
+            Set_Parent (Aspect_Specifications (N), N);
+         end if;
+
          Analyze (N);
          Set_Is_Inlined (Defining_Entity (New_Decl));
 
@@ -654,24 +688,43 @@ package body Sem_Ch6 is
          Subtype_Ind : constant Node_Id :=
                          Object_Definition (Original_Node (Obj_Decl));
 
-         R_Type_Is_Anon_Access :
-           constant Boolean :=
-             Ekind (R_Type) = E_Anonymous_Access_Subprogram_Type
-               or else
-             Ekind (R_Type) = E_Anonymous_Access_Protected_Subprogram_Type
-               or else
-             Ekind (R_Type) = E_Anonymous_Access_Type;
+         R_Type_Is_Anon_Access : constant Boolean :=
+             Ekind_In (R_Type,
+                       E_Anonymous_Access_Subprogram_Type,
+                       E_Anonymous_Access_Protected_Subprogram_Type,
+                       E_Anonymous_Access_Type);
          --  True if return type of the function is an anonymous access type
          --  Can't we make Is_Anonymous_Access_Type in einfo ???
 
-         R_Stm_Type_Is_Anon_Access :
-           constant Boolean :=
-             Ekind (R_Stm_Type) = E_Anonymous_Access_Subprogram_Type
-               or else
-             Ekind (R_Stm_Type) = E_Anonymous_Access_Protected_Subprogram_Type
-               or else
-             Ekind (R_Stm_Type) = E_Anonymous_Access_Type;
+         R_Stm_Type_Is_Anon_Access : constant Boolean :=
+             Ekind_In (R_Stm_Type,
+                       E_Anonymous_Access_Subprogram_Type,
+                       E_Anonymous_Access_Protected_Subprogram_Type,
+                       E_Anonymous_Access_Type);
          --  True if type of the return object is an anonymous access type
+
+         procedure Error_No_Match (N : Node_Id);
+         --  Output error messages for case where types do not statically
+         --  match. N is the location for the messages.
+
+         --------------------
+         -- Error_No_Match --
+         --------------------
+
+         procedure Error_No_Match (N : Node_Id) is
+         begin
+            Error_Msg_N
+              ("subtype must statically match function result subtype", N);
+
+            if not Predicates_Match (R_Stm_Type, R_Type) then
+               Error_Msg_Node_2 := R_Type;
+               Error_Msg_NE
+                 ("\predicate of & does not match predicate of &",
+                  N, R_Stm_Type);
+            end if;
+         end Error_No_Match;
+
+      --  Start of processing for Check_Return_Subtype_Indication
 
       begin
          --  First, avoid cascaded errors
@@ -693,9 +746,7 @@ package body Sem_Ch6 is
                      Base_Type (Designated_Type (R_Type))
                     or else not Subtypes_Statically_Match (R_Stm_Type, R_Type)
                   then
-                     Error_Msg_N
-                      ("subtype must statically match function result subtype",
-                       Subtype_Mark (Subtype_Ind));
+                     Error_No_Match (Subtype_Mark (Subtype_Ind));
                   end if;
 
                else
@@ -705,9 +756,7 @@ package body Sem_Ch6 is
                   if not Conforming_Types
                     (R_Stm_Type, R_Type, Fully_Conformant)
                   then
-                     Error_Msg_N
-                      ("subtype must statically match function result subtype",
-                         Subtype_Ind);
+                     Error_No_Match (Subtype_Ind);
                   end if;
                end if;
 
@@ -748,9 +797,7 @@ package body Sem_Ch6 is
                  or else Null_Exclusion_Present (Parent (Scope_Id))) /=
                                               Can_Never_Be_Null (R_Stm_Type)
             then
-               Error_Msg_N
-                 ("subtype must statically match function result subtype",
-                  Subtype_Ind);
+               Error_No_Match (Subtype_Ind);
             end if;
 
             --  AI05-103: for elementary types, subtypes must statically match
@@ -759,9 +806,7 @@ package body Sem_Ch6 is
               or else Is_Access_Type (R_Type)
             then
                if not Subtypes_Statically_Match (R_Stm_Type, R_Type) then
-                  Error_Msg_N
-                    ("subtype must statically match function result subtype",
-                     Subtype_Ind);
+                  Error_No_Match (Subtype_Ind);
                end if;
             end if;
 
@@ -1193,6 +1238,8 @@ package body Sem_Ch6 is
             end loop;
          end;
 
+         Check_SPARK_Mode_In_Generic (N);
+
          Set_SPARK_Pragma (Body_Id, SPARK_Mode_Pragma);
          Set_SPARK_Pragma_Inherited (Body_Id, True);
 
@@ -1253,7 +1300,7 @@ package body Sem_Ch6 is
       Null_Body :=
         Make_Subprogram_Body (Loc,
           Specification => New_Copy_Tree (Spec),
-          Declarations => New_List,
+          Declarations  => New_List,
           Handled_Statement_Sequence =>
             Make_Handled_Sequence_Of_Statements (Loc,
               Statements => New_List (Make_Null_Statement (Loc))));
@@ -1907,10 +1954,9 @@ package body Sem_Ch6 is
                   if Is_Tagged_Type (Typ) then
                      null;
 
-                  elsif Nkind_In (Parent (Parent (N)),
-                     N_Accept_Statement,
-                     N_Entry_Body,
-                     N_Subprogram_Body)
+                  elsif Nkind (Parent (N)) = N_Subprogram_Body
+                    or else Nkind_In (Parent (Parent (N)), N_Accept_Statement,
+                                                           N_Entry_Body)
                   then
                      Error_Msg_NE
                        ("invalid use of untagged incomplete type&",
@@ -1918,7 +1964,7 @@ package body Sem_Ch6 is
                   end if;
 
                   --  The type must be completed in the current package. This
-                  --  is checked at the end of the package declaraton, when
+                  --  is checked at the end of the package declaration when
                   --  Taft-amendment types are identified. If the return type
                   --  is class-wide, there is no required check, the type can
                   --  be a bona fide TAT.
@@ -2021,12 +2067,16 @@ package body Sem_Ch6 is
          Analyze_Refined_Global_In_Decl_Part (Ref_Global);
 
       --  When the corresponding Global aspect/pragma references a state with
-      --  visible refinement, the body requires Refined_Global.
+      --  visible refinement, the body requires Refined_Global. Refinement is
+      --  not required when SPARK checks are suppressed.
 
       elsif Present (Spec_Id) then
          Prag := Get_Pragma (Spec_Id, Pragma_Global);
 
-         if Present (Prag) and then Contains_Refined_State (Prag) then
+         if SPARK_Mode /= Off
+           and then Present (Prag)
+           and then Contains_Refined_State (Prag)
+         then
             Error_Msg_NE
               ("body of subprogram & requires global refinement",
                Body_Decl, Spec_Id);
@@ -2040,12 +2090,16 @@ package body Sem_Ch6 is
          Analyze_Refined_Depends_In_Decl_Part (Ref_Depends);
 
       --  When the corresponding Depends aspect/pragma references a state with
-      --  visible refinement, the body requires Refined_Depends.
+      --  visible refinement, the body requires Refined_Depends. Refinement is
+      --  not required when SPARK checks are suppressed.
 
       elsif Present (Spec_Id) then
          Prag := Get_Pragma (Spec_Id, Pragma_Depends);
 
-         if Present (Prag) and then Contains_Refined_State (Prag) then
+         if SPARK_Mode /= Off
+           and then Present (Prag)
+           and then Contains_Refined_State (Prag)
+         then
             Error_Msg_NE
               ("body of subprogram & requires dependance refinement",
                Body_Decl, Spec_Id);
@@ -2115,6 +2169,11 @@ package body Sem_Ch6 is
       --  verify that a function ends with a RETURN and that a procedure does
       --  not contain any RETURN.
 
+      procedure Diagnose_Misplaced_Aspect_Specifications;
+      --  It is known that subprogram body N has aspects, but they are not
+      --  properly placed. Provide specific error messages depending on the
+      --  aspects involved.
+
       function Disambiguate_Spec return Entity_Id;
       --  When a primitive is declared between the private view and the full
       --  view of a concurrent type which implements an interface, a special
@@ -2181,10 +2240,10 @@ package body Sem_Ch6 is
                   Make_Defining_Identifier (Loc, Name_uMaster),
                 Constant_Present => True,
                 Object_Definition =>
-                  New_Reference_To (RTE (RE_Master_Id), Loc),
+                  New_Occurrence_Of (RTE (RE_Master_Id), Loc),
                 Expression =>
                   Make_Explicit_Dereference (Loc,
-                    New_Reference_To (RTE (RE_Current_Master), Loc)));
+                    New_Occurrence_Of (RTE (RE_Current_Master), Loc)));
 
             if Present (Declarations (N)) then
                Prepend (Decl, Declarations (N));
@@ -2306,6 +2365,15 @@ package body Sem_Ch6 is
                      Set_Has_Pragma_Inline_Always (Subp);
                   end if;
 
+                  --  Prior to copying the subprogram body to create a template
+                  --  for it for subsequent inlining, remove the pragma from
+                  --  the current body so that the copy that will produce the
+                  --  new body will start from a completely unanalyzed tree.
+
+                  if Nkind (Parent (Prag)) = N_Subprogram_Body then
+                     Rewrite (Prag, Make_Null_Statement (Sloc (Prag)));
+                  end if;
+
                   Spec := Subp;
                end;
             end if;
@@ -2386,6 +2454,99 @@ package body Sem_Ch6 is
             end if;
          end if;
       end Check_Missing_Return;
+
+      ----------------------------------------------
+      -- Diagnose_Misplaced_Aspect_Specifications --
+      ----------------------------------------------
+
+      procedure Diagnose_Misplaced_Aspect_Specifications is
+         Asp     : Node_Id;
+         Asp_Nam : Name_Id;
+         Asp_Id  : Aspect_Id;
+         --  The current aspect along with its name and id
+
+         procedure SPARK_Aspect_Error (Ref_Nam : Name_Id);
+         --  Emit an error message concerning SPARK aspect Asp. Ref_Nam is the
+         --  name of the refined version of the aspect.
+
+         ------------------------
+         -- SPARK_Aspect_Error --
+         ------------------------
+
+         procedure SPARK_Aspect_Error (Ref_Nam : Name_Id) is
+         begin
+            --  The corresponding spec already contains the aspect in question
+            --  and the one appearing on the body must be the refined form:
+
+            --    procedure P with Global ...;
+            --    procedure P with Global ... is ... end P;
+            --                     ^
+            --                     Refined_Global
+
+            if Has_Aspect (Spec_Id, Asp_Id) then
+               Error_Msg_Name_1 := Asp_Nam;
+
+               --  Subunits cannot carry aspects that apply to a subprogram
+               --  declaration.
+
+               if Nkind (Parent (N)) = N_Subunit then
+                  Error_Msg_N ("aspect % cannot apply to a subunit", Asp);
+
+               else
+                  Error_Msg_Name_2 := Ref_Nam;
+                  Error_Msg_N ("aspect % should be %", Asp);
+               end if;
+
+            --  Otherwise the aspect must appear in the spec, not in the body:
+
+            --    procedure P;
+            --    procedure P with Global ... is ... end P;
+
+            else
+               Error_Msg_N
+                 ("aspect specification must appear in subprogram declaration",
+                  Asp);
+            end if;
+         end SPARK_Aspect_Error;
+
+      --  Start of processing for Diagnose_Misplaced_Aspect_Specifications
+
+      begin
+         --  Iterate over the aspect specifications and emit specific errors
+         --  where applicable.
+
+         Asp := First (Aspect_Specifications (N));
+         while Present (Asp) loop
+            Asp_Nam := Chars (Identifier (Asp));
+            Asp_Id  := Get_Aspect_Id (Asp_Nam);
+
+            --  Do not emit errors on aspects that can appear on a subprogram
+            --  body. This scenario occurs when the aspect specification list
+            --  contains both misplaced and properly placed aspects.
+
+            if Aspect_On_Body_Or_Stub_OK (Asp_Id) then
+               null;
+
+            --  Special diagnostics for SPARK aspects
+
+            elsif Asp_Nam = Name_Depends then
+               SPARK_Aspect_Error (Name_Refined_Depends);
+
+            elsif Asp_Nam = Name_Global then
+               SPARK_Aspect_Error (Name_Refined_Global);
+
+            elsif Asp_Nam = Name_Post then
+               SPARK_Aspect_Error (Name_Refined_Post);
+
+            else
+               Error_Msg_N
+                 ("aspect specification must appear in subprogram declaration",
+                  Asp);
+            end if;
+
+            Next (Asp);
+         end loop;
+      end Diagnose_Misplaced_Aspect_Specifications;
 
       -----------------------
       -- Disambiguate_Spec --
@@ -2760,29 +2921,15 @@ package body Sem_Ch6 is
          end if;
       end if;
 
-      --  Language-defined aspects cannot appear in a subprogram body [stub] if
-      --  the subprogram has a separate spec. Certainly implementation-defined
-      --  aspects are allowed to appear (per Aspects_On_Body_Of_Stub_OK).
+      --  Language-defined aspects cannot appear on a subprogram body [stub] if
+      --  the subprogram has a spec. Certain implementation-defined aspects are
+      --  allowed to break this rule (see table Aspect_On_Body_Or_Stub_OK).
 
       if Has_Aspects (N) then
          if Present (Spec_Id)
            and then not Aspects_On_Body_Or_Stub_OK (N)
-
-            --  Do not emit an error on a subprogram body stub that act as
-            --  its own spec.
-
-           and then Nkind (Parent (Parent (Spec_Id))) /= N_Subprogram_Body_Stub
          then
-            Error_Msg_N
-              ("aspect specifications must appear in subprogram declaration",
-               N);
-
-         --  Delay the analysis of aspect specifications that apply to a body
-         --  stub until the proper body is analyzed. If the corresponding body
-         --  is missing, the aspects are still analyzed in Analyze_Proper_Body.
-
-         elsif Nkind (N) in N_Body_Stub then
-            null;
+            Diagnose_Misplaced_Aspect_Specifications;
 
          else
             Analyze_Aspect_Specifications (N, Body_Id);
@@ -2999,35 +3146,6 @@ package body Sem_Ch6 is
 
             Push_Scope (Spec_Id);
 
-            --  Set SPARK_Mode
-
-            --  For internally generated subprogram, always off. But generic
-            --  instances are not generated implicitly, so are never considered
-            --  as internal, even though Comes_From_Source is false.
-
-            if not Comes_From_Source (Spec_Id)
-              and then not Is_Generic_Instance (Spec_Id)
-            then
-               SPARK_Mode := Off;
-               SPARK_Mode_Pragma := Empty;
-
-            --  Inherited from spec
-
-            elsif Present (SPARK_Pragma (Spec_Id))
-              and then not SPARK_Pragma_Inherited (Spec_Id)
-            then
-               SPARK_Mode_Pragma := SPARK_Pragma (Spec_Id);
-               SPARK_Mode := Get_SPARK_Mode_From_Pragma (SPARK_Mode_Pragma);
-               Set_SPARK_Pragma (Body_Id, SPARK_Pragma (Spec_Id));
-               Set_SPARK_Pragma_Inherited (Body_Id, True);
-
-            --  Otherwise set from context
-
-            else
-               Set_SPARK_Pragma (Body_Id, SPARK_Mode_Pragma);
-               Set_SPARK_Pragma_Inherited (Body_Id, True);
-            end if;
-
             --  Make sure that the subprogram is immediately visible. For
             --  child units that have no separate spec this is indispensable.
             --  Otherwise it is safe albeit redundant.
@@ -3075,18 +3193,6 @@ package body Sem_Ch6 is
             Install_Formals (Body_Id);
 
             Push_Scope (Body_Id);
-
-            --  Set SPARK_Mode from context or OFF for internal routine
-
-            if Comes_From_Source (Body_Id) then
-               Set_SPARK_Pragma (Body_Id, SPARK_Mode_Pragma);
-               Set_SPARK_Pragma_Inherited (Body_Id, True);
-            else
-               Set_SPARK_Pragma (Body_Id, Empty);
-               Set_SPARK_Pragma_Inherited (Body_Id, False);
-               SPARK_Mode := Off;
-               SPARK_Mode_Pragma := Empty;
-            end if;
          end if;
 
          --  For stubs and bodies with no previous spec, generate references to
@@ -3094,6 +3200,11 @@ package body Sem_Ch6 is
 
          Generate_Reference_To_Formals (Body_Id);
       end if;
+
+      --  Set SPARK_Mode from context
+
+      Set_SPARK_Pragma (Body_Id, SPARK_Mode_Pragma);
+      Set_SPARK_Pragma_Inherited (Body_Id, True);
 
       --  If the return type is an anonymous access type whose designated type
       --  is the limited view of a class-wide type and the non-limited view is
@@ -3277,6 +3388,34 @@ package body Sem_Ch6 is
 
       Analyze_Declarations (Declarations (N));
 
+      --  After declarations have been analyzed, the body has been set
+      --  its final value of SPARK_Mode. Check that SPARK_Mode for body
+      --  is consistent with SPARK_Mode for spec.
+
+      if Present (Spec_Id) and then Present (SPARK_Pragma (Body_Id)) then
+         if Present (SPARK_Pragma (Spec_Id)) then
+            if Get_SPARK_Mode_From_Pragma (SPARK_Pragma (Spec_Id)) = Off
+                 and then
+               Get_SPARK_Mode_From_Pragma (SPARK_Pragma (Body_Id)) = On
+            then
+               Error_Msg_Sloc := Sloc (SPARK_Pragma (Body_Id));
+               Error_Msg_N ("incorrect application of SPARK_Mode#", N);
+               Error_Msg_Sloc := Sloc (SPARK_Pragma (Spec_Id));
+               Error_Msg_NE
+                 ("\value Off was set for SPARK_Mode on&#", N, Spec_Id);
+            end if;
+
+         elsif Nkind (Parent (Parent (Spec_Id))) = N_Subprogram_Body_Stub then
+            null;
+
+         else
+            Error_Msg_Sloc := Sloc (SPARK_Pragma (Body_Id));
+            Error_Msg_N ("incorrect application of SPARK_Mode#", N);
+            Error_Msg_Sloc := Sloc (Spec_Id);
+            Error_Msg_NE ("\no value was set for SPARK_Mode on&#", N, Spec_Id);
+         end if;
+      end if;
+
       --  Check completion, and analyze the statements
 
       Check_Completion;
@@ -3350,12 +3489,11 @@ package body Sem_Ch6 is
       --  the body of the procedure. But first we deal with a special case
       --  where we want to modify this check. If the body of the subprogram
       --  starts with a raise statement or its equivalent, or if the body
-      --  consists entirely of a null statement, then it is pretty obvious
-      --  that it is OK to not reference the parameters. For example, this
-      --  might be the following common idiom for a stubbed function:
-      --  statement of the procedure raises an exception. In particular this
-      --  deals with the common idiom of a stubbed function, which might
-      --  appear as something like:
+      --  consists entirely of a null statement, then it is pretty obvious that
+      --  it is OK to not reference the parameters. For example, this might be
+      --  the following common idiom for a stubbed function: statement of the
+      --  procedure raises an exception. In particular this deals with the
+      --  common idiom of a stubbed function, which appears something like:
 
       --     function F (A : Integer) return Some_Type;
       --        X : Some_Type;
@@ -3366,7 +3504,7 @@ package body Sem_Ch6 is
 
       --  Here the purpose of X is simply to satisfy the annoying requirement
       --  in Ada that there be at least one return, and we certainly do not
-      --  want to go posting warnings on X that it is not initialized! On
+      --  want to go posting warnings on X that it is not initialized. On
       --  the other hand, if X is entirely unreferenced that should still
       --  get a warning.
 
@@ -3584,7 +3722,25 @@ package body Sem_Ch6 is
             Error_Msg_N
               ("contract cases do not mention result?T?", Case_Prag);
 
+         --  OK if we have at least one IN OUT parameter
+
          elsif Present (Post_Prag) and then not Seen_In_Post then
+            declare
+               F : Entity_Id;
+            begin
+               F := First_Formal (Subp);
+               while Present (F) loop
+                  if Ekind (F) = E_In_Out_Parameter then
+                     return;
+                  else
+                     Next_Formal (F);
+                  end if;
+               end loop;
+            end;
+
+            --  If no in-out parameters and no mention of Result, the contract
+            --  is certainly suspicious.
+
             Error_Msg_N
               ("function postcondition does not mention result?T?", Post_Prag);
          end if;
@@ -3632,16 +3788,11 @@ package body Sem_Ch6 is
 
       Generate_Definition (Designator);
 
-      --  Set SPARK mode, always off for internal routines, otherwise set
-      --  from current context (may be overwritten later with explicit pragma)
+      --  Set SPARK mode from current context (may be overwritten later with
+      --  explicit pragma).
 
-      if Comes_From_Source (Designator) then
-         Set_SPARK_Pragma (Designator, SPARK_Mode_Pragma);
-         Set_SPARK_Pragma_Inherited (Designator, True);
-      else
-         Set_SPARK_Pragma (Designator, Empty);
-         Set_SPARK_Pragma_Inherited (Designator, False);
-      end if;
+      Set_SPARK_Pragma (Designator, SPARK_Mode_Pragma);
+      Set_SPARK_Pragma_Inherited (Designator, True);
 
       if Debug_Flag_C then
          Write_Str ("==> subprogram spec ");
@@ -3656,12 +3807,12 @@ package body Sem_Ch6 is
       New_Overloaded_Entity (Designator);
       Check_Delayed_Subprogram (Designator);
 
-      --  If the type of the first formal of the current subprogram is a
-      --  non-generic tagged private type, mark the subprogram as being a
-      --  private primitive. Ditto if this is a function with controlling
-      --  result, and the return type is currently private. In both cases,
-      --  the type of the controlling argument or result must be in the
-      --  current scope for the operation to be primitive.
+      --  If the type of the first formal of the current subprogram is a non-
+      --  generic tagged private type, mark the subprogram as being a private
+      --  primitive. Ditto if this is a function with controlling result, and
+      --  the return type is currently private. In both cases, the type of the
+      --  controlling argument or result must be in the current scope for the
+      --  operation to be primitive.
 
       if Has_Controlling_Result (Designator)
         and then Is_Private_Type (Etype (Designator))
@@ -4550,7 +4701,7 @@ package body Sem_Ch6 is
 
             --  Emit a warning if this is a call to a runtime subprogram
             --  which is located inside a generic. Previously this call
-            --  was silently skipped!
+            --  was silently skipped.
 
             if Is_Generic_Instance (Subp) then
                declare
@@ -5293,7 +5444,7 @@ package body Sem_Ch6 is
          --  Compiling with optimizations enabled
 
          else
-            --  Procedures are never frontend inlined in this case!
+            --  Procedures are never frontend inlined in this case
 
             if Ekind (Subp) /= E_Function then
                return False;
@@ -5496,7 +5647,7 @@ package body Sem_Ch6 is
                    Null_Exclusion_Present =>
                      Null_Exclusion_Present (Parent (Formal)),
                    Parameter_Type =>
-                     New_Reference_To (Etype (Formal), Loc),
+                     New_Occurrence_Of (Etype (Formal), Loc),
                    Expression =>
                      Copy_Separate_Tree (Expression (Parent (Formal)))));
 
@@ -5590,11 +5741,11 @@ package body Sem_Ch6 is
 
          begin
             Append_To (Actual_List,
-              New_Reference_To (Defining_Identifier (New_Obj), Loc));
+              New_Occurrence_Of (Defining_Identifier (New_Obj), Loc));
 
             Formal := First_Formal (Spec_Id);
             while Present (Formal) loop
-               Append_To (Actual_List, New_Reference_To (Formal, Loc));
+               Append_To (Actual_List, New_Occurrence_Of (Formal, Loc));
 
                --  Avoid spurious warning on unreferenced formals
 
@@ -5604,7 +5755,7 @@ package body Sem_Ch6 is
 
             Proc_Call :=
               Make_Procedure_Call_Statement (Loc,
-                Name => New_Reference_To (Proc_Id, Loc),
+                Name => New_Occurrence_Of (Proc_Id, Loc),
                 Parameter_Associations => Actual_List);
          end;
 
@@ -5628,7 +5779,7 @@ package body Sem_Ch6 is
 
                    Make_Simple_Return_Statement (Loc,
                      Expression =>
-                       New_Reference_To
+                       New_Occurrence_Of
                          (Defining_Identifier (New_Obj), Loc)))));
 
          Rewrite (Ret_Node, Blk_Stmt);
@@ -5680,7 +5831,7 @@ package body Sem_Ch6 is
          end;
       end if;
 
-      --  Build the body to inline only if really needed!
+      --  Build the body to inline only if really needed
 
       if Check_Body_To_Inline (N, Spec_Id)
         and then Serious_Errors_Detected = 0
@@ -5824,7 +5975,16 @@ package body Sem_Ch6 is
             null;
 
          elsif not Conforming_Types (Old_Type, New_Type, Ctype, Get_Inst) then
-            Conformance_Error ("\return type does not match!", New_Id);
+            if Ctype >= Subtype_Conformant
+              and then not Predicates_Match (Old_Type, New_Type)
+            then
+               Conformance_Error
+                 ("\predicate of return type does not match!", New_Id);
+            else
+               Conformance_Error
+                 ("\return type does not match!", New_Id);
+            end if;
+
             return;
          end if;
 
@@ -5890,7 +6050,7 @@ package body Sem_Ch6 is
       --  Note: we use the entity information, rather than going directly
       --  to the specification in the tree. This is not only simpler, but
       --  absolutely necessary for some cases of conformance tests between
-      --  operators, where the declaration tree simply does not exist!
+      --  operators, where the declaration tree simply does not exist.
 
       Old_Formal := First_Formal (Old_Id);
       New_Formal := First_Formal (New_Id);
@@ -6061,7 +6221,16 @@ package body Sem_Ch6 is
             if Errmsg and then Old_Formal_Base = Any_Type then
                Conforms := False;
             else
-               Conformance_Error ("\type of & does not match!", New_Formal);
+               if Ctype >= Subtype_Conformant
+                 and then
+                   not Predicates_Match (Old_Formal_Base, New_Formal_Base)
+               then
+                  Conformance_Error
+                    ("\predicate of & does not match!", New_Formal);
+               else
+                  Conformance_Error
+                    ("\type of & does not match!", New_Formal);
+               end if;
             end if;
 
             return;
@@ -6991,9 +7160,44 @@ package body Sem_Ch6 is
          Stm      : Node_Id;
          Kind     : Node_Kind;
 
+         function Assert_False return Boolean;
+         --  Returns True if Last_Stm is a pragma Assert (False) that has been
+         --  rewritten as a null statement when assertions are off. The assert
+         --  is not active, but it is still enough to kill the warning.
+
+         ------------------
+         -- Assert_False --
+         ------------------
+
+         function Assert_False return Boolean is
+            Orig : constant Node_Id := Original_Node (Last_Stm);
+
+         begin
+            if Nkind (Orig) = N_Pragma
+              and then Pragma_Name (Orig) = Name_Assert
+              and then not Error_Posted (Orig)
+            then
+               declare
+                  Arg : constant Node_Id :=
+                          First (Pragma_Argument_Associations (Orig));
+                  Exp : constant Node_Id := Expression (Arg);
+               begin
+                  return Nkind (Exp) = N_Identifier
+                    and then Chars (Exp) = Name_False;
+               end;
+
+            else
+               return False;
+            end if;
+         end Assert_False;
+
+         --  Local variables
+
          Raise_Exception_Call : Boolean;
          --  Set True if statement sequence terminated by Raise_Exception call
          --  or a Reraise_Occurrence call.
+
+      --  Start of processing for Check_Statement_Sequence
 
       begin
          Raise_Exception_Call := False;
@@ -7239,7 +7443,7 @@ package body Sem_Ch6 is
                --  Note: if both ECA and DCA are missing the return, then we
                --  post only one message, should be enough to fix the bugs.
                --  If not we will get a message next time on the DCA when the
-               --  ECA is fixed!
+               --  ECA is fixed.
 
                elsif No (Statements (DCA)) then
                   Last_Stm := DCA;
@@ -7284,11 +7488,20 @@ package body Sem_Ch6 is
          --  If we fall through, issue appropriate message
 
          if Mode = 'F' then
-            if not Raise_Exception_Call then
+
+            --  Kill warning if last statement is a raise exception call,
+            --  or a pragma Assert (False). Note that with assertions enabled,
+            --  such a pragma has been converted into a raise exception call
+            --  already, so the Assert_False is for the assertions off case.
+
+            if not Raise_Exception_Call and then not Assert_False then
 
                --  In GNATprove mode, it is an error to have a missing return
 
                Error_Msg_Warn := SPARK_Mode /= On;
+
+               --  Issue error message or warning
+
                Error_Msg_N
                  ("RETURN statement missing following this statement<<!",
                   Last_Stm);
@@ -8671,7 +8884,7 @@ package body Sem_Ch6 is
          end if;
 
          --  Compare two lists, skipping rewrite insertions (we want to compare
-         --  the original trees, not the expanded versions!)
+         --  the original trees, not the expanded versions).
 
          loop
             if Is_Rewrite_Insertion (N1) then
@@ -8727,7 +8940,7 @@ package body Sem_Ch6 is
    begin
       --  Non-conformant if paren count does not match. Note: if some idiot
       --  complains that we don't do this right for more than 3 levels of
-      --  parentheses, they will be treated with the respect they deserve!
+      --  parentheses, they will be treated with the respect they deserve.
 
       if Paren_Count (E1) /= Paren_Count (E2) then
          return False;
@@ -9601,13 +9814,13 @@ package body Sem_Ch6 is
            Make_Parameter_Specification (Loc,
              Defining_Identifier => A,
              Parameter_Type      =>
-               New_Reference_To (Etype (First_Formal (S)),
+               New_Occurrence_Of (Etype (First_Formal (S)),
                  Sloc (Etype (First_Formal (S))))),
 
            Make_Parameter_Specification (Loc,
              Defining_Identifier => B,
              Parameter_Type      =>
-               New_Reference_To (Etype (Next_Formal (First_Formal (S))),
+               New_Occurrence_Of (Etype (Next_Formal (First_Formal (S))),
                  Sloc (Etype (Next_Formal (First_Formal (S)))))));
 
          Decl :=
@@ -9617,7 +9830,7 @@ package body Sem_Ch6 is
                  Defining_Unit_Name       => Op_Name,
                  Parameter_Specifications => Formals,
                  Result_Definition        =>
-                   New_Reference_To (Standard_Boolean, Loc)));
+                   New_Occurrence_Of (Standard_Boolean, Loc)));
 
          --  Insert inequality right after equality if it is explicit or after
          --  the derived type when implicit. These entities are created only
@@ -11019,9 +11232,15 @@ package body Sem_Ch6 is
                --  Ada 2012: tagged incomplete types are allowed as generic
                --  formal types. They do not introduce dependencies and the
                --  corresponding generic subprogram does not have a delayed
-               --  freeze, because it does not need a freeze node.
+               --  freeze, because it does not need a freeze node. However,
+               --  it is still the case that untagged incomplete types cannot
+               --  be Taft-amendment types and must be completed in private
+               --  part, so the subprogram must appear in the list of private
+               --  dependents of the type.
 
-               if Is_Tagged_Type (Formal_Type) then
+               if Is_Tagged_Type (Formal_Type)
+                 or else Ada_Version >= Ada_2012
+               then
                   if Ekind (Scope (Current_Scope)) = E_Package
                     and then not From_Limited_With (Formal_Type)
                     and then not Is_Generic_Type (Formal_Type)
@@ -11240,18 +11459,19 @@ package body Sem_Ch6 is
            and then Ekind_In (Scope (Formal), E_Function, E_Generic_Function)
          then
             --  A function cannot have a parameter of mode IN OUT or OUT
+            --  (SPARK RM 6.1).
 
             if Ekind_In (Formal, E_In_Out_Parameter, E_Out_Parameter) then
                Error_Msg_N
-                 ("function cannot have parameter of mode `OUT` or `IN OUT` "
-                  & "(SPARK RM 6.1)", Formal);
+                 ("function cannot have parameter of mode `OUT` or `IN OUT`",
+                  Formal);
 
             --  A function cannot have a volatile formal parameter
+            --  (SPARK RM 7.1.3(10)).
 
             elsif Is_SPARK_Volatile_Object (Formal) then
                Error_Msg_N
-                 ("function cannot have a volatile formal parameter (SPARK RM "
-                  & "7.1.3(10))", Formal);
+                 ("function cannot have a volatile formal parameter", Formal);
             end if;
          end if;
 
@@ -11403,7 +11623,7 @@ package body Sem_Ch6 is
             AS_Needed := False;
 
          --  If we have unknown discriminants, then we do not need an actual
-         --  subtype, or more accurately we cannot figure it out! Note that
+         --  subtype, or more accurately we cannot figure it out. Note that
          --  all class-wide types have unknown discriminants.
 
          elsif Has_Unknown_Discriminants (T) then

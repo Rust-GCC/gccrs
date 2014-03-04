@@ -1691,6 +1691,13 @@ vect_finish_stmt_generation (gimple stmt, gimple vec_stmt,
     }
 
   gimple_set_location (vec_stmt, gimple_location (stmt));
+
+  /* While EH edges will generally prevent vectorization, stmt might
+     e.g. be in a must-not-throw region.  Ensure newly created stmts
+     that could throw are part of the same region.  */
+  int lp_nr = lookup_stmt_eh_lp (stmt);
+  if (lp_nr != 0 && stmt_could_throw_p (vec_stmt))
+    add_stmt_to_eh_lp (vec_stmt, lp_nr);
 }
 
 /* Checks if CALL can be vectorized in type VECTYPE.  Returns
@@ -5622,6 +5629,20 @@ vectorizable_load (gimple stmt, gimple_stmt_iterator *gsi, gimple *vec_stmt,
       return false;
     }
 
+  /* Invalidate assumptions made by dependence analysis when vectorization
+     on the unrolled body effectively re-orders stmts.  */
+  if (ncopies > 1
+      && STMT_VINFO_MIN_NEG_DIST (stmt_info) != 0
+      && ((unsigned)LOOP_VINFO_VECT_FACTOR (loop_vinfo)
+	  > STMT_VINFO_MIN_NEG_DIST (stmt_info)))
+    {
+      if (dump_enabled_p ())
+	dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
+			 "cannot perform implicit CSE when unrolling "
+			 "with negative dependence distance\n");
+      return false;
+    }
+
   if (!STMT_VINFO_RELEVANT_P (stmt_info) && !bb_vinfo)
     return false;
 
@@ -5678,6 +5699,20 @@ vectorizable_load (gimple stmt, gimple_stmt_iterator *gsi, gimple *vec_stmt,
 	    load_lanes_p = true;
 	  else if (!vect_grouped_load_supported (vectype, group_size))
 	    return false;
+	}
+
+      /* Invalidate assumptions made by dependence analysis when vectorization
+	 on the unrolled body effectively re-orders stmts.  */
+      if (!PURE_SLP_STMT (stmt_info)
+	  && STMT_VINFO_MIN_NEG_DIST (stmt_info) != 0
+	  && ((unsigned)LOOP_VINFO_VECT_FACTOR (loop_vinfo)
+	      > STMT_VINFO_MIN_NEG_DIST (stmt_info)))
+	{
+	  if (dump_enabled_p ())
+	    dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
+			     "cannot perform implicit CSE when performing "
+			     "group loads with negative dependence distance\n");
+	  return false;
 	}
     }
 
@@ -7382,13 +7417,25 @@ free_stmt_vec_info (gimple stmt)
       if (patt_info)
 	{
 	  gimple_seq seq = STMT_VINFO_PATTERN_DEF_SEQ (patt_info);
+	  gimple patt_stmt = STMT_VINFO_STMT (patt_info);
+	  gimple_set_bb (patt_stmt, NULL);
+	  tree lhs = gimple_get_lhs (patt_stmt);
+	  if (TREE_CODE (lhs) == SSA_NAME)
+	    release_ssa_name (lhs);
 	  if (seq)
 	    {
 	      gimple_stmt_iterator si;
 	      for (si = gsi_start (seq); !gsi_end_p (si); gsi_next (&si))
-		free_stmt_vec_info (gsi_stmt (si));
+		{
+		  gimple seq_stmt = gsi_stmt (si);
+		  gimple_set_bb (seq_stmt, NULL);
+		  lhs = gimple_get_lhs (patt_stmt);
+		  if (TREE_CODE (lhs) == SSA_NAME)
+		    release_ssa_name (lhs);
+		  free_stmt_vec_info (seq_stmt);
+		}
 	    }
-	  free_stmt_vec_info (STMT_VINFO_RELATED_STMT (stmt_info));
+	  free_stmt_vec_info (patt_stmt);
 	}
     }
 

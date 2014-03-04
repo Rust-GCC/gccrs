@@ -165,13 +165,17 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
       pointer
       _M_allocate(size_t __n)
-      { return __n != 0 ? _M_impl.allocate(__n) : 0; }
+      {
+	typedef __gnu_cxx::__alloc_traits<_Tp_alloc_type> _Tr;
+	return __n != 0 ? _Tr::allocate(_M_impl, __n) : 0;
+      }
 
       void
       _M_deallocate(pointer __p, size_t __n)
       {
+	typedef __gnu_cxx::__alloc_traits<_Tp_alloc_type> _Tr;
 	if (__p)
-	  _M_impl.deallocate(__p, __n);
+	  _Tr::deallocate(_M_impl, __p, __n);
       }
 
     private:
@@ -884,7 +888,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       pointer
 #endif
       data() _GLIBCXX_NOEXCEPT
-      { return std::__addressof(front()); }
+      { return _M_data_ptr(this->_M_impl._M_start); }
 
 #if __cplusplus >= 201103L
       const _Tp*
@@ -892,7 +896,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       const_pointer
 #endif
       data() const _GLIBCXX_NOEXCEPT
-      { return std::__addressof(front()); }
+      { return _M_data_ptr(this->_M_impl._M_start); }
 
       // [23.2.4.3] modifiers
       /**
@@ -1446,9 +1450,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	vector __tmp(get_allocator());
 	this->_M_impl._M_swap_data(__tmp._M_impl);
 	this->_M_impl._M_swap_data(__x._M_impl);
-	if (_Alloc_traits::_S_propagate_on_move_assign())
-	  std::__alloc_on_move(_M_get_Tp_allocator(),
-			       __x._M_get_Tp_allocator());
+	std::__alloc_on_move(_M_get_Tp_allocator(), __x._M_get_Tp_allocator());
       }
 
       // Do move assignment when it might not be possible to move source
@@ -1467,6 +1469,23 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	    __x.clear();
 	  }
       }
+#endif
+
+#if __cplusplus >= 201103L
+      template<typename _Up>
+	_Up*
+	_M_data_ptr(_Up* __ptr) const
+	{ return __ptr; }
+
+      template<typename _Ptr>
+	typename std::pointer_traits<_Ptr>::element_type*
+	_M_data_ptr(_Ptr __ptr) const
+	{ return empty() ? nullptr : std::__addressof(*__ptr); }
+#else
+      template<typename _Ptr>
+	_Ptr
+	_M_data_ptr(_Ptr __ptr) const
+	{ return __ptr; }
 #endif
     };
 

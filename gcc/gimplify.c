@@ -1042,7 +1042,14 @@ gimplify_bind_expr (tree *expr_p, gimple_seq *pre_p)
 	      && (! DECL_SEEN_IN_BIND_EXPR_P (t)
 		  || splay_tree_lookup (ctx->variables,
 					(splay_tree_key) t) == NULL))
-	    omp_add_variable (gimplify_omp_ctxp, t, GOVD_LOCAL | GOVD_SEEN);
+	    {
+	      if (ctx->region_type == ORT_SIMD
+		  && TREE_ADDRESSABLE (t)
+		  && !TREE_STATIC (t))
+		omp_add_variable (ctx, t, GOVD_PRIVATE | GOVD_SEEN);
+	      else
+		omp_add_variable (ctx, t, GOVD_LOCAL | GOVD_SEEN);
+	    }
 
 	  DECL_SEEN_IN_BIND_EXPR_P (t) = 1;
 
@@ -2184,6 +2191,20 @@ gimplify_arg (tree *arg_p, gimple_seq *pre_p, location_t call_location)
   return gimplify_expr (arg_p, pre_p, NULL, test, fb);
 }
 
+/* Don't fold STMT inside ORT_TARGET, because it can break code by adding decl
+   references that weren't in the source.  We'll do it during omplower pass
+   instead.  */
+
+static bool
+maybe_fold_stmt (gimple_stmt_iterator *gsi)
+{
+  struct gimplify_omp_ctx *ctx;
+  for (ctx = gimplify_omp_ctxp; ctx; ctx = ctx->outer_context)
+    if (ctx->region_type == ORT_TARGET)
+      return false;
+  return fold_stmt (gsi);
+}
+
 /* Gimplify the CALL_EXPR node *EXPR_P into the GIMPLE sequence PRE_P.
    WANT_VALUE is true if the result of the call is desired.  */
 
@@ -2417,14 +2438,7 @@ gimplify_call_expr (tree *expr_p, gimple_seq *pre_p, bool want_value)
       notice_special_calls (call);
       gimplify_seq_add_stmt (pre_p, call);
       gsi = gsi_last (*pre_p);
-      /* Don't fold stmts inside of target construct.  We'll do it
-	 during omplower pass instead.  */
-      struct gimplify_omp_ctx *ctx;
-      for (ctx = gimplify_omp_ctxp; ctx; ctx = ctx->outer_context)
-	if (ctx->region_type == ORT_TARGET)
-	  break;
-      if (ctx == NULL)
-	fold_stmt (&gsi);
+      maybe_fold_stmt (&gsi);
       *expr_p = NULL_TREE;
     }
   else
@@ -4572,14 +4586,7 @@ gimplify_modify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
 
   gimplify_seq_add_stmt (pre_p, assign);
   gsi = gsi_last (*pre_p);
-  /* Don't fold stmts inside of target construct.  We'll do it
-     during omplower pass instead.  */
-  struct gimplify_omp_ctx *ctx;
-  for (ctx = gimplify_omp_ctxp; ctx; ctx = ctx->outer_context)
-    if (ctx->region_type == ORT_TARGET)
-      break;
-  if (ctx == NULL)
-    fold_stmt (&gsi);
+  maybe_fold_stmt (&gsi);
 
   if (want_value)
     {

@@ -234,7 +234,25 @@ report_inline_failed_reason (struct cgraph_edge *e)
     }
 }
 
-/* Decide if we can inline the edge and possibly update
+ /* Decide whether sanitizer-related attributes allow inlining. */
+
+static bool
+sanitize_attrs_match_for_inline_p (const_tree caller, const_tree callee)
+{
+  /* Don't care if sanitizer is disabled */
+  if (!(flag_sanitize & SANITIZE_ADDRESS))
+    return true;
+
+  if (!caller || !callee)
+    return true;
+
+  return !!lookup_attribute ("no_sanitize_address",
+      DECL_ATTRIBUTES (caller)) == 
+      !!lookup_attribute ("no_sanitize_address",
+      DECL_ATTRIBUTES (callee));
+}
+
+ /* Decide if we can inline the edge and possibly update
    inline_failed reason.  
    We check whether inlining is possible at all and whether
    caller growth limits allow doing so.  
@@ -325,6 +343,12 @@ can_inline_edge_p (struct cgraph_edge *e, bool report,
 						callee->decl))
     {
       e->inline_failed = CIF_TARGET_OPTION_MISMATCH;
+      inlinable = false;
+    }
+  /* Don't inline a function with mismatched sanitization attributes. */
+  else if (!sanitize_attrs_match_for_inline_p (e->caller->decl, callee->decl))
+    {
+      e->inline_failed = CIF_ATTRIBUTE_MISMATCH;
       inlinable = false;
     }
   /* Check if caller growth allows the inlining.  */
@@ -683,6 +707,12 @@ want_inline_self_recursive_call_p (struct cgraph_edge *edge,
 
   if (outer_node->global.inlined_to)
     caller_freq = outer_node->callers->frequency;
+
+  if (!caller_freq)
+    {
+      reason = "function is inlined and unlikely";
+      want_inline = false;
+    }
 
   if (!want_inline)
     ;
@@ -1361,7 +1391,7 @@ recursive_inlining (struct cgraph_edge *edge,
 					    false, vNULL, true, NULL);
 	  for (e = master_clone->callees; e; e = e->next_callee)
 	    if (!e->inline_failed)
-	      clone_inlined_nodes (e, true, false, NULL);
+	      clone_inlined_nodes (e, true, false, NULL, CGRAPH_FREQ_BASE);
           cgraph_redirect_edge_callee (curr, master_clone);
           reset_edge_growth_cache (curr);
 	}
@@ -1725,9 +1755,9 @@ inline_small_functions (void)
 	  continue;
 	}
 
-      /* Heuristics for inlining small functions works poorly for
-	 recursive calls where we do efect similar to loop unrolling.
-	 When inliing such edge seems profitable, leave decision on
+      /* Heuristics for inlining small functions work poorly for
+	 recursive calls where we do effects similar to loop unrolling.
+	 When inlining such edge seems profitable, leave decision on
 	 specific inliner.  */
       if (cgraph_edge_recursive_p (edge))
 	{
@@ -1755,10 +1785,11 @@ inline_small_functions (void)
 	  struct cgraph_node *outer_node = NULL;
 	  int depth = 0;
 
-	  /* Consider the case where self recursive function A is inlined into B.
-	     This is desired optimization in some cases, since it leads to effect
-	     similar of loop peeling and we might completely optimize out the
-	     recursive call.  However we must be extra selective.  */
+	  /* Consider the case where self recursive function A is inlined
+	     into B.  This is desired optimization in some cases, since it
+	     leads to effect similar of loop peeling and we might completely
+	     optimize out the recursive call.  However we must be extra
+	     selective.  */
 
 	  where = edge->caller;
 	  while (where->global.inlined_to)

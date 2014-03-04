@@ -539,6 +539,9 @@ struct deps_desc
   /* The last debug insn we've seen.  */
   rtx last_debug_insn;
 
+  /* The last insn bearing REG_ARGS_SIZE that we've seen.  */
+  rtx last_args_size;
+
   /* The maximum register number for the following arrays.  Before reload
      this is max_reg_num; after reload it is FIRST_PSEUDO_REGISTER.  */
   int max_reg;
@@ -1337,6 +1340,7 @@ extern void debug_ds (ds_t);
 extern void initialize_live_range_shrinkage (void);
 extern void finish_live_range_shrinkage (void);
 extern void sched_init_region_reg_pressure_info (void);
+extern void free_global_sched_pressure_data (void);
 extern int haifa_classify_insn (const_rtx);
 extern void get_ebb_head_tail (basic_block, basic_block, rtx *, rtx *);
 extern int no_real_insns_p (const_rtx, const_rtx);

@@ -1049,6 +1049,8 @@ struct GTY(()) saved_scope {
   cp_binding_level *class_bindings;
   cp_binding_level *bindings;
 
+  struct pointer_map_t *x_local_specializations;
+
   struct saved_scope *prev;
 };
 
@@ -1097,6 +1099,12 @@ struct GTY(()) saved_scope {
    class, or NULL if none.  */
 
 #define previous_class_level scope_chain->x_previous_class_level
+
+/* A map from local variable declarations in the body of the template
+   presently being instantiated to the corresponding instantiated
+   local variables.  */
+
+#define local_specializations scope_chain->x_local_specializations
 
 /* A list of private types mentioned, for deferred access checking.  */
 
@@ -3214,7 +3222,7 @@ more_aggr_init_expr_args_p (const aggr_init_expr_arg_iterator *iter)
 
 /* Nonzero if DECL was declared with '= delete'.  */
 #define DECL_DELETED_FN(DECL) \
-  (DECL_LANG_SPECIFIC (FUNCTION_DECL_CHECK (DECL))->u.base.threadprivate_or_deleted_p)
+  (LANG_DECL_FN_CHECK (DECL)->min.base.threadprivate_or_deleted_p)
 
 /* Nonzero if DECL was declared with '= default' (maybe implicitly).  */
 #define DECL_DEFAULTED_FN(DECL) \
@@ -5296,6 +5304,7 @@ extern tree grokfield (const cp_declarator *, cp_decl_specifier_seq *,
 extern tree grokbitfield (const cp_declarator *, cp_decl_specifier_seq *,
 			  tree, tree);
 extern tree cp_reconstruct_complex_type		(tree, tree);
+extern bool attributes_naming_typedef_ok	(tree);
 extern void cplus_decl_attributes		(tree *, tree, int);
 extern void finish_anon_union			(tree);
 extern void cp_write_global_declarations	(void);
@@ -5304,12 +5313,15 @@ extern tree coerce_delete_type			(tree);
 extern void comdat_linkage			(tree);
 extern void determine_visibility		(tree);
 extern void constrain_class_visibility		(tree);
+extern void reset_type_linkage			(tree);
+extern void tentative_decl_linkage		(tree);
 extern void import_export_decl			(tree);
 extern tree build_cleanup			(tree);
 extern tree build_offset_ref_call_from_tree	(tree, vec<tree, va_gc> **,
 						 tsubst_flags_t);
 extern bool decl_constant_var_p			(tree);
 extern bool decl_maybe_constant_var_p		(tree);
+extern void no_linkage_error			(tree);
 extern void check_default_args			(tree);
 extern bool mark_used				(tree);
 extern bool mark_used			        (tree, tsubst_flags_t);

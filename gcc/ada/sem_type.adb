@@ -1128,6 +1128,11 @@ package body Sem_Type is
       elsif BT2 = Any_Type then
          return True;
 
+      --  A Raise_Expressions is legal in any expression context
+
+      elsif BT2 = Raise_Type then
+         return True;
+
       --  A packed array type covers its corresponding non-packed type. This is
       --  not legitimate Ada, but allows the omission of a number of otherwise
       --  useless unchecked conversions, and since this can only arise in
@@ -1255,7 +1260,7 @@ package body Sem_Type is
       then
          return True;
 
-      --  Otherwise, types are not compatible!
+      --  Otherwise, types are not compatible
 
       else
          return False;

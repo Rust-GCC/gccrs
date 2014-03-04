@@ -122,10 +122,10 @@ package body Atree is
    --  Count allocated nodes for Num_Nodes function
 
    use Unchecked_Access;
-   --  We are allowed to see these from within our own body!
+   --  We are allowed to see these from within our own body
 
    use Atree_Private_Part;
-   --  We are also allowed to see our private data structures!
+   --  We are also allowed to see our private data structures
 
    --  Functions used to store Entity_Kind value in Nkind field
 
@@ -793,6 +793,8 @@ package body Atree is
          New_Ent : Entity_Id;
 
       begin
+         --  Build appropriate node
+
          case N_Entity (Nkind (E)) is
             when N_Defining_Identifier =>
                New_Ent := New_Entity (N_Defining_Identifier, Sloc (E));
@@ -847,7 +849,8 @@ package body Atree is
 
       begin
          if Field in Node_Range then
-            New_N := Union_Id (Copy_Separate_Tree (Node_Id (Field)));
+            New_N :=
+              Union_Id (Copy_Separate_Tree (Node_Id (Field)));
 
             if Parent (Node_Id (Field)) = Source then
                Set_Parent (Node_Id (New_N), New_Id);
@@ -896,6 +899,42 @@ package body Atree is
            or else Nkind (New_Id) = N_Freeze_Entity
          then
             Set_Entity (New_Id, Empty);
+         end if;
+
+         --  Reset all Etype fields and Analyzed flags, because input tree may
+         --  have been fully or partially analyzed.
+
+         if Nkind (New_Id) in N_Has_Etype then
+            Set_Etype (New_Id, Empty);
+         end if;
+
+         Set_Analyzed (New_Id, False);
+
+         --  Rather special case, if we have an expanded name, then change
+         --  it back into a selected component, so that the tree looks the
+         --  way it did coming out of the parser. This will change back
+         --  when we analyze the selected component node.
+
+         if Nkind (New_Id) = N_Expanded_Name then
+
+            --  The following code is a bit kludgy. It would be cleaner to
+            --  Add an entry Change_Expanded_Name_To_Selected_Component to
+            --  Sinfo.CN, but that's an earthquake, because it has the wrong
+            --  license, and Atree is used outside the compiler, e.g. in the
+            --  binder and in ASIS, so we don't want to add that dependency.
+
+            --  Consequently we have no choice but to hold our noses and do
+            --  the change manually. At least we are Atree, so this odd use
+            --  of Atree.Unchecked_Access is at least all in the family.
+
+            --  Change the node type
+
+            Atree.Unchecked_Access.Set_Nkind (New_Id, N_Selected_Component);
+
+            --  Clear the Chars field which is not present in a selected
+            --  component node, so we don't want a junk value around.
+
+            Set_Node1 (New_Id, Empty);
          end if;
 
          --  All done, return copied node
@@ -1326,7 +1365,7 @@ package body Atree is
       Set_Name1 (Empty, No_Name);
 
       --  Allocate Error node, and set Error_Posted, since we certainly
-      --  only generate an Error node if we do post some kind of error!
+      --  only generate an Error node if we do post some kind of error.
 
       Dummy := New_Node (N_Error, No_Location);
       Set_Name1 (Error, Error_Name);
@@ -1870,8 +1909,7 @@ package body Atree is
          --  Both the old and new copies of the node will share the same list
          --  of aspect specifications if aspect specifications are present.
 
-         if Has_Aspects (Sav_Node) then
-            Set_Has_Aspects (Sav_Node, False);
+         if Old_Has_Aspects then
             Set_Aspect_Specifications
               (Sav_Node, Aspect_Specifications (Old_Node));
          end if;
@@ -2644,6 +2682,12 @@ package body Atree is
          return Node_Id (Nodes.Table (N + 5).Field10);
       end Node34;
 
+      function Node35 (N : Node_Id) return Node_Id is
+      begin
+         pragma Assert (Nkind (N) in N_Entity);
+         return Node_Id (Nodes.Table (N + 5).Field11);
+      end Node35;
+
       function List1 (N : Node_Id) return List_Id is
       begin
          pragma Assert (N <= Nodes.Last);
@@ -2757,6 +2801,17 @@ package body Atree is
             return Elist_Id (Value);
          end if;
       end Elist8;
+
+      function Elist9 (N : Node_Id) return Elist_Id is
+         pragma Assert (Nkind (N) in N_Entity);
+         Value : constant Union_Id := Nodes.Table (N + 1).Field9;
+      begin
+         if Value = 0 then
+            return No_Elist;
+         else
+            return Elist_Id (Value);
+         end if;
+      end Elist9;
 
       function Elist10 (N : Node_Id) return Elist_Id is
          pragma Assert (Nkind (N) in N_Entity);
@@ -5397,6 +5452,12 @@ package body Atree is
          Nodes.Table (N + 5).Field10 := Union_Id (Val);
       end Set_Node34;
 
+      procedure Set_Node35 (N : Node_Id; Val : Node_Id) is
+      begin
+         pragma Assert (Nkind (N) in N_Entity);
+         Nodes.Table (N + 5).Field11 := Union_Id (Val);
+      end Set_Node35;
+
       procedure Set_List1 (N : Node_Id; Val : List_Id) is
       begin
          pragma Assert (N <= Nodes.Last);
@@ -5475,6 +5536,12 @@ package body Atree is
          pragma Assert (Nkind (N) in N_Entity);
          Nodes.Table (N + 1).Field8 := Union_Id (Val);
       end Set_Elist8;
+
+      procedure Set_Elist9 (N : Node_Id; Val : Elist_Id) is
+      begin
+         pragma Assert (Nkind (N) in N_Entity);
+         Nodes.Table (N + 1).Field9 := Union_Id (Val);
+      end Set_Elist9;
 
       procedure Set_Elist10 (N : Node_Id; Val : Elist_Id) is
       begin

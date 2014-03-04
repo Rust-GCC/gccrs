@@ -323,7 +323,7 @@ dump_substitution_candidates (void)
       else if (TREE_CODE (el) == TREE_LIST)
 	name = IDENTIFIER_POINTER (DECL_NAME (TREE_VALUE (el)));
       else if (TYPE_NAME (el))
-	name = IDENTIFIER_POINTER (DECL_NAME (TYPE_NAME (el)));
+	name = IDENTIFIER_POINTER (TYPE_IDENTIFIER (el));
       fprintf (stderr, " S%d_ = ", i - 1);
       if (TYPE_P (el) &&
 	  (CP_TYPE_RESTRICT_P (el)
@@ -3485,6 +3485,7 @@ mangle_decl (const tree decl)
 
   if (G.need_abi_warning
       /* Don't do this for a fake symbol we aren't going to emit anyway.  */
+      && TREE_CODE (decl) != TYPE_DECL
       && !DECL_MAYBE_IN_CHARGE_CONSTRUCTOR_P (decl)
       && !DECL_MAYBE_IN_CHARGE_DESTRUCTOR_P (decl))
     {

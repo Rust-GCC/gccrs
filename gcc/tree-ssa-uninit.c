@@ -44,6 +44,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "hashtab.h"
 #include "tree-pass.h"
 #include "diagnostic-core.h"
+#include "params.h"
 
 /* This implements the pass that does predicate aware warning on uses of
    possibly uninitialized variables. The pass first collects the set of
@@ -390,8 +391,8 @@ find_control_equiv_block (basic_block bb)
 
 /* Computes the control dependence chains (paths of edges)
    for DEP_BB up to the dominating basic block BB (the head node of a
-   chain should be dominated by it).  CD_CHAINS is pointer to a
-   dynamic array holding the result chains. CUR_CD_CHAIN is the current
+   chain should be dominated by it).  CD_CHAINS is pointer to an
+   array holding the result chains.  CUR_CD_CHAIN is the current
    chain being computed.  *NUM_CHAINS is total number of chains.  The
    function returns true if the information is successfully computed,
    return false if there is no control dependence or not computed.  */
@@ -400,7 +401,8 @@ static bool
 compute_control_dep_chain (basic_block bb, basic_block dep_bb,
                            vec<edge> *cd_chains,
                            size_t *num_chains,
-                           vec<edge> *cur_cd_chain)
+			   vec<edge> *cur_cd_chain,
+			   int *num_calls)
 {
   edge_iterator ei;
   edge e;
@@ -410,6 +412,10 @@ compute_control_dep_chain (basic_block bb, basic_block dep_bb,
 
   if (EDGE_COUNT (bb->succs) < 2)
     return false;
+
+  if (*num_calls > PARAM_VALUE (PARAM_UNINIT_CONTROL_DEP_ATTEMPTS))
+    return false;
+  ++*num_calls;
 
   /* Could use a set instead.  */
   cur_chain_len = cur_cd_chain->length ();
@@ -450,7 +456,7 @@ compute_control_dep_chain (basic_block bb, basic_block dep_bb,
 
           /* Now check if DEP_BB is indirectly control dependent on BB.  */
           if (compute_control_dep_chain (cd_bb, dep_bb, cd_chains,
-                                         num_chains, cur_cd_chain))
+					 num_chains, cur_cd_chain, num_calls))
             {
               found_cd_chain = true;
               break;
@@ -595,13 +601,11 @@ find_predicates (pred_chain_union *preds,
                  basic_block use_bb)
 {
   size_t num_chains = 0, i;
-  vec<edge> *dep_chains = 0;
-  vec<edge> cur_chain = vNULL;
+  int num_calls = 0;
+  vec<edge> dep_chains[MAX_NUM_CHAINS];
+  auto_vec<edge, MAX_CHAIN_LEN + 1> cur_chain;
   bool has_valid_pred = false;
   basic_block cd_root = 0;
-
-  typedef vec<edge> vec_edge_heap;
-  dep_chains = XCNEWVEC (vec_edge_heap, MAX_NUM_CHAINS);
 
   /* First find the closest bb that is control equivalent to PHI_BB
      that also dominates USE_BB.  */
@@ -615,19 +619,13 @@ find_predicates (pred_chain_union *preds,
         break;
     }
 
-  compute_control_dep_chain (cd_root, use_bb,
-                             dep_chains, &num_chains,
-                             &cur_chain);
+  compute_control_dep_chain (cd_root, use_bb, dep_chains, &num_chains,
+			     &cur_chain, &num_calls);
 
   has_valid_pred
-      = convert_control_dep_chain_into_preds (dep_chains,
-                                              num_chains,
-                                              preds);
-  /* Free individual chain  */
-  cur_chain.release ();
+    = convert_control_dep_chain_into_preds (dep_chains, num_chains, preds);
   for (i = 0; i < num_chains; i++)
     dep_chains[i].release ();
-  free (dep_chains);
   return has_valid_pred;
 }
 
@@ -694,15 +692,12 @@ static bool
 find_def_preds (pred_chain_union *preds, gimple phi)
 {
   size_t num_chains = 0, i, n;
-  vec<edge> *dep_chains = 0;
-  vec<edge> cur_chain = vNULL;
+  vec<edge> dep_chains[MAX_NUM_CHAINS];
+  auto_vec<edge, MAX_CHAIN_LEN + 1> cur_chain;
   vec<edge> def_edges = vNULL;
   bool has_valid_pred = false;
   basic_block phi_bb, cd_root = 0;
   pointer_set_t *visited_phis;
-
-  typedef vec<edge> vec_edge_heap;
-  dep_chains = XCNEWVEC (vec_edge_heap, MAX_NUM_CHAINS);
 
   phi_bb = gimple_bb (phi);
   /* First find the closest dominating bb to be
@@ -722,37 +717,29 @@ find_def_preds (pred_chain_union *preds, gimple phi)
   for (i = 0; i < n; i++)
     {
       size_t prev_nc, j;
+      int num_calls = 0;
       edge opnd_edge;
 
       opnd_edge = def_edges[i];
       prev_nc = num_chains;
-      compute_control_dep_chain (cd_root, opnd_edge->src,
-                                 dep_chains, &num_chains,
-                                 &cur_chain);
-      /* Free individual chain  */
-      cur_chain.release ();
+      compute_control_dep_chain (cd_root, opnd_edge->src, dep_chains,
+				 &num_chains, &cur_chain, &num_calls);
 
       /* Now update the newly added chains with
          the phi operand edge:  */
       if (EDGE_COUNT (opnd_edge->src->succs) > 1)
         {
-          if (prev_nc == num_chains
-              && num_chains < MAX_NUM_CHAINS)
-            num_chains++;
+	  if (prev_nc == num_chains && num_chains < MAX_NUM_CHAINS)
+	    dep_chains[num_chains++] = vNULL;
           for (j = prev_nc; j < num_chains; j++)
-            {
-              dep_chains[j].safe_push (opnd_edge);
-            }
+	    dep_chains[j].safe_push (opnd_edge);
         }
     }
 
   has_valid_pred
-      = convert_control_dep_chain_into_preds (dep_chains,
-                                              num_chains,
-                                              preds);
+    = convert_control_dep_chain_into_preds (dep_chains, num_chains, preds);
   for (i = 0; i < num_chains; i++)
     dep_chains[i].release ();
-  free (dep_chains);
   return has_valid_pred;
 }
 
@@ -1821,8 +1808,13 @@ push_pred (pred_chain_union *norm_preds, pred_info pred)
    OP != 0 and push it WORK_LIST.  */
 
 inline static void
-push_to_worklist (tree op, vec<pred_info, va_heap, vl_ptr> *work_list)
+push_to_worklist (tree op, vec<pred_info, va_heap, vl_ptr> *work_list,
+                  pointer_set_t *mark_set)
 {
+  if (pointer_set_contains (mark_set, op))
+    return;
+  pointer_set_insert (mark_set, op);
+
   pred_info arg_pred;
   arg_pred.pred_lhs = op;
   arg_pred.pred_rhs = integer_zero_node;
@@ -1905,7 +1897,8 @@ normalize_one_pred_1 (pred_chain_union *norm_preds,
                       pred_chain *norm_chain,
                       pred_info pred,
                       enum tree_code and_or_code,
-                      vec<pred_info, va_heap, vl_ptr> *work_list)
+                      vec<pred_info, va_heap, vl_ptr> *work_list,
+		      pointer_set_t *mark_set)
 {
   if (!is_neq_zero_form_p (pred))
     {
@@ -1945,39 +1938,37 @@ normalize_one_pred_1 (pred_chain_union *norm_preds,
           if (integer_zerop (op))
             continue;
 
-          push_to_worklist (op, work_list);
+          push_to_worklist (op, work_list, mark_set);
         }
-     }
-   else if (gimple_code (def_stmt) != GIMPLE_ASSIGN)
-     {
-       if (and_or_code == BIT_IOR_EXPR)
-         push_pred (norm_preds, pred);
-       else
-         norm_chain->safe_push (pred);
-     }
-   else if (gimple_assign_rhs_code (def_stmt) == and_or_code)
-     {
-        push_to_worklist (gimple_assign_rhs1 (def_stmt),
-                          work_list);
-        push_to_worklist (gimple_assign_rhs2 (def_stmt),
-                          work_list);
-     }
-   else if (TREE_CODE_CLASS (gimple_assign_rhs_code (def_stmt))
-            == tcc_comparison)
-     {
-       pred_info n_pred = get_pred_info_from_cmp (def_stmt);
-       if (and_or_code == BIT_IOR_EXPR)
-         push_pred (norm_preds, n_pred);
-       else
-         norm_chain->safe_push (n_pred);
-     }
-   else
-     {
-       if (and_or_code == BIT_IOR_EXPR)
-         push_pred (norm_preds, pred);
-       else
-         norm_chain->safe_push (pred);
-     }
+    }
+  else if (gimple_code (def_stmt) != GIMPLE_ASSIGN)
+    {
+      if (and_or_code == BIT_IOR_EXPR)
+	push_pred (norm_preds, pred);
+      else
+	norm_chain->safe_push (pred);
+    }
+  else if (gimple_assign_rhs_code (def_stmt) == and_or_code)
+    {
+      push_to_worklist (gimple_assign_rhs1 (def_stmt), work_list, mark_set);
+      push_to_worklist (gimple_assign_rhs2 (def_stmt), work_list, mark_set);
+    }
+  else if (TREE_CODE_CLASS (gimple_assign_rhs_code (def_stmt))
+	   == tcc_comparison)
+    {
+      pred_info n_pred = get_pred_info_from_cmp (def_stmt);
+      if (and_or_code == BIT_IOR_EXPR)
+	push_pred (norm_preds, n_pred);
+      else
+	norm_chain->safe_push (n_pred);
+    }
+  else
+    {
+      if (and_or_code == BIT_IOR_EXPR)
+	push_pred (norm_preds, pred);
+      else
+	norm_chain->safe_push (pred);
+    }
 }
 
 /* Normalize PRED and store the normalized predicates into NORM_PREDS.  */
@@ -1987,6 +1978,7 @@ normalize_one_pred (pred_chain_union *norm_preds,
                     pred_info pred)
 {
   vec<pred_info, va_heap, vl_ptr> work_list = vNULL;
+  pointer_set_t *mark_set = NULL;
   enum tree_code and_or_code = ERROR_MARK;
   pred_chain norm_chain = vNULL;
 
@@ -2014,16 +2006,19 @@ normalize_one_pred (pred_chain_union *norm_preds,
     }
 
   work_list.safe_push (pred);
+  mark_set = pointer_set_create ();
+
   while (!work_list.is_empty ())
     {
       pred_info a_pred = work_list.pop ();
       normalize_one_pred_1 (norm_preds, &norm_chain, a_pred,
-                            and_or_code, &work_list);
+                            and_or_code, &work_list, mark_set);
     }
   if (and_or_code == BIT_AND_EXPR)
     norm_preds->safe_push (norm_chain);
 
   work_list.release ();
+  pointer_set_destroy (mark_set);
 }
 
 static void
@@ -2031,21 +2026,26 @@ normalize_one_pred_chain (pred_chain_union *norm_preds,
                           pred_chain one_chain)
 {
   vec<pred_info, va_heap, vl_ptr> work_list = vNULL;
+  pointer_set_t *mark_set = pointer_set_create ();
   pred_chain norm_chain = vNULL;
   size_t i;
 
   for (i = 0; i < one_chain.length (); i++)
-    work_list.safe_push (one_chain[i]);
+    {
+      work_list.safe_push (one_chain[i]);
+      pointer_set_insert (mark_set, one_chain[i].pred_lhs);
+    }
 
   while (!work_list.is_empty ())
     {
       pred_info a_pred = work_list.pop ();
       normalize_one_pred_1 (0, &norm_chain, a_pred,
-                            BIT_AND_EXPR, &work_list);
+                            BIT_AND_EXPR, &work_list, mark_set);
     }
 
   norm_preds->safe_push (norm_chain);
   work_list.release ();
+  pointer_set_destroy (mark_set);
 }
 
 /* Normalize predicate chains PREDS and returns the normalized one.  */
@@ -2355,7 +2355,7 @@ execute_late_warn_uninitialized (void)
 static bool
 gate_warn_uninitialized (void)
 {
-  return warn_uninitialized != 0;
+  return warn_uninitialized || warn_maybe_uninitialized;
 }
 
 namespace {

@@ -2170,6 +2170,7 @@ no_linkage_check (tree t, bool relaxed_p)
     case ARRAY_TYPE:
     case POINTER_TYPE:
     case REFERENCE_TYPE:
+    case VECTOR_TYPE:
       return no_linkage_check (TREE_TYPE (t), relaxed_p);
 
     case OFFSET_TYPE:
@@ -3249,6 +3250,7 @@ handle_init_priority_attribute (tree* node,
   int pri;
 
   STRIP_NOPS (initp_expr);
+  initp_expr = default_conversion (initp_expr);
 
   if (!initp_expr || TREE_CODE (initp_expr) != INTEGER_CST)
     {
