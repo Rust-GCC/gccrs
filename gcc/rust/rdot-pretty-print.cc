@@ -19,8 +19,8 @@
 static bool _no_infer = false;
 static bool first = true;
 
-#define RDOT_PREFIX_PRE      "pre-rdot"
-#define RDOT_PREFIX_POST     "post-rdot"
+#define RDOT_PREFIX_PRE      ".pre-rdot"
+#define RDOT_PREFIX_POST     ".pst-rdot"
 
 static const char * typeStrings [] = {
   "bool",
@@ -32,93 +32,79 @@ static const char * typeStrings [] = {
   "void"
 };
 
-static
-const char * typeStringNode (rdot node)
+static char *
+typeStringNode (const rdot node)
 {
-  bool _error = false;
-  const char * retval = typeStrings [6];
+  char buffer [128];
+  size_t offset = 0;
+  if (RDOT_MEM_MODIFIER (node))
+    {
+      std::vector<ALLOCA_>::iterator it;
+      for (it = RDOT_MEM_MODIFIER (node)->begin ();
+           it != RDOT_MEM_MODIFIER (node)->end (); ++it )
+        {
+          switch (*it)
+            {
+            case ALLOC_HEAP:
+              {
+                buffer [offset] = '~';
+                offset++;
+              }
+              break;
+            case ALLOC_REF:
+              {
+                buffer [offset] = '&';
+                offset++;
+              }
+              break;
+            case ALLOC_DEREF:
+              {
+                buffer [offset] = '*';
+                offset++;
+              }
+              break;
+            }
+        }
+    }
   if (node != NULL_DOT)
     {
       switch (RDOT_TYPE (node))
         {
         case RTYPE_BOOL:
-          retval = typeStrings [0];
+          strcpy (buffer+offset, typeStrings [0]);
           break;
 
         case RTYPE_INT:
-          retval = typeStrings [1];
+          strcpy (buffer+offset, typeStrings [1]);
           break;
 
         case RTYPE_FLOAT:
-          retval = typeStrings [2];
+          strcpy (buffer+offset, typeStrings [2]);
           break;
 
         case RTYPE_UINT:
-          retval = typeStrings [3];
+          strcpy (buffer+offset, typeStrings [3]);
           break;
-
+          
         case RTYPE_INFER:
-          if (_no_infer) {
-            retval = xstrdup ("__FAIL__");
-            error ("gcc-rust has failed to infer a type and cannot continue");
+          {
+            if (_no_infer)
+              fatal_error ("gcc-rust has failed to infer a type and cannot continue");
+            else
+              strcpy (buffer+offset, typeStrings [4]);
           }
-          else
-            retval = typeStrings [4];
           break;
 
-	case RTYPE_USER_STRUCT:
-	  {
-	    if (RDOT_lhs_TT (node) != NULL_DOT)
-	      {
-		rdot sdef = RDOT_lhs_TT (node);
-		if (!_no_infer)
-		  retval = RDOT_IDENTIFIER_POINTER (sdef);
-		else
-		  {
-		    // ... 
-		    retval = RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (sdef));
-		  }
-	      }
-	    else
-	      retval = typeStrings [5];
-	  }
-	  break;
+        case RTYPE_USER_STRUCT:
+          strcpy (buffer+offset, RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (node)));
+          break;
 
         default:
-	  {
-	    _error = false;
-	    error ("unhandled type [%s]", RDOT_OPCODE_STR (node));
-	  }
+          fatal_error ("unhandled type [%s]", RDOT_OPCODE_STR (node));
           break;
         }
     }
-
-  if (node)
-    if (!_error)
-      {
-	char modifier_char = 'X';
-	switch (RDOT_MEM_MODIFIER (node))
-	  {
-	  case ALLOC_AUTO:
-	    modifier_char = '_';
-	    break;
-
-	  case ALLOC_HEAP:
-	    modifier_char = '~';
-	    break;
-
-	  case ALLOC_REF:
-	    modifier_char = '&';
-	    break;
-	  }
-	size_t blen = strlen (retval) + 5;
-	char * buffer = (char *) alloca (blen);
-	gcc_assert (buffer);
-
-	snprintf (buffer, blen, "%c::%s", modifier_char, retval);
-	retval = xstrdup (buffer);
-      }
-  return retval;
+  return xstrdup (buffer);
 }
 
 static void dot_pass_dump_node (FILE *, rdot, size_t);
@@ -164,7 +150,11 @@ void dot_pass_dump_method (FILE * fd, rdot node, size_t indents)
     fprintf (fd, "  ");
 
   const char * method_id = RDOT_IDENTIFIER_POINTER (RDOT_FIELD (node));
-  const char * rtype = typeStringNode (RDOT_FIELD2 (node));
+  char * rtype = NULL;
+  if (RDOT_FIELD2 (node))
+    rtype = typeStringNode (RDOT_FIELD2 (node));
+  else
+    rtype = xstrdup ("void");
   rdot parameters = RDOT_lhs_TT (node);
 
   if (DOT_RETVAL (node))
@@ -181,22 +171,11 @@ void dot_pass_dump_method (FILE * fd, rdot node, size_t indents)
         {
           gcc_assert (RDOT_TYPE (next) = D_PARAMETER);
 	  bool iself = false;
-	  bool reference = RDOT_REFERENCE (next);
-	  bool muta = false;
-	  if (RDOT_qual (next) == MUTABLE)
-	    muta = true;
+	  bool muta = RDOT_qual (next);
           const char * id = RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (next));
 
 	  if (strcmp (id, "self") == 0)
 	    iself = true;
-
-	  const char * sref;
-	  if (reference) {
-	    sref = "&";
-	  }
-	  else {
-	    sref = "_";
-	  }
 
 	  const char *smuta;
 	  if (muta) {
@@ -207,17 +186,18 @@ void dot_pass_dump_method (FILE * fd, rdot node, size_t indents)
 	  }
 
 	  if (iself)
-	    fprintf (fd, "[%s %s] _self_", sref, smuta);
+	    fprintf (fd, "[%s] _self_", smuta);
 	  else
 	    {
 	      const char * typestr = typeStringNode (RDOT_rhs_TT (next));
-	      fprintf (fd, "[%s %s] %s:%s", sref, smuta, typestr, id);
+	      fprintf (fd, "[%s] %s:%s", smuta, typestr, id);
 	    }
           if (RDOT_CHAIN (next) != NULL_DOT)
             fprintf (fd, ", ");
         }
     }
   fprintf (fd, " ) -> %s {\n", rtype);
+  free (rtype);
 
   rdot suite;
   for (suite = RDOT_rhs_TT (node); suite != NULL_DOT; suite = RDOT_CHAIN (suite))
@@ -254,22 +234,26 @@ void dot_pass_dumpPrimitive (FILE * fd, rdot node)
 static
 void dot_pass_dumpExprNode (FILE * fd, rdot node)
 {
-  /* print expr tree ... */
-  ALLOCA_ mod = RDOT_MEM_MODIFIER (node);
-  switch (mod)
+  if (RDOT_MEM_MODIFIER (node))
     {
-    case ALLOC_AUTO:
-      break;
-
-    case ALLOC_HEAP:
-      fprintf (fd, "~");
-      break;
-
-    case ALLOC_REF:
-      fprintf (fd, "&");
-      break;
+      std::vector<ALLOCA_>::iterator it;
+      for (it = RDOT_MEM_MODIFIER (node)->begin ();
+           it != RDOT_MEM_MODIFIER (node)->end (); ++it )
+        {
+          switch (*it)
+            {
+            case ALLOC_DEREF:
+              fprintf (fd, "*");
+              break;
+            case ALLOC_HEAP:
+              fprintf (fd, "~");
+              break;
+            case ALLOC_REF:
+              fprintf (fd, "&");
+              break;
+            }
+        }
     }
-  
   switch (RDOT_TYPE (node))
     {
     case D_PRIMITIVE:
@@ -310,7 +294,7 @@ void dot_pass_dumpExprNode (FILE * fd, rdot node)
     case D_VAR_DECL:
       {
         const char * mut;
-        if (RDOT_qual (node) == FINAL)
+        if (RDOT_qual (node))
           mut = "_final_";
         else
           mut = "_mut_";
@@ -639,7 +623,7 @@ vec<rdot,va_gc> * dot_pass_PrettyPrint (vec<rdot,va_gc> * decls)
       gcc_assert (outfile);
       memset (outfile, 0, bsize);
 
-      strncpy (outfile, GRS_current_infile, strlen (GRS_current_infile) - 2);
+      strncpy (outfile, GRS_current_infile, strlen (GRS_current_infile));
       if (first == true)
         {
           strncat (outfile, RDOT_PREFIX_PRE, sizeof (RDOT_PREFIX_PRE));

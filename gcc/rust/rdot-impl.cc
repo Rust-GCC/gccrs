@@ -87,7 +87,7 @@ void rdot_init (void)
   initilized = true;
 }
 
-rdot rdot_build_varDecl (rdot type, qualified final, rdot id)
+rdot rdot_build_varDecl (rdot type, bool final, rdot id)
 {
   rdot decl = rdot_build_decl2 (D_VAR_DECL, id, type);
   RDOT_qual (decl) = final;

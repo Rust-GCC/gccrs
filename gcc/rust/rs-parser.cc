@@ -22,8 +22,9 @@ static bool yyexpect (int);
 #else
 # define yylex_()  yylex ()
 #endif
-  
-static ALLOCA_ alloca_modifiers (void);
+
+static std::vector<ALLOCA_> * alloca_modifiers (void);
+
 static rdot type (void);
 static rdot target (void);
 static rdot suite (void);
@@ -149,19 +150,35 @@ yyerror (const char * fmt, ...)
     }
 }
 
-ALLOCA_ alloca_modifiers (void)
+std::vector<ALLOCA_> * alloca_modifiers (void)
 {
-  ALLOCA_ retval = ALLOC_AUTO;
-  if (yyaccept ('~'))
-    retval = ALLOC_HEAP;
-  if (yyaccept ('&'))
-    retval = ALLOC_REF;
-  return retval;
+  std::vector<ALLOCA_> * allocas = new std::vector<ALLOCA_>;
+  while (sym == '~' || sym == '&' || sym == '*')
+    {
+      ALLOCA_ mod;
+      switch (sym)
+        {
+        case '~':
+          mod = ALLOC_HEAP;
+          break;
+        case '&':
+          mod = ALLOC_REF;
+          break;
+        case '*':
+          mod = ALLOC_DEREF;
+          break;
+        default:
+          break;
+        }
+      yyexpect (sym);
+      allocas->push_back (mod);
+    }
+  return allocas;
 }
 
 rdot type (void)
 {
-  ALLOCA_ mem = alloca_modifiers ();
+  std::vector<ALLOCA_> * mem = alloca_modifiers ();
   rdot retval = NULL_DOT;
   if (yyaccept (TYPE_INT))
     retval = rdot_build_decl1 (RTYPE_INT, NULL_DOT);
@@ -187,9 +204,9 @@ rdot type (void)
 rdot target (void)
 {
   yyexpect (LET);
-  qualified qual = FINAL;
+  bool qual = true;
   if (yyaccept (MUT))
-    qual = MUTABLE;
+    qual = false;
   
   yyexpect (IDENTIFIER);
   char * tid = yylval.string;
@@ -274,7 +291,7 @@ rdot struct_init_list (void)
 rdot primary (void)
 {
   rdot retval = NULL_DOT;
-  ALLOCA_ mem = alloca_modifiers ();
+  std::vector<ALLOCA_> * mem = alloca_modifiers ();
   if (yyaccept (IDENTIFIER))
     {
       // maybe call...
@@ -322,7 +339,7 @@ rdot factor (void)
   rdot retval;
   if (yyaccept ('('))
     {
-      retval = primary ();
+      retval = expression ();
       yyexpect (')');
     }
   else
@@ -355,8 +372,25 @@ opcode_t symToDeclType (int sym)
       retval = D_EQ_EQ_EXPR;
       break;
 
-      // TODO:
-      /* __finish me !! */
+    case NOT_EQUAL:
+      retval = D_NOT_EQ_EXPR;
+      break;
+
+    case '<':
+      retval = D_LESS_EXPR;
+      break;
+      
+    case LESS_EQUAL:
+      retval = D_LESS_EQ_EXPR;
+      break;
+
+    case '>':
+      retval = D_GREATER_EXPR;
+      break;
+
+    case GREATER_EQUAL:
+      retval = D_GREATER_EQ_EXPR;
+      break;
       
     default:
       yyerror ("invalid symbol [%i:%s]",
@@ -368,30 +402,33 @@ opcode_t symToDeclType (int sym)
 
 rdot expression (void)
 {
-  bool _head = false;
-  rdot retval = NULL_DOT, next = NULL_DOT;
-  rdot head = factor ();
+  bool head = false;
+  rdot retval = factor ();
+  rdot next = NULL_DOT;
   while (sym == '+' || sym == '-' ||
          sym == '*' || sym == '/' ||
-         sym == EQUAL_EQUAL /* TODO ... */ )
+         sym == '<' || sym == '>' ||
+         sym == EQUAL_EQUAL ||
+         sym == NOT_EQUAL ||
+         sym == LESS_EQUAL ||
+         sym == GREATER_EQUAL)
     {
       opcode_t o = symToDeclType (sym);
       yyexpect (sym);
-      if (!_head)
+      rdot rhs = factor ();
+      if (head == false)
         {
-          next = rdot_build_decl2 (o, head, factor ());
-          head = next;
-          _head = true;
+          retval = next = rdot_build_decl2 (o, retval, rhs);
+          head = true;
         }
       else
         {
           rdot prev = RDOT_rhs_TT (next);
-          rdot rhs_expr = rdot_build_decl2 (o, prev, factor ());
+          rdot rhs_expr = rdot_build_decl2 (o, prev, rhs);
           RDOT_rhs_TT (next) = rhs_expr;
           next = rhs_expr;
         }
     }
-  retval = head;
   return retval;
 }
 
@@ -426,33 +463,19 @@ rdot statement ()
       else
         retval = tg;
     }
-  else if (yyaccept (IDENTIFIER))
-    {
-      char * yid = yylval.string;
-      rdot ident = rdot_build_identifier (yid);
-      free (yid);
-      // x =
-      if (yyaccept_ ('='))
-        {
-          yyexpect ('=');
-          retval = rdot_build_decl2 (D_MODIFY_EXPR,
-                                     ident, expression ());
-        }
-      // x ()
-      else if (yyaccept_ ('('))
-        {
-          yyexpect ('(');
-          rdot alist = argument_list ();
-          yyexpect (')');
-          retval = rdot_build_decl2 (D_CALL_EXPR,
-                                     ident, alist);
-        }
-      else
-        yyerror ("fixme!");
-    }
   else
       retval = expression ();
   return retval;
+}
+
+rdot struct_while_loop ()
+{
+  yyexpect (WHILE);
+  rdot expr = expression ();
+  yyexpect ('{');
+  rdot sb = suite ();
+  yyexpect ('}');
+  return rdot_build_decl2 (D_STRUCT_WHILE, expr, sb);
 }
 
 rdot struct_loop ()
@@ -495,13 +518,27 @@ rdot else_block (void)
 
 rdot struct_conditional ()
 {
-  rdot condit = NULL_DOT;
-  if_block ();
+  rdot iblock = if_block ();
+  rdot eblock = NULL_DOT;
+  rdot elblock = NULL_DOT;
+  rdot curr = NULL_DOT;
+  rdot prev = NULL_DOT;
   while (yyaccept_ (ELIF))
-    elif_block ();
+    {
+      curr = elif_block ();
+      if (elblock == NULL_DOT)
+        elblock = prev = curr;
+      else
+        {
+          RDOT_CHAIN (prev) = curr;
+          prev = curr;
+        }
+    }
   if (yyaccept_ (ELSE))
-    else_block ();
-  return condit;
+    eblock = else_block ();
+  rdot retval = rdot_build_decl2 (D_STRUCT_IF, iblock, eblock);
+  RDOT_FIELD (retval)= elblock;
+  return retval;
 }
 
 void statement_list (rdot head)
@@ -512,6 +549,8 @@ void statement_list (rdot head)
   rdot st = NULL_DOT;
   if (yyaccept_ (LOOP))
     st = struct_loop ();
+  else if (yyaccept_ (WHILE))
+    st = struct_while_loop ();
   else if (yyaccept_ (IF))
     st = struct_conditional (); 
  else

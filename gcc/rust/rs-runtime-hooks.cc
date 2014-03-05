@@ -26,9 +26,7 @@ struct rust_runtime {
     const tree ** paramater_types;
 };
 
-static const tree * println_args [] = { &cstring_type_node };
 static struct rust_runtime hooks [] =  {
-    { LANG_HOOK("println"), nitems (println_args), println_args },
     /* sentinal */
     { NULL, NULL, 0, NULL }
 };

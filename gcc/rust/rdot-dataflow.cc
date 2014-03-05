@@ -18,7 +18,7 @@
 
 static std::vector<std::map<std::string, rdot> *> context;
 static rdot dot_pass_typeifyExprNode (rdot);
-
+static bool dot_pass_typeCompare (const rdot, const rdot);
 static rdot impl_master = NULL_DOT;
 
 static
@@ -232,11 +232,10 @@ std::vector<rdot> * dot_pass_getReferences (rdot vDecl, rdot suite)
 	  {
 	    rdot wsuite = RDOT_rhs_TT (node);
 	    std::vector<rdot> * refs = dot_pass_getReferences (vDecl, wsuite);
-
-	    // append to the list
+            // append to the list
 	    std::vector<rdot>::iterator it;
 	    for (it = refs->begin (); it != refs->end (); ++it)
-		retval->push_back (*it);
+              retval->push_back (*it);
 	    delete refs;
 	  }
 	  break;
@@ -252,7 +251,7 @@ std::vector<rdot> * dot_pass_getReferences (rdot vDecl, rdot suite)
 	    // append to the list
 	    std::vector<rdot>::iterator it;
 	    for (it = refs->begin (); it != refs->end (); ++it)
-		retval->push_back (*it);
+              retval->push_back (*it);
 	    delete refs;
 
 	    if (elb != NULL_DOT)
@@ -269,6 +268,60 @@ std::vector<rdot> * dot_pass_getReferences (rdot vDecl, rdot suite)
 	}
     }
   return retval;
+}
+
+static bool
+dot_pass_typeCompare (const rdot x, const rdot y)
+{
+  bool retval = false;
+  if (RDOT_TYPE (x) == RDOT_TYPE (y))
+    if (RDOT_MEM_MODIFIER (x)->size () == RDOT_MEM_MODIFIER (y)->size ())
+      {
+        retval = true;
+        std::vector<ALLOCA_>::iterator xit;
+        std::vector<ALLOCA_>::iterator yit;
+        for (xit = RDOT_MEM_MODIFIER (x)->begin (),
+               yit = RDOT_MEM_MODIFIER (y)->begin ();
+             xit != RDOT_MEM_MODIFIER (x)->end ();
+             ++xit, ++yit)
+          {
+            if (*xit != *yit)
+              {
+                retval = false;
+                break;
+              }
+          }
+      }
+  return retval;
+}
+
+static char *
+dot_pass_typeString (const rdot node)
+{
+  char buffer [128];
+  size_t offset = 0;
+  if (RDOT_MEM_MODIFIER (node))
+    {
+      std::vector<ALLOCA_>::iterator it;
+      for (it = RDOT_MEM_MODIFIER (node)->begin ();
+           it != RDOT_MEM_MODIFIER (node)->end (); ++it )
+        {
+          switch (*it)
+            {
+            case ALLOC_DEREF:
+              buffer [offset++] = '*';
+              break;
+            case ALLOC_HEAP:
+              buffer [offset++] = '~';
+              break;
+            case ALLOC_REF:
+              buffer [offset++] = '&';
+              break;
+            }
+        }
+    }
+  strcpy (buffer+offset, RDOT_OPCODE_STR (node));
+  return xstrdup (buffer);
 }
 
 /**
@@ -294,7 +347,9 @@ rdot dot_pass_inferTheType (std::vector<rdot> * refs, const char * id)
 	possible_types.push_back (pos);
     }
 
-  if (possible_types.size () > 0)
+  if (possible_types.size () == 0)
+    retval = _retval;
+  else
     {
       bool first = true;
       std::vector<rdot>::iterator pit;
@@ -304,21 +359,19 @@ rdot dot_pass_inferTheType (std::vector<rdot> * refs, const char * id)
 	    {
 	      retval = *pit;
 	      first = false;
-	    }
-	  rdot itnode = *pit;
-	  if (RDOT_TYPE (retval) != RDOT_TYPE (itnode))
+	    }          
+	  if (!dot_pass_typeCompare (retval, *pit))
 	    {
-	      // FIXME:
-	      // this will need work what if its int vs float... does float win.
-	      error ("Ambigious types found for [%s] -> [%s] OR [%s]",
-		     id, RDOT_OPCODE_STR (retval), RDOT_OPCODE_STR (*pit));
+              char * t1 = dot_pass_typeString (retval);
+              char * t2 = dot_pass_typeString (*pit);
+              error ("Ambigious types found for [%s] -> [%s] OR [%s]", id, t1, t2);
 	      retval = _retval;
+              free (t1);
+              free (t2);
 	      break;
 	    }
 	}
     }
-  else
-    retval = _retval;
   return retval;
 }
 
@@ -339,6 +392,11 @@ rdot dot_pass_typeifyPrimitive (rdot node)
              RDOT_CODE_STR (node->opa.tc->T));
       break;
     }
+  RDOT_MEM_MODIFIER (retval) = new std::vector<ALLOCA_>;
+  std::vector<ALLOCA_>::iterator it;
+  for (it = RDOT_MEM_MODIFIER (node)->begin ();
+       it != RDOT_MEM_MODIFIER (node)->end (); ++it)
+    RDOT_MEM_MODIFIER (retval)->push_back (*it);
   return retval;
 }
 
@@ -355,106 +413,24 @@ rdot dot_pass_typeifyExprNode (rdot node)
     case D_IDENTIFIER:
       {
         rdot lookup = dot_pass_dataFlow_lookup (RDOT_IDENTIFIER_POINTER (node));
-        if (lookup != NULL_DOT)
-          {
-            /* i think it can only be var_decls being refernced
-               here there are no global variables outside of cal_exprs
-               but thats differnet ast node
-            */
-            if (RDOT_TYPE (lookup) == D_VAR_DECL)
-              retval = RDOT_rhs_TT (lookup);
-            else
-              error ("unable to find declaration of [%s] in current scope",
-                     RDOT_IDENTIFIER_POINTER (node));
-          }
-        else
+        if (lookup == NULL_DOT)
           error ("unable to find declaration of [%s] in current scope",
                  RDOT_IDENTIFIER_POINTER (node));
-      }
-      break;
-
-    case D_ATTRIB_REF:
-      {
-	rdot lhs = RDOT_lhs_TT (node);
-	rdot rhs = RDOT_rhs_TT (node);
-
-	rdot tlh = dot_pass_typeifyExprNode (lhs);
-	if (RDOT_TYPE (tlh) == RTYPE_INFER)
-	  error ("Unable to infer the type of [%s]", RDOT_OPCODE_STR (lhs));
-	else
-	  {
-	    if (RDOT_TYPE (tlh) != RTYPE_USER_STRUCT)
-	      error ("Unable to access the atribute on non struct type [%s]",
-		     RDOT_OPCODE_STR (tlh));
-	    else
-	      {
-		rdot mtype = RDOT_lhs_TT (tlh);
-		gcc_assert (mtype != NULL_DOT);
-		switch (RDOT_TYPE (rhs))
-		  {
-		  case D_IDENTIFIER:
-		    {
-		      const char * aid = RDOT_IDENTIFIER_POINTER (rhs);
-		      bool found = false;
-
-		      rdot fields;
-		      for (fields = RDOT_rhs_TT (mtype); fields != NULL_DOT;
-			   fields = RDOT_CHAIN (fields))
-			{
-			  rdot rid = RDOT_lhs_TT (fields);
-			  const char * pid = RDOT_IDENTIFIER_POINTER (rid);
-			  if (strcmp (pid, aid) == 0)
-			    {
-			      found = true;
-			      break;
-			    }
-			}
-		      if (!found)
-			error ("field [%s] is not found in [%s] [%s]",
-			       aid, RDOT_OPCODE_STR (tlh),
-			       RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (mtype)));
-		      else
-			retval = RDOT_rhs_TT (fields);
-		    }
-		    break;
-
-		  case D_CALL_EXPR:
-		    {
-		      rdot callid = RDOT_lhs_TT (rhs);
-		      const char * aid = RDOT_IDENTIFIER_POINTER (callid);
-		      bool found = false;
-
-		      rdot fields;
-		      for (fields = RDOT_rhs_TT (RDOT_FIELD (mtype));
-			   fields != NULL_DOT;
-			   fields = RDOT_CHAIN (fields))
-			{
-			  gcc_assert (RDOT_TYPE (fields) == D_STRUCT_METHOD);
-			  rdot rmid = RDOT_FIELD (fields);
-			  const char * mid = RDOT_IDENTIFIER_POINTER (rmid);
-			  if (strcmp (mid, aid) == 0)
-			    {
-			      found = true;
-			      break;
-			    }
-			}
-
-		      if (!found)
-			error ("type [%s] doesn't implement any method named [%s]",
-			       RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (mtype)), aid);
-		      else
-			retval = RDOT_FIELD2 (fields);
-		    }
-		    break;
-
-		  default:
-		    error ("Unable to infer [%s].[%s]",
-			   RDOT_OPCODE_STR (lhs),
-			   RDOT_OPCODE_STR (rhs));
-		    break;
-		  }
-	      }
-	  }
+        else
+          {
+            gcc_assert (RDOT_TYPE (lookup) == D_VAR_DECL);
+            RDOT_TYPE (retval) = RDOT_TYPE (RDOT_rhs_TT (lookup));
+            RDOT_MEM_MODIFIER (retval) = new std::vector<ALLOCA_>;
+            std::vector<ALLOCA_>::iterator it;
+            if (RDOT_MEM_MODIFIER (node))
+              for (it = RDOT_MEM_MODIFIER (node)->begin ();
+                   it != RDOT_MEM_MODIFIER (node)->end (); ++it)
+                RDOT_MEM_MODIFIER (retval)->push_back (*it);
+            if (RDOT_MEM_MODIFIER (RDOT_rhs_TT (lookup)))
+              for (it = RDOT_MEM_MODIFIER (RDOT_rhs_TT (lookup))->begin ();
+                   it != RDOT_MEM_MODIFIER (RDOT_rhs_TT (lookup))->end (); ++it)
+                RDOT_MEM_MODIFIER (retval)->push_back (*it);
+          }
       }
       break;
 
@@ -466,9 +442,18 @@ rdot dot_pass_typeifyExprNode (rdot node)
 	if (lookup != NULL_DOT)
 	  {
 	    if (RDOT_TYPE (lookup) == D_STRUCT_TYPE)
-	      {
-		retval = rdot_build_decl1 (RTYPE_USER_STRUCT, lookup);
-		RDOT_FIELD (node) = lookup;
+	      {                
+		retval = rdot_build_decl1 (RTYPE_USER_STRUCT, RDOT_lhs_TT (lookup));
+                RDOT_MEM_MODIFIER (retval) = new std::vector<ALLOCA_>;
+                std::vector<ALLOCA_>::iterator it;
+                if (RDOT_MEM_MODIFIER (node))
+                  for (it = RDOT_MEM_MODIFIER (node)->begin ();
+                       it != RDOT_MEM_MODIFIER (node)->end (); ++it)
+                    RDOT_MEM_MODIFIER (retval)->push_back (*it);
+                if (RDOT_MEM_MODIFIER (lookup))
+                  for (it = RDOT_MEM_MODIFIER (lookup)->begin ();
+                       it != RDOT_MEM_MODIFIER (lookup)->end (); ++it)
+                    RDOT_MEM_MODIFIER (retval)->push_back (*it);
 	      }
 	    else
 	      error ("unable to determine type of [%s] struct initilization, "
@@ -486,11 +471,18 @@ rdot dot_pass_typeifyExprNode (rdot node)
         rdot lookup = dot_pass_dataFlow_lookup (callid);
         if (lookup != NULL_DOT)
           {
-            if (RDOT_TYPE (lookup) == D_STRUCT_METHOD)
-              retval = RDOT_FIELD2 (lookup);
-            else
-              error ("unable to find declaration of [%s] in current scope",
-                     callid);
+            gcc_assert (RDOT_TYPE (lookup) == D_STRUCT_METHOD);
+            RDOT_TYPE (retval) = RDOT_TYPE (RDOT_FIELD2 (lookup));
+            std::vector<ALLOCA_> * mods = RDOT_MEM_MODIFIER (RDOT_FIELD2 (lookup));
+            RDOT_MEM_MODIFIER (retval) = new std::vector<ALLOCA_>;
+            std::vector<ALLOCA_>::iterator it;
+            if (RDOT_MEM_MODIFIER (node))
+              for (it = RDOT_MEM_MODIFIER (node)->begin ();
+                   it != RDOT_MEM_MODIFIER (node)->end (); ++it)
+                RDOT_MEM_MODIFIER (retval)->push_back (*it);
+            if (mods)
+              for (it = mods->begin (); it != mods->end (); ++it)
+                RDOT_MEM_MODIFIER (retval)->push_back (*it);
           }
         else
           error ("unable to find declaration of [%s] in current scope",
@@ -509,17 +501,14 @@ rdot dot_pass_typeifyExprNode (rdot node)
 	rdot lt = dot_pass_typeifyExprNode (lhs);
 	rdot rt = dot_pass_typeifyExprNode (rhs);
 
-	if (RDOT_TYPE (lt) == RTYPE_INFER
-	    || RDOT_TYPE (rt) == RTYPE_INFER)
-	  ; // we cannot say what the type is...
-        else
+	if (RDOT_TYPE (lt) != RTYPE_INFER
+	    || RDOT_TYPE (rt) != RTYPE_INFER)
 	  {
-	    if (RDOT_TYPE (lt) != RDOT_TYPE (rt))
+            if (RDOT_TYPE (lt) == RDOT_TYPE (rt))
+              retval = lt;
+            else
 	      error ("unable to coerce types [%s] and [%s]",
-		     RDOT_OPCODE_STR (lt),
-		     RDOT_OPCODE_STR (rt));
-	    else
-	      retval = lt;
+		     RDOT_OPCODE_STR (lt), RDOT_OPCODE_STR (rt));
 	  }
       }
       break;
@@ -528,6 +517,34 @@ rdot dot_pass_typeifyExprNode (rdot node)
       error ("Unable to figure out the type of this [%s]",
 	     RDOT_OPCODE_STR (node));
       break;
+    }
+  if (RDOT_MEM_MODIFIER (retval))
+    {
+      bool skip_next = false;
+      std::vector<ALLOCA_> * pmods = RDOT_MEM_MODIFIER (retval);
+      std::vector<ALLOCA_> * nmods = new std::vector<ALLOCA_>;
+      std::vector<ALLOCA_>::iterator it;
+      for (it = pmods->begin (); it != pmods->end (); ++it)
+        {
+          switch (*it)
+            {
+            case ALLOC_DEREF:
+              skip_next = true;
+              break;
+              
+            default:
+              {
+                if (!skip_next)
+                  {
+                    nmods->push_back (*it);
+                    skip_next = false;
+                  }
+              }
+              break;
+            }
+        }
+      delete pmods;
+      RDOT_MEM_MODIFIER (retval) = nmods;
     }
   return retval;
 }
@@ -606,7 +623,7 @@ void dot_pass_dataFlowBlock (rdot suite)
       rdot decl = *it;
       rdot idecl = RDOT_lhs_TT (decl);
       const char * ident = RDOT_IDENTIFIER_POINTER (idecl);
-
+      
       if (RDOT_TYPE (RDOT_rhs_TT (decl)) == RTYPE_INFER)
 	{
 	  std::vector<rdot> * refs = dot_pass_getReferences (decl, suite);
@@ -648,7 +665,6 @@ void dot_pass_dataFlowFunction (rdot node)
 	  gcc_assert (impl_master != NULL_DOT);
 	  rdot stid = RDOT_lhs_TT (impl_master);
 	  ptype = rdot_build_decl1 (RTYPE_USER_STRUCT, stid);
-	  RDOT_MEM_MODIFIER (ptype) = ALLOC_AUTO;
 	}
       rdot vpdecl = rdot_build_varDecl (ptype, RDOT_qual (params), pident);
       bool chk = dot_pass_dataFlow_pushDecl (vpdecl,
@@ -718,7 +734,7 @@ void dot_pass_dataFlowToplevel (rdot node)
 		rdot next;
 		for (next = RDOT_rhs_TT (node); next != NULL_DOT;
 		     next = RDOT_CHAIN (next))
-		    dot_pass_dataFlowFunction (next);
+                  dot_pass_dataFlowFunction (next);
 		impl_master = NULL_DOT;
 	      }
 	  }

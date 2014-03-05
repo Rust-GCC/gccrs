@@ -54,21 +54,15 @@ static
 bool grs_langhook_init (void)
 {
   build_common_tree_nodes (false, false);
-  // build_common_builtin_nodes ();
-
-  // shouldnt have to do this...
+  
   void_list_node = build_tree_list (NULL_TREE, void_type_node);
-
-  /* The default precision for floating point numbers.  This is used
-     for floating point constants with abstract type.  This may
-     eventually be controllable by a command line option.  */
+  
+  build_common_builtin_nodes ();
+  
   mpfr_set_default_prec (128);
-  // for exceptions
   using_eh_for_cleanups ();
-
-  /* initilize some rdot stuff */
+  
   rdot_init ();
-
   return true;
 }
 
@@ -156,16 +150,40 @@ void grs_langhook_parse_file (void)
 }
 
 static tree
-grs_langhook_type_for_size (unsigned int bits ATTRIBUTE_UNUSED,
-                            int unsignedp ATTRIBUTE_UNUSED)
+grs_langhook_type_for_mode (enum machine_mode mode, int unsignedp)
 {
+  if (mode == TYPE_MODE (float_type_node))
+    return float_type_node;
+
+  if (mode == TYPE_MODE (double_type_node))
+    return double_type_node;
+
+  if (mode == TYPE_MODE (integer_type_node))
+    return unsignedp ? unsigned_type_node : integer_type_node;
+
+  if (mode == TYPE_MODE (long_integer_type_node))
+    return unsignedp ? long_unsigned_type_node : long_integer_type_node;
+
+  if (COMPLEX_MODE_P (mode))
+    {
+      if (mode == TYPE_MODE (complex_float_type_node))
+	return complex_float_type_node;
+      if (mode == TYPE_MODE (complex_double_type_node))
+	return complex_double_type_node;
+      if (mode == TYPE_MODE (complex_long_double_type_node))
+	return complex_long_double_type_node;
+      if (mode == TYPE_MODE (complex_integer_type_node) && !unsignedp)
+	return complex_integer_type_node;
+    }
+  /* gcc_unreachable */
   return NULL;
 }
 
 static
-tree grs_langhook_type_for_mode (enum machine_mode mode ATTRIBUTE_UNUSED,
+tree grs_langhook_type_for_size (unsigned int bits ATTRIBUTE_UNUSED,
                                  int unsignedp ATTRIBUTE_UNUSED)
 {
+  gcc_unreachable ();
   return NULL_TREE;
 }
 

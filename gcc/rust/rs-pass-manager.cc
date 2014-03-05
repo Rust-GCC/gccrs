@@ -36,7 +36,25 @@ static dot_pass dot_pass_mngr[] =
 /* Pushes each decl from the parser onto the current translation unit */
 void dot_pass_pushDecl (rdot decl)
 {
-  empty = false;
+  if (empty)
+    empty = false;
+
+  if (RDOT_TYPE (decl) == D_STRUCT_TYPE)
+    {
+      // look for duplicate fields
+      std::map<std::string, bool> layout;
+      rdot next;
+      for (next = RDOT_rhs_TT (decl); next != NULL_DOT;
+           next = RDOT_CHAIN (next))
+        {
+          const char * pid = RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (next));
+          if (layout.count (pid) > 0)
+              error ("structure [%s] already contains element [%s]",
+                     RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (decl)), pid);
+          else
+            layout [pid] = true;
+        }
+    }
   vec_safe_push (rust_decls, decl);
 }
 

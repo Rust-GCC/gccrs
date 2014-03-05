@@ -52,7 +52,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "cgraph.h"
 #include "varasm.h"
 #include "stringpool.h"
-
+#include "print-tree.h"
 #include <vec.h>
 #include <hashtab.h>
 

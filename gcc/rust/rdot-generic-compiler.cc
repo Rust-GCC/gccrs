@@ -16,6 +16,8 @@
 
 #include "rust.h"
 
+#define RUST_TMP "RUST_TMP"
+
 static std::vector<std::map<std::string, tree> *> context;
 
 static tree dot_pass_genFndecl_Basic (location_t, const char *, tree);
@@ -25,10 +27,42 @@ static void dot_pass_pushContext (void);
 static void dot_pass_genMethodProto (rdot);
 static void dot_pass_compileSuite (rdot, tree *);
 
+#define RDOT_ALLOCA_MODIFIERS_DO(_X, _Y)                                \
+  do {                                                                  \
+    gcc_assert (_X != error_mark_node);                                 \
+    std::vector<ALLOCA_>::reverse_iterator __rit;                       \
+    for (__rit = RDOT_MEM_MODIFIER (_Y)->rbegin ();                     \
+         __rit != RDOT_MEM_MODIFIER (_Y)->rend (); ++__rit)             \
+      {                                                                 \
+        switch (*__rit)                                                 \
+          {                                                             \
+          case ALLOC_HEAP:                                              \
+            _X = dot_pass_heapify (_X, TREE_TYPE (_X),                  \
+                                   TYPE_SIZE_UNIT (TREE_TYPE (_X)));    \
+            break;                                                      \
+          case ALLOC_REF:                                               \
+            _X = build_fold_addr_expr (_X);                             \
+            break;                                                      \
+          case ALLOC_DEREF:                                             \
+            {                                                           \
+              _X = build_fold_indirect_ref_loc (RDOT_LOCATION (_Y),     \
+                                                _X);                    \
+              TREE_THIS_NOTRAP (_X) = 1;                                \
+            }                                                           \
+            break;                                                      \
+          }                                                             \
+      }                                                                 \
+  } while (0)
+
+/* NOTE: this isn't global in the sense of the generated code,
+   This just makes it easier for expression compilation to access
+   the return decl */
 static tree global_retDecl;
+static tree * current_function_block;
 static bool global_retDecl_;
 static tree __impl_type_decl = error_mark_node;
 static std::vector<tree> __loopContexts;
+#define dot_pass_rustToGccType(_x, _y) dot_pass_rustToGccType__ (_x, _y, false, NULL)
 
 static
 char * dot_pass_demangleImpl (const char * val)
@@ -62,7 +96,7 @@ char * dot_pass_mangle (const char * val)
 }
 
 static
-tree dot_pass_rustToGccType (rdot type, bool consty)
+tree dot_pass_rustToGccType__ (rdot type, bool consty, bool rset, tree * record)
 {
   tree retval = error_mark_node;
   switch (RDOT_TYPE (type))
@@ -71,22 +105,15 @@ tree dot_pass_rustToGccType (rdot type, bool consty)
       retval = integer_type_node;
       break;
 
-    case RTYPE_USER_STRUCT:
-      {
-	rdot stype = RDOT_lhs_TT (type);
-	const char * id = RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (stype));
-	retval = dot_pass_lookupCTU (id);
-
-	if (retval == error_mark_node)
-	  error ("Unable to find struct [%s]\n", id);
-      }
-      break;
-
     case D_STRUCT_TYPE:
+    case D_STRUCT_INIT:
+    case RTYPE_USER_STRUCT:
       {
 	const char * id = RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (type));
 	retval = dot_pass_lookupCTU (id);
-
+        if (rset)
+          *record = retval;
+        
 	if (retval == error_mark_node)
 	  error ("Unable to find struct type [%s]\n", id);
       }
@@ -97,9 +124,23 @@ tree dot_pass_rustToGccType (rdot type, bool consty)
              RDOT_OPCODE_STR (type));
       break;
     }
+  std::vector<ALLOCA_>::reverse_iterator rit;
+  for (rit = RDOT_MEM_MODIFIER (type)->rbegin ();
+       rit != RDOT_MEM_MODIFIER (type)->rend (); ++rit)
+    {
+      switch (*rit)
+        {
+        case ALLOC_REF:
+        case ALLOC_HEAP:
+          retval = build_pointer_type (retval);
+          break;
+        default:
+          fatal_error ("cannot figure out modifier applied to type [%i]", *rit);
+          break;
+        }
+    }
   if (consty)
     retval = build_qualified_type (retval, TYPE_QUAL_CONST);
-
   return retval;
 }
 
@@ -176,6 +217,54 @@ void dot_pass_pushDecl (const char * id, tree decl)
     error ("duplicate declaration of [%s]\n", id);
 }
 
+static tree
+dot_pass_rust_RR_alloc (tree size)
+{
+  tree fntype = build_function_type_list (ptr_type_node,
+                                          size_type_node,
+                                          NULL_TREE);
+  tree fndecl = build_decl (BUILTINS_LOCATION, FUNCTION_DECL,
+                            get_identifier ("__rust_heap_alloc"),
+                            fntype);
+  tree restype = TREE_TYPE (fndecl);
+  tree resdecl = build_decl (BUILTINS_LOCATION, RESULT_DECL, NULL_TREE,
+                             restype);
+  DECL_CONTEXT (resdecl) = fndecl;
+  DECL_RESULT (fndecl) = resdecl;
+  DECL_EXTERNAL (fndecl) = 1;
+  TREE_PUBLIC (fndecl) = 1;
+  return build_call_expr (fndecl, 1, size);
+}
+
+static tree
+dot_pass_heap_alloc (tree size, tree type)
+{
+  tree ptype = build_pointer_type (type);
+  tree heap_tmp = build_decl (UNKNOWN_LOCATION, VAR_DECL,
+                              create_tmp_var_name (RUST_TMP),
+                              ptype);
+  dot_pass_pushDecl (IDENTIFIER_POINTER (DECL_NAME (heap_tmp)), heap_tmp);
+  append_to_statement_list (fold_build2 (MODIFY_EXPR, ptype, heap_tmp,
+                                         dot_pass_rust_RR_alloc (size)),
+                            current_function_block);
+  return heap_tmp;
+}
+
+static tree
+dot_pass_heapify (tree value, tree type, tree size)
+{
+  tree alloc = dot_pass_heap_alloc (size, type);
+  tree gmemcpy = builtin_decl_implicit (BUILT_IN_MEMCPY);
+  vec<tree,va_gc> * args;
+  vec_alloc (args, 0);
+  vec_safe_push (args, alloc);
+  vec_safe_push (args, build_fold_addr_expr (value));
+  vec_safe_push (args, size);
+  append_to_statement_list (build_call_expr_loc_vec (UNKNOWN_LOCATION, gmemcpy, args),
+                            current_function_block);
+  return alloc;
+}
+
 static
 tree dot_pass_genScalar (rdot decl)
 {
@@ -188,16 +277,9 @@ tree dot_pass_genScalar (rdot decl)
     case D_T_INTEGER:
       retval = build_int_cst (integer_type_node, RDOT_lhs_TC (decl)->o.integer);
       break;
-        
-    case D_T_STRING:
-      {
-        tree stringVal = dot_pass_generateCString (RDOT_lhs_TC (decl)->o.string);
-        retval = build_fold_addr_expr (stringVal);
-      }
-      break;
-
+      
     default:
-      error ("invalid scalar type %i!\n", RDOT_lhs_TC (decl)->T);
+      fatal_error ("invalid scalar type %i!\n", RDOT_lhs_TC (decl)->T);
       break;
     }
   return retval;
@@ -229,7 +311,10 @@ tree dot_pass_lowerExpr (rdot dot, tree * block)
   switch (RDOT_TYPE (dot))
     {
     case D_PRIMITIVE:
-      retval = dot_pass_genScalar (dot);
+      {
+        retval = dot_pass_genScalar (dot);
+        RDOT_ALLOCA_MODIFIERS_DO (retval, dot);
+      }
       break;
 
     case D_IDENTIFIER:
@@ -238,6 +323,7 @@ tree dot_pass_lowerExpr (rdot dot, tree * block)
 	retval = dot_pass_lookupCTU (id);
 	if (retval == error_mark_node)
 	  error ("no such id [%s] in scope", id);
+        RDOT_ALLOCA_MODIFIERS_DO (retval, dot);
       }
       break;
 
@@ -245,7 +331,9 @@ tree dot_pass_lowerExpr (rdot dot, tree * block)
       {
 	// need to go fetch the type and build the constructor...
 	size_t count = 0;
-	tree root_type = dot_pass_rustToGccType (RDOT_FIELD (dot), false);
+        tree root_type = error_mark_node;
+	dot_pass_rustToGccType__ (dot, false, true, &root_type);
+        gcc_assert (root_type != error_mark_node);
 
 	vec<constructor_elt, va_gc> *init;
 	vec_alloc (init, count + 1);
@@ -295,35 +383,40 @@ tree dot_pass_lowerExpr (rdot dot, tree * block)
 		       RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (next)));
 		break;
 	      }
-	    
 	    elt->index = fnext;
-	    elt->value = dot_pass_lowerExpr (RDOT_rhs_TT (next), block);
+            elt->value = dot_pass_lowerExpr (RDOT_rhs_TT (next), block);
 	    valid++;
 	  }
 
-	if (valid != count)
-	  {
-	    error ("Cannot initilize struct required [%lu] fields got [%lu]",
-		   valid, count);
+	if (valid == count)
+          {
+            tree rid = create_tmp_var_name (RUST_TMP);
+            retval = build_decl (RDOT_LOCATION (dot), VAR_DECL, rid, root_type);
+            append_to_statement_list (fold_build2 (MODIFY_EXPR, root_type,
+                                                   retval, build_constructor (root_type, init)),
+                                      block);
+            dot_pass_pushDecl (IDENTIFIER_POINTER (rid), retval);
+          }
+        else
+          {
+            fatal_error ("Cannot initilize struct required [%lu] fields got [%lu]",
+                         valid, count);
 	    // TODO better diagnostic make a map of the initilized so
 	    // we can display the un initilized to the user
 	  }
-	else
-	  retval = build_constructor (root_type, init);
+        RDOT_ALLOCA_MODIFIERS_DO (retval, dot);
       }
       break;
 
     case D_CALL_EXPR:
       {
         const char * fnid = RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (dot));
-
         rdot ptr;
         vec<tree,va_gc> * arguments;
         vec_alloc (arguments, 0);
         for (ptr = RDOT_rhs_TT (dot); ptr != NULL_DOT;
              ptr = RDOT_CHAIN (ptr))
           vec_safe_push (arguments, dot_pass_lowerExpr (ptr, block));
-
         /* lookup the function prototype */
         tree lookup = dot_pass_lookupCTU (fnid);
         if (lookup != error_mark_node)
@@ -333,6 +426,7 @@ tree dot_pass_lowerExpr (rdot dot, tree * block)
             error ("Unable to find callable %s\n", fnid);
             retval = error_mark_node;
           }
+        RDOT_ALLOCA_MODIFIERS_DO (retval, dot);
       }
       break;
 
@@ -408,11 +502,8 @@ tree dot_pass_lowerExpr (rdot dot, tree * block)
     case D_MODIFY_EXPR:
       {
 	tree assignment = dot_pass_lowerExpr (RDOT_rhs_TT (dot), block);
-	// the compution compiled first so we can correct the types if nessecary
 	tree decl = dot_pass_lowerExpr (RDOT_lhs_TT (dot), block);
-        tree assign = build2 (MODIFY_EXPR, TREE_TYPE (decl),
-			      decl, assignment);
-        retval = assign;
+        retval = build2 (MODIFY_EXPR, TREE_TYPE (decl), decl, assignment);
       }
       break;
 
@@ -484,9 +575,7 @@ tree dot_pass_lowerExpr (rdot dot, tree * block)
     case D_VAR_DECL:
         {
           const char * varID = RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (dot));
-          bool consty = false;
-          if (RDOT_qual (dot) == FINAL)
-            consty = true;
+          bool consty = RDOT_qual (dot);
           tree gcc_type = dot_pass_rustToGccType (RDOT_rhs_TT (dot), consty);
           tree decl = build_decl (RDOT_LOCATION (dot),
                                   VAR_DECL, get_identifier (varID),
@@ -572,10 +661,10 @@ void dot_pass_compileBreak (rdot node, tree * block)
 {
   size_t lts = __loopContexts.size ();
   if (lts > 0)
-    {
-      tree lt = __loopContexts.back ();
-      append_to_statement_list (build1 (GOTO_EXPR, void_type_node, lt), block);
-    }
+    append_to_statement_list (fold_build1_loc (RDOT_LOCATION (node), GOTO_EXPR,
+                                               void_type_node,
+                                               __loopContexts.back ()),
+                              block);
   else
     error ("break outside of loop context");
 }
@@ -769,12 +858,7 @@ tree dot_pass_genifyTopFndecl (rdot node)
 	  const char * pid = RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (prm));
 	  if (strcmp (pid, "self") == 0)
 	    {
-	      tree self_type = __impl_type_decl;
-	      if (RDOT_REFERENCE (prm) == true)
-		self_type = build_pointer_type (self_type);
-	      if (RDOT_qual (prm) == FINAL)
-		self_type = build_qualified_type (self_type, TYPE_QUAL_CONST);
-	      gccparams [i] = self_type;
+              fatal_error ("unhandled self argument!");
 	    }
 	  else
 	    gccparams [i] = dot_pass_rustToGccType (RDOT_rhs_TT (prm), mut);
@@ -803,12 +887,7 @@ tree dot_pass_genifyTopFndecl (rdot node)
 	  tree ptype = error_mark_node;
 	  if (strcmp (pid, "self") == 0)
 	    {
-	      tree self_type = __impl_type_decl;
-	      if (RDOT_REFERENCE (next) == true)
-		self_type = build_pointer_type (self_type);
-	      if (RDOT_qual (next) == FINAL)
-		self_type = build_qualified_type (self_type, TYPE_QUAL_CONST);
-	      ptype = self_type;
+              fatal_error ("unhandled self param!");
 	    }
 	  else
 	    ptype = dot_pass_rustToGccType (RDOT_rhs_TT (next), false);
@@ -828,6 +907,7 @@ tree dot_pass_genifyTopFndecl (rdot node)
 
   current_function_decl = fndecl;
   tree block = alloc_stmt_list ();
+  current_function_block = &block;
 
   if (rtype != void_type_node)
     {
@@ -846,8 +926,7 @@ tree dot_pass_genifyTopFndecl (rdot node)
           error ("Function [%s] doesn't seem to return anything!!\n", method_id);
           return error_mark_node;
         }
-      tree returnVal = build1 (RETURN_EXPR, rtype,
-                               global_retDecl);
+      tree returnVal = build1 (RETURN_EXPR, rtype, global_retDecl);
       append_to_statement_list (returnVal, &block);
     }
 

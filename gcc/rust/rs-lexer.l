@@ -66,37 +66,28 @@ true                    {  return XTRUE; }
 false                   {  return XFALSE; }
 trait                   {  return TRAIT; }
 for                     {  return FOR; }
-
 \[                      {  return '['; }
 \]                      {  return ']'; }
 \(                      {  return '('; }
 \)                      {  return ')'; }
 \{                      {  return '{'; }
 \}                      {  return '}'; }
-
 "->"                    {  return RTYPE; }
 "=>"                    {  return GOES; }
-"_"                     {  return '_'; }
-
 ";"                     { return ';'; }
 ","                     { return ','; }
 "."                     { return '.'; }
 ":"                     { return ':'; }
 "::"                    { return ACC; }
-
 "="                     { return '='; }
 "+"                     { return '+'; }
 "-"                     { return '-'; }
 "/"                     { return '/'; }
 "*"                     { return '*'; }
 "|"                     { return '|'; }
-
 "~"                     { return '~'; }
 "&"                     { return '&'; }
-"@"                     { return '@'; }
-
 "=="                    { return EQUAL_EQUAL; }
-
 "!="                    { return NOT_EQUAL; }
 "<"                     { return '<'; }
 "<="                    { return LESS_EQUAL; }
@@ -107,12 +98,10 @@ for                     {  return FOR; }
 
 {QSTRING}               {
   yylval.string = xstrdup (yytext + 1);
-  if (yylval.string [yyleng - 2] != '\"') {
+  if (yylval.string [yyleng - 2] != '\"')
     error ("Un-termintated character string!\n");
-  }
-  else {
+  else
     yylval.string [yyleng - 2] = '\0';
-  }
   return STRING;
 }
 
@@ -126,7 +115,7 @@ for                     {  return FOR; }
   yylval.integer = mpfr_get_si (x, GMP_RNDU);
   mpfr_clear (x);
   return INTEGER;
-       }
+}
 
 {ID}                    {
   yylval.string = xstrdup (yytext);

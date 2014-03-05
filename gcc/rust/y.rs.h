@@ -50,8 +50,6 @@ union yystype {
     char * string;
     int integer;
     bool boolean;
-    ALLOCA_ alloca_;
-    qualified qual;
 } ;
 
 extern yystype yylval;
