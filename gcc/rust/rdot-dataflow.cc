@@ -507,8 +507,13 @@ rdot dot_pass_typeifyExprNode (rdot node)
             if (RDOT_TYPE (lt) == RDOT_TYPE (rt))
               retval = lt;
             else
-	      error ("unable to coerce types [%s] and [%s]",
-		     RDOT_OPCODE_STR (lt), RDOT_OPCODE_STR (rt));
+              {
+                if (RDOT_TYPE (lt) == RTYPE_INFER || RDOT_TYPE (rt) == RTYPE_INFER)
+                  retval = RDOT_TYPE (lt) == RTYPE_INFER ? rt : lt;
+                else
+                  error ("unable to coerce types [%s] and [%s]",
+                         RDOT_OPCODE_STR (lt), RDOT_OPCODE_STR (rt));
+              }
 	  }
       }
       break;
@@ -621,9 +626,9 @@ void dot_pass_dataFlowBlock (rdot suite)
   for (it = block_decls.begin (); it != block_decls.end (); ++it)
     {
       rdot decl = *it;
+      gcc_assert (RDOT_TYPE (decl) == D_VAR_DECL);
       rdot idecl = RDOT_lhs_TT (decl);
       const char * ident = RDOT_IDENTIFIER_POINTER (idecl);
-      
       if (RDOT_TYPE (RDOT_rhs_TT (decl)) == RTYPE_INFER)
 	{
 	  std::vector<rdot> * refs = dot_pass_getReferences (decl, suite);

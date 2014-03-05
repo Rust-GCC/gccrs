@@ -322,7 +322,7 @@ tree dot_pass_lowerExpr (rdot dot, tree * block)
 	const char * id = RDOT_IDENTIFIER_POINTER (dot);
 	retval = dot_pass_lookupCTU (id);
 	if (retval == error_mark_node)
-	  error ("no such id [%s] in scope", id);
+	  fatal_error ("no such id [%s] in scope", id);
         RDOT_ALLOCA_MODIFIERS_DO (retval, dot);
       }
       break;
@@ -423,7 +423,7 @@ tree dot_pass_lowerExpr (rdot dot, tree * block)
           retval = dot_pass_genifyCall (lookup, arguments);
         else
           {
-            error ("Unable to find callable %s\n", fnid);
+            fatal_error ("Unable to find callable %s\n", fnid);
             retval = error_mark_node;
           }
         RDOT_ALLOCA_MODIFIERS_DO (retval, dot);
@@ -600,6 +600,7 @@ tree dot_pass_lowerExpr (rdot dot, tree * block)
                                          global_retDecl, retval);
           append_to_statement_list (retass, block);
           global_retDecl_ = true;
+          retval = global_retDecl;
         }
     }
 

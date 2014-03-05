@@ -352,6 +352,10 @@ opcode_t symToDeclType (int sym)
   opcode_t retval = D_D_EXPR;
   switch (sym)
     {
+    case '=':
+      retval = D_MODIFY_EXPR;
+      break;
+      
     case '+':
       retval = D_ADD_EXPR;
       break;
@@ -408,6 +412,7 @@ rdot expression (void)
   while (sym == '+' || sym == '-' ||
          sym == '*' || sym == '/' ||
          sym == '<' || sym == '>' ||
+         sym == '=' ||
          sym == EQUAL_EQUAL ||
          sym == NOT_EQUAL ||
          sym == LESS_EQUAL ||
