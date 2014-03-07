@@ -1609,7 +1609,7 @@ force_paren_expr (tree expr)
       && TREE_CODE (expr) != SCOPE_REF)
     return expr;
 
-  if (processing_template_decl)
+  if (type_dependent_expression_p (expr))
     expr = build1 (PAREN_EXPR, TREE_TYPE (expr), expr);
   else
     {
@@ -3246,7 +3246,7 @@ finish_id_expression (tree id_expression,
 	  && DECL_CONTEXT (decl) == NULL_TREE
 	  && !cp_unevaluated_operand)
 	{
-	  error ("use of parameter %qD outside function body", decl);
+	  *error_msg = "use of parameter outside function body";
 	  return error_mark_node;
 	}
     }

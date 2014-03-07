@@ -1,3 +1,122 @@
+2014-03-06  Matthias Klose  <doko@ubuntu.com>
+
+	* Makefile.in (s-mlib): Only pass MULTIARCH_DIRNAME if
+	MULTILIB_OSDIRNAMES is not defined.
+
+2014-03-06  Jakub Jelinek  <jakub@redhat.com>
+	    Meador Inge  <meadori@codesourcery.com>
+
+	PR target/58595
+	* config/arm/arm.c (arm_tls_symbol_p): Remove.
+	(arm_legitimize_address): Call legitimize_tls_address for any
+	arm_tls_referenced_p expression, handle constant addend.  Call it
+	before testing for !TARGET_ARM.
+	(thumb_legitimize_address): Don't handle arm_tls_symbol_p here.
+
+2014-03-06  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/60445
+	PR lto/60424
+	PR lto/60427
+	Revert
+	2014-03-04  Paulo Matos  <paulo@matos-sorge.com>
+
+        * tree-streamer.c (record_common_node): Assert we don't record
+        nodes with type double.
+        (preload_common_node): Skip type double, complex double and
+        double pointer since it is now frontend dependent due to
+        fshort-double option.
+
+2014-03-06  Richard Biener  <rguenther@suse.de>
+
+	* gcc.c (PLUGIN_COND): Always enable unless -fno-use-linker-plugin
+	or -fno-lto is specified and the linker has full plugin support.
+	* collect2.c (lto_mode): Default to LTO_MODE_WHOPR if LTO is
+	enabled.
+	(main): Remove -flto processing, adjust lto_mode using
+	use_plugin late.
+	* lto-wrapper.c (merge_and_complain): Merge compile-time
+	optimization levels.
+	(run_gcc): And pass it through to the link options.
+
+2014-03-06  Alexandre Oliva <aoliva@redhat.com>
+
+	PR debug/60381
+	Revert:
+	2014-02-28  Alexandre Oliva <aoliva@redhat.com>
+	PR debug/59992
+	* cselib.c (remove_useless_values): Skip to avoid quadratic
+	behavior if the condition moved from...
+	(cselib_process_insn): ... here holds.
+
+2014-03-05  Jakub Jelinek  <jakub@redhat.com>
+
+	PR plugins/59335
+	* Makefile.in (PLUGIN_HEADERS): Add tree-phinodes.h, stor-layout.h,
+	ssa-iterators.h, $(RESOURCE_H) and tree-cfgcleanup.h.
+
+	PR plugins/59335
+	* config/i386/t-i386 (OPTIONS_H_EXTRA): Add stringop.def.
+	(TM_H): Add x86-tune.def.
+
+2014-03-05  Kyrylo Tkachov  <kyrylo.tkachov@arm.com>
+
+	* config/aarch64/aarch64.c (generic_tunings):
+	Use cortexa57_extra_costs.
+
+2014-03-05  Jakub Jelinek  <jakub@redhat.com>
+
+	PR lto/60404
+	* cfgexpand.c (expand_used_vars): Do not assume all SSA_NAMEs
+	of PARM/RESULT_DECLs must be coalesced with optimize && in_lto_p.
+	* tree-ssa-coalesce.c (coalesce_ssa_name): Use MUST_COALESCE_COST - 1
+	cost for in_lto_p.
+
+2014-03-04  Heiher  <r@hev.cc>
+
+	* config/mips/mips-cpus.def (loongson3a): Mark as a MIPS64r2 processor.
+	* config/mips/mips.h (MIPS_ISA_LEVEL_SPEC): Adjust accordingly.
+
+2014-03-04  Uros Bizjak  <ubizjak@gmail.com>
+
+	* config/i386/predicates.md (const2356_operand): Change to ...
+	(const2367_operand): ... this.
+	* config/i386/sse.md (avx512pf_scatterpf<mode>sf): Use
+	const2367_operand.
+	(*avx512pf_scatterpf<mode>sf_mask): Ditto.
+	(*avx512pf_scatterpf<mode>sf): Ditto.
+	(avx512pf_scatterpf<mode>df): Ditto.
+	(*avx512pf_scatterpf<mode>df_mask): Ditto.
+	(*avx512pf_scatterpf<mode>df): Ditto.
+	* config/i386/i386.c (ix86_expand_builtin): Update
+	incorrect hint operand error message.
+
+2014-03-04  Richard Biener  <rguenther@suse.de>
+
+	* lto-section-in.c (lto_get_section_data): Fix const cast.
+
+2014-03-04  Paulo Matos  <paulo@matos-sorge.com>
+
+        * tree-streamer.c (record_common_node): Assert we don't record
+        nodes with type double.
+        (preload_common_node): Skip type double, complex double and
+        double pointer since it is now frontend dependent due to
+        fshort-double option.
+
+2014-03-04  Richard Biener  <rguenther@suse.de>
+
+	PR lto/60405
+	* lto-streamer-in.c (lto_read_body): Remove LTO bytecode version check.
+	(lto_input_toplevel_asms): Likewise.
+	* lto-section-in.c (lto_get_section_data): Instead do it here
+	for every section.
+
+2014-03-04  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/60382
+	* tree-vect-loop.c (vect_is_simple_reduction_1): Do not consider
+	dead PHIs a reduction.
+
 2014-03-03  Uros Bizjak  <ubizjak@gmail.com>
 
 	* config/i386/xmmintrin.h (enum _mm_hint) <_MM_HINT_ET0>: Correct

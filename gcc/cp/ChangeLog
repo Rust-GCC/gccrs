@@ -1,3 +1,58 @@
+2014-03-06  Marek Polacek  <polacek@redhat.com>
+
+	PR c/60197
+	* typeck.c (check_return_expr): Call contains_cilk_spawn_stmt instead
+	of checking tree code.
+
+2014-03-06  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* parser.c (cp_lexer_set_source_position): New.
+	(cp_parser_mem_initializer): Use it.
+    	(cp_parser_postfix_open_square_expression): Likewise.
+    	(cp_parser_parenthesized_expression_list): Likewise.
+    	(cp_parser_new_initializer): Likewise.
+    	(cp_parser_jump_statement): Likewise.
+    	(cp_parser_initializer): Likewise.
+    	(cp_parser_functional_cast): Likewise.
+
+2014-03-05  Jason Merrill  <jason@redhat.com>
+
+	PR c++/60409
+	* semantics.c (force_paren_expr): Only add a PAREN_EXPR to a
+	dependent expression.
+
+	PR c++/60361
+	* parser.c (cp_parser_template_id): Don't set up a CPP_TEMPLATE_ID
+	if re-parsing might succeed.
+	* semantics.c (finish_id_expression): Use of a parameter outside
+	the function body is a parse error.
+
+	* parser.c (cp_parser_mem_initializer): Set input_location
+	properly for init-list warning.
+	(cp_parser_postfix_open_square_expression): Likewise.
+	(cp_parser_parenthesized_expression_list): Likewise.
+	(cp_parser_new_initializer): Likewise.
+	(cp_parser_jump_statement): Likewise.
+	(cp_parser_initializer): Likewise.
+	(cp_parser_functional_cast): Likewise.
+
+2014-03-04  Jason Merrill  <jason@redhat.com>
+
+	PR c++/60417
+	* typeck2.c (process_init_constructor_record): Set
+	CONSTRUCTOR_IS_DIRECT_INIT on {} for omitted initializers.
+
+	PR c++/60415
+	PR c++/54359
+	* parser.c (cp_parser_direct_declarator): Set declarator to
+	cp_error_declarator on invalid qualified-id.
+
+2014-03-04  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/60376
+	* parser.c (cp_parser_using_declaration): Early return when
+	cp_parser_nested_name_specifier errors out.
+
 2014-03-01  Adam Butcher  <adam@jessamine.co.uk>
 
 	PR c++/60377
