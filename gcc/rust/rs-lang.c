@@ -132,17 +132,10 @@ bool grs_langhook_post_options (const char **pfilename
 static
 void grs_langhook_parse_file (void)
 {
-  /* Add the initial line map */
-  linemap_add (line_table, LC_ENTER, 0, in_fnames[0], 1);
-
-  unsigned int idx;
+  size_t idx;
   for (idx = 0; idx < num_in_fnames; ++idx)
     {
-      const char * in = in_fnames[idx];
-      /* this will break when handling num_in_fnames > 1
-	 would be ideal to get fname base name and use this
-	 as prefix for identifiers within input module.
-       */
+      const char * in = in_fnames [idx];
       GRS_current_infname = xstrdup (in);
       GRS_current_infile = basename (GRS_current_infname);
       grs_do_compile (in);
