@@ -334,15 +334,15 @@ tree dot_pass_lowerExpr (rdot dot, tree * block)
         tree root_type = error_mark_node;
 	dot_pass_rustToGccType__ (dot, false, true, &root_type);
         gcc_assert (root_type != error_mark_node);
-
-	vec<constructor_elt, va_gc> *init;
-	vec_alloc (init, count + 1);
 	tree fields = TYPE_FIELDS (root_type);
 
 	tree fnext;
 	for (fnext = fields; fnext != NULL_TREE; fnext = DECL_CHAIN (fnext))
 	  count++;
 	fnext = error_mark_node;
+        
+        vec<constructor_elt, va_gc> *init;
+	vec_alloc (init, count + 1);
 
 	/*
 	  FIXME this is all very buggy:
@@ -355,16 +355,17 @@ tree dot_pass_lowerExpr (rdot dot, tree * block)
 	  initilize with test { x: 1, x: 1} will pass but it should fail
 	  needs more validation at dataflow level and here
 	 */
+        tree rid = create_tmp_var_name (RUST_TMP);
+        retval = build_decl (RDOT_LOCATION (dot), VAR_DECL, rid, root_type);
+        dot_pass_pushDecl (IDENTIFIER_POINTER (rid), retval);
 
+        constructor_elt empty = {NULL, NULL};
 	rdot next;
 	size_t valid = 0;
 	for (next = RDOT_rhs_TT (dot); next != NULL_DOT; next = RDOT_CHAIN (next))
 	  {
-	    constructor_elt empty = { NULL, NULL };
-	    constructor_elt * elt = init->quick_push (empty);
-
-	    gcc_assert (RDOT_TYPE (next) == D_STRUCT_PARAM);
-
+            constructor_elt* elt = init->quick_push (empty);
+            gcc_assert (RDOT_TYPE (next) == D_STRUCT_PARAM);
 	    bool found = false;
 	    for (fnext = fields; fnext != NULL_TREE; fnext = DECL_CHAIN (fnext))
 	      {
@@ -383,19 +384,18 @@ tree dot_pass_lowerExpr (rdot dot, tree * block)
 		       RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (next)));
 		break;
 	      }
-	    elt->index = fnext;
-            elt->value = dot_pass_lowerExpr (RDOT_rhs_TT (next), block);
+
+            elt->index = fnext;
+            elt->value = fold_convert (TREE_TYPE (fnext),
+                                       dot_pass_lowerExpr (RDOT_rhs_TT (next),
+                                                           block));
 	    valid++;
 	  }
-
 	if (valid == count)
           {
-            tree rid = create_tmp_var_name (RUST_TMP);
-            retval = build_decl (RDOT_LOCATION (dot), VAR_DECL, rid, root_type);
-            append_to_statement_list (fold_build2 (MODIFY_EXPR, root_type,
-                                                   retval, build_constructor (root_type, init)),
-                                      block);
-            dot_pass_pushDecl (IDENTIFIER_POINTER (rid), retval);
+            tree cons = build_constructor (root_type, init);
+            append_to_statement_list (fold_build2_loc (RDOT_LOCATION (dot), INIT_EXPR,
+                                                       root_type, retval, cons), block);
           }
         else
           {
@@ -987,21 +987,21 @@ tree dot_pass_genifyStruct (rdot node)
   for (next = layout; next != NULL_DOT; next = RDOT_CHAIN (next))
     {
       gcc_assert (RDOT_TYPE (next) == D_PARAMETER);
-
       tree name = get_identifier (RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (next)));
       tree type = dot_pass_rustToGccType (RDOT_rhs_TT (next), false);
       tree field = build_decl (RDOT_LOCATION (node),
 			       FIELD_DECL, name, type);
       DECL_CONTEXT (field) = userStruct;
-
       if (first == true)
 	{
 	  head_chain = curr = field;
 	  first = false;
-	  continue;
 	}
-      DECL_CHAIN (curr) = field;
-      curr = field;
+      else
+        {
+          DECL_CHAIN (curr) = field;
+          curr = field;
+        }
     }
 
   TYPE_FIELDS (userStruct) = head_chain;
@@ -1013,7 +1013,6 @@ tree dot_pass_genifyStruct (rdot node)
   TYPE_NAME (userStruct) = get_identifier (struct_id);
   grs_preserve_from_gc (type_decl);
   rest_of_decl_compilation (type_decl, 1, 0);
-
   dot_pass_pushDecl (struct_id, userStruct);
   return type_decl;
 }
