@@ -420,6 +420,11 @@ rdot dot_pass_typeifyExprNode (rdot node)
           {
             gcc_assert (RDOT_TYPE (lookup) == D_VAR_DECL);
             RDOT_TYPE (retval) = RDOT_TYPE (RDOT_rhs_TT (lookup));
+            if (RDOT_TYPE (retval) == RTYPE_USER_STRUCT)
+              {
+                RDOT_lhs_TT (retval) = RDOT_lhs_TT (RDOT_rhs_TT (lookup));
+                RDOT_rhs_TT (retval) = RDOT_rhs_TT (RDOT_rhs_TT (lookup));
+              }
             RDOT_MEM_MODIFIER (retval) = new std::vector<ALLOCA_>;
             std::vector<ALLOCA_>::iterator it;
             if (RDOT_MEM_MODIFIER (node))
@@ -436,14 +441,15 @@ rdot dot_pass_typeifyExprNode (rdot node)
 
     case D_STRUCT_INIT:
       {
-	// lets make sure this type exists!
 	const char * slookup = RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (node));
 	rdot lookup = dot_pass_dataFlow_lookup (slookup);
 	if (lookup != NULL_DOT)
 	  {
 	    if (RDOT_TYPE (lookup) == D_STRUCT_TYPE)
-	      {                
-		retval = rdot_build_decl1 (RTYPE_USER_STRUCT, RDOT_lhs_TT (lookup));
+	      {
+                RDOT_TYPE (retval) = RTYPE_USER_STRUCT;
+                RDOT_lhs_TT (retval) = RDOT_lhs_TT (lookup); // identifier node
+                RDOT_rhs_TT (retval) = RDOT_rhs_TT (lookup); // struct layout
                 RDOT_MEM_MODIFIER (retval) = new std::vector<ALLOCA_>;
                 std::vector<ALLOCA_>::iterator it;
                 if (RDOT_MEM_MODIFIER (node))
@@ -487,6 +493,16 @@ rdot dot_pass_typeifyExprNode (rdot node)
         else
           error ("unable to find declaration of [%s] in current scope",
                  callid);
+      }
+      break;
+
+    case D_ATTRIB_REF:
+      {
+        rdot lhs = RDOT_lhs_TT (node);
+        rdot rhs = RDOT_rhs_TT (node);
+        rdot base_type = dot_pass_typeifyExprNode (lhs);
+        gcc_assert (RDOT_TYPE (base_type) == RTYPE_USER_STRUCT);
+        
       }
       break;
 
