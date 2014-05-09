@@ -4993,12 +4993,14 @@ gfc_array_init_size (tree descriptor, int rank, int corank, tree * poffset,
 					   TYPE_MAX_VALUE (gfc_array_index_type)),
 					   size);
       cond = gfc_unlikely (fold_build2_loc (input_location, LT_EXPR,
-					    boolean_type_node, tmp, stride));
+					    boolean_type_node, tmp, stride),
+			   PRED_FORTRAN_OVERFLOW);
       tmp = fold_build3_loc (input_location, COND_EXPR, integer_type_node, cond,
 			     integer_one_node, integer_zero_node);
       cond = gfc_unlikely (fold_build2_loc (input_location, EQ_EXPR,
 					    boolean_type_node, size,
-					    gfc_index_zero_node));
+					    gfc_index_zero_node),
+			   PRED_FORTRAN_SIZE_ZERO);
       tmp = fold_build3_loc (input_location, COND_EXPR, integer_type_node, cond,
 			     integer_zero_node, tmp);
       tmp = fold_build2_loc (input_location, PLUS_EXPR, integer_type_node,
@@ -5095,12 +5097,14 @@ gfc_array_init_size (tree descriptor, int rank, int corank, tree * poffset,
 			 size_type_node,
 			 TYPE_MAX_VALUE (size_type_node), element_size);
   cond = gfc_unlikely (fold_build2_loc (input_location, LT_EXPR,
-					boolean_type_node, tmp, stride));
+					boolean_type_node, tmp, stride),
+		       PRED_FORTRAN_OVERFLOW);
   tmp = fold_build3_loc (input_location, COND_EXPR, integer_type_node, cond,
 			 integer_one_node, integer_zero_node);
   cond = gfc_unlikely (fold_build2_loc (input_location, EQ_EXPR,
 					boolean_type_node, element_size,
-					build_int_cst (size_type_node, 0)));
+					build_int_cst (size_type_node, 0)),
+		       PRED_FORTRAN_SIZE_ZERO);
   tmp = fold_build3_loc (input_location, COND_EXPR, integer_type_node, cond,
 			 integer_zero_node, tmp);
   tmp = fold_build2_loc (input_location, PLUS_EXPR, integer_type_node,
@@ -5282,7 +5286,8 @@ gfc_array_allocate (gfc_se * se, gfc_expr * expr, tree status, tree errmsg,
   if (dimension)
     {
       cond = gfc_unlikely (fold_build2_loc (input_location, NE_EXPR,
-			   boolean_type_node, var_overflow, integer_zero_node));
+			   boolean_type_node, var_overflow, integer_zero_node),
+			   PRED_FORTRAN_OVERFLOW);
       tmp = fold_build3_loc (input_location, COND_EXPR, void_type_node, cond,
 			     error, gfc_finish_block (&elseblock));
     }
@@ -5303,7 +5308,8 @@ gfc_array_allocate (gfc_se * se, gfc_expr * expr, tree status, tree errmsg,
 			  build_int_cst (TREE_TYPE (status), 0));
       gfc_add_expr_to_block (&se->pre,
 		 fold_build3_loc (input_location, COND_EXPR, void_type_node,
-				  gfc_likely (cond), set_descriptor,
+				  gfc_likely (cond, PRED_FORTRAN_FAIL_ALLOC),
+				  set_descriptor,
 				  build_empty_stmt (input_location)));
     }
   else
@@ -6801,8 +6807,9 @@ gfc_conv_expr_descriptor (gfc_se *se, gfc_expr *expr)
 
       /* Set offset for assignments to pointer only to zero if it is not
          the full array.  */
-      if (se->direct_byref
-	  && info->ref && info->ref->u.ar.type != AR_FULL)
+      if ((se->direct_byref || se->use_offset)
+	  && ((info->ref && info->ref->u.ar.type != AR_FULL)
+	      || (expr->expr_type == EXPR_ARRAY && se->use_offset)))
 	base = gfc_index_zero_node;
       else if (GFC_ARRAY_TYPE_P (TREE_TYPE (desc)))
 	base = gfc_evaluate_now (gfc_conv_array_offset (desc), &loop.pre);
@@ -6887,13 +6894,13 @@ gfc_conv_expr_descriptor (gfc_se *se, gfc_expr *expr)
 				    stride, info->stride[n]);
 
 	  if (se->direct_byref
-	      && info->ref
-	      && info->ref->u.ar.type != AR_FULL)
+	      && ((info->ref && info->ref->u.ar.type != AR_FULL)
+		  || (expr->expr_type == EXPR_ARRAY && se->use_offset)))
 	    {
 	      base = fold_build2_loc (input_location, MINUS_EXPR,
 				      TREE_TYPE (base), base, stride);
 	    }
-	  else if (GFC_ARRAY_TYPE_P (TREE_TYPE (desc)))
+	  else if (GFC_ARRAY_TYPE_P (TREE_TYPE (desc)) || se->use_offset)
 	    {
 	      tmp = gfc_conv_array_lbound (desc, n);
 	      tmp = fold_build2_loc (input_location, MINUS_EXPR,
@@ -6929,8 +6936,9 @@ gfc_conv_expr_descriptor (gfc_se *se, gfc_expr *expr)
 	gfc_get_dataptr_offset (&loop.pre, parm, desc, offset,
 				subref_array_target, expr);
 
-      if ((se->direct_byref || GFC_ARRAY_TYPE_P (TREE_TYPE (desc)))
+      if (((se->direct_byref || GFC_ARRAY_TYPE_P (TREE_TYPE (desc)))
 	  && !se->data_not_needed)
+	  || (se->use_offset && base != NULL_TREE))
 	{
 	  /* Set the offset.  */
 	  gfc_conv_descriptor_offset_set (&loop.pre, parm, base);
@@ -7227,7 +7235,50 @@ gfc_conv_array_parameter (gfc_se * se, gfc_expr * expr, bool g77,
       else
 	{
 	  tmp = build_fold_indirect_ref_loc (input_location, desc);
-	  gfc_conv_descriptor_data_set (&se->pre, tmp, ptr);
+
+	  gfc_ss * ss = gfc_walk_expr (expr);
+	  if (!transposed_dims (ss))
+	    gfc_conv_descriptor_data_set (&se->pre, tmp, ptr);
+	  else
+	    {
+	      tree old_field, new_field;
+
+	      /* The original descriptor has transposed dims so we can't reuse
+		 it directly; we have to create a new one.  */
+	      tree old_desc = tmp;
+	      tree new_desc = gfc_create_var (TREE_TYPE (old_desc), "arg_desc");
+
+	      old_field = gfc_conv_descriptor_dtype (old_desc);
+	      new_field = gfc_conv_descriptor_dtype (new_desc);
+	      gfc_add_modify (&se->pre, new_field, old_field);
+
+	      old_field = gfc_conv_descriptor_offset (old_desc);
+	      new_field = gfc_conv_descriptor_offset (new_desc);
+	      gfc_add_modify (&se->pre, new_field, old_field);
+
+	      for (int i = 0; i < expr->rank; i++)
+		{
+		  old_field = gfc_conv_descriptor_dimension (old_desc,
+			gfc_rank_cst[get_array_ref_dim_for_loop_dim (ss, i)]);
+		  new_field = gfc_conv_descriptor_dimension (new_desc,
+			gfc_rank_cst[i]);
+		  gfc_add_modify (&se->pre, new_field, old_field);
+		}
+
+	      if (gfc_option.coarray == GFC_FCOARRAY_LIB
+		  && GFC_DESCRIPTOR_TYPE_P (TREE_TYPE (old_desc))
+		  && GFC_TYPE_ARRAY_AKIND (TREE_TYPE (old_desc))
+		     == GFC_ARRAY_ALLOCATABLE)
+		{
+		  old_field = gfc_conv_descriptor_token (old_desc);
+		  new_field = gfc_conv_descriptor_token (new_desc);
+		  gfc_add_modify (&se->pre, new_field, old_field);
+		}
+
+	      gfc_conv_descriptor_data_set (&se->pre, new_desc, ptr);
+	      se->expr = gfc_build_addr_expr (NULL_TREE, new_desc);
+	    }
+	  gfc_free_ss (ss);
 	}
 
       if (gfc_option.rtcheck & GFC_RTCHECK_ARRAY_TEMPS)

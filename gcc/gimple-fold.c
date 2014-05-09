@@ -1153,8 +1153,13 @@ gimple_fold_call (gimple_stmt_iterator *gsi, bool inplace)
 		    {
 		      tree var = create_tmp_var (TREE_TYPE (lhs), NULL);
 		      tree def = get_or_create_ssa_default_def (cfun, var);
-		      gsi_insert_before (gsi, new_stmt, GSI_SAME_STMT);
+
+		      /* To satisfy condition for
+			 cgraph_update_edges_for_call_stmt_node,
+			 we need to preserve GIMPLE_CALL statement
+			 at position of GSI iterator.  */
 		      update_call_from_tree (gsi, def);
+		      gsi_insert_before (gsi, new_stmt, GSI_NEW_STMT);
 		    }
 		  else
 		    gsi_replace (gsi, new_stmt, true);
@@ -1180,6 +1185,63 @@ gimple_fold_call (gimple_stmt_iterator *gsi, bool inplace)
 	}
       else if (gimple_call_builtin_p (stmt, BUILT_IN_MD))
 	changed |= targetm.gimple_fold_builtin (gsi);
+    }
+  else if (gimple_call_internal_p (stmt))
+    {
+      enum tree_code subcode = ERROR_MARK;
+      tree result = NULL_TREE;
+      switch (gimple_call_internal_fn (stmt))
+	{
+	case IFN_BUILTIN_EXPECT:
+	  result = fold_builtin_expect (gimple_location (stmt),
+					gimple_call_arg (stmt, 0),
+					gimple_call_arg (stmt, 1),
+					gimple_call_arg (stmt, 2));
+	  break;
+	case IFN_UBSAN_CHECK_ADD:
+	  subcode = PLUS_EXPR;
+	  break;
+	case IFN_UBSAN_CHECK_SUB:
+	  subcode = MINUS_EXPR;
+	  break;
+	case IFN_UBSAN_CHECK_MUL:
+	  subcode = MULT_EXPR;
+	  break;
+	default:
+	  break;
+	}
+      if (subcode != ERROR_MARK)
+	{
+	  tree arg0 = gimple_call_arg (stmt, 0);
+	  tree arg1 = gimple_call_arg (stmt, 1);
+	  /* x = y + 0; x = y - 0; x = y * 0; */
+	  if (integer_zerop (arg1))
+	    result = subcode == MULT_EXPR
+		     ? build_zero_cst (TREE_TYPE (arg0))
+		     : arg0;
+	  /* x = 0 + y; x = 0 * y; */
+	  else if (subcode != MINUS_EXPR && integer_zerop (arg0))
+	    result = subcode == MULT_EXPR
+		     ? build_zero_cst (TREE_TYPE (arg0))
+		     : arg1;
+	  /* x = y - y; */
+	  else if (subcode == MINUS_EXPR && operand_equal_p (arg0, arg1, 0))
+	    result = build_zero_cst (TREE_TYPE (arg0));
+	  /* x = y * 1; x = 1 * y; */
+	  else if (subcode == MULT_EXPR)
+	    {
+	      if (integer_onep (arg1))
+		result = arg0;
+	      else if (integer_onep (arg0))
+		result = arg1;
+	    }
+	}
+      if (result)
+	{
+	  if (!update_call_from_tree (gsi, result))
+	    gimplify_and_update_call_from_tree (gsi, result);
+	  changed = true;
+	}
     }
 
   return changed;
@@ -2669,15 +2731,32 @@ gimple_fold_stmt_to_constant_1 (gimple stmt, tree (*valueize) (tree))
 	      default:
 		return NULL_TREE;
 	      }
-	    tree op0 = (*valueize) (gimple_call_arg (stmt, 0));
-	    tree op1 = (*valueize) (gimple_call_arg (stmt, 1));
+	    tree arg0 = gimple_call_arg (stmt, 0);
+	    tree arg1 = gimple_call_arg (stmt, 1);
+	    tree op0 = (*valueize) (arg0);
+	    tree op1 = (*valueize) (arg1);
 
 	    if (TREE_CODE (op0) != INTEGER_CST
 		|| TREE_CODE (op1) != INTEGER_CST)
-	      return NULL_TREE;
-	    tree res = fold_binary_loc (loc, subcode,
-					TREE_TYPE (gimple_call_arg (stmt, 0)),
-					op0, op1);
+	      {
+		switch (subcode)
+		  {
+		  case MULT_EXPR:
+		    /* x * 0 = 0 * x = 0 without overflow.  */
+		    if (integer_zerop (op0) || integer_zerop (op1))
+		      return build_zero_cst (TREE_TYPE (arg0));
+		    break;
+		  case MINUS_EXPR:
+		    /* y - y = 0 without overflow.  */
+		    if (operand_equal_p (op0, op1, 0))
+		      return build_zero_cst (TREE_TYPE (arg0));
+		    break;
+		  default:
+		    break;
+		  }
+	      }
+	    tree res
+	      = fold_binary_loc (loc, subcode, TREE_TYPE (arg0), op0, op1);
 	    if (res
 		&& TREE_CODE (res) == INTEGER_CST
 		&& !TREE_OVERFLOW (res))

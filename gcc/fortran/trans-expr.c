@@ -69,14 +69,16 @@ gfc_conv_scalar_to_descriptor (gfc_se *se, tree scalar, symbol_attribute attr)
   type = get_scalar_to_descriptor_type (scalar, attr);
   desc = gfc_create_var (type, "desc");
   DECL_ARTIFICIAL (desc) = 1;
+
+  if (!POINTER_TYPE_P (TREE_TYPE (scalar)))
+    scalar = gfc_build_addr_expr (NULL_TREE, scalar);
   gfc_add_modify (&se->pre, gfc_conv_descriptor_dtype (desc),
 		  gfc_get_dtype (type));
   gfc_conv_descriptor_data_set (&se->pre, desc, scalar);
 
   /* Copy pointer address back - but only if it could have changed and
      if the actual argument is a pointer and not, e.g., NULL().  */
-  if ((attr.pointer || attr.allocatable)
-       && attr.intent != INTENT_IN && POINTER_TYPE_P (TREE_TYPE (scalar)))
+  if ((attr.pointer || attr.allocatable) && attr.intent != INTENT_IN)
     gfc_add_modify (&se->post, scalar,
 		    fold_convert (TREE_TYPE (scalar),
 				  gfc_conv_descriptor_data_get (desc)));
@@ -424,7 +426,11 @@ gfc_conv_derived_to_class (gfc_se *parmse, gfc_expr *e,
 	  gfc_conv_expr_descriptor (parmse, e);
 
 	  if (e->rank != class_ts.u.derived->components->as->rank)
-	    class_array_data_assign (&block, ctree, parmse->expr, true);
+	    {
+	      gcc_assert (class_ts.u.derived->components->as->type
+			  == AS_ASSUMED_RANK);
+	      class_array_data_assign (&block, ctree, parmse->expr, false);
+	    }
 	  else
 	    {
 	      if (gfc_expr_attr (e).codimension)
@@ -587,6 +593,7 @@ gfc_conv_intrinsic_to_class (gfc_se *parmse, gfc_expr *e,
       else
 	{
 	  parmse->ss = ss;
+	  parmse->use_offset = 1;
 	  gfc_conv_expr_descriptor (parmse, e);
 	  gfc_add_modify (&parmse->pre, ctree, parmse->expr);
 	}
@@ -4099,7 +4106,7 @@ gfc_conv_procedure_call (gfc_se * se, gfc_symbol * sym,
 	      parmse.expr
 		= fold_build3_loc (input_location, COND_EXPR,
 				   TREE_TYPE (parmse.expr),
-				   gfc_unlikely (tmp),
+				   gfc_unlikely (tmp, PRED_FORTRAN_ABSENT_DUMMY),
 				   fold_convert (TREE_TYPE (parmse.expr),
 						 null_pointer_node),
 				   parmse.expr);
@@ -4372,6 +4379,7 @@ gfc_conv_procedure_call (gfc_se * se, gfc_symbol * sym,
 			|| CLASS_DATA (fsym)->attr.codimension))
 	    {
 	      /* Pass a class array.  */
+	      parmse.use_offset = 1;
 	      gfc_conv_expr_descriptor (&parmse, e);
 
 	      /* If an ALLOCATABLE dummy argument has INTENT(OUT) and is

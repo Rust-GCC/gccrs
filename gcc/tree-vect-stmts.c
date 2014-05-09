@@ -2038,6 +2038,15 @@ vectorizable_mask_load_store (gimple stmt, gimple_stmt_iterator *gsi,
 	    STMT_VINFO_RELATED_STMT (prev_stmt_info) = new_stmt;
 	  prev_stmt_info = vinfo_for_stmt (new_stmt);
 	}
+
+      /* Ensure that even with -fno-tree-dce the scalar MASK_LOAD is removed
+	 from the IL.  */
+      tree lhs = gimple_call_lhs (stmt);
+      new_stmt = gimple_build_assign (lhs, build_zero_cst (TREE_TYPE (lhs)));
+      set_vinfo_for_stmt (new_stmt, stmt_info);
+      set_vinfo_for_stmt (stmt, NULL);
+      STMT_VINFO_STMT (stmt_info) = new_stmt;
+      gsi_replace (gsi, new_stmt, true);
       return true;
     }
   else if (is_store)
@@ -2147,6 +2156,18 @@ vectorizable_mask_load_store (gimple stmt, gimple_stmt_iterator *gsi,
 	    STMT_VINFO_RELATED_STMT (prev_stmt_info) = new_stmt;
 	  prev_stmt_info = vinfo_for_stmt (new_stmt);
 	}
+    }
+
+  if (!is_store)
+    {
+      /* Ensure that even with -fno-tree-dce the scalar MASK_LOAD is removed
+	 from the IL.  */
+      tree lhs = gimple_call_lhs (stmt);
+      new_stmt = gimple_build_assign (lhs, build_zero_cst (TREE_TYPE (lhs)));
+      set_vinfo_for_stmt (new_stmt, stmt_info);
+      set_vinfo_for_stmt (stmt, NULL);
+      STMT_VINFO_STMT (stmt_info) = new_stmt;
+      gsi_replace (gsi, new_stmt, true);
     }
 
   return true;
@@ -7827,7 +7848,21 @@ supportable_widening_operation (enum tree_code code, gimple stmt,
 					     stmt, vectype_out, vectype_in,
 					     code1, code2, multi_step_cvt,
 					     interm_types))
-	return true;
+        {
+          /* Elements in a vector with vect_used_by_reduction property cannot
+             be reordered if the use chain with this property does not have the
+             same operation.  One such an example is s += a * b, where elements
+             in a and b cannot be reordered.  Here we check if the vector defined
+             by STMT is only directly used in the reduction statement.  */
+          tree lhs = gimple_assign_lhs (stmt);
+          use_operand_p dummy;
+          gimple use_stmt;
+          stmt_vec_info use_stmt_info = NULL;
+          if (single_imm_use (lhs, &dummy, &use_stmt)
+              && (use_stmt_info = vinfo_for_stmt (use_stmt))
+              && STMT_VINFO_DEF_TYPE (use_stmt_info) == vect_reduction_def)
+            return true;
+        }
       c1 = VEC_WIDEN_MULT_LO_EXPR;
       c2 = VEC_WIDEN_MULT_HI_EXPR;
       break;

@@ -1328,9 +1328,10 @@ resolve_structure_cons (gfc_expr *expr, int init)
 	}
 
       /* F2003, C1272 (3).  */
-      if (gfc_pure (NULL) && cons->expr->expr_type == EXPR_VARIABLE
-	  && (gfc_impure_variable (cons->expr->symtree->n.sym)
-	      || gfc_is_coindexed (cons->expr)))
+      bool impure = cons->expr->expr_type == EXPR_VARIABLE
+		    && (gfc_impure_variable (cons->expr->symtree->n.sym)
+			|| gfc_is_coindexed (cons->expr));
+      if (impure && gfc_pure (NULL))
 	{
 	  t = false;
 	  gfc_error ("Invalid expression in the structure constructor for "
@@ -1338,12 +1339,8 @@ resolve_structure_cons (gfc_expr *expr, int init)
 		     comp->name, &cons->expr->where);
 	}
 
-      if (gfc_implicit_pure (NULL)
-	    && cons->expr->expr_type == EXPR_VARIABLE
-	    && (gfc_impure_variable (cons->expr->symtree->n.sym)
-		|| gfc_is_coindexed (cons->expr)))
-	gfc_current_ns->proc_name->attr.implicit_pure = 0;
-
+      if (impure)
+	gfc_unset_implicit_pure (NULL);
     }
 
   return t;
@@ -3006,8 +3003,7 @@ resolve_function (gfc_expr *expr)
 	  t = false;
 	}
 
-      if (gfc_implicit_pure (NULL))
-	gfc_current_ns->proc_name->attr.implicit_pure = 0;
+      gfc_unset_implicit_pure (NULL);
     }
 
   /* Functions without the RECURSIVE attribution are not allowed to
@@ -3072,8 +3068,7 @@ pure_subroutine (gfc_code *c, gfc_symbol *sym)
     gfc_error ("Subroutine call to '%s' at %L is not PURE", sym->name,
 	       &c->loc);
 
-  if (gfc_implicit_pure (NULL))
-    gfc_current_ns->proc_name->attr.implicit_pure = 0;
+  gfc_unset_implicit_pure (NULL);
 }
 
 
@@ -9170,7 +9165,7 @@ resolve_ordinary_assign (gfc_code *code, gfc_namespace *ns)
       if (lhs->expr_type == EXPR_VARIABLE
 	    && lhs->symtree->n.sym != gfc_current_ns->proc_name
 	    && lhs->symtree->n.sym->ns != gfc_current_ns)
-	gfc_current_ns->proc_name->attr.implicit_pure = 0;
+	gfc_unset_implicit_pure (NULL);
 
       if (lhs->ts.type == BT_DERIVED
 	    && lhs->expr_type == EXPR_VARIABLE
@@ -9178,11 +9173,11 @@ resolve_ordinary_assign (gfc_code *code, gfc_namespace *ns)
 	    && rhs->expr_type == EXPR_VARIABLE
 	    && (gfc_impure_variable (rhs->symtree->n.sym)
 		|| gfc_is_coindexed (rhs)))
-	gfc_current_ns->proc_name->attr.implicit_pure = 0;
+	gfc_unset_implicit_pure (NULL);
 
       /* Fortran 2008, C1283.  */
       if (gfc_is_coindexed (lhs))
-	gfc_current_ns->proc_name->attr.implicit_pure = 0;
+	gfc_unset_implicit_pure (NULL);
     }
 
   /* F2008, 7.2.1.2.  */
@@ -11205,15 +11200,36 @@ resolve_fl_procedure (gfc_symbol *sym, int mp_flag)
    the requirements of the standard for procedures used as finalizers.  */
 
 static bool
-gfc_resolve_finalizers (gfc_symbol* derived)
+gfc_resolve_finalizers (gfc_symbol* derived, bool *finalizable)
 {
   gfc_finalizer* list;
   gfc_finalizer** prev_link; /* For removing wrong entries from the list.  */
   bool result = true;
   bool seen_scalar = false;
+  gfc_symbol *vtab;
+  gfc_component *c;
 
+  /* Return early when not finalizable. Additionally, ensure that derived-type
+     components have a their finalizables resolved.  */
   if (!derived->f2k_derived || !derived->f2k_derived->finalizers)
-    return true;
+    {
+      bool has_final = false;
+      for (c = derived->components; c; c = c->next)
+	if (c->ts.type == BT_DERIVED
+	    && !c->attr.pointer && !c->attr.proc_pointer && !c->attr.allocatable)
+	  {
+	    bool has_final2 = false;
+	    if (!gfc_resolve_finalizers (c->ts.u.derived, &has_final))
+	      return false;  /* Error.  */
+	    has_final = has_final || has_final2;
+	  }
+      if (!has_final)
+	{
+	  if (finalizable)
+	    *finalizable = false;
+	  return true;
+	}
+    }
 
   /* Walk over the list of finalizer-procedures, check them, and if any one
      does not fit in with the standard's definition, print an error and remove
@@ -11335,11 +11351,14 @@ gfc_resolve_finalizers (gfc_symbol* derived)
 	/* Remove wrong nodes immediately from the list so we don't risk any
 	   troubles in the future when they might fail later expectations.  */
 error:
-	result = false;
 	i = list;
 	*prev_link = list->next;
 	gfc_free_finalizer (i);
+	result = false;
     }
+
+  if (result == false)
+    return false;
 
   /* Warn if we haven't seen a scalar finalizer procedure (but we know there
      were nodes in the list, must have been for arrays.  It is surely a good
@@ -11349,8 +11368,14 @@ error:
 		 " defined at %L, suggest also scalar one",
 		 derived->name, &derived->declared_at);
 
-  gfc_find_derived_vtab (derived);
-  return result;
+  vtab = gfc_find_derived_vtab (derived);
+  c = vtab->ts.u.derived->components->next->next->next->next->next;
+  gfc_set_sym_referenced (c->initializer->symtree->n.sym);
+
+  if (finalizable)
+    *finalizable = true;
+
+  return true;
 }
 
 
@@ -12518,7 +12543,7 @@ resolve_fl_derived (gfc_symbol *sym)
     return false;
 
   /* Resolve the finalizer procedures.  */
-  if (!gfc_resolve_finalizers (sym))
+  if (!gfc_resolve_finalizers (sym, NULL))
     return false;
 
   if (sym->attr.is_class && sym->ts.u.derived == NULL)
@@ -13924,6 +13949,33 @@ gfc_implicit_pure (gfc_symbol *sym)
 
   return sym->attr.flavor == FL_PROCEDURE && sym->attr.implicit_pure
     && !sym->attr.pure;
+}
+
+
+void
+gfc_unset_implicit_pure (gfc_symbol *sym)
+{
+  gfc_namespace *ns;
+
+  if (sym == NULL)
+    {
+      /* Check if the current procedure is implicit_pure.  Walk up
+	 the procedure list until we find a procedure.  */
+      for (ns = gfc_current_ns; ns; ns = ns->parent)
+	{
+	  sym = ns->proc_name;
+	  if (sym == NULL)
+	    return;
+
+	  if (sym->attr.flavor == FL_PROCEDURE)
+	    break;
+	}
+    }
+
+  if (sym->attr.flavor == FL_PROCEDURE)
+    sym->attr.implicit_pure = 0;
+  else
+    sym->attr.pure = 0;
 }
 
 

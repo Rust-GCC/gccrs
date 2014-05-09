@@ -1137,7 +1137,7 @@ cselib_hash_rtx (rtx x, int create, enum machine_mode memmode)
       return hash ? hash : (unsigned int) ENTRY_VALUE;
 
     case CONST_INT:
-      hash += ((unsigned) CONST_INT << 7) + INTVAL (x);
+      hash += ((unsigned) CONST_INT << 7) + UINTVAL (x);
       return hash ? hash : (unsigned int) CONST_INT;
 
     case CONST_DOUBLE:
@@ -2645,12 +2645,10 @@ cselib_process_insn (rtx insn)
 
   cselib_current_insn = insn;
 
-  /* Forget everything at a CODE_LABEL, a volatile insn, or a setjmp.  */
+  /* Forget everything at a CODE_LABEL or a setjmp.  */
   if ((LABEL_P (insn)
        || (CALL_P (insn)
-	   && find_reg_note (insn, REG_SETJMP, NULL))
-       || (NONJUMP_INSN_P (insn)
-	   && volatile_insn_p (PATTERN (insn))))
+	   && find_reg_note (insn, REG_SETJMP, NULL)))
       && !cselib_preserve_constants)
     {
       cselib_reset_table (next_uid);

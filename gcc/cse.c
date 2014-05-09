@@ -4642,6 +4642,13 @@ cse_insn (rtx insn)
 	  && REGNO (dest) >= FIRST_PSEUDO_REGISTER)
 	sets[i].src_volatile = 1;
 
+      /* Also do not record result of a non-volatile inline asm with
+	 more than one result or with clobbers, we do not want CSE to
+	 break the inline asm apart.  */
+      else if (GET_CODE (src) == ASM_OPERANDS
+	       && GET_CODE (x) == PARALLEL)
+	sets[i].src_volatile = 1;
+
 #if 0
       /* It is no longer clear why we used to do this, but it doesn't
 	 appear to still be needed.  So let's try without it since this
@@ -5681,11 +5688,6 @@ cse_insn (rtx insn)
 		 || GET_CODE (dest) == ZERO_EXTRACT)
 	  invalidate (XEXP (dest, 0), GET_MODE (dest));
       }
-
-  /* A volatile ASM or an UNSPEC_VOLATILE invalidates everything.  */
-  if (NONJUMP_INSN_P (insn)
-      && volatile_insn_p (PATTERN (insn)))
-    flush_hash_table ();
 
   /* Don't cse over a call to setjmp; on some machines (eg VAX)
      the regs restored by the longjmp come from a later time

@@ -1,3 +1,72 @@
+2014-04-22  Release Manager
+
+	* GCC 4.9.0 released.
+
+2014-04-12  Jerry DeLisle  <jvdelisle@gcc.gnu>
+
+	PR libfortran/60810
+	io/unit.c (is_trim_ok): If internal unit is array, do not trim.
+
+2014-03-21  Jerry DeLisle  <jvdelisle@gcc.gnu>
+
+	PR libfortran/60148
+	* io/transfer.c (data_transfer_init): If std= was specified, set
+	delim status to DELIM_NONE if no other was specified.
+
+2014-03-18  Ulrich Weigand  <Ulrich.Weigand@de.ibm.com>
+
+	* configure.ac: Check for presence of fcntl.
+	* configure: Regenerate.
+	* config.h.in: Regenerate.
+	* io/unix.c (set_close_on_exec): Check for HAVE_FCNTL.
+
+2014-03-17  Jerry DeLisle  <jvdelisle@gcc.gnu>
+
+	PR libfortran/48600
+	* io/list_read.c (list_formatted_read_scalar): Do not use
+	eat_separator. Explicitly set the comma and end-of-line flags.
+	Check for END condition from finish_separator.
+
+2014-03-15  Jerry DeLisle  <jvdelisle@gcc.gnu>
+
+	PR libfortran/58324
+	* io/list_read.c (finish_list_read): Read one character to check
+	for the end of the file.  If it is the end, then issue the file
+	end error message.  If not, use eat_line to reach the end
+	without giving error.  The next attempt to read will then
+	issue the error as described above.
+
+2014-03-12  Jerry DeLisle  <jvdelisle@gcc.gnu>
+
+	PR libfortran/38199
+	* io/read.c (read_decimal): Quickly skip spaces to avoid calls
+	to next_char.
+	* io/unit.c (is_trim_ok): New helper function to check various
+	conditions to see if its OK to trim the internal unit string.
+	(get_internal_unit): Use LEN_TRIM to shorten selected internal
+	unit strings for optimizing READ. Enable this optimization for
+	formatted READ.
+	* io/list_read.c (finish_list_read): Don't call eat_line for
+	internal units.
+
+2014-03-08  Jerry DeLisle  <jvdelisle@gcc.gnu>
+
+	PR libfortran/38199
+	* io/list_read.c (next_char): Mark unlikely error checks.
+	(eat_spaces): For character array reading, skip ahead over
+	spaces rather than call next_char multiple times.
+
+2014-03-08  Tobias Burnus  <burnus@net-b.de>
+
+	* libgfortran.h (unlikely, likely): Add usage comment.
+
+2014-03-08  Dominique d'Humieres  <dominiq@lps.ens.fr>
+
+	PR libgfortran/60128
+	* io/write_float.def (output_float): Remove unused variable
+	nzero_real. Replace a double space with a single one.
+	(determine_en_precision): Fix wrong handling of the EN format.
+
 2014-03-03  Jerry DeLisle  <jvdelisle@gcc.gnu>
 
 	PR libfortran/60148

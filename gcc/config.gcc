@@ -2131,7 +2131,6 @@ msp430*-*-*)
 	tm_file="dbxelf.h elfos.h newlib-stdint.h ${tm_file}"
 	c_target_objs="msp430-c.o"
 	cxx_target_objs="msp430-c.o"
-	target_has_targetm_common=no
 	tmake_file="${tmake_file} msp430/t-msp430"
 	;;
 nds32le-*-*)
@@ -3396,6 +3395,11 @@ case "${target}" in
 				  ${srcdir}/config/aarch64/$def | \
 				  sed -e 's/^[^,]*,[ 	]*//' | \
 				  sed -e 's/,.*$//'`
+				# Extract the architecture flags from aarch64-arches.def
+				ext_mask=`grep "^$pattern(\"$base_val\"," \
+				   ${srcdir}/config/aarch64/$def | \
+				   sed -e 's/)$//' | \
+				   sed -e 's/^.*,//'`
 			  else
 				base_id=`grep "^$pattern(\"$base_val\"," \
 				  ${srcdir}/config/aarch64/$def | \
@@ -4057,10 +4061,8 @@ esac
 target_cpu_default2=
 case ${target} in
 	aarch64*-*-*)
-		if test x$target_cpu_cname = x
+		if test x"$target_cpu_cname" != x
 		then
-			target_cpu_default2=TARGET_CPU_generic
-		else
 			target_cpu_default2=$target_cpu_cname
 		fi
 		;;

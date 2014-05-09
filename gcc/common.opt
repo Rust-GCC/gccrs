@@ -211,6 +211,10 @@ bool flag_opts_finished
 Variable
 unsigned int flag_sanitize
 
+; Flag whether a prefix has been added to dump_base_name
+Variable
+bool dump_base_name_prefixed = false
+
 ###
 Driver
 
@@ -1263,6 +1267,10 @@ fgnu-tm
 Common Report Var(flag_tm)
 Enable support for GNU transactional memory
 
+fgnu-unique
+Common Report Var(flag_gnu_unique) Init(1)
+Use STB_GNU_UNIQUE if supported by the assembler
+
 floop-flatten
 Common Ignore
 Does nothing. Preserved for backward compatibility.
@@ -1391,10 +1399,6 @@ Perform interprocedural points-to analysis
 fipa-pure-const
 Common Report Var(flag_ipa_pure_const) Init(0) Optimization
 Discover pure and const functions
-
-fipa-sem-equality
-Common Report Var(flag_ipa_sem_equality) Iinit(1) Optimization
-Perform Semantic function equality
 
 fipa-reference
 Common Report Var(flag_ipa_reference) Init(0) Optimization

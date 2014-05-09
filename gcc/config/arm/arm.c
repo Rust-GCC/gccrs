@@ -72,6 +72,7 @@ struct four_ints
 };
 
 /* Forward function declarations.  */
+static bool arm_const_not_ok_for_debug_p (rtx);
 static bool arm_lra_p (void);
 static bool arm_needs_doubleword_align (enum machine_mode, const_tree);
 static int arm_compute_static_chain_stack_bytes (void);
@@ -673,6 +674,9 @@ static const struct attribute_spec arm_attribute_table[] =
 
 #undef TARGET_CAN_USE_DOLOOP_P
 #define TARGET_CAN_USE_DOLOOP_P can_use_doloop_if_innermost
+
+#undef TARGET_CONST_NOT_OK_FOR_DEBUG_P
+#define TARGET_CONST_NOT_OK_FOR_DEBUG_P arm_const_not_ok_for_debug_p
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 
@@ -9594,7 +9598,7 @@ arm_new_rtx_costs (rtx x, enum rtx_code code, enum rtx_code outer_code,
 	    {
 	      /* UXTA[BH] or SXTA[BH].  */
 	      if (speed_p)
-		*cost += extra_cost->alu.extnd_arith;
+		*cost += extra_cost->alu.extend_arith;
 	      *cost += (rtx_cost (XEXP (XEXP (x, 0), 0), ZERO_EXTEND, 0,
 				  speed_p)
 			+ rtx_cost (XEXP (x, 1), PLUS, 0, speed_p));
@@ -10311,7 +10315,7 @@ arm_new_rtx_costs (rtx x, enum rtx_code code, enum rtx_code outer_code,
 	  *cost = COSTS_N_INSNS (1);
 	  *cost += rtx_cost (XEXP (x, 0), code, 0, speed_p);
 	  if (speed_p)
-	    *cost += extra_cost->alu.extnd;
+	    *cost += extra_cost->alu.extend;
 	}
       else if (GET_MODE (XEXP (x, 0)) != SImode)
 	{
@@ -10364,7 +10368,7 @@ arm_new_rtx_costs (rtx x, enum rtx_code code, enum rtx_code outer_code,
 	  *cost = COSTS_N_INSNS (1);
 	  *cost += rtx_cost (XEXP (x, 0), code, 0, speed_p);
 	  if (speed_p)
-	    *cost += extra_cost->alu.extnd;
+	    *cost += extra_cost->alu.extend;
 	}
       else if (GET_MODE (XEXP (x, 0)) != SImode)
 	{
@@ -19914,8 +19918,15 @@ arm_emit_vfp_multi_reg_pop (int first_reg, int num_regs, rtx base_reg)
   par = emit_insn (par);
   REG_NOTES (par) = dwarf;
 
-  arm_add_cfa_adjust_cfa_note (par, 2 * UNITS_PER_WORD * num_regs,
-			       base_reg, base_reg);
+  /* Make sure cfa doesn't leave with IP_REGNUM to allow unwinding fron FP.  */
+  if (TARGET_VFP && REGNO (base_reg) == IP_REGNUM)
+    {
+      RTX_FRAME_RELATED_P (par) = 1;
+      add_reg_note (par, REG_CFA_DEF_CFA, hard_frame_pointer_rtx);
+    }
+  else
+    arm_add_cfa_adjust_cfa_note (par, 2 * UNITS_PER_WORD * num_regs,
+				 base_reg, base_reg);
 }
 
 /* Generate and emit a pattern that will be recognized as LDRD pattern.  If even
@@ -27108,15 +27119,19 @@ arm_expand_epilogue_apcs_frame (bool really_return)
   if (TARGET_HARD_FLOAT && TARGET_VFP)
     {
       int start_reg;
+      rtx ip_rtx = gen_rtx_REG (SImode, IP_REGNUM);
 
       /* The offset is from IP_REGNUM.  */
       int saved_size = arm_get_vfp_saved_size ();
       if (saved_size > 0)
         {
+	  rtx insn;
           floats_from_frame += saved_size;
-          emit_insn (gen_addsi3 (gen_rtx_REG (SImode, IP_REGNUM),
-                                 hard_frame_pointer_rtx,
-                                 GEN_INT (-floats_from_frame)));
+          insn = emit_insn (gen_addsi3 (ip_rtx,
+					hard_frame_pointer_rtx,
+					GEN_INT (-floats_from_frame)));
+	  arm_add_cfa_adjust_cfa_note (insn, -floats_from_frame,
+				       ip_rtx, hard_frame_pointer_rtx);
         }
 
       /* Generate VFP register multi-pop.  */
@@ -27189,11 +27204,15 @@ arm_expand_epilogue_apcs_frame (bool really_return)
   num_regs = bit_count (saved_regs_mask);
   if ((offsets->outgoing_args != (1 + num_regs)) || cfun->calls_alloca)
     {
+      rtx insn;
       emit_insn (gen_blockage ());
       /* Unwind the stack to just below the saved registers.  */
-      emit_insn (gen_addsi3 (stack_pointer_rtx,
-                             hard_frame_pointer_rtx,
-                             GEN_INT (- 4 * num_regs)));
+      insn = emit_insn (gen_addsi3 (stack_pointer_rtx,
+				    hard_frame_pointer_rtx,
+				    GEN_INT (- 4 * num_regs)));
+
+      arm_add_cfa_adjust_cfa_note (insn, - 4 * num_regs,
+				   stack_pointer_rtx, hard_frame_pointer_rtx);
     }
 
   arm_emit_multi_reg_pop (saved_regs_mask);
@@ -28677,7 +28696,7 @@ arm_dwarf_register_span (rtx rtl)
 {
   enum machine_mode mode;
   unsigned regno;
-  rtx parts[8];
+  rtx parts[16];
   int nregs;
   int i;
 
@@ -28985,11 +29004,11 @@ arm_unwind_emit (FILE * asm_out_file, rtx insn)
 	   emit unwind information for it because these are used either for
 	   pretend arguments or notes to adjust sp and restore registers from
 	   stack.  */
+	case REG_CFA_DEF_CFA:
 	case REG_CFA_ADJUST_CFA:
 	case REG_CFA_RESTORE:
 	  return;
 
-	case REG_CFA_DEF_CFA:
 	case REG_CFA_EXPRESSION:
 	case REG_CFA_OFFSET:
 	  /* ??? Only handling here what we actually emit.  */
@@ -31099,6 +31118,48 @@ static unsigned HOST_WIDE_INT
 arm_asan_shadow_offset (void)
 {
   return (unsigned HOST_WIDE_INT) 1 << 29;
+}
+
+
+/* This is a temporary fix for PR60655.  Ideally we need
+   to handle most of these cases in the generic part but
+   currently we reject minus (..) (sym_ref).  We try to 
+   ameliorate the case with minus (sym_ref1) (sym_ref2)
+   where they are in the same section.  */
+
+static bool
+arm_const_not_ok_for_debug_p (rtx p)
+{
+  tree decl_op0 = NULL;
+  tree decl_op1 = NULL;
+
+  if (GET_CODE (p) == MINUS)
+    {
+      if (GET_CODE (XEXP (p, 1)) == SYMBOL_REF)
+	{
+	  decl_op1 = SYMBOL_REF_DECL (XEXP (p, 1));
+	  if (decl_op1
+	      && GET_CODE (XEXP (p, 0)) == SYMBOL_REF
+	      && (decl_op0 = SYMBOL_REF_DECL (XEXP (p, 0))))
+	    {
+	      if ((TREE_CODE (decl_op1) == VAR_DECL
+		   || TREE_CODE (decl_op1) == CONST_DECL)
+		  && (TREE_CODE (decl_op0) == VAR_DECL
+		      || TREE_CODE (decl_op0) == CONST_DECL))
+		return (get_variable_section (decl_op1, false)
+			!= get_variable_section (decl_op0, false));
+
+	      if (TREE_CODE (decl_op1) == LABEL_DECL
+		  && TREE_CODE (decl_op0) == LABEL_DECL)
+		return (DECL_CONTEXT (decl_op1)
+			!= DECL_CONTEXT (decl_op0));
+	    }
+
+	  return true;
+	}
+    }
+
+  return false;
 }
 
 #include "gt-arm.h"

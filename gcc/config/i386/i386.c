@@ -3128,7 +3128,7 @@ ix86_option_override_internal (bool main_args_p,
   (PTA_SANDYBRIDGE | PTA_FSGSBASE | PTA_RDRND | PTA_F16C)
 #define PTA_HASWELL \
   (PTA_IVYBRIDGE | PTA_AVX2 | PTA_BMI | PTA_BMI2 | PTA_LZCNT \
-   | PTA_FMA | PTA_MOVBE | PTA_RTM | PTA_HLE)
+   | PTA_FMA | PTA_MOVBE | PTA_HLE)
 #define PTA_BROADWELL \
   (PTA_HASWELL | PTA_ADX | PTA_PRFCHW | PTA_RDSEED)
 #define PTA_BONNELL \
@@ -11708,8 +11708,9 @@ ix86_expand_epilogue (int style)
 	  m->fs.cfa_offset -= UNITS_PER_WORD;
 	  m->fs.sp_offset -= UNITS_PER_WORD;
 
-	  add_reg_note (insn, REG_CFA_ADJUST_CFA,
-			copy_rtx (XVECEXP (PATTERN (insn), 0, 1)));
+	  rtx x = plus_constant (Pmode, stack_pointer_rtx, UNITS_PER_WORD);
+	  x = gen_rtx_SET (VOIDmode, stack_pointer_rtx, x);
+	  add_reg_note (insn, REG_CFA_ADJUST_CFA, x);
 	  add_reg_note (insn, REG_CFA_REGISTER,
 			gen_rtx_SET (VOIDmode, ecx, pc_rtx));
 	  RTX_FRAME_RELATED_P (insn) = 1;
@@ -13924,13 +13925,13 @@ ix86_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
       if (GET_CODE (XEXP (x, 0)) == MULT)
 	{
 	  changed = 1;
-	  XEXP (x, 0) = force_operand (XEXP (x, 0), 0);
+	  XEXP (x, 0) = copy_addr_to_reg (XEXP (x, 0));
 	}
 
       if (GET_CODE (XEXP (x, 1)) == MULT)
 	{
 	  changed = 1;
-	  XEXP (x, 1) = force_operand (XEXP (x, 1), 0);
+	  XEXP (x, 1) = copy_addr_to_reg (XEXP (x, 1));
 	}
 
       if (changed
@@ -19993,7 +19994,7 @@ ix86_expand_branch (enum rtx_code code, rtx op0, rtx op1, rtx label)
 /* Split branch based on floating point condition.  */
 void
 ix86_split_fp_branch (enum rtx_code code, rtx op1, rtx op2,
-		      rtx target1, rtx target2, rtx tmp, rtx pushed)
+		      rtx target1, rtx target2, rtx tmp)
 {
   rtx condition;
   rtx i;
@@ -20008,10 +20009,6 @@ ix86_split_fp_branch (enum rtx_code code, rtx op1, rtx op2,
 
   condition = ix86_expand_fp_compare (code, op1, op2,
 				      tmp);
-
-  /* Remove pushed operand from stack.  */
-  if (pushed)
-    ix86_free_from_memory (GET_MODE (pushed));
 
   i = emit_jump_insn (gen_rtx_SET
 		      (VOIDmode, pc_rtx,
@@ -22758,7 +22755,7 @@ counter_mode (rtx count_exp)
 static rtx
 ix86_copy_addr_to_reg (rtx addr)
 {
-  if (GET_MODE (addr) == Pmode)
+  if (GET_MODE (addr) == Pmode || GET_MODE (addr) == VOIDmode)
     return copy_addr_to_reg (addr);
   else
     {
@@ -24393,7 +24390,8 @@ ix86_expand_set_or_movmem (rtx dst, rtx src, rtx count_exp, rtx val_exp,
 	  if (jump_around_label == NULL_RTX)
 	    jump_around_label = gen_label_rtx ();
 	  emit_cmp_and_jump_insns (count_exp, GEN_INT (dynamic_check - 1),
-				   LEU, 0, GET_MODE (count_exp), 1, hot_label);
+				   LEU, 0, counter_mode (count_exp),
+				   1, hot_label);
 	  predict_jump (REG_BR_PROB_BASE * 90 / 100);
 	  if (issetmem)
 	    set_storage_via_libcall (dst, count_exp, val_exp, false);
@@ -35409,7 +35407,8 @@ rdrand_step:
       else
 	op2 = gen_rtx_SUBREG (SImode, op0, 0);
 
-      if (target == 0)
+      if (target == 0
+	  || !register_operand (target, SImode))
 	target = gen_reg_rtx (SImode);
 
       pat = gen_rtx_GEU (VOIDmode, gen_rtx_REG (CCCmode, FLAGS_REG),
@@ -35451,7 +35450,8 @@ rdseed_step:
                          const0_rtx);
       emit_insn (gen_rtx_SET (VOIDmode, op2, pat));
 
-      if (target == 0)
+      if (target == 0
+	  || !register_operand (target, SImode))
         target = gen_reg_rtx (SImode);
 
       emit_insn (gen_zero_extendqisi2 (target, op2));
@@ -36994,105 +36994,6 @@ avx_vperm2f128_parallel (rtx par, enum machine_mode mode)
   return mask + 1;
 }
 
-/* Store OPERAND to the memory after reload is completed.  This means
-   that we can't easily use assign_stack_local.  */
-rtx
-ix86_force_to_memory (enum machine_mode mode, rtx operand)
-{
-  rtx result;
-
-  gcc_assert (reload_completed);
-  if (ix86_using_red_zone ())
-    {
-      result = gen_rtx_MEM (mode,
-			    gen_rtx_PLUS (Pmode,
-					  stack_pointer_rtx,
-					  GEN_INT (-RED_ZONE_SIZE)));
-      emit_move_insn (result, operand);
-    }
-  else if (TARGET_64BIT)
-    {
-      switch (mode)
-	{
-	case HImode:
-	case SImode:
-	  operand = gen_lowpart (DImode, operand);
-	  /* FALLTHRU */
-	case DImode:
-	  emit_insn (
-		      gen_rtx_SET (VOIDmode,
-				   gen_rtx_MEM (DImode,
-						gen_rtx_PRE_DEC (DImode,
-							stack_pointer_rtx)),
-				   operand));
-	  break;
-	default:
-	  gcc_unreachable ();
-	}
-      result = gen_rtx_MEM (mode, stack_pointer_rtx);
-    }
-  else
-    {
-      switch (mode)
-	{
-	case DImode:
-	  {
-	    rtx operands[2];
-	    split_double_mode (mode, &operand, 1, operands, operands + 1);
-	    emit_insn (
-			gen_rtx_SET (VOIDmode,
-				     gen_rtx_MEM (SImode,
-						  gen_rtx_PRE_DEC (Pmode,
-							stack_pointer_rtx)),
-				     operands[1]));
-	    emit_insn (
-			gen_rtx_SET (VOIDmode,
-				     gen_rtx_MEM (SImode,
-						  gen_rtx_PRE_DEC (Pmode,
-							stack_pointer_rtx)),
-				     operands[0]));
-	  }
-	  break;
-	case HImode:
-	  /* Store HImodes as SImodes.  */
-	  operand = gen_lowpart (SImode, operand);
-	  /* FALLTHRU */
-	case SImode:
-	  emit_insn (
-		      gen_rtx_SET (VOIDmode,
-				   gen_rtx_MEM (GET_MODE (operand),
-						gen_rtx_PRE_DEC (SImode,
-							stack_pointer_rtx)),
-				   operand));
-	  break;
-	default:
-	  gcc_unreachable ();
-	}
-      result = gen_rtx_MEM (mode, stack_pointer_rtx);
-    }
-  return result;
-}
-
-/* Free operand from the memory.  */
-void
-ix86_free_from_memory (enum machine_mode mode)
-{
-  if (!ix86_using_red_zone ())
-    {
-      int size;
-
-      if (mode == DImode || TARGET_64BIT)
-	size = 8;
-      else
-	size = 4;
-      /* Use LEA to deallocate stack space.  In peephole2 it will be converted
-         to pop or add instruction if registers are available.  */
-      emit_insn (gen_rtx_SET (VOIDmode, stack_pointer_rtx,
-			      gen_rtx_PLUS (Pmode, stack_pointer_rtx,
-					    GEN_INT (size))));
-    }
-}
-
 /* Return a register priority for hard reg REGNO.  */
 static int
 ix86_register_priority (int hard_regno)
@@ -38855,7 +38756,7 @@ x86_output_mi_thunk (FILE *file,
 	{
 	  tmp = gen_rtx_UNSPEC (Pmode, gen_rtvec (1, fnaddr), UNSPEC_GOTPCREL);
 	  tmp = gen_rtx_CONST (Pmode, tmp);
-	  fnaddr = gen_rtx_MEM (Pmode, tmp);
+	  fnaddr = gen_const_mem (Pmode, tmp);
 	}
     }
   else
@@ -38875,8 +38776,9 @@ x86_output_mi_thunk (FILE *file,
 	  output_set_got (tmp, NULL_RTX);
 
 	  fnaddr = gen_rtx_UNSPEC (Pmode, gen_rtvec (1, fnaddr), UNSPEC_GOT);
-	  fnaddr = gen_rtx_PLUS (Pmode, fnaddr, tmp);
-	  fnaddr = gen_rtx_MEM (Pmode, fnaddr);
+	  fnaddr = gen_rtx_CONST (Pmode, fnaddr);
+	  fnaddr = gen_rtx_PLUS (Pmode, tmp, fnaddr);
+	  fnaddr = gen_const_mem (Pmode, fnaddr);
 	}
     }
 

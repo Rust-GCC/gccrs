@@ -4613,7 +4613,7 @@ s390_expand_insv (rtx dest, rtx op1, rtx op2, rtx src)
   int smode_bsize, mode_bsize;
   rtx op, clobber;
 
-  if (bitsize + bitpos > GET_MODE_SIZE (mode))
+  if (bitsize + bitpos > GET_MODE_BITSIZE (mode))
     return false;
 
   /* Generate INSERT IMMEDIATE (IILL et al).  */
@@ -9224,6 +9224,13 @@ s390_can_use_return_insn (void)
   for (i = 0; i < 16; i++)
     if (cfun_gpr_save_slot (i))
       return false;
+
+  /* For 31 bit this is not covered by the frame_size check below
+     since f4, f6 are saved in the register save area without needing
+     additional stack space.  */
+  if (!TARGET_64BIT
+      && (cfun_fpr_save_p (FPR4_REGNUM) || cfun_fpr_save_p (FPR6_REGNUM)))
+    return false;
 
   if (cfun->machine->base_reg
       && !call_really_used_regs[REGNO (cfun->machine->base_reg)])

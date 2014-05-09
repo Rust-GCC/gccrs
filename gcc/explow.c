@@ -110,7 +110,7 @@ plus_constant (enum machine_mode mode, rtx x, HOST_WIDE_INT c)
 	  return immed_double_int_const (v, mode);
 	}
 
-      return gen_int_mode (INTVAL (x) + c, mode);
+      return gen_int_mode (UINTVAL (x) + c, mode);
 
     case CONST_DOUBLE:
       {
@@ -1729,6 +1729,9 @@ probe_stack_range (HOST_WIDE_INT first, rtx size)
 	  emit_stack_probe (addr);
 	}
     }
+
+  /* Make sure nothing is scheduled before we are done.  */
+  emit_insn (gen_blockage ());
 }
 
 /* Adjust the stack pointer by minus SIZE (an rtx for a number of bytes)

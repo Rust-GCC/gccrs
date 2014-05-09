@@ -650,7 +650,7 @@ maybe_record_node (vec <cgraph_node *> &nodes,
   else if (completep
 	   && !type_in_anonymous_namespace_p
 		 (method_class_type (TREE_TYPE (target))))
-    *completep = true;
+    *completep = false;
 }
 
 /* See if BINFO's type match OUTER_TYPE.  If so, lookup 
@@ -987,6 +987,17 @@ give_up:
   context->outer_type = expected_type;
   context->offset = 0;
   context->maybe_derived_type = true;
+  context->maybe_in_construction = true;
+  /* POD can be changed to an instance of a polymorphic type by
+     placement new.  Here we play safe and assume that any
+     non-polymorphic type is POD.  */
+  if ((TREE_CODE (type) != RECORD_TYPE
+       || !TYPE_BINFO (type)
+       || !polymorphic_type_binfo_p (TYPE_BINFO (type)))
+      && (TREE_CODE (TYPE_SIZE (type)) != INTEGER_CST
+	  || (offset + tree_to_uhwi (TYPE_SIZE (expected_type)) <=
+	      tree_to_uhwi (TYPE_SIZE (type)))))
+    return true;
   return false;
 }
 
@@ -1214,7 +1225,13 @@ get_polymorphic_call_info (tree fndecl,
 		     not part of outer type.  */
 		  if (!contains_type_p (TREE_TYPE (base),
 					context->offset + offset2, *otr_type))
-		    return base_pointer;
+		    {
+		      /* Use OTR_TOKEN = INT_MAX as a marker of probably type inconsistent
+			 code sequences; we arrange the calls to be builtin_unreachable
+			 later.  */
+		      *otr_token = INT_MAX;
+		      return base_pointer;
+		    }
 		  get_polymorphic_call_info_for_decl (context, base,
 						      context->offset + offset2);
 		  return NULL;
@@ -1261,7 +1278,7 @@ get_polymorphic_call_info (tree fndecl,
 	    }
 
 	  /* If the function is constructor or destructor, then
-	     the type is possibly in consturction, but we know
+	     the type is possibly in construction, but we know
 	     it is not derived type.  */
 	  if (DECL_CXX_CONSTRUCTOR_P (fndecl)
 	      || DECL_CXX_DESTRUCTOR_P (fndecl))
@@ -1288,8 +1305,10 @@ get_polymorphic_call_info (tree fndecl,
 	  if (!contains_type_p (context->outer_type, context->offset,
 			        *otr_type))
 	    { 
-	      context->outer_type = NULL;
-	      gcc_unreachable ();
+	      /* Use OTR_TOKEN = INT_MAX as a marker of probably type inconsistent
+		 code sequences; we arrange the calls to be builtin_unreachable
+		 later.  */
+	      *otr_token = INT_MAX;
 	      return base_pointer;
 	    }
 	  context->maybe_derived_type = false;
@@ -1389,6 +1408,9 @@ devirt_variable_node_removal_hook (varpool_node *n,
    temporarily change to one of base types.  INCLUDE_DERIVER_TYPES make
    us to walk the inheritance graph for all derivations.
 
+   OTR_TOKEN == INT_MAX is used to mark calls that are provably
+   undefined and should be redirected to unreachable.
+
    If COMPLETEP is non-NULL, store true if the list is complete. 
    CACHE_TOKEN (if non-NULL) will get stored to an unique ID of entry
    in the target cache.  If user needs to visit every target list
@@ -1422,6 +1444,7 @@ possible_polymorphic_call_targets (tree otr_type,
   bool complete;
   bool can_refer;
 
+  /* If ODR is not initialized, return empty incomplete list.  */
   if (!odr_hash.is_created ())
     {
       if (completep)
@@ -1431,11 +1454,28 @@ possible_polymorphic_call_targets (tree otr_type,
       return nodes;
     }
 
+  /* If we hit type inconsistency, just return empty list of targets.  */
+  if (otr_token == INT_MAX)
+    {
+      if (completep)
+	*completep = true;
+      if (nonconstruction_targetsp)
+	*nonconstruction_targetsp = 0;
+      return nodes;
+    }
+
   type = get_odr_type (otr_type, true);
 
   /* Lookup the outer class type we want to walk.  */
-  if (context.outer_type)
-    get_class_context (&context, otr_type);
+  if (context.outer_type
+      && !get_class_context (&context, otr_type))
+    {
+      if (completep)
+	*completep = false;
+      if (nonconstruction_targetsp)
+	*nonconstruction_targetsp = 0;
+      return nodes;
+    }
 
   /* We canonicalize our query, so we do not need extra hashtable entries.  */
 

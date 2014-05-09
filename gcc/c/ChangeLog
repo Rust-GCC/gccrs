@@ -1,3 +1,47 @@
+2014-04-24  Jakub Jelinek  <jakub@redhat.com>
+
+	* c-parser.c (c_parser_omp_atomic): Allow seq_cst before
+	atomic-clause, allow comma in between atomic-clause and
+	seq_cst.
+
+2014-04-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/59073
+	* c-parser.c (c_parser_omp_parallel): If c_parser_omp_for
+	fails, don't set OM_PARALLEL_COMBINED and return NULL.
+
+2014-04-22  Release Manager
+
+	* GCC 4.9.0 released.
+
+2014-04-15  Igor Zamyatin  <igor.zamyatin@intel.com>
+
+	PR middle-end/60469
+	* c-array-notation.c (fix_builtin_array_notation_fn): Use
+	create_tmp_var instead build_decl for creating temps.
+	(build_array_notation_expr): Likewise.
+	(fix_conditional_array_notations_1): Likewise.
+	(fix_array_notation_expr): Likewise.
+	(fix_array_notation_call_expr): Likewise.
+
+2014-03-28  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/60689
+	* c-tree.h (c_build_function_call_vec): New prototype.
+	* c-typeck.c (build_function_call_vec): Don't call
+	resolve_overloaded_builtin here.
+	(c_build_function_call_vec): New wrapper function around
+	build_function_call_vec.  Call resolve_overloaded_builtin here.
+	(convert_lvalue_to_rvalue, build_function_call, build_atomic_assign):
+	Call c_build_function_call_vec instead of build_function_call_vec.
+	* c-parser.c (c_parser_postfix_expression_after_primary): Likewise.
+	* c-decl.c (finish_decl): Likewise.
+
+2014-03-18  Manuel López-Ibáñez  <manu@gcc.gnu.org>
+
+	PR c/55383
+	* c-typeck.c: Use correct format string in cast-qual warning
+
 2014-03-07  Thomas Schwinge  <thomas@codesourcery.com>
 
 	* c-decl.c (c_decl_attributes): Use

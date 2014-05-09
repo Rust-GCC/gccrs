@@ -3365,6 +3365,25 @@ percent_K_format (text_info *text)
   gcc_assert (pp_ti_abstract_origin (text) != NULL);
   block = TREE_BLOCK (t);
   *pp_ti_abstract_origin (text) = NULL;
+
+  if (in_lto_p)
+    {
+      /* ???  LTO drops all BLOCK_ABSTRACT_ORIGINs apart from those
+         representing the outermost block of an inlined function.
+	 So walk the BLOCK tree until we hit such a scope.  */
+      while (block
+	     && TREE_CODE (block) == BLOCK)
+	{
+	  if (inlined_function_outer_scope_p (block))
+	    {
+	      *pp_ti_abstract_origin (text) = block;
+	      break;
+	    }
+	  block = BLOCK_SUPERCONTEXT (block);
+	}
+      return;
+    }
+
   while (block
 	 && TREE_CODE (block) == BLOCK
 	 && BLOCK_ABSTRACT_ORIGIN (block))
@@ -3446,6 +3465,12 @@ pp_double_int (pretty_printer *pp, double_int d, bool uns)
     pp_wide_integer (pp, d.low);
   else if (d.fits_uhwi ())
     pp_unsigned_wide_integer (pp, d.low);
+  else if (HOST_BITS_PER_DOUBLE_INT == HOST_BITS_PER_WIDEST_INT)
+    pp_scalar (pp,
+	       uns
+	       ? HOST_WIDEST_INT_PRINT_UNSIGNED : HOST_WIDEST_INT_PRINT_DEC,
+	       (HOST_WIDEST_INT) ((((unsigned HOST_WIDEST_INT) d.high << 1)
+				   << (HOST_BITS_PER_WIDE_INT - 1)) | d.low));
   else
     {
       unsigned HOST_WIDE_INT low = d.low;
