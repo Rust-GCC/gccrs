@@ -340,7 +340,7 @@ rdot factor1 (void)
       char * pid = yylval.string;
       if (yyaccept ('='))
         {
-          rdot rhs = factor2 ();
+          rdot rhs = expression ();
           retval = rdot_build_decl2 (D_MODIFY_EXPR, rdot_build_identifier (pid), rhs);
         }
       else if (yyaccept_ ('('))

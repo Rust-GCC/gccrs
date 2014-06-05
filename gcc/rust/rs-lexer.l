@@ -18,11 +18,9 @@
 #include "rust.h"
 #include "y.rs.h"
 
-
 extern int yydebug;
 extern int yyparse (void);
 %}
-
 
 DIGIT        [0-9]
 ID           [_a-zA-Z][a-zA_Z0-9_$]*
@@ -135,8 +133,10 @@ bool grs_do_compile (const char * in)
     {
 	yyin = fd;
         // yydebug = 1;
+        linemap_add (line_table, LC_ENTER, 0, in, 0);
 	retval = yyparse ();
 	fclose (fd);
+        linemap_add (line_table, LC_LEAVE, 0, NULL, 0);
 	yylex_destroy ();
     }
     else

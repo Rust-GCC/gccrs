@@ -28,31 +28,32 @@ static void dot_pass_genMethodProto (rdot);
 static void dot_pass_compileSuite (rdot, tree *);
 
 #define RDOT_ALLOCA_MODIFIERS_DO(_X, _Y)                                \
-  do {                                                                  \
-    gcc_assert (_X != error_mark_node);                                 \
-    std::vector<ALLOCA_>::reverse_iterator __rit;                       \
-    for (__rit = RDOT_MEM_MODIFIER (_Y)->rbegin ();                     \
-         __rit != RDOT_MEM_MODIFIER (_Y)->rend (); ++__rit)             \
-      {                                                                 \
-        switch (*__rit)                                                 \
-          {                                                             \
-          case ALLOC_HEAP:                                              \
-            _X = dot_pass_heapify (_X, TREE_TYPE (_X),                  \
-                                   TYPE_SIZE_UNIT (TREE_TYPE (_X)));    \
-            break;                                                      \
-          case ALLOC_REF:                                               \
-            _X = build_fold_addr_expr (_X);                             \
-            break;                                                      \
-          case ALLOC_DEREF:                                             \
-            {                                                           \
-              _X = build_fold_indirect_ref_loc (RDOT_LOCATION (_Y),     \
-                                                _X);                    \
-              TREE_THIS_NOTRAP (_X) = 1;                                \
-            }                                                           \
-            break;                                                      \
-          }                                                             \
-      }                                                                 \
-  } while (0)
+  if (RDOT_MEM_MODIFIER (_Y))						\
+    do {								\
+      gcc_assert (_X != error_mark_node);				\
+      std::vector<ALLOCA_>::reverse_iterator __rit;			\
+      for (__rit = RDOT_MEM_MODIFIER (_Y)->rbegin ();			\
+	   __rit != RDOT_MEM_MODIFIER (_Y)->rend (); ++__rit)		\
+	{								\
+	  switch (*__rit)						\
+	    {								\
+	    case ALLOC_HEAP:						\
+	      _X = dot_pass_heapify (_X, TREE_TYPE (_X),		\
+				     TYPE_SIZE_UNIT (TREE_TYPE (_X)));	\
+	      break;							\
+	    case ALLOC_REF:						\
+	      _X = build_fold_addr_expr (_X);				\
+	      break;							\
+	    case ALLOC_DEREF:						\
+	      {								\
+		_X = build_fold_indirect_ref_loc (RDOT_LOCATION (_Y),	\
+						  _X);			\
+		TREE_THIS_NOTRAP (_X) = 1;				\
+	      }								\
+	      break;							\
+	    }								\
+	}								\
+    } while (0)
 
 /* NOTE: this isn't global in the sense of the generated code,
    This just makes it easier for expression compilation to access
@@ -124,20 +125,23 @@ tree dot_pass_rustToGccType__ (rdot type, bool consty, bool rset, tree * record)
              RDOT_OPCODE_STR (type));
       break;
     }
-  std::vector<ALLOCA_>::reverse_iterator rit;
-  for (rit = RDOT_MEM_MODIFIER (type)->rbegin ();
-       rit != RDOT_MEM_MODIFIER (type)->rend (); ++rit)
+  if (RDOT_MEM_MODIFIER (type))
     {
-      switch (*rit)
-        {
-        case ALLOC_REF:
-        case ALLOC_HEAP:
-          retval = build_pointer_type (retval);
-          break;
-        default:
-          fatal_error ("cannot figure out modifier applied to type [%i]", *rit);
-          break;
-        }
+      std::vector<ALLOCA_>::reverse_iterator rit;
+      for (rit = RDOT_MEM_MODIFIER (type)->rbegin ();
+	   rit != RDOT_MEM_MODIFIER (type)->rend (); ++rit)
+	{
+	  switch (*rit)
+	    {
+	    case ALLOC_REF:
+	    case ALLOC_HEAP:
+	      retval = build_pointer_type (retval);
+	      break;
+	    default:
+	      fatal_error ("cannot figure out modifier applied to type [%i]", *rit);
+	      break;
+	    }
+	}
     }
   if (consty)
     retval = build_qualified_type (retval, TYPE_QUAL_CONST);
@@ -404,7 +408,7 @@ tree dot_pass_lowerExpr (rdot dot, tree * block)
 	    // TODO better diagnostic make a map of the initilized so
 	    // we can display the un initilized to the user
 	  }
-        RDOT_ALLOCA_MODIFIERS_DO (retval, dot);
+	RDOT_ALLOCA_MODIFIERS_DO (retval, dot);
       }
       break;
 
@@ -910,11 +914,11 @@ tree dot_pass_genifyTopFndecl (rdot node)
   tree block = alloc_stmt_list ();
   current_function_block = &block;
 
-  if (rtype != void_type_node)
-    {
-      global_retDecl = DECL_RESULT (fndecl);
-      global_retDecl_ = false;
-    }
+  global_retDecl_ = false;
+  if (rtype == void_type_node)
+    global_retDecl = error_mark_node;
+  else
+    global_retDecl = DECL_RESULT (fndecl);
 
   // compile the block...
   dot_pass_compileSuite (RDOT_rhs_TT (node), &block);

@@ -55,6 +55,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "print-tree.h"
 #include <vec.h>
 #include <hashtab.h>
+#include "input.h"
 
 #include <gmp.h>
 #include <mpfr.h>

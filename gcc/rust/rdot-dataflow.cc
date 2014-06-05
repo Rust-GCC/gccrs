@@ -400,6 +400,7 @@ rdot dot_pass_typeifyPrimitive (rdot node)
   return retval;
 }
 
+/* FIXME maybe i feel this isn't done very well at all here */
 static
 rdot dot_pass_typeifyExprNode (rdot node)
 {
@@ -499,10 +500,8 @@ rdot dot_pass_typeifyExprNode (rdot node)
     case D_ATTRIB_REF:
       {
         rdot lhs = RDOT_lhs_TT (node);
-        rdot rhs = RDOT_rhs_TT (node);
         rdot base_type = dot_pass_typeifyExprNode (lhs);
         gcc_assert (RDOT_TYPE (base_type) == RTYPE_USER_STRUCT);
-        
       }
       break;
 
@@ -571,6 +570,37 @@ rdot dot_pass_typeifyExprNode (rdot node)
 }
 
 static
+void dot_pass_mutability (const rdot node)
+{
+  rdot lhs = RDOT_lhs_TT (node);
+  if (RDOT_TYPE (lhs) != D_VAR_DECL)
+    {
+      // check the nodes mutability
+      switch (RDOT_TYPE (lhs))
+	{
+	case D_IDENTIFIER:
+	  {
+	    const char * ident = RDOT_IDENTIFIER_POINTER (lhs);
+	    const rdot node = dot_pass_dataFlow_lookup (ident);
+	    if (node == NULL_DOT)
+	      error_at (RDOT_LOCATION (node), "Unable to find decl [%s] in current scope", ident);
+	    else if (RDOT_qual (node) == true)
+	      error_at (RDOT_LOCATION (node), "Unable to modify [%s] it is immutable", ident);
+	  }
+	  break;
+
+	default:
+	  {
+	    const char * nstr = RDOT_OPCODE_STR (lhs);
+	    warning_at (RDOT_LOCATION (node), 0, "TODO unable to verify assignment"
+			"mutability for [%s]", nstr);
+	  }
+	  break;
+	}
+    }
+}
+
+static
 void dot_pass_dataFlowBlock_ (rdot suite, std::vector<rdot> * decls)
 {
   rdot node;
@@ -578,6 +608,9 @@ void dot_pass_dataFlowBlock_ (rdot suite, std::vector<rdot> * decls)
     {
       if (RDOT_T_FIELD (node) == D_D_EXPR)
         {
+	  if (RDOT_TYPE (node) == D_MODIFY_EXPR)
+	    dot_pass_mutability (node);
+
           const char * id = NULL;
           rdot decl = dot_pass_dataFlow_getDecl (node);
           if (decl != NULL_DOT)
