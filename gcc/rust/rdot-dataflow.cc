@@ -505,6 +505,37 @@ rdot dot_pass_typeifyExprNode (rdot node)
       }
       break;
 
+    case D_ACC_EXPR:
+      {
+	rdot impl = RDOT_lhs_TT (node);
+	char * implid = RDOT_IDENTIFIER_POINTER (impl);
+	rdot lookup = dot_pass_dataFlow_lookup (implid);
+
+	bool found = false;
+	rdot next;
+	for (next = RDOT_rhs_TT (RDOT_FIELD (lookup));
+	     next != NULL_DOT; next = RDOT_CHAIN (next))
+	  {
+	    switch (RDOT_TYPE (next))
+	      {
+	      case D_STRUCT_METHOD:
+		{
+		  RDOT_TYPE (retval) = RDOT_TYPE (RDOT_FIELD2 (next));
+		  RDOT_MEM_MODIFIER (retval) = new std::vector<ALLOCA_>;
+		}
+		break;
+
+	      default:
+		error_at (RDOT_LOCATION (next), "unable to identify [%s] for type inferance",
+			  RDOT_OPCODE_STR (next));
+		break;
+	      }
+	  }
+	if (!found)
+	  break;
+      }
+      break;
+
     case D_ADD_EXPR:
     case D_MINUS_EXPR:
     case D_MULT_EXPR:

@@ -317,9 +317,11 @@ void dot_pass_dumpExprNode (FILE * fd, rdot node)
 	    gcc_assert (RDOT_TYPE (next) == D_STRUCT_PARAM);
 	    const char * name = RDOT_IDENTIFIER_POINTER (RDOT_lhs_TT (next));
 	    
-	    fprintf (fd, "|%s := (", name);
+	    fprintf (fd, "%s:(", name);
 	    dot_pass_dump_expr (fd, RDOT_rhs_TT (next));
-	    fprintf (fd, ")|");
+	    fprintf (fd, ")");
+	    if (RDOT_CHAIN (next) != NULL_DOT)
+	      fprintf (fd, ", ");
 	  }
 	fprintf (fd, " }");
       }

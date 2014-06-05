@@ -362,6 +362,12 @@ rdot factor1 (void)
                                      rdot_build_identifier (pid),
                                      sls);
         }
+      else if (yyaccept_ (ACC))
+	{
+	  yyexpect (ACC);
+	  rdot node = factor1 ();
+	  retval = rdot_build_decl2 (D_ACC_EXPR, rdot_build_identifier (pid), node);
+	}
       else
         {
           retval = rdot_build_identifier (yylval.string);

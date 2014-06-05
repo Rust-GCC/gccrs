@@ -590,6 +590,14 @@ tree dot_pass_lowerExpr (rdot dot, tree * block)
         }
       break;
 
+    case D_ACC_EXPR:
+      {
+	rdot impl = RDOT_lhs_TT (dot);
+	char * implid = RDOT_IDENTIFIER_POINTER (impl);
+	printf ("implid = %s\n", implid);
+      }
+      break;
+
     default:
       error ("unhandled binary operation type [%s]!\n", RDOT_OPCODE_STR (dot));
       break;
