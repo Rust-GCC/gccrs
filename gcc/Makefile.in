@@ -2653,7 +2653,7 @@ install-gcc-tooldir:
 	$(mkinstalldirs) $(DESTDIR)$(gcc_tooldir)
 
 macro_list: s-macro_list; @true
-s-macro_list : $(GCC_PASSES)
+s-macro_list : $(GCC_PASSES) cc1$(exeext)
 	echo | $(GCC_FOR_TARGET) -E -dM - | \
 	  sed -n -e 's/^#define \([^_][a-zA-Z0-9_]*\).*/\1/p' \
 		 -e 's/^#define \(_[^_A-Z][a-zA-Z0-9_]*\).*/\1/p' | \
@@ -3125,7 +3125,14 @@ PLUGIN_HEADERS = $(TREE_H) $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
   version.h stringpool.h gimplify.h gimple-iterator.h gimple-ssa.h \
   fold-const.h tree-cfg.h tree-into-ssa.h tree-ssanames.h print-tree.h \
   varasm.h context.h tree-phinodes.h stor-layout.h ssa-iterators.h \
-  $(RESOURCE_H) tree-cfgcleanup.h
+  $(RESOURCE_H) tree-cfgcleanup.h attribs.h calls.h cfgexpand.h \
+  diagnostic-color.h gcc-symtab.h gimple-builder.h gimple-low.h \
+  gimple-walk.h gimplify-me.h pass_manager.h print-rtl.h stmt.h \
+  tree-dfa.h tree-hasher.h tree-nested.h tree-object-size.h tree-outof-ssa.h \
+  tree-parloops.h tree-ssa-address.h tree-ssa-coalesce.h tree-ssa-dom.h \
+  tree-ssa-loop.h tree-ssa-loop-ivopts.h tree-ssa-loop-manip.h \
+  tree-ssa-loop-niter.h tree-ssa-ter.h tree-ssa-threadedge.h \
+  tree-ssa-threadupdate.h
 
 # generate the 'build fragment' b-header-vars
 s-header-vars: Makefile
@@ -3205,10 +3212,13 @@ install-common: native lang.install-common installdirs
 install-driver: installdirs xgcc$(exeext)
 	-rm -f $(DESTDIR)$(bindir)/$(GCC_INSTALL_NAME)$(exeext)
 	-$(INSTALL_PROGRAM) xgcc$(exeext) $(DESTDIR)$(bindir)/$(GCC_INSTALL_NAME)$(exeext)
-	-rm -f $(DESTDIR)$(bindir)/$(target_noncanonical)-gcc-$(version)$(exeext)
-	-( cd $(DESTDIR)$(bindir) && \
-	   $(LN) $(GCC_INSTALL_NAME)$(exeext) $(target_noncanonical)-gcc-$(version)$(exeext) )
-	-if [ ! -f gcc-cross$(exeext) ] ; then \
+	-if [ "$(GCC_INSTALL_NAME)" != "$(target_noncanonical)-gcc-$(version)" ]; then \
+	  rm -f $(DESTDIR)$(bindir)/$(target_noncanonical)-gcc-$(version)$(exeext); \
+	  ( cd $(DESTDIR)$(bindir) && \
+	    $(LN) $(GCC_INSTALL_NAME)$(exeext) $(target_noncanonical)-gcc-$(version)$(exeext) ); \
+	fi
+	-if [ ! -f gcc-cross$(exeext) ] \
+	    && [ "$(GCC_INSTALL_NAME)" != "$(GCC_TARGET_INSTALL_NAME)" ]; then \
 	  rm -f $(DESTDIR)$(bindir)/$(target_noncanonical)-gcc-tmp$(exeext); \
 	  ( cd $(DESTDIR)$(bindir) && \
 	    $(LN) $(GCC_INSTALL_NAME)$(exeext) $(target_noncanonical)-gcc-tmp$(exeext) && \

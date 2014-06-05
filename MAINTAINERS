@@ -51,8 +51,6 @@ arm port		Richard Earnshaw	richard.earnshaw@arm.com
 arm port		Paul Brook		paul@codesourcery.com
 arm port		Ramana Radhakrishnan	ramana.radhakrishnan@arm.com
 avr port		Denis Chertykov		chertykov@gmail.com
-avr port		Anatoly Sokolov		aesok@post.ru
-avr port		Eric Weddington		eric.weddington@atmel.com
 bfin port		Bernd Schmidt		bernds@codesourcery.com
 bfin port		Jie Zhang		jzhang918@gmail.com
 c6x port		Bernd Schmidt		bernds@codesourcery.com
@@ -408,6 +406,7 @@ Manfred Hollstein				mh@suse.com
 Cong Hou					congh@google.com
 Falk Hueffner					falk@debian.org
 Andrew John Hughes				gnu_andrew@member.fsf.org
+Dominique d'Humieres				dominiq@lps.ens.fr
 Andy Hutchinson					hutchinsonandy@aim.com
 Naveen H.S					Naveen.Hurugalawadi@caviumnetworks.com
 Meador Inge					meadori@codesourcery.com
@@ -528,6 +527,7 @@ Franz Sirl					franz.sirl-kernel@lauterbach.com
 Jan Sjodin					jan.sjodin@amd.com
 Edward Smith-Rowland				3dw4rd@verizon.net
 Jayant Sonar					rsonar.jayant@gmail.com
+Anatoly Sokolov					aesok@post.ru
 Michael Sokolov					msokolov@ivan.Harhan.ORG
 Richard Stallman				rms@gnu.org
 Basile Starynkevitch				basile@starynkevitch.net

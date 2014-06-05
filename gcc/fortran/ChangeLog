@@ -1,3 +1,172 @@
+2014-04-22  Tobias Burnus  <burnus@net-b.de>
+
+	Backport from mainline
+	2014-04-11  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/58880
+	PR fortran/60495
+	* resolve.c (gfc_resolve_finalizers): Ensure that vtables
+	and finalization wrappers are generated.
+
+2014-04-22  Release Manager
+
+	* GCC 4.9.0 released.
+
+2014-04-13  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/58085
+	PR fortran/60717
+	* trans.h: Add 'use_offset' bitfield to gfc_se.
+	* trans-array.c (gfc_conv_expr_descriptor): Use 'use_offset'
+	as a trigger to unconditionally recalculate the offset for
+	array slices and constant arrays.
+	trans-expr.c (gfc_conv_intrinsic_to_class): Use it.
+	trans-stmt.c (trans_associate_var): Ditto.
+	(gfc_conv_procedure_call): Ditto.
+
+2014-04-11  Janne Blomqvist  <jb@gcc.gnu.org>
+
+	* intrinsic.texi (RANDOM_SEED): Improve example.
+
+2014-04-10  Bernd Edlinger  <bernd.edlinger@hotmail.de>
+
+	* class.c (gfc_build_class_symbol): Append "_t" to target class
+	names to make the generated type names unique.
+
+2014-04-04  Bernd Edlinger  <bernd.edlinger@hotmail.de>
+
+	PR fortran/60191
+	* trans-types.c (gfc_get_function_type): In case of recursion
+	build a variadic function type with empty argument list instead of a
+	stdarg-like function type with incomplete argument list.
+
+2014-04-04  Tobias Burnus  <burnus@net-b.de>
+
+	* check.c (gfc_check_cmplx): Fix typo.
+
+2014-03-28  Mikael Morin  <mikael@gcc.gnu.org>
+	    Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/60576
+	* trans-expr.c (gfc_conv_derived_to_class): Avoid
+	generation of out-of-bounds range expr.
+
+2014-03-28  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/60677
+	* trans-intrinsic.c (gfc_conv_intrinsic_ichar): Enlarge argument
+	list buffer.
+
+2014-03-27  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/60522
+	* frontend-passes.c (cfe_code):  Do not walk subtrees
+	for WHERE.
+
+2014-03-27  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/58880
+	* trans-expr.c (gfc_conv_scalar_to_descriptor): Fix handling
+	of nonpointers.
+
+2014-03-26 Dominique d'Humieres <dominiq@lps.ens.fr>
+
+	PR fortran/34928
+	* fortran.texi: Document Volatile COMMON as not supported.
+
+2014-03-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR debug/60603
+	* cpp.c (gfc_cpp_init): Restore cb_change_file call to
+	<built-in>.
+
+2014-03-21  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/60148
+	* gfortran.texi: Add description of namelist DELIM= behavior.
+
+2014-03-19  Tobias Burnus  <burnus@net-b.>
+
+	PR fortran/60543
+	* io.c (check_io_constraints): Use gfc_unset_implicit_pure.
+	* resolve.c (resolve_ordinary_assign): Ditto.
+
+2014-03-19  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/60543
+	PR fortran/60283
+	* gfortran.h (gfc_unset_implicit_pure): New prototype.
+	* resolve.c (gfc_unset_implicit_pure): New.
+	(resolve_structure_cons, resolve_function,
+	pure_subroutine): Use it.
+	* decl.c (match_old_style_init, gfc_match_data,
+	match_pointer_init, variable_decl): Ditto.
+	* expr.c (gfc_check_pointer_assign): Ditto.
+	* intrinsic.c (gfc_intrinsic_sub_interface): Ditto.
+	* io.c (match_vtag, gfc_match_open, gfc_match_close,
+	match_filepos, gfc_match_inquire, gfc_match_print,
+	gfc_match_wait): Ditto.
+	* match.c (gfc_match_critical, gfc_match_stopcode,
+	lock_unlock_statement, sync_statement, gfc_match_allocate,
+	gfc_match_deallocate): Ditto.
+	* parse.c (decode_omp_directive): Ditto.
+	* symbol.c (gfc_add_save): Ditto.
+
+2014-03-18  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/55207
+	PR fortran/60549
+	* decl.c (match_attr_spec): Revert r208590.
+
+2014-03-18  Jakub Jelinek  <jakub@redhat.com>
+
+	PR ipa/58721
+	* trans.c (gfc_unlikely, gfc_likely): Don't add __builtin_expect
+	if !optimize.
+
+2014-03-18  Tobias Burnus  <burnus@net-b.de>
+
+	PR ipa/58721
+	* trans.h (gfc_unlikely, gfc_likely): Add predictor as argument.
+	(gfc_trans_io_runtime_check): Remove.
+	* trans-io.c (gfc_trans_io_runtime_check): Make static; add has_iostat
+	as argument, add predictor to block.
+	(set_parameter_value, gfc_trans_open, gfc_trans_close, build_filepos,
+	gfc_trans_inquire, gfc_trans_wait, build_dt): Update calls.
+	* trans.c (gfc_unlikely, gfc_likely): Add predictor as argument.
+	(gfc_trans_runtime_check, gfc_allocate_using_malloc,
+	gfc_allocate_allocatable, gfc_deallocate_with_status): Set explicitly
+	branch predictor.
+	* trans-expr.c (gfc_conv_procedure_call): Ditto.
+	* trans-stmt.c (gfc_trans_allocate): Ditto.
+	* trans-array.c (gfc_array_init_size, gfc_array_allocate): Ditto.
+
+2014-03-15  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/55207
+	* decl.c (match_attr_spec): Variables in the main program implicitly
+	get the SAVE attribute in Fortran 2008.
+
+2014-03-14  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/60392
+	* trans-array.c (gfc_conv_array_parameter): Don't reuse the descriptor
+	if it has transposed dimensions.
+
+2014-03-08  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/60447
+	* f95-lang.c (gfc_init): Return false when only
+	preprocessing.
+	* options.c (gfc_post_options): Ditto.
+
+2014-03-08  Tobias Burnus  <burnus@net-b.de>
+
+	* gfortran.texi (Fortran 2003 Status): Mention finalization,
+	deferred-length character support and input rounding.
+	(Fortran 2008 Status): Mention that at termination
+	signalling exceptions are shown.
+
 2014-03-06  Paul Thomas  <pault@gcc.gnu.org>
 	    Janus Weil  <janus@gcc.gnu.org>
 

@@ -32,7 +32,7 @@
       else						\
 	builtin_define ("__AARCH64EL__");		\
 							\
-      if (!TARGET_GENERAL_REGS_ONLY)			\
+      if (TARGET_SIMD)					\
 	builtin_define ("__ARM_NEON");			\
 							\
       switch (aarch64_cmodel)				\
@@ -83,9 +83,9 @@
 #define WORDS_BIG_ENDIAN (BYTES_BIG_ENDIAN)
 
 /* AdvSIMD is supported in the default configuration, unless disabled by
-   -mgeneral-regs-only.  */
-#define TARGET_SIMD !TARGET_GENERAL_REGS_ONLY
-#define TARGET_FLOAT !TARGET_GENERAL_REGS_ONLY
+   -mgeneral-regs-only or by the +nosimd extension.  */
+#define TARGET_SIMD (!TARGET_GENERAL_REGS_ONLY && AARCH64_ISA_SIMD)
+#define TARGET_FLOAT (!TARGET_GENERAL_REGS_ONLY && AARCH64_ISA_FP)
 
 #define UNITS_PER_WORD		8
 
@@ -185,8 +185,8 @@ extern unsigned long aarch64_isa_flags;
 extern unsigned long aarch64_tune_flags;
 #define AARCH64_TUNE_SLOWMUL       (aarch64_tune_flags & AARCH64_FL_SLOWMUL)
 
-/* Crypto is an optional feature.  */
-#define TARGET_CRYPTO AARCH64_ISA_CRYPTO
+/* Crypto is an optional extension to AdvSIMD.  */
+#define TARGET_CRYPTO (TARGET_SIMD && AARCH64_ISA_CRYPTO)
 
 /* Standard register usage.  */
 
@@ -475,10 +475,10 @@ enum target_cpus
   TARGET_CPU_generic
 };
 
-/* If there is no CPU defined at configure, use "cortex-a53" as default.  */
+/* If there is no CPU defined at configure, use generic as default.  */
 #ifndef TARGET_CPU_DEFAULT
 #define TARGET_CPU_DEFAULT \
-  (TARGET_CPU_cortexa53 | (AARCH64_CPU_DEFAULT_FLAGS << 6))
+  (TARGET_CPU_generic | (AARCH64_CPU_DEFAULT_FLAGS << 6))
 #endif
 
 /* The processor for which instructions should be scheduled.  */
@@ -763,10 +763,6 @@ do {									     \
 /* Put trampolines in the text section so that mapping symbols work
    correctly.  */
 #define TRAMPOLINE_SECTION text_section
-
-/* Costs, etc.  */
-#define MEMORY_MOVE_COST(M, CLASS, IN) \
-  (GET_MODE_SIZE (M) < 8 ? 8 : GET_MODE_SIZE (M))
 
 /* To start with.  */
 #define BRANCH_COST(SPEED_P, PREDICTABLE_P) 2

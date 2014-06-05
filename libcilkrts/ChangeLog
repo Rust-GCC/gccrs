@@ -1,3 +1,42 @@
+2014-04-22  Release Manager
+
+	* GCC 4.9.0 released.
+
+2014-04-11  Barry Tannenbaum  <barry.m.tannenbaum@intel.com>
+
+	PR other/60644
+	* runtime/os-unix.c: Replaced all occurrances of ANDROID with
+	__ANDROID__.
+	* runtime/bug.h: Likewise.
+	* include/cilk/metaprogramming.h: Likewise.
+	* include/cilk/reducer_min_max.h: Likewise.
+
+2014-03-26  Tobias Burnus  <burnus@net-b.de>
+
+	* libcilkrts.spec.in: New.
+	* Makefile.am: Handle libcilkrts.spec.
+	* configure.ac: Determine link options for libcilkrts.spec.
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+	* aclocal.m4: Regenerate.
+
+2014-03-20  Tobias Burnus  <burnus@net-b.de>
+
+	PR other/60589
+
+	Reverted:
+	2014-03-09  Tobias Burnus  <burnus@net-b.de>
+
+	* Makefile.am: Install cilk.h.
+	* Makefile.in: Regenerate.
+	* aclocal.m4: Regenerate.
+
+2014-03-09  Tobias Burnus  <burnus@net-b.de>
+
+	* Makefile.am: Install cilk.h.
+	* Makefile.in: Regenerate.
+	* aclocal.m4: Regenerate.
+
 2014-02-18  Balaji V. Iyer  <balaji.v.iyer@intel.com>
 
 	* include/cilk/common.h (__CILKRTS_ABI_VERSION): Set the ABI version

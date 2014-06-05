@@ -1114,15 +1114,18 @@ create_mul_imm_cand (gimple gs, tree base_in, tree stride_in, bool speed)
 	     X = Y * c
 	     ============================
 	     X = (B + i') * (S * c)  */
-	  base = base_cand->base_expr;
-	  index = base_cand->index;
 	  temp = tree_to_double_int (base_cand->stride)
 		 * tree_to_double_int (stride_in);
-	  stride = double_int_to_tree (TREE_TYPE (stride_in), temp);
-	  ctype = base_cand->cand_type;
-	  if (has_single_use (base_in))
-	    savings = (base_cand->dead_savings 
-		       + stmt_cost (base_cand->cand_stmt, speed));
+	  if (double_int_fits_to_tree_p (TREE_TYPE (stride_in), temp))
+	    {
+	      base = base_cand->base_expr;
+	      index = base_cand->index;
+	      stride = double_int_to_tree (TREE_TYPE (stride_in), temp);
+	      ctype = base_cand->cand_type;
+	      if (has_single_use (base_in))
+		savings = (base_cand->dead_savings 
+			   + stmt_cost (base_cand->cand_stmt, speed));
+	    }
 	}
       else if (base_cand->kind == CAND_ADD && integer_onep (base_cand->stride))
 	{
@@ -3001,10 +3004,10 @@ ncd_with_phi (slsr_cand_t c, double_int incr, gimple phi,
 	    {
 	      slsr_cand_t arg_cand = base_cand_from_table (arg);
 	      double_int diff = arg_cand->index - basis->index;
+	      basic_block pred = gimple_phi_arg_edge (phi, i)->src;
 
 	      if ((incr == diff) || (!address_arithmetic_p && incr == -diff))
-		ncd = ncd_for_two_cands (ncd, gimple_bb (arg_cand->cand_stmt),
-					 *where, arg_cand, where);
+		ncd = ncd_for_two_cands (ncd, pred, *where, NULL, where);
 	    }
 	}
     }

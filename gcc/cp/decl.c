@@ -1648,10 +1648,10 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 	       && prototype_p (TREE_TYPE (newdecl)))
 	{
 	  /* Prototype decl follows defn w/o prototype.  */
-	  warning_at (DECL_SOURCE_LOCATION (newdecl), 0,
-		      "prototype specified for %q#D", newdecl);
-	  inform (DECL_SOURCE_LOCATION (olddecl),
-		  "previous non-prototype definition here");
+	  if (warning_at (DECL_SOURCE_LOCATION (newdecl), 0,
+			  "prototype specified for %q#D", newdecl))
+	    inform (DECL_SOURCE_LOCATION (olddecl),
+		    "previous non-prototype definition here");
 	}
       else if (VAR_OR_FUNCTION_DECL_P (olddecl)
 	       && DECL_LANGUAGE (newdecl) != DECL_LANGUAGE (olddecl))
@@ -1737,9 +1737,9 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 			if (permerror (input_location,
 				       "default argument given for parameter "
 				       "%d of %q#D", i, newdecl))
-			  permerror (DECL_SOURCE_LOCATION (olddecl),
-				     "previous specification in %q#D here",
-				     olddecl);
+			  inform (DECL_SOURCE_LOCATION (olddecl),
+				  "previous specification in %q#D here",
+				  olddecl);
 		      }
 		    else
 		      {
@@ -2785,12 +2785,11 @@ decl_jump_unsafe (tree decl)
       || type == error_mark_node)
     return 0;
 
-  type = strip_array_types (type);
-
-  if (DECL_NONTRIVIALLY_INITIALIZED_P (decl))
+  if (DECL_NONTRIVIALLY_INITIALIZED_P (decl)
+      || variably_modified_type_p (type, NULL_TREE))
     return 2;
 
-  if (TYPE_HAS_NONTRIVIAL_DESTRUCTOR (TREE_TYPE (decl)))
+  if (TYPE_HAS_NONTRIVIAL_DESTRUCTOR (type))
     return 1;
 
   return 0;
@@ -4242,12 +4241,12 @@ warn_misplaced_attr_for_class_type (source_location location,
 {
   gcc_assert (OVERLOAD_TYPE_P (class_type));
 
-  warning_at (location, OPT_Wattributes,
-	      "attribute ignored in declaration "
-	      "of %q#T", class_type);
-  inform (location,
-	  "attribute for %q#T must follow the %qs keyword",
-	  class_type, class_key_or_enum_as_string (class_type));
+  if (warning_at (location, OPT_Wattributes,
+		  "attribute ignored in declaration "
+		  "of %q#T", class_type))
+    inform (location,
+	    "attribute for %q#T must follow the %qs keyword",
+	    class_type, class_key_or_enum_as_string (class_type));
 }
 
 /* Make sure that a declaration with no declarator is well-formed, i.e.
@@ -4374,12 +4373,12 @@ check_tag_decl (cp_decl_specifier_seq *declspecs,
 	       No attribute-specifier-seq shall appertain to an explicit
 	       instantiation.  */
 	{
-	  warning_at (loc, OPT_Wattributes,
-		      "attribute ignored in explicit instantiation %q#T",
-		      declared_type);
-	  inform (loc,
-		  "no attribute can be applied to "
-		  "an explicit instantiation");
+	  if (warning_at (loc, OPT_Wattributes,
+			  "attribute ignored in explicit instantiation %q#T",
+			  declared_type))
+	    inform (loc,
+		    "no attribute can be applied to "
+		    "an explicit instantiation");
 	}
       else
 	warn_misplaced_attr_for_class_type (loc, declared_type);
@@ -5809,9 +5808,11 @@ check_initializer (tree decl, tree init, int flags, vec<tree, va_gc> **cleanups)
 	       "member %qD", decl);
       if (!explained)
 	{
-	  error ("(an out of class initialization is required)");
+	  inform (input_location,
+		  "(an out of class initialization is required)");
 	  explained = 1;
 	}
+      return NULL_TREE;
     }
 
   return init_code;
@@ -6439,7 +6440,24 @@ cp_finish_decl (tree decl, tree init, bool init_const_expr_p,
      after the call to check_initializer so that the DECL_EXPR for a
      reference temp is added before the DECL_EXPR for the reference itself.  */
   if (DECL_FUNCTION_SCOPE_P (decl))
-    add_decl_expr (decl);
+    {
+      /* If we're building a variable sized type, and we might be
+	 reachable other than via the top of the current binding
+	 level, then create a new BIND_EXPR so that we deallocate
+	 the object at the right time.  */
+      if (VAR_P (decl)
+	  && DECL_SIZE (decl)
+	  && !TREE_CONSTANT (DECL_SIZE (decl))
+	  && STATEMENT_LIST_HAS_LABEL (cur_stmt_list))
+	{
+	  tree bind;
+	  bind = build3 (BIND_EXPR, void_type_node, NULL, NULL, NULL);
+	  TREE_SIDE_EFFECTS (bind) = 1;
+	  add_stmt (bind);
+	  BIND_EXPR_BODY (bind) = push_stmt_list ();
+	}
+      add_decl_expr (decl);
+    }
 
   /* Let the middle end know about variables and functions -- but not
      static data members in uninstantiated class templates.  */
@@ -8528,8 +8546,17 @@ create_array_type_for_decl (tree name, tree type, tree size)
       return error_mark_node;
     }
 
-  if (cxx_dialect >= cxx1y && array_of_runtime_bound_p (type))
+  if (cxx_dialect >= cxx1y && array_of_runtime_bound_p (type)
+      && (flag_iso || warn_vla > 0))
     pedwarn (input_location, OPT_Wvla, "array of array of runtime bound");
+
+  /* 8.3.4p1: ...if the type of the identifier of D contains the auto
+     type-specifier, the program is ill-formed.  */
+  if (type_uses_auto (type))
+    {
+      error ("%qD declared as array of %qT", name, type);
+      return error_mark_node;
+    }
 
   /* Figure out the index type for the array.  */
   if (size)
@@ -9550,8 +9577,8 @@ grokdeclarator (const cp_declarator *declarator,
 				    "-std=gnu++1y");
 			  }
 			else if (virtualp)
-			  permerror (input_location, "virtual function cannot "
-				     "have deduced return type");
+			  error ("virtual function cannot "
+				 "have deduced return type");
 		      }
 		    else if (!is_auto (type))
 		      {
@@ -9760,7 +9787,8 @@ grokdeclarator (const cp_declarator *declarator,
                    : G_("cannot declare pointer to qualified function type %qT"),
 		   type);
 
-	  if (cxx_dialect >= cxx1y && array_of_runtime_bound_p (type))
+	  if (cxx_dialect >= cxx1y && array_of_runtime_bound_p (type)
+	      && (flag_iso || warn_vla > 0))
 	    pedwarn (input_location, OPT_Wvla,
 		     declarator->kind == cdk_reference
 		     ? G_("reference to array of runtime bound")
@@ -10108,7 +10136,8 @@ grokdeclarator (const cp_declarator *declarator,
 	  type = error_mark_node;
 	}
 
-      if (cxx_dialect >= cxx1y && array_of_runtime_bound_p (type))
+      if (cxx_dialect >= cxx1y && array_of_runtime_bound_p (type)
+	  && (flag_iso || warn_vla > 0))
 	pedwarn (input_location, OPT_Wvla,
 		 "typedef naming array of runtime bound");
 

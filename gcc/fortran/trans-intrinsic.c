@@ -1196,8 +1196,7 @@ trans_image_index (gfc_se * se, gfc_expr *expr)
 				       boolean_type_node, invalid_bound, cond);
     }
 
-  invalid_bound = gfc_unlikely (invalid_bound);
-
+  invalid_bound = gfc_unlikely (invalid_bound, PRED_FORTRAN_INVALID_BOUND);
 
   /* See Fortran 2008, C.10 for the following algorithm.  */
 
@@ -4688,7 +4687,7 @@ gfc_conv_intrinsic_index_scan_verify (gfc_se * se, gfc_expr * expr,
 static void
 gfc_conv_intrinsic_ichar (gfc_se * se, gfc_expr * expr)
 {
-  tree args[2], type, pchartype;
+  tree args[3], type, pchartype;
   int nargs;
 
   nargs = gfc_intrinsic_argument_list_length (expr);

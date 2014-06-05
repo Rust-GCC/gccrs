@@ -171,6 +171,11 @@
   (and (match_code "const_int")
        (match_test "IN_RANGE (INTVAL (op), 0, 1)")))
 
+;; Match op = 0..3.
+(define_predicate "const_0_to_3_operand"
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (INTVAL (op), 0, 3)")))
+
 ;; Match op = 2 or op = 3.
 (define_predicate "const_2_to_3_operand"
   (and (match_code "const_int")
@@ -624,14 +629,14 @@
        (match_test "offsettable_nonstrict_memref_p (op)")))
 
 ;; Return 1 if the operand is suitable for load/store quad memory.
-;; This predicate only checks for non-atomic loads/stores.
+;; This predicate only checks for non-atomic loads/stores (not lqarx/stqcx).
 (define_predicate "quad_memory_operand"
   (match_code "mem")
 {
   rtx addr, op0, op1;
   int ret;
 
-  if (!TARGET_QUAD_MEMORY)
+  if (!TARGET_QUAD_MEMORY && !TARGET_SYNC_TI)
     ret = 0;
 
   else if (!memory_operand (op, mode))
@@ -980,6 +985,14 @@
 (define_predicate "zero_reg_mem_operand"
   (ior (match_operand 0 "zero_fp_constant")
        (match_operand 0 "reg_or_mem_operand")))
+
+;; Return 1 if the operand is a CONST_INT and it is the element for 64-bit
+;; data types inside of a vector that scalar instructions operate on
+(define_predicate "vsx_scalar_64bit"
+  (match_code "const_int")
+{
+  return (INTVAL (op) == VECTOR_ELEMENT_SCALAR_64BIT);
+})
 
 ;; Return 1 if the operand is a general register or memory operand without
 ;; pre_inc or pre_dec or pre_modify, which produces invalid form of PowerPC

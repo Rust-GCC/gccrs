@@ -746,7 +746,14 @@ proc check_effective_target_mmap {} {
 
 # Return 1 if the target supports dlopen, 0 otherwise.
 proc check_effective_target_dlopen {} {
-    return [check_function_available "dlopen"]
+    return [check_no_compiler_messages dlopen executable {
+	#include <dlfcn.h>
+	int main(void) { dlopen ("dummy.so", RTLD_NOW); }
+    } [add_options_for_dlopen ""]]
+}
+
+proc add_options_for_dlopen { flags } {
+    return "$flags -ldl"
 }
 
 # Return 1 if the target supports clone, 0 otherwise.
@@ -3732,6 +3739,28 @@ proc check_effective_target_vect_widen_mult_hi_to_si_pattern { } {
 }
 
 # Return 1 if the target plus current options supports a vector
+# widening multiplication of *int* args into *long* result, 0 otherwise.
+#
+# This won't change for different subtargets so cache the result.
+
+proc check_effective_target_vect_widen_mult_si_to_di_pattern { } {
+    global et_vect_widen_mult_si_to_di_pattern
+
+    if [info exists et_vect_widen_mult_si_to_di_pattern_saved] {
+        verbose "check_effective_target_vect_widen_mult_si_to_di_pattern: using cached result" 2
+    } else {
+	set et_vect_widen_mult_si_to_di_pattern_saved 0
+        if {[istarget ia64-*-*]
+	    || [istarget i?86-*-*]
+	    || [istarget x86_64-*-*] } {
+            set et_vect_widen_mult_si_to_di_pattern_saved 1
+        }
+    }
+    verbose "check_effective_target_vect_widen_mult_si_to_di_pattern: returning $et_vect_widen_mult_si_to_di_pattern_saved" 2
+    return $et_vect_widen_mult_si_to_di_pattern_saved
+}
+
+# Return 1 if the target plus current options supports a vector
 # widening shift, 0 otherwise.
 #
 # This won't change for different subtargets so cache the result.
@@ -5456,29 +5485,44 @@ proc check_effective_target_c++ { } {
  return 0
 }
 
-# Check which language standard is active by checking for the presence of
-# one of the C++11 -std flags.  This assumes that the default for the
-# compiler is C++98, and that there will never be multiple -std= arguments
-# on the command line.
-proc check_effective_target_c++11 { } {
+# Check whether the current active language standard supports the features
+# of C++11/C++1y by checking for the presence of one of the -std
+# flags.  This assumes that the default for the compiler is C++98, and that
+# there will never be multiple -std= arguments on the command line.
+proc check_effective_target_c++11_only { } {
     if ![check_effective_target_c++] {
 	return 0
     }
     return [check-flags { { } { } { -std=c++0x -std=gnu++0x -std=c++11 -std=gnu++11 } }]
 }
-
-proc check_effective_target_c++1y { } {
+proc check_effective_target_c++11 { } {
+    if [check_effective_target_c++11_only] {
+	return 1
+    }
+    return [check_effective_target_c++1y]
+}
+proc check_effective_target_c++11_down { } {
     if ![check_effective_target_c++] {
 	return 0
     }
-    return [check-flags { { } { } { -std=c++1y -std=gnu++1y } }]
+    return ![check_effective_target_c++1y]
 }
 
-proc check_effective_target_c++98 { } {
+proc check_effective_target_c++1y_only { } {
     if ![check_effective_target_c++] {
 	return 0
     }
-    return [check-flags { { } { } { } { -std=c++0x -std=gnu++0x -std=c++11 -std=gnu++11 -std=c++1y -std=gnu++1y } }]
+    return [check-flags { { } { } { -std=c++1y -std=gnu++1y -std=c++14 -std=gnu++14 } }]
+}
+proc check_effective_target_c++1y { } {
+    return [check_effective_target_c++1y_only]
+}
+
+proc check_effective_target_c++98_only { } {
+    if ![check_effective_target_c++] {
+	return 0
+    }
+    return ![check_effective_target_c++11]
 }
 
 # Return 1 if expensive testcases should be run.
@@ -5697,6 +5741,7 @@ proc check_effective_target_logical_op_short_circuit {} {
 	 || [istarget arc*-*-*]
 	 || [istarget avr*-*-*]
 	 || [istarget crisv32-*-*] || [istarget cris-*-*]
+	 || [istarget s390*-*-*]
 	 || [check_effective_target_arm_cortex_m] } {
 	return 1
     }

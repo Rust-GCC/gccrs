@@ -971,6 +971,25 @@ get_copy_assign (tree type)
   return fn;
 }
 
+/* Locate the inherited constructor of constructor CTOR.  */
+
+tree
+get_inherited_ctor (tree ctor)
+{
+  gcc_assert (DECL_INHERITED_CTOR_BASE (ctor));
+
+  push_deferring_access_checks (dk_no_check);
+  tree fn = locate_fn_flags (DECL_INHERITED_CTOR_BASE (ctor),
+			     complete_ctor_identifier,
+			     FUNCTION_FIRST_USER_PARMTYPE (ctor),
+			     LOOKUP_NORMAL|LOOKUP_SPECULATIVE,
+			     tf_none);
+  pop_deferring_access_checks ();
+  if (fn == error_mark_node)
+    return NULL_TREE;
+  return fn;
+}
+
 /* Subroutine of synthesized_method_walk.  Update SPEC_P, TRIVIAL_P and
    DELETED_P or give an error message MSG with argument ARG.  */
 
@@ -1091,15 +1110,23 @@ walk_field_subobs (tree fields, tree fnname, special_function_kind sfk,
 	      && default_init_uninitialized_part (mem_type))
 	    {
 	      if (diag)
-		error ("uninitialized non-static const member %q#D",
-		       field);
+		{
+		  error ("uninitialized const member in %q#T",
+			 current_class_type);
+		  inform (DECL_SOURCE_LOCATION (field),
+			  "%q#D should be initialized", field);
+		}
 	      bad = true;
 	    }
 	  else if (TREE_CODE (mem_type) == REFERENCE_TYPE)
 	    {
 	      if (diag)
-		error ("uninitialized non-static reference member %q#D",
-		       field);
+		{
+		  error ("uninitialized reference member in %q#T",
+			 current_class_type);
+		  inform (DECL_SOURCE_LOCATION (field),
+			  "%q#D should be initialized", field);
+		}
 	      bad = true;
 	    }
 

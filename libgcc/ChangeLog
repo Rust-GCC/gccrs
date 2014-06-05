@@ -1,3 +1,30 @@
+2014-04-30  Bernd Edlinger  <bernd.edlinger@hotmail.de>
+
+	Work around for current cygwin32 build problems.
+	* config/i386/cygming-crtbegin.c (__register_frame_info,
+	__deregister_frame_info, _Jv_RegisterClasses): Compile weak default
+	functions only for 64-bit systems.
+
+2014-04-22  Release Manager
+
+	* GCC 4.9.0 released.
+
+2014-03-27  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
+
+	* config.host: Append t-floattodi to tmake_file depending on
+	host_address.
+
+2014-03-20  Joel Sherrill  <joel.sherrill@oarcorp.com>
+
+	* config.host (v850*-*-*): Add to tmake_file instead of resetting it.
+
+2014-03-10  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR libgcc/60472
+	* crtstuff.c (frame_dummy): Use void **jcr_list temporary
+	variable to avoid array subscript is above array bounds warnings.
+	Use __builtin_expect when checking *jcr_list for NULL.
+
 2014-03-06  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
 	PR libgcc/59339
@@ -420,7 +447,7 @@
 
 2013-12-26  Ganesh Gopalasubramanian  <Ganesh.Gopalasubramanian@amd.com>
 
-        * config/i386/cpuinfo.c (processor_types): Rename AMD cpu names
+	* config/i386/cpuinfo.c (processor_types): Rename AMD cpu names
 	AMD_BOBCAT to AMD_BTVER1 and AMD_JAGUAR to AMD_BTVER2.
 	(get_amd_cpu): Likewise.
 

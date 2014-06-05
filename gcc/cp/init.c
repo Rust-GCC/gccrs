@@ -192,6 +192,9 @@ build_zero_init_1 (tree type, tree nelts, bool static_storage_p,
 	  if (TREE_CODE (field) != FIELD_DECL)
 	    continue;
 
+	  if (TREE_TYPE (field) == error_mark_node)
+	    continue;
+
 	  /* Don't add virtual bases for base classes if they are beyond
 	     the size of the current field, that means it is present
 	     somewhere else in the object.  */
@@ -336,7 +339,8 @@ build_value_init (tree type, tsubst_flags_t complain)
   gcc_assert (!processing_template_decl
 	      || (SCALAR_TYPE_P (type) || TREE_CODE (type) == ARRAY_TYPE));
 
-  if (type_build_ctor_call (type))
+  if (CLASS_TYPE_P (type)
+      && type_build_ctor_call (type))
     {
       tree ctor = build_aggr_init_expr
 	(type,
@@ -691,11 +695,14 @@ perform_member_init (tree member, tree init)
 	  if (CP_TYPE_CONST_P (type)
 	      && init == NULL_TREE
 	      && default_init_uninitialized_part (type))
-	    /* TYPE_NEEDS_CONSTRUCTING can be set just because we have a
-	       vtable; still give this diagnostic.  */
-	    permerror (DECL_SOURCE_LOCATION (current_function_decl),
-		       "uninitialized member %qD with %<const%> type %qT",
-		       member, type);
+	    {
+	      /* TYPE_NEEDS_CONSTRUCTING can be set just because we have a
+		 vtable; still give this diagnostic.  */
+	      if (permerror (DECL_SOURCE_LOCATION (current_function_decl),
+			     "uninitialized const member in %q#T", type))
+		inform (DECL_SOURCE_LOCATION (member),
+			"%q#D should be initialized", member );
+	    }
 	  finish_expr_stmt (build_aggr_init (decl, init, flags,
 					     tf_warning_or_error));
 	}
@@ -707,13 +714,19 @@ perform_member_init (tree member, tree init)
 	  tree core_type;
 	  /* member traversal: note it leaves init NULL */
 	  if (TREE_CODE (type) == REFERENCE_TYPE)
-	    permerror (DECL_SOURCE_LOCATION (current_function_decl),
-		       "uninitialized reference member %qD",
-		       member);
+	    {
+	      if (permerror (DECL_SOURCE_LOCATION (current_function_decl),
+			     "uninitialized reference member in %q#T", type))
+		inform (DECL_SOURCE_LOCATION (member),
+			"%q#D should be initialized", member);
+	    }
 	  else if (CP_TYPE_CONST_P (type))
-	    permerror (DECL_SOURCE_LOCATION (current_function_decl),
-		       "uninitialized member %qD with %<const%> type %qT",
-		       member, type);
+	    {
+	      if (permerror (DECL_SOURCE_LOCATION (current_function_decl),
+			     "uninitialized const member in %q#T", type))
+		  inform (DECL_SOURCE_LOCATION (member),
+			  "%q#D should be initialized", member );
+	    }
 
 	  core_type = strip_array_types (type);
 
@@ -2154,7 +2167,7 @@ diagnose_uninitialized_cst_or_ref_member_1 (tree type, tree origin,
 			   "of %q#T", DECL_CONTEXT (field), origin);
 		}
 	      inform (DECL_SOURCE_LOCATION (field),
-		      "%qD should be initialized", field);
+		      "%q#D should be initialized", field);
 	    }
 	}
 
@@ -2182,7 +2195,7 @@ diagnose_uninitialized_cst_or_ref_member_1 (tree type, tree origin,
 			   "of %q#T", DECL_CONTEXT (field), origin);
 		}
 	      inform (DECL_SOURCE_LOCATION (field),
-		      "%qD should be initialized", field);
+		      "%q#D should be initialized", field);
 	    }
 	}
 
@@ -2285,6 +2298,7 @@ build_new_1 (vec<tree, va_gc> **placement, tree type, tree nelts,
      is therefore reusable.  */
   tree data_addr;
   tree init_preeval_expr = NULL_TREE;
+  tree orig_type = type;
 
   if (nelts)
     {
@@ -2330,7 +2344,7 @@ build_new_1 (vec<tree, va_gc> **placement, tree type, tree nelts,
 	  if (complain & tf_error)
 	    {
 	      error_at (EXPR_LOC_OR_LOC (inner_nelts, input_location),
-			"array size in operator new must be constant");
+			"array size in new-expression must be constant");
 	      cxx_constant_value(inner_nelts);
 	    }
 	  nelts = error_mark_node;
@@ -2344,7 +2358,7 @@ build_new_1 (vec<tree, va_gc> **placement, tree type, tree nelts,
 
   if (variably_modified_type_p (elt_type, NULL_TREE) && (complain & tf_error))
     {
-      error ("variably modified type not allowed in operator new");
+      error ("variably modified type not allowed in new-expression");
       return error_mark_node;
     }
 
@@ -2357,8 +2371,17 @@ build_new_1 (vec<tree, va_gc> **placement, tree type, tree nelts,
       && !TREE_CONSTANT (maybe_constant_value (outer_nelts)))
     {
       if (complain & tf_warning_or_error)
-	pedwarn(EXPR_LOC_OR_LOC (outer_nelts, input_location), OPT_Wvla,
-		"ISO C++ does not support variable-length array types");
+	{
+	  const char *msg;
+	  if (typedef_variant_p (orig_type))
+	    msg = ("non-constant array new length must be specified "
+		   "directly, not by typedef");
+	  else
+	    msg = ("non-constant array new length must be specified "
+		   "without parentheses around the type-id");
+	  pedwarn (EXPR_LOC_OR_LOC (outer_nelts, input_location),
+		   OPT_Wvla, msg);
+	}
       else
 	return error_mark_node;
     }

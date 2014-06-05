@@ -1730,6 +1730,9 @@ scan_sharing_clauses (tree clauses, omp_context *ctx)
 	  if (OMP_CLAUSE_CODE (c) == OMP_CLAUSE_REDUCTION
 	      && OMP_CLAUSE_REDUCTION_PLACEHOLDER (c))
 	    scan_array_reductions = true;
+	  else if (OMP_CLAUSE_CODE (c) == OMP_CLAUSE_LINEAR
+		   && OMP_CLAUSE_LINEAR_GIMPLE_SEQ (c))
+	    scan_array_reductions = true;
 	  break;
 
 	case OMP_CLAUSE_SHARED:
@@ -1816,6 +1819,9 @@ scan_sharing_clauses (tree clauses, omp_context *ctx)
       else if (OMP_CLAUSE_CODE (c) == OMP_CLAUSE_LASTPRIVATE
 	       && OMP_CLAUSE_LASTPRIVATE_GIMPLE_SEQ (c))
 	scan_omp (&OMP_CLAUSE_LASTPRIVATE_GIMPLE_SEQ (c), ctx);
+      else if (OMP_CLAUSE_CODE (c) == OMP_CLAUSE_LINEAR
+	       && OMP_CLAUSE_LINEAR_GIMPLE_SEQ (c))
+	scan_omp (&OMP_CLAUSE_LINEAR_GIMPLE_SEQ (c), ctx);
 }
 
 /* Create a new name for omp child function.  Returns an identifier.  */
@@ -2929,6 +2935,7 @@ omp_max_vf (void)
 {
   if (!optimize
       || optimize_debug
+      || !flag_tree_loop_optimize
       || (!flag_tree_loop_vectorize
 	  && (global_options_set.x_flag_tree_loop_vectorize
               || global_options_set.x_flag_tree_vectorize)))
@@ -3671,7 +3678,7 @@ lower_rec_input_clauses (tree clauses, gimple_seq *ilist, gimple_seq *dlist,
       /* Don't add any barrier for #pragma omp simd or
 	 #pragma omp distribute.  */
       if (gimple_code (ctx->stmt) != GIMPLE_OMP_FOR
-	  || gimple_omp_for_kind (ctx->stmt) & GF_OMP_FOR_KIND_FOR)
+	  || gimple_omp_for_kind (ctx->stmt) == GF_OMP_FOR_KIND_FOR)
 	gimple_seq_add_stmt (ilist, build_omp_barrier (NULL_TREE));
     }
 
@@ -3801,6 +3808,14 @@ lower_lastprivate_clauses (tree clauses, tree predicate, gimple_seq *stmt_list,
 	      gimple_seq_add_seq (stmt_list,
 				  OMP_CLAUSE_LASTPRIVATE_GIMPLE_SEQ (c));
 	      OMP_CLAUSE_LASTPRIVATE_GIMPLE_SEQ (c) = NULL;
+	    }
+	  else if (OMP_CLAUSE_CODE (c) == OMP_CLAUSE_LINEAR
+		   && OMP_CLAUSE_LINEAR_GIMPLE_SEQ (c))
+	    {
+	      lower_omp (&OMP_CLAUSE_LINEAR_GIMPLE_SEQ (c), ctx);
+	      gimple_seq_add_seq (stmt_list,
+				  OMP_CLAUSE_LINEAR_GIMPLE_SEQ (c));
+	      OMP_CLAUSE_LINEAR_GIMPLE_SEQ (c) = NULL;
 	    }
 
 	  x = build_outer_var_ref (var, ctx);
@@ -5569,6 +5584,12 @@ expand_omp_for_generic (struct omp_region *region,
     {
       stmt = gimple_build_assign (endvar, iend);
       gsi_insert_after (&gsi, stmt, GSI_CONTINUE_LINKING);
+      if (useless_type_conversion_p (TREE_TYPE (fd->loop.v), TREE_TYPE (iend)))
+	stmt = gimple_build_assign (fd->loop.v, iend);
+      else
+	stmt = gimple_build_assign_with_ops (NOP_EXPR, fd->loop.v, iend,
+					     NULL_TREE);
+      gsi_insert_after (&gsi, stmt, GSI_CONTINUE_LINKING);
     }
   if (fd->collapse > 1)
     expand_omp_for_init_vars (fd, &gsi, counts, inner_stmt, startvar);
@@ -5985,6 +6006,12 @@ expand_omp_for_static_nochunk (struct omp_region *region,
     {
       stmt = gimple_build_assign (endvar, e);
       gsi_insert_after (&gsi, stmt, GSI_CONTINUE_LINKING);
+      if (useless_type_conversion_p (TREE_TYPE (fd->loop.v), TREE_TYPE (e)))
+	stmt = gimple_build_assign (fd->loop.v, e);
+      else
+	stmt = gimple_build_assign_with_ops (NOP_EXPR, fd->loop.v, e,
+					     NULL_TREE);
+      gsi_insert_after (&gsi, stmt, GSI_CONTINUE_LINKING);
     }
   if (fd->collapse > 1)
     expand_omp_for_init_vars (fd, &gsi, counts, inner_stmt, startvar);
@@ -6369,6 +6396,12 @@ expand_omp_for_static_chunk (struct omp_region *region,
   if (endvar)
     {
       stmt = gimple_build_assign (endvar, e);
+      gsi_insert_after (&si, stmt, GSI_CONTINUE_LINKING);
+      if (useless_type_conversion_p (TREE_TYPE (fd->loop.v), TREE_TYPE (e)))
+	stmt = gimple_build_assign (fd->loop.v, e);
+      else
+	stmt = gimple_build_assign_with_ops (NOP_EXPR, fd->loop.v, e,
+					     NULL_TREE);
       gsi_insert_after (&si, stmt, GSI_CONTINUE_LINKING);
     }
   if (fd->collapse > 1)
@@ -6839,6 +6872,7 @@ expand_omp_simd (struct omp_region *region, struct omp_for_data *fd)
       if ((flag_tree_loop_vectorize
 	   || (!global_options_set.x_flag_tree_loop_vectorize
                && !global_options_set.x_flag_tree_vectorize))
+	  && flag_tree_loop_optimize
 	  && loop->safelen > 1)
 	{
 	  loop->force_vect = true;
@@ -10122,7 +10156,20 @@ lower_omp_1 (gimple_stmt_iterator *gsi_p, omp_context *ctx)
       if ((ctx || task_shared_vars)
 	  && walk_gimple_op (stmt, lower_omp_regimplify_p,
 			     ctx ? NULL : &wi))
-	gimple_regimplify_operands (stmt, gsi_p);
+	{
+	  /* Just remove clobbers, this should happen only if we have
+	     "privatized" local addressable variables in SIMD regions,
+	     the clobber isn't needed in that case and gimplifying address
+	     of the ARRAY_REF into a pointer and creating MEM_REF based
+	     clobber would create worse code than we get with the clobber
+	     dropped.  */
+	  if (gimple_clobber_p (stmt))
+	    {
+	      gsi_replace (gsi_p, gimple_build_nop (), true);
+	      break;
+	    }
+	  gimple_regimplify_operands (stmt, gsi_p);
+	}
       break;
     }
 }
@@ -11276,45 +11323,53 @@ static tree
 ipa_simd_modify_stmt_ops (tree *tp, int *walk_subtrees, void *data)
 {
   struct walk_stmt_info *wi = (struct walk_stmt_info *) data;
-  if (!SSA_VAR_P (*tp))
-    {
-      /* Make sure we treat subtrees as a RHS.  This makes sure that
-	 when examining the `*foo' in *foo=x, the `foo' get treated as
-	 a use properly.  */
-      wi->is_lhs = false;
-      wi->val_only = true;
-      if (TYPE_P (*tp))
-	*walk_subtrees = 0;
-      return NULL_TREE;
-    }
   struct modify_stmt_info *info = (struct modify_stmt_info *) wi->info;
-  struct ipa_parm_adjustment *cand
-    = ipa_get_adjustment_candidate (&tp, NULL, info->adjustments, true);
-  if (!cand)
-    return NULL_TREE;
-
-  tree t = *tp;
-  tree repl = make_ssa_name (TREE_TYPE (t), NULL);
-
-  gimple stmt;
-  gimple_stmt_iterator gsi = gsi_for_stmt (info->stmt);
-  if (wi->is_lhs)
-    {
-      stmt = gimple_build_assign (unshare_expr (cand->new_decl), repl);
-      gsi_insert_after (&gsi, stmt, GSI_SAME_STMT);
-      SSA_NAME_DEF_STMT (repl) = info->stmt;
-    }
+  tree *orig_tp = tp;
+  if (TREE_CODE (*tp) == ADDR_EXPR)
+    tp = &TREE_OPERAND (*tp, 0);
+  struct ipa_parm_adjustment *cand = NULL;
+  if (TREE_CODE (*tp) == PARM_DECL)
+    cand = ipa_get_adjustment_candidate (&tp, NULL, info->adjustments, true);
   else
     {
-      /* You'd think we could skip the extra SSA variable when
-	 wi->val_only=true, but we may have `*var' which will get
-	 replaced into `*var_array[iter]' and will likely be something
-	 not gimple.  */
-      stmt = gimple_build_assign (repl, unshare_expr (cand->new_decl));
-      gsi_insert_before (&gsi, stmt, GSI_SAME_STMT);
+      if (TYPE_P (*tp))
+	*walk_subtrees = 0;
     }
 
-  if (!useless_type_conversion_p (TREE_TYPE (*tp), TREE_TYPE (repl)))
+  tree repl = NULL_TREE;
+  if (cand)
+    repl = unshare_expr (cand->new_decl);
+  else
+    {
+      if (tp != orig_tp)
+	{
+	  *walk_subtrees = 0;
+	  bool modified = info->modified;
+	  info->modified = false;
+	  walk_tree (tp, ipa_simd_modify_stmt_ops, wi, wi->pset);
+	  if (!info->modified)
+	    {
+	      info->modified = modified;
+	      return NULL_TREE;
+	    }
+	  info->modified = modified;
+	  repl = *tp;
+	}
+      else
+	return NULL_TREE;
+    }
+
+  if (tp != orig_tp)
+    {
+      repl = build_fold_addr_expr (repl);
+      gimple stmt
+	= gimple_build_assign (make_ssa_name (TREE_TYPE (repl), NULL), repl);
+      repl = gimple_assign_lhs (stmt);
+      gimple_stmt_iterator gsi = gsi_for_stmt (info->stmt);
+      gsi_insert_before (&gsi, stmt, GSI_SAME_STMT);
+      *orig_tp = repl;
+    }
+  else if (!useless_type_conversion_p (TREE_TYPE (*tp), TREE_TYPE (repl)))
     {
       tree vce = build1 (VIEW_CONVERT_EXPR, TREE_TYPE (*tp), repl);
       *tp = vce;
@@ -11323,8 +11378,6 @@ ipa_simd_modify_stmt_ops (tree *tp, int *walk_subtrees, void *data)
     *tp = repl;
 
   info->modified = true;
-  wi->is_lhs = false;
-  wi->val_only = true;
   return NULL_TREE;
 }
 
@@ -11343,7 +11396,7 @@ ipa_simd_modify_function_body (struct cgraph_node *node,
 			       tree retval_array, tree iter)
 {
   basic_block bb;
-  unsigned int i, j;
+  unsigned int i, j, l;
 
   /* Re-use the adjustments array, but this time use it to replace
      every function argument use to an offset into the corresponding
@@ -11364,6 +11417,46 @@ ipa_simd_modify_function_body (struct cgraph_node *node,
       if (adjustments[j].op == IPA_PARM_OP_NONE
 	  && TYPE_VECTOR_SUBPARTS (vectype) < node->simdclone->simdlen)
 	j += node->simdclone->simdlen / TYPE_VECTOR_SUBPARTS (vectype) - 1;
+    }
+
+  l = adjustments.length ();
+  for (i = 1; i < num_ssa_names; i++)
+    {
+      tree name = ssa_name (i);
+      if (name
+	  && SSA_NAME_VAR (name)
+	  && TREE_CODE (SSA_NAME_VAR (name)) == PARM_DECL)
+	{
+	  for (j = 0; j < l; j++)
+	    if (SSA_NAME_VAR (name) == adjustments[j].base
+		&& adjustments[j].new_decl)
+	      {
+		tree base_var;
+		if (adjustments[j].new_ssa_base == NULL_TREE)
+		  {
+		    base_var
+		      = copy_var_decl (adjustments[j].base,
+				       DECL_NAME (adjustments[j].base),
+				       TREE_TYPE (adjustments[j].base));
+		    adjustments[j].new_ssa_base = base_var;
+		  }
+		else
+		  base_var = adjustments[j].new_ssa_base;
+		if (SSA_NAME_IS_DEFAULT_DEF (name))
+		  {
+		    bb = single_succ (ENTRY_BLOCK_PTR_FOR_FN (cfun));
+		    gimple_stmt_iterator gsi = gsi_after_labels (bb);
+		    tree new_decl = unshare_expr (adjustments[j].new_decl);
+		    set_ssa_default_def (cfun, adjustments[j].base, NULL_TREE);
+		    SET_SSA_NAME_VAR_OR_IDENTIFIER (name, base_var);
+		    SSA_NAME_IS_DEFAULT_DEF (name) = 0;
+		    gimple stmt = gimple_build_assign (name, new_decl);
+		    gsi_insert_before (&gsi, stmt, GSI_SAME_STMT);
+		  }
+		else
+		  SET_SSA_NAME_VAR_OR_IDENTIFIER (name, base_var);
+	      }
+	}
     }
 
   struct modify_stmt_info info;

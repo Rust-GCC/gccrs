@@ -1,3 +1,44 @@
+2014-05-02  Jakub Jelinek  <jakub@redhat.com>
+
+	* testsuite/libgomp.c/simd-10.c: New test.
+	* testsuite/libgomp.c/simd-11.c: New test.
+	* testsuite/libgomp.c/simd-12.c: New test.
+	* testsuite/libgomp.c/simd-13.c: New test.
+
+2014-04-24  Jakub Jelinek  <jakub@redhat.com>
+
+	* testsuite/libgomp.c++/atomic-14.C: Allow seq_cst and
+	atomic type clauses in any order and optional comma in between.
+	* testsuite/libgomp.c++/atomic-15.C: Likewise.
+	* testsuite/libgomp.c/atomic-17.c: Likewise.
+
+	* testsuite/libgomp.c/simd-7.c: New test.
+	* testsuite/libgomp.c/simd-8.c: New test.
+	* testsuite/libgomp.c/simd-9.c: New test.
+	* testsuite/libgomp.c/loop-16.c: New test.
+
+2014-04-22  Release Manager
+
+	* GCC 4.9.0 released.
+
+2014-04-02  Richard Henderson  <rth@redhat.com>
+
+	* config/linux/futex.h (futex_wait): Get error value from errno.
+	(futex_wake): Likewise.
+
+2014-03-25  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/60331
+	* testsuite/libgomp.c++/udr-11.C: New test.
+	* testsuite/libgomp.c++/udr-12.C: New test.
+	* testsuite/libgomp.c++/udr-13.C: New test.
+	* testsuite/libgomp.c++/udr-14.C: New test.
+	* testsuite/libgomp.c++/udr-15.C: New test.
+	* testsuite/libgomp.c++/udr-16.C: New test.
+	* testsuite/libgomp.c++/udr-17.C: New test.
+	* testsuite/libgomp.c++/udr-18.C: New test.
+	* testsuite/libgomp.c++/udr-19.C: New test.
+
 2014-01-02  Richard Sandiford  <rdsandiford@googlemail.com>
 
 	Update copyright years
