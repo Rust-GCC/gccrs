@@ -37,11 +37,11 @@ GRS_CFLAGS := -g -O2 -I${srcdir}/rust -fomit-frame-pointer -W -Wall -pedantic -D
 
 rs-lexer.o: $(srcdir)/rust/rs-lexer.l rs-parser.o
 	$(FLEX) --outfile=lex.rs.c $(srcdir)/rust/rs-lexer.l
-	$(COMPILER) $(ALL_CFLAGS) $(ALL_COMPILERFLAGS) $(GRS_CFLAGS) $(INCLUDES) \
+	$(COMPILER) $(GRS_CFLAGS) $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
 	$(LDFLAGS) -c -o $@ lex.rs.c
 
 rs-parser.o: $(srcdir)/rust/rs-parser.cc
-	$(COMPILER) $(ALL_CFLAGS) $(ALL_COMPILERFLAGS) $(GRS_CFLAGS) $(INCLUDES) \
+	$(COMPILER) $(GRS_CFLAGS) $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
 	$(LDFLAGS) -c -o $@ $(srcdir)/rust/rs-parser.cc
 
 rs-pass-manager.o: $(srcdir)/rust/rs-pass-manager.cc $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \

@@ -70,14 +70,16 @@ static const char * opcodeStrings [] = {
   /* [C_RETURN_STMT] */        "return_stmt",
 };
 
-const char * rdot_getOpString (rdot type)
-{
-  return opcodeStrings [RDOT_TYPE (type)];
-}
-
-const char * rdot_getOpString_enum (opcode_t o)
+const char *
+rdot_getOpString_T (const opcode_t o)
 {
   return opcodeStrings [o];
+}
+
+const char *
+rdot_getOpString (const rdot dot)
+{
+  return rdot_getOpString_T (RDOT_TYPE (dot));
 }
 
 void rdot_init (void)
@@ -102,15 +104,6 @@ rdot rdot_alloc (void)
   gcc_assert (retval);
   memset (retval, 0, sizeof (struct grs_tree_dot));
   RDOT_LOCATION (retval) = UNKNOWN_LOCATION;
-  return retval;
-}
-
-rdot_tree_common * rdot_cm_alloc (void)
-{
-  rdot_tree_common * retval = (struct grs_rdot_tree_common *)
-    xmalloc (sizeof (struct grs_rdot_tree_common *));
-  gcc_assert (retval);
-  memset (retval, 0, sizeof (struct grs_rdot_tree_common));
   return retval;
 }
 
@@ -199,10 +192,8 @@ rdot rdot_build_integer (const int i)
   RDOT_T_FIELD(decl) = D_D_EXPR;
 
   decl->opaT = D_TD_COM;
-  decl->opa.tc = RDOT_CM_alloc;
-
-  decl->opa.tc->T = D_T_INTEGER;
-  decl->opa.tc->o.integer = i;
+  decl->opa.tc.T = D_T_INTEGER;
+  decl->opa.tc.o.integer = i;
 
   decl->opbT = D_TD_NULL;
   RDOT_CHAIN(decl) = NULL_DOT;
@@ -219,10 +210,8 @@ rdot rdot_build_string (const char * s)
   RDOT_T_FIELD (decl) = D_D_EXPR;
 
   decl->opaT = D_TD_COM;
-  decl->opa.tc = RDOT_CM_alloc;
-
-  decl->opa.tc->T = D_T_STRING;
-  decl->opa.tc->o.string = xstrdup (s);
+  decl->opa.tc.T = D_T_STRING;
+  decl->opa.tc.o.string = xstrdup (s);
 
   decl->opbT = D_TD_NULL;
   RDOT_CHAIN (decl) = NULL_DOT;
@@ -239,9 +228,8 @@ rdot rdot_build_identifier (const char * s)
   RDOT_T_FIELD(decl) = D_D_EXPR;
 
   decl->opaT = D_TD_COM;
-  decl->opa.tc = RDOT_CM_alloc;
-  decl->opa.tc->T = D_T_STRING;
-  decl->opa.tc->o.string = xstrdup (s);
+  decl->opa.tc.T = D_T_STRING;
+  decl->opa.tc.o.string = xstrdup (s);
 
   decl->opbT = D_TD_NULL;
 
@@ -259,9 +247,8 @@ rdot rdot_build_bool (bool val)
   RDOT_T_FIELD(decl) = D_D_EXPR;
 
   decl->opaT = D_TD_COM;
-  decl->opa.tc = RDOT_CM_alloc;
-  decl->opa.tc->T = D_T_BOOL;
-  decl->opa.tc->o.boolean = val;
+  decl->opa.tc.T = D_T_BOOL;
+  decl->opa.tc.o.boolean = val;
 
   decl->opbT = D_TD_NULL;
 

@@ -215,14 +215,14 @@ static
 void dot_pass_dumpPrimitive (FILE * fd, rdot node)
 {
   /* Handle other primitive literal types here ... */
-  switch (RDOT_lhs_TC (node)->T)
+  switch (RDOT_lhs_TC (node).T)
     {
     case D_T_INTEGER:
-      fprintf (fd, "%i", RDOT_lhs_TC (node)->o.integer);
+      fprintf (fd, "%i", RDOT_lhs_TC (node).o.integer);
       break;
 
     case D_T_STRING:
-      fprintf (fd, "\"%s\"", RDOT_lhs_TC (node)->o.string);
+      fprintf (fd, "\"%s\"", RDOT_lhs_TC (node).o.string);
       break;
 
     default:

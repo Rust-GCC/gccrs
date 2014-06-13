@@ -62,7 +62,6 @@ typedef enum {
   RTYPE_INT,
   RTYPE_FLOAT,
   RTYPE_UINT,
-  // infer the type please...
   RTYPE_INFER,
 
   D_PARAMETER,
@@ -89,7 +88,7 @@ typedef enum {
   ALLOC_DEREF
 } ALLOCA_;
 
-typedef struct GTY(()) grs_rdot_tree_common {
+typedef struct grs_rdot_tree_common {
   opcode_t T;
   union {
     int integer;
@@ -97,29 +96,28 @@ typedef struct GTY(()) grs_rdot_tree_common {
     char * string;
     bool boolean;
   } o;
-} __attribute__ ((aligned)) rdot_tree_common ;
+} rdot_tree_common ;
 
 typedef struct GTY(()) grs_tree_dot {
   opcode_t T, FT, opaT, opbT;
   bool retval, qual;
-  std::vector<ALLOCA_> * alloca_modifier;
+  std::vector<ALLOCA_> alloca_modifier;
   location_t loc;
   struct grs_tree_dot * field1;
   struct grs_tree_dot * field2;
   union {
+    rdot_tree_common tc;
     struct grs_tree_dot * t;
-    rdot_tree_common * tc;
   } opa;
   union {
+    rdot_tree_common tc;
     struct grs_tree_dot * t;
-    rdot_tree_common * tc;
   } opb;
   struct grs_tree_dot * next;
-} __attribute__ ((aligned)) * rdot;
+} * rdot;
 
-#define NULL_DOT                     (rdot) 0
+#define NULL_DOT                     ((rdot) 0)
 #define RDOT_alloc                   rdot_alloc ()
-#define RDOT_CM_alloc                rdot_cm_alloc ()
 #define RDOT_TYPE(x_)                x_->T
 #define RDOT_LOCATION(x_)            x_->loc
 #define RDOT_T_FIELD(x_)             x_->FT
@@ -134,11 +132,21 @@ typedef struct GTY(()) grs_tree_dot {
 #define RDOT_rhs_TC(x_)              x_->opb.tc
 #define RDOT_qual(x_)                x_->qual
 #define DOT_RETVAL(x_)               x_->retval
-#define RDOT_MEM_MODIFIER(x_)        x_->alloca_modifier
-#define RDOT_IDENTIFIER_POINTER(x_)  RDOT_lhs_TC (x_)->o.string
+#define RDOT_MEM_MODIFIER(x_)        (&(x_->alloca_modifier))
+#define RDOT_IDENTIFIER_POINTER(x_)  RDOT_lhs_TC (x_).o.string
+#define RDOT_BOOLEAN_VAL(x_)         RDOT_lhs_TC (x_).o.boolean
+#define RDOT_CODE_STR(x_)            rdot_getOpString_T (x_)
 #define RDOT_OPCODE_STR(x_)          rdot_getOpString (x_)
-#define RDOT_CODE_STR(x_)            rdot_getOpString_enum (x_)
-#define RDOT_BOOLEAN_VAL(x_)         RDOT_lhs_TC (x_)->o.boolean
+
+// destination is cleared before copy
+// copy a vector (source, destination)
+#define RDOT_MMEM_COPY(x_, y_)				  \
+  do {							  \
+    y_->clear ();					  \
+    std::vector<ALLOCA_>::iterator __it;		  \
+    for (__it = x_->begin (); __it != x_->end (); ++__it) \
+      y_->push_back (*__it);				  \
+  } while (0)
 
 extern rdot rdot_alloc (void);
 extern void rdot_init (void);
@@ -150,7 +158,7 @@ extern rdot rdot_build_string (const char *);
 extern rdot rdot_build_identifier (const char *);
 extern rdot rdot_build_bool (bool);
 extern rdot rdot_build_varDecl (rdot, bool, rdot);
-extern const char * rdot_getOpString (rdot);
-extern const char * rdot_getOpString_enum (opcode_t);
+extern const char * rdot_getOpString (const rdot);
+extern const char * rdot_getOpString_T (const opcode_t);
 
 #endif //__GCC_RDOT_IMPL_H__

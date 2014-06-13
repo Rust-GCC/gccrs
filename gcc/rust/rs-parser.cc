@@ -195,7 +195,10 @@ rdot type (void)
     }
   else
     yyerror ("expected a type got [%s]", yytoken_string (sym));
-  RDOT_MEM_MODIFIER (retval) = mem;
+
+  RDOT_MMEM_COPY (mem, RDOT_MEM_MODIFIER (retval));
+  delete mem;
+
   return retval;
 }
 
@@ -328,7 +331,8 @@ rdot primary (void)
     retval = rdot_build_bool (true);
   else
     yyerror ("expected a primary got [%s]", yytoken_string (sym));
-  RDOT_MEM_MODIFIER (retval) = mem;
+  RDOT_MMEM_COPY (mem, RDOT_MEM_MODIFIER (retval));
+  delete mem;
   return retval;
 }
 

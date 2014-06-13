@@ -276,14 +276,14 @@ tree dot_pass_genScalar (rdot decl)
   gcc_assert (RDOT_TYPE (decl) == D_PRIMITIVE);
   gcc_assert (RDOT_lhs_T (decl) == D_TD_COM);
 
-  switch (RDOT_lhs_TC (decl)->T)
+  switch (RDOT_lhs_TC (decl).T)
     {
     case D_T_INTEGER:
-      retval = build_int_cst (integer_type_node, RDOT_lhs_TC (decl)->o.integer);
+      retval = build_int_cst (integer_type_node, RDOT_lhs_TC (decl).o.integer);
       break;
       
     default:
-      fatal_error ("invalid scalar type %i!\n", RDOT_lhs_TC (decl)->T);
+      fatal_error ("invalid scalar type %s!\n", RDOT_CODE_STR (RDOT_lhs_TC (decl).T));
       break;
     }
   return retval;

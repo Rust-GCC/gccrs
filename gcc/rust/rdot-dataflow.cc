@@ -300,25 +300,23 @@ dot_pass_typeString (const rdot node)
 {
   char buffer [128];
   size_t offset = 0;
-  if (RDOT_MEM_MODIFIER (node))
+
+  std::vector<ALLOCA_>::iterator it;
+  for (it = RDOT_MEM_MODIFIER (node)->begin ();
+       it != RDOT_MEM_MODIFIER (node)->end (); ++it )
     {
-      std::vector<ALLOCA_>::iterator it;
-      for (it = RDOT_MEM_MODIFIER (node)->begin ();
-           it != RDOT_MEM_MODIFIER (node)->end (); ++it )
-        {
-          switch (*it)
-            {
-            case ALLOC_DEREF:
-              buffer [offset++] = '*';
-              break;
-            case ALLOC_HEAP:
-              buffer [offset++] = '~';
-              break;
-            case ALLOC_REF:
-              buffer [offset++] = '&';
-              break;
-            }
-        }
+      switch (*it)
+	{
+	case ALLOC_DEREF:
+	  buffer [offset++] = '*';
+	  break;
+	case ALLOC_HEAP:
+	  buffer [offset++] = '~';
+	  break;
+	case ALLOC_REF:
+	  buffer [offset++] = '&';
+	  break;
+	}
     }
   strcpy (buffer+offset, RDOT_OPCODE_STR (node));
   return xstrdup (buffer);
@@ -381,7 +379,7 @@ rdot dot_pass_typeifyPrimitive (rdot node)
   rdot retval = rdot_build_decl1 (RTYPE_INFER, NULL_DOT);
   gcc_assert (RDOT_TYPE (node) == D_PRIMITIVE);
 
-  switch (node->opa.tc->T == D_T_INTEGER)
+  switch (node->opa.tc.T == D_T_INTEGER)
     {
     case D_T_INTEGER:
       RDOT_TYPE (retval) = RTYPE_INT;
@@ -389,10 +387,9 @@ rdot dot_pass_typeifyPrimitive (rdot node)
 
     default:
       error ("Unable to figure out type for this primitive [%s]!",
-             RDOT_CODE_STR (node->opa.tc->T));
+             RDOT_CODE_STR (node->opa.tc.T));
       break;
     }
-  RDOT_MEM_MODIFIER (retval) = new std::vector<ALLOCA_>;
   std::vector<ALLOCA_>::iterator it;
   for (it = RDOT_MEM_MODIFIER (node)->begin ();
        it != RDOT_MEM_MODIFIER (node)->end (); ++it)
@@ -426,7 +423,6 @@ rdot dot_pass_typeifyExprNode (rdot node)
                 RDOT_lhs_TT (retval) = RDOT_lhs_TT (RDOT_rhs_TT (lookup));
                 RDOT_rhs_TT (retval) = RDOT_rhs_TT (RDOT_rhs_TT (lookup));
               }
-            RDOT_MEM_MODIFIER (retval) = new std::vector<ALLOCA_>;
             std::vector<ALLOCA_>::iterator it;
             if (RDOT_MEM_MODIFIER (node))
               for (it = RDOT_MEM_MODIFIER (node)->begin ();
@@ -451,7 +447,6 @@ rdot dot_pass_typeifyExprNode (rdot node)
                 RDOT_TYPE (retval) = RTYPE_USER_STRUCT;
                 RDOT_lhs_TT (retval) = RDOT_lhs_TT (lookup); // identifier node
                 RDOT_rhs_TT (retval) = RDOT_rhs_TT (lookup); // struct layout
-                RDOT_MEM_MODIFIER (retval) = new std::vector<ALLOCA_>;
                 std::vector<ALLOCA_>::iterator it;
                 if (RDOT_MEM_MODIFIER (node))
                   for (it = RDOT_MEM_MODIFIER (node)->begin ();
@@ -481,7 +476,6 @@ rdot dot_pass_typeifyExprNode (rdot node)
             gcc_assert (RDOT_TYPE (lookup) == D_STRUCT_METHOD);
             RDOT_TYPE (retval) = RDOT_TYPE (RDOT_FIELD2 (lookup));
             std::vector<ALLOCA_> * mods = RDOT_MEM_MODIFIER (RDOT_FIELD2 (lookup));
-            RDOT_MEM_MODIFIER (retval) = new std::vector<ALLOCA_>;
             std::vector<ALLOCA_>::iterator it;
             if (RDOT_MEM_MODIFIER (node))
               for (it = RDOT_MEM_MODIFIER (node)->begin ();
@@ -519,10 +513,7 @@ rdot dot_pass_typeifyExprNode (rdot node)
 	    switch (RDOT_TYPE (next))
 	      {
 	      case D_STRUCT_METHOD:
-		{
-		  RDOT_TYPE (retval) = RDOT_TYPE (RDOT_FIELD2 (next));
-		  RDOT_MEM_MODIFIER (retval) = new std::vector<ALLOCA_>;
-		}
+		RDOT_TYPE (retval) = RDOT_TYPE (RDOT_FIELD2 (next));
 		break;
 
 	      default:
@@ -569,34 +560,32 @@ rdot dot_pass_typeifyExprNode (rdot node)
 	     RDOT_OPCODE_STR (node));
       break;
     }
-  if (RDOT_MEM_MODIFIER (retval))
+
+  bool skip_next = false;
+  std::vector<ALLOCA_> nmods;
+  std::vector<ALLOCA_> * pmods = RDOT_MEM_MODIFIER (retval);
+  
+  std::vector<ALLOCA_>::iterator it;
+  for (it = pmods->begin (); it != pmods->end (); ++it)
     {
-      bool skip_next = false;
-      std::vector<ALLOCA_> * pmods = RDOT_MEM_MODIFIER (retval);
-      std::vector<ALLOCA_> * nmods = new std::vector<ALLOCA_>;
-      std::vector<ALLOCA_>::iterator it;
-      for (it = pmods->begin (); it != pmods->end (); ++it)
-        {
-          switch (*it)
-            {
-            case ALLOC_DEREF:
-              skip_next = true;
-              break;
+      switch (*it)
+	{
+	case ALLOC_DEREF:
+	  skip_next = true;
+	  break;
               
-            default:
-              {
-                if (!skip_next)
-                  {
-                    nmods->push_back (*it);
-                    skip_next = false;
-                  }
-              }
-              break;
-            }
-        }
-      delete pmods;
-      RDOT_MEM_MODIFIER (retval) = nmods;
+	default:
+	  {
+	    if (!skip_next)
+	      {
+		nmods.push_back (*it);
+		skip_next = false;
+	      }
+	  }
+	  break;
+	}
     }
+  RDOT_MMEM_COPY ((&nmods), RDOT_MEM_MODIFIER (retval));
   return retval;
 }
 
