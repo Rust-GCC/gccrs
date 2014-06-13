@@ -195,8 +195,20 @@ rdot rdot_build_integer (const int i)
   decl->opa.tc.T = D_T_INTEGER;
   decl->opa.tc.o.integer = i;
 
-  decl->opbT = D_TD_NULL;
-  RDOT_CHAIN(decl) = NULL_DOT;
+  return decl;
+}
+
+rdot rdot_build_float (const float f)
+{
+  rdot decl = RDOT_alloc;
+  RDOT_TYPE(decl) = D_PRIMITIVE;
+
+  RDOT_FIELD(decl) = NULL_DOT;
+  RDOT_T_FIELD(decl) = D_D_EXPR;
+
+  decl->opaT = D_TD_COM;
+  decl->opa.tc.T = D_T_FLOAT;
+  decl->opa.tc.o.ffloat = f;
 
   return decl;
 }
@@ -212,9 +224,6 @@ rdot rdot_build_string (const char * s)
   decl->opaT = D_TD_COM;
   decl->opa.tc.T = D_T_STRING;
   decl->opa.tc.o.string = xstrdup (s);
-
-  decl->opbT = D_TD_NULL;
-  RDOT_CHAIN (decl) = NULL_DOT;
 
   return decl;
 }

@@ -46,10 +46,11 @@ enum yytokentype {
 };
 
 union yystype {
-    rdot symbol;
-    char * string;
-    int integer;
-    bool boolean;
+  rdot symbol;
+  char * string;
+  int integer;
+  float ffloat;
+  bool boolean;
 } ;
 
 extern yystype yylval;

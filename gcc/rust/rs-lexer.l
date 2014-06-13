@@ -115,6 +115,18 @@ for                     {  return FOR; }
   return INTEGER;
 }
 
+{DIGIT}+"."{DIGIT}+    {
+  mpfr_t x;
+  mpfr_init2 (x, 32);
+  if (mpfr_set_str (x, yytext, 10, GMP_RNDU))
+    {
+      fatal_error ("error initilizing float value <%s>!\n", yytext);
+    }
+  yylval.ffloat = mpfr_get_flt (x, GMP_RNDU);
+  mpfr_clear (x);
+  return FLOAT;
+}
+
 {ID}                    {
   yylval.string = xstrdup (yytext);
   return IDENTIFIER;

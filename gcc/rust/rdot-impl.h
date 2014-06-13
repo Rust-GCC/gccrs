@@ -92,6 +92,7 @@ typedef struct grs_rdot_tree_common {
   opcode_t T;
   union {
     int integer;
+    float ffloat;
     unsigned char c;
     char * string;
     bool boolean;
@@ -153,6 +154,7 @@ extern void rdot_init (void);
 extern rdot rdot_build_decl1 (opcode_t, rdot);
 extern rdot rdot_build_decl2 (opcode_t, rdot, rdot);
 extern rdot rdot_build_fndecl (rdot, bool, rdot, rdot, rdot);
+extern rdot rdot_build_float (const float);
 extern rdot rdot_build_integer (const int);
 extern rdot rdot_build_string (const char *);
 extern rdot rdot_build_identifier (const char *);

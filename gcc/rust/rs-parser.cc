@@ -323,6 +323,8 @@ rdot primary (void)
     }
   else if (yyaccept (INTEGER))
     retval = rdot_build_integer (yylval.integer);
+  else if (yyaccept (FLOAT))
+    retval = rdot_build_float (yylval.ffloat);
   else if (yyaccept (STRING))
     retval = rdot_build_string (yylval.string);
   else if (yyaccept (XFALSE))
@@ -331,6 +333,7 @@ rdot primary (void)
     retval = rdot_build_bool (true);
   else
     yyerror ("expected a primary got [%s]", yytoken_string (sym));
+
   RDOT_MMEM_COPY (mem, RDOT_MEM_MODIFIER (retval));
   delete mem;
   return retval;

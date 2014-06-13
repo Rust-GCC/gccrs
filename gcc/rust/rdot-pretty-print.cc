@@ -221,12 +221,17 @@ void dot_pass_dumpPrimitive (FILE * fd, rdot node)
       fprintf (fd, "%i", RDOT_lhs_TC (node).o.integer);
       break;
 
+    case D_T_FLOAT:
+      fprintf (fd, "%f", RDOT_lhs_TC (node).o.ffloat);
+      break;
+
     case D_T_STRING:
       fprintf (fd, "\"%s\"", RDOT_lhs_TC (node).o.string);
       break;
 
     default:
-      fatal_error ("Something very wrong!\n");
+      fatal_error ("Unable to dump primitive [%s]",
+		   rdot_getOpString_T (RDOT_lhs_TC (node).T));
       break;
     }
 }
