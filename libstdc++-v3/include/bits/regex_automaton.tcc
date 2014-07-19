@@ -35,12 +35,13 @@ namespace __detail
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 #ifdef _GLIBCXX_DEBUG
-  std::ostream&
+  inline std::ostream&
   _State_base::_M_print(std::ostream& ostr) const
   {
     switch (_M_opcode)
     {
       case _S_opcode_alternative:
+      case _S_opcode_repeat:
 	ostr << "alt next=" << _M_next << " alt=" << _M_alt;
 	break;
       case _S_opcode_subexpr_begin:
@@ -66,17 +67,18 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   }
 
   // Prints graphviz dot commands for state.
-  std::ostream&
+  inline std::ostream&
   _State_base::_M_dot(std::ostream& __ostr, _StateIdT __id) const
   {
     switch (_M_opcode)
     {
       case _S_opcode_alternative:
+      case _S_opcode_repeat:
 	__ostr << __id << " [label=\"" << __id << "\\nALT\"];\n"
 	       << __id << " -> " << _M_next
-	       << " [label=\"epsilon\", tailport=\"s\"];\n"
+	       << " [label=\"next\", tailport=\"s\"];\n"
 	       << __id << " -> " << _M_alt
-	       << " [label=\"epsilon\", tailport=\"n\"];\n";
+	       << " [label=\"alt\", tailport=\"n\"];\n";
 	break;
       case _S_opcode_backref:
 	__ostr << __id << " [label=\"" << __id << "\\nBACKREF "
@@ -174,6 +176,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		 == _S_opcode_dummy)
 	    __it._M_next = (*this)[__it._M_next]._M_next;
 	  if (__it._M_opcode == _S_opcode_alternative
+	      || __it._M_opcode == _S_opcode_repeat
 	      || __it._M_opcode == _S_opcode_subexpr_lookahead)
 	    while (__it._M_alt >= 0 && (*this)[__it._M_alt]._M_opcode
 		   == _S_opcode_dummy)
@@ -186,7 +189,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     _StateSeq<_TraitsT>
     _StateSeq<_TraitsT>::_M_clone()
     {
-      std::vector<_StateIdT> __m(_M_nfa.size(), -1);
+      std::map<_StateIdT, _StateIdT> __m;
       std::stack<_StateIdT> __stack;
       __stack.push(_M_start);
       while (!__stack.empty())
@@ -197,32 +200,33 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  // _M_insert_state() never return -1
 	  auto __id = _M_nfa._M_insert_state(__dup);
 	  __m[__u] = __id;
+	  if (__dup._M_opcode == _S_opcode_alternative
+	      || __dup._M_opcode == _S_opcode_repeat
+	      || __dup._M_opcode == _S_opcode_subexpr_lookahead)
+	    if (__dup._M_alt != _S_invalid_state_id
+		&& __m.count(__dup._M_alt) == 0)
+	      __stack.push(__dup._M_alt);
 	  if (__u == _M_end)
 	    continue;
-	  if (__dup._M_next != _S_invalid_state_id && __m[__dup._M_next] == -1)
+	  if (__dup._M_next != _S_invalid_state_id
+	      && __m.count(__dup._M_next) == 0)
 	    __stack.push(__dup._M_next);
-	  if (__dup._M_opcode == _S_opcode_alternative
-	      || __dup._M_opcode == _S_opcode_subexpr_lookahead)
-	    if (__dup._M_alt != _S_invalid_state_id && __m[__dup._M_alt] == -1)
-	      __stack.push(__dup._M_alt);
 	}
-      long __size = static_cast<long>(__m.size());
-      for (long __k = 0; __k < __size; __k++)
+      for (auto __it : __m)
 	{
-	  long __v;
-	  if ((__v = __m[__k]) == -1)
-	    continue;
+	  auto __v = __it.second;
 	  auto& __ref = _M_nfa[__v];
 	  if (__ref._M_next != _S_invalid_state_id)
 	    {
-	      _GLIBCXX_DEBUG_ASSERT(__m[__ref._M_next] != -1);
+	      _GLIBCXX_DEBUG_ASSERT(__m.count(__ref._M_next) > 0);
 	      __ref._M_next = __m[__ref._M_next];
 	    }
 	  if (__ref._M_opcode == _S_opcode_alternative
+	      || __ref._M_opcode == _S_opcode_repeat
 	      || __ref._M_opcode == _S_opcode_subexpr_lookahead)
 	    if (__ref._M_alt != _S_invalid_state_id)
 	      {
-		_GLIBCXX_DEBUG_ASSERT(__m[__ref._M_alt] != -1);
+		_GLIBCXX_DEBUG_ASSERT(__m.count(__ref._M_alt) > 0);
 		__ref._M_alt = __m[__ref._M_alt];
 	      }
 	}

@@ -68,12 +68,11 @@ along with GCC; see the file COPYING3.  If not see
 	  /* After CCP we rewrite no longer addressed locals into SSA
 	     form if possible.  */
 	  NEXT_PASS (pass_forwprop);
+	  NEXT_PASS (pass_sra_early);
 	  /* pass_build_ealias is a dummy pass that ensures that we
 	     execute TODO_rebuild_alias at this point.  */
 	  NEXT_PASS (pass_build_ealias);
-	  NEXT_PASS (pass_sra_early);
 	  NEXT_PASS (pass_fre);
-	  NEXT_PASS (pass_copy_prop);
 	  NEXT_PASS (pass_merge_phi);
 	  NEXT_PASS (pass_cd_dce);
 	  NEXT_PASS (pass_early_ipa_sra);
@@ -110,6 +109,12 @@ along with GCC; see the file COPYING3.  If not see
   NEXT_PASS (pass_ipa_inline);
   NEXT_PASS (pass_ipa_pure_const);
   NEXT_PASS (pass_ipa_reference);
+  /* This pass needs to be scheduled after any IP code duplication.   */
+  NEXT_PASS (pass_ipa_single_use);
+  /* Comdat privatization come last, as direct references to comdat local
+     symbols are not allowed outside of the comdat group.  Privatizing early
+     would result in missed optimizations due to this restriction.  */
+  NEXT_PASS (pass_ipa_comdats);
   TERMINATE_PASS_LIST ()
 
   /* Simple IPA passes executed after the regular passes.  In WHOPR mode the
@@ -145,12 +150,12 @@ along with GCC; see the file COPYING3.  If not see
       NEXT_PASS (pass_build_alias);
       NEXT_PASS (pass_return_slot);
       NEXT_PASS (pass_fre);
-      NEXT_PASS (pass_copy_prop);
       NEXT_PASS (pass_merge_phi);
       NEXT_PASS (pass_vrp);
       NEXT_PASS (pass_dce);
       NEXT_PASS (pass_call_cdce);
       NEXT_PASS (pass_cselim);
+      NEXT_PASS (pass_copy_prop);
       NEXT_PASS (pass_tree_ifcombine);
       NEXT_PASS (pass_phiopt);
       NEXT_PASS (pass_tail_recursion);
@@ -183,7 +188,6 @@ along with GCC; see the file COPYING3.  If not see
       NEXT_PASS (pass_dce);
       NEXT_PASS (pass_forwprop);
       NEXT_PASS (pass_phiopt);
-      NEXT_PASS (pass_strlen);
       NEXT_PASS (pass_ccp);
       /* After CCP we rewrite no longer addressed locals into SSA
 	 form if possible.  */
@@ -195,12 +199,14 @@ along with GCC; see the file COPYING3.  If not see
       NEXT_PASS (pass_sink_code);
       NEXT_PASS (pass_asan);
       NEXT_PASS (pass_tsan);
+      /* Pass group that runs when 1) enabled, 2) there are loops
+	 in the function.  */
       NEXT_PASS (pass_tree_loop);
       PUSH_INSERT_PASSES_WITHIN (pass_tree_loop)
 	  NEXT_PASS (pass_tree_loop_init);
 	  NEXT_PASS (pass_lim);
 	  NEXT_PASS (pass_copy_prop);
-	  NEXT_PASS (pass_dce_loop);
+	  NEXT_PASS (pass_dce);
 	  NEXT_PASS (pass_tree_unswitch);
 	  NEXT_PASS (pass_scev_cprop);
 	  NEXT_PASS (pass_record_bounds);
@@ -212,7 +218,7 @@ along with GCC; see the file COPYING3.  If not see
 	      NEXT_PASS (pass_graphite_transforms);
 	      NEXT_PASS (pass_lim);
 	      NEXT_PASS (pass_copy_prop);
-	      NEXT_PASS (pass_dce_loop);
+	      NEXT_PASS (pass_dce);
 	  POP_INSERT_PASSES ()
 	  NEXT_PASS (pass_iv_canon);
 	  NEXT_PASS (pass_parallelize_loops);
@@ -221,28 +227,37 @@ along with GCC; see the file COPYING3.  If not see
 	     Please do not add any other passes in between.  */
 	  NEXT_PASS (pass_vectorize);
           PUSH_INSERT_PASSES_WITHIN (pass_vectorize)
-	      NEXT_PASS (pass_dce_loop);
+	      NEXT_PASS (pass_dce);
           POP_INSERT_PASSES ()
           NEXT_PASS (pass_predcom);
 	  NEXT_PASS (pass_complete_unroll);
 	  NEXT_PASS (pass_slp_vectorize);
 	  NEXT_PASS (pass_loop_prefetch);
+	  /* Run IVOPTs after the last pass that uses data-reference analysis
+	     as that doesn't handle TARGET_MEM_REFs.  */
 	  NEXT_PASS (pass_iv_optimize);
 	  NEXT_PASS (pass_lim);
 	  NEXT_PASS (pass_tree_loop_done);
+      POP_INSERT_PASSES ()
+      /* Pass group that runs when pass_tree_loop is disabled or there
+         are no loops in the function.  */
+      NEXT_PASS (pass_tree_no_loop);
+      PUSH_INSERT_PASSES_WITHIN (pass_tree_no_loop)
+	  NEXT_PASS (pass_slp_vectorize);
       POP_INSERT_PASSES ()
       NEXT_PASS (pass_lower_vector_ssa);
       NEXT_PASS (pass_cse_reciprocals);
       NEXT_PASS (pass_reassoc);
       NEXT_PASS (pass_strength_reduction);
       NEXT_PASS (pass_dominator);
+      NEXT_PASS (pass_strlen);
+      NEXT_PASS (pass_vrp);
       /* The only const/copy propagation opportunities left after
-	 DOM should be due to degenerate PHI nodes.  So rather than
+	 DOM and VRP should be due to degenerate PHI nodes.  So rather than
 	 run the full propagators, run a specialized pass which
 	 only examines PHIs to discover const/copy propagation
 	 opportunities.  */
       NEXT_PASS (pass_phi_only_cprop);
-      NEXT_PASS (pass_vrp);
       NEXT_PASS (pass_cd_dce);
       NEXT_PASS (pass_tracer);
       NEXT_PASS (pass_dse);
@@ -341,7 +356,6 @@ along with GCC; see the file COPYING3.  If not see
       PUSH_INSERT_PASSES_WITHIN (pass_loop2)
 	  NEXT_PASS (pass_rtl_loop_init);
 	  NEXT_PASS (pass_rtl_move_loop_invariants);
-	  NEXT_PASS (pass_rtl_unswitch);
 	  NEXT_PASS (pass_rtl_unroll_and_peel_loops);
 	  NEXT_PASS (pass_rtl_doloop);
 	  NEXT_PASS (pass_rtl_loop_done);
@@ -382,12 +396,12 @@ along with GCC; see the file COPYING3.  If not see
 	  NEXT_PASS (pass_rtl_dse2);
 	  NEXT_PASS (pass_stack_adjustments);
 	  NEXT_PASS (pass_jump2);
+	  NEXT_PASS (pass_duplicate_computed_gotos);
 	  NEXT_PASS (pass_peephole2);
 	  NEXT_PASS (pass_if_after_reload);
 	  NEXT_PASS (pass_regrename);
 	  NEXT_PASS (pass_cprop_hardreg);
 	  NEXT_PASS (pass_fast_rtl_dce);
-	  NEXT_PASS (pass_duplicate_computed_gotos);
 	  NEXT_PASS (pass_reorder_blocks);
 	  NEXT_PASS (pass_branch_target_load_optimize2);
 	  NEXT_PASS (pass_leaf_regs);

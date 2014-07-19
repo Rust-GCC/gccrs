@@ -121,15 +121,26 @@ rebuild_jump_labels_chain (rtx chain)
 static unsigned int
 cleanup_barriers (void)
 {
-  rtx insn, next, prev;
-  for (insn = get_insns (); insn; insn = next)
+  rtx insn;
+  for (insn = get_insns (); insn; insn = NEXT_INSN (insn))
     {
-      next = NEXT_INSN (insn);
       if (BARRIER_P (insn))
 	{
-	  prev = prev_nonnote_insn (insn);
+	  rtx prev = prev_nonnote_insn (insn);
 	  if (!prev)
 	    continue;
+
+	  if (CALL_P (prev))
+	    {
+	      /* Make sure we do not split a call and its corresponding
+		 CALL_ARG_LOCATION note.  */
+	      rtx next = NEXT_INSN (prev);
+
+	      if (NOTE_P (next)
+		  && NOTE_KIND (next) == NOTE_INSN_CALL_ARG_LOCATION)
+		prev = next;
+	    }
+
 	  if (BARRIER_P (prev))
 	    delete_insn (insn);
 	  else if (prev != PREV_INSN (insn))
@@ -146,8 +157,6 @@ const pass_data pass_data_cleanup_barriers =
   RTL_PASS, /* type */
   "barriers", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  false, /* has_gate */
-  true, /* has_execute */
   TV_NONE, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
@@ -164,7 +173,7 @@ public:
   {}
 
   /* opt_pass methods: */
-  unsigned int execute () { return cleanup_barriers (); }
+  virtual unsigned int execute (function *) { return cleanup_barriers (); }
 
 }; // class pass_cleanup_barriers
 
@@ -1591,11 +1600,7 @@ redirect_jump_2 (rtx jump, rtx olabel, rtx nlabel, int delete_unused,
      label and are now changing it into a direct conditional return.
      The jump is no longer crossing in that case.  */
   if (ANY_RETURN_P (nlabel))
-    {
-      note = find_reg_note (jump, REG_CROSSING_JUMP, NULL_RTX);
-      if (note)
-	remove_note (jump, note);
-    }
+    CROSSING_JUMP_P (jump) = 0;
 
   if (!ANY_RETURN_P (olabel)
       && --LABEL_NUSES (olabel) == 0 && delete_unused > 0

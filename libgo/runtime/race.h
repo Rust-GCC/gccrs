@@ -17,13 +17,14 @@ void	runtime_racefini(void);
 
 void	runtime_racemapshadow(void *addr, uintptr size);
 void	runtime_racemalloc(void *p, uintptr sz);
-void	runtime_racefree(void *p);
 uintptr	runtime_racegostart(void *pc);
 void	runtime_racegoend(void);
 void	runtime_racewritepc(void *addr, void *callpc, void *pc);
 void	runtime_racereadpc(void *addr, void *callpc, void *pc);
 void	runtime_racewriterangepc(void *addr, uintptr sz, void *callpc, void *pc);
 void	runtime_racereadrangepc(void *addr, uintptr sz, void *callpc, void *pc);
+void	runtime_racereadobjectpc(void *addr, const Type *t, void *callpc, void *pc);
+void	runtime_racewriteobjectpc(void *addr, const Type *t, void *callpc, void *pc);
 void	runtime_racefingo(void);
 void	runtime_raceacquire(void *addr);
 void	runtime_raceacquireg(G *gp, void *addr);

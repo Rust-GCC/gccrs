@@ -19,6 +19,9 @@ import (
 	"math/big"
 )
 
+var errClientKeyExchange = errors.New("tls: invalid ClientKeyExchange message")
+var errServerKeyExchange = errors.New("tls: invalid ServerKeyExchange message")
+
 // rsaKeyAgreement implements the standard TLS key agreement where the client
 // encrypts the pre-master secret to the server's public key.
 type rsaKeyAgreement struct{}
@@ -35,14 +38,14 @@ func (ka rsaKeyAgreement) processClientKeyExchange(config *Config, cert *Certifi
 	}
 
 	if len(ckx.ciphertext) < 2 {
-		return nil, errors.New("bad ClientKeyExchange")
+		return nil, errClientKeyExchange
 	}
 
 	ciphertext := ckx.ciphertext
 	if version != VersionSSL30 {
 		ciphertextLen := int(ckx.ciphertext[0])<<8 | int(ckx.ciphertext[1])
 		if ciphertextLen != len(ckx.ciphertext)-2 {
-			return nil, errors.New("bad ClientKeyExchange")
+			return nil, errClientKeyExchange
 		}
 		ciphertext = ckx.ciphertext[2:]
 	}
@@ -61,7 +64,7 @@ func (ka rsaKeyAgreement) processClientKeyExchange(config *Config, cert *Certifi
 }
 
 func (ka rsaKeyAgreement) processServerKeyExchange(config *Config, clientHello *clientHelloMsg, serverHello *serverHelloMsg, cert *x509.Certificate, skx *serverKeyExchangeMsg) error {
-	return errors.New("unexpected ServerKeyExchange")
+	return errors.New("tls: unexpected ServerKeyExchange")
 }
 
 func (ka rsaKeyAgreement) generateClientKeyExchange(config *Config, clientHello *clientHelloMsg, cert *x509.Certificate) ([]byte, *clientKeyExchangeMsg, error) {
@@ -138,7 +141,7 @@ func hashForServerKeyExchange(sigType, hashFunc uint8, version uint16, slices ..
 
 // pickTLS12HashForSignature returns a TLS 1.2 hash identifier for signing a
 // ServerKeyExchange given the signature type being used and the client's
-// advertized list of supported signature and hash combinations.
+// advertised list of supported signature and hash combinations.
 func pickTLS12HashForSignature(sigType uint8, clientSignatureAndHashes []signatureAndHash) (uint8, error) {
 	if len(clientSignatureAndHashes) == 0 {
 		// If the client didn't specify any signature_algorithms
@@ -160,6 +163,20 @@ func pickTLS12HashForSignature(sigType uint8, clientSignatureAndHashes []signatu
 	return 0, errors.New("tls: client doesn't support any common hash functions")
 }
 
+func curveForCurveID(id CurveID) (elliptic.Curve, bool) {
+	switch id {
+	case CurveP256:
+		return elliptic.P256(), true
+	case CurveP384:
+		return elliptic.P384(), true
+	case CurveP521:
+		return elliptic.P521(), true
+	default:
+		return nil, false
+	}
+
+}
+
 // ecdheRSAKeyAgreement implements a TLS key agreement where the server
 // generates a ephemeral EC public/private key pair and signs it. The
 // pre-master secret is then calculated using ECDH. The signature may
@@ -173,28 +190,26 @@ type ecdheKeyAgreement struct {
 }
 
 func (ka *ecdheKeyAgreement) generateServerKeyExchange(config *Config, cert *Certificate, clientHello *clientHelloMsg, hello *serverHelloMsg) (*serverKeyExchangeMsg, error) {
-	var curveid uint16
+	var curveid CurveID
+	preferredCurves := config.curvePreferences()
 
-Curve:
-	for _, c := range clientHello.supportedCurves {
-		switch c {
-		case curveP256:
-			ka.curve = elliptic.P256()
-			curveid = c
-			break Curve
-		case curveP384:
-			ka.curve = elliptic.P384()
-			curveid = c
-			break Curve
-		case curveP521:
-			ka.curve = elliptic.P521()
-			curveid = c
-			break Curve
+NextCandidate:
+	for _, candidate := range preferredCurves {
+		for _, c := range clientHello.supportedCurves {
+			if candidate == c {
+				curveid = c
+				break NextCandidate
+			}
 		}
 	}
 
 	if curveid == 0 {
 		return nil, errors.New("tls: no supported elliptic curves offered")
+	}
+
+	var ok bool
+	if ka.curve, ok = curveForCurveID(curveid); !ok {
+		return nil, errors.New("tls: preferredCurves includes unsupported curve")
 	}
 
 	var x, y *big.Int
@@ -271,11 +286,11 @@ Curve:
 
 func (ka *ecdheKeyAgreement) processClientKeyExchange(config *Config, cert *Certificate, ckx *clientKeyExchangeMsg, version uint16) ([]byte, error) {
 	if len(ckx.ciphertext) == 0 || int(ckx.ciphertext[0]) != len(ckx.ciphertext)-1 {
-		return nil, errors.New("bad ClientKeyExchange")
+		return nil, errClientKeyExchange
 	}
 	x, y := elliptic.Unmarshal(ka.curve, ckx.ciphertext[1:])
 	if x == nil {
-		return nil, errors.New("bad ClientKeyExchange")
+		return nil, errClientKeyExchange
 	}
 	x, _ = ka.curve.ScalarMult(x, y, ka.privateKey)
 	preMasterSecret := make([]byte, (ka.curve.Params().BitSize+7)>>3)
@@ -285,26 +300,18 @@ func (ka *ecdheKeyAgreement) processClientKeyExchange(config *Config, cert *Cert
 	return preMasterSecret, nil
 }
 
-var errServerKeyExchange = errors.New("invalid ServerKeyExchange")
-
 func (ka *ecdheKeyAgreement) processServerKeyExchange(config *Config, clientHello *clientHelloMsg, serverHello *serverHelloMsg, cert *x509.Certificate, skx *serverKeyExchangeMsg) error {
 	if len(skx.key) < 4 {
 		return errServerKeyExchange
 	}
 	if skx.key[0] != 3 { // named curve
-		return errors.New("server selected unsupported curve")
+		return errors.New("tls: server selected unsupported curve")
 	}
-	curveid := uint16(skx.key[1])<<8 | uint16(skx.key[2])
+	curveid := CurveID(skx.key[1])<<8 | CurveID(skx.key[2])
 
-	switch curveid {
-	case curveP256:
-		ka.curve = elliptic.P256()
-	case curveP384:
-		ka.curve = elliptic.P384()
-	case curveP521:
-		ka.curve = elliptic.P521()
-	default:
-		return errors.New("server selected unsupported curve")
+	var ok bool
+	if ka.curve, ok = curveForCurveID(curveid); !ok {
+		return errors.New("tls: server selected unsupported curve")
 	}
 
 	publicLen := int(skx.key[3])

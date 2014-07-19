@@ -80,9 +80,6 @@ along with GCC; see the file COPYING3.  If not see
    remove their dead edges eventually.  */
 static bitmap need_eh_cleanup;
 
-static bool gate_dse (void);
-static unsigned int tree_ssa_dse (void);
-
 
 /* A helper of dse_optimize_stmt.
    Given a GIMPLE_ASSIGN in STMT, find a candidate statement *USE_STMT that
@@ -201,10 +198,8 @@ dse_possible_dead_store_p (gimple stmt, gimple *use_stmt)
 	  break;
 	}
     }
-  /* We deliberately stop on clobbering statements and not only on
-     killing ones to make walking cheaper.  Otherwise we can just
-     continue walking until both stores have equal reference trees.  */
-  while (!stmt_may_clobber_ref_p (temp, gimple_assign_lhs (stmt)));
+  /* Continue walking until we reach a kill.  */
+  while (!stmt_kills_ref_p (temp, gimple_assign_lhs (stmt)));
 
   *use_stmt = temp;
 
@@ -251,57 +246,49 @@ dse_optimize_stmt (gimple_stmt_iterator *gsi)
       if (!dse_possible_dead_store_p (stmt, &use_stmt))
 	return;
 
+      /* Now we know that use_stmt kills the LHS of stmt.  */
+
       /* But only remove *this_2(D) ={v} {CLOBBER} if killed by
 	 another clobber stmt.  */
       if (gimple_clobber_p (stmt)
 	  && !gimple_clobber_p (use_stmt))
 	return;
 
-      /* If we have precisely one immediate use at this point and the
-	 stores are to the same memory location or there is a chain of
-	 virtual uses from stmt and the stmt which stores to that same
-	 memory location, then we may have found redundant store.  */
-      if ((gimple_has_lhs (use_stmt)
-	   && (operand_equal_p (gimple_assign_lhs (stmt),
-				gimple_get_lhs (use_stmt), 0)))
-	  || stmt_kills_ref_p (use_stmt, gimple_assign_lhs (stmt)))
+      basic_block bb;
+
+      /* If use_stmt is or might be a nop assignment, e.g. for
+	   struct { ... } S a, b, *p; ...
+	   b = a; b = b;
+	 or
+	   b = a; b = *p; where p might be &b,
+	 or
+           *p = a; *p = b; where p might be &b,
+	 or
+           *p = *u; *p = *v; where p might be v, then USE_STMT
+         acts as a use as well as definition, so store in STMT
+         is not dead.  */
+      if (stmt != use_stmt
+	  && ref_maybe_used_by_stmt_p (use_stmt, gimple_assign_lhs (stmt)))
+	return;
+
+      if (dump_file && (dump_flags & TDF_DETAILS))
 	{
-	  basic_block bb;
-
-	  /* If use_stmt is or might be a nop assignment, e.g. for
-	     struct { ... } S a, b, *p; ...
-	     b = a; b = b;
-	     or
-	     b = a; b = *p; where p might be &b,
-	     or
-	     *p = a; *p = b; where p might be &b,
-	     or
-	     *p = *u; *p = *v; where p might be v, then USE_STMT
-	     acts as a use as well as definition, so store in STMT
-	     is not dead.  */
-	  if (stmt != use_stmt
-	      && ref_maybe_used_by_stmt_p (use_stmt, gimple_assign_lhs (stmt)))
-	    return;
-
-	  if (dump_file && (dump_flags & TDF_DETAILS))
-            {
-              fprintf (dump_file, "  Deleted dead store '");
-              print_gimple_stmt (dump_file, gsi_stmt (*gsi), dump_flags, 0);
-              fprintf (dump_file, "'\n");
-            }
-
-	  /* Then we need to fix the operand of the consuming stmt.  */
-	  unlink_stmt_vdef (stmt);
-
-	  /* Remove the dead store.  */
-	  bb = gimple_bb (stmt);
-	  if (gsi_remove (gsi, true))
-	    bitmap_set_bit (need_eh_cleanup, bb->index);
-
-	  /* And release any SSA_NAMEs set in this statement back to the
-	     SSA_NAME manager.  */
-	  release_defs (stmt);
+	  fprintf (dump_file, "  Deleted dead store '");
+	  print_gimple_stmt (dump_file, gsi_stmt (*gsi), dump_flags, 0);
+	  fprintf (dump_file, "'\n");
 	}
+
+      /* Then we need to fix the operand of the consuming stmt.  */
+      unlink_stmt_vdef (stmt);
+
+      /* Remove the dead store.  */
+      bb = gimple_bb (stmt);
+      if (gsi_remove (gsi, true))
+	bitmap_set_bit (need_eh_cleanup, bb->index);
+
+      /* And release any SSA_NAMEs set in this statement back to the
+	 SSA_NAME manager.  */
+      release_defs (stmt);
     }
 }
 
@@ -328,10 +315,37 @@ dse_dom_walker::before_dom_children (basic_block bb)
     }
 }
 
-/* Main entry point.  */
+namespace {
 
-static unsigned int
-tree_ssa_dse (void)
+const pass_data pass_data_dse =
+{
+  GIMPLE_PASS, /* type */
+  "dse", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  TV_TREE_DSE, /* tv_id */
+  ( PROP_cfg | PROP_ssa ), /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
+};
+
+class pass_dse : public gimple_opt_pass
+{
+public:
+  pass_dse (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_dse, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  opt_pass * clone () { return new pass_dse (m_ctxt); }
+  virtual bool gate (function *) { return flag_tree_dse != 0; }
+  virtual unsigned int execute (function *);
+
+}; // class pass_dse
+
+unsigned int
+pass_dse::execute (function *fun)
 {
   need_eh_cleanup = BITMAP_ALLOC (NULL);
 
@@ -346,7 +360,7 @@ tree_ssa_dse (void)
 
   /* Dead store elimination is fundamentally a walk of the post-dominator
      tree and a backwards walk of statements within each block.  */
-  dse_dom_walker (CDI_POST_DOMINATORS).walk (cfun->cfg->x_exit_block_ptr);
+  dse_dom_walker (CDI_POST_DOMINATORS).walk (fun->cfg->x_exit_block_ptr);
 
   /* Removal of stores may make some EH edges dead.  Purge such edges from
      the CFG as needed.  */
@@ -362,43 +376,6 @@ tree_ssa_dse (void)
   free_dominance_info (CDI_POST_DOMINATORS);
   return 0;
 }
-
-static bool
-gate_dse (void)
-{
-  return flag_tree_dse != 0;
-}
-
-namespace {
-
-const pass_data pass_data_dse =
-{
-  GIMPLE_PASS, /* type */
-  "dse", /* name */
-  OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
-  TV_TREE_DSE, /* tv_id */
-  ( PROP_cfg | PROP_ssa ), /* properties_required */
-  0, /* properties_provided */
-  0, /* properties_destroyed */
-  0, /* todo_flags_start */
-  TODO_verify_ssa, /* todo_flags_finish */
-};
-
-class pass_dse : public gimple_opt_pass
-{
-public:
-  pass_dse (gcc::context *ctxt)
-    : gimple_opt_pass (pass_data_dse, ctxt)
-  {}
-
-  /* opt_pass methods: */
-  opt_pass * clone () { return new pass_dse (m_ctxt); }
-  bool gate () { return gate_dse (); }
-  unsigned int execute () { return tree_ssa_dse (); }
-
-}; // class pass_dse
 
 } // anon namespace
 

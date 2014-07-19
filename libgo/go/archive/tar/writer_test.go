@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -96,6 +97,29 @@ var writerTests = []*writerTest{
 					Typeflag: '0',
 					Uname:    "dsymonds",
 					Gname:    "eng",
+				},
+				// fake contents
+				contents: strings.Repeat("\x00", 4<<10),
+			},
+		},
+	},
+	// The truncated test file was produced using these commands:
+	//   dd if=/dev/zero bs=1048576 count=16384 > (longname/)*15 /16gig.txt
+	//   tar -b 1 -c -f- (longname/)*15 /16gig.txt | dd bs=512 count=8 > writer-big-long.tar
+	{
+		file: "testdata/writer-big-long.tar",
+		entries: []*writerTestEntry{
+			{
+				header: &Header{
+					Name:     strings.Repeat("longname/", 15) + "16gig.txt",
+					Mode:     0644,
+					Uid:      1000,
+					Gid:      1000,
+					Size:     16 << 30,
+					ModTime:  time.Unix(1399583047, 0),
+					Typeflag: '0',
+					Uname:    "guillaume",
+					Gname:    "guillaume",
 				},
 				// fake contents
 				contents: strings.Repeat("\x00", 4<<10),
@@ -335,6 +359,45 @@ func TestPaxNonAscii(t *testing.T) {
 	}
 	if hdr.Uname != chineseUsername {
 		t.Fatal("Couldn't recover unicode user")
+	}
+}
+
+func TestPaxXattrs(t *testing.T) {
+	xattrs := map[string]string{
+		"user.key": "value",
+	}
+
+	// Create an archive with an xattr
+	fileinfo, err := os.Stat("testdata/small.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hdr, err := FileInfoHeader(fileinfo, "")
+	if err != nil {
+		t.Fatalf("os.Stat: %v", err)
+	}
+	contents := "Kilts"
+	hdr.Xattrs = xattrs
+	var buf bytes.Buffer
+	writer := NewWriter(&buf)
+	if err := writer.WriteHeader(hdr); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = writer.Write([]byte(contents)); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// Test that we can get the xattrs back out of the archive.
+	reader := NewReader(&buf)
+	hdr, err = reader.Next()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(hdr.Xattrs, xattrs) {
+		t.Fatalf("xattrs did not survive round trip: got %+v, want %+v",
+			hdr.Xattrs, xattrs)
 	}
 }
 

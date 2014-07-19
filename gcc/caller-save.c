@@ -265,8 +265,8 @@ init_caller_save (void)
   savepat = gen_rtx_SET (VOIDmode, test_mem, test_reg);
   restpat = gen_rtx_SET (VOIDmode, test_reg, test_mem);
 
-  saveinsn = gen_rtx_INSN (VOIDmode, 0, 0, 0, 0, savepat, 0, -1, 0);
-  restinsn = gen_rtx_INSN (VOIDmode, 0, 0, 0, 0, restpat, 0, -1, 0);
+  saveinsn = gen_rtx_INSN (VOIDmode, 0, 0, 0, savepat, 0, -1, 0);
+  restinsn = gen_rtx_INSN (VOIDmode, 0, 0, 0, restpat, 0, -1, 0);
 
   for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
     for (j = 1; j <= MOVE_MAX_WORDS; j++)
@@ -441,7 +441,7 @@ setup_save_areas (void)
       freq = REG_FREQ_FROM_BB (BLOCK_FOR_INSN (insn));
       REG_SET_TO_HARD_REG_SET (hard_regs_to_save,
 			       &chain->live_throughout);
-      COPY_HARD_REG_SET (used_regs, call_used_reg_set);
+      get_call_reg_set_usage (insn, &used_regs, call_used_reg_set);
 
       /* Record all registers set in this call insn.  These don't
 	 need to be saved.  N.B. the call insn might set a subreg
@@ -525,7 +525,7 @@ setup_save_areas (void)
 
 	  REG_SET_TO_HARD_REG_SET (hard_regs_to_save,
 				   &chain->live_throughout);
-	  COPY_HARD_REG_SET (used_regs, call_used_reg_set);
+	  get_call_reg_set_usage (insn, &used_regs, call_used_reg_set);
 
 	  /* Record all registers set in this call insn.  These don't
 	     need to be saved.  N.B. the call insn might set a subreg
@@ -804,6 +804,7 @@ save_call_clobbered_regs (void)
 	    {
 	      unsigned regno;
 	      HARD_REG_SET hard_regs_to_save;
+	      HARD_REG_SET call_def_reg_set;
 	      reg_set_iterator rsi;
 	      rtx cheap;
 
@@ -854,7 +855,9 @@ save_call_clobbered_regs (void)
 	      AND_COMPL_HARD_REG_SET (hard_regs_to_save, call_fixed_reg_set);
 	      AND_COMPL_HARD_REG_SET (hard_regs_to_save, this_insn_sets);
 	      AND_COMPL_HARD_REG_SET (hard_regs_to_save, hard_regs_saved);
-	      AND_HARD_REG_SET (hard_regs_to_save, call_used_reg_set);
+	      get_call_reg_set_usage (insn, &call_def_reg_set,
+				      call_used_reg_set);
+	      AND_HARD_REG_SET (hard_regs_to_save, call_def_reg_set);
 
 	      for (regno = 0; regno < FIRST_PSEUDO_REGISTER; regno++)
 		if (TEST_HARD_REG_BIT (hard_regs_to_save, regno))

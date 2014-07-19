@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"debug/dwarf"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -74,6 +73,9 @@ type Segment struct {
 func (s *Segment) Data() ([]byte, error) {
 	dat := make([]byte, s.sr.Size())
 	n, err := s.sr.ReadAt(dat, 0)
+	if n == len(dat) {
+		err = nil
+	}
 	return dat[0:n], err
 }
 
@@ -109,6 +111,9 @@ type Section struct {
 func (s *Section) Data() ([]byte, error) {
 	dat := make([]byte, s.sr.Size())
 	n, err := s.sr.ReadAt(dat, 0)
+	if n == len(dat) {
+		err = nil
+	}
 	return dat[0:n], err
 }
 
@@ -246,7 +251,7 @@ func NewFile(r io.ReaderAt) (*File, error) {
 
 		case LoadCmdDylib:
 			var hdr DylibCmd
-			b := bytes.NewBuffer(cmddat)
+			b := bytes.NewReader(cmddat)
 			if err := binary.Read(b, bo, &hdr); err != nil {
 				return nil, err
 			}
@@ -263,7 +268,7 @@ func NewFile(r io.ReaderAt) (*File, error) {
 
 		case LoadCmdSymtab:
 			var hdr SymtabCmd
-			b := bytes.NewBuffer(cmddat)
+			b := bytes.NewReader(cmddat)
 			if err := binary.Read(b, bo, &hdr); err != nil {
 				return nil, err
 			}
@@ -290,7 +295,7 @@ func NewFile(r io.ReaderAt) (*File, error) {
 
 		case LoadCmdDysymtab:
 			var hdr DysymtabCmd
-			b := bytes.NewBuffer(cmddat)
+			b := bytes.NewReader(cmddat)
 			if err := binary.Read(b, bo, &hdr); err != nil {
 				return nil, err
 			}
@@ -299,7 +304,7 @@ func NewFile(r io.ReaderAt) (*File, error) {
 				return nil, err
 			}
 			x := make([]uint32, hdr.Nindirectsyms)
-			if err := binary.Read(bytes.NewBuffer(dat), bo, x); err != nil {
+			if err := binary.Read(bytes.NewReader(dat), bo, x); err != nil {
 				return nil, err
 			}
 			st := new(Dysymtab)
@@ -311,7 +316,7 @@ func NewFile(r io.ReaderAt) (*File, error) {
 
 		case LoadCmdSegment:
 			var seg32 Segment32
-			b := bytes.NewBuffer(cmddat)
+			b := bytes.NewReader(cmddat)
 			if err := binary.Read(b, bo, &seg32); err != nil {
 				return nil, err
 			}
@@ -349,7 +354,7 @@ func NewFile(r io.ReaderAt) (*File, error) {
 
 		case LoadCmdSegment64:
 			var seg64 Segment64
-			b := bytes.NewBuffer(cmddat)
+			b := bytes.NewReader(cmddat)
 			if err := binary.Read(b, bo, &seg64); err != nil {
 				return nil, err
 			}
@@ -396,7 +401,7 @@ func NewFile(r io.ReaderAt) (*File, error) {
 func (f *File) parseSymtab(symdat, strtab, cmddat []byte, hdr *SymtabCmd, offset int64) (*Symtab, error) {
 	bo := f.ByteOrder
 	symtab := make([]Symbol, hdr.Nsyms)
-	b := bytes.NewBuffer(symdat)
+	b := bytes.NewReader(symdat)
 	for i := range symtab {
 		var n Nlist64
 		if f.Magic == Magic64 {
@@ -475,7 +480,7 @@ func (f *File) DWARF() (*dwarf.Data, error) {
 		name = "__debug_" + name
 		s := f.Section(name)
 		if s == nil {
-			return nil, errors.New("missing Mach-O section " + name)
+			continue
 		}
 		b, err := s.Data()
 		if err != nil && uint64(len(b)) < s.Size {

@@ -74,6 +74,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "reload.h"
 #include "opts.h"
 #include "dumpfile.h"
+#include "builtins.h"
 
 /* This is used for communication between ASM_OUTPUT_LABEL and
    ASM_OUTPUT_LABELREF.  */
@@ -169,8 +170,7 @@ static int ia64_first_cycle_multipass_dfa_lookahead (void);
 static void ia64_dependencies_evaluation_hook (rtx, rtx);
 static void ia64_init_dfa_pre_cycle_insn (void);
 static rtx ia64_dfa_pre_cycle_insn (void);
-static int ia64_first_cycle_multipass_dfa_lookahead_guard (rtx);
-static bool ia64_first_cycle_multipass_dfa_lookahead_guard_spec (const_rtx);
+static int ia64_first_cycle_multipass_dfa_lookahead_guard (rtx, int);
 static int ia64_dfa_new_cycle (FILE *, int, rtx, int, int, int *);
 static void ia64_h_i_d_extended (void);
 static void * ia64_alloc_sched_context (void);
@@ -495,10 +495,6 @@ static const struct attribute_spec ia64_attribute_table[] =
 
 #undef TARGET_SCHED_GEN_SPEC_CHECK
 #define TARGET_SCHED_GEN_SPEC_CHECK ia64_gen_spec_check
-
-#undef TARGET_SCHED_FIRST_CYCLE_MULTIPASS_DFA_LOOKAHEAD_GUARD_SPEC
-#define TARGET_SCHED_FIRST_CYCLE_MULTIPASS_DFA_LOOKAHEAD_GUARD_SPEC\
-  ia64_first_cycle_multipass_dfa_lookahead_guard_spec
 
 #undef TARGET_SCHED_SKIP_RTX_P
 #define TARGET_SCHED_SKIP_RTX_P ia64_skip_rtx_p
@@ -6046,7 +6042,7 @@ void ia64_init_expanders (void)
 static struct machine_function *
 ia64_init_machine_status (void)
 {
-  return ggc_alloc_cleared_machine_function ();
+  return ggc_cleared_alloc<machine_function> ();
 }
 
 static enum attr_itanium_class ia64_safe_itanium_class (rtx);
@@ -7531,32 +7527,30 @@ ia64_variable_issue (FILE *dump ATTRIBUTE_UNUSED,
   return 1;
 }
 
-/* We are choosing insn from the ready queue.  Return nonzero if INSN
+/* We are choosing insn from the ready queue.  Return zero if INSN
    can be chosen.  */
 
 static int
-ia64_first_cycle_multipass_dfa_lookahead_guard (rtx insn)
+ia64_first_cycle_multipass_dfa_lookahead_guard (rtx insn, int ready_index)
 {
   gcc_assert (insn && INSN_P (insn));
-  return ((!reload_completed
-	   || !safe_group_barrier_needed (insn))
-	  && ia64_first_cycle_multipass_dfa_lookahead_guard_spec (insn)
-	  && (!mflag_sched_mem_insns_hard_limit
-	      || !is_load_p (insn)
-	      || mem_ops_in_group[current_cycle % 4] < ia64_max_memory_insns));
-}
 
-/* We are choosing insn from the ready queue.  Return nonzero if INSN
-   can be chosen.  */
+  /* Size of ALAT is 32.  As far as we perform conservative
+     data speculation, we keep ALAT half-empty.  */
+  if (pending_data_specs >= 16 && (TODO_SPEC (insn) & BEGIN_DATA))
+    return ready_index == 0 ? -1 : 1;
 
-static bool
-ia64_first_cycle_multipass_dfa_lookahead_guard_spec (const_rtx insn)
-{
-  gcc_assert (insn  && INSN_P (insn));
-  /* Size of ALAT is 32.  As far as we perform conservative data speculation,
-     we keep ALAT half-empty.  */
-  return (pending_data_specs < 16
-	  || !(TODO_SPEC (insn) & BEGIN_DATA));
+  if (ready_index == 0)
+    return 0;
+
+  if ((!reload_completed
+       || !safe_group_barrier_needed (insn))
+      && (!mflag_sched_mem_insns_hard_limit
+	  || !is_load_p (insn)
+	  || mem_ops_in_group[current_cycle % 4] < ia64_max_memory_insns))
+    return 0;
+
+  return 1;
 }
 
 /* The following variable value is pseudo-insn used by the DFA insn
@@ -7943,17 +7937,9 @@ ia64_set_sched_flags (spec_info_t spec_info)
 	  
 	  spec_info->flags = 0;
       
-	  if ((mask & DATA_SPEC) && mflag_sched_prefer_non_data_spec_insns)
-	    spec_info->flags |= PREFER_NON_DATA_SPEC;
-
-	  if (mask & CONTROL_SPEC)
-	    {
-	      if (mflag_sched_prefer_non_control_spec_insns)
-		spec_info->flags |= PREFER_NON_CONTROL_SPEC;
-
-	      if (sel_sched_p () && mflag_sel_sched_dont_check_control_spec)
-		spec_info->flags |= SEL_SCHED_SPEC_DONT_CHECK_CONTROL;
-	    }
+	  if ((mask & CONTROL_SPEC)
+	      && sel_sched_p () && mflag_sel_sched_dont_check_control_spec)
+	    spec_info->flags |= SEL_SCHED_SPEC_DONT_CHECK_CONTROL;
 
 	  if (sched_verbose >= 1)
 	    spec_info->dump = sched_dump;
@@ -8600,7 +8586,7 @@ bundle_state_hasher::equal (const value_type *state1,
 /* Hash table of the bundle states.  The key is dfa_state and insn_num
    of the bundle states.  */
 
-static hash_table <bundle_state_hasher> bundle_state_table;
+static hash_table<bundle_state_hasher> *bundle_state_table;
 
 /* The function inserts the BUNDLE_STATE into the hash table.  The
    function returns nonzero if the bundle has been inserted into the
@@ -8611,7 +8597,7 @@ insert_bundle_state (struct bundle_state *bundle_state)
 {
   struct bundle_state **entry_ptr;
 
-  entry_ptr = bundle_state_table.find_slot (bundle_state, INSERT);
+  entry_ptr = bundle_state_table->find_slot (bundle_state, INSERT);
   if (*entry_ptr == NULL)
     {
       bundle_state->next = index_to_bundle_states [bundle_state->insn_num];
@@ -8648,7 +8634,7 @@ insert_bundle_state (struct bundle_state *bundle_state)
 static void
 initiate_bundle_state_table (void)
 {
-  bundle_state_table.create (50);
+  bundle_state_table = new hash_table<bundle_state_hasher> (50);
 }
 
 /* Finish work with the hash table.  */
@@ -8656,7 +8642,8 @@ initiate_bundle_state_table (void)
 static void
 finish_bundle_state_table (void)
 {
-  bundle_state_table.dispose ();
+  delete bundle_state_table;
+  bundle_state_table = NULL;
 }
 
 
@@ -9907,7 +9894,7 @@ ia64_in_small_data_p (const_tree exp)
 
   if (TREE_CODE (exp) == VAR_DECL && DECL_SECTION_NAME (exp))
     {
-      const char *section = TREE_STRING_POINTER (DECL_SECTION_NAME (exp));
+      const char *section = DECL_SECTION_NAME (exp);
 
       if (strcmp (section, ".sdata") == 0
 	  || strncmp (section, ".sdata.", 7) == 0

@@ -504,6 +504,7 @@
 (define_attr "in_delay_slot" "yes,no"
   (cond [(eq_attr "type" "cbranch") (const_string "no")
 	 (eq_attr "type" "pcload,pcload_si") (const_string "no")
+	 (eq_attr "type" "fpscr_toggle") (const_string "no")
 	 (eq_attr "needs_delay_slot" "yes") (const_string "no")
 	 (eq_attr "length" "2") (const_string "yes")
 	 ] (const_string "no")))
@@ -1830,6 +1831,8 @@
 ;; We allow a reg or 0 for one of the operands in order to be able to
 ;; do 'reg + T' sequences.  Reload will load the constant 0 into the reg
 ;; as needed.
+;; FIXME: The load of constant 0 should be split out before reload, or else
+;; it will be difficult to hoist or combine the constant load.
 (define_insn "*addc"
   [(set (match_operand:SI 0 "arith_reg_dest" "=r")
 	(plus:SI (plus:SI (match_operand:SI 1 "arith_reg_operand" "%0")
@@ -1898,10 +1901,10 @@
 ;; can be scheduled much better since the load of the constant can be
 ;; done earlier, before any comparison insns that store the result in
 ;; the T bit.
-(define_insn_and_split "*addc_r_1"
-  [(set (match_operand:SI 0 "arith_reg_dest" "")
-	(plus:SI (match_operand:SI 1 "t_reg_operand" "")
-		 (match_operand:SI 2 "arith_reg_operand" "")))
+(define_insn_and_split "*addc_t_r"
+  [(set (match_operand:SI 0 "arith_reg_dest")
+	(plus:SI (match_operand:SI 1 "t_reg_operand")
+		 (match_operand:SI 2 "arith_reg_operand")))
    (clobber (reg:SI T_REG))]
   "TARGET_SH1"
   "#"
@@ -1909,6 +1912,19 @@
   [(parallel [(set (match_dup 0)
 		   (plus:SI (plus:SI (match_dup 2) (const_int 0))
 			    (match_dup 1)))
+	      (clobber (reg:SI T_REG))])])
+
+(define_insn_and_split "*addc_r_t"
+  [(set (match_operand:SI 0 "arith_reg_dest")
+	(plus:SI (match_operand:SI 1 "arith_reg_operand")
+		 (match_operand:SI 2 "t_reg_operand")))
+   (clobber (reg:SI T_REG))]
+  "TARGET_SH1"
+  "#"
+  "&& 1"
+  [(parallel [(set (match_dup 0)
+		   (plus:SI (plus:SI (match_dup 1) (const_int 0))
+			    (match_dup 2)))
 	      (clobber (reg:SI T_REG))])])
 
 ;; Use shlr-addc to do 'reg + (reg & 1)'.
@@ -6978,20 +6994,20 @@ label:
   [(set_attr "type" "sfunc")
    (set_attr "needs_delay_slot" "yes")])
 
-(define_expand "movhi"
-  [(set (match_operand:HI 0 "general_movdst_operand" "")
-	(match_operand:HI 1 "general_movsrc_operand" ""))]
+(define_expand "mov<mode>"
+  [(set (match_operand:QIHI 0 "general_movdst_operand")
+	(match_operand:QIHI 1 "general_movsrc_operand"))]
   ""
 {
-  prepare_move_operands (operands, HImode);
-})
+ if (can_create_pseudo_p () && CONST_INT_P (operands[1])
+    && REG_P (operands[0]) && REGNO (operands[0]) != R0_REG)
+    {
+        rtx reg = gen_reg_rtx(SImode);
+        emit_move_insn (reg, operands[1]);
+        operands[1] = gen_lowpart (<MODE>mode, reg);
+    }
 
-(define_expand "movqi"
-  [(set (match_operand:QI 0 "general_operand" "")
-	(match_operand:QI 1 "general_operand" ""))]
-  ""
-{
-  prepare_move_operands (operands, QImode);
+  prepare_move_operands (operands, <MODE>mode);
 })
 
 ;; Specifying the displacement addressing load / store patterns separately
@@ -8357,9 +8373,29 @@ label:
       (const_int 2)
       (const_int 2)
       (const_int 0)])
-   (set (attr "fp_mode") (if_then_else (eq_attr "fmovd" "yes")
-					   (const_string "single")
-					   (const_string "single")))])
+  (set_attr_alternative "fp_mode"
+     [(if_then_else (eq_attr "fmovd" "yes")
+		    (const_string "single") (const_string "none"))
+      (const_string "none")
+      (const_string "single")
+      (const_string "single")
+      (const_string "none")
+      (if_then_else (eq_attr "fmovd" "yes")
+		    (const_string "single") (const_string "none"))
+      (if_then_else (eq_attr "fmovd" "yes")
+		    (const_string "single") (const_string "none"))
+      (const_string "none")
+      (const_string "none")
+      (const_string "none")
+      (const_string "none")
+      (const_string "none")
+      (const_string "none")
+      (const_string "none")
+      (const_string "none")
+      (const_string "none")
+      (const_string "none")
+      (const_string "none")
+      (const_string "none")])])
 
 (define_split
   [(set (match_operand:SF 0 "register_operand" "")
@@ -8804,7 +8840,7 @@ label:
 (define_insn "jump_compact"
   [(set (pc)
 	(label_ref (match_operand 0 "" "")))]
-  "TARGET_SH1 && !find_reg_note (insn, REG_CROSSING_JUMP, NULL_RTX)"
+  "TARGET_SH1 && !CROSSING_JUMP_P (insn)"
 {
   /* The length is 16 if the delay slot is unfilled.  */
   if (get_attr_length(insn) > 4)
@@ -11568,34 +11604,34 @@ label:
 ;; Store inverted T bit as MSB in a reg.
 ;; T = 0: 0x80000000 -> reg
 ;; T = 1: 0x00000000 -> reg
-;; On SH2A we can get away without clobbering the T_REG.
+;; On SH2A we can get away without clobbering the T_REG using the movrt insn.
+;; On non SH2A we resort to the following sequence:
+;;	movt	Rn
+;;	tst	Rn,Rn
+;;	rotcr	Rn
+;; The T bit value will be modified during the sequence, but the rotcr insn
+;; will restore its original value.
 (define_insn_and_split "*negt_msb"
   [(set (match_operand:SI 0 "arith_reg_dest")
 	(match_operand:SI 1 "negt_reg_shl31_operand"))]
-  "TARGET_SH2A"
+  "TARGET_SH1"
   "#"
   "&& can_create_pseudo_p ()"
   [(const_int 0)]
 {
   rtx tmp = gen_reg_rtx (SImode);
-  emit_insn (gen_movrt (tmp, get_t_reg_rtx ()));
-  emit_insn (gen_rotrsi3 (operands[0], tmp, const1_rtx));
-  DONE;
-})
 
-(define_insn_and_split "*negt_msb"
-  [(set (match_operand:SI 0 "arith_reg_dest")
-	(match_operand:SI 1 "negt_reg_shl31_operand"))
-   (clobber (reg:SI T_REG))]
-  "TARGET_SH1 && !TARGET_SH2A"
-  "#"
-  "&& can_create_pseudo_p ()"
-  [(const_int 0)]
-{
-  rtx tmp = gen_reg_rtx (SImode);
-  emit_move_insn (tmp, get_t_reg_rtx ());
-  emit_insn (gen_cmpeqsi_t (tmp, const0_rtx));
-  emit_insn (gen_rotcr (operands[0], tmp, get_t_reg_rtx ()));
+  if (TARGET_SH2A)
+    {
+      emit_insn (gen_movrt (tmp, get_t_reg_rtx ()));
+      emit_insn (gen_rotrsi3 (operands[0], tmp, const1_rtx));
+    }
+  else
+    {
+      emit_move_insn (tmp, get_t_reg_rtx ());
+      emit_insn (gen_cmpeqsi_t (tmp, const0_rtx));
+      emit_insn (gen_rotcr (operands[0], tmp, get_t_reg_rtx ()));
+    }
   DONE;
 })
 
@@ -11624,14 +11660,22 @@ label:
 
 (define_insn "*cset_zero"
   [(set (match_operand:SI 0 "arith_reg_dest" "=r")
-	(if_then_else:SI (match_operand:SI 1 "t_reg_operand")
+	(if_then_else:SI (match_operand:SI 1 "cbranch_treg_value")
 			 (match_operand:SI 2 "arith_reg_operand" "0")
 			 (const_int 0)))]
   "TARGET_SH1 && TARGET_ZDCBRANCH"
 {
-  return       "bt	0f"	"\n"
-	 "	mov	#0,%0"	"\n"
-	 "0:";
+  int tval = sh_eval_treg_value (operands[1]);
+  if (tval == true)
+    return     "bt	0f"	"\n"
+	   "	mov	#0,%0"	"\n"
+	   "0:";
+  else if (tval == false)
+    return     "bf	0f"	"\n"
+	   "	mov	#0,%0"	"\n"
+	   "0:";
+  else
+    gcc_unreachable ();
 }
   [(set_attr "type" "arith") ;; poor approximation
    (set_attr "length" "4")])
@@ -12089,6 +12133,20 @@ label:
    FAIL;
 })
 
+(define_expand "setmemqi"
+  [(parallel [(set (match_operand:BLK 0 "memory_operand")
+                   (match_operand 2 "const_int_operand"))
+              (use (match_operand:QI 1 "const_int_operand"))
+              (use (match_operand:QI 3 "const_int_operand"))])]
+  "TARGET_SH1 && optimize"
+  {
+    if (optimize_insn_for_size_p ())
+       FAIL;
+
+    sh_expand_setmem (operands);
+    DONE;
+  })
+
 
 ;; -------------------------------------------------------------------------
 ;; Floating point instructions.
@@ -12182,15 +12240,12 @@ label:
   "fschg"
   [(set_attr "type" "fpscr_toggle") (set_attr "fp_set" "unknown")])
 
-;; There's no way we can use it today, since optimize mode switching
-;; doesn't enable us to know from which mode we're switching to the
-;; mode it requests, to tell whether we can use a relative mode switch
-;; (like toggle_pr) or an absolute switch (like loading fpscr from
-;; memory).
+;; Toggle FPU precision PR mode.
+
 (define_insn "toggle_pr"
   [(set (reg:PSI FPSCR_REG)
 	(xor:PSI (reg:PSI FPSCR_REG) (const_int 524288)))]
-  "TARGET_SH4A_FP && ! TARGET_FPU_SINGLE"
+  "TARGET_SH4A_FP"
   "fpchg"
   [(set_attr "type" "fpscr_toggle")])
 

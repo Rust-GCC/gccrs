@@ -576,21 +576,22 @@ func (x *Int) BitLen() int {
 }
 
 // Exp sets z = x**y mod |m| (i.e. the sign of m is ignored), and returns z.
-// If y <= 0, the result is 1; if m == nil or m == 0, z = x**y.
+// If y <= 0, the result is 1 mod |m|; if m == nil or m == 0, z = x**y.
 // See Knuth, volume 2, section 4.6.3.
 func (z *Int) Exp(x, y, m *Int) *Int {
-	if y.neg || len(y.abs) == 0 {
-		return z.SetInt64(1)
+	var yWords nat
+	if !y.neg {
+		yWords = y.abs
 	}
-	// y > 0
+	// y >= 0
 
 	var mWords nat
 	if m != nil {
 		mWords = m.abs // m.abs may be nil for m == 0
 	}
 
-	z.abs = z.abs.expNN(x.abs, y.abs, mWords)
-	z.neg = len(z.abs) > 0 && x.neg && y.abs[0]&1 == 1 // 0 has no sign
+	z.abs = z.abs.expNN(x.abs, yWords, mWords)
+	z.neg = len(z.abs) > 0 && x.neg && len(yWords) > 0 && yWords[0]&1 == 1 // 0 has no sign
 	return z
 }
 
@@ -982,17 +983,29 @@ func (z *Int) GobDecode(buf []byte) error {
 }
 
 // MarshalJSON implements the json.Marshaler interface.
-func (x *Int) MarshalJSON() ([]byte, error) {
+func (z *Int) MarshalJSON() ([]byte, error) {
 	// TODO(gri): get rid of the []byte/string conversions
-	return []byte(x.String()), nil
+	return []byte(z.String()), nil
 }
 
 // UnmarshalJSON implements the json.Unmarshaler interface.
-func (z *Int) UnmarshalJSON(x []byte) error {
+func (z *Int) UnmarshalJSON(text []byte) error {
 	// TODO(gri): get rid of the []byte/string conversions
-	_, ok := z.SetString(string(x), 0)
-	if !ok {
-		return fmt.Errorf("math/big: cannot unmarshal %s into a *big.Int", x)
+	if _, ok := z.SetString(string(text), 0); !ok {
+		return fmt.Errorf("math/big: cannot unmarshal %q into a *big.Int", text)
+	}
+	return nil
+}
+
+// MarshalText implements the encoding.TextMarshaler interface
+func (z *Int) MarshalText() (text []byte, err error) {
+	return []byte(z.String()), nil
+}
+
+// UnmarshalText implements the encoding.TextUnmarshaler interface
+func (z *Int) UnmarshalText(text []byte) error {
+	if _, ok := z.SetString(string(text), 0); !ok {
+		return fmt.Errorf("math/big: cannot unmarshal %q into a *big.Int", text)
 	}
 	return nil
 }

@@ -263,11 +263,9 @@ search_line_acc_char (const uchar *s, const uchar *end ATTRIBUTE_UNUSED)
     }
 }
 
-/* Disable on Solaris 2/x86 until the following problems can be properly
+/* Disable on Solaris 2/x86 until the following problem can be properly
    autoconfed:
 
-   The Solaris 9 assembler cannot assemble SSE4.2 insns.
-   Before Solaris 9 Update 6, SSE insns cannot be executed.
    The Solaris 10+ assembler tags objects with the instruction set
    extensions used, so SSE4.2 executables cannot run on machines that
    don't support that extension.  */
@@ -1177,9 +1175,16 @@ lex_identifier_intern (cpp_reader *pfile, const uchar *base)
 	 replacement list of a variadic macro.  */
       if (result == pfile->spec_nodes.n__VA_ARGS__
 	  && !pfile->state.va_args_ok)
-	cpp_error (pfile, CPP_DL_PEDWARN,
-		   "__VA_ARGS__ can only appear in the expansion"
-		   " of a C99 variadic macro");
+	{
+	  if (CPP_OPTION (pfile, cplusplus))
+	    cpp_error (pfile, CPP_DL_PEDWARN,
+		       "__VA_ARGS__ can only appear in the expansion"
+		       " of a C++11 variadic macro");
+	  else
+	    cpp_error (pfile, CPP_DL_PEDWARN,
+		       "__VA_ARGS__ can only appear in the expansion"
+		       " of a C99 variadic macro");
+	}
 
       /* For -Wc++-compat, warn about use of C++ named operators.  */
       if (result->flags & NODE_WARN_OPERATOR)
@@ -1257,9 +1262,16 @@ lex_identifier (cpp_reader *pfile, const uchar *base, bool starts_ucn,
 	 replacement list of a variadic macro.  */
       if (result == pfile->spec_nodes.n__VA_ARGS__
 	  && !pfile->state.va_args_ok)
-	cpp_error (pfile, CPP_DL_PEDWARN,
-		   "__VA_ARGS__ can only appear in the expansion"
-		   " of a C99 variadic macro");
+	{
+	  if (CPP_OPTION (pfile, cplusplus))
+	    cpp_error (pfile, CPP_DL_PEDWARN,
+		       "__VA_ARGS__ can only appear in the expansion"
+		       " of a C++11 variadic macro");
+	  else
+	    cpp_error (pfile, CPP_DL_PEDWARN,
+		       "__VA_ARGS__ can only appear in the expansion"
+		       " of a C99 variadic macro");
+	}
 
       /* For -Wc++-compat, warn about use of C++ named operators.  */
       if (result->flags & NODE_WARN_OPERATOR)
@@ -1648,7 +1660,7 @@ lex_raw_string (cpp_reader *pfile, cpp_token *token, const uchar *base,
       if (is_macro (pfile, cur))
 	{
 	  /* Raise a warning, but do not consume subsequent tokens.  */
-	  if (CPP_OPTION (pfile, warn_literal_suffix))
+	  if (CPP_OPTION (pfile, warn_literal_suffix) && !pfile->state.skipping)
 	    cpp_warning_with_line (pfile, CPP_W_LITERAL_SUFFIX,
 				   token->src_loc, 0,
 				   "invalid suffix on literal; C++11 requires "
@@ -1777,7 +1789,7 @@ lex_string (cpp_reader *pfile, cpp_token *token, const uchar *base)
       if (is_macro (pfile, cur))
 	{
 	  /* Raise a warning, but do not consume subsequent tokens.  */
-	  if (CPP_OPTION (pfile, warn_literal_suffix))
+	  if (CPP_OPTION (pfile, warn_literal_suffix) && !pfile->state.skipping)
 	    cpp_warning_with_line (pfile, CPP_W_LITERAL_SUFFIX,
 				   token->src_loc, 0,
 				   "invalid suffix on literal; C++11 requires "

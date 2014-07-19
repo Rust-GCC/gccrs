@@ -5,7 +5,10 @@
 package expvar
 
 import (
+	"bytes"
 	"encoding/json"
+	"net/http/httptest"
+	"strconv"
 	"testing"
 )
 
@@ -15,6 +18,7 @@ func RemoveAll() {
 	mutex.Lock()
 	defer mutex.Unlock()
 	vars = make(map[string]Var)
+	varKeys = nil
 }
 
 func TestInt(t *testing.T) {
@@ -93,15 +97,15 @@ func TestMapCounter(t *testing.T) {
 	colors.Add("red", 1)
 	colors.Add("red", 2)
 	colors.Add("blue", 4)
-	colors.AddFloat("green", 4.125)
+	colors.AddFloat(`green "midori"`, 4.125)
 	if x := colors.m["red"].(*Int).i; x != 3 {
 		t.Errorf("colors.m[\"red\"] = %v, want 3", x)
 	}
 	if x := colors.m["blue"].(*Int).i; x != 4 {
 		t.Errorf("colors.m[\"blue\"] = %v, want 4", x)
 	}
-	if x := colors.m["green"].(*Float).f; x != 4.125 {
-		t.Errorf("colors.m[\"green\"] = %v, want 3.14", x)
+	if x := colors.m[`green "midori"`].(*Float).f; x != 4.125 {
+		t.Errorf("colors.m[`green \"midori\"] = %v, want 3.14", x)
 	}
 
 	// colors.String() should be '{"red":3, "blue":4}',
@@ -137,5 +141,27 @@ func TestFunc(t *testing.T) {
 	x = 17
 	if s, exp := f.String(), `17`; s != exp {
 		t.Errorf(`f.String() = %q, want %q`, s, exp)
+	}
+}
+
+func TestHandler(t *testing.T) {
+	RemoveAll()
+	m := NewMap("map1")
+	m.Add("a", 1)
+	m.Add("z", 2)
+	m2 := NewMap("map2")
+	for i := 0; i < 9; i++ {
+		m2.Add(strconv.Itoa(i), int64(i))
+	}
+	rr := httptest.NewRecorder()
+	rr.Body = new(bytes.Buffer)
+	expvarHandler(rr, nil)
+	want := `{
+"map1": {"a": 1, "z": 2},
+"map2": {"0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8}
+}
+`
+	if got := rr.Body.String(); got != want {
+		t.Errorf("HTTP handler wrote:\n%s\nWant:\n%s", got, want)
 	}
 }

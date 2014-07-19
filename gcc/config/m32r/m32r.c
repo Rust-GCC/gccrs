@@ -46,6 +46,7 @@
 #include "target-def.h"
 #include "tm-constrs.h"
 #include "opts.h"
+#include "builtins.h"
 
 /* Array of valid operand punctuation characters.  */
 static char m32r_punct_chars[256];
@@ -282,31 +283,33 @@ init_reg_tables (void)
 
   for (i = 0; i < NUM_MACHINE_MODES; i++)
     {
-      switch (GET_MODE_CLASS (i))
+      enum machine_mode m = (enum machine_mode) i;
+      
+      switch (GET_MODE_CLASS (m))
 	{
 	case MODE_INT:
 	case MODE_PARTIAL_INT:
 	case MODE_COMPLEX_INT:
-	  if (GET_MODE_SIZE (i) <= 4)
+	  if (GET_MODE_SIZE (m) <= 4)
 	    m32r_mode_class[i] = 1 << (int) S_MODE;
-	  else if (GET_MODE_SIZE (i) == 8)
+	  else if (GET_MODE_SIZE (m) == 8)
 	    m32r_mode_class[i] = 1 << (int) D_MODE;
-	  else if (GET_MODE_SIZE (i) == 16)
+	  else if (GET_MODE_SIZE (m) == 16)
 	    m32r_mode_class[i] = 1 << (int) T_MODE;
-	  else if (GET_MODE_SIZE (i) == 32)
+	  else if (GET_MODE_SIZE (m) == 32)
 	    m32r_mode_class[i] = 1 << (int) O_MODE;
 	  else
 	    m32r_mode_class[i] = 0;
 	  break;
 	case MODE_FLOAT:
 	case MODE_COMPLEX_FLOAT:
-	  if (GET_MODE_SIZE (i) <= 4)
+	  if (GET_MODE_SIZE (m) <= 4)
 	    m32r_mode_class[i] = 1 << (int) SF_MODE;
-	  else if (GET_MODE_SIZE (i) == 8)
+	  else if (GET_MODE_SIZE (m) == 8)
 	    m32r_mode_class[i] = 1 << (int) DF_MODE;
-	  else if (GET_MODE_SIZE (i) == 16)
+	  else if (GET_MODE_SIZE (m) == 16)
 	    m32r_mode_class[i] = 1 << (int) TF_MODE;
-	  else if (GET_MODE_SIZE (i) == 32)
+	  else if (GET_MODE_SIZE (m) == 32)
 	    m32r_mode_class[i] = 1 << (int) OF_MODE;
 	  else
 	    m32r_mode_class[i] = 0;
@@ -460,7 +463,7 @@ m32r_encode_section_info (tree decl, rtx rtl, int first)
 static bool
 m32r_in_small_data_p (const_tree decl)
 {
-  const_tree section;
+  const char *section;
 
   if (TREE_CODE (decl) != VAR_DECL)
     return false;
@@ -471,8 +474,7 @@ m32r_in_small_data_p (const_tree decl)
   section = DECL_SECTION_NAME (decl);
   if (section)
     {
-      const char *const name = TREE_STRING_POINTER (section);
-      if (strcmp (name, ".sdata") == 0 || strcmp (name, ".sbss") == 0)
+      if (strcmp (section, ".sdata") == 0 || strcmp (section, ".sbss") == 0)
 	return true;
     }
   else
@@ -602,7 +604,7 @@ call26_operand (rtx op, enum machine_mode mode ATTRIBUTE_UNUSED)
 
 /* Return 1 if OP is a DImode const we want to handle inline.
    This must match the code in the movdi pattern.
-   It is used by the 'G' CONST_DOUBLE_OK_FOR_LETTER.  */
+   It is used by the 'G' constraint.  */
 
 int
 easy_di_const (rtx op)
@@ -622,7 +624,7 @@ easy_di_const (rtx op)
 
 /* Return 1 if OP is a DFmode const we want to handle inline.
    This must match the code in the movdf pattern.
-   It is used by the 'H' CONST_DOUBLE_OK_FOR_LETTER.  */
+   It is used by the 'H' constraint.  */
 
 int
 easy_df_const (rtx op)

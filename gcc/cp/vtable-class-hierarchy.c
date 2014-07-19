@@ -1028,7 +1028,7 @@ register_all_pairs (tree body)
 
           if (vtbl_ptr_array->length() > 0
               || (current->is_used
-                  || (current->registered.size() > 0)))
+                  || (current->registered->size() > 0)))
             {
               insert_call_to_register_pair (vtbl_ptr_array,
                                             arg1, arg2, size_hint_arg, str1,
@@ -1114,7 +1114,7 @@ write_out_vtv_count_data (void)
     {
       struct vtbl_map_node *current = vtbl_map_nodes_vec[i];
       if (!current->is_used
-          && current->registered.size() == 0)
+          && current->registered->size() == 0)
         unused_vtbl_map_vars++;
     }
 
@@ -1247,9 +1247,8 @@ vtable_find_or_create_map_decl (tree base_type)
       /* Put these mmap variables in thr .vtable_map_vars section, so
          we can find and protect them.  */
 
-      DECL_SECTION_NAME (var_decl) = build_string (strlen (".vtable_map_vars"),
-                                                   ".vtable_map_vars");
-      DECL_HAS_IMPLICIT_SECTION_NAME_P (var_decl) = true;
+      set_decl_section_name (var_decl, ".vtable_map_vars");
+      symtab_get_node (var_decl)->implicit_section = true;
       DECL_INITIAL (var_decl) = initial_value;
 
       comdat_linkage (var_decl);

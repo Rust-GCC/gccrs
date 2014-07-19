@@ -1059,8 +1059,7 @@ tree_optimize_tail_calls_1 (bool opt_tailcalls)
   if (changed)
     {
       /* We may have created new loops.  Make them magically appear.  */
-      if (current_loops)
-	loops_state_set (LOOPS_NEED_FIXUP);
+      loops_state_set (LOOPS_NEED_FIXUP);
       free_dominance_info (CDI_DOMINATORS);
     }
 
@@ -1073,12 +1072,6 @@ tree_optimize_tail_calls_1 (bool opt_tailcalls)
   if (changed)
     return TODO_cleanup_cfg | TODO_update_ssa_only_virtuals;
   return 0;
-}
-
-static unsigned int
-execute_tail_recursion (void)
-{
-  return tree_optimize_tail_calls_1 (false);
 }
 
 static bool
@@ -1100,14 +1093,12 @@ const pass_data pass_data_tail_recursion =
   GIMPLE_PASS, /* type */
   "tailr", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_NONE, /* tv_id */
   ( PROP_cfg | PROP_ssa ), /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  TODO_verify_ssa, /* todo_flags_finish */
+  0, /* todo_flags_finish */
 };
 
 class pass_tail_recursion : public gimple_opt_pass
@@ -1119,8 +1110,11 @@ public:
 
   /* opt_pass methods: */
   opt_pass * clone () { return new pass_tail_recursion (m_ctxt); }
-  bool gate () { return gate_tail_calls (); }
-  unsigned int execute () { return execute_tail_recursion (); }
+  virtual bool gate (function *) { return gate_tail_calls (); }
+  virtual unsigned int execute (function *)
+    {
+      return tree_optimize_tail_calls_1 (false);
+    }
 
 }; // class pass_tail_recursion
 
@@ -1139,14 +1133,12 @@ const pass_data pass_data_tail_calls =
   GIMPLE_PASS, /* type */
   "tailc", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_NONE, /* tv_id */
   ( PROP_cfg | PROP_ssa ), /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  TODO_verify_ssa, /* todo_flags_finish */
+  0, /* todo_flags_finish */
 };
 
 class pass_tail_calls : public gimple_opt_pass
@@ -1157,8 +1149,8 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_tail_calls (); }
-  unsigned int execute () { return execute_tail_calls (); }
+  virtual bool gate (function *) { return gate_tail_calls (); }
+  virtual unsigned int execute (function *) { return execute_tail_calls (); }
 
 }; // class pass_tail_calls
 

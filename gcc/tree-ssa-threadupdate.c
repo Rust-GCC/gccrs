@@ -311,7 +311,7 @@ create_block_for_threading (basic_block bb,
 
 /* Main data structure to hold information for duplicates of BB.  */
 
-static hash_table <redirection_data> redirection_data;
+static hash_table<redirection_data> *redirection_data;
 
 /* Given an outgoing edge E lookup and return its entry in our hash table.
 
@@ -334,7 +334,7 @@ lookup_redirection_data (edge e, enum insert_option insert)
   elt->dup_blocks[1] = NULL;
   elt->incoming_edges = NULL;
 
-  slot = redirection_data.find_slot (elt, insert);
+  slot = redirection_data->find_slot (elt, insert);
 
   /* This will only happen if INSERT is false and the entry is not
      in the hash table.  */
@@ -403,10 +403,59 @@ copy_phi_arg_into_existing_phi (edge src_e, edge tgt_e)
     }
 }
 
-/* For each PHI in BB, copy the argument associated with SRC_E to TGT_E.  */
+/* Given ssa_name DEF, backtrack jump threading PATH from node IDX
+   to see if it has constant value in a flow sensitive manner.  Set
+   LOCUS to location of the constant phi arg and return the value.
+   Return DEF directly if either PATH or idx is ZERO.  */
+
+static tree
+get_value_locus_in_path (tree def, vec<jump_thread_edge *> *path,
+			 basic_block bb, int idx, source_location *locus)
+{
+  tree arg;
+  gimple def_phi;
+  basic_block def_bb;
+
+  if (path == NULL || idx == 0)
+    return def;
+
+  def_phi = SSA_NAME_DEF_STMT (def);
+  if (gimple_code (def_phi) != GIMPLE_PHI)
+    return def;
+
+  def_bb = gimple_bb (def_phi);
+  /* Don't propagate loop invariants into deeper loops.  */
+  if (!def_bb || bb_loop_depth (def_bb) < bb_loop_depth (bb))
+    return def;
+
+  /* Backtrack jump threading path from IDX to see if def has constant
+     value.  */
+  for (int j = idx - 1; j >= 0; j--)
+    {
+      edge e = (*path)[j]->e;
+      if (e->dest == def_bb)
+	{
+	  arg = gimple_phi_arg_def (def_phi, e->dest_idx);
+	  if (is_gimple_min_invariant (arg))
+	    {
+	      *locus = gimple_phi_arg_location (def_phi, e->dest_idx);
+	      return arg;
+	    }
+	  break;
+	}
+    }
+
+  return def;
+}
+
+/* For each PHI in BB, copy the argument associated with SRC_E to TGT_E.
+   Try to backtrack jump threading PATH from node IDX to see if the arg
+   has constant value, copy constant value instead of argument itself
+   if yes.  */
 
 static void
-copy_phi_args (basic_block bb, edge src_e, edge tgt_e)
+copy_phi_args (basic_block bb, edge src_e, edge tgt_e,
+	       vec<jump_thread_edge *> *path, int idx)
 {
   gimple_stmt_iterator gsi;
   int src_indx = src_e->dest_idx;
@@ -414,8 +463,14 @@ copy_phi_args (basic_block bb, edge src_e, edge tgt_e)
   for (gsi = gsi_start_phis (bb); !gsi_end_p (gsi); gsi_next (&gsi))
     {
       gimple phi = gsi_stmt (gsi);
+      tree def = gimple_phi_arg_def (phi, src_indx);
       source_location locus = gimple_phi_arg_location (phi, src_indx);
-      add_phi_arg (phi, gimple_phi_arg_def (phi, src_indx), tgt_e, locus);
+
+      if (TREE_CODE (def) == SSA_NAME
+	  && !virtual_operand_p (gimple_phi_result (phi)))
+	def = get_value_locus_in_path (def, path, bb, idx, &locus);
+
+      add_phi_arg (phi, def, tgt_e, locus);
     }
 }
 
@@ -423,10 +478,13 @@ copy_phi_args (basic_block bb, edge src_e, edge tgt_e)
    edges.  The copy is NEW_BB.  Every PHI node in every direct successor of
    ORIG_BB has a new argument associated with edge from NEW_BB to the
    successor.  Initialize the PHI argument so that it is equal to the PHI
-   argument associated with the edge from ORIG_BB to the successor.  */
+   argument associated with the edge from ORIG_BB to the successor.
+   PATH and IDX are used to check if the new PHI argument has constant
+   value in a flow sensitive manner.  */
 
 static void
-update_destination_phis (basic_block orig_bb, basic_block new_bb)
+update_destination_phis (basic_block orig_bb, basic_block new_bb,
+			 vec<jump_thread_edge *> *path, int idx)
 {
   edge_iterator ei;
   edge e;
@@ -434,7 +492,7 @@ update_destination_phis (basic_block orig_bb, basic_block new_bb)
   FOR_EACH_EDGE (e, ei, orig_bb->succs)
     {
       edge e2 = find_edge (new_bb, e->dest);
-      copy_phi_args (e->dest, e, e2);
+      copy_phi_args (e->dest, e, e2, path, idx);
     }
 }
 
@@ -443,11 +501,13 @@ update_destination_phis (basic_block orig_bb, basic_block new_bb)
    destination.
 
    Add an additional argument to any PHI nodes at the single
-   destination.  */
+   destination.  IDX is the start node in jump threading path
+   we start to check to see if the new PHI argument has constant
+   value along the jump threading path.  */
 
 static void
 create_edge_and_update_destination_phis (struct redirection_data *rd,
-					 basic_block bb)
+					 basic_block bb, int idx)
 {
   edge e = make_edge (bb, rd->path->last ()->e->dest, EDGE_FALLTHRU);
 
@@ -476,7 +536,7 @@ create_edge_and_update_destination_phis (struct redirection_data *rd,
      from the duplicate block, then we will need to add a new argument
      to them.  The argument should have the same value as the argument
      associated with the outgoing edge stored in RD.  */
-  copy_phi_args (e->dest, rd->path->last ()->e, e);
+  copy_phi_args (e->dest, rd->path->last ()->e, e, rd->path, idx);
 }
 
 /* Look through PATH beginning at START and return TRUE if there are
@@ -501,6 +561,7 @@ void
 ssa_fix_duplicate_block_edges (struct redirection_data *rd,
 			       ssa_local_info_t *local_info)
 {
+  bool multi_incomings = (rd->incoming_edges->next != NULL);
   edge e = rd->incoming_edges->e;
   vec<jump_thread_edge *> *path = THREAD_PATH (e);
 
@@ -516,8 +577,10 @@ ssa_fix_duplicate_block_edges (struct redirection_data *rd,
 	  edge e2;
 
 	  /* This updates the PHIs at the destination of the duplicate
-	     block.  */
-	  update_destination_phis (local_info->bb, rd->dup_blocks[count]);
+	     block.  Pass 0 instead of i if we are threading a path which
+	     has multiple incoming edges.  */
+	  update_destination_phis (local_info->bb, rd->dup_blocks[count],
+				   path, multi_incomings ? 0 : i);
 
 	  /* Find the edge from the duplicate block to the block we're
 	     threading through.  That's the edge we want to redirect.  */
@@ -535,7 +598,8 @@ ssa_fix_duplicate_block_edges (struct redirection_data *rd,
 		 case), then the PHIs in the target already have the correct
 		 arguments.  */
 	      if (e2 == victim)
-		copy_phi_args (e2->dest, path->last ()->e, e2);
+		copy_phi_args (e2->dest, path->last ()->e, e2,
+			       path, multi_incomings ? 0 : i);
 	    }
 	  else
 	    {
@@ -567,7 +631,8 @@ ssa_fix_duplicate_block_edges (struct redirection_data *rd,
       else if ((*path)[i]->type == EDGE_COPY_SRC_BLOCK)
 	{
 	  remove_ctrl_stmt_and_useless_edges (rd->dup_blocks[count], NULL);
-	  create_edge_and_update_destination_phis (rd, rd->dup_blocks[count]);
+	  create_edge_and_update_destination_phis (rd, rd->dup_blocks[count],
+						   multi_incomings ? 0 : i);
 	  if (count == 1)
 	    single_succ_edge (rd->dup_blocks[1])->aux = NULL;
 	  count++;
@@ -699,6 +764,14 @@ ssa_redirect_edges (struct redirection_data **slot,
 	  if ((*path)[1]->type != EDGE_COPY_SRC_JOINER_BLOCK)
 	    EDGE_SUCC (rd->dup_blocks[0], 0)->count += e->count;
 
+	  /* If we redirect a loop latch edge cancel its loop.  */
+	  if (e->src == e->src->loop_father->latch)
+	    {
+	      e->src->loop_father->header = NULL;
+	      e->src->loop_father->latch = NULL;
+	      loops_state_set (LOOPS_NEED_FIXUP);
+	    }
+
 	  /* Redirect the incoming edge (possibly to the joiner block) to the
 	     appropriate duplicate block.  */
 	  e2 = redirect_edge_and_branch (e, rd->dup_blocks[0]);
@@ -779,39 +852,13 @@ thread_block_1 (basic_block bb, bool noloop_only, bool joiners)
   edge e, e2;
   edge_iterator ei;
   ssa_local_info_t local_info;
-  struct loop *loop = bb->loop_father;
 
   /* To avoid scanning a linear array for the element we need we instead
      use a hash table.  For normal code there should be no noticeable
      difference.  However, if we have a block with a large number of
      incoming and outgoing edges such linear searches can get expensive.  */
-  redirection_data.create (EDGE_COUNT (bb->succs));
-
-  /* If we thread the latch of the loop to its exit, the loop ceases to
-     exist.  Make sure we do not restrict ourselves in order to preserve
-     this loop.  */
-  if (loop->header == bb)
-    {
-      e = loop_latch_edge (loop);
-      vec<jump_thread_edge *> *path = THREAD_PATH (e);
-
-      if (path
-	  && (((*path)[1]->type == EDGE_COPY_SRC_JOINER_BLOCK && joiners)
-	      || ((*path)[1]->type == EDGE_COPY_SRC_BLOCK && !joiners)))
-	{
-	  for (unsigned int i = 1; i < path->length (); i++)
-	    {
-	      edge e2 = (*path)[i]->e;
-
-	      if (loop_exit_edge_p (loop, e2))
-		{
-		  loop->header = NULL;
-		  loop->latch = NULL;
-		  loops_state_set (LOOPS_NEED_FIXUP);
-		}
-	    }
-	}
-    }
+  redirection_data
+    = new hash_table<struct redirection_data> (EDGE_COUNT (bb->succs));
 
   /* Record each unique threaded destination into a hash table for
      efficient lookups.  */
@@ -896,7 +943,7 @@ thread_block_1 (basic_block bb, bool noloop_only, bool joiners)
   local_info.template_block = NULL;
   local_info.bb = bb;
   local_info.jumps_threaded = false;
-  redirection_data.traverse <ssa_local_info_t *, ssa_create_duplicates>
+  redirection_data->traverse <ssa_local_info_t *, ssa_create_duplicates>
 			    (&local_info);
 
   /* The template does not have an outgoing edge.  Create that outgoing
@@ -904,18 +951,19 @@ thread_block_1 (basic_block bb, bool noloop_only, bool joiners)
 
      We do this after creating all the duplicates to avoid creating
      unnecessary edges.  */
-  redirection_data.traverse <ssa_local_info_t *, ssa_fixup_template_block>
+  redirection_data->traverse <ssa_local_info_t *, ssa_fixup_template_block>
 			    (&local_info);
 
   /* The hash table traversals above created the duplicate blocks (and the
      statements within the duplicate blocks).  This loop creates PHI nodes for
      the duplicated blocks and redirects the incoming edges into BB to reach
      the duplicates of BB.  */
-  redirection_data.traverse <ssa_local_info_t *, ssa_redirect_edges>
+  redirection_data->traverse <ssa_local_info_t *, ssa_redirect_edges>
 			    (&local_info);
 
   /* Done with this block.  Clear REDIRECTION_DATA.  */
-  redirection_data.dispose ();
+  delete redirection_data;
+  redirection_data = NULL;
 
   if (noloop_only
       && bb == bb->loop_father->header)
@@ -989,7 +1037,7 @@ thread_single_edge (edge e)
 
   create_block_for_threading (bb, &rd, 0);
   remove_ctrl_stmt_and_useless_edges (rd.dup_blocks[0], NULL);
-  create_edge_and_update_destination_phis (&rd, rd.dup_blocks[0]);
+  create_edge_and_update_destination_phis (&rd, rd.dup_blocks[0], 0);
 
   if (dump_file && (dump_flags & TDF_DETAILS))
     fprintf (dump_file, "  Threaded jump %d --> %d to %d\n",
@@ -1641,9 +1689,6 @@ thread_through_all_blocks (bool may_peel_loop_headers)
   bitmap_iterator bi;
   bitmap threaded_blocks;
   struct loop *loop;
-
-  /* We must know about loops in order to preserve them.  */
-  gcc_assert (current_loops != NULL);
 
   if (!paths.exists ())
     return false;

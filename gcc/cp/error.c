@@ -318,6 +318,11 @@ dump_template_bindings (cxx_pretty_printer *pp, tree parms, tree args,
   if (vec_safe_is_empty (typenames) || uses_template_parms (args))
     return;
 
+  /* Don't try to print typenames when we're processing a clone.  */
+  if (current_function_decl
+      && !DECL_LANG_SPECIFIC (current_function_decl))
+    return;
+
   FOR_EACH_VEC_SAFE_ELT (typenames, i, t)
     {
       if (need_semicolon)
@@ -1913,6 +1918,7 @@ dump_expr (cxx_pretty_printer *pp, tree t, int flags)
 	pp_cxx_ws_string (pp, M_("<unknown>"));
       break;
 
+    case VOID_CST:
     case INTEGER_CST:
     case REAL_CST:
     case STRING_CST:
@@ -2921,7 +2927,7 @@ type_to_string (tree typ, int verbose)
   if (typ && TYPE_P (typ) && typ != TYPE_CANONICAL (typ)
       && !uses_template_parms (typ))
     {
-      int aka_start; char *p;
+      int aka_start, aka_len; char *p;
       struct obstack *ob = pp_buffer (cxx_pp)->obstack;
       /* Remember the end of the initial dump.  */
       int len = obstack_object_size (ob);
@@ -2931,10 +2937,11 @@ type_to_string (tree typ, int verbose)
       /* And remember the start of the aka dump.  */
       aka_start = obstack_object_size (ob);
       dump_type (cxx_pp, aka, flags);
+      aka_len = obstack_object_size (ob) - aka_start;
       pp_right_brace (cxx_pp);
       p = (char*)obstack_base (ob);
       /* If they are identical, cut off the aka with a NUL.  */
-      if (memcmp (p, p+aka_start, len) == 0)
+      if (len == aka_len && memcmp (p, p+aka_start, len) == 0)
 	p[len] = '\0';
     }
   return pp_ggc_formatted_text (cxx_pp);

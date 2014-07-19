@@ -1,5 +1,5 @@
 /* longlong.h -- definitions for mixed size 32/64 bit arithmetic.
-   Copyright (C) 1991-2013 Free Software Foundation, Inc.
+   Copyright (C) 1991-2014 Free Software Foundation, Inc.
 
    This file is part of the GNU C Library.
 
@@ -121,6 +121,22 @@ extern const UQItype __clz_tab[256] attribute_hidden;
 #define __CLOBBER_CC : "cc"
 #define __AND_CLOBBER_CC , "cc"
 #endif /* __GNUC__ < 2 */
+
+#if defined (__aarch64__)
+
+#if W_TYPE_SIZE == 32
+#define count_leading_zeros(COUNT, X)	((COUNT) = __builtin_clz (X))
+#define count_trailing_zeros(COUNT, X)   ((COUNT) = __builtin_ctz (X))
+#define COUNT_LEADING_ZEROS_0 32
+#endif /* W_TYPE_SIZE == 32 */
+
+#if W_TYPE_SIZE == 64
+#define count_leading_zeros(COUNT, X)	((COUNT) = __builtin_clzll (X))
+#define count_trailing_zeros(COUNT, X)   ((COUNT) = __builtin_ctzll (X))
+#define COUNT_LEADING_ZEROS_0 64
+#endif /* W_TYPE_SIZE == 64 */
+
+#endif /* __aarch64__ */
 
 #if defined (__alpha) && W_TYPE_SIZE == 64
 #define umul_ppmm(ph, pl, m0, m1) \
@@ -467,7 +483,7 @@ extern UDItype __umulsidi3 (USItype, USItype);
 #define UDIV_TIME 40
 #endif /* 80x86 */
 
-#if (defined (__x86_64__) || defined (__i386__)) && W_TYPE_SIZE == 64
+#if defined (__x86_64__) && W_TYPE_SIZE == 64
 #define add_ssaaaa(sh, sl, ah, al, bh, bl) \
   __asm__ ("add{q} {%5,%1|%1,%5}\n\tadc{q} {%3,%0|%0,%3}"		\
 	   : "=r" ((UDItype) (sh)),					\
@@ -832,7 +848,7 @@ extern UDItype __umulsidi3 (USItype, USItype);
 #define UMUL_TIME 10
 #define UDIV_TIME 100
 
-#if (__mips == 32 || __mips == 64) && ! __mips16
+#if (__mips == 32 || __mips == 64) && ! defined (__mips16)
 #define count_leading_zeros(COUNT,X)	((COUNT) = __builtin_clz (X))
 #define COUNT_LEADING_ZEROS_0 32
 #endif

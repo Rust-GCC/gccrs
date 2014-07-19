@@ -61,6 +61,7 @@
 #include "gimple.h"
 #include "df.h"
 #include "tm-constrs.h"
+#include "builtins.h"
 
 /* Prototypes */
 
@@ -460,7 +461,7 @@ m32c_override_options_after_change (void)
 static struct machine_function *
 m32c_init_machine_status (void)
 {
-  return ggc_alloc_cleared_machine_function ();
+  return ggc_cleared_alloc<machine_function> ();
 }
 
 /* Implements INIT_EXPANDERS.  We just set up to call the above
@@ -853,7 +854,7 @@ m32c_cannot_change_mode_class (enum machine_mode from,
 
 #define A0_OR_PSEUDO(x) (IS_REG(x, A0_REGNO) || REGNO (x) >= FIRST_PSEUDO_REGISTER)
 
-/* Implements EXTRA_CONSTRAINT_STR (see next function too).  'S' is
+/* Implements matching for constraints (see next function too).  'S' is
    for memory constraints, plus "Rpa" for PARALLEL rtx's we use for
    call return values.  */
 bool
@@ -3075,7 +3076,7 @@ m32c_note_pragma_address (const char *varname, unsigned address)
 
   if (!*slot)
     {
-      *slot = ggc_alloc_pragma_entry ();
+      *slot = ggc_alloc<pragma_entry> ();
       (*slot)->varname = ggc_strdup (varname);
     }
   (*slot)->address = address;
@@ -3159,7 +3160,7 @@ m32c_illegal_subreg_p (rtx op)
 {
   int offset;
   unsigned int i;
-  int src_mode, dest_mode;
+  enum machine_mode src_mode, dest_mode;
 
   if (GET_CODE (op) == MEM
       && ! m32c_legitimate_address_p (Pmode, XEXP (op, 0), false))

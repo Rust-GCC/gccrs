@@ -8,6 +8,7 @@
 package json
 
 import (
+	"bytes"
 	"encoding"
 	"encoding/base64"
 	"errors"
@@ -15,7 +16,6 @@ import (
 	"reflect"
 	"runtime"
 	"strconv"
-	"strings"
 	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
@@ -53,6 +53,11 @@ import (
 // skips that field and completes the unmarshalling as best it can.
 // If no more serious errors are encountered, Unmarshal returns
 // an UnmarshalTypeError describing the earliest such error.
+//
+// The JSON null value unmarshals into an interface, map, pointer, or slice
+// by setting that Go value to nil. Because null is often used in JSON to mean
+// ``not present,'' unmarshaling a JSON null into any other Go type has no effect
+// on the value and produces no error.
 //
 // When unmarshaling quoted strings, invalid UTF-8 or
 // invalid UTF-16 surrogate pairs are not treated as an error.
@@ -500,11 +505,11 @@ func (d *decodeState) object(v reflect.Value) {
 			d.error(errPhase)
 		}
 
-		// Read string key.
+		// Read key.
 		start := d.off - 1
 		op = d.scanWhile(scanContinue)
 		item := d.data[start : d.off-1]
-		key, ok := unquote(item)
+		key, ok := unquoteBytes(item)
 		if !ok {
 			d.error(errPhase)
 		}
@@ -526,11 +531,11 @@ func (d *decodeState) object(v reflect.Value) {
 			fields := cachedTypeFields(v.Type())
 			for i := range fields {
 				ff := &fields[i]
-				if ff.name == key {
+				if bytes.Equal(ff.nameBytes, key) {
 					f = ff
 					break
 				}
-				if f == nil && strings.EqualFold(ff.name, key) {
+				if f == nil && ff.equalFold(ff.nameBytes, key) {
 					f = ff
 				}
 			}
@@ -561,6 +566,7 @@ func (d *decodeState) object(v reflect.Value) {
 		if destring {
 			d.value(reflect.ValueOf(&d.tempstr))
 			d.literalStore([]byte(d.tempstr), subv, true)
+			d.tempstr = "" // Zero scratch space for successive values.
 		} else {
 			d.value(subv)
 		}

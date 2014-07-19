@@ -332,7 +332,7 @@ new_scev_info_str (basic_block instantiated_below, tree var)
 {
   struct scev_info_str *res;
 
-  res = ggc_alloc_scev_info_str ();
+  res = ggc_alloc<scev_info_str> ();
   res->name_version = SSA_NAME_VERSION (var);
   res->chrec = chrec_not_analyzed_yet;
   res->instantiated_below = instantiated_below->index;
@@ -1428,7 +1428,7 @@ simplify_peeled_chrec (struct loop *loop, tree arg, tree init_cond)
   tree_to_aff_combination_expand (left, type, &aff1, &peeled_chrec_map);
   tree_to_aff_combination_expand (step_val, type, &aff2, &peeled_chrec_map);
   free_affine_expand_cache (&peeled_chrec_map);
-  aff_combination_scale (&aff2, double_int_minus_one);
+  aff_combination_scale (&aff2, -1);
   aff_combination_add (&aff1, &aff2);
 
   /* Transform (init, {left, right}_LOOP)_LOOP to {init, right}_LOOP
@@ -3196,9 +3196,6 @@ scev_reset (void)
   struct loop *loop;
 
   scev_reset_htab ();
-
-  if (!current_loops)
-    return;
 
   FOR_EACH_LOOP (loop, 0)
     {

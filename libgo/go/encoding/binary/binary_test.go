@@ -111,7 +111,7 @@ func checkResult(t *testing.T, dir string, order ByteOrder, err error, have, wan
 
 func testRead(t *testing.T, order ByteOrder, b []byte, s1 interface{}) {
 	var s2 Struct
-	err := Read(bytes.NewBuffer(b), order, &s2)
+	err := Read(bytes.NewReader(b), order, &s2)
 	checkResult(t, "Read", order, err, s2, s1)
 }
 
@@ -131,7 +131,7 @@ func TestBigEndianPtrWrite(t *testing.T) { testWrite(t, BigEndian, big, &s) }
 
 func TestReadSlice(t *testing.T) {
 	slice := make([]int32, 2)
-	err := Read(bytes.NewBuffer(src), BigEndian, slice)
+	err := Read(bytes.NewReader(src), BigEndian, slice)
 	checkResult(t, "ReadSlice", BigEndian, err, slice, res)
 }
 
@@ -263,6 +263,30 @@ func TestBlankFields(t *testing.T) {
 	if b1.A != b2.A || b1.B != b2.B || b1.C != b2.C {
 		t.Errorf("%#v != %#v", b1, b2)
 	}
+}
+
+// An attempt to read into a struct with an unexported field will
+// panic.  This is probably not the best choice, but at this point
+// anything else would be an API change.
+
+type Unexported struct {
+	a int32
+}
+
+func TestUnexportedRead(t *testing.T) {
+	var buf bytes.Buffer
+	u1 := Unexported{a: 1}
+	if err := Write(&buf, LittleEndian, &u1); err != nil {
+		t.Fatal(err)
+	}
+
+	defer func() {
+		if recover() == nil {
+			t.Fatal("did not panic")
+		}
+	}()
+	var u2 Unexported
+	Read(&buf, LittleEndian, &u2)
 }
 
 type byteSliceReader struct {

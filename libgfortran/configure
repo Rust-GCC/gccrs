@@ -606,6 +606,9 @@ am__EXEEXT_TRUE
 LTLIBOBJS
 LIBOBJS
 IEEE_FLAGS
+IEEE_SUPPORT
+IEEE_SUPPORT_FALSE
+IEEE_SUPPORT_TRUE
 FPU_HOST_HEADER
 LIBGFOR_BUILD_QUAD_FALSE
 LIBGFOR_BUILD_QUAD_TRUE
@@ -2599,6 +2602,8 @@ as_fn_append ac_func_list " getegid"
 as_fn_append ac_func_list " secure_getenv"
 as_fn_append ac_func_list " __secure_getenv"
 as_fn_append ac_func_list " mkostemp"
+as_fn_append ac_func_list " strnlen"
+as_fn_append ac_func_list " strndup"
 as_fn_append ac_header_list " math.h"
 # Check that the precious variables saved in the cache have kept the same
 # value.
@@ -5769,12 +5774,13 @@ fi
 # Add -Wall -fno-repack-arrays -fno-underscoring if we are using GCC.
 if test "x$GCC" = "xyes"; then
   AM_FCFLAGS="-I . -Wall -Werror -fimplicit-none -fno-repack-arrays -fno-underscoring"
-  ## We like to use C99 routines when available.  This makes sure that
+  ## We like to use C11 and C99 routines when available.  This makes
+  ## sure that
   ## __STDC_VERSION__ is set such that libc includes make them available.
-  AM_CFLAGS="-std=gnu99 -Wall -Wstrict-prototypes -Wmissing-prototypes -Wold-style-definition -Wextra -Wwrite-strings"
+  AM_CFLAGS="-std=gnu11 -Wall -Wstrict-prototypes -Wmissing-prototypes -Wold-style-definition -Wextra -Wwrite-strings"
   ## Compile the following tests with the same system header contents
   ## that we'll encounter when compiling our own source files.
-  CFLAGS="-std=gnu99 $CFLAGS"
+  CFLAGS="-std=gnu11 $CFLAGS"
 fi
 
 
@@ -12343,7 +12349,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 12346 "configure"
+#line 12352 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -12449,7 +12455,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 12452 "configure"
+#line 12458 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -16473,6 +16479,12 @@ $as_echo "#define HAVE_LOCALTIME_R 1" >>confdefs.h
 $as_echo "#define HAVE_GMTIME_R 1" >>confdefs.h
 
 
+$as_echo "#define HAVE_STRNLEN 1" >>confdefs.h
+
+
+$as_echo "#define HAVE_STRNDUP 1" >>confdefs.h
+
+
    # At some point, we should differentiate between architectures
    # like x86, which have long double versions, and alpha/powerpc/etc.,
    # which don't. For the time being, punt.
@@ -16497,6 +16509,10 @@ _ACEOF
 
 fi
 done
+
+
+
+
 
 
 
@@ -25935,7 +25951,7 @@ fi
 # test is copied from libgomp, and modified to not link in -lrt as
 # libgfortran calls clock_gettime via a weak reference if it's found
 # in librt.
-if test $ac_cv_func_clock_gettime = no; then
+if test "$ac_cv_func_clock_gettime" = no; then
   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for clock_gettime in -lrt" >&5
 $as_echo_n "checking for clock_gettime in -lrt... " >&6; }
 if test "${ac_cv_lib_rt_clock_gettime+set}" = set; then :
@@ -26029,7 +26045,10 @@ $as_echo "#define HAVE_FPSETMASK 1" >>confdefs.h
 
   fi
 
-ac_fn_c_check_type "$LINENO" "fp_except" "ac_cv_type_fp_except" "#include <ieeefp.h>
+ac_fn_c_check_type "$LINENO" "fp_except" "ac_cv_type_fp_except" "
+#include <ieeefp.h>
+#include <math.h>
+
 "
 if test "x$ac_cv_type_fp_except" = x""yes; then :
 
@@ -26039,7 +26058,10 @@ _ACEOF
 
 
 fi
-ac_fn_c_check_type "$LINENO" "fp_except_t" "ac_cv_type_fp_except_t" "#include <ieeefp.h>
+ac_fn_c_check_type "$LINENO" "fp_except_t" "ac_cv_type_fp_except_t" "
+#include <ieeefp.h>
+#include <math.h>
+
 "
 if test "x$ac_cv_type_fp_except_t" = x""yes; then :
 
@@ -26050,7 +26072,10 @@ _ACEOF
 
 fi
 
-ac_fn_c_check_type "$LINENO" "fp_rnd" "ac_cv_type_fp_rnd" "#include <ieeefp.h>
+ac_fn_c_check_type "$LINENO" "fp_rnd" "ac_cv_type_fp_rnd" "
+#include <ieeefp.h>
+#include <math.h>
+
 "
 if test "x$ac_cv_type_fp_rnd" = x""yes; then :
 
@@ -26060,7 +26085,10 @@ _ACEOF
 
 
 fi
-ac_fn_c_check_type "$LINENO" "fp_rnd_t" "ac_cv_type_fp_rnd_t" "#include <ieeefp.h>
+ac_fn_c_check_type "$LINENO" "fp_rnd_t" "ac_cv_type_fp_rnd_t" "
+#include <ieeefp.h>
+#include <math.h>
+
 "
 if test "x$ac_cv_type_fp_rnd_t" = x""yes; then :
 
@@ -26068,6 +26096,22 @@ cat >>confdefs.h <<_ACEOF
 #define HAVE_FP_RND_T 1
 _ACEOF
 
+
+fi
+
+
+# Check whether we have fpsetsticky or fpresetsticky
+ac_fn_c_check_func "$LINENO" "fpsetsticky" "ac_cv_func_fpsetsticky"
+if test "x$ac_cv_func_fpsetsticky" = x""yes; then :
+  have_fpsetsticky=yes
+$as_echo "#define HAVE_FPSETSTICKY 1" >>confdefs.h
+
+fi
+
+ac_fn_c_check_func "$LINENO" "fpresetsticky" "ac_cv_func_fpresetsticky"
+if test "x$ac_cv_func_fpresetsticky" = x""yes; then :
+  have_fpresetsticky=yes
+$as_echo "#define HAVE_FPRESETSTICKY 1" >>confdefs.h
 
 fi
 
@@ -26094,7 +26138,20 @@ fi
 . ${srcdir}/configure.host
 { $as_echo "$as_me:${as_lineno-$LINENO}: FPU dependent file will be ${fpu_host}.h" >&5
 $as_echo "$as_me: FPU dependent file will be ${fpu_host}.h" >&6;}
+{ $as_echo "$as_me:${as_lineno-$LINENO}: Support for IEEE modules: ${ieee_support}" >&5
+$as_echo "$as_me: Support for IEEE modules: ${ieee_support}" >&6;}
 FPU_HOST_HEADER=config/${fpu_host}.h
+
+
+# Whether we will build the IEEE modules
+ if test x${ieee_support} = xyes; then
+  IEEE_SUPPORT_TRUE=
+  IEEE_SUPPORT_FALSE='#'
+else
+  IEEE_SUPPORT_TRUE='#'
+  IEEE_SUPPORT_FALSE=
+fi
+
 
 
 # Some targets require additional compiler options for IEEE compatibility.
@@ -26738,6 +26795,10 @@ Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${LIBGFOR_BUILD_QUAD_TRUE}" && test -z "${LIBGFOR_BUILD_QUAD_FALSE}"; then
   as_fn_error "conditional \"LIBGFOR_BUILD_QUAD\" was never defined.
+Usually this means the macro was only invoked conditionally." "$LINENO" 5
+fi
+if test -z "${IEEE_SUPPORT_TRUE}" && test -z "${IEEE_SUPPORT_FALSE}"; then
+  as_fn_error "conditional \"IEEE_SUPPORT\" was never defined.
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 

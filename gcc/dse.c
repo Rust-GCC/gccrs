@@ -608,11 +608,6 @@ static bitmap kill_on_calls;
 
 /* The number of bits used in the global bitmaps.  */
 static unsigned int current_position;
-
-
-static bool gate_dse1 (void);
-static bool gate_dse2 (void);
-
 
 /*----------------------------------------------------------------------------
    Zeroth step.
@@ -663,7 +658,7 @@ invariant_group_base_hasher::hash (const value_type *gi)
 }
 
 /* Tables of group_info structures, hashed by base value.  */
-static hash_table <invariant_group_base_hasher> rtx_group_table;
+static hash_table<invariant_group_base_hasher> *rtx_group_table;
 
 
 /* Get the GROUP for BASE.  Add a new group if it is not there.  */
@@ -680,7 +675,7 @@ get_group_info (rtx base)
       /* Find the store_base_info structure for BASE, creating a new one
 	 if necessary.  */
       tmp_gi.rtx_base = base;
-      slot = rtx_group_table.find_slot (&tmp_gi, INSERT);
+      slot = rtx_group_table->find_slot (&tmp_gi, INSERT);
       gi = (group_info_t) *slot;
     }
   else
@@ -770,7 +765,7 @@ dse_step0 (void)
     = create_alloc_pool ("deferred_change_pool",
 			 sizeof (struct deferred_change), 10);
 
-  rtx_group_table.create (11);
+  rtx_group_table = new hash_table<invariant_group_base_hasher> (11);
 
   bb_table = XNEWVEC (bb_info_t, last_basic_block_for_fn (cfun));
   rtx_group_next_id = 0;
@@ -2834,7 +2829,7 @@ dse_step1 (void)
 
   BITMAP_FREE (regs_live);
   cselib_finish ();
-  rtx_group_table.empty ();
+  rtx_group_table->empty ();
 }
 
 
@@ -3659,7 +3654,8 @@ dse_step7 (void)
 
   end_alias_analysis ();
   free (bb_table);
-  rtx_group_table.dispose ();
+  delete rtx_group_table;
+  rtx_group_table = NULL;
   rtx_group_vec.release ();
   BITMAP_FREE (all_blocks);
   BITMAP_FREE (scratch);
@@ -3712,20 +3708,6 @@ rest_of_handle_dse (void)
   return 0;
 }
 
-static bool
-gate_dse1 (void)
-{
-  return optimize > 0 && flag_dse
-    && dbg_cnt (dse1);
-}
-
-static bool
-gate_dse2 (void)
-{
-  return optimize > 0 && flag_dse
-    && dbg_cnt (dse2);
-}
-
 namespace {
 
 const pass_data pass_data_rtl_dse1 =
@@ -3733,14 +3715,12 @@ const pass_data pass_data_rtl_dse1 =
   RTL_PASS, /* type */
   "dse1", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_DSE1, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  ( TODO_df_finish | TODO_verify_rtl_sharing ), /* todo_flags_finish */
+  TODO_df_finish, /* todo_flags_finish */
 };
 
 class pass_rtl_dse1 : public rtl_opt_pass
@@ -3751,8 +3731,12 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_dse1 (); }
-  unsigned int execute () { return rest_of_handle_dse (); }
+  virtual bool gate (function *)
+    {
+      return optimize > 0 && flag_dse && dbg_cnt (dse1);
+    }
+
+  virtual unsigned int execute (function *) { return rest_of_handle_dse (); }
 
 }; // class pass_rtl_dse1
 
@@ -3771,14 +3755,12 @@ const pass_data pass_data_rtl_dse2 =
   RTL_PASS, /* type */
   "dse2", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_DSE2, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  ( TODO_df_finish | TODO_verify_rtl_sharing ), /* todo_flags_finish */
+  TODO_df_finish, /* todo_flags_finish */
 };
 
 class pass_rtl_dse2 : public rtl_opt_pass
@@ -3789,8 +3771,12 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_dse2 (); }
-  unsigned int execute () { return rest_of_handle_dse (); }
+  virtual bool gate (function *)
+    {
+      return optimize > 0 && flag_dse && dbg_cnt (dse2);
+    }
+
+  virtual unsigned int execute (function *) { return rest_of_handle_dse (); }
 
 }; // class pass_rtl_dse2
 

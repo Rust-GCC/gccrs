@@ -295,27 +295,27 @@ reload_cse_simplify_set (rtx set, rtx insn)
 #ifdef LOAD_EXTEND_OP
 	  if (extend_op != UNKNOWN)
 	    {
-	      HOST_WIDE_INT this_val;
+	      wide_int result;
 
-	      /* ??? I'm lazy and don't wish to handle CONST_DOUBLE.  Other
-		 constants, such as SYMBOL_REF, cannot be extended.  */
-	      if (!CONST_INT_P (this_rtx))
+	      if (!CONST_SCALAR_INT_P (this_rtx))
 		continue;
 
-	      this_val = INTVAL (this_rtx);
 	      switch (extend_op)
 		{
 		case ZERO_EXTEND:
-		  this_val &= GET_MODE_MASK (GET_MODE (src));
+		  result = wide_int::from (std::make_pair (this_rtx,
+							   GET_MODE (src)),
+					   BITS_PER_WORD, UNSIGNED);
 		  break;
 		case SIGN_EXTEND:
-		  /* ??? In theory we're already extended.  */
-		  if (this_val == trunc_int_for_mode (this_val, GET_MODE (src)))
-		    break;
+		  result = wide_int::from (std::make_pair (this_rtx,
+							   GET_MODE (src)),
+					   BITS_PER_WORD, SIGNED);
+		  break;
 		default:
 		  gcc_unreachable ();
 		}
-	      this_rtx = GEN_INT (this_val);
+	      this_rtx = immed_wide_int_const (result, word_mode);
 	    }
 #endif
 	  this_cost = set_src_cost (this_rtx, speed);
@@ -553,29 +553,15 @@ reload_cse_simplify_operands (rtx insn, rtx testreg)
 
 	      switch (c)
 		{
-		case '=':  case '+':  case '?':
-		case '#':  case '&':  case '!':
-		case '*':  case '%':
-		case '0':  case '1':  case '2':  case '3':  case '4':
-		case '5':  case '6':  case '7':  case '8':  case '9':
-		case '<':  case '>':  case 'V':  case 'o':
-		case 'E':  case 'F':  case 'G':  case 'H':
-		case 's':  case 'i':  case 'n':
-		case 'I':  case 'J':  case 'K':  case 'L':
-		case 'M':  case 'N':  case 'O':  case 'P':
-		case 'p':  case 'X':  case TARGET_MEM_CONSTRAINT:
-		  /* These don't say anything we care about.  */
-		  break;
-
-		case 'g': case 'r':
-		  rclass = reg_class_subunion[(int) rclass][(int) GENERAL_REGS];
+		case 'g':
+		  rclass = reg_class_subunion[rclass][GENERAL_REGS];
 		  break;
 
 		default:
 		  rclass
 		    = (reg_class_subunion
-		       [(int) rclass]
-		       [(int) REG_CLASS_FROM_CONSTRAINT ((unsigned char) c, p)]);
+		       [rclass]
+		       [reg_class_for_constraint (lookup_constraint (p))]);
 		  break;
 
 		case ',': case '\0':
@@ -584,7 +570,7 @@ reload_cse_simplify_operands (rtx insn, rtx testreg)
 		     alternative yet and the operand being replaced is not
 		     a cheap CONST_INT.  */
 		  if (op_alt_regno[i][j] == -1
-		      && recog_data.alternative_enabled_p[j]
+		      && TEST_BIT (recog_data.enabled_alternatives, j)
 		      && reg_fits_class_p (testreg, rclass, 0, mode)
 		      && (!CONST_INT_P (recog_data.operand[i])
 			  || (set_src_cost (recog_data.operand[i],
@@ -1819,10 +1805,14 @@ move2add_use_add2_insn (rtx reg, rtx sym, rtx off, rtx insn)
 				   gen_rtx_STRICT_LOW_PART (VOIDmode,
 							    narrow_reg),
 				   narrow_src);
-		  changed = validate_change (insn, &PATTERN (insn),
-					     new_set, 0);
-		  if (changed)
-		    break;
+		  get_full_set_rtx_cost (new_set, &newcst);
+		  if (costs_lt_p (&newcst, &oldcst, speed))
+		    {
+		      changed = validate_change (insn, &PATTERN (insn),
+						 new_set, 0);
+		      if (changed)
+			break;
+		    }
 		}
 	    }
 	}
@@ -2315,30 +2305,6 @@ move2add_note_store (rtx dst, const_rtx set, void *data)
     }
 }
 
-static bool
-gate_handle_postreload (void)
-{
-  return (optimize > 0 && reload_completed);
-}
-
-
-static unsigned int
-rest_of_handle_postreload (void)
-{
-  if (!dbg_cnt (postreload_cse))
-    return 0;
-
-  /* Do a very simple CSE pass over just the hard registers.  */
-  reload_cse_regs (get_insns ());
-  /* Reload_cse_regs can eliminate potentially-trapping MEMs.
-     Remove any EH edges associated with them.  */
-  if (cfun->can_throw_non_call_exceptions
-      && purge_all_dead_edges ())
-    cleanup_cfg (0);
-
-  return 0;
-}
-
 namespace {
 
 const pass_data pass_data_postreload_cse =
@@ -2346,14 +2312,12 @@ const pass_data pass_data_postreload_cse =
   RTL_PASS, /* type */
   "postreload", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_RELOAD_CSE_REGS, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  ( TODO_df_finish | TODO_verify_rtl_sharing | 0 ), /* todo_flags_finish */
+  TODO_df_finish, /* todo_flags_finish */
 };
 
 class pass_postreload_cse : public rtl_opt_pass
@@ -2364,10 +2328,28 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_handle_postreload (); }
-  unsigned int execute () { return rest_of_handle_postreload (); }
+  virtual bool gate (function *) { return (optimize > 0 && reload_completed); }
+
+  virtual unsigned int execute (function *);
 
 }; // class pass_postreload_cse
+
+unsigned int
+pass_postreload_cse::execute (function *fun)
+{
+  if (!dbg_cnt (postreload_cse))
+    return 0;
+
+  /* Do a very simple CSE pass over just the hard registers.  */
+  reload_cse_regs (get_insns ());
+  /* Reload_cse_regs can eliminate potentially-trapping MEMs.
+     Remove any EH edges associated with them.  */
+  if (fun->can_throw_non_call_exceptions
+      && purge_all_dead_edges ())
+    cleanup_cfg (0);
+
+  return 0;
+}
 
 } // anon namespace
 

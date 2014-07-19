@@ -1138,7 +1138,7 @@ propagate_pure_const (void)
 	  struct cgraph_edge *e;
 	  struct cgraph_edge *ie;
 	  int i;
-	  struct ipa_ref *ref;
+	  struct ipa_ref *ref = NULL;
 
 	  funct_state w_l = get_function_state (w);
 	  if (dump_file && (dump_flags & TDF_DETAILS))
@@ -1263,7 +1263,7 @@ propagate_pure_const (void)
 	    break;
 
 	  /* And finally all loads and stores.  */
-	  for (i = 0; ipa_ref_list_reference_iterate (&w->ref_list, i, ref); i++)
+	  for (i = 0; w->iterate_reference (i, ref); i++)
 	    {
 	      enum pure_const_state_e ref_state = IPA_CONST;
 	      bool ref_looping = false;
@@ -1271,14 +1271,14 @@ propagate_pure_const (void)
 		{
 		case IPA_REF_LOAD:
 		  /* readonly reads are safe.  */
-		  if (TREE_READONLY (ipa_ref_varpool_node (ref)->decl))
+		  if (TREE_READONLY (ref->referred->decl))
 		    break;
 		  if (dump_file && (dump_flags & TDF_DETAILS))
 		    fprintf (dump_file, "    nonreadonly global var read\n");
 		  ref_state = IPA_PURE;
 		  break;
 		case IPA_REF_STORE:
-		  if (ipa_ref_cannot_lead_to_return (ref))
+		  if (ref->cannot_lead_to_return ())
 		    break;
 		  ref_state = IPA_NEITHER;
 		  if (dump_file && (dump_flags & TDF_DETAILS))
@@ -1286,6 +1286,8 @@ propagate_pure_const (void)
 		  break;
 		case IPA_REF_ADDR:
 		  break;
+		default:
+		  gcc_unreachable ();
 		}
 	      better_state (&ref_state, &ref_looping,
 			    w_l->state_previously_known,
@@ -1515,8 +1517,6 @@ const pass_data pass_data_ipa_pure_const =
   IPA_PASS, /* type */
   "pure-const", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_IPA_PURE_CONST, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
@@ -1542,8 +1542,8 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_pure_const (); }
-  unsigned int execute () { return propagate (); }
+  virtual bool gate (function *) { return gate_pure_const (); }
+  virtual unsigned int execute (function *) { return propagate (); }
 
 }; // class pass_ipa_pure_const
 
@@ -1582,8 +1582,37 @@ skip_function_for_local_pure_const (struct cgraph_node *node)
    ipa_pure_const.   This pass is effective when executed together with
    other optimization passes in early optimization pass queue.  */
 
-static unsigned int
-local_pure_const (void)
+namespace {
+
+const pass_data pass_data_local_pure_const =
+{
+  GIMPLE_PASS, /* type */
+  "local-pure-const", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  TV_IPA_PURE_CONST, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
+};
+
+class pass_local_pure_const : public gimple_opt_pass
+{
+public:
+  pass_local_pure_const (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_local_pure_const, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  opt_pass * clone () { return new pass_local_pure_const (m_ctxt); }
+  virtual bool gate (function *) { return gate_pure_const (); }
+  virtual unsigned int execute (function *);
+
+}; // class pass_local_pure_const
+
+unsigned int
+pass_local_pure_const::execute (function *fun)
 {
   bool changed = false;
   funct_state l;
@@ -1601,17 +1630,17 @@ local_pure_const (void)
 
   /* Do NORETURN discovery.  */
   if (!skip && !TREE_THIS_VOLATILE (current_function_decl)
-      && EDGE_COUNT (EXIT_BLOCK_PTR_FOR_FN (cfun)->preds) == 0)
+      && EDGE_COUNT (EXIT_BLOCK_PTR_FOR_FN (fun)->preds) == 0)
     {
-      warn_function_noreturn (cfun->decl);
+      warn_function_noreturn (fun->decl);
       if (dump_file)
-        fprintf (dump_file, "Function found to be noreturn: %s\n",
-	         current_function_name ());
+	fprintf (dump_file, "Function found to be noreturn: %s\n",
+		 current_function_name ());
 
       /* Update declaration and reduce profile to executed once.  */
       TREE_THIS_VOLATILE (current_function_decl) = 1;
       if (node->frequency > NODE_FREQUENCY_EXECUTED_ONCE)
-        node->frequency = NODE_FREQUENCY_EXECUTED_ONCE;
+	node->frequency = NODE_FREQUENCY_EXECUTED_ONCE;
 
       changed = true;
     }
@@ -1692,37 +1721,6 @@ local_pure_const (void)
     return 0;
 }
 
-namespace {
-
-const pass_data pass_data_local_pure_const =
-{
-  GIMPLE_PASS, /* type */
-  "local-pure-const", /* name */
-  OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
-  TV_IPA_PURE_CONST, /* tv_id */
-  0, /* properties_required */
-  0, /* properties_provided */
-  0, /* properties_destroyed */
-  0, /* todo_flags_start */
-  0, /* todo_flags_finish */
-};
-
-class pass_local_pure_const : public gimple_opt_pass
-{
-public:
-  pass_local_pure_const (gcc::context *ctxt)
-    : gimple_opt_pass (pass_data_local_pure_const, ctxt)
-  {}
-
-  /* opt_pass methods: */
-  opt_pass * clone () { return new pass_local_pure_const (m_ctxt); }
-  bool gate () { return gate_pure_const (); }
-  unsigned int execute () { return local_pure_const (); }
-
-}; // class pass_local_pure_const
-
 } // anon namespace
 
 gimple_opt_pass *
@@ -1733,21 +1731,6 @@ make_pass_local_pure_const (gcc::context *ctxt)
 
 /* Emit noreturn warnings.  */
 
-static unsigned int
-execute_warn_function_noreturn (void)
-{
-  if (!TREE_THIS_VOLATILE (current_function_decl)
-      && EDGE_COUNT (EXIT_BLOCK_PTR_FOR_FN (cfun)->preds) == 0)
-    warn_function_noreturn (current_function_decl);
-  return 0;
-}
-
-static bool
-gate_warn_function_noreturn (void)
-{
-  return warn_suggest_attribute_noreturn;
-}
-
 namespace {
 
 const pass_data pass_data_warn_function_noreturn =
@@ -1755,8 +1738,6 @@ const pass_data pass_data_warn_function_noreturn =
   GIMPLE_PASS, /* type */
   "*warn_function_noreturn", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_NONE, /* tv_id */
   PROP_cfg, /* properties_required */
   0, /* properties_provided */
@@ -1773,8 +1754,14 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_warn_function_noreturn (); }
-  unsigned int execute () { return execute_warn_function_noreturn (); }
+  virtual bool gate (function *) { return warn_suggest_attribute_noreturn; }
+  virtual unsigned int execute (function *fun)
+    {
+      if (!TREE_THIS_VOLATILE (current_function_decl)
+	  && EDGE_COUNT (EXIT_BLOCK_PTR_FOR_FN (fun)->preds) == 0)
+	warn_function_noreturn (current_function_decl);
+      return 0;
+    }
 
 }; // class pass_warn_function_noreturn
 

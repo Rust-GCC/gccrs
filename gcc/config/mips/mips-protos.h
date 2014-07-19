@@ -232,7 +232,6 @@ extern bool mips_use_pic_fn_addr_reg_p (const_rtx);
 extern rtx mips_expand_call (enum mips_call_type, rtx, rtx, rtx, rtx, bool);
 extern void mips_split_call (rtx, rtx);
 extern bool mips_get_pic_call_symbol (rtx *, int);
-extern void mips_expand_fcc_reload (rtx, rtx, rtx);
 extern void mips_set_return_address (rtx, rtx);
 extern bool mips_move_by_pieces_p (unsigned HOST_WIDE_INT, unsigned int);
 extern bool mips_store_by_pieces_p (unsigned HOST_WIDE_INT, unsigned int);
@@ -248,7 +247,6 @@ extern bool mips_expand_ext_as_unaligned_load (rtx, rtx, HOST_WIDE_INT,
 extern bool mips_expand_ins_as_unaligned_store (rtx, rtx, HOST_WIDE_INT,
 						HOST_WIDE_INT);
 extern bool mips_mem_fits_mode_p (enum machine_mode mode, rtx x);
-extern void mips_order_regs_for_local_alloc (void);
 extern HOST_WIDE_INT mips_debugger_offset (rtx, HOST_WIDE_INT);
 
 extern void mips_push_asm_switch (struct mips_asm_switch *);
@@ -315,6 +313,7 @@ extern bool mips16e_save_restore_pattern_p (rtx, HOST_WIDE_INT,
 extern bool mask_low_and_shift_p (enum machine_mode, rtx, rtx, int);
 extern int mask_low_and_shift_len (enum machine_mode, rtx, rtx);
 extern bool and_operands_ok (enum machine_mode, rtx, rtx);
+extern bool mips_fmadd_bypass (rtx, rtx);
 
 union mips_gen_fn_ptrs
 {

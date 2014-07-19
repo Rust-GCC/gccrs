@@ -454,7 +454,12 @@ build_common_decl (gfc_common_head *com, tree union_type, bool is_init)
       gfc_set_decl_location (decl, &com->where);
 
       if (com->threadprivate)
-	DECL_TLS_MODEL (decl) = decl_default_tls_model (decl);
+	set_decl_tls_model (decl, decl_default_tls_model (decl));
+
+      if (com->omp_declare_target)
+	DECL_ATTRIBUTES (decl)
+	  = tree_cons (get_identifier ("omp declare target"),
+		       NULL_TREE, DECL_ATTRIBUTES (decl));
 
       /* Place the back end declaration for this common block in
          GLOBAL_BINDING_LEVEL.  */
@@ -705,6 +710,7 @@ create_common (gfc_common_head *com, segment_info *head, bool saw_equiv)
 	TREE_ADDRESSABLE (var_decl) = 1;
       /* Fake variables are not visible from other translation units. */
       TREE_PUBLIC (var_decl) = 0;
+      gfc_finish_decl_attrs (var_decl, &s->sym->attr);
 
       /* To preserve identifier names in COMMON, chain to procedure
          scope unless at top level in a module definition.  */

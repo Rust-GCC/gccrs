@@ -38,6 +38,7 @@ const (
 	TypeXGlobalHeader = 'g'    // global extended header
 	TypeGNULongName   = 'L'    // Next file has a long name
 	TypeGNULongLink   = 'K'    // Next file symlinks to a file w/ a long name
+	TypeGNUSparse     = 'S'    // sparse file
 )
 
 // A Header represents a single header in a tar archive.
@@ -57,6 +58,7 @@ type Header struct {
 	Devminor   int64     // minor number of character or block device
 	AccessTime time.Time // access time
 	ChangeTime time.Time // status change time
+	Xattrs     map[string]string
 }
 
 // File name constants from the tar spec.
@@ -189,6 +191,7 @@ const (
 	paxSize     = "size"
 	paxUid      = "uid"
 	paxUname    = "uname"
+	paxXattr    = "SCHILY.xattr."
 	paxNone     = ""
 )
 

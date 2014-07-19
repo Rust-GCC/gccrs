@@ -49,6 +49,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "is-a.h"
 #include "gimple.h"
 #include "lto-streamer.h"
+#include "lto-section-names.h"
+#include "builtins.h"
 
 /* i386/PE specific attribute support.
 
@@ -436,7 +438,7 @@ i386_pe_unique_section (tree decl, int reloc)
   string = XALLOCAVEC (char, len + 1);
   sprintf (string, "%s%s", prefix, name);
 
-  DECL_SECTION_NAME (decl) = build_string (len, string);
+  set_decl_section_name (decl, string);
 }
 
 /* Local and global relocs can be placed always into readonly memory for
@@ -467,19 +469,12 @@ i386_pe_reloc_rw_mask (void)
 unsigned int
 i386_pe_section_type_flags (tree decl, const char *name, int reloc)
 {
-  static hash_table <pointer_hash <unsigned int> > htab;
   unsigned int flags;
-  unsigned int **slot;
 
   /* Ignore RELOC, if we are allowed to put relocated
      const data into read-only section.  */
   if (!flag_writable_rel_rdata)
     reloc = 0;
-  /* The names we put in the hashtable will always be the unique
-     versions given to us by the stringtable, so we can just use
-     their addresses as the keys.  */
-  if (!htab.is_created ())
-    htab.create (31);
 
   if (decl && TREE_CODE (decl) == FUNCTION_DECL)
     flags = SECTION_CODE;
@@ -496,19 +491,6 @@ i386_pe_section_type_flags (tree decl, const char *name, int reloc)
 
   if (decl && DECL_P (decl) && DECL_ONE_ONLY (decl))
     flags |= SECTION_LINKONCE;
-
-  /* See if we already have an entry for this section.  */
-  slot = htab.find_slot ((const unsigned int *)name, INSERT);
-  if (!*slot)
-    {
-      *slot = (unsigned int *) xmalloc (sizeof (unsigned int));
-      **slot = flags;
-    }
-  else
-    {
-      if (decl && **slot != flags)
-	error ("%q+D causes a section type conflict", decl);
-    }
 
   return flags;
 }
@@ -649,7 +631,7 @@ i386_pe_record_external_function (tree decl, const char *name)
 {
   struct extern_list *p;
 
-  p = ggc_alloc_extern_list ();
+  p = ggc_alloc<extern_list> ();
   p->next = extern_head;
   p->decl = decl;
   p->name = name;
@@ -700,7 +682,7 @@ i386_pe_maybe_record_exported_symbol (tree decl, const char *name, int is_data)
 
   gcc_assert (TREE_PUBLIC (decl));
 
-  p = ggc_alloc_export_list ();
+  p = ggc_alloc<export_list> ();
   p->next = export_head;
   p->name = name;
   p->is_data = is_data;
@@ -724,7 +706,7 @@ i386_pe_record_stub (const char *name)
       p = p->next;
     }
 
-  p = ggc_alloc_stub_list ();
+  p = ggc_alloc<stub_list> ();
   p->next = stub_head;
   p->name = name;
   stub_head = p;
@@ -769,7 +751,7 @@ static const char *
 i386_find_on_wrapper_list (const char *target)
 {
   static char first_time = 1;
-  static hash_table <wrapped_symbol_hasher> wrappers;
+  static hash_table<wrapped_symbol_hasher> *wrappers;
 
   if (first_time)
     {
@@ -782,7 +764,7 @@ i386_find_on_wrapper_list (const char *target)
       char *bufptr;
       /* Breaks up the char array into separated strings
          strings and enter them into the hash table.  */
-      wrappers.create (8);
+      wrappers = new hash_table<wrapped_symbol_hasher> (8);
       for (bufptr = wrapper_list_buffer; *bufptr; ++bufptr)
 	{
 	  char *found = NULL;
@@ -795,12 +777,12 @@ i386_find_on_wrapper_list (const char *target)
 	  if (*bufptr)
 	    *bufptr = 0;
 	  if (found)
-	    *wrappers.find_slot (found, INSERT) = found;
+	    *wrappers->find_slot (found, INSERT) = found;
 	}
       first_time = 0;
     }
 
-  return wrappers.find (target);
+  return wrappers->find (target);
 }
 
 #endif /* CXX_WRAP_SPEC_LIST */

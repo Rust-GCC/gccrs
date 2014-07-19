@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build darwin dragonfly freebsd linux netbsd openbsd
+// +build darwin dragonfly freebsd linux nacl netbsd openbsd solaris
 
 package net
 
@@ -129,6 +129,8 @@ func FilePacketConn(f *os.File) (c PacketConn, err error) {
 	switch fd.laddr.(type) {
 	case *UDPAddr:
 		return newUDPConn(fd), nil
+	case *IPAddr:
+		return newIPConn(fd), nil
 	case *UnixAddr:
 		return newUnixConn(fd), nil
 	}

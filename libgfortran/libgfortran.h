@@ -107,14 +107,8 @@ typedef off_t gfc_offset;
    heuristic will mark this branch as much less likely as unlikely() would
    do.  */
 
-#ifndef __GNUC__
-#define __attribute__(x)
-#define likely(x)       (x)
-#define unlikely(x)     (x)
-#else
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
-#endif
 
 
 /* Make sure we have ptrdiff_t. */
@@ -234,11 +228,6 @@ extern int __mingw_snprintf (char *, size_t, const char *, ...)
 #define isnormal(x) __builtin_isnormal(x)
 #undef signbit
 #define signbit(x) __builtin_signbit(x)
-
-/* TODO: find the C99 version of these an move into above ifdef.  */
-#define REALPART(z) (__real__(z))
-#define IMAGPART(z) (__imag__(z))
-#define COMPLEX_ASSIGN(z_, r_, i_) {__real__(z_) = (r_); __imag__(z_) = (i_);}
 
 #include "kinds.h"
 
@@ -693,7 +682,7 @@ iexport_proto(backtrace);
 #define GFC_OTOA_BUF_SIZE (GFC_LARGEST_BUF * 3 + 1)
 #define GFC_BTOA_BUF_SIZE (GFC_LARGEST_BUF * 8 + 1)
 
-extern void sys_abort (void) __attribute__ ((noreturn));
+extern _Noreturn void sys_abort (void);
 internal_proto(sys_abort);
 
 extern ssize_t estr_write (const char *);
@@ -709,26 +698,25 @@ internal_proto(st_printf);
 extern const char *gfc_xtoa (GFC_UINTEGER_LARGEST, char *, size_t);
 internal_proto(gfc_xtoa);
 
-extern void os_error (const char *) __attribute__ ((noreturn));
+extern _Noreturn void os_error (const char *);
 iexport_proto(os_error);
 
 extern void show_locus (st_parameter_common *);
 internal_proto(show_locus);
 
-extern void runtime_error (const char *, ...)
-     __attribute__ ((noreturn, format (gfc_printf, 1, 2)));
+extern _Noreturn void runtime_error (const char *, ...)
+     __attribute__ ((format (gfc_printf, 1, 2)));
 iexport_proto(runtime_error);
 
-extern void runtime_error_at (const char *, const char *, ...)
-     __attribute__ ((noreturn, format (gfc_printf, 2, 3)));
+extern _Noreturn void runtime_error_at (const char *, const char *, ...)
+     __attribute__ ((format (gfc_printf, 2, 3)));
 iexport_proto(runtime_error_at);
 
 extern void runtime_warning_at (const char *, const char *, ...)
      __attribute__ ((format (gfc_printf, 2, 3)));
 iexport_proto(runtime_warning_at);
 
-extern void internal_error (st_parameter_common *, const char *)
-  __attribute__ ((noreturn));
+extern _Noreturn void internal_error (st_parameter_common *, const char *);
 internal_proto(internal_error);
 
 extern const char *translate_error (int);
@@ -754,23 +742,61 @@ internal_proto(gf_strerror);
 extern void set_fpu (void);
 internal_proto(set_fpu);
 
+extern int get_fpu_trap_exceptions (void);
+internal_proto(get_fpu_trap_exceptions);
+
+extern void set_fpu_trap_exceptions (int, int);
+internal_proto(set_fpu_trap_exceptions);
+
+extern int support_fpu_trap (int);
+internal_proto(support_fpu_trap);
+
 extern int get_fpu_except_flags (void);
 internal_proto(get_fpu_except_flags);
 
-extern void set_fpu_rounding_mode (int round);
+extern void set_fpu_except_flags (int, int);
+internal_proto(set_fpu_except_flags);
+
+extern int support_fpu_flag (int);
+internal_proto(support_fpu_flag);
+
+extern void set_fpu_rounding_mode (int);
 internal_proto(set_fpu_rounding_mode);
 
 extern int get_fpu_rounding_mode (void);
 internal_proto(get_fpu_rounding_mode);
+
+extern int support_fpu_rounding_mode (int);
+internal_proto(support_fpu_rounding_mode);
+
+extern void get_fpu_state (void *);
+internal_proto(get_fpu_state);
+
+extern void set_fpu_state (void *);
+internal_proto(set_fpu_state);
+
+extern int get_fpu_underflow_mode (void);
+internal_proto(get_fpu_underflow_mode);
+
+extern void set_fpu_underflow_mode (int);
+internal_proto(set_fpu_underflow_mode);
+
+extern int support_fpu_underflow_control (int);
+internal_proto(support_fpu_underflow_control);
 
 /* memory.c */
 
 extern void *xmalloc (size_t) __attribute__ ((malloc));
 internal_proto(xmalloc);
 
+extern void *xmallocarray (size_t, size_t) __attribute__ ((malloc));
+internal_proto(xmallocarray);
+
 extern void *xcalloc (size_t, size_t) __attribute__ ((malloc));
 internal_proto(xcalloc);
 
+extern void *xrealloc (void *, size_t);
+internal_proto(xrealloc);
 
 /* environ.c */
 
@@ -822,6 +848,9 @@ extern gfc_charlen_type string_len_trim_char4 (gfc_charlen_type,
 					       const gfc_char4_t *);
 export_proto(string_len_trim_char4);
 
+extern char *fc_strdup(const char *, gfc_charlen_type);
+internal_proto(fc_strdup);
+
 /* io/intrinsics.c */
 
 extern void flush_all_units (void);
@@ -843,8 +872,7 @@ internal_proto(filename_from_unit);
 
 /* stop.c */
 
-extern void stop_string (const char *, GFC_INTEGER_4)
-  __attribute__ ((noreturn));
+extern _Noreturn void stop_string (const char *, GFC_INTEGER_4);
 export_proto(stop_string);
 
 /* reshape_packed.c */

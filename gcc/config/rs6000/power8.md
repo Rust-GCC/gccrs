@@ -80,51 +80,68 @@
 ; LS Unit
 (define_insn_reservation "power8-load" 3
   (and (eq_attr "type" "load")
+       (eq_attr "sign_extend" "no")
+       (eq_attr "update" "no")
        (eq_attr "cpu" "power8"))
   "DU_any_power8,LU_or_LSU_power8")
 
 (define_insn_reservation "power8-load-update" 3
-  (and (eq_attr "type" "load_u,load_ux")
+  (and (eq_attr "type" "load")
+       (eq_attr "sign_extend" "no")
+       (eq_attr "update" "yes")
        (eq_attr "cpu" "power8"))
   "DU_cracked_power8,LU_or_LSU_power8+FXU_power8")
 
 (define_insn_reservation "power8-load-ext" 3
-  (and (eq_attr "type" "load_ext")
+  (and (eq_attr "type" "load")
+       (eq_attr "sign_extend" "yes")
+       (eq_attr "update" "no")
        (eq_attr "cpu" "power8"))
   "DU_cracked_power8,LU_or_LSU_power8,FXU_power8")
 
 (define_insn_reservation "power8-load-ext-update" 3
-  (and (eq_attr "type" "load_ext_u,load_ext_ux")
+  (and (eq_attr "type" "load")
+       (eq_attr "sign_extend" "yes")
+       (eq_attr "update" "yes")
        (eq_attr "cpu" "power8"))
   "DU_both_power8,LU_or_LSU_power8+FXU_power8,FXU_power8")
 
 (define_insn_reservation "power8-fpload" 5
-  (and (eq_attr "type" "fpload,vecload")
+  (and (ior (eq_attr "type" "vecload")
+	    (and (eq_attr "type" "fpload")
+		 (eq_attr "update" "no")))
        (eq_attr "cpu" "power8"))
   "DU_any_power8,LU_power8")
 
 (define_insn_reservation "power8-fpload-update" 5
-  (and (eq_attr "type" "fpload_u,fpload_ux")
+  (and (eq_attr "type" "fpload")
+       (eq_attr "update" "yes")
        (eq_attr "cpu" "power8"))
   "DU_cracked_power8,LU_power8+FXU_power8")
 
 (define_insn_reservation "power8-store" 5 ; store-forwarding latency
-  (and (eq_attr "type" "store,store_u")
+  (and (eq_attr "type" "store")
+       (not (and (eq_attr "update" "yes")
+		 (eq_attr "indexed" "yes")))
        (eq_attr "cpu" "power8"))
   "DU_any_power8,LSU_power8+LU_power8")
 
 (define_insn_reservation "power8-store-update-indexed" 5
-  (and (eq_attr "type" "store_ux")
+  (and (eq_attr "type" "store")
+       (eq_attr "update" "yes")
+       (eq_attr "indexed" "yes")
        (eq_attr "cpu" "power8"))
   "DU_cracked_power8,LSU_power8+LU_power8")
 
 (define_insn_reservation "power8-fpstore" 5
   (and (eq_attr "type" "fpstore")
+       (eq_attr "update" "no")
        (eq_attr "cpu" "power8"))
   "DU_any_power8,LSU_power8+VSU_power8")
 
 (define_insn_reservation "power8-fpstore-update" 5
-  (and (eq_attr "type" "fpstore_u,fpstore_ux")
+  (and (eq_attr "type" "fpstore")
+       (eq_attr "update" "yes")
        (eq_attr "cpu" "power8"))
   "DU_any_power8,LSU_power8+VSU_power8")
 
@@ -151,8 +168,9 @@
 
 ; FX Unit
 (define_insn_reservation "power8-1cyc" 1
-  (and (eq_attr "type" "integer,insert_word,insert_dword,shift,trap,\
-                        var_shift_rotate,exts,isel")
+  (and (ior (eq_attr "type" "integer,insert,trap,exts,isel")
+	    (and (eq_attr "type" "add,logical,shift")
+		 (eq_attr "dot" "no")))
        (eq_attr "cpu" "power8"))
   "DU_any_power8,FXU_power8")
 
@@ -187,17 +205,19 @@
        (eq_attr "cpu" "power8"))
   "DU_any_power8,FXU_power8")
 
-; fast_compare : add./and./nor./etc
+; add/logical with dot : add./and./nor./etc
 (define_insn_reservation "power8-fast-compare" 2
-  (and (eq_attr "type" "fast_compare")
+  (and (eq_attr "type" "add,logical")
+       (eq_attr "dot" "yes")
        (eq_attr "cpu" "power8"))
   "DU_any_power8,FXU_power8")
 
 ; compare : rldicl./exts./etc
-; delayed_compare : rlwinm./slwi./etc
-; var_delayed_compare : rlwnm./slw./etc
+; shift with dot : rlwinm./slwi./rlwnm./slw./etc
 (define_insn_reservation "power8-compare" 2
-  (and (eq_attr "type" "compare,delayed_compare,var_delayed_compare")
+  (and (ior (eq_attr "type" "compare")
+	    (and (eq_attr "type" "shift")
+		 (eq_attr "dot" "yes")))
        (eq_attr "cpu" "power8"))
   "DU_cracked_power8,FXU_power8,FXU_power8")
 
@@ -211,12 +231,14 @@
 		 "power8-crlogical,power8-mfcr,power8-mfcrf,power8-branch")
 
 (define_insn_reservation "power8-mul" 4
-  (and (eq_attr "type" "imul,imul2,imul3,lmul")
+  (and (eq_attr "type" "mul")
+       (eq_attr "dot" "no")
        (eq_attr "cpu" "power8"))
   "DU_any_power8,FXU_power8")
 
 (define_insn_reservation "power8-mul-compare" 4
-  (and (eq_attr "type" "imul_compare,lmul_compare")
+  (and (eq_attr "type" "mul")
+       (eq_attr "dot" "yes")
        (eq_attr "cpu" "power8"))
   "DU_cracked_power8,FXU_power8")
 
@@ -231,12 +253,14 @@
 
 ; FXU divides are not pipelined
 (define_insn_reservation "power8-idiv" 37
-  (and (eq_attr "type" "idiv")
+  (and (eq_attr "type" "div")
+       (eq_attr "size" "32")
        (eq_attr "cpu" "power8"))
   "DU_any_power8,fxu0_power8*37|fxu1_power8*37")
 
 (define_insn_reservation "power8-ldiv" 68
-  (and (eq_attr "type" "ldiv")
+  (and (eq_attr "type" "div")
+       (eq_attr "size" "64")
        (eq_attr "cpu" "power8"))
   "DU_any_power8,fxu0_power8*68|fxu1_power8*68")
 

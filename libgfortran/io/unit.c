@@ -454,7 +454,7 @@ get_internal_unit (st_parameter_dt *dtp)
     {
       iunit->rank = GFC_DESCRIPTOR_RANK (dtp->internal_unit_desc);
       iunit->ls = (array_loop_spec *)
-	xmalloc (iunit->rank * sizeof (array_loop_spec));
+	xmallocarray (iunit->rank, sizeof (array_loop_spec));
       dtp->internal_unit_len *=
 	init_loop_spec (dtp->internal_unit_desc, iunit->ls, &start_record);
 
@@ -786,7 +786,6 @@ unit_truncate (gfc_unit * u, gfc_offset pos, st_parameter_common * common)
 char *
 filename_from_unit (int n)
 {
-  char *filename;
   gfc_unit *u;
   int c;
 
@@ -805,11 +804,7 @@ filename_from_unit (int n)
 
   /* Get the filename.  */
   if (u != NULL)
-    {
-      filename = (char *) xmalloc (u->file_len + 1);
-      unpack_filename (filename, u->file, u->file_len);
-      return filename;
-    }
+    return fc_strdup (u->file, u->file_len);
   else
     return (char *) NULL;
 }

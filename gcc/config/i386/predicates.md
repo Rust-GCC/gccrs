@@ -71,6 +71,11 @@
   return ANY_QI_REG_P (op);
 })
 
+;; Return true if OP is a memory operands that can be used in sibcalls.
+(define_predicate "sibcall_memory_operand"
+  (and (match_operand 0 "memory_operand")
+       (match_test "CONSTANT_P (XEXP (op, 0))")))
+
 ;; Match an SI or HImode register for a zero_extract.
 (define_special_predicate "ext_register_operand"
   (match_operand 0 "register_operand")
@@ -600,7 +605,9 @@
 (define_special_predicate "sibcall_insn_operand"
   (ior (match_test "constant_call_address_operand
 		     (op, mode == VOIDmode ? mode : Pmode)")
-       (match_operand 0 "register_no_elim_operand")))
+       (match_operand 0 "register_no_elim_operand")
+       (and (not (match_test "TARGET_X32"))
+	    (match_operand 0 "sibcall_memory_operand"))))
 
 ;; Return true if OP is a call from MS ABI to SYSV ABI function.
 (define_predicate "call_rex64_ms_sysv_operation"
@@ -1413,6 +1420,22 @@
      merely that they're all identical.  */
   for (i = 1; i < nelt; ++i)
     if (XVECEXP (op, 0, i) != elt)
+      return false;
+  return true;
+})
+
+;; Return true if OP is a parallel for a palignr permute.
+(define_predicate "palignr_operand"
+  (and (match_code "parallel")
+       (match_code "const_int" "a"))
+{
+  int elt = INTVAL (XVECEXP (op, 0, 0));
+  int i, nelt = XVECLEN (op, 0);
+
+  /* Check that an order in the permutation is suitable for palignr.
+     For example, {5 6 7 0 1 2 3 4} is "palignr 5, xmm, xmm".  */
+  for (i = 1; i < nelt; ++i)
+    if (INTVAL (XVECEXP (op, 0, i)) != ((elt + i) % nelt))
       return false;
   return true;
 })

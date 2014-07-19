@@ -70,6 +70,7 @@
   UNSPEC_FATAN
   UNSPEC_FEXP
   UNSPEC_FLOG
+  UNSPEC_ROUND
   UNSPEC_LOAD_GOT_REGISTER
   UNSPEC_PIC_SYM
   UNSPEC_PIC_CALL_SYM
@@ -585,6 +586,13 @@
   { return nios2_fpu_insn_asm (n2fpu_fix<f><i>); }
   [(set_attr "type" "custom")])
 
+(define_insn "lroundsfsi2"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (unspec:SI [(match_operand:SF 1 "general_operand" "r")] UNSPEC_ROUND))]
+  "nios2_fpu_insn_enabled (n2fpu_round)"
+  { return nios2_fpu_insn_asm (n2fpu_round); }
+  [(set_attr "type" "custom")])
+
 (define_insn "extendsfdf2"
   [(set (match_operand:DF 0 "register_operand" "=r")
         (float_extend:DF (match_operand:SF 1 "general_operand" "r")))]
@@ -869,8 +877,8 @@
   [(set_attr "type" "control")
    (set (attr "length") 
         (if_then_else
-	    (and (ge (minus (match_dup 1) (pc)) (const_int -32768))
-	         (le (minus (match_dup 1) (pc)) (const_int 32764)))
+	    (and (ge (minus (match_dup 3) (pc)) (const_int -32768))
+	         (le (minus (match_dup 3) (pc)) (const_int 32764)))
 	    (const_int 4) (const_int 8)))])
 
 ;; Floating point comparisons

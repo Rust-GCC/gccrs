@@ -32,6 +32,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-pass.h"
 #include "langhooks.h"
 #include "bitmap.h"
+#include "hash-map.h"
 #include "ipa-prop.h"
 #include "common.h"
 #include "debug.h"
@@ -43,12 +44,15 @@ along with GCC; see the file COPYING3.  If not see
 #include "lto.h"
 #include "lto-tree.h"
 #include "lto-streamer.h"
+#include "lto-section-names.h"
 #include "tree-streamer.h"
 #include "splay-tree.h"
 #include "lto-partition.h"
 #include "data-streamer.h"
 #include "context.h"
 #include "pass_manager.h"
+#include "ipa-inline.h"
+#include "params.h"
 
 
 /* Number of parallel tasks to run, -1 if we want to use GNU Make jobserver.  */
@@ -232,7 +236,7 @@ lto_read_in_decl_state (struct data_in *data_in, const uint32_t *data,
 
   ix = *data++;
   decl = streamer_tree_cache_get_tree (data_in->reader_cache, ix);
-  if (TREE_CODE (decl) != FUNCTION_DECL)
+  if (!VAR_OR_FUNCTION_DECL_P (decl))
     {
       gcc_assert (decl == void_type_node);
       decl = NULL_TREE;
@@ -242,7 +246,7 @@ lto_read_in_decl_state (struct data_in *data_in, const uint32_t *data,
   for (i = 0; i < LTO_N_DECL_STREAMS; i++)
     {
       uint32_t size = *data++;
-      tree *decls = ggc_alloc_vec_tree (size);
+      tree *decls = ggc_vec_alloc<tree> (size);
 
       for (j = 0; j < size; j++)
 	decls[j] = streamer_tree_cache_get_tree (data_in->reader_cache, data[j]);
@@ -258,7 +262,7 @@ lto_read_in_decl_state (struct data_in *data_in, const uint32_t *data,
 
 /* Global canonical type table.  */
 static htab_t gimple_canonical_types;
-static pointer_map <hashval_t> *canonical_type_hash_cache;
+static hash_map<const_tree, hashval_t> *canonical_type_hash_cache;
 static unsigned long num_canonical_type_hash_entries;
 static unsigned long num_canonical_type_hash_queries;
 
@@ -402,8 +406,7 @@ static hashval_t
 gimple_canonical_type_hash (const void *p)
 {
   num_canonical_type_hash_queries++;
-  hashval_t *slot
-    = canonical_type_hash_cache->contains (CONST_CAST_TREE ((const_tree) p));
+  hashval_t *slot = canonical_type_hash_cache->get ((const_tree) p);
   gcc_assert (slot != NULL);
   return *slot;
 }
@@ -645,10 +648,8 @@ gimple_register_canonical_type_1 (tree t, hashval_t hash)
       *slot = (void *) t;
       /* Cache the just computed hash value.  */
       num_canonical_type_hash_entries++;
-      bool existed_p;
-      hashval_t *hslot = canonical_type_hash_cache->insert (t, &existed_p);
+      bool existed_p = canonical_type_hash_cache->put (t, hash);
       gcc_assert (!existed_p);
-      *hslot = hash;
     }
 }
 
@@ -764,7 +765,6 @@ mentions_vars_p_decl_with_vis (tree t)
 
   /* Accessor macro has side-effects, use field-name here. */
   CHECK_NO_VAR (t->decl_with_vis.assembler_name);
-  CHECK_NO_VAR (DECL_SECTION_NAME (t));
   return false;
 }
 
@@ -775,9 +775,7 @@ mentions_vars_p_decl_non_common (tree t)
 {
   if (mentions_vars_p_decl_with_vis (t))
     return true;
-  CHECK_NO_VAR (DECL_ARGUMENT_FLD (t));
   CHECK_NO_VAR (DECL_RESULT_FLD (t));
-  CHECK_NO_VAR (DECL_VINDEX (t));
   return false;
 }
 
@@ -788,6 +786,8 @@ mentions_vars_p_function (tree t)
 {
   if (mentions_vars_p_decl_non_common (t))
     return true;
+  CHECK_NO_VAR (DECL_ARGUMENTS (t));
+  CHECK_NO_VAR (DECL_VINDEX (t));
   CHECK_VAR (DECL_FUNCTION_PERSONALITY (t));
   return false;
 }
@@ -1135,7 +1135,7 @@ tree_scc_hasher::equal (const value_type *scc1, const compare_type *scc2)
   return true;
 }
 
-static hash_table <tree_scc_hasher> tree_scc_hash;
+static hash_table<tree_scc_hasher> *tree_scc_hash;
 static struct obstack tree_scc_hash_obstack;
 
 static unsigned long num_merged_types;
@@ -1210,8 +1210,8 @@ compare_tree_sccs_1 (tree t1, tree t2, tree **map)
 
   if (CODE_CONTAINS_STRUCT (code, TS_INT_CST))
     {
-      compare_values (TREE_INT_CST_LOW);
-      compare_values (TREE_INT_CST_HIGH);
+      if (!wi::eq_p (t1, t2))
+	return false;
     }
 
   if (CODE_CONTAINS_STRUCT (code, TS_REAL_CST))
@@ -1297,10 +1297,7 @@ compare_tree_sccs_1 (tree t1, tree t2, tree **map)
 	  compare_values (DECL_HARD_REGISTER);
           /* DECL_IN_TEXT_SECTION is set during final asm output only.  */
 	  compare_values (DECL_IN_CONSTANT_POOL);
-	  compare_values (DECL_TLS_MODEL);
 	}
-      if (VAR_OR_FUNCTION_DECL_P (t1))
-	compare_values (DECL_INIT_PRIORITY);
     }
 
   if (CODE_CONTAINS_STRUCT (code, TS_FUNCTION_DECL))
@@ -1327,8 +1324,6 @@ compare_tree_sccs_1 (tree t1, tree t2, tree **map)
       compare_values (DECL_CXX_DESTRUCTOR_P);
       if (DECL_BUILT_IN_CLASS (t1) != NOT_BUILT_IN)
 	compare_values (DECL_FUNCTION_CODE);
-      if (DECL_STATIC_DESTRUCTOR (t1))
-	compare_values (DECL_FINI_PRIORITY);
     }
 
   if (CODE_CONTAINS_STRUCT (code, TS_TYPE_COMMON))
@@ -1517,7 +1512,6 @@ compare_tree_sccs_1 (tree t1, tree t2, tree **map)
 	}
       else if (code == TYPE_DECL)
 	compare_tree_edges (DECL_ORIGINAL_TYPE (t1), DECL_ORIGINAL_TYPE (t2));
-      compare_tree_edges (DECL_VINDEX (t1), DECL_VINDEX (t2));
     }
 
   if (CODE_CONTAINS_STRUCT (code, TS_DECL_WITH_VIS))
@@ -1526,8 +1520,6 @@ compare_tree_sccs_1 (tree t1, tree t2, tree **map)
       if (DECL_ASSEMBLER_NAME_SET_P (t1))
 	compare_tree_edges (DECL_ASSEMBLER_NAME (t1),
 			    DECL_ASSEMBLER_NAME (t2));
-      compare_tree_edges (DECL_SECTION_NAME (t1), DECL_SECTION_NAME (t2));
-      compare_tree_edges (DECL_COMDAT_GROUP (t1), DECL_COMDAT_GROUP (t2));
     }
 
   if (CODE_CONTAINS_STRUCT (code, TS_FIELD_DECL))
@@ -1545,6 +1537,7 @@ compare_tree_sccs_1 (tree t1, tree t2, tree **map)
     {
       compare_tree_edges (DECL_FUNCTION_PERSONALITY (t1),
 			  DECL_FUNCTION_PERSONALITY (t2));
+      compare_tree_edges (DECL_VINDEX (t1), DECL_VINDEX (t2));
       /* DECL_FUNCTION_SPECIFIC_TARGET is not yet created.  We compare
          the attribute list instead.  */
       compare_tree_edges (DECL_FUNCTION_SPECIFIC_OPTIMIZATION (t1),
@@ -1739,7 +1732,7 @@ unify_scc (struct streamer_tree_cache_d *cache, unsigned from,
 
   /* Look for the list of candidate SCCs to compare against.  */
   tree_scc **slot;
-  slot = tree_scc_hash.find_slot_with_hash (scc, scc_hash, INSERT);
+  slot = tree_scc_hash->find_slot_with_hash (scc, scc_hash, INSERT);
   if (*slot)
     {
       /* Try unifying against each candidate.  */
@@ -1901,7 +1894,6 @@ lto_read_decls (struct lto_file_decl_data *decl_data, const void *data,
 			    len, scc_entry_len, scc_hash))
 	    continue;
 
-	  /* Do remaining fixup tasks for prevailing nodes.  */
 	  bool seen_type = false;
 	  for (unsigned i = 0; i < len; ++i)
 	    {
@@ -2000,10 +1992,10 @@ lto_read_decls (struct lto_file_decl_data *decl_data, const void *data,
 
 /* Custom version of strtoll, which is not portable.  */
 
-static HOST_WIDEST_INT
+static int64_t
 lto_parse_hex (const char *p)
 {
-  HOST_WIDEST_INT ret = 0;
+  int64_t ret = 0;
 
   for (; *p != '\0'; ++p)
     {
@@ -2055,7 +2047,7 @@ lto_resolution_read (splay_tree file_ids, FILE *resolution, lto_file *file)
     {
       int t;
       char offset_p[17];
-      HOST_WIDEST_INT offset;
+      int64_t offset;
       t = fscanf (resolution, "@0x%16s", offset_p);
       if (t != 1)
         internal_error ("could not parse file offset");
@@ -2157,7 +2149,7 @@ create_subid_section_table (struct lto_section_slot *ls, splay_tree file_ids,
     }
   else
     {
-      file_data = ggc_alloc_lto_file_decl_data ();
+      file_data = ggc_alloc<lto_file_decl_data> ();
       memset(file_data, 0, sizeof (struct lto_file_decl_data));
       file_data->id = id;
       file_data->section_hash_table = lto_obj_create_section_hash_table ();;
@@ -2623,13 +2615,13 @@ lto_wpa_write_files (void)
 	      if (!lto_symtab_encoder_in_partition_p (part->encoder, node))
 		{
 	          fprintf (cgraph_dump_file, "%s ", node->asm_name ());
-		  cgraph_node *cnode = dyn_cast <cgraph_node> (node);
+		  cgraph_node *cnode = dyn_cast <cgraph_node *> (node);
 		  if (cnode
 		      && lto_symtab_encoder_encode_body_p (part->encoder, cnode))
 		    fprintf (cgraph_dump_file, "(body included)");
 		  else
 		    {
-		      varpool_node *vnode = dyn_cast <varpool_node> (node);
+		      varpool_node *vnode = dyn_cast <varpool_node *> (node);
 		      if (vnode
 			  && lto_symtab_encoder_encode_initializer_p (part->encoder, vnode))
 			fprintf (cgraph_dump_file, "(initializer included)");
@@ -2716,16 +2708,17 @@ lto_fixup_prevailing_decls (tree t)
       if (CODE_CONTAINS_STRUCT (code, TS_DECL_WITH_VIS))
 	{
 	  LTO_NO_PREVAIL (t->decl_with_vis.assembler_name);
-	  LTO_NO_PREVAIL (DECL_SECTION_NAME (t));
 	}
       if (CODE_CONTAINS_STRUCT (code, TS_DECL_NON_COMMON))
 	{
-	  LTO_NO_PREVAIL (DECL_ARGUMENT_FLD (t));
 	  LTO_NO_PREVAIL (DECL_RESULT_FLD (t));
-	  LTO_NO_PREVAIL (DECL_VINDEX (t));
 	}
       if (CODE_CONTAINS_STRUCT (code, TS_FUNCTION_DECL))
-	LTO_SET_PREVAIL (DECL_FUNCTION_PERSONALITY (t));
+	{
+	  LTO_NO_PREVAIL (DECL_ARGUMENTS (t));
+	  LTO_SET_PREVAIL (DECL_FUNCTION_PERSONALITY (t));
+	  LTO_NO_PREVAIL (DECL_VINDEX (t));
+	}
       if (CODE_CONTAINS_STRUCT (code, TS_FIELD_DECL))
 	{
 	  LTO_SET_PREVAIL (DECL_FIELD_OFFSET (t));
@@ -2858,7 +2851,7 @@ lto_flatten_files (struct lto_file_decl_data **orig, int count, int last_file_ix
 
   lto_stats.num_input_files = count;
   all_file_decl_data
-    = ggc_alloc_cleared_vec_lto_file_decl_data_ptr (count + 1);
+    = ggc_cleared_vec_alloc<lto_file_decl_data_ptr> (count + 1);
   /* Set the hooks so that all of the ipa passes can read in their data.  */
   lto_set_in_hooks (all_file_decl_data, get_section_data, free_section_data);
   for (i = 0, k = 0; i < last_file_ix; i++) 
@@ -2901,7 +2894,7 @@ read_cgraph_and_symbols (unsigned nfiles, const char **fnames)
   timevar_push (TV_IPA_LTO_DECL_IN);
 
   real_file_decl_data
-    = decl_data = ggc_alloc_cleared_vec_lto_file_decl_data_ptr (nfiles + 1);
+    = decl_data = ggc_cleared_vec_alloc<lto_file_decl_data_ptr> (nfiles + 1);
   real_file_count = nfiles;
 
   /* Read the resolution file.  */
@@ -2923,11 +2916,11 @@ read_cgraph_and_symbols (unsigned nfiles, const char **fnames)
     }
   cgraph_state = CGRAPH_LTO_STREAMING;
 
-  canonical_type_hash_cache = new pointer_map <hashval_t>;
+  canonical_type_hash_cache = new hash_map<const_tree, hashval_t> (251);
   gimple_canonical_types = htab_create_ggc (16381, gimple_canonical_type_hash,
 					    gimple_canonical_type_eq, 0);
   gcc_obstack_init (&tree_scc_hash_obstack);
-  tree_scc_hash.create (4096);
+  tree_scc_hash = new hash_table<tree_scc_hasher> (4096);
 
   /* Register the common node types with the canonical type machinery so
      we properly share alias-sets across languages and TUs.  Do not
@@ -2993,12 +2986,17 @@ read_cgraph_and_symbols (unsigned nfiles, const char **fnames)
     print_lto_report_1 ();
 
   /* Free gimple type merging datastructures.  */
-  tree_scc_hash.dispose ();
+  delete tree_scc_hash;
+  tree_scc_hash = NULL;
   obstack_free (&tree_scc_hash_obstack, NULL);
   htab_delete (gimple_canonical_types);
   gimple_canonical_types = NULL;
   delete canonical_type_hash_cache;
   canonical_type_hash_cache = NULL;
+
+  /* At this stage we know that majority of GGC memory is reachable.  
+     Growing the limits prevents unnecesary invocation of GGC.  */
+  ggc_grow ();
   ggc_collect ();
 
   /* Set the hooks so that all of the ipa passes can read in their data.  */
@@ -3087,17 +3085,18 @@ read_cgraph_and_symbols (unsigned nfiles, const char **fnames)
       dump_symtab (cgraph_dump_file);
     }
   lto_symtab_merge_symbols ();
+  /* Removal of unreacable symbols is needed to make verify_symtab to pass;
+     we are still having duplicated comdat groups containing local statics.
+     We could also just remove them while merging.  */
+  symtab_remove_unreachable_nodes (false, dump_file);
   ggc_collect ();
   cgraph_state = CGRAPH_STATE_IPA_SSA;
 
   timevar_pop (TV_IPA_LTO_CGRAPH_MERGE);
 
-  timevar_push (TV_IPA_LTO_DECL_INIT_IO);
-
   /* Indicate that the cgraph is built and ready.  */
   cgraph_function_flags_ready = true;
 
-  timevar_pop (TV_IPA_LTO_DECL_INIT_IO);
   ggc_free (all_file_decl_data);
   all_file_decl_data = NULL;
 }
@@ -3115,9 +3114,6 @@ materialize_cgraph (void)
     fprintf (stderr,
 	     flag_wpa ? "Materializing decls:" : "Reading function bodies:");
 
-  /* Now that we have input the cgraph, we need to clear all of the aux
-     nodes and read the functions if we are not running in WPA mode.  */
-  timevar_push (TV_IPA_LTO_GIMPLE_IN);
 
   FOR_EACH_FUNCTION (node)
     {
@@ -3128,7 +3124,6 @@ materialize_cgraph (void)
 	}
     }
 
-  timevar_pop (TV_IPA_LTO_GIMPLE_IN);
 
   /* Start the appropriate timer depending on the mode that we are
      operating in.  */
@@ -3157,17 +3152,17 @@ print_lto_report_1 (void)
   fprintf (stderr, "[%s] read %lu SCCs of average size %f\n",
 	   pfx, num_sccs_read, total_scc_size / (double)num_sccs_read);
   fprintf (stderr, "[%s] %lu tree bodies read in total\n", pfx, total_scc_size);
-  if (flag_wpa && tree_scc_hash.is_created ())
+  if (flag_wpa && tree_scc_hash)
     {
       fprintf (stderr, "[%s] tree SCC table: size %ld, %ld elements, "
 	       "collision ratio: %f\n", pfx,
-	       (long) tree_scc_hash.size (),
-	       (long) tree_scc_hash.elements (),
-	       tree_scc_hash.collisions ());
+	       (long) tree_scc_hash->size (),
+	       (long) tree_scc_hash->elements (),
+	       tree_scc_hash->collisions ());
       hash_table<tree_scc_hasher>::iterator hiter;
       tree_scc *scc, *max_scc = NULL;
       unsigned max_length = 0;
-      FOR_EACH_HASH_TABLE_ELEMENT (tree_scc_hash, scc, x, hiter)
+      FOR_EACH_HASH_TABLE_ELEMENT (*tree_scc_hash, scc, x, hiter)
 	{
 	  unsigned length = 0;
 	  tree_scc *s = scc;
@@ -3258,7 +3253,7 @@ do_whole_program_analysis (void)
       dump_symtab (cgraph_dump_file);
     }
 #ifdef ENABLE_CHECKING
-  verify_cgraph ();
+  verify_symtab ();
 #endif
   bitmap_obstack_release (NULL);
 
@@ -3266,12 +3261,20 @@ do_whole_program_analysis (void)
   timevar_pop (TV_WHOPR_WPA);
 
   timevar_push (TV_WHOPR_PARTITIONING);
-  if (flag_lto_partition_1to1)
+  if (flag_lto_partition == LTO_PARTITION_1TO1)
     lto_1_to_1_map ();
-  else if (flag_lto_partition_max)
+  else if (flag_lto_partition == LTO_PARTITION_MAX)
     lto_max_map ();
+  else if (flag_lto_partition == LTO_PARTITION_ONE)
+    lto_balanced_map (1);
+  else if (flag_lto_partition == LTO_PARTITION_BALANCED)
+    lto_balanced_map (PARAM_VALUE (PARAM_LTO_PARTITIONS));
   else
-    lto_balanced_map ();
+    gcc_unreachable ();
+
+  /* Inline summaries are needed for balanced partitioning.  Free them now so
+     the memory can be used for streamer caches.  */
+  inline_free_summary ();
 
   /* AUX pointers are used by partitioning code to bookkeep number of
      partitions symbol is in.  This is no longer needed.  */

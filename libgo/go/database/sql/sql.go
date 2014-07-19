@@ -181,7 +181,8 @@ type Scanner interface {
 // defers this error until a Scan.
 var ErrNoRows = errors.New("sql: no rows in result set")
 
-// DB is a database handle. It's safe for concurrent use by multiple
+// DB is a database handle representing a pool of zero or more
+// underlying connections. It's safe for concurrent use by multiple
 // goroutines.
 //
 // The sql package creates and frees connections automatically; it
@@ -256,7 +257,7 @@ func (dc *driverConn) prepareLocked(query string) (driver.Stmt, error) {
 		// stmt closes if the conn is about to close anyway? For now
 		// do the safe thing, in case stmts need to be closed.
 		//
-		// TODO(bradfitz): after Go 1.1, closing driver.Stmts
+		// TODO(bradfitz): after Go 1.2, closing driver.Stmts
 		// should be moved to driverStmt, using unique
 		// *driverStmts everywhere (including from
 		// *Stmt.connStmt, instead of returning a
@@ -405,7 +406,7 @@ func (db *DB) removeDepLocked(x finalCloser, dep interface{}) func() error {
 // This value should be larger than the maximum typical value
 // used for db.maxOpen. If maxOpen is significantly larger than
 // connectionRequestQueueSize then it is possible for ALL calls into the *DB
-// to block until the connectionOpener can satify the backlog of requests.
+// to block until the connectionOpener can satisfy the backlog of requests.
 var connectionRequestQueueSize = 1000000
 
 // Open opens a database specified by its database driver name and a
@@ -420,6 +421,11 @@ var connectionRequestQueueSize = 1000000
 // Open may just validate its arguments without creating a connection
 // to the database. To verify that the data source name is valid, call
 // Ping.
+//
+// The returned DB is safe for concurrent use by multiple goroutines
+// and maintains its own pool of idle connections. Thus, the Open
+// function should be called just once. It is rarely necessary to
+// close a DB.
 func Open(driverName, dataSourceName string) (*DB, error) {
 	driveri, ok := drivers[driverName]
 	if !ok {
@@ -452,6 +458,9 @@ func (db *DB) Ping() error {
 }
 
 // Close closes the database, releasing any open resources.
+//
+// It is rare to Close a DB, as the DB handle is meant to be
+// long-lived and shared between many goroutines.
 func (db *DB) Close() error {
 	db.mu.Lock()
 	if db.closed { // Make DB.Close idempotent
@@ -569,7 +578,7 @@ func (db *DB) maybeOpenNewConnections() {
 	}
 }
 
-// Runs in a seperate goroutine, opens new connections when requested.
+// Runs in a separate goroutine, opens new connections when requested.
 func (db *DB) connectionOpener() {
 	for _ = range db.openerCh {
 		db.openNewConnection()
@@ -652,13 +661,16 @@ func (db *DB) conn() (*driverConn, error) {
 		return conn, nil
 	}
 
+	db.numOpen++ // optimistically
 	db.mu.Unlock()
 	ci, err := db.driver.Open(db.dsn)
 	if err != nil {
+		db.mu.Lock()
+		db.numOpen-- // correct for earlier optimism
+		db.mu.Unlock()
 		return nil, err
 	}
 	db.mu.Lock()
-	db.numOpen++
 	dc := &driverConn{
 		db: db,
 		ci: ci,
@@ -774,11 +786,11 @@ func (db *DB) putConn(dc *driverConn, err error) {
 // Satisfy a connRequest or put the driverConn in the idle pool and return true
 // or return false.
 // putConnDBLocked will satisfy a connRequest if there is one, or it will
-// return the *driverConn to the freeConn list if err != nil and the idle
-// connection limit would not be reached.
+// return the *driverConn to the freeConn list if err == nil and the idle
+// connection limit will not be exceeded.
 // If err != nil, the value of dc is ignored.
 // If err == nil, then dc must not equal nil.
-// If a connRequest was fullfilled or the *driverConn was placed in the
+// If a connRequest was fulfilled or the *driverConn was placed in the
 // freeConn list, then true is returned, otherwise false is returned.
 func (db *DB) putConnDBLocked(dc *driverConn, err error) bool {
 	if db.connRequests.Len() > 0 {
@@ -791,12 +803,16 @@ func (db *DB) putConnDBLocked(dc *driverConn, err error) bool {
 			req <- dc
 		}
 		return true
-	} else if err == nil && !db.closed && db.maxIdleConnsLocked() > 0 && db.maxIdleConnsLocked() > db.freeConn.Len() {
+	} else if err == nil && !db.closed && db.maxIdleConnsLocked() > db.freeConn.Len() {
 		dc.listElem = db.freeConn.PushFront(dc)
 		return true
 	}
 	return false
 }
+
+// maxBadConnRetries is the number of maximum retries if the driver returns
+// driver.ErrBadConn to signal a broken connection.
+const maxBadConnRetries = 10
 
 // Prepare creates a prepared statement for later queries or executions.
 // Multiple queries or executions may be run concurrently from the
@@ -804,7 +820,7 @@ func (db *DB) putConnDBLocked(dc *driverConn, err error) bool {
 func (db *DB) Prepare(query string) (*Stmt, error) {
 	var stmt *Stmt
 	var err error
-	for i := 0; i < 10; i++ {
+	for i := 0; i < maxBadConnRetries; i++ {
 		stmt, err = db.prepare(query)
 		if err != driver.ErrBadConn {
 			break
@@ -846,7 +862,7 @@ func (db *DB) prepare(query string) (*Stmt, error) {
 func (db *DB) Exec(query string, args ...interface{}) (Result, error) {
 	var res Result
 	var err error
-	for i := 0; i < 10; i++ {
+	for i := 0; i < maxBadConnRetries; i++ {
 		res, err = db.exec(query, args)
 		if err != driver.ErrBadConn {
 			break
@@ -895,7 +911,7 @@ func (db *DB) exec(query string, args []interface{}) (res Result, err error) {
 func (db *DB) Query(query string, args ...interface{}) (*Rows, error) {
 	var rows *Rows
 	var err error
-	for i := 0; i < 10; i++ {
+	for i := 0; i < maxBadConnRetries; i++ {
 		rows, err = db.query(query, args)
 		if err != driver.ErrBadConn {
 			break
@@ -983,7 +999,7 @@ func (db *DB) QueryRow(query string, args ...interface{}) *Row {
 func (db *DB) Begin() (*Tx, error) {
 	var tx *Tx
 	var err error
-	for i := 0; i < 10; i++ {
+	for i := 0; i < maxBadConnRetries; i++ {
 		tx, err = db.begin()
 		if err != driver.ErrBadConn {
 			break
@@ -1245,13 +1261,24 @@ type Stmt struct {
 func (s *Stmt) Exec(args ...interface{}) (Result, error) {
 	s.closemu.RLock()
 	defer s.closemu.RUnlock()
-	dc, releaseConn, si, err := s.connStmt()
-	if err != nil {
-		return nil, err
-	}
-	defer releaseConn(nil)
 
-	return resultFromStatement(driverStmt{dc, si}, args...)
+	var res Result
+	for i := 0; i < maxBadConnRetries; i++ {
+		dc, releaseConn, si, err := s.connStmt()
+		if err != nil {
+			if err == driver.ErrBadConn {
+				continue
+			}
+			return nil, err
+		}
+
+		res, err = resultFromStatement(driverStmt{dc, si}, args...)
+		releaseConn(err)
+		if err != driver.ErrBadConn {
+			return res, err
+		}
+	}
+	return nil, driver.ErrBadConn
 }
 
 func resultFromStatement(ds driverStmt, args ...interface{}) (Result, error) {
@@ -1329,26 +1356,21 @@ func (s *Stmt) connStmt() (ci *driverConn, releaseConn func(error), si driver.St
 	// Make a new conn if all are busy.
 	// TODO(bradfitz): or wait for one? make configurable later?
 	if !match {
-		for i := 0; ; i++ {
-			dc, err := s.db.conn()
-			if err != nil {
-				return nil, nil, nil, err
-			}
-			dc.Lock()
-			si, err := dc.prepareLocked(s.query)
-			dc.Unlock()
-			if err == driver.ErrBadConn && i < 10 {
-				continue
-			}
-			if err != nil {
-				return nil, nil, nil, err
-			}
-			s.mu.Lock()
-			cs = connStmt{dc, si}
-			s.css = append(s.css, cs)
-			s.mu.Unlock()
-			break
+		dc, err := s.db.conn()
+		if err != nil {
+			return nil, nil, nil, err
 		}
+		dc.Lock()
+		si, err := dc.prepareLocked(s.query)
+		dc.Unlock()
+		if err != nil {
+			s.db.putConn(dc, err)
+			return nil, nil, nil, err
+		}
+		s.mu.Lock()
+		cs = connStmt{dc, si}
+		s.css = append(s.css, cs)
+		s.mu.Unlock()
 	}
 
 	conn := cs.dc
@@ -1361,31 +1383,39 @@ func (s *Stmt) Query(args ...interface{}) (*Rows, error) {
 	s.closemu.RLock()
 	defer s.closemu.RUnlock()
 
-	dc, releaseConn, si, err := s.connStmt()
-	if err != nil {
-		return nil, err
-	}
+	var rowsi driver.Rows
+	for i := 0; i < maxBadConnRetries; i++ {
+		dc, releaseConn, si, err := s.connStmt()
+		if err != nil {
+			if err == driver.ErrBadConn {
+				continue
+			}
+			return nil, err
+		}
 
-	ds := driverStmt{dc, si}
-	rowsi, err := rowsiFromStatement(ds, args...)
-	if err != nil {
-		releaseConn(err)
-		return nil, err
-	}
+		rowsi, err = rowsiFromStatement(driverStmt{dc, si}, args...)
+		if err == nil {
+			// Note: ownership of ci passes to the *Rows, to be freed
+			// with releaseConn.
+			rows := &Rows{
+				dc:    dc,
+				rowsi: rowsi,
+				// releaseConn set below
+			}
+			s.db.addDep(s, rows)
+			rows.releaseConn = func(err error) {
+				releaseConn(err)
+				s.db.removeDep(s, rows)
+			}
+			return rows, nil
+		}
 
-	// Note: ownership of ci passes to the *Rows, to be freed
-	// with releaseConn.
-	rows := &Rows{
-		dc:    dc,
-		rowsi: rowsi,
-		// releaseConn set below
-	}
-	s.db.addDep(s, rows)
-	rows.releaseConn = func(err error) {
 		releaseConn(err)
-		s.db.removeDep(s, rows)
+		if err != driver.ErrBadConn {
+			return nil, err
+		}
 	}
-	return rows, nil
+	return nil, driver.ErrBadConn
 }
 
 func rowsiFromStatement(ds driverStmt, args ...interface{}) (driver.Rows, error) {
@@ -1476,6 +1506,7 @@ func (s *Stmt) finalClose() error {
 //
 //     rows, err := db.Query("SELECT ...")
 //     ...
+//     defer rows.Close()
 //     for rows.Next() {
 //         var id int
 //         var name string
@@ -1495,10 +1526,12 @@ type Rows struct {
 	closeStmt driver.Stmt // if non-nil, statement to Close on close
 }
 
-// Next prepares the next result row for reading with the Scan method.
-// It returns true on success, false if there is no next result row.
-// Every call to Scan, even the first one, must be preceded by a call
-// to Next.
+// Next prepares the next result row for reading with the Scan method.  It
+// returns true on success, or false if there is no next result row or an error
+// happened while preparing it.  Err should be consulted to distinguish between
+// the two cases.
+//
+// Every call to Scan, even the first one, must be preceded by a call to Next.
 func (rs *Rows) Next() bool {
 	if rs.closed {
 		return false
@@ -1625,10 +1658,17 @@ func (r *Row) Scan(dest ...interface{}) error {
 	}
 
 	if !r.rows.Next() {
+		if err := r.rows.Err(); err != nil {
+			return err
+		}
 		return ErrNoRows
 	}
 	err := r.rows.Scan(dest...)
 	if err != nil {
+		return err
+	}
+	// Make sure the query can be processed to completion with no errors.
+	if err := r.rows.Close(); err != nil {
 		return err
 	}
 

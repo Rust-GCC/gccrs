@@ -1,6 +1,24 @@
-2014-04-22  Release Manager
+2014-06-10  Thomas Schwinge  <thomas@codesourcery.com>
 
-	* GCC 4.9.0 released.
+	PR lto/61334
+	* libiberty.h [defined (HAVE_DECL_STRNLEN) &&
+	!HAVE_DECL_STRNLEN] (strnlen): New prototype.
+
+2014-05-21  John Marino  <gnugcc@marino.st>
+
+	* liberty.h: Use basename function on DragonFly.
+
+2014-05-01  Steve Ellcey  <sellcey@mips.com>
+
+	* include/longlong.h: Use 'defined()' to check __mips16.
+
+2014-04-30  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* longlong.h (__i386__): Remove W_TYPE_SIZE==64 handling.
+
+2014-04-22  Yufeng Zhang  <yufeng.zhang@arm.com>
+
+	* longlong.h: Merge from glibc.
 
 2014-01-21  Tom Tromey  <tromey@redhat.com>
 

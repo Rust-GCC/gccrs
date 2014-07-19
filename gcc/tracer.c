@@ -316,8 +316,7 @@ tail_duplicate (void)
 	         of all do { } while loops.  Do not do that - it is
 		 not profitable and it might create a loop with multiple
 		 entries or at least rotate the loop.  */
-	      && (!current_loops
-		  || bb2->loop_father->header != bb2))
+	      && bb2->loop_father->header != bb2)
 	    {
 	      edge e;
 	      basic_block copy;
@@ -367,15 +366,45 @@ tail_duplicate (void)
 
   return changed;
 }
+
+namespace {
 
-/* Main entry point to this file.  */
+const pass_data pass_data_tracer =
+{
+  GIMPLE_PASS, /* type */
+  "tracer", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  TV_TRACER, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  TODO_update_ssa, /* todo_flags_finish */
+};
 
-static unsigned int
-tracer (void)
+class pass_tracer : public gimple_opt_pass
+{
+public:
+  pass_tracer (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_tracer, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  virtual bool gate (function *)
+    {
+      return (optimize > 0 && flag_tracer && flag_reorder_blocks);
+    }
+
+  virtual unsigned int execute (function *);
+
+}; // class pass_tracer
+
+unsigned int
+pass_tracer::execute (function *fun)
 {
   bool changed;
 
-  if (n_basic_blocks_for_fn (cfun) <= NUM_FIXED_BLOCKS + 1)
+  if (n_basic_blocks_for_fn (fun) <= NUM_FIXED_BLOCKS + 1)
     return 0;
 
   mark_dfs_back_edges ();
@@ -388,8 +417,7 @@ tracer (void)
     {
       free_dominance_info (CDI_DOMINATORS);
       /* If we changed the CFG schedule loops for fixup by cleanup_cfg.  */
-      if (current_loops)
-	loops_state_set (LOOPS_NEED_FIXUP);
+      loops_state_set (LOOPS_NEED_FIXUP);
     }
 
   if (dump_file)
@@ -397,43 +425,6 @@ tracer (void)
 
   return changed ? TODO_cleanup_cfg : 0;
 }
-
-static bool
-gate_tracer (void)
-{
-  return (optimize > 0 && flag_tracer && flag_reorder_blocks);
-}
-
-namespace {
-
-const pass_data pass_data_tracer =
-{
-  GIMPLE_PASS, /* type */
-  "tracer", /* name */
-  OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
-  TV_TRACER, /* tv_id */
-  0, /* properties_required */
-  0, /* properties_provided */
-  0, /* properties_destroyed */
-  0, /* todo_flags_start */
-  ( TODO_update_ssa | TODO_verify_ssa ), /* todo_flags_finish */
-};
-
-class pass_tracer : public gimple_opt_pass
-{
-public:
-  pass_tracer (gcc::context *ctxt)
-    : gimple_opt_pass (pass_data_tracer, ctxt)
-  {}
-
-  /* opt_pass methods: */
-  bool gate () { return gate_tracer (); }
-  unsigned int execute () { return tracer (); }
-
-}; // class pass_tracer
-
 } // anon namespace
 
 gimple_opt_pass *

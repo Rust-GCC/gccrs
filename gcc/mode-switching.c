@@ -80,28 +80,86 @@ struct bb_info
 {
   struct seginfo *seginfo;
   int computing;
+  int mode_out;
+  int mode_in;
 };
-
-/* These bitmaps are used for the LCM algorithm.  */
-
-static sbitmap *antic;
-static sbitmap *transp;
-static sbitmap *comp;
 
 static struct seginfo * new_seginfo (int, rtx, int, HARD_REG_SET);
 static void add_seginfo (struct bb_info *, struct seginfo *);
 static void reg_dies (rtx, HARD_REG_SET *);
 static void reg_becomes_live (rtx, const_rtx, void *);
-static void make_preds_opaque (basic_block, int);
-
 
-/* This function will allocate a new BBINFO structure, initialized
-   with the MODE, INSN, and basic block BB parameters.  */
+/* Clear ode I from entity J in bitmap B.  */
+#define clear_mode_bit(b, j, i) \
+       bitmap_clear_bit (b, (j * max_num_modes) + i)
+
+/* Test mode I from entity J in bitmap B.  */
+#define mode_bit_p(b, j, i) \
+       bitmap_bit_p (b, (j * max_num_modes) + i)
+
+/* Set mode I from entity J in bitmal B.  */
+#define set_mode_bit(b, j, i) \
+       bitmap_set_bit (b, (j * max_num_modes) + i)
+
+/* Emit modes segments from EDGE_LIST associated with entity E.
+   INFO gives mode availability for each mode.  */
+
+static bool
+commit_mode_sets (struct edge_list *edge_list, int e, struct bb_info *info)
+{
+  bool need_commit = false;
+
+  for (int ed = NUM_EDGES (edge_list) - 1; ed >= 0; ed--)
+    {
+      edge eg = INDEX_EDGE (edge_list, ed);
+      int mode;
+
+      if ((mode = (int)(intptr_t)(eg->aux)) != -1)
+	{
+	  HARD_REG_SET live_at_edge;
+	  basic_block src_bb = eg->src;
+	  int cur_mode = info[src_bb->index].mode_out;
+	  rtx mode_set;
+
+	  REG_SET_TO_HARD_REG_SET (live_at_edge, df_get_live_out (src_bb));
+
+	  rtl_profile_for_edge (eg);
+	  start_sequence ();
+
+	  targetm.mode_switching.emit (e, mode, cur_mode, live_at_edge);
+
+	  mode_set = get_insns ();
+	  end_sequence ();
+	  default_rtl_profile ();
+
+	  /* Do not bother to insert empty sequence.  */
+	  if (mode_set == NULL_RTX)
+	    continue;
+
+	  /* We should not get an abnormal edge here.  */
+	  gcc_assert (! (eg->flags & EDGE_ABNORMAL));
+
+	  need_commit = true;
+	  insert_insn_on_edge (mode_set, eg);
+	}
+    }
+
+  return need_commit;
+}
+
+/* Allocate a new BBINFO structure, initialized with the MODE, INSN,
+   and basic block BB parameters.
+   INSN may not be a NOTE_INSN_BASIC_BLOCK, unless it is an empty
+   basic block; that allows us later to insert instructions in a FIFO-like
+   manner.  */
 
 static struct seginfo *
 new_seginfo (int mode, rtx insn, int bb, HARD_REG_SET regs_live)
 {
   struct seginfo *ptr;
+
+  gcc_assert (!NOTE_INSN_BASIC_BLOCK_P (insn)
+	      || insn == BB_END (NOTE_BASIC_BLOCK (insn)));
   ptr = XNEW (struct seginfo);
   ptr->mode = mode;
   ptr->insn_ptr = insn;
@@ -128,30 +186,6 @@ add_seginfo (struct bb_info *head, struct seginfo *info)
       while (ptr->next != NULL)
 	ptr = ptr->next;
       ptr->next = info;
-    }
-}
-
-/* Make all predecessors of basic block B opaque, recursively, till we hit
-   some that are already non-transparent, or an edge where aux is set; that
-   denotes that a mode set is to be done on that edge.
-   J is the bit number in the bitmaps that corresponds to the entity that
-   we are currently handling mode-switching for.  */
-
-static void
-make_preds_opaque (basic_block b, int j)
-{
-  edge e;
-  edge_iterator ei;
-
-  FOR_EACH_EDGE (e, ei, b->preds)
-    {
-      basic_block pb = e->src;
-
-      if (e->aux || ! bitmap_bit_p (transp[pb->index], j))
-	continue;
-
-      bitmap_clear_bit (transp[pb->index], j);
-      make_preds_opaque (pb, j);
     }
 }
 
@@ -189,13 +223,6 @@ reg_becomes_live (rtx reg, const_rtx setter ATTRIBUTE_UNUSED, void *live)
     add_to_hard_reg_set ((HARD_REG_SET *) live, GET_MODE (reg), regno);
 }
 
-/* Make sure if MODE_ENTRY is defined the MODE_EXIT is defined
-   and vice versa.  */
-#if defined (MODE_ENTRY) != defined (MODE_EXIT)
- #error "Both MODE_ENTRY and MODE_EXIT must be defined"
-#endif
-
-#if defined (MODE_ENTRY) && defined (MODE_EXIT)
 /* Split the fallthrough edge to the exit block, so that we can note
    that there NORMAL_MODE is required.  Return the new block if it's
    inserted before the exit block.  Otherwise return null.  */
@@ -343,9 +370,11 @@ create_pre_exit (int n_entities, int *entity_map, const int *num_modes)
 		    for (j = n_entities - 1; j >= 0; j--)
 		      {
 			int e = entity_map[j];
-			int mode = MODE_NEEDED (e, return_copy);
+			int mode =
+			  targetm.mode_switching.needed (e, return_copy);
 
-			if (mode != num_modes[e] && mode != MODE_EXIT (e))
+			if (mode != num_modes[e]
+			    && mode != targetm.mode_switching.exit (e))
 			  break;
 		      }
 		    if (j >= 0)
@@ -444,7 +473,6 @@ create_pre_exit (int n_entities, int *entity_map, const int *num_modes)
 
   return pre_exit;
 }
-#endif
 
 /* Find all insns that need a particular mode setting, and insert the
    necessary mode switches.  Return true if we did work.  */
@@ -452,23 +480,26 @@ create_pre_exit (int n_entities, int *entity_map, const int *num_modes)
 static int
 optimize_mode_switching (void)
 {
-  rtx insn;
   int e;
   basic_block bb;
-  int need_commit = 0;
-  sbitmap *kill;
-  struct edge_list *edge_list;
+  bool need_commit = false;
   static const int num_modes[] = NUM_MODES_FOR_MODE_SWITCHING;
 #define N_ENTITIES ARRAY_SIZE (num_modes)
   int entity_map[N_ENTITIES];
   struct bb_info *bb_info[N_ENTITIES];
   int i, j;
-  int n_entities;
+  int n_entities = 0;
   int max_num_modes = 0;
   bool emitted ATTRIBUTE_UNUSED = false;
-  basic_block post_entry ATTRIBUTE_UNUSED, pre_exit ATTRIBUTE_UNUSED;
+  basic_block post_entry = 0;
+  basic_block pre_exit = 0;
+  struct edge_list *edge_list = 0;
 
-  for (e = N_ENTITIES - 1, n_entities = 0; e >= 0; e--)
+  /* These bitmaps are used for the LCM algorithm.  */
+  sbitmap *kill, *del, *insert, *antic, *transp, *comp;
+  sbitmap *avin, *avout;
+
+  for (e = N_ENTITIES - 1; e >= 0; e--)
     if (OPTIMIZE_MODE_SWITCHING (e))
       {
 	int entry_exit_extra = 0;
@@ -476,9 +507,9 @@ optimize_mode_switching (void)
 	/* Create the list of segments within each basic block.
 	   If NORMAL_MODE is defined, allow for two extra
 	   blocks split from the entry and exit block.  */
-#if defined (MODE_ENTRY) && defined (MODE_EXIT)
-	entry_exit_extra = 3;
-#endif
+	if (targetm.mode_switching.entry && targetm.mode_switching.exit)
+	  entry_exit_extra = 3;
+
 	bb_info[n_entities]
 	  = XCNEWVEC (struct bb_info,
 		      last_basic_block_for_fn (cfun) + entry_exit_extra);
@@ -490,28 +521,45 @@ optimize_mode_switching (void)
   if (! n_entities)
     return 0;
 
-#if defined (MODE_ENTRY) && defined (MODE_EXIT)
-  /* Split the edge from the entry block, so that we can note that
-     there NORMAL_MODE is supplied.  */
-  post_entry = split_edge (single_succ_edge (ENTRY_BLOCK_PTR_FOR_FN (cfun)));
-  pre_exit = create_pre_exit (n_entities, entity_map, num_modes);
-#endif
+  /* Make sure if MODE_ENTRY is defined MODE_EXIT is defined.  */
+  gcc_assert ((targetm.mode_switching.entry && targetm.mode_switching.exit)
+	      || (!targetm.mode_switching.entry
+		  && !targetm.mode_switching.exit));
+
+  if (targetm.mode_switching.entry && targetm.mode_switching.exit)
+    {
+      /* Split the edge from the entry block, so that we can note that
+	 there NORMAL_MODE is supplied.  */
+      post_entry = split_edge (single_succ_edge (ENTRY_BLOCK_PTR_FOR_FN (cfun)));
+      pre_exit = create_pre_exit (n_entities, entity_map, num_modes);
+    }
 
   df_analyze ();
 
   /* Create the bitmap vectors.  */
-
-  antic = sbitmap_vector_alloc (last_basic_block_for_fn (cfun), n_entities);
-  transp = sbitmap_vector_alloc (last_basic_block_for_fn (cfun), n_entities);
-  comp = sbitmap_vector_alloc (last_basic_block_for_fn (cfun), n_entities);
+  antic = sbitmap_vector_alloc (last_basic_block_for_fn (cfun),
+				n_entities * max_num_modes);
+  transp = sbitmap_vector_alloc (last_basic_block_for_fn (cfun),
+				 n_entities * max_num_modes);
+  comp = sbitmap_vector_alloc (last_basic_block_for_fn (cfun),
+			       n_entities * max_num_modes);
+  avin = sbitmap_vector_alloc (last_basic_block_for_fn (cfun),
+			       n_entities * max_num_modes);
+  avout = sbitmap_vector_alloc (last_basic_block_for_fn (cfun),
+				n_entities * max_num_modes);
+  kill = sbitmap_vector_alloc (last_basic_block_for_fn (cfun),
+			       n_entities * max_num_modes);
 
   bitmap_vector_ones (transp, last_basic_block_for_fn (cfun));
+  bitmap_vector_clear (antic, last_basic_block_for_fn (cfun));
+  bitmap_vector_clear (comp, last_basic_block_for_fn (cfun));
 
   for (j = n_entities - 1; j >= 0; j--)
     {
       int e = entity_map[j];
       int no_mode = num_modes[e];
       struct bb_info *info = bb_info[j];
+      rtx insn;
 
       /* Determine what the first use (if any) need for a mode of entity E is.
 	 This will be the mode that is anticipatable for this block.
@@ -523,20 +571,29 @@ optimize_mode_switching (void)
 	  bool any_set_required = false;
 	  HARD_REG_SET live_now;
 
+	  info[bb->index].mode_out = info[bb->index].mode_in = no_mode;
+
 	  REG_SET_TO_HARD_REG_SET (live_now, df_get_live_in (bb));
 
 	  /* Pretend the mode is clobbered across abnormal edges.  */
 	  {
 	    edge_iterator ei;
-	    edge e;
-	    FOR_EACH_EDGE (e, ei, bb->preds)
-	      if (e->flags & EDGE_COMPLEX)
+	    edge eg;
+	    FOR_EACH_EDGE (eg, ei, bb->preds)
+	      if (eg->flags & EDGE_COMPLEX)
 		break;
-	    if (e)
+	    if (eg)
 	      {
-		ptr = new_seginfo (no_mode, BB_HEAD (bb), bb->index, live_now);
+		rtx ins_pos = BB_HEAD (bb);
+		if (LABEL_P (ins_pos))
+		  ins_pos = NEXT_INSN (ins_pos);
+		gcc_assert (NOTE_INSN_BASIC_BLOCK_P (ins_pos));
+		if (ins_pos != BB_END (bb))
+		  ins_pos = NEXT_INSN (ins_pos);
+		ptr = new_seginfo (no_mode, ins_pos, bb->index, live_now);
 		add_seginfo (info + bb->index, ptr);
-		bitmap_clear_bit (transp[bb->index], j);
+		for (i = 0; i < no_mode; i++)
+		  clear_mode_bit (transp[bb->index], j, i);
 	      }
 	  }
 
@@ -544,7 +601,7 @@ optimize_mode_switching (void)
 	    {
 	      if (INSN_P (insn))
 		{
-		  int mode = MODE_NEEDED (e, insn);
+		  int mode = targetm.mode_switching.needed (e, insn);
 		  rtx link;
 
 		  if (mode != no_mode && mode != last_mode)
@@ -553,11 +610,14 @@ optimize_mode_switching (void)
 		      last_mode = mode;
 		      ptr = new_seginfo (mode, insn, bb->index, live_now);
 		      add_seginfo (info + bb->index, ptr);
-		      bitmap_clear_bit (transp[bb->index], j);
+		      for (i = 0; i < no_mode; i++)
+			clear_mode_bit (transp[bb->index], j, i);
 		    }
-#ifdef MODE_AFTER
-		  last_mode = MODE_AFTER (e, last_mode, insn);
-#endif
+
+		  if (targetm.mode_switching.after)
+		    last_mode = targetm.mode_switching.after (e, last_mode,
+							      insn);
+
 		  /* Update LIVE_NOW.  */
 		  for (link = REG_NOTES (insn); link; link = XEXP (link, 1))
 		    if (REG_NOTE_KIND (link) == REG_DEAD)
@@ -580,141 +640,146 @@ optimize_mode_switching (void)
 	      ptr = new_seginfo (no_mode, BB_END (bb), bb->index, live_now);
 	      add_seginfo (info + bb->index, ptr);
 	      if (last_mode != no_mode)
-		bitmap_clear_bit (transp[bb->index], j);
+		for (i = 0; i < no_mode; i++)
+		  clear_mode_bit (transp[bb->index], j, i);
 	    }
 	}
-#if defined (MODE_ENTRY) && defined (MODE_EXIT)
-      {
-	int mode = MODE_ENTRY (e);
+      if (targetm.mode_switching.entry && targetm.mode_switching.exit)
+	{
+	  int mode = targetm.mode_switching.entry (e);
 
-	if (mode != no_mode)
-	  {
-	    bb = post_entry;
+	  info[post_entry->index].mode_out =
+	    info[post_entry->index].mode_in = no_mode;
+	  if (pre_exit)
+	    {
+	      info[pre_exit->index].mode_out =
+		info[pre_exit->index].mode_in = no_mode;
+	    }
 
-	    /* By always making this nontransparent, we save
-	       an extra check in make_preds_opaque.  We also
-	       need this to avoid confusing pre_edge_lcm when
-	       antic is cleared but transp and comp are set.  */
-	    bitmap_clear_bit (transp[bb->index], j);
+	  if (mode != no_mode)
+	    {
+	      bb = post_entry;
 
-	    /* Insert a fake computing definition of MODE into entry
-	       blocks which compute no mode. This represents the mode on
-	       entry.  */
-	    info[bb->index].computing = mode;
+	      /* By always making this nontransparent, we save
+		 an extra check in make_preds_opaque.  We also
+		 need this to avoid confusing pre_edge_lcm when
+		 antic is cleared but transp and comp are set.  */
+	      for (i = 0; i < no_mode; i++)
+		clear_mode_bit (transp[bb->index], j, i);
 
-	    if (pre_exit)
-	      info[pre_exit->index].seginfo->mode = MODE_EXIT (e);
-	  }
-      }
-#endif /* NORMAL_MODE */
-    }
+	      /* Insert a fake computing definition of MODE into entry
+		 blocks which compute no mode. This represents the mode on
+		 entry.  */
+	      info[bb->index].computing = mode;
 
-  kill = sbitmap_vector_alloc (last_basic_block_for_fn (cfun), n_entities);
-  for (i = 0; i < max_num_modes; i++)
-    {
-      int current_mode[N_ENTITIES];
-      sbitmap *del;
-      sbitmap *insert;
+	      if (pre_exit)
+		info[pre_exit->index].seginfo->mode =
+		  targetm.mode_switching.exit (e);
+	    }
+	}
 
       /* Set the anticipatable and computing arrays.  */
-      bitmap_vector_clear (antic, last_basic_block_for_fn (cfun));
-      bitmap_vector_clear (comp, last_basic_block_for_fn (cfun));
-      for (j = n_entities - 1; j >= 0; j--)
+      for (i = 0; i < no_mode; i++)
 	{
-	  int m = current_mode[j] = MODE_PRIORITY_TO_MODE (entity_map[j], i);
-	  struct bb_info *info = bb_info[j];
+	  int m = targetm.mode_switching.priority (entity_map[j], i);
 
 	  FOR_EACH_BB_FN (bb, cfun)
 	    {
 	      if (info[bb->index].seginfo->mode == m)
-		bitmap_set_bit (antic[bb->index], j);
+		set_mode_bit (antic[bb->index], j, m);
 
 	      if (info[bb->index].computing == m)
-		bitmap_set_bit (comp[bb->index], j);
+		set_mode_bit (comp[bb->index], j, m);
 	    }
 	}
-
-      /* Calculate the optimal locations for the
-	 placement mode switches to modes with priority I.  */
-
-      FOR_EACH_BB_FN (bb, cfun)
-	bitmap_not (kill[bb->index], transp[bb->index]);
-      edge_list = pre_edge_lcm (n_entities, transp, comp, antic,
-				kill, &insert, &del);
-
-      for (j = n_entities - 1; j >= 0; j--)
-	{
-	  /* Insert all mode sets that have been inserted by lcm.  */
-	  int no_mode = num_modes[entity_map[j]];
-
-	  /* Wherever we have moved a mode setting upwards in the flow graph,
-	     the blocks between the new setting site and the now redundant
-	     computation ceases to be transparent for any lower-priority
-	     mode of the same entity.  First set the aux field of each
-	     insertion site edge non-transparent, then propagate the new
-	     non-transparency from the redundant computation upwards till
-	     we hit an insertion site or an already non-transparent block.  */
-	  for (e = NUM_EDGES (edge_list) - 1; e >= 0; e--)
-	    {
-	      edge eg = INDEX_EDGE (edge_list, e);
-	      int mode;
-	      basic_block src_bb;
-	      HARD_REG_SET live_at_edge;
-	      rtx mode_set;
-
-	      eg->aux = 0;
-
-	      if (! bitmap_bit_p (insert[e], j))
-		continue;
-
-	      eg->aux = (void *)1;
-
-	      mode = current_mode[j];
-	      src_bb = eg->src;
-
-	      REG_SET_TO_HARD_REG_SET (live_at_edge, df_get_live_out (src_bb));
-
-	      rtl_profile_for_edge (eg);
-	      start_sequence ();
-	      EMIT_MODE_SET (entity_map[j], mode, live_at_edge);
-	      mode_set = get_insns ();
-	      end_sequence ();
-	      default_rtl_profile ();
-
-	      /* Do not bother to insert empty sequence.  */
-	      if (mode_set == NULL_RTX)
-		continue;
-
-	      /* We should not get an abnormal edge here.  */
-	      gcc_assert (! (eg->flags & EDGE_ABNORMAL));
-
-	      need_commit = 1;
-	      insert_insn_on_edge (mode_set, eg);
-	    }
-
-	  FOR_EACH_BB_REVERSE_FN (bb, cfun)
-	    if (bitmap_bit_p (del[bb->index], j))
-	      {
-		make_preds_opaque (bb, j);
-		/* Cancel the 'deleted' mode set.  */
-		bb_info[j][bb->index].seginfo->mode = no_mode;
-	      }
-	}
-
-      sbitmap_vector_free (del);
-      sbitmap_vector_free (insert);
-      clear_aux_for_edges ();
-      free_edge_list (edge_list);
     }
 
-  /* Now output the remaining mode sets in all the segments.  */
+  /* Calculate the optimal locations for the
+     placement mode switches to modes with priority I.  */
+
+  FOR_EACH_BB_FN (bb, cfun)
+    bitmap_not (kill[bb->index], transp[bb->index]);
+
+  edge_list = pre_edge_lcm_avs (n_entities * max_num_modes, transp, comp, antic,
+				kill, avin, avout, &insert, &del);
+
   for (j = n_entities - 1; j >= 0; j--)
     {
       int no_mode = num_modes[entity_map[j]];
 
-      FOR_EACH_BB_REVERSE_FN (bb, cfun)
+      /* Insert all mode sets that have been inserted by lcm.  */
+
+      for (int ed = NUM_EDGES (edge_list) - 1; ed >= 0; ed--)
+	{
+	  edge eg = INDEX_EDGE (edge_list, ed);
+
+	  eg->aux = (void *)(intptr_t)-1;
+
+	  for (i = 0; i < no_mode; i++)
+	    {
+	      int m = targetm.mode_switching.priority (entity_map[j], i);
+	      if (mode_bit_p (insert[ed], j, m))
+		{
+		  eg->aux = (void *)(intptr_t)m;
+		  break;
+		}
+	    }
+	}
+
+      FOR_EACH_BB_FN (bb, cfun)
+	{
+	  struct bb_info *info = bb_info[j];
+	  int last_mode = no_mode;
+
+	  /* intialize mode in availability for bb.  */
+	  for (i = 0; i < no_mode; i++)
+	    if (mode_bit_p (avout[bb->index], j, i))
+	      {
+		if (last_mode == no_mode)
+		  last_mode = i;
+		if (last_mode != i)
+		  {
+		    last_mode = no_mode;
+		    break;
+		  }
+	      }
+	  info[bb->index].mode_out = last_mode;
+
+	  /* intialize mode out availability for bb.  */
+	  last_mode = no_mode;
+	  for (i = 0; i < no_mode; i++)
+	    if (mode_bit_p (avin[bb->index], j, i))
+	      {
+		if (last_mode == no_mode)
+		  last_mode = i;
+		if (last_mode != i)
+		  {
+		    last_mode = no_mode;
+		    break;
+		  }
+	      }
+	  info[bb->index].mode_in = last_mode;
+
+	  for (i = 0; i < no_mode; i++)
+	    if (mode_bit_p (del[bb->index], j, i))
+	      info[bb->index].seginfo->mode = no_mode;
+	}
+
+      /* Now output the remaining mode sets in all the segments.  */
+
+      /* In case there was no mode inserted. the mode information on the edge
+	 might not be complete.
+	 Update mode info on edges and commit pending mode sets.  */
+      need_commit |= commit_mode_sets (edge_list, entity_map[j], bb_info[j]);
+
+      /* Reset modes for next entity.  */
+      clear_aux_for_edges ();
+
+      FOR_EACH_BB_FN (bb, cfun)
 	{
 	  struct seginfo *ptr, *next;
+	  int cur_mode = bb_info[j][bb->index].mode_in;
+
 	  for (ptr = bb_info[j][bb->index].seginfo; ptr; ptr = next)
 	    {
 	      next = ptr->next;
@@ -724,16 +789,29 @@ optimize_mode_switching (void)
 
 		  rtl_profile_for_bb (bb);
 		  start_sequence ();
-		  EMIT_MODE_SET (entity_map[j], ptr->mode, ptr->regs_live);
+
+		  targetm.mode_switching.emit (entity_map[j], ptr->mode,
+					       cur_mode, ptr->regs_live);
 		  mode_set = get_insns ();
 		  end_sequence ();
+
+		  /* modes kill each other inside a basic block.  */
+		  cur_mode = ptr->mode;
 
 		  /* Insert MODE_SET only if it is nonempty.  */
 		  if (mode_set != NULL_RTX)
 		    {
 		      emitted = true;
 		      if (NOTE_INSN_BASIC_BLOCK_P (ptr->insn_ptr))
-			emit_insn_after (mode_set, ptr->insn_ptr);
+			/* We need to emit the insns in a FIFO-like manner,
+			   i.e. the first to be emitted at our insertion
+			   point ends up first in the instruction steam.
+			   Because we made sure that NOTE_INSN_BASIC_BLOCK is
+			   only used for initially empty basic blocks, we
+			   can achieve this by appending at the end of
+			   the block.  */
+			emit_insn_after
+			  (mode_set, BB_END (NOTE_BASIC_BLOCK (ptr->insn_ptr)));
 		      else
 			emit_insn_before (mode_set, ptr->insn_ptr);
 		    }
@@ -748,47 +826,31 @@ optimize_mode_switching (void)
       free (bb_info[j]);
     }
 
+  free_edge_list (edge_list);
+
   /* Finished. Free up all the things we've allocated.  */
+  sbitmap_vector_free (del);
+  sbitmap_vector_free (insert);
   sbitmap_vector_free (kill);
   sbitmap_vector_free (antic);
   sbitmap_vector_free (transp);
   sbitmap_vector_free (comp);
+  sbitmap_vector_free (avin);
+  sbitmap_vector_free (avout);
 
   if (need_commit)
     commit_edge_insertions ();
 
-#if defined (MODE_ENTRY) && defined (MODE_EXIT)
-  cleanup_cfg (CLEANUP_NO_INSN_DEL);
-#else
-  if (!need_commit && !emitted)
+  if (targetm.mode_switching.entry && targetm.mode_switching.exit)
+    cleanup_cfg (CLEANUP_NO_INSN_DEL);
+  else if (!need_commit && !emitted)
     return 0;
-#endif
 
   return 1;
 }
 
 #endif /* OPTIMIZE_MODE_SWITCHING */
 
-static bool
-gate_mode_switching (void)
-{
-#ifdef OPTIMIZE_MODE_SWITCHING
-  return true;
-#else
-  return false;
-#endif
-}
-
-static unsigned int
-rest_of_handle_mode_switching (void)
-{
-#ifdef OPTIMIZE_MODE_SWITCHING
-  optimize_mode_switching ();
-#endif /* OPTIMIZE_MODE_SWITCHING */
-  return 0;
-}
-
-
 namespace {
 
 const pass_data pass_data_mode_switching =
@@ -796,14 +858,12 @@ const pass_data pass_data_mode_switching =
   RTL_PASS, /* type */
   "mode_sw", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_MODE_SWITCH, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  ( TODO_df_finish | TODO_verify_rtl_sharing | 0 ), /* todo_flags_finish */
+  TODO_df_finish, /* todo_flags_finish */
 };
 
 class pass_mode_switching : public rtl_opt_pass
@@ -817,8 +877,22 @@ public:
   /* The epiphany backend creates a second instance of this pass, so we need
      a clone method.  */
   opt_pass * clone () { return new pass_mode_switching (m_ctxt); }
-  bool gate () { return gate_mode_switching (); }
-  unsigned int execute () { return rest_of_handle_mode_switching (); }
+  virtual bool gate (function *)
+    {
+#ifdef OPTIMIZE_MODE_SWITCHING
+      return true;
+#else
+      return false;
+#endif
+    }
+
+  virtual unsigned int execute (function *)
+    {
+#ifdef OPTIMIZE_MODE_SWITCHING
+      optimize_mode_switching ();
+#endif /* OPTIMIZE_MODE_SWITCHING */
+      return 0;
+    }
 
 }; // class pass_mode_switching
 

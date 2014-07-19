@@ -486,6 +486,9 @@ proc dg-function-on-line { args } {
     } elseif { [istarget mips*-*-*] } {
 	set pattern [format {\t\.loc [0-9]+ %d 0( [^\n]*)?\n(\t.cfi_startproc[^\t]*\n)*\t\.set\t(no)?mips16\n\t(\.set\t(no)?micromips\n\t)?\.ent\t%s\n\t\.type\t%s, @function\n%s:\n} \
 		     $line $symbol $symbol $symbol]
+    } elseif { [istarget microblaze*-*-*] } {
+        set pattern [format {:%d\n\$.*:\n\t\.ent\t%s\n\t\.type\t%s, @function\n%s:\n} \
+                     $line $symbol $symbol $symbol]
     } else {
 	set pattern [format {%s:[^\t]*(\t.(fnstart|frame|mask|file)[^\t]*)*\t[^:]+:%d\n} \
                      $symbol $line]
@@ -499,4 +502,14 @@ proc dg-function-on-line { args } {
     }
 
     append final-code "$cmd\n"
+}
+
+# Look for a pattern in the .exe.ltrans0.s file produced by the
+# compiler.  See dg-scan for details.
+
+proc scan-lto-assembler { args } {
+    set testcase [testname-for-summary]
+    set output_file "[file rootname [file tail $testcase]].exe.ltrans0.s"
+    verbose "output_file: $output_file"
+    dg-scan "scan-assembler" 1 $testcase $output_file $args
 }

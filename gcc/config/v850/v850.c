@@ -45,6 +45,7 @@
 #include "target-def.h"
 #include "df.h"
 #include "opts.h"
+#include "builtins.h"
 
 #ifndef streq
 #define streq(a,b) (strcmp (a, b) == 0)
@@ -53,8 +54,8 @@
 static void v850_print_operand_address (FILE *, rtx);
 
 /* Names of the various data areas used on the v850.  */
-tree GHS_default_section_names [(int) COUNT_OF_GHS_SECTION_KINDS];
-tree GHS_current_section_names [(int) COUNT_OF_GHS_SECTION_KINDS];
+const char * GHS_default_section_names [(int) COUNT_OF_GHS_SECTION_KINDS];
+const char * GHS_current_section_names [(int) COUNT_OF_GHS_SECTION_KINDS];
 
 /* Track the current data area set by the data area pragma (which 
    can be nested).  Tested by check_default_data_area.  */
@@ -2189,7 +2190,7 @@ v850_encode_data_area (tree decl, rtx symbol)
     {
       if (DECL_SECTION_NAME (decl))
 	{
-	  const char *name = TREE_STRING_POINTER (DECL_SECTION_NAME (decl));
+	  const char *name = DECL_SECTION_NAME (decl);
 	  
 	  if (streq (name, ".zdata") || streq (name, ".zbss"))
 	    v850_set_data_area (decl, DATA_AREA_ZDA);
@@ -2568,19 +2569,19 @@ v850_insert_attributes (tree decl, tree * attr_ptr ATTRIBUTE_UNUSED )
   if (GHS_default_section_names [(int) GHS_SECTION_KIND_SDATA] == NULL)
     {
       GHS_default_section_names [(int) GHS_SECTION_KIND_SDATA]
-	= build_string (sizeof (".sdata")-1, ".sdata");
+	= ".sdata";
 
       GHS_default_section_names [(int) GHS_SECTION_KIND_ROSDATA]
-	= build_string (sizeof (".rosdata")-1, ".rosdata");
+	= ".rosdata";
 
       GHS_default_section_names [(int) GHS_SECTION_KIND_TDATA]
-	= build_string (sizeof (".tdata")-1, ".tdata");
+	= ".tdata";
       
       GHS_default_section_names [(int) GHS_SECTION_KIND_ZDATA]
-	= build_string (sizeof (".zdata")-1, ".zdata");
+	= ".zdata";
 
       GHS_default_section_names [(int) GHS_SECTION_KIND_ROZDATA]
-	= build_string (sizeof (".rozdata")-1, ".rozdata");
+	= ".rozdata";
     }
   
   if (current_function_decl == NULL_TREE
@@ -2591,7 +2592,7 @@ v850_insert_attributes (tree decl, tree * attr_ptr ATTRIBUTE_UNUSED )
       && !DECL_SECTION_NAME (decl))
     {
       enum GHS_section_kind kind = GHS_SECTION_KIND_DEFAULT;
-      tree chosen_section;
+      const char * chosen_section;
 
       if (TREE_CODE (decl) == FUNCTION_DECL)
 	kind = GHS_SECTION_KIND_TEXT;
@@ -2643,7 +2644,7 @@ v850_insert_attributes (tree decl, tree * attr_ptr ATTRIBUTE_UNUSED )
 	  /* Only set the section name if specified by a pragma, because
 	     otherwise it will force those variables to get allocated storage
 	     in this module, rather than by the linker.  */
-	  DECL_SECTION_NAME (decl) = chosen_section;
+	  set_decl_section_name (decl, chosen_section);
 	}
     }
 }

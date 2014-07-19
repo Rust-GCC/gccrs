@@ -20,6 +20,7 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_RTL_H
 #define GCC_RTL_H
 
+#include <utility>
 #include "statistics.h"
 #include "machmode.h"
 #include "input.h"
@@ -28,6 +29,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "fixed-value.h"
 #include "alias.h"
 #include "hashtab.h"
+#include "wide-int.h"
 #include "flags.h"
 
 /* Value used by some passes to "recognize" noop moves as valid
@@ -106,6 +108,10 @@ extern const char * const rtx_format[NUM_RTX_CODE];
 
 extern const enum rtx_class rtx_class[NUM_RTX_CODE];
 #define GET_RTX_CLASS(CODE)		(rtx_class[(int) (CODE)])
+
+/* True if CODE is part of the insn chain (i.e. has INSN_UID, PREV_INSN
+   and NEXT_INSN fields).  */
+#define INSN_CHAIN_CODE_P(CODE) IN_RANGE (CODE, DEBUG_INSN, NOTE)
 
 extern const unsigned char rtx_code_size[NUM_RTX_CODE];
 extern const unsigned char rtx_next[NUM_RTX_CODE];
@@ -205,7 +211,7 @@ union rtunion
    if SYMBOL_REF_HAS_BLOCK_INFO_P is true.  */
 struct GTY(()) block_symbol {
   /* The usual SYMBOL_REF fields.  */
-  rtunion GTY ((skip)) fld[3];
+  rtunion GTY ((skip)) fld[2];
 
   /* The block that contains this object.  */
   struct object_block *block;
@@ -248,10 +254,20 @@ struct GTY(()) object_block {
   vec<rtx, va_gc> *anchors;
 };
 
+struct GTY((variable_size)) hwivec_def {
+  HOST_WIDE_INT elem[1];
+};
+
+/* Number of elements of the HWIVEC if RTX is a CONST_WIDE_INT.  */
+#define CWI_GET_NUM_ELEM(RTX)					\
+  ((int)RTL_FLAG_CHECK1("CWI_GET_NUM_ELEM", (RTX), CONST_WIDE_INT)->u2.num_elem)
+#define CWI_PUT_NUM_ELEM(RTX, NUM)					\
+  (RTL_FLAG_CHECK1("CWI_PUT_NUM_ELEM", (RTX), CONST_WIDE_INT)->u2.num_elem = (NUM))
+
 /* RTL expression ("rtx").  */
 
 struct GTY((chain_next ("RTX_NEXT (&%h)"),
-	    chain_prev ("RTX_PREV (&%h)"), variable_size)) rtx_def {
+	    chain_prev ("RTX_PREV (&%h)"))) rtx_def {
   /* The kind of expression this is.  */
   ENUM_BITFIELD(rtx_code) code: 16;
 
@@ -260,6 +276,7 @@ struct GTY((chain_next ("RTX_NEXT (&%h)"),
 
   /* 1 in a MEM if we should keep the alias set for this mem unchanged
      when we access a component.
+     1 in a JUMP_INSN if it is a crossing jump.
      1 in a CALL_INSN if it is a sibling call.
      1 in a SET that is for a return.
      In a CODE_LABEL, part of the two-bit alternate entry field.
@@ -334,6 +351,29 @@ struct GTY((chain_next ("RTX_NEXT (&%h)"),
      1 in a VALUE or DEBUG_EXPR is NO_LOC_P in var-tracking.c.  */
   unsigned return_val : 1;
 
+  union {
+    /* The final union field is aligned to 64 bits on LP64 hosts,
+       giving a 32-bit gap after the fields above.  We optimize the
+       layout for that case and use the gap for extra code-specific
+       information.  */
+
+    /* The ORIGINAL_REGNO of a REG.  */
+    unsigned int original_regno;
+
+    /* The INSN_UID of an RTX_INSN-class code.  */
+    int insn_uid;
+
+    /* The SYMBOL_REF_FLAGS of a SYMBOL_REF.  */
+    unsigned int symbol_ref_flags;
+
+    /* The PAT_VAR_LOCATION_STATUS of a VAR_LOCATION.  */
+    enum var_init_status var_location_status;
+
+    /* In a CONST_WIDE_INT (aka hwivec_def), this is the number of
+       HOST_WIDE_INTs in the hwivec_def.  */
+    unsigned int num_elem;
+  } GTY ((skip)) u2;
+
   /* The first element of the operands of this rtx.
      The number of operands and their types are controlled
      by the `code' field, according to rtl.def.  */
@@ -343,6 +383,7 @@ struct GTY((chain_next ("RTX_NEXT (&%h)"),
     struct block_symbol block_sym;
     struct real_value rv;
     struct fixed_value fv;
+    struct hwivec_def hwiv;
   } GTY ((special ("rtx_def"), desc ("GET_CODE (&%0)"))) u;
 };
 
@@ -382,7 +423,7 @@ struct GTY((chain_next ("RTX_NEXT (&%h)"),
    for a variable number of things.  The principle use is inside
    PARALLEL expressions.  */
 
-struct GTY((variable_size)) rtvec_def {
+struct GTY(()) rtvec_def {
   int num_elem;		/* number of elements */
   rtx GTY ((length ("%h.num_elem"))) elem[1];
 };
@@ -398,12 +439,38 @@ struct GTY((variable_size)) rtvec_def {
 /* Predicate yielding nonzero iff X is an rtx for a memory location.  */
 #define MEM_P(X) (GET_CODE (X) == MEM)
 
+#if TARGET_SUPPORTS_WIDE_INT
+
+/* Match CONST_*s that can represent compile-time constant integers.  */
+#define CASE_CONST_SCALAR_INT \
+   case CONST_INT: \
+   case CONST_WIDE_INT
+
+/* Match CONST_*s for which pointer equality corresponds to value
+   equality.  */
+#define CASE_CONST_UNIQUE \
+   case CONST_INT: \
+   case CONST_WIDE_INT: \
+   case CONST_DOUBLE: \
+   case CONST_FIXED
+
+/* Match all CONST_* rtxes.  */
+#define CASE_CONST_ANY \
+   case CONST_INT: \
+   case CONST_WIDE_INT: \
+   case CONST_DOUBLE: \
+   case CONST_FIXED: \
+   case CONST_VECTOR
+
+#else
+
 /* Match CONST_*s that can represent compile-time constant integers.  */
 #define CASE_CONST_SCALAR_INT \
    case CONST_INT: \
    case CONST_DOUBLE
 
-/* Match CONST_*s for which pointer equality corresponds to value equality.  */
+/* Match CONST_*s for which pointer equality corresponds to value
+   equality.  */
 #define CASE_CONST_UNIQUE \
    case CONST_INT: \
    case CONST_DOUBLE: \
@@ -415,9 +482,13 @@ struct GTY((variable_size)) rtvec_def {
    case CONST_DOUBLE: \
    case CONST_FIXED: \
    case CONST_VECTOR
+#endif
 
 /* Predicate yielding nonzero iff X is an rtx for a constant integer.  */
 #define CONST_INT_P(X) (GET_CODE (X) == CONST_INT)
+
+/* Predicate yielding nonzero iff X is an rtx for a constant integer.  */
+#define CONST_WIDE_INT_P(X) (GET_CODE (X) == CONST_WIDE_INT)
 
 /* Predicate yielding nonzero iff X is an rtx for a constant fixed-point.  */
 #define CONST_FIXED_P(X) (GET_CODE (X) == CONST_FIXED)
@@ -431,8 +502,13 @@ struct GTY((variable_size)) rtvec_def {
   (GET_CODE (X) == CONST_DOUBLE && GET_MODE (X) == VOIDmode)
 
 /* Predicate yielding true iff X is an rtx for a integer const.  */
+#if TARGET_SUPPORTS_WIDE_INT
+#define CONST_SCALAR_INT_P(X) \
+  (CONST_INT_P (X) || CONST_WIDE_INT_P (X))
+#else
 #define CONST_SCALAR_INT_P(X) \
   (CONST_INT_P (X) || CONST_DOUBLE_AS_INT_P (X))
+#endif
 
 /* Predicate yielding true iff X is an rtx for a double-int.  */
 #define CONST_DOUBLE_AS_FLOAT_P(X) \
@@ -593,6 +669,15 @@ struct GTY((variable_size)) rtvec_def {
 			       __FUNCTION__);				\
      &_rtx->u.hwint[_n]; }))
 
+#define CWI_ELT(RTX, I) __extension__					\
+(*({ __typeof (RTX) const _cwi = (RTX);					\
+     int _max = CWI_GET_NUM_ELEM (_cwi);				\
+     const int _i = (I);						\
+     if (_i < 0 || _i >= _max)						\
+       cwi_check_failed_bounds (_cwi, _i, __FILE__, __LINE__,		\
+				__FUNCTION__);				\
+     &_cwi->u.hwiv.elem[_i]; }))
+
 #define XCWINT(RTX, N, C) __extension__					\
 (*({ __typeof (RTX) const _rtx = (RTX);					\
      if (GET_CODE (_rtx) != (C))					\
@@ -623,11 +708,16 @@ struct GTY((variable_size)) rtvec_def {
 
 #define BLOCK_SYMBOL_CHECK(RTX) __extension__				\
 ({ __typeof (RTX) const _symbol = (RTX);				\
-   const unsigned int flags = RTL_CHECKC1 (_symbol, 1, SYMBOL_REF).rt_int; \
+   const unsigned int flags = SYMBOL_REF_FLAGS (_symbol);		\
    if ((flags & SYMBOL_FLAG_HAS_BLOCK_INFO) == 0)			\
      rtl_check_failed_block_symbol (__FILE__, __LINE__,			\
 				    __FUNCTION__);			\
    &_symbol->u.block_sym; })
+
+#define HWIVEC_CHECK(RTX,C) __extension__				\
+({ __typeof (RTX) const _symbol = (RTX);				\
+   RTL_CHECKC1 (_symbol, 0, C);						\
+   &_symbol->u.hwiv; })
 
 extern void rtl_check_failed_bounds (const_rtx, int, const char *, int,
 				     const char *)
@@ -649,6 +739,9 @@ extern void rtl_check_failed_code_mode (const_rtx, enum rtx_code, enum machine_m
     ATTRIBUTE_NORETURN;
 extern void rtl_check_failed_block_symbol (const char *, int, const char *)
     ATTRIBUTE_NORETURN;
+extern void cwi_check_failed_bounds (const_rtx, int, const char *, int,
+				     const char *)
+    ATTRIBUTE_NORETURN;
 extern void rtvec_check_failed_bounds (const_rtvec, int, const char *, int,
 				       const char *)
     ATTRIBUTE_NORETURN;
@@ -661,12 +754,14 @@ extern void rtvec_check_failed_bounds (const_rtvec, int, const char *, int,
 #define RTL_CHECKC2(RTX, N, C1, C2) ((RTX)->u.fld[N])
 #define RTVEC_ELT(RTVEC, I)	    ((RTVEC)->elem[I])
 #define XWINT(RTX, N)		    ((RTX)->u.hwint[N])
+#define CWI_ELT(RTX, I)		    ((RTX)->u.hwiv.elem[I])
 #define XCWINT(RTX, N, C)	    ((RTX)->u.hwint[N])
 #define XCMWINT(RTX, N, C, M)	    ((RTX)->u.hwint[N])
 #define XCNMWINT(RTX, N, C, M)	    ((RTX)->u.hwint[N])
 #define XCNMPRV(RTX, C, M)	    (&(RTX)->u.rv)
 #define XCNMPFV(RTX, C, M)	    (&(RTX)->u.fv)
 #define BLOCK_SYMBOL_CHECK(RTX)	    (&(RTX)->u.block_sym)
+#define HWIVEC_CHECK(RTX,C)	    (&(RTX)->u.hwiv)
 
 #endif
 
@@ -736,15 +831,12 @@ extern void rtvec_check_failed_bounds (const_rtvec, int, const char *, int,
 			     __FUNCTION__);				\
    _rtx; })
 
-#define RTL_FLAG_CHECK8(NAME, RTX, C1, C2, C3, C4, C5, C6, C7, C8)	\
+#define RTL_INSN_CHAIN_FLAG_CHECK(NAME, RTX) 				\
   __extension__								\
 ({ __typeof (RTX) const _rtx = (RTX);					\
-   if (GET_CODE (_rtx) != C1 && GET_CODE (_rtx) != C2			\
-       && GET_CODE (_rtx) != C3 && GET_CODE (_rtx) != C4		\
-       && GET_CODE (_rtx) != C5 && GET_CODE (_rtx) != C6		\
-       && GET_CODE (_rtx) != C7 && GET_CODE (_rtx) != C8)		\
-     rtl_check_failed_flag  (NAME, _rtx, __FILE__, __LINE__,		\
-			     __FUNCTION__);				\
+   if (!INSN_CHAIN_CODE_P (GET_CODE (_rtx)))				\
+     rtl_check_failed_flag (NAME, _rtx, __FILE__, __LINE__,		\
+			    __FUNCTION__);				\
    _rtx; })
 
 extern void rtl_check_failed_flag (const char *, const_rtx, const char *,
@@ -758,10 +850,10 @@ extern void rtl_check_failed_flag (const char *, const_rtx, const char *,
 #define RTL_FLAG_CHECK2(NAME, RTX, C1, C2)				(RTX)
 #define RTL_FLAG_CHECK3(NAME, RTX, C1, C2, C3)				(RTX)
 #define RTL_FLAG_CHECK4(NAME, RTX, C1, C2, C3, C4)			(RTX)
-#define RTL_FLAG_CHECK5(NAME, RTX, C1, C2, C3, C4, C5)		(RTX)
+#define RTL_FLAG_CHECK5(NAME, RTX, C1, C2, C3, C4, C5)			(RTX)
 #define RTL_FLAG_CHECK6(NAME, RTX, C1, C2, C3, C4, C5, C6)		(RTX)
 #define RTL_FLAG_CHECK7(NAME, RTX, C1, C2, C3, C4, C5, C6, C7)		(RTX)
-#define RTL_FLAG_CHECK8(NAME, RTX, C1, C2, C3, C4, C5, C6, C7, C8)	(RTX)
+#define RTL_INSN_CHAIN_FLAG_CHECK(NAME, RTX) 				(RTX)
 #endif
 
 #define XINT(RTX, N)	(RTL_CHECK2 (RTX, N, 'i', 'n').rt_int)
@@ -818,18 +910,19 @@ extern void rtl_check_failed_flag (const char *, const_rtx, const char *,
 
 /* Holds a unique number for each insn.
    These are not necessarily sequentially increasing.  */
-#define INSN_UID(INSN)  XINT (INSN, 0)
+#define INSN_UID(INSN) \
+  (RTL_INSN_CHAIN_FLAG_CHECK ("INSN_UID", (INSN))->u2.insn_uid)
 
 /* Chain insns together in sequence.  */
-#define PREV_INSN(INSN)	XEXP (INSN, 1)
-#define NEXT_INSN(INSN)	XEXP (INSN, 2)
+#define PREV_INSN(INSN)	XEXP (INSN, 0)
+#define NEXT_INSN(INSN)	XEXP (INSN, 1)
 
-#define BLOCK_FOR_INSN(INSN) XBBDEF (INSN, 3)
+#define BLOCK_FOR_INSN(INSN) XBBDEF (INSN, 2)
 
 /* The body of an insn.  */
-#define PATTERN(INSN)	XEXP (INSN, 4)
+#define PATTERN(INSN)	XEXP (INSN, 3)
 
-#define INSN_LOCATION(INSN) XUINT (INSN, 5)
+#define INSN_LOCATION(INSN) XUINT (INSN, 4)
 
 #define INSN_HAS_LOCATION(INSN) ((LOCATION_LOCUS (INSN_LOCATION (INSN)))\
   != UNKNOWN_LOCATION)
@@ -840,7 +933,7 @@ extern void rtl_check_failed_flag (const char *, const_rtx, const char *,
 
 /* Code number of instruction, from when it was recognized.
    -1 means this instruction has not been recognized yet.  */
-#define INSN_CODE(INSN) XINT (INSN, 6)
+#define INSN_CODE(INSN) XINT (INSN, 5)
 
 #define RTX_FRAME_RELATED_P(RTX)					\
   (RTL_FLAG_CHECK6 ("RTX_FRAME_RELATED_P", (RTX), DEBUG_INSN, INSN,	\
@@ -848,9 +941,11 @@ extern void rtl_check_failed_flag (const char *, const_rtx, const char *,
 
 /* 1 if RTX is an insn that has been deleted.  */
 #define INSN_DELETED_P(RTX)						\
-  (RTL_FLAG_CHECK8 ("INSN_DELETED_P", (RTX), DEBUG_INSN, INSN,		\
-		    CALL_INSN, JUMP_INSN, JUMP_TABLE_DATA,		\
-		    CODE_LABEL, BARRIER, NOTE)->volatil)
+  (RTL_INSN_CHAIN_FLAG_CHECK ("INSN_DELETED_P", (RTX))->volatil)
+
+/* 1 if JUMP RTX is a crossing jump.  */
+#define CROSSING_JUMP_P(RTX) \
+  (RTL_FLAG_CHECK1 ("CROSSING_JUMP_P", (RTX), JUMP_INSN)->jump)
 
 /* 1 if RTX is a call to a const function.  Built from ECF_CONST and
    TREE_READONLY.  */
@@ -900,7 +995,7 @@ extern void rtl_check_failed_flag (const char *, const_rtx, const char *,
    chain pointer and the first operand is the REG being described.
    The mode field of the EXPR_LIST contains not a real machine mode
    but a value from enum reg_note.  */
-#define REG_NOTES(INSN)	XEXP(INSN, 7)
+#define REG_NOTES(INSN)	XEXP(INSN, 6)
 
 /* In an ENTRY_VALUE this is the DECL_INCOMING_RTL of the argument in
    question.  */
@@ -931,12 +1026,12 @@ extern const char * const reg_note_name[];
      CLOBBER expressions document the registers explicitly clobbered
    by this CALL_INSN.
      Pseudo registers can not be mentioned in this list.  */
-#define CALL_INSN_FUNCTION_USAGE(INSN)	XEXP(INSN, 8)
+#define CALL_INSN_FUNCTION_USAGE(INSN)	XEXP(INSN, 7)
 
 /* The label-number of a code-label.  The assembler label
    is made from `L' and the label-number printed in decimal.
    Label numbers are unique in a compilation.  */
-#define CODE_LABEL_NUMBER(INSN)	XINT (INSN, 6)
+#define CODE_LABEL_NUMBER(INSN)	XINT (INSN, 5)
 
 /* In a NOTE that is a line number, this is a string for the file name that the
    line is in.  We use the same field to record block numbers temporarily in
@@ -945,19 +1040,19 @@ extern const char * const reg_note_name[];
    */
 
 /* Opaque data.  */
-#define NOTE_DATA(INSN)	        RTL_CHECKC1 (INSN, 4, NOTE)
-#define NOTE_DELETED_LABEL_NAME(INSN) XCSTR (INSN, 4, NOTE)
+#define NOTE_DATA(INSN)	        RTL_CHECKC1 (INSN, 3, NOTE)
+#define NOTE_DELETED_LABEL_NAME(INSN) XCSTR (INSN, 3, NOTE)
 #define SET_INSN_DELETED(INSN) set_insn_deleted (INSN);
-#define NOTE_BLOCK(INSN)	XCTREE (INSN, 4, NOTE)
-#define NOTE_EH_HANDLER(INSN)	XCINT (INSN, 4, NOTE)
-#define NOTE_BASIC_BLOCK(INSN)	XCBBDEF (INSN, 4, NOTE)
-#define NOTE_VAR_LOCATION(INSN)	XCEXP (INSN, 4, NOTE)
-#define NOTE_CFI(INSN)		XCCFI (INSN, 4, NOTE)
-#define NOTE_LABEL_NUMBER(INSN)	XCINT (INSN, 4, NOTE)
+#define NOTE_BLOCK(INSN)	XCTREE (INSN, 3, NOTE)
+#define NOTE_EH_HANDLER(INSN)	XCINT (INSN, 3, NOTE)
+#define NOTE_BASIC_BLOCK(INSN)	XCBBDEF (INSN, 3, NOTE)
+#define NOTE_VAR_LOCATION(INSN)	XCEXP (INSN, 3, NOTE)
+#define NOTE_CFI(INSN)		XCCFI (INSN, 3, NOTE)
+#define NOTE_LABEL_NUMBER(INSN)	XCINT (INSN, 3, NOTE)
 
 /* In a NOTE that is a line number, this is the line number.
    Other kinds of NOTEs are identified by negative numbers here.  */
-#define NOTE_KIND(INSN) XCINT (INSN, 5, NOTE)
+#define NOTE_KIND(INSN) XCINT (INSN, 4, NOTE)
 
 /* Nonzero if INSN is a note marking the beginning of a basic block.  */
 #define NOTE_INSN_BASIC_BLOCK_P(INSN) \
@@ -971,7 +1066,8 @@ extern const char * const reg_note_name[];
    can be unknown, uninitialized or initialized.  See enumeration
    type below.  */
 #define PAT_VAR_LOCATION_STATUS(PAT) \
-  ((enum var_init_status) (XCINT ((PAT), 2, VAR_LOCATION)))
+  (RTL_FLAG_CHECK1 ("PAT_VAR_LOCATION_STATUS", PAT, VAR_LOCATION) \
+   ->u2.var_location_status)
 
 /* Accessors for a NOTE_INSN_VAR_LOCATION.  */
 #define NOTE_VAR_LOCATION_DECL(NOTE) \
@@ -1040,11 +1136,11 @@ extern const char * const note_insn_name[NOTE_INSN_MAX];
 
 /* The name of a label, in case it corresponds to an explicit label
    in the input source code.  */
-#define LABEL_NAME(RTX) XCSTR (RTX, 7, CODE_LABEL)
+#define LABEL_NAME(RTX) XCSTR (RTX, 6, CODE_LABEL)
 
 /* In jump.c, each label contains a count of the number
    of LABEL_REFs that point at it, so unused labels can be deleted.  */
-#define LABEL_NUSES(RTX) XCINT (RTX, 5, CODE_LABEL)
+#define LABEL_NUSES(RTX) XCINT (RTX, 4, CODE_LABEL)
 
 /* Labels carry a two-bit field composed of the ->jump and ->call
    bits.  This field indicates whether the label is an alternate
@@ -1099,12 +1195,12 @@ enum label_kind
 /* In jump.c, each JUMP_INSN can point to a label that it can jump to,
    so that if the JUMP_INSN is deleted, the label's LABEL_NUSES can
    be decremented and possibly the label can be deleted.  */
-#define JUMP_LABEL(INSN)   XCEXP (INSN, 8, JUMP_INSN)
+#define JUMP_LABEL(INSN)   XCEXP (INSN, 7, JUMP_INSN)
 
 /* Once basic blocks are found, each CODE_LABEL starts a chain that
    goes through all the LABEL_REFs that jump to that label.  The chain
    eventually winds up at the CODE_LABEL: it is circular.  */
-#define LABEL_REFS(LABEL) XCEXP (LABEL, 4, CODE_LABEL)
+#define LABEL_REFS(LABEL) XCEXP (LABEL, 3, CODE_LABEL)
 
 /* For a REG rtx, REGNO extracts the register number.  REGNO can only
    be used on RHS.  Use SET_REGNO to change the value.  */
@@ -1116,7 +1212,8 @@ enum label_kind
 /* ORIGINAL_REGNO holds the number the register originally had; for a
    pseudo register turned into a hard reg this will hold the old pseudo
    register number.  */
-#define ORIGINAL_REGNO(RTX) X0UINT (RTX, 1)
+#define ORIGINAL_REGNO(RTX) \
+  (RTL_FLAG_CHECK1 ("ORIGINAL_REGNO", (RTX), REG)->u2.original_regno)
 
 /* Force the REGNO macro to only be used on the lhs.  */
 static inline unsigned int
@@ -1153,9 +1250,19 @@ rhs_regno (const_rtx x)
 #define INTVAL(RTX) XCWINT (RTX, 0, CONST_INT)
 #define UINTVAL(RTX) ((unsigned HOST_WIDE_INT) INTVAL (RTX))
 
+/* For a CONST_WIDE_INT, CONST_WIDE_INT_NUNITS is the number of
+   elements actually needed to represent the constant.
+   CONST_WIDE_INT_ELT gets one of the elements.  0 is the least
+   significant HOST_WIDE_INT.  */
+#define CONST_WIDE_INT_VEC(RTX) HWIVEC_CHECK (RTX, CONST_WIDE_INT)
+#define CONST_WIDE_INT_NUNITS(RTX) CWI_GET_NUM_ELEM (RTX)
+#define CONST_WIDE_INT_ELT(RTX, N) CWI_ELT (RTX, N)
+
 /* For a CONST_DOUBLE:
+#if TARGET_SUPPORTS_WIDE_INT == 0
    For a VOIDmode, there are two integers CONST_DOUBLE_LOW is the
      low-order word and ..._HIGH the high-order.
+#endif
    For a float, there is a REAL_VALUE_TYPE structure, and
      CONST_DOUBLE_REAL_VALUE(r) is a pointer to it.  */
 #define CONST_DOUBLE_LOW(r) XCMWINT (r, 0, CONST_DOUBLE, VOIDmode)
@@ -1309,6 +1416,94 @@ struct address_info {
   /* True if this is an RTX_AUTOINC address.  */
   bool autoinc_p;
 };
+
+/* This is used to bundle an rtx and a mode together so that the pair
+   can be used with the wi:: routines.  If we ever put modes into rtx
+   integer constants, this should go away and then just pass an rtx in.  */
+typedef std::pair <rtx, enum machine_mode> rtx_mode_t;
+
+namespace wi
+{
+  template <>
+  struct int_traits <rtx_mode_t>
+  {
+    static const enum precision_type precision_type = VAR_PRECISION;
+    static const bool host_dependent_precision = false;
+    /* This ought to be true, except for the special case that BImode
+       is canonicalized to STORE_FLAG_VALUE, which might be 1.  */
+    static const bool is_sign_extended = false;
+    static unsigned int get_precision (const rtx_mode_t &);
+    static wi::storage_ref decompose (HOST_WIDE_INT *, unsigned int,
+				      const rtx_mode_t &);
+  };
+}
+
+inline unsigned int
+wi::int_traits <rtx_mode_t>::get_precision (const rtx_mode_t &x)
+{
+  return GET_MODE_PRECISION (x.second);
+}
+
+inline wi::storage_ref
+wi::int_traits <rtx_mode_t>::decompose (HOST_WIDE_INT *,
+					unsigned int precision,
+					const rtx_mode_t &x)
+{
+  gcc_checking_assert (precision == get_precision (x));
+  switch (GET_CODE (x.first))
+    {
+    case CONST_INT:
+      if (precision < HOST_BITS_PER_WIDE_INT)
+	/* Nonzero BImodes are stored as STORE_FLAG_VALUE, which on many
+	   targets is 1 rather than -1.  */
+	gcc_checking_assert (INTVAL (x.first)
+			     == sext_hwi (INTVAL (x.first), precision)
+			     || (x.second == BImode && INTVAL (x.first) == 1));
+
+      return wi::storage_ref (&INTVAL (x.first), 1, precision);
+
+    case CONST_WIDE_INT:
+      return wi::storage_ref (&CONST_WIDE_INT_ELT (x.first, 0),
+			      CONST_WIDE_INT_NUNITS (x.first), precision);
+
+#if TARGET_SUPPORTS_WIDE_INT == 0
+    case CONST_DOUBLE:
+      return wi::storage_ref (&CONST_DOUBLE_LOW (x.first), 2, precision);
+#endif
+
+    default:
+      gcc_unreachable ();
+    }
+}
+
+namespace wi
+{
+  hwi_with_prec shwi (HOST_WIDE_INT, enum machine_mode mode);
+  wide_int min_value (enum machine_mode, signop);
+  wide_int max_value (enum machine_mode, signop);
+}
+
+inline wi::hwi_with_prec
+wi::shwi (HOST_WIDE_INT val, enum machine_mode mode)
+{
+  return shwi (val, GET_MODE_PRECISION (mode));
+}
+
+/* Produce the smallest number that is represented in MODE.  The precision
+   is taken from MODE and the sign from SGN.  */
+inline wide_int
+wi::min_value (enum machine_mode mode, signop sgn)
+{
+  return min_value (GET_MODE_PRECISION (mode), sgn);
+}
+
+/* Produce the largest number that is represented in MODE.  The precision
+   is taken from MODE and the sign from SGN.  */
+inline wide_int
+wi::max_value (enum machine_mode mode, signop sgn)
+{
+  return max_value (GET_MODE_PRECISION (mode), sgn);
+}
 
 extern void init_rtlanal (void);
 extern int rtx_cost (rtx, enum rtx_code, int, bool);
@@ -1465,7 +1660,7 @@ do {									\
 
 /* The register attribute block.  We provide access macros for each value
    in the block and provide defaults if none specified.  */
-#define REG_ATTRS(RTX) X0REGATTR (RTX, 2)
+#define REG_ATTRS(RTX) X0REGATTR (RTX, 1)
 
 #ifndef GENERATOR_FILE
 /* For a MEM rtx, the alias set.  If 0, this MEM is not in any alias
@@ -1578,24 +1773,24 @@ do {									\
 
 /* A pointer attached to the SYMBOL_REF; either SYMBOL_REF_DECL or
    SYMBOL_REF_CONSTANT.  */
-#define SYMBOL_REF_DATA(RTX) X0ANY ((RTX), 2)
+#define SYMBOL_REF_DATA(RTX) X0ANY ((RTX), 1)
 
 /* Set RTX's SYMBOL_REF_DECL to DECL.  RTX must not be a constant
    pool symbol.  */
 #define SET_SYMBOL_REF_DECL(RTX, DECL) \
-  (gcc_assert (!CONSTANT_POOL_ADDRESS_P (RTX)), X0TREE ((RTX), 2) = (DECL))
+  (gcc_assert (!CONSTANT_POOL_ADDRESS_P (RTX)), X0TREE ((RTX), 1) = (DECL))
 
 /* The tree (decl or constant) associated with the symbol, or null.  */
 #define SYMBOL_REF_DECL(RTX) \
-  (CONSTANT_POOL_ADDRESS_P (RTX) ? NULL : X0TREE ((RTX), 2))
+  (CONSTANT_POOL_ADDRESS_P (RTX) ? NULL : X0TREE ((RTX), 1))
 
 /* Set RTX's SYMBOL_REF_CONSTANT to C.  RTX must be a constant pool symbol.  */
 #define SET_SYMBOL_REF_CONSTANT(RTX, C) \
-  (gcc_assert (CONSTANT_POOL_ADDRESS_P (RTX)), X0CONSTANT ((RTX), 2) = (C))
+  (gcc_assert (CONSTANT_POOL_ADDRESS_P (RTX)), X0CONSTANT ((RTX), 1) = (C))
 
 /* The rtx constant pool entry for a symbol, or null.  */
 #define SYMBOL_REF_CONSTANT(RTX) \
-  (CONSTANT_POOL_ADDRESS_P (RTX) ? X0CONSTANT ((RTX), 2) : NULL)
+  (CONSTANT_POOL_ADDRESS_P (RTX) ? X0CONSTANT ((RTX), 1) : NULL)
 
 /* A set of flags on a symbol_ref that are, in some respects, redundant with
    information derivable from the tree decl associated with this symbol.
@@ -1604,7 +1799,9 @@ do {									\
    this information to avoid recomputing it.  Finally, this allows space for
    the target to store more than one bit of information, as with
    SYMBOL_REF_FLAG.  */
-#define SYMBOL_REF_FLAGS(RTX)	X0INT ((RTX), 1)
+#define SYMBOL_REF_FLAGS(RTX) \
+  (RTL_FLAG_CHECK1 ("SYMBOL_REF_FLAGS", (RTX), SYMBOL_REF) \
+   ->u2.symbol_ref_flags)
 
 /* These flags are common enough to be defined for all targets.  They
    are computed by the default version of targetm.encode_section_info.  */
@@ -1760,11 +1957,17 @@ extern int currently_expanding_to_rtl;
 
 /* In explow.c */
 extern HOST_WIDE_INT trunc_int_for_mode	(HOST_WIDE_INT, enum machine_mode);
-extern rtx plus_constant (enum machine_mode, rtx, HOST_WIDE_INT);
+extern rtx plus_constant (enum machine_mode, rtx, HOST_WIDE_INT, bool = false);
 
 /* In rtl.c */
 extern rtx rtx_alloc_stat (RTX_CODE MEM_STAT_DECL);
 #define rtx_alloc(c) rtx_alloc_stat (c MEM_STAT_INFO)
+extern rtx rtx_alloc_stat_v (RTX_CODE MEM_STAT_DECL, int);
+#define rtx_alloc_v(c, SZ) rtx_alloc_stat_v (c MEM_STAT_INFO, SZ)
+#define const_wide_int_alloc(NWORDS)				\
+  rtx_alloc_v (CONST_WIDE_INT,					\
+	       (sizeof (struct hwivec_def)			\
+		+ ((NWORDS)-1) * sizeof (HOST_WIDE_INT)))	\
 
 extern rtvec rtvec_alloc (int);
 extern rtvec shallow_copy_rtvec (rtvec);
@@ -1821,10 +2024,17 @@ extern void start_sequence (void);
 extern void push_to_sequence (rtx);
 extern void push_to_sequence2 (rtx, rtx);
 extern void end_sequence (void);
+#if TARGET_SUPPORTS_WIDE_INT == 0
 extern double_int rtx_to_double_int (const_rtx);
-extern rtx immed_double_int_const (double_int, enum machine_mode);
+#endif
+extern void cwi_output_hex (FILE *, const_rtx);
+#ifndef GENERATOR_FILE
+extern rtx immed_wide_int_const (const wide_int_ref &, enum machine_mode);
+#endif
+#if TARGET_SUPPORTS_WIDE_INT == 0
 extern rtx immed_double_const (HOST_WIDE_INT, HOST_WIDE_INT,
 			       enum machine_mode);
+#endif
 
 /* In loop-iv.c  */
 
@@ -1920,6 +2130,7 @@ extern rtx prev_cc0_setter (rtx);
 extern int insn_line (const_rtx);
 extern const char * insn_file (const_rtx);
 extern tree insn_scope (const_rtx);
+extern expanded_location insn_location (const_rtx);
 extern location_t prologue_location, epilogue_location;
 
 /* In jump.c */
@@ -1987,6 +2198,7 @@ extern enum machine_mode choose_hard_reg_mode (unsigned int, unsigned int,
 					       bool);
 
 /* In emit-rtl.c  */
+extern rtx set_for_reg_notes (rtx);
 extern rtx set_unique_reg_note (rtx, enum reg_note, rtx);
 extern rtx set_dst_reg_note (rtx, enum reg_note, rtx, rtx);
 extern void set_insn_deleted (rtx);
@@ -2042,7 +2254,7 @@ extern const_rtx set_of (const_rtx, const_rtx);
 extern void record_hard_reg_sets (rtx, const_rtx, void *);
 extern void record_hard_reg_uses (rtx *, void *);
 #ifdef HARD_CONST
-extern void find_all_hard_reg_sets (const_rtx, HARD_REG_SET *);
+extern void find_all_hard_reg_sets (const_rtx, HARD_REG_SET *, bool);
 #endif
 extern void note_stores (const_rtx, void (*) (rtx, const_rtx, void *), void *);
 extern void note_uses (rtx *, void (*) (rtx *, void *), void *);
@@ -2302,6 +2514,10 @@ struct GTY(()) target_rtl {
 
   /* The default memory attributes for each mode.  */
   struct mem_attrs *x_mode_mem_attrs[(int) MAX_MACHINE_MODE];
+
+  /* Track if RTL has been initialized.  */
+  bool target_specific_initialized;
+  bool lang_dependent_initialized;
 };
 
 extern GTY(()) struct target_rtl default_target_rtl;
@@ -2365,6 +2581,8 @@ extern rtx gen_raw_REG (enum machine_mode, int);
 extern rtx gen_rtx_REG (enum machine_mode, unsigned);
 extern rtx gen_rtx_SUBREG (enum machine_mode, rtx, int);
 extern rtx gen_rtx_MEM (enum machine_mode, rtx);
+extern rtx gen_rtx_VAR_LOCATION (enum machine_mode, tree, rtx,
+				 enum var_init_status);
 
 #define GEN_INT(N)  gen_rtx_CONST_INT (VOIDmode, (N))
 
@@ -2545,6 +2763,7 @@ extern int get_max_insn_count (void);
 extern int in_sequence_p (void);
 extern void init_emit (void);
 extern void init_emit_regs (void);
+extern void init_derived_machine_modes (void);
 extern void init_emit_once (void);
 extern void push_topmost_sequence (void);
 extern void pop_topmost_sequence (void);
@@ -2742,10 +2961,6 @@ extern unsigned int variable_tracking_main (void);
 /* In stor-layout.c.  */
 extern void get_mode_bounds (enum machine_mode, int, enum machine_mode,
 			     rtx *, rtx *);
-
-/* In loop-unswitch.c  */
-extern rtx reversed_condition (rtx);
-extern rtx compare_and_jump_seq (rtx, rtx, enum rtx_code, rtx, int, rtx);
 
 /* In loop-iv.c  */
 extern rtx canon_condition (rtx);

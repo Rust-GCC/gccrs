@@ -52,6 +52,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "cgraph.h"
 #include "tree-iterator.h"
 #include "hash-table.h"
+#include "wide-int.h"
 #include "langhooks-def.h"
 /* Different initialization, code gen and meta data generation for each
    runtime.  */
@@ -226,7 +227,7 @@ struct imp_entry *imp_list = 0;
 int imp_count = 0;	/* `@implementation' */
 int cat_count = 0;	/* `@category' */
 
-objc_ivar_visibility_kind objc_ivar_visibility;
+objc_ivar_visibility_kind objc_ivar_visibility, objc_default_ivar_visibility;
 
 /* Use to generate method labels.  */
 static int method_slot = 0;
@@ -394,6 +395,22 @@ objc_init (void)
   if (!ok)
     return false;
 
+  /* Determine the default visibility for instance variables. */
+  switch (default_ivar_visibility)
+    {
+    case IVAR_VISIBILITY_PRIVATE:
+        objc_default_ivar_visibility = OBJC_IVAR_VIS_PRIVATE;
+        break;
+    case IVAR_VISIBILITY_PUBLIC:
+        objc_default_ivar_visibility = OBJC_IVAR_VIS_PUBLIC;
+        break;
+    case IVAR_VISIBILITY_PACKAGE:
+        objc_default_ivar_visibility = OBJC_IVAR_VIS_PACKAGE;
+        break;
+    default:
+        objc_default_ivar_visibility = OBJC_IVAR_VIS_PROTECTED;
+    }
+      
   /* Generate general types and push runtime-specific decls to file scope.  */
   synth_module_prologue ();
 
@@ -568,7 +585,7 @@ objc_start_class_interface (tree klass, tree super_class,
   objc_interface_context
     = objc_ivar_context
     = start_class (CLASS_INTERFACE_TYPE, klass, super_class, protos, attributes);
-  objc_ivar_visibility = OBJC_IVAR_VIS_PROTECTED;
+  objc_ivar_visibility = objc_default_ivar_visibility;
 }
 
 void
@@ -646,7 +663,7 @@ objc_start_class_implementation (tree klass, tree super_class)
     = objc_ivar_context
     = start_class (CLASS_IMPLEMENTATION_TYPE, klass, super_class, NULL_TREE,
 		   NULL_TREE);
-  objc_ivar_visibility = OBJC_IVAR_VIS_PROTECTED;
+  objc_ivar_visibility = objc_default_ivar_visibility;
 }
 
 void
@@ -2678,11 +2695,15 @@ objc_copy_binfo (tree binfo)
 static void
 objc_xref_basetypes (tree ref, tree basetype)
 {
+  tree variant;
   tree binfo = make_tree_binfo (basetype ? 1 : 0);
-
   TYPE_BINFO (ref) = binfo;
   BINFO_OFFSET (binfo) = size_zero_node;
   BINFO_TYPE (binfo) = ref;
+
+  gcc_assert (TYPE_MAIN_VARIANT (ref) == ref);
+  for (variant = ref; variant; variant = TYPE_NEXT_VARIANT (variant))
+    TYPE_BINFO (variant) = binfo;
 
   if (basetype)
     {
@@ -3182,7 +3203,7 @@ objc_build_string_object (tree string)
 
   if (!desc)
     {
-      *loc = desc = ggc_alloc_string_descriptor ();
+      *loc = desc = ggc_alloc<string_descriptor> ();
       desc->literal = string;
       desc->constructor =
 	(*runtime.build_const_string_constructor) (input_location, string, length);
@@ -3923,8 +3944,7 @@ objc_detect_field_duplicates (bool check_superclasses_only)
 	  {
 	    /* First, build the hashtable by putting all the instance
 	       variables of superclasses in it.  */
-	    hash_table <decl_name_hash> htab;
-	    htab.create (37);
+	    hash_table<decl_name_hash> htab (37);
 	    tree interface;
 	    for (interface = lookup_interface (CLASS_SUPER_NAME
 					       (objc_interface_context));
@@ -4001,7 +4021,6 @@ objc_detect_field_duplicates (bool check_superclasses_only)
 		      }
 		  }
 	      }
-	    htab.dispose ();
 	    return true;
 	  }
       }
@@ -4883,12 +4902,10 @@ objc_decl_method_attributes (tree *node, tree attributes, int flags)
 		  number = TREE_VALUE (second_argument);
 		  if (number
 		      && TREE_CODE (number) == INTEGER_CST
-		      && TREE_INT_CST_HIGH (number) == 0)
-		    {
-		      TREE_VALUE (second_argument)
-			= build_int_cst (integer_type_node,
-					 TREE_INT_CST_LOW (number) + 2);
-		    }
+		      && !wi::eq_p (number, 0))
+		    TREE_VALUE (second_argument)
+		      = wide_int_to_tree (TREE_TYPE (number),
+					  wi::add (number, 2));
 
 		  /* This is the third argument, the "first-to-check",
 		     which specifies the index of the first argument to
@@ -4898,13 +4915,10 @@ objc_decl_method_attributes (tree *node, tree attributes, int flags)
 		  number = TREE_VALUE (third_argument);
 		  if (number
 		      && TREE_CODE (number) == INTEGER_CST
-		      && TREE_INT_CST_HIGH (number) == 0
-		      && TREE_INT_CST_LOW (number) != 0)
-		    {
-		      TREE_VALUE (third_argument)
-			= build_int_cst (integer_type_node,
-					 TREE_INT_CST_LOW (number) + 2);
-		    }
+		      && !wi::eq_p (number, 0))
+		    TREE_VALUE (third_argument)
+		      = wide_int_to_tree (TREE_TYPE (number),
+					  wi::add (number, 2));
 		}
 	      filtered_attributes = chainon (filtered_attributes,
 					     new_attribute);
@@ -4936,15 +4950,11 @@ objc_decl_method_attributes (tree *node, tree attributes, int flags)
 		{
 		  /* Get the value of the argument and add 2.  */
 		  tree number = TREE_VALUE (argument);
-		  if (number
-		      && TREE_CODE (number) == INTEGER_CST
-		      && TREE_INT_CST_HIGH (number) == 0
-		      && TREE_INT_CST_LOW (number) != 0)
-		    {
-		      TREE_VALUE (argument)
-			= build_int_cst (integer_type_node,
-					 TREE_INT_CST_LOW (number) + 2);
-		    }
+		  if (number && TREE_CODE (number) == INTEGER_CST
+		      && !wi::eq_p (number, 0))
+		    TREE_VALUE (argument)
+		      = wide_int_to_tree (TREE_TYPE (number),
+					  wi::add (number, 2));
 		  argument = TREE_CHAIN (argument);
 		}
 
@@ -7024,7 +7034,7 @@ continue_class (tree klass)
 	uprivate_record = CLASS_STATIC_TEMPLATE (implementation_template);
 	objc_instance_type = build_pointer_type (uprivate_record);
 
-	imp_entry = ggc_alloc_imp_entry ();
+	imp_entry = ggc_alloc<struct imp_entry> ();
 
 	imp_entry->next = imp_list;
 	imp_entry->imp_context = klass;
@@ -9366,6 +9376,12 @@ objc_lookup_ivar (tree other, tree id)
       && other && other != error_mark_node)
     return other;
 
+  /* Don't look up the ivar if the user has explicitly advised against
+     it with -fno-local-ivars.  */
+
+  if (!flag_local_ivars)
+    return other;
+
   /* Look up the ivar, but do not use it if it is not accessible.  */
   ivar = is_ivar (objc_ivar_chain, id);
 
@@ -9382,8 +9398,11 @@ objc_lookup_ivar (tree other, tree id)
       && !DECL_FILE_SCOPE_P (other))
 #endif
     {
-      warning (0, "local declaration of %qE hides instance variable", id);
-
+      if (warn_shadow_ivar == 1 || (warn_shadow && warn_shadow_ivar != 0)) {
+          warning (warn_shadow_ivar ? OPT_Wshadow_ivar : OPT_Wshadow,
+                   "local declaration of %qE hides instance variable", id);
+      }
+        
       return other;
     }
 
@@ -10095,5 +10114,22 @@ objc_common_init_ts (void)
   MARK_TS_TYPED (MESSAGE_SEND_EXPR);
   MARK_TS_TYPED (PROPERTY_REF);
 }
+
+size_t
+objc_common_tree_size (enum tree_code code)
+{
+  switch (code)
+    {
+    case CLASS_METHOD_DECL:
+    case INSTANCE_METHOD_DECL:
+    case KEYWORD_DECL:
+    case PROPERTY_DECL:
+      return sizeof (struct tree_decl_non_common);
+    default:
+      gcc_unreachable ();
+  
+    }
+}
+
 
 #include "gt-objc-objc-act.h"

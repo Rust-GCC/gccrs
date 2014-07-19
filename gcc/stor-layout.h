@@ -20,7 +20,7 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_STOR_LAYOUT_H
 #define GCC_STOR_LAYOUT_H
 
-extern void set_min_and_max_values_for_integral_type (tree, int, bool);
+extern void set_min_and_max_values_for_integral_type (tree, int, signop);
 extern void fixup_signed_type (tree);
 extern void internal_reference_types (void);
 extern unsigned int update_alignment_for_field (record_layout_info, tree,
@@ -97,6 +97,8 @@ extern tree make_unsigned_type (int);
    The value is BLKmode if no other mode is found.  This is like
    mode_for_size, but is passed a tree.  */
 extern enum machine_mode mode_for_size_tree (const_tree, enum mode_class, int);
+
+extern tree bitwise_type_for_mode (enum machine_mode);
 
 /* Given a VAR_DECL, PARM_DECL or RESULT_DECL, clears the results of
    a previous call to layout_decl and calls it again.  */

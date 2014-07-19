@@ -789,6 +789,19 @@ ipa_get_jf_ancestor_result (struct ipa_jump_func *jfunc, tree input)
     {
       if (!ipa_get_jf_ancestor_type_preserved (jfunc))
 	return NULL;
+      /* FIXME: At LTO we can't propagate to non-polymorphic type, because
+	 we have no ODR equivalency on those.  This should be fixed by
+	 propagating on types rather than binfos that would make type
+	 matching here unnecesary.  */
+      if (in_lto_p
+	  && (TREE_CODE (ipa_get_jf_ancestor_type (jfunc)) != RECORD_TYPE
+	      || !TYPE_BINFO (ipa_get_jf_ancestor_type (jfunc))
+	      || !BINFO_VTABLE (TYPE_BINFO (ipa_get_jf_ancestor_type (jfunc)))))
+	{
+	  if (!ipa_get_jf_ancestor_offset (jfunc))
+	    return input;
+	  return NULL;
+	}
       return get_binfo_at_offset (input,
 				  ipa_get_jf_ancestor_offset (jfunc),
 				  ipa_get_jf_ancestor_type (jfunc));
@@ -1587,15 +1600,7 @@ ipa_get_indirect_edge_target_1 (struct cgraph_edge *ie,
 		   && DECL_FUNCTION_CODE (target) == BUILT_IN_UNREACHABLE)
 		  || !possible_polymorphic_call_target_p
 		       (ie, cgraph_get_node (target)))
-		{
-		  if (dump_file)
-		    fprintf (dump_file,
-			     "Type inconsident devirtualization: %s/%i->%s\n",
-			     ie->caller->name (), ie->caller->order,
-			     IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (target)));
-		  target = builtin_decl_implicit (BUILT_IN_UNREACHABLE);
-		  cgraph_get_create_node (target);
-		}
+		target = ipa_impossible_devirt_target (ie, target);
 	      return target;
 	    }
 	}
@@ -1629,7 +1634,7 @@ ipa_get_indirect_edge_target_1 (struct cgraph_edge *ie,
       if (targets.length () == 1)
 	target = targets[0]->decl;
       else
-	target = builtin_decl_implicit (BUILT_IN_UNREACHABLE);
+	target = ipa_impossible_devirt_target (ie, NULL_TREE);
     }
   else
     {
@@ -1643,15 +1648,7 @@ ipa_get_indirect_edge_target_1 (struct cgraph_edge *ie,
 
   if (target && !possible_polymorphic_call_target_p (ie,
 						     cgraph_get_node (target)))
-    {
-      if (dump_file)
-	fprintf (dump_file,
-		 "Type inconsident devirtualization: %s/%i->%s\n",
-		 ie->caller->name (), ie->caller->order,
-		 IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (target)));
-      target = builtin_decl_implicit (BUILT_IN_UNREACHABLE);
-      cgraph_get_create_node (target);
-    }
+    target = ipa_impossible_devirt_target (ie, target);
 
   return target;
 }
@@ -1687,6 +1684,7 @@ devirtualization_time_bonus (struct cgraph_node *node,
     {
       struct cgraph_node *callee;
       struct inline_summary *isummary;
+      enum availability avail;
       tree target;
 
       target = ipa_get_indirect_edge_target (ie, known_csts, known_binfos,
@@ -1698,6 +1696,9 @@ devirtualization_time_bonus (struct cgraph_node *node,
       res += 1;
       callee = cgraph_get_node (target);
       if (!callee || !callee->definition)
+	continue;
+      callee = cgraph_function_node (callee, &avail);
+      if (avail < AVAIL_AVAILABLE)
 	continue;
       isummary = inline_summary (callee);
       if (!isummary->inlinable)
@@ -1748,13 +1749,13 @@ good_cloning_opportunity_p (struct cgraph_node *node, int time_benefit,
   if (max_count)
     {
       int factor = (count_sum * 1000) / max_count;
-      HOST_WIDEST_INT evaluation = (((HOST_WIDEST_INT) time_benefit * factor)
+      int64_t evaluation = (((int64_t) time_benefit * factor)
 				    / size_cost);
 
       if (dump_file && (dump_flags & TDF_DETAILS))
 	fprintf (dump_file, "     good_cloning_opportunity_p (time: %i, "
 		 "size: %i, count_sum: " HOST_WIDE_INT_PRINT_DEC
-		 ") -> evaluation: " HOST_WIDEST_INT_PRINT_DEC
+		 ") -> evaluation: " "%"PRId64
 		 ", threshold: %i\n",
 		 time_benefit, size_cost, (HOST_WIDE_INT) count_sum,
 		 evaluation, PARAM_VALUE (PARAM_IPA_CP_EVAL_THRESHOLD));
@@ -1763,13 +1764,13 @@ good_cloning_opportunity_p (struct cgraph_node *node, int time_benefit,
     }
   else
     {
-      HOST_WIDEST_INT evaluation = (((HOST_WIDEST_INT) time_benefit * freq_sum)
+      int64_t evaluation = (((int64_t) time_benefit * freq_sum)
 				    / size_cost);
 
       if (dump_file && (dump_flags & TDF_DETAILS))
 	fprintf (dump_file, "     good_cloning_opportunity_p (time: %i, "
 		 "size: %i, freq_sum: %i) -> evaluation: "
-		 HOST_WIDEST_INT_PRINT_DEC ", threshold: %i\n",
+		 "%"PRId64 ", threshold: %i\n",
 		 time_benefit, size_cost, freq_sum, evaluation,
 		 PARAM_VALUE (PARAM_IPA_CP_EVAL_THRESHOLD));
 
@@ -2387,14 +2388,12 @@ ipcp_discover_new_direct_edges (struct cgraph_node *node,
 		    fprintf (dump_file, "     controlled uses count of param "
 			     "%i bumped down to %i\n", param_index, c);
 		  if (c == 0
-		      && (to_del = ipa_find_reference (node,
-						       cs->callee,
-						       NULL, 0)))
+		      && (to_del = node->find_reference (cs->callee, NULL, 0)))
 		    {
 		      if (dump_file && (dump_flags & TDF_DETAILS))
 			fprintf (dump_file, "       and even removing its "
 				 "cloning-created reference\n");
-		      ipa_remove_reference (to_del);
+		      to_del->remove_reference ();
 		    }
 		}
 	    }
@@ -2459,7 +2458,7 @@ ipcp_edge_removal_hook (struct cgraph_edge *cs, void *)
    parameter with the given INDEX.  */
 
 static tree
-get_clone_agg_value (struct cgraph_node *node, HOST_WIDEST_INT offset,
+get_clone_agg_value (struct cgraph_node *node, HOST_WIDE_INT offset,
 		     int index)
 {
   struct ipa_agg_replacement_value *aggval;
@@ -2482,7 +2481,8 @@ cgraph_edge_brings_value_p (struct cgraph_edge *cs,
 			    struct ipcp_value_source *src)
 {
   struct ipa_node_params *caller_info = IPA_NODE_REF (cs->caller);
-  struct ipa_node_params *dst_info = IPA_NODE_REF (cs->callee);
+  cgraph_node *real_dest = cgraph_function_node (cs->callee);
+  struct ipa_node_params *dst_info = IPA_NODE_REF (real_dest);
 
   if ((dst_info->ipcp_orig_node && !dst_info->is_all_contexts_clone)
       || caller_info->node_dead)
@@ -2599,7 +2599,7 @@ get_replacement_map (struct ipa_node_params *info, tree value, int parm_num)
   struct ipa_replace_map *replace_map;
 
 
-  replace_map = ggc_alloc_ipa_replace_map ();
+  replace_map = ggc_alloc<ipa_replace_map> ();
   if (dump_file)
     {
       fprintf (dump_file, "    replacing ");
@@ -2802,8 +2802,7 @@ create_specialized_node (struct cgraph_node *node,
 					  args_to_skip, "constprop");
   ipa_set_node_agg_value_chain (new_node, aggvals);
   for (av = aggvals; av; av = av->next)
-    ipa_maybe_record_reference (new_node, av->value,
-				IPA_REF_ADDR, NULL);
+    new_node->maybe_add_reference (av->value, IPA_REF_ADDR, NULL);
 
   if (dump_file && (dump_flags & TDF_DETAILS))
     {
@@ -3182,7 +3181,7 @@ find_aggregate_values_for_callers_subset (struct cgraph_node *node,
 	  if (!item->value)
 	    continue;
 
-	  v = ggc_alloc_ipa_agg_replacement_value ();
+	  v = ggc_alloc<ipa_agg_replacement_value> ();
 	  v->index = i;
 	  v->offset = item->offset;
 	  v->value = item->value;
@@ -3212,7 +3211,7 @@ known_aggs_to_agg_replacement_list (vec<ipa_agg_jump_function> known_aggs)
     FOR_EACH_VEC_SAFE_ELT (aggjf->items, j, item)
       {
 	struct ipa_agg_replacement_value *v;
-	v = ggc_alloc_ipa_agg_replacement_value ();
+	v = ggc_alloc<ipa_agg_replacement_value> ();
 	v->index = i;
 	v->offset = item->offset;
 	v->value = item->value;
@@ -3762,16 +3761,6 @@ ipcp_read_summary (void)
   ipa_prop_read_jump_functions ();
 }
 
-/* Gate for IPCP optimization.  */
-
-static bool
-cgraph_gate_cp (void)
-{
-  /* FIXME: We should remove the optimize check after we ensure we never run
-     IPA passes when not optimizing.  */
-  return flag_ipa_cp && optimize;
-}
-
 namespace {
 
 const pass_data pass_data_ipa_cp =
@@ -3779,8 +3768,6 @@ const pass_data pass_data_ipa_cp =
   IPA_PASS, /* type */
   "cp", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_IPA_CONSTANT_PROP, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
@@ -3808,8 +3795,14 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return cgraph_gate_cp (); }
-  unsigned int execute () { return ipcp_driver (); }
+  virtual bool gate (function *)
+    {
+      /* FIXME: We should remove the optimize check after we ensure we never run
+	 IPA passes when not optimizing.  */
+      return flag_ipa_cp && optimize;
+    }
+
+  virtual unsigned int execute (function *) { return ipcp_driver (); }
 
 }; // class pass_ipa_cp
 

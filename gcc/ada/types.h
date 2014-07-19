@@ -6,7 +6,7 @@
  *                                                                          *
  *                              C Header File                               *
  *                                                                          *
- *          Copyright (C) 1992-2013, Free Software Foundation, Inc.         *
+ *          Copyright (C) 1992-2014, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -76,11 +76,19 @@ typedef Char *Str;
 /* Pointer to string of Chars */
 typedef Char *Str_Ptr;
 
-/* Types for the fat pointer used for strings and the template it
-   points to.  */
-typedef struct {int Low_Bound, High_Bound; } String_Template;
-typedef struct {const char *Array; String_Template *Bounds; }
-	__attribute ((aligned (sizeof (char *) * 2))) Fat_Pointer;
+/* Types for the fat pointer used for strings and the template it points to.
+   The fat pointer is conceptually a couple of pointers, but it is wrapped
+   up in a special record type.  On the Ada side, the record is naturally
+   aligned (i.e. given pointer alignment) on regular platforms, but it is
+   given twice this alignment on strict-alignment platforms for performance
+   reasons.  On the C side, for the sake of portability and simplicity, we
+   overalign it on all platforms (so the machine mode is always the same as
+   on the Ada side) but arrange to pass it in an even scalar position as a
+   parameter to functions (so the scalar parameter alignment is always the
+   same as on the Ada side).  */
+typedef struct { int Low_Bound, High_Bound; } String_Template;
+typedef struct { const char *Array; String_Template *Bounds; }
+	__attribute ((aligned (sizeof (char *) * 2))) String_Pointer;
 
 /* Types for Node/Entity Kinds:  */
 
@@ -272,6 +280,8 @@ SUBTYPE (Uint_Direct, Uint, Uint_Direct_First, Uint_Direct_Last)
 #define Uint_10 (Uint_Direct_Bias + 10)
 #define Uint_16 (Uint_Direct_Bias + 16)
 
+#define Uint_Minus_1 (Uint_Direct_Bias - 1)
+
 /* Types for Ureal_Support Package:  */
 
 /* Type used for representation of universal reals.  */
@@ -365,7 +375,7 @@ typedef Int Mechanism_Type;
 #define PE_Address_Of_Intrinsic            16
 #define PE_Aliased_Parameters              17
 #define PE_All_Guards_Closed               18
-#define PE_Bad_Attribute_For_Predicate     19
+#define PE_Bad_Predicated_Generic_Type     19
 #define PE_Current_Task_In_Entry_Body      20
 #define PE_Duplicated_Entry_Address        21
 #define PE_Explicit_Raise                  22

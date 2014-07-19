@@ -137,6 +137,12 @@ struct lang_hooks_for_types
      return values from functions.  The argument TYPE is the top of the
      chain, and BOTTOM is the new type which we will point to.  */
   tree (*reconstruct_complex_type) (tree, tree);
+
+  /* Returns the tree that represents the underlying data type used to
+     implement the enumeration.  The default implementation will just use
+     type_for_size.  Used in dwarf2out.c to add a DW_AT_type base type
+     reference to a DW_TAG_enumeration.  */
+  tree (*enum_underlying_base_type) (const_tree);
 };
 
 /* Language hooks related to decls and the symbol table.  */
@@ -219,12 +225,16 @@ struct lang_hooks_for_decls
   /* Similarly, except use an assignment operator instead.  */
   tree (*omp_clause_assign_op) (tree clause, tree dst, tree src);
 
+  /* Build and return code for a constructor of DST that sets it to
+     SRC + ADD.  */
+  tree (*omp_clause_linear_ctor) (tree clause, tree dst, tree src, tree add);
+
   /* Build and return code destructing DECL.  Return NULL if nothing
      to be done.  */
   tree (*omp_clause_dtor) (tree clause, tree decl);
 
   /* Do language specific checking on an implicitly determined clause.  */
-  void (*omp_finish_clause) (tree clause);
+  void (*omp_finish_clause) (tree clause, gimple_seq *pre_p);
 };
 
 /* Language hooks related to LTO serialization.  */

@@ -368,7 +368,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     /// Perform input and output in binary mode (as opposed to text mode).
     /// This is probably not what you think it is; see
-    /// http://gcc.gnu.org/onlinedocs/libstdc++/manual/bk01pt11ch27s02.html
+    /// https://gcc.gnu.org/onlinedocs/libstdc++/manual/fstreams.html#std.io.filestreams.binary
     static const openmode binary =	_S_bin;
 
     /// Open for input.  Default for @c ifstream and fstream.
@@ -666,7 +666,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
      *  The synchronization referred to is @e only that between the standard
      *  C facilities (e.g., stdout) and the standard C++ objects (e.g.,
      *  cout).  User-declared streams are unaffected.  See
-     *  http://gcc.gnu.org/onlinedocs/libstdc++/manual/bk01pt11ch28s02.html
+     *  https://gcc.gnu.org/onlinedocs/libstdc++/manual/fstreams.html#std.io.filestreams.binary
     */
     static bool
     sync_with_stdio(bool __sync = true);
@@ -780,6 +780,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   protected:
     ios_base() throw ();
 
+#if __cplusplus < 201103L
   // _GLIBCXX_RESOLVE_LIB_DEFECTS
   // 50.  Copy constructor and assignment operator of ios_base
   private:
@@ -787,6 +788,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     ios_base&
     operator=(const ios_base&);
+#else
+  public:
+    ios_base(const ios_base&) = delete;
+
+    ios_base&
+    operator=(const ios_base&) = delete;
+#endif
   };
 
   // [27.4.5.1] fmtflags manipulators

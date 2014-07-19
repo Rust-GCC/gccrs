@@ -661,8 +661,8 @@ struct GTY(()) function {
   unsigned int is_thunk : 1;
 
   /* Nonzero if the current function contains any loops with
-     loop->force_vect set.  */
-  unsigned int has_force_vect_loops : 1;
+     loop->force_vectorize set.  */
+  unsigned int has_force_vectorize_loops : 1;
 
   /* Nonzero if the current function contains any loops with
      nonzero value in loop->simduid.  */
@@ -808,10 +808,6 @@ extern void used_types_insert (tree);
 
 extern int get_next_funcdef_no (void);
 extern int get_last_funcdef_no (void);
-
-#ifdef HAVE_simple_return
-extern bool requires_stack_frame_p (rtx, HARD_REG_SET, HARD_REG_SET);
-#endif                        
 
 extern rtx get_hard_reg_initial_val (enum machine_mode, unsigned int);
 extern rtx has_hard_reg_initial_val (enum machine_mode, unsigned int);

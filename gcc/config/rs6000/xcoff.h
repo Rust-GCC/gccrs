@@ -134,67 +134,14 @@
 #undef TARGET_ASM_FILE_START_FILE_DIRECTIVE
 #define TARGET_ASM_FILE_START_FILE_DIRECTIVE false
 
-/* This macro produces the initial definition of a function name.
-   On the RS/6000, we need to place an extra '.' in the function name and
-   output the function descriptor.
-   Dollar signs are converted to underscores.
+/* This macro produces the initial definition of a function name.  */
 
-   The csect for the function will have already been created when
-   text_section was selected.  We do have to go back to that csect, however.
-
-   The third and fourth parameters to the .function pseudo-op (16 and 044)
-   are placeholders which no longer have any use.  */
-
-#define ASM_DECLARE_FUNCTION_NAME(FILE,NAME,DECL)		\
-{ char *buffer = (char *) alloca (strlen (NAME) + 1);		\
-  char *p;							\
-  int dollar_inside = 0;					\
-  strcpy (buffer, NAME);					\
-  p = strchr (buffer, '$');					\
-  while (p) {							\
-    *p = '_';							\
-    dollar_inside++;						\
-    p = strchr (p + 1, '$');					\
-  }								\
-  if (TREE_PUBLIC (DECL))					\
-    {								\
-      if (!RS6000_WEAK || !DECL_WEAK (decl))			\
-	{							\
-          if (dollar_inside) {					\
-              fprintf(FILE, "\t.rename .%s,\".%s\"\n", buffer, NAME);	\
-              fprintf(FILE, "\t.rename %s,\"%s\"\n", buffer, NAME);	\
-	    }							\
-	  fputs ("\t.globl .", FILE);				\
-	  RS6000_OUTPUT_BASENAME (FILE, buffer);		\
-	  putc ('\n', FILE);					\
-	}							\
-    }								\
-  else								\
-    {								\
-      if (dollar_inside) {					\
-          fprintf(FILE, "\t.rename .%s,\".%s\"\n", buffer, NAME);	\
-          fprintf(FILE, "\t.rename %s,\"%s\"\n", buffer, NAME);	\
-	}							\
-      fputs ("\t.lglobl .", FILE);				\
-      RS6000_OUTPUT_BASENAME (FILE, buffer);			\
-      putc ('\n', FILE);					\
-    }								\
-  fputs ("\t.csect ", FILE);					\
-  RS6000_OUTPUT_BASENAME (FILE, buffer);			\
-  fputs (TARGET_32BIT ? "[DS]\n" : "[DS],3\n", FILE);		\
-  RS6000_OUTPUT_BASENAME (FILE, buffer);			\
-  fputs (":\n", FILE);						\
-  fputs (TARGET_32BIT ? "\t.long ." : "\t.llong .", FILE);	\
-  RS6000_OUTPUT_BASENAME (FILE, buffer);			\
-  fputs (", TOC[tc0], 0\n", FILE);				\
-  in_section = NULL;						\
-  switch_to_section (function_section (DECL));			\
-  putc ('.', FILE);						\
-  RS6000_OUTPUT_BASENAME (FILE, buffer);			\
-  fputs (":\n", FILE);						\
-  if (write_symbols != NO_DEBUG && !DECL_IGNORED_P (DECL))	\
-    xcoffout_declare_function (FILE, DECL, buffer);		\
-}
+#undef ASM_DECLARE_FUNCTION_NAME
+#define ASM_DECLARE_FUNCTION_NAME(FILE, NAME, DECL)			\
+  rs6000_xcoff_declare_function_name ((FILE), (NAME), (DECL))
+#undef ASM_DECLARE_OBJECT_NAME
+#define ASM_DECLARE_OBJECT_NAME(FILE, NAME, DECL)			\
+  rs6000_xcoff_declare_object_name ((FILE), (NAME), (DECL))
 
 /* Output a reference to SYM on FILE.  */
 
@@ -336,14 +283,16 @@
 /* This is how we tell the assembler that two symbols have the same value.  */
 #define SET_ASM_OP "\t.set "
 
-/* This is how we tell the assembler to equate two values.  */
-#define ASM_OUTPUT_DEF(FILE,LABEL1,LABEL2)				\
- do {	fprintf ((FILE), "%s", SET_ASM_OP);				\
-	RS6000_OUTPUT_BASENAME (FILE, LABEL1);				\
-	fprintf (FILE, ",");						\
-	RS6000_OUTPUT_BASENAME (FILE, LABEL2);				\
-	fprintf (FILE, "\n");						\
-  } while (0)
+/* This is how we tell the assembler to equate two values. 
+   The semantic of AIX assembler's .set do not correspond to middle-end expectations.
+   We output aliases as alternative symbols in the front of the definition
+   via DECLARE_FUNCTION_NAME and DECLARE_OBJECT_NAME.
+   We still need to define this macro to let middle-end know that aliases are
+   supported.
+ */
+#define ASM_OUTPUT_DEF(FILE,LABEL1,LABEL2) do { } while (0)
+
+/* Used by rs6000_assemble_integer, among others.  */
 
 /* Used by rs6000_assemble_integer, among others.  */
 #define DOUBLE_INT_ASM_OP "\t.llong\t"
@@ -360,3 +309,6 @@
    than in the .eh_frame section.  We do this because the AIX linker
    would otherwise garbage collect these sections.  */
 #define EH_FRAME_IN_DATA_SECTION 1
+
+#define MAKE_DECL_ONE_ONLY(DECL) (DECL_WEAK (DECL) = 1)
+

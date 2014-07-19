@@ -70,6 +70,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "opts.h"
 #include "tree-pass.h"
 #include "context.h"
+#include "builtins.h"
 
 /* Define the specific costs for a given cpu.  */
 
@@ -474,9 +475,7 @@ s390_handle_hotpatch_attribute (tree *node, tree name, tree args,
 
       if (TREE_CODE (expr) != INTEGER_CST
 	  || !INTEGRAL_TYPE_P (TREE_TYPE (expr))
-	  || TREE_INT_CST_HIGH (expr) != 0
-	  || TREE_INT_CST_LOW (expr) > (unsigned int)
-	  s390_hotpatch_trampoline_halfwords_max)
+	  || wi::gtu_p (expr, s390_hotpatch_trampoline_halfwords_max))
 	{
 	  error ("requested %qE attribute is not a non-negative integer"
 		 " constant or too large (max. %d)", name,
@@ -1677,7 +1676,7 @@ s390_narrow_logical_operator (enum rtx_code code, rtx *memop, rtx *immop)
 static struct machine_function *
 s390_init_machine_status (void)
 {
-  return ggc_alloc_cleared_machine_function ();
+  return ggc_cleared_alloc<machine_function> ();
 }
 
 /* Map for smallest class containing reg regno.  */
@@ -8631,8 +8630,35 @@ s390_restore_gprs_from_fprs (void)
 /* A pass run immediately before shrink-wrapping and prologue and epilogue
    generation.  */
 
-static unsigned int
-s390_early_mach (void)
+namespace {
+
+const pass_data pass_data_s390_early_mach =
+{
+  RTL_PASS, /* type */
+  "early_mach", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  TV_MACH_DEP, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  ( TODO_df_verify | TODO_df_finish ), /* todo_flags_finish */
+};
+
+class pass_s390_early_mach : public rtl_opt_pass
+{
+public:
+  pass_s390_early_mach (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_s390_early_mach, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  virtual unsigned int execute (function *);
+
+}; // class pass_s390_early_mach
+
+unsigned int
+pass_s390_early_mach::execute (function *fun)
 {
   rtx insn;
 
@@ -8644,8 +8670,8 @@ s390_early_mach (void)
 
   /* If we're using a base register, ensure that it is always valid for
      the first non-prologue instruction.  */
-  if (cfun->machine->base_reg)
-    emit_insn_at_entry (gen_main_pool (cfun->machine->base_reg));
+  if (fun->machine->base_reg)
+    emit_insn_at_entry (gen_main_pool (fun->machine->base_reg));
 
   /* Annotate all constant pool references to let the scheduler know
      they implicitly use the base register.  */
@@ -8657,36 +8683,6 @@ s390_early_mach (void)
       }
   return 0;
 }
-
-namespace {
-
-const pass_data pass_data_s390_early_mach =
-{
-  RTL_PASS, /* type */
-  "early_mach", /* name */
-  OPTGROUP_NONE, /* optinfo_flags */
-  false, /* has_gate */
-  true, /* has_execute */
-  TV_MACH_DEP, /* tv_id */
-  0, /* properties_required */
-  0, /* properties_provided */
-  0, /* properties_destroyed */
-  0, /* todo_flags_start */
-  ( TODO_df_verify | TODO_df_finish
-    | TODO_verify_rtl_sharing ), /* todo_flags_finish */
-};
-
-class pass_s390_early_mach : public rtl_opt_pass
-{
-public:
-  pass_s390_early_mach (gcc::context *ctxt)
-    : rtl_opt_pass (pass_data_s390_early_mach, ctxt)
-  {}
-
-  /* opt_pass methods: */
-  unsigned int execute () { return s390_early_mach (); }
-
-}; // class pass_s390_early_mach
 
 } // anon namespace
 
@@ -10161,6 +10157,14 @@ s390_expand_builtin (tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
     return const0_rtx;
 }
 
+/* We call mcount before the function prologue.  So a profiled leaf
+   function should stay a leaf function.  */
+
+static bool
+s390_keep_leaf_when_profiled ()
+{
+  return true;
+}
 
 /* Output assembly code for the trampoline template to
    stdio stream FILE.
@@ -12163,6 +12167,9 @@ s390_option_override (void)
 #define TARGET_FUNCTION_VALUE s390_function_value
 #undef TARGET_LIBCALL_VALUE
 #define TARGET_LIBCALL_VALUE s390_libcall_value
+
+#undef TARGET_KEEP_LEAF_WHEN_PROFILED
+#define TARGET_KEEP_LEAF_WHEN_PROFILED s390_keep_leaf_when_profiled
 
 #undef TARGET_FIXED_CONDITION_CODE_REGS
 #define TARGET_FIXED_CONDITION_CODE_REGS s390_fixed_condition_code_regs

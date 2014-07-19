@@ -624,30 +624,39 @@ check_and_make_def_conflict (int alt, int def, enum reg_class def_cl)
 
   advance_p = true;
 
-  for (use = 0; use < recog_data.n_operands; use++)
+  int n_operands = recog_data.n_operands;
+  const operand_alternative *op_alt = &recog_op_alt[alt * n_operands];
+  for (use = 0; use < n_operands; use++)
     {
       int alt1;
 
       if (use == def || recog_data.operand_type[use] == OP_OUT)
 	continue;
 
-      if (recog_op_alt[use][alt].anything_ok)
+      if (op_alt[use].anything_ok)
 	use_cl = ALL_REGS;
       else
-	use_cl = recog_op_alt[use][alt].cl;
+	use_cl = op_alt[use].cl;
 
       /* If there's any alternative that allows USE to match DEF, do not
 	 record a conflict.  If that causes us to create an invalid
 	 instruction due to the earlyclobber, reload must fix it up.  */
+      alternative_mask enabled = recog_data.enabled_alternatives;
       for (alt1 = 0; alt1 < recog_data.n_alternatives; alt1++)
-	if (recog_op_alt[use][alt1].matches == def
-	    || (use < recog_data.n_operands - 1
-		&& recog_data.constraints[use][0] == '%'
-		&& recog_op_alt[use + 1][alt1].matches == def)
-	    || (use >= 1
-		&& recog_data.constraints[use - 1][0] == '%'
-		&& recog_op_alt[use - 1][alt1].matches == def))
-	  break;
+	{
+	  if (!TEST_BIT (enabled, alt1))
+	    continue;
+	  const operand_alternative *op_alt1
+	    = &recog_op_alt[alt1 * n_operands];
+	  if (op_alt1[use].matches == def
+	      || (use < n_operands - 1
+		  && recog_data.constraints[use][0] == '%'
+		  && op_alt1[use + 1].matches == def)
+	      || (use >= 1
+		  && recog_data.constraints[use - 1][0] == '%'
+		  && op_alt1[use - 1].matches == def))
+	    break;
+	}
 
       if (alt1 < recog_data.n_alternatives)
 	continue;
@@ -655,15 +664,15 @@ check_and_make_def_conflict (int alt, int def, enum reg_class def_cl)
       advance_p = check_and_make_def_use_conflict (dreg, orig_dreg, def_cl,
 						   use, use_cl, advance_p);
 
-      if ((use_match = recog_op_alt[use][alt].matches) >= 0)
+      if ((use_match = op_alt[use].matches) >= 0)
 	{
 	  if (use_match == def)
 	    continue;
 
-	  if (recog_op_alt[use_match][alt].anything_ok)
+	  if (op_alt[use_match].anything_ok)
 	    use_cl = ALL_REGS;
 	  else
-	    use_cl = recog_op_alt[use_match][alt].cl;
+	    use_cl = op_alt[use_match].cl;
 	  advance_p = check_and_make_def_use_conflict (dreg, orig_dreg, def_cl,
 						       use, use_cl, advance_p);
 	}
@@ -681,29 +690,34 @@ make_early_clobber_and_input_conflicts (void)
   int def, def_match;
   enum reg_class def_cl;
 
-  for (alt = 0; alt < recog_data.n_alternatives; alt++)
-    for (def = 0; def < recog_data.n_operands; def++)
-      {
-	def_cl = NO_REGS;
-	if (recog_op_alt[def][alt].earlyclobber)
-	  {
-	    if (recog_op_alt[def][alt].anything_ok)
-	      def_cl = ALL_REGS;
-	    else
-	      def_cl = recog_op_alt[def][alt].cl;
-	    check_and_make_def_conflict (alt, def, def_cl);
-	  }
-	if ((def_match = recog_op_alt[def][alt].matches) >= 0
-	    && (recog_op_alt[def_match][alt].earlyclobber
-		|| recog_op_alt[def][alt].earlyclobber))
-	  {
-	    if (recog_op_alt[def_match][alt].anything_ok)
-	      def_cl = ALL_REGS;
-	    else
-	      def_cl = recog_op_alt[def_match][alt].cl;
-	    check_and_make_def_conflict (alt, def, def_cl);
-	  }
-      }
+  int n_alternatives = recog_data.n_alternatives;
+  int n_operands = recog_data.n_operands;
+  alternative_mask enabled = recog_data.enabled_alternatives;
+  const operand_alternative *op_alt = recog_op_alt;
+  for (alt = 0; alt < n_alternatives; alt++, op_alt += n_operands)
+    if (TEST_BIT (enabled, alt))
+      for (def = 0; def < n_operands; def++)
+	{
+	  def_cl = NO_REGS;
+	  if (op_alt[def].earlyclobber)
+	    {
+	      if (op_alt[def].anything_ok)
+		def_cl = ALL_REGS;
+	      else
+		def_cl = op_alt[def].cl;
+	      check_and_make_def_conflict (alt, def, def_cl);
+	    }
+	  if ((def_match = op_alt[def].matches) >= 0
+	      && (op_alt[def_match].earlyclobber
+		  || op_alt[def].earlyclobber))
+	    {
+	      if (op_alt[def_match].anything_ok)
+		def_cl = ALL_REGS;
+	      else
+		def_cl = op_alt[def_match].cl;
+	      check_and_make_def_conflict (alt, def, def_cl);
+	    }
+	}
 }
 
 /* Mark early clobber hard registers of the current INSN as live (if
@@ -711,13 +725,13 @@ make_early_clobber_and_input_conflicts (void)
 static bool
 mark_hard_reg_early_clobbers (rtx insn, bool live_p)
 {
-  df_ref *def_rec;
+  df_ref def;
   bool set_p = false;
 
-  for (def_rec = DF_INSN_DEFS (insn); *def_rec; def_rec++)
-    if (DF_REF_FLAGS_IS_SET (*def_rec, DF_REF_MUST_CLOBBER))
+  FOR_EACH_INSN_DEF (def, insn)
+    if (DF_REF_FLAGS_IS_SET (def, DF_REF_MUST_CLOBBER))
       {
-	rtx dreg = DF_REF_REG (*def_rec);
+	rtx dreg = DF_REF_REG (def);
 
 	if (GET_CODE (dreg) == SUBREG)
 	  dreg = SUBREG_REG (dreg);
@@ -728,9 +742,9 @@ mark_hard_reg_early_clobbers (rtx insn, bool live_p)
 	   because there is no way to say that non-operand hard
 	   register clobbers are not early ones.  */
 	if (live_p)
-	  mark_ref_live (*def_rec);
+	  mark_ref_live (def);
 	else
-	  mark_ref_dead (*def_rec);
+	  mark_ref_dead (def);
 	set_p = true;
       }
 
@@ -743,105 +757,37 @@ mark_hard_reg_early_clobbers (rtx insn, bool live_p)
 static enum reg_class
 single_reg_class (const char *constraints, rtx op, rtx equiv_const)
 {
-  int curr_alt, c;
-  bool ignore_p;
+  int c;
   enum reg_class cl, next_cl;
+  enum constraint_num cn;
 
   cl = NO_REGS;
-  for (ignore_p = false, curr_alt = 0;
-       (c = *constraints);
-       constraints += CONSTRAINT_LEN (c, constraints))
-    if (c == '#' || !recog_data.alternative_enabled_p[curr_alt])
-      ignore_p = true;
+  alternative_mask enabled = recog_data.enabled_alternatives;
+  for (; (c = *constraints); constraints += CONSTRAINT_LEN (c, constraints))
+    if (c == '#')
+      enabled &= ~ALTERNATIVE_BIT (0);
     else if (c == ',')
-      {
-	curr_alt++;
-	ignore_p = false;
-      }
-    else if (! ignore_p)
+      enabled >>= 1;
+    else if (enabled & 1)
       switch (c)
 	{
-	case ' ':
-	case '\t':
-	case '=':
-	case '+':
-	case '*':
-	case '&':
-	case '%':
-	case '!':
-	case '?':
-	  break;
-	case 'i':
-	  if (CONSTANT_P (op)
-	      || (equiv_const != NULL_RTX && CONSTANT_P (equiv_const)))
-	    return NO_REGS;
-	  break;
+	case 'g':
+	  return NO_REGS;
 
-	case 'n':
-	  if (CONST_SCALAR_INT_P (op)
-	      || (equiv_const != NULL_RTX && CONST_SCALAR_INT_P (equiv_const)))
+	default:
+	  /* ??? Is this the best way to handle memory constraints?  */
+	  cn = lookup_constraint (constraints);
+	  if (insn_extra_memory_constraint (cn)
+	      || insn_extra_address_constraint (cn))
 	    return NO_REGS;
-	  break;
-
-	case 's':
-	  if ((CONSTANT_P (op) && !CONST_SCALAR_INT_P (op))
+	  if (constraint_satisfied_p (op, cn)
 	      || (equiv_const != NULL_RTX
 		  && CONSTANT_P (equiv_const)
-		  && !CONST_SCALAR_INT_P (equiv_const)))
+		  && constraint_satisfied_p (equiv_const, cn)))
 	    return NO_REGS;
-	  break;
-
-	case 'I':
-	case 'J':
-	case 'K':
-	case 'L':
-	case 'M':
-	case 'N':
-	case 'O':
-	case 'P':
-	  if ((CONST_INT_P (op)
-	       && CONST_OK_FOR_CONSTRAINT_P (INTVAL (op), c, constraints))
-	      || (equiv_const != NULL_RTX
-		  && CONST_INT_P (equiv_const)
-		  && CONST_OK_FOR_CONSTRAINT_P (INTVAL (equiv_const),
-						c, constraints)))
-	    return NO_REGS;
-	  break;
-
-	case 'E':
-	case 'F':
-	  if (CONST_DOUBLE_AS_FLOAT_P (op) 
-	      || (GET_CODE (op) == CONST_VECTOR
-		  && GET_MODE_CLASS (GET_MODE (op)) == MODE_VECTOR_FLOAT)
-	      || (equiv_const != NULL_RTX
-		  && (CONST_DOUBLE_AS_FLOAT_P (equiv_const)
-		      || (GET_CODE (equiv_const) == CONST_VECTOR
-			  && (GET_MODE_CLASS (GET_MODE (equiv_const))
-			      == MODE_VECTOR_FLOAT)))))
-	    return NO_REGS;
-	  break;
-
-	case 'G':
-	case 'H':
-	  if ((CONST_DOUBLE_AS_FLOAT_P (op) 
-	       && CONST_DOUBLE_OK_FOR_CONSTRAINT_P (op, c, constraints))
-	      || (equiv_const != NULL_RTX
-		  && CONST_DOUBLE_AS_FLOAT_P (equiv_const) 
-		  && CONST_DOUBLE_OK_FOR_CONSTRAINT_P (equiv_const,
-						       c, constraints)))
-	    return NO_REGS;
-	  /* ??? what about memory */
-	case 'r':
-	case 'a': case 'b': case 'c': case 'd': case 'e': case 'f':
-	case 'h': case 'j': case 'k': case 'l':
-	case 'q': case 't': case 'u':
-	case 'v': case 'w': case 'x': case 'y': case 'z':
-	case 'A': case 'B': case 'C': case 'D':
-	case 'Q': case 'R': case 'S': case 'T': case 'U':
-	case 'W': case 'Y': case 'Z':
-	  next_cl = (c == 'r'
-		     ? GENERAL_REGS
-		     : REG_CLASS_FROM_CONSTRAINT (c, constraints));
+	  next_cl = reg_class_for_constraint (cn);
+	  if (next_cl == NO_REGS)
+	    break;
 	  if (cl == NO_REGS
 	      ? ira_class_singleton[next_cl][GET_MODE (op)] < 0
 	      : (ira_class_singleton[cl][GET_MODE (op)]
@@ -862,9 +808,6 @@ single_reg_class (const char *constraints, rtx op, rtx equiv_const)
 	    return NO_REGS;
 	  cl = next_cl;
 	  break;
-
-	default:
-	  return NO_REGS;
 	}
   return cl;
 }
@@ -887,8 +830,7 @@ single_reg_operand_class (int op_num)
 void
 ira_implicitly_set_insn_hard_regs (HARD_REG_SET *set)
 {
-  int i, curr_alt, c, regno = 0;
-  bool ignore_p;
+  int i, c, regno = 0;
   enum reg_class cl;
   rtx op;
   enum machine_mode mode;
@@ -909,40 +851,24 @@ ira_implicitly_set_insn_hard_regs (HARD_REG_SET *set)
 	  mode = (GET_CODE (op) == SCRATCH
 		  ? GET_MODE (op) : PSEUDO_REGNO_MODE (regno));
 	  cl = NO_REGS;
-	  for (ignore_p = false, curr_alt = 0;
-	       (c = *p);
-	       p += CONSTRAINT_LEN (c, p))
-	    if (c == '#' || !recog_data.alternative_enabled_p[curr_alt])
-	      ignore_p = true;
+	  alternative_mask enabled = recog_data.enabled_alternatives;
+	  for (; (c = *p); p += CONSTRAINT_LEN (c, p))
+	    if (c == '#')
+	      enabled &= ~ALTERNATIVE_BIT (0);
 	    else if (c == ',')
+	      enabled >>= 1;
+	    else if (enabled & 1)
 	      {
-		curr_alt++;
-		ignore_p = false;
+		cl = reg_class_for_constraint (lookup_constraint (p));
+		if (cl != NO_REGS)
+		  {
+		    /* There is no register pressure problem if all of the
+		       regs in this class are fixed.  */
+		    int regno = ira_class_singleton[cl][mode];
+		    if (regno >= 0)
+		      add_to_hard_reg_set (set, mode, regno);
+		  }
 	      }
-	    else if (! ignore_p)
-	      switch (c)
-		{
-		case 'r':
-		case 'a': case 'b': case 'c': case 'd': case 'e': case 'f':
-		case 'h': case 'j': case 'k': case 'l':
-		case 'q': case 't': case 'u':
-		case 'v': case 'w': case 'x': case 'y': case 'z':
-		case 'A': case 'B': case 'C': case 'D':
-		case 'Q': case 'R': case 'S': case 'T': case 'U':
-		case 'W': case 'Y': case 'Z':
-		  cl = (c == 'r'
-			? GENERAL_REGS
-			: REG_CLASS_FROM_CONSTRAINT (c, p));
-		  if (cl != NO_REGS)
-		    {
-		      /* There is no register pressure problem if all of the
-			 regs in this class are fixed.  */
-		      int regno = ira_class_singleton[cl][mode];
-		      if (regno >= 0)
-			add_to_hard_reg_set (set, mode, regno);
-		    }
-		  break;
-		}
 	}
     }
 }
@@ -1188,7 +1114,7 @@ process_bb_node_lives (ira_loop_tree_node_t loop_tree_node)
 	 pessimistic, but it probably doesn't matter much in practice.  */
       FOR_BB_INSNS_REVERSE (bb, insn)
 	{
-	  df_ref *def_rec, *use_rec;
+	  df_ref def, use;
 	  bool call_p;
 
 	  if (!NONDEBUG_INSN_P (insn))
@@ -1209,9 +1135,9 @@ process_bb_node_lives (ira_loop_tree_node_t loop_tree_node)
 	     live would stop us from allocating it to a call-crossing
 	     allocno.  */
 	  call_p = CALL_P (insn);
-	  for (def_rec = DF_INSN_DEFS (insn); *def_rec; def_rec++)
-	    if (!call_p || !DF_REF_FLAGS_IS_SET (*def_rec, DF_REF_MAY_CLOBBER))
-	      mark_ref_live (*def_rec);
+	  FOR_EACH_INSN_DEF (def, insn)
+	    if (!call_p || !DF_REF_FLAGS_IS_SET (def, DF_REF_MAY_CLOBBER))
+	      mark_ref_live (def);
 
 	  /* If INSN has multiple outputs, then any value used in one
 	     of the outputs conflicts with the other outputs.  Model this
@@ -1225,12 +1151,12 @@ process_bb_node_lives (ira_loop_tree_node_t loop_tree_node)
 	     to the same hard register as an unused output we could
 	     set the hard register before the output reload insn.  */
 	  if (GET_CODE (PATTERN (insn)) == PARALLEL && multiple_sets (insn))
-	    for (use_rec = DF_INSN_USES (insn); *use_rec; use_rec++)
+	    FOR_EACH_INSN_USE (use, insn)
 	      {
 		int i;
 		rtx reg;
 
-		reg = DF_REF_REG (*use_rec);
+		reg = DF_REF_REG (use);
 		for (i = XVECLEN (PATTERN (insn), 0) - 1; i >= 0; i--)
 		  {
 		    rtx set;
@@ -1241,20 +1167,20 @@ process_bb_node_lives (ira_loop_tree_node_t loop_tree_node)
 		      {
 			/* After the previous loop, this is a no-op if
 			   REG is contained within SET_DEST (SET).  */
-			mark_ref_live (*use_rec);
+			mark_ref_live (use);
 			break;
 		      }
 		  }
 	      }
 
 	  extract_insn (insn);
-	  preprocess_constraints ();
+	  preprocess_constraints (insn);
 	  process_single_reg_class_operands (false, freq);
 
 	  /* See which defined values die here.  */
-	  for (def_rec = DF_INSN_DEFS (insn); *def_rec; def_rec++)
-	    if (!call_p || !DF_REF_FLAGS_IS_SET (*def_rec, DF_REF_MAY_CLOBBER))
-	      mark_ref_dead (*def_rec);
+	  FOR_EACH_INSN_DEF (def, insn)
+	    if (!call_p || !DF_REF_FLAGS_IS_SET (def, DF_REF_MAY_CLOBBER))
+	      mark_ref_dead (def);
 
 	  if (call_p)
 	    {
@@ -1273,6 +1199,10 @@ process_bb_node_lives (ira_loop_tree_node_t loop_tree_node)
 		  ira_object_t obj = ira_object_id_map[i];
 		  ira_allocno_t a = OBJECT_ALLOCNO (obj);
 		  int num = ALLOCNO_NUM (a);
+		  HARD_REG_SET this_call_used_reg_set;
+
+		  get_call_reg_set_usage (insn, &this_call_used_reg_set,
+					  call_used_reg_set);
 
 		  /* Don't allocate allocnos that cross setjmps or any
 		     call, if this function receives a nonlocal
@@ -1287,9 +1217,9 @@ process_bb_node_lives (ira_loop_tree_node_t loop_tree_node)
 		  if (can_throw_internal (insn))
 		    {
 		      IOR_HARD_REG_SET (OBJECT_CONFLICT_HARD_REGS (obj),
-					call_used_reg_set);
+					this_call_used_reg_set);
 		      IOR_HARD_REG_SET (OBJECT_TOTAL_CONFLICT_HARD_REGS (obj),
-					call_used_reg_set);
+					this_call_used_reg_set);
 		    }
 
 		  if (sparseset_bit_p (allocnos_processed, num))
@@ -1306,6 +1236,8 @@ process_bb_node_lives (ira_loop_tree_node_t loop_tree_node)
 		  /* Mark it as saved at the next call.  */
 		  allocno_saved_at_call[num] = last_call_num + 1;
 		  ALLOCNO_CALLS_CROSSED_NUM (a)++;
+		  IOR_HARD_REG_SET (ALLOCNO_CROSSED_CALLS_CLOBBERED_REGS (a),
+				    this_call_used_reg_set);
 		  if (cheap_reg != NULL_RTX
 		      && ALLOCNO_REGNO (a) == (int) REGNO (cheap_reg))
 		    ALLOCNO_CHEAP_CALLS_CROSSED_NUM (a)++;
@@ -1317,8 +1249,8 @@ process_bb_node_lives (ira_loop_tree_node_t loop_tree_node)
 	  curr_point++;
 
 	  /* Mark each used value as live.  */
-	  for (use_rec = DF_INSN_USES (insn); *use_rec; use_rec++)
-	    mark_ref_live (*use_rec);
+	  FOR_EACH_INSN_USE (use, insn)
+	    mark_ref_live (use);
 
 	  process_single_reg_class_operands (true, freq);
 
@@ -1331,16 +1263,16 @@ process_bb_node_lives (ira_loop_tree_node_t loop_tree_node)
 	      /* Mark each hard reg as live again.  For example, a
 		 hard register can be in clobber and in an insn
 		 input.  */
-	      for (use_rec = DF_INSN_USES (insn); *use_rec; use_rec++)
+	      FOR_EACH_INSN_USE (use, insn)
 		{
-		  rtx ureg = DF_REF_REG (*use_rec);
+		  rtx ureg = DF_REF_REG (use);
 
 		  if (GET_CODE (ureg) == SUBREG)
 		    ureg = SUBREG_REG (ureg);
 		  if (! REG_P (ureg) || REGNO (ureg) >= FIRST_PSEUDO_REGISTER)
 		    continue;
 
-		  mark_ref_live (*use_rec);
+		  mark_ref_live (use);
 		}
 	    }
 

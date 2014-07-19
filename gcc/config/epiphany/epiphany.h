@@ -899,19 +899,6 @@ enum epiphany_function_type
   { 2, 2, 2, \
     FP_MODE_NONE, FP_MODE_NONE, FP_MODE_NONE, FP_MODE_NONE, FP_MODE_NONE }
 
-#define MODE_NEEDED(ENTITY, INSN) epiphany_mode_needed((ENTITY), (INSN))
-
-#define MODE_PRIORITY_TO_MODE(ENTITY, N) \
-  (epiphany_mode_priority_to_mode ((ENTITY), (N)))
-
-#define EMIT_MODE_SET(ENTITY, MODE, HARD_REGS_LIVE) \
-  emit_set_fp_mode ((ENTITY), (MODE), (HARD_REGS_LIVE))
-
-#define MODE_ENTRY(ENTITY) (epiphany_mode_entry_exit ((ENTITY), false))
-#define MODE_EXIT(ENTITY) (epiphany_mode_entry_exit ((ENTITY), true))
-#define MODE_AFTER(ENTITY, LAST_MODE, INSN) \
-  (epiphany_mode_after ((ENTITY), (LAST_MODE), (INSN)))
-
 #define TARGET_INSERT_MODE_SWITCH_USE epiphany_insert_mode_switch_use
 
 /* Mode switching entities.  */
@@ -941,5 +928,16 @@ extern rtl_opt_pass *make_pass_resolve_sw_modes (gcc::context *ctxt);
 #undef ASM_DECLARE_FUNCTION_NAME
 #define ASM_DECLARE_FUNCTION_NAME(FILE, NAME, DECL) \
   epiphany_start_function ((FILE), (NAME), (DECL))
+
+/* This is how we tell the assembler that two symbols have the same value.  */
+#define ASM_OUTPUT_DEF(FILE, NAME1, NAME2) \
+  do					   \
+    {					   \
+      assemble_name (FILE, NAME1); 	   \
+      fputs (" = ", FILE);		   \
+      assemble_name (FILE, NAME2);	   \
+      fputc ('\n', FILE);		   \
+    }					   \
+  while (0)
 
 #endif /* !GCC_EPIPHANY_H */

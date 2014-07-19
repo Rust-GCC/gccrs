@@ -1,6 +1,50 @@
-2014-04-22  Release Manager
+2014-06-11  Andrew Burgess  <aburgess@broadcom.com>
 
-	* GCC 4.9.0 released.
+	* cplus-dem.c (do_type): Call string_delete even if the call to
+	demangle_template fails.
+
+2014-06-01  Ray Donnelly  <mingw.android@gmail.com>
+
+	* pex-win32.c (argv_to_cmdline): Don't quote
+	args unnecessarily
+
+2014-05-28  Pedro Alves  <palves@redhat.com>
+
+	* cp-demangle.c (d_dump): Handle DEMANGLE_COMPONENT_FUNCTION_PARAM
+	and DEMANGLE_COMPONENT_NUMBER.
+
+2014-05-22  Thomas Schwinge  <thomas@codesourcery.com>
+
+	* testsuite/demangle-expected: Fix last commit.
+
+2014-05-14  Andrew Burgess  <aburgess@broadcom.com>
+
+	* cplus-dmem.c (internal_cplus_demangle): Free any resources
+	allocated by possible previous call to gnu_special.
+	(squangle_mop_up): Reset pointers to NULL after calling free.
+	* testsuite/demangle-expected: New test case.
+
+2014-05-08  Gary Benson  <gbenson@redhat.com>
+
+	* cp-demangle.c (struct d_component_stack): New structure.
+	(struct d_print_info): New field component_stack.
+	(d_print_init): Initialize the above.
+	(d_print_comp_inner): Renamed from d_print_comp.
+	Do not restore template stack if it would cause a loop.
+	(d_print_comp): New function.
+	* testsuite/demangle-expected: New test cases.
+
+2014-04-17  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/56781
+	* maint-tool: Also emit rule for noasan/ subdirectory.
+	* configure.ac (NOASANFLAG): Set and substitute.
+	* Makefile.in: Regenerated.
+	(NOASANFLAG): Set.
+	(all, $(TARGETLIB), mostlyclean): Handle noasan subdir like pic
+	subdir.
+	(stamp-noasandir): New goal.
+	* configure: Regenerated.
 
 2014-04-01  Richard Biener  <rguenther@suse.de>
 

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -525,6 +525,7 @@ package body Sem_Ch6 is
 
    procedure Analyze_Extended_Return_Statement (N : Node_Id) is
    begin
+      Check_Compiler_Unit ("extended return statement", N);
       Analyze_Return_Statement (N);
    end Analyze_Extended_Return_Statement;
 
@@ -933,8 +934,8 @@ package body Sem_Ch6 is
                   --  Can it really happen (extended return???)
 
                   Error_Msg_N
-                    ("aliased only allowed for limited"
-                     & " return objects in Ada 2012?", N);
+                    ("aliased only allowed for limited return objects "
+                     & "in Ada 2012??", N);
 
                elsif not Is_Limited_View (R_Type) then
                   Error_Msg_N ("aliased only allowed for limited"
@@ -2031,19 +2032,33 @@ package body Sem_Ch6 is
    --------------------------------------
 
    procedure Analyze_Subprogram_Body_Contract (Body_Id : Entity_Id) is
-      Body_Decl   : constant Node_Id   := Parent (Parent (Body_Id));
-      Spec_Id     : constant Entity_Id := Corresponding_Spec (Body_Decl);
+      Body_Decl   : constant Node_Id := Parent (Parent (Body_Id));
+      Mode        : SPARK_Mode_Type;
       Prag        : Node_Id;
       Ref_Depends : Node_Id := Empty;
       Ref_Global  : Node_Id := Empty;
+      Spec_Id     : Entity_Id;
 
    begin
-      --  When a subprogram body declaration is erroneous, its defining entity
-      --  is left unanalyzed. There is nothing left to do in this case because
-      --  the body lacks a contract.
+      --  Due to the timing of contract analysis, delayed pragmas may be
+      --  subject to the wrong SPARK_Mode, usually that of the enclosing
+      --  context. To remedy this, restore the original SPARK_Mode of the
+      --  related subprogram body.
 
-      if not Analyzed (Body_Id) then
+      Save_SPARK_Mode_And_Set (Body_Id, Mode);
+
+      --  When a subprogram body declaration is illegal, its defining entity is
+      --  left unanalyzed. There is nothing left to do in this case because the
+      --  body lacks a contract, or even a proper Ekind.
+
+      if Ekind (Body_Id) = E_Void then
          return;
+      end if;
+
+      if Nkind (Body_Decl) = N_Subprogram_Body_Stub then
+         Spec_Id := Corresponding_Spec_Of_Stub (Body_Decl);
+      else
+         Spec_Id := Corresponding_Spec (Body_Decl);
       end if;
 
       --  Locate and store pragmas Refined_Depends and Refined_Global since
@@ -2105,6 +2120,11 @@ package body Sem_Ch6 is
                Body_Decl, Spec_Id);
          end if;
       end if;
+
+      --  Restore the SPARK_Mode of the enclosing context after all delayed
+      --  pragmas have been analyzed.
+
+      Restore_SPARK_Mode (Mode);
    end Analyze_Subprogram_Body_Contract;
 
    ------------------------------------
@@ -2147,6 +2167,10 @@ package body Sem_Ch6 is
       --  chained beyond that point. It is initialized to Empty to deal with
       --  the case where there is no separate spec.
 
+      procedure Analyze_Aspects_On_Body_Or_Stub;
+      --  Analyze the aspect specifications of a subprogram body [stub]. It is
+      --  assumed that N has aspects.
+
       procedure Check_Anonymous_Return;
       --  Ada 2005: if a function returns an access type that denotes a task,
       --  or a type that contains tasks, we must create a master entity for
@@ -2168,11 +2192,6 @@ package body Sem_Ch6 is
       --  the warning checks implemented by Check_Returns. In formal mode, also
       --  verify that a function ends with a RETURN and that a procedure does
       --  not contain any RETURN.
-
-      procedure Diagnose_Misplaced_Aspect_Specifications;
-      --  It is known that subprogram body N has aspects, but they are not
-      --  properly placed. Provide specific error messages depending on the
-      --  aspects involved.
 
       function Disambiguate_Spec return Entity_Id;
       --  When a primitive is declared between the private view and the full
@@ -2202,6 +2221,127 @@ package body Sem_Ch6 is
       --  current scope previously. If the body itself carries an overriding
       --  indicator, check that it is consistent with the known status of the
       --  entity.
+
+      -------------------------------------
+      -- Analyze_Aspects_On_Body_Or_Stub --
+      -------------------------------------
+
+      procedure Analyze_Aspects_On_Body_Or_Stub is
+         procedure Diagnose_Misplaced_Aspects;
+         --  Subprogram body [stub] N has aspects, but they are not properly
+         --  placed. Provide precise diagnostics depending on the aspects
+         --  involved.
+
+         --------------------------------
+         -- Diagnose_Misplaced_Aspects --
+         --------------------------------
+
+         procedure Diagnose_Misplaced_Aspects is
+            Asp     : Node_Id;
+            Asp_Nam : Name_Id;
+            Asp_Id  : Aspect_Id;
+            --  The current aspect along with its name and id
+
+            procedure SPARK_Aspect_Error (Ref_Nam : Name_Id);
+            --  Emit an error message concerning SPARK aspect Asp. Ref_Nam is
+            --  the name of the refined version of the aspect.
+
+            ------------------------
+            -- SPARK_Aspect_Error --
+            ------------------------
+
+            procedure SPARK_Aspect_Error (Ref_Nam : Name_Id) is
+            begin
+               --  The corresponding spec already contains the aspect in
+               --  question and the one appearing on the body must be the
+               --  refined form:
+
+               --    procedure P with Global ...;
+               --    procedure P with Global ... is ... end P;
+               --                     ^
+               --                     Refined_Global
+
+               if Has_Aspect (Spec_Id, Asp_Id) then
+                  Error_Msg_Name_1 := Asp_Nam;
+
+                  --  Subunits cannot carry aspects that apply to a subprogram
+                  --  declaration.
+
+                  if Nkind (Parent (N)) = N_Subunit then
+                     Error_Msg_N ("aspect % cannot apply to a subunit", Asp);
+
+                  else
+                     Error_Msg_Name_2 := Ref_Nam;
+                     Error_Msg_N ("aspect % should be %", Asp);
+                  end if;
+
+               --  Otherwise the aspect must appear in the spec, not in the
+               --  body:
+
+               --    procedure P;
+               --    procedure P with Global ... is ... end P;
+
+               else
+                  Error_Msg_N
+                    ("aspect specification must appear in subprogram "
+                     & "declaration", Asp);
+               end if;
+            end SPARK_Aspect_Error;
+
+         --  Start of processing for Diagnose_Misplaced_Aspects
+
+         begin
+            --  Iterate over the aspect specifications and emit specific errors
+            --  where applicable.
+
+            Asp := First (Aspect_Specifications (N));
+            while Present (Asp) loop
+               Asp_Nam := Chars (Identifier (Asp));
+               Asp_Id  := Get_Aspect_Id (Asp_Nam);
+
+               --  Do not emit errors on aspects that can appear on a
+               --  subprogram body. This scenario occurs when the aspect
+               --  specification list contains both misplaced and properly
+               --  placed aspects.
+
+               if Aspect_On_Body_Or_Stub_OK (Asp_Id) then
+                  null;
+
+               --  Special diagnostics for SPARK aspects
+
+               elsif Asp_Nam = Name_Depends then
+                  SPARK_Aspect_Error (Name_Refined_Depends);
+
+               elsif Asp_Nam = Name_Global then
+                  SPARK_Aspect_Error (Name_Refined_Global);
+
+               elsif Asp_Nam = Name_Post then
+                  SPARK_Aspect_Error (Name_Refined_Post);
+
+               else
+                  Error_Msg_N
+                    ("aspect specification must appear in subprogram "
+                     & "declaration", Asp);
+               end if;
+
+               Next (Asp);
+            end loop;
+         end Diagnose_Misplaced_Aspects;
+
+      --  Start of processing for Analyze_Aspects_On_Body_Or_Stub
+
+      begin
+         --  Language-defined aspects cannot be associated with a subprogram
+         --  body [stub] if the subprogram has a spec. Certain implementation
+         --  defined aspects are allowed to break this rule (for list, see
+         --  table Aspect_On_Body_Or_Stub_OK).
+
+         if Present (Spec_Id) and then not Aspects_On_Body_Or_Stub_OK (N) then
+            Diagnose_Misplaced_Aspects;
+         else
+            Analyze_Aspect_Specifications (N, Body_Id);
+         end if;
+      end Analyze_Aspects_On_Body_Or_Stub;
 
       ----------------------------
       -- Check_Anonymous_Return --
@@ -2455,99 +2595,6 @@ package body Sem_Ch6 is
          end if;
       end Check_Missing_Return;
 
-      ----------------------------------------------
-      -- Diagnose_Misplaced_Aspect_Specifications --
-      ----------------------------------------------
-
-      procedure Diagnose_Misplaced_Aspect_Specifications is
-         Asp     : Node_Id;
-         Asp_Nam : Name_Id;
-         Asp_Id  : Aspect_Id;
-         --  The current aspect along with its name and id
-
-         procedure SPARK_Aspect_Error (Ref_Nam : Name_Id);
-         --  Emit an error message concerning SPARK aspect Asp. Ref_Nam is the
-         --  name of the refined version of the aspect.
-
-         ------------------------
-         -- SPARK_Aspect_Error --
-         ------------------------
-
-         procedure SPARK_Aspect_Error (Ref_Nam : Name_Id) is
-         begin
-            --  The corresponding spec already contains the aspect in question
-            --  and the one appearing on the body must be the refined form:
-
-            --    procedure P with Global ...;
-            --    procedure P with Global ... is ... end P;
-            --                     ^
-            --                     Refined_Global
-
-            if Has_Aspect (Spec_Id, Asp_Id) then
-               Error_Msg_Name_1 := Asp_Nam;
-
-               --  Subunits cannot carry aspects that apply to a subprogram
-               --  declaration.
-
-               if Nkind (Parent (N)) = N_Subunit then
-                  Error_Msg_N ("aspect % cannot apply to a subunit", Asp);
-
-               else
-                  Error_Msg_Name_2 := Ref_Nam;
-                  Error_Msg_N ("aspect % should be %", Asp);
-               end if;
-
-            --  Otherwise the aspect must appear in the spec, not in the body:
-
-            --    procedure P;
-            --    procedure P with Global ... is ... end P;
-
-            else
-               Error_Msg_N
-                 ("aspect specification must appear in subprogram declaration",
-                  Asp);
-            end if;
-         end SPARK_Aspect_Error;
-
-      --  Start of processing for Diagnose_Misplaced_Aspect_Specifications
-
-      begin
-         --  Iterate over the aspect specifications and emit specific errors
-         --  where applicable.
-
-         Asp := First (Aspect_Specifications (N));
-         while Present (Asp) loop
-            Asp_Nam := Chars (Identifier (Asp));
-            Asp_Id  := Get_Aspect_Id (Asp_Nam);
-
-            --  Do not emit errors on aspects that can appear on a subprogram
-            --  body. This scenario occurs when the aspect specification list
-            --  contains both misplaced and properly placed aspects.
-
-            if Aspect_On_Body_Or_Stub_OK (Asp_Id) then
-               null;
-
-            --  Special diagnostics for SPARK aspects
-
-            elsif Asp_Nam = Name_Depends then
-               SPARK_Aspect_Error (Name_Refined_Depends);
-
-            elsif Asp_Nam = Name_Global then
-               SPARK_Aspect_Error (Name_Refined_Global);
-
-            elsif Asp_Nam = Name_Post then
-               SPARK_Aspect_Error (Name_Refined_Post);
-
-            else
-               Error_Msg_N
-                 ("aspect specification must appear in subprogram declaration",
-                  Asp);
-            end if;
-
-            Next (Asp);
-         end loop;
-      end Diagnose_Misplaced_Aspect_Specifications;
-
       -----------------------
       -- Disambiguate_Spec --
       -----------------------
@@ -2782,6 +2829,16 @@ package body Sem_Ch6 is
             elsif not Present (Overridden_Operation (Spec_Id)) then
                Error_Msg_NE
                  ("subprogram& is not overriding", Body_Spec, Spec_Id);
+
+            --  Overriding indicators aren't allowed for protected subprogram
+            --  bodies (see the Confirmation in Ada Comment AC95-00213). Change
+            --  this to a warning if -gnatd.E is enabled.
+
+            elsif Ekind (Scope (Spec_Id)) = E_Protected_Type then
+               Error_Msg_Warn := Error_To_Warning;
+               Error_Msg_N
+                 ("<<overriding indicator not allowed for protected "
+                  & "subprogram body", Body_Spec);
             end if;
 
          elsif Must_Not_Override (Body_Spec) then
@@ -2797,20 +2854,37 @@ package body Sem_Ch6 is
                  ("subprogram & overrides predefined operator ",
                     Body_Spec, Spec_Id);
 
-            --  If this is not a primitive operation or protected subprogram,
-            --  then the overriding indicator is altogether illegal.
+            --  Overriding indicators aren't allowed for protected subprogram
+            --  bodies (see the Confirmation in Ada Comment AC95-00213). Change
+            --  this to a warning if -gnatd.E is enabled.
 
-            elsif not Is_Primitive (Spec_Id)
-              and then Ekind (Scope (Spec_Id)) /= E_Protected_Type
-            then
+            elsif Ekind (Scope (Spec_Id)) = E_Protected_Type then
+               Error_Msg_Warn := Error_To_Warning;
+
+               Error_Msg_N
+                 ("<<overriding indicator not allowed " &
+                  "for protected subprogram body",
+                  Body_Spec);
+
+            --  If this is not a primitive operation, then the overriding
+            --  indicator is altogether illegal.
+
+            elsif not Is_Primitive (Spec_Id) then
                Error_Msg_N
                  ("overriding indicator only allowed " &
                   "if subprogram is primitive",
                   Body_Spec);
             end if;
 
+         --  If checking the style rule and the operation overrides, then
+         --  issue a warning about a missing overriding_indicator. Protected
+         --  subprogram bodies are excluded from this style checking, since
+         --  they aren't primitives (even though their declarations can
+         --  override) and aren't allowed to have an overriding_indicator.
+
          elsif Style_Check
            and then Present (Overridden_Operation (Spec_Id))
+           and then Ekind (Scope (Spec_Id)) /= E_Protected_Type
          then
             pragma Assert (Unit_Declaration_Node (Body_Id) = N);
             Style.Missing_Overriding (N, Body_Id);
@@ -2918,21 +2992,6 @@ package body Sem_Ch6 is
 
          else
             Spec_Id := Corresponding_Spec (N);
-         end if;
-      end if;
-
-      --  Language-defined aspects cannot appear on a subprogram body [stub] if
-      --  the subprogram has a spec. Certain implementation-defined aspects are
-      --  allowed to break this rule (see table Aspect_On_Body_Or_Stub_OK).
-
-      if Has_Aspects (N) then
-         if Present (Spec_Id)
-           and then not Aspects_On_Body_Or_Stub_OK (N)
-         then
-            Diagnose_Misplaced_Aspect_Specifications;
-
-         else
-            Analyze_Aspect_Specifications (N, Body_Id);
          end if;
       end if;
 
@@ -3272,6 +3331,17 @@ package body Sem_Ch6 is
       Check_Eliminated (Body_Id);
 
       if Nkind (N) = N_Subprogram_Body_Stub then
+
+         --  Analyze any aspect specifications that appear on the subprogram
+         --  body stub.
+
+         if Has_Aspects (N) then
+            Analyze_Aspects_On_Body_Or_Stub;
+         end if;
+
+         --  Stop the analysis now as the stub cannot be inlined, plus it does
+         --  not have declarative or statement lists.
+
          return;
       end if;
 
@@ -3345,16 +3415,6 @@ package body Sem_Ch6 is
       HSS := Handled_Statement_Sequence (N);
       Set_Actual_Subtypes (N, Current_Scope);
 
-      --  Deal with [refined] preconditions, postconditions, Contract_Cases,
-      --  invariants and predicates associated with the body and its spec.
-      --  Note that this is not pure expansion as Expand_Subprogram_Contract
-      --  prepares the contract assertions for generic subprograms or for ASIS.
-      --  Do not generate contract checks in SPARK mode.
-
-      if not GNATprove_Mode then
-         Expand_Subprogram_Contract (N, Spec_Id, Body_Id);
-      end if;
-
       --  Add a declaration for the Protection object, renaming declarations
       --  for discriminals and privals and finally a declaration for the entry
       --  family index (if applicable). This form of early expansion is done
@@ -3380,6 +3440,22 @@ package body Sem_Ch6 is
 
       if Ada_Version >= Ada_2012 then
          Exchange_Limited_Views (Spec_Id);
+      end if;
+
+      --  Analyze any aspect specifications that appear on the subprogram body
+
+      if Has_Aspects (N) then
+         Analyze_Aspects_On_Body_Or_Stub;
+      end if;
+
+      --  Deal with [refined] preconditions, postconditions, Contract_Cases,
+      --  invariants and predicates associated with the body and its spec.
+      --  Note that this is not pure expansion as Expand_Subprogram_Contract
+      --  prepares the contract assertions for generic subprograms or for ASIS.
+      --  Do not generate contract checks in SPARK mode.
+
+      if not GNATprove_Mode then
+         Expand_Subprogram_Contract (N, Spec_Id, Body_Id);
       end if;
 
       --  Analyze the declarations (this call will analyze the precondition
@@ -3617,6 +3693,7 @@ package body Sem_Ch6 is
       Case_Prag    : Node_Id := Empty;
       Depends      : Node_Id := Empty;
       Global       : Node_Id := Empty;
+      Mode         : SPARK_Mode_Type;
       Nam          : Name_Id;
       Post_Prag    : Node_Id := Empty;
       Prag         : Node_Id;
@@ -3624,6 +3701,13 @@ package body Sem_Ch6 is
       Seen_In_Post : Boolean := False;
 
    begin
+      --  Due to the timing of contract analysis, delayed pragmas may be
+      --  subject to the wrong SPARK_Mode, usually that of the enclosing
+      --  context. To remedy this, restore the original SPARK_Mode of the
+      --  related subprogram body.
+
+      Save_SPARK_Mode_And_Set (Subp, Mode);
+
       if Present (Items) then
 
          --  Analyze pre- and postconditions
@@ -3745,6 +3829,11 @@ package body Sem_Ch6 is
               ("function postcondition does not mention result?T?", Post_Prag);
          end if;
       end if;
+
+      --  Restore the SPARK_Mode of the enclosing context after all delayed
+      --  pragmas have been analyzed.
+
+      Restore_SPARK_Mode (Mode);
    end Analyze_Subprogram_Contract;
 
    ------------------------------------
@@ -11455,23 +11544,35 @@ package body Sem_Ch6 is
          --  The following checks are relevant when SPARK_Mode is on as these
          --  are not standard Ada legality rules.
 
-         if SPARK_Mode = On
-           and then Ekind_In (Scope (Formal), E_Function, E_Generic_Function)
-         then
-            --  A function cannot have a parameter of mode IN OUT or OUT
-            --  (SPARK RM 6.1).
+         if SPARK_Mode = On then
+            if Ekind_In (Scope (Formal), E_Function, E_Generic_Function) then
 
-            if Ekind_In (Formal, E_In_Out_Parameter, E_Out_Parameter) then
+               --  A function cannot have a parameter of mode IN OUT or OUT
+               --  (SPARK RM 6.1).
+
+               if Ekind_In (Formal, E_In_Out_Parameter, E_Out_Parameter) then
+                  Error_Msg_N
+                    ("function cannot have parameter of mode `OUT` or "
+                     & "`IN OUT`", Formal);
+
+               --  A function cannot have a volatile formal parameter
+               --  (SPARK RM 7.1.3(10)).
+
+               elsif Is_SPARK_Volatile (Formal) then
+                  Error_Msg_N
+                    ("function cannot have a volatile formal parameter",
+                     Formal);
+               end if;
+
+            --  A procedure cannot have a formal parameter of mode IN because
+            --  it behaves as a constant (SPARK RM 7.1.3(6)).
+
+            elsif Ekind (Scope (Formal)) = E_Procedure
+              and then Ekind (Formal) = E_In_Parameter
+              and then Is_SPARK_Volatile (Formal)
+            then
                Error_Msg_N
-                 ("function cannot have parameter of mode `OUT` or `IN OUT`",
-                  Formal);
-
-            --  A function cannot have a volatile formal parameter
-            --  (SPARK RM 7.1.3(10)).
-
-            elsif Is_SPARK_Volatile_Object (Formal) then
-               Error_Msg_N
-                 ("function cannot have a volatile formal parameter", Formal);
+                 ("formal parameter of mode `IN` cannot be volatile", Formal);
             end if;
          end if;
 
@@ -11541,7 +11642,7 @@ package body Sem_Ch6 is
 
             if Convention (Formal_Type) = Convention_Ada_Pass_By_Copy then
                Error_Msg_N
-                 ("cannot pass aliased parameter & by copy?", Formal);
+                 ("cannot pass aliased parameter & by copy??", Formal);
             end if;
 
          --  Force mechanism if type has Convention Ada_Pass_By_Ref/Copy
@@ -11747,9 +11848,8 @@ package body Sem_Ch6 is
       --  point of the call.
 
       if Out_Present (Spec) then
-         if Ekind (Scope (Formal_Id)) = E_Function
-           or else Ekind (Scope (Formal_Id)) = E_Generic_Function
-         then
+         if Ekind_In (Scope (Formal_Id), E_Function, E_Generic_Function) then
+
             --  [IN] OUT parameters allowed for functions in Ada 2012
 
             if Ada_Version >= Ada_2012 then
@@ -11765,6 +11865,8 @@ package body Sem_Ch6 is
                else
                   Set_Ekind (Formal_Id, E_Out_Parameter);
                end if;
+
+               Set_Has_Out_Or_In_Out_Parameter (Scope (Formal_Id), True);
 
             --  But not in earlier versions of Ada
 

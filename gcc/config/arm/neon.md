@@ -728,7 +728,7 @@
 
 ;; Compare to *anddi_notdi_di.
 (define_insn "bicdi3_neon"
-  [(set (match_operand:DI 0 "s_register_operand" "=w,?=&r,?&r")
+  [(set (match_operand:DI 0 "s_register_operand" "=w,?&r,?&r")
         (and:DI (not:DI (match_operand:DI 2 "s_register_operand" "w,r,0"))
 		(match_operand:DI 1 "s_register_operand" "w,0,r")))]
   "TARGET_NEON"
@@ -1842,9 +1842,9 @@
 ; good for plain vadd, vaddq.
 
 (define_expand "neon_vadd<mode>"
-  [(match_operand:VDQX 0 "s_register_operand" "=w")
-   (match_operand:VDQX 1 "s_register_operand" "w")
-   (match_operand:VDQX 2 "s_register_operand" "w")
+  [(match_operand:VCVTF 0 "s_register_operand" "=w")
+   (match_operand:VCVTF 1 "s_register_operand" "w")
+   (match_operand:VCVTF 2 "s_register_operand" "w")
    (match_operand:SI 3 "immediate_operand" "i")]
   "TARGET_NEON"
 {
@@ -1869,9 +1869,9 @@
 ; Used for intrinsics when flag_unsafe_math_optimizations is false.
 
 (define_insn "neon_vadd<mode>_unspec"
-  [(set (match_operand:VDQX 0 "s_register_operand" "=w")
-        (unspec:VDQX [(match_operand:VDQX 1 "s_register_operand" "w")
-		      (match_operand:VDQX 2 "s_register_operand" "w")]
+  [(set (match_operand:VCVTF 0 "s_register_operand" "=w")
+        (unspec:VCVTF [(match_operand:VCVTF 1 "s_register_operand" "w")
+		      (match_operand:VCVTF 2 "s_register_operand" "w")]
                      UNSPEC_VADD))]
   "TARGET_NEON"
   "vadd.<V_if_elem>\t%<V_reg>0, %<V_reg>1, %<V_reg>2"
@@ -2132,9 +2132,9 @@
 )
 
 (define_expand "neon_vsub<mode>"
-  [(match_operand:VDQX 0 "s_register_operand" "=w")
-   (match_operand:VDQX 1 "s_register_operand" "w")
-   (match_operand:VDQX 2 "s_register_operand" "w")
+  [(match_operand:VCVTF 0 "s_register_operand" "=w")
+   (match_operand:VCVTF 1 "s_register_operand" "w")
+   (match_operand:VCVTF 2 "s_register_operand" "w")
    (match_operand:SI 3 "immediate_operand" "i")]
   "TARGET_NEON"
 {
@@ -2149,9 +2149,9 @@
 ; Used for intrinsics when flag_unsafe_math_optimizations is false.
 
 (define_insn "neon_vsub<mode>_unspec"
-  [(set (match_operand:VDQX 0 "s_register_operand" "=w")
-        (unspec:VDQX [(match_operand:VDQX 1 "s_register_operand" "w")
-		      (match_operand:VDQX 2 "s_register_operand" "w")]
+  [(set (match_operand:VCVTF 0 "s_register_operand" "=w")
+        (unspec:VCVTF [(match_operand:VCVTF 1 "s_register_operand" "w")
+		      (match_operand:VCVTF 2 "s_register_operand" "w")]
                      UNSPEC_VSUB))]
   "TARGET_NEON"
   "vsub.<V_if_elem>\t%<V_reg>0, %<V_reg>1, %<V_reg>2"
@@ -2545,6 +2545,14 @@
   "TARGET_NEON"
   "vqabs.<V_s_elem>\t%<V_reg>0, %<V_reg>1"
   [(set_attr "type" "neon_qabs<q>")]
+)
+
+(define_insn "neon_bswap<mode>"
+  [(set (match_operand:VDQHSD 0 "register_operand" "=w")
+        (bswap:VDQHSD (match_operand:VDQHSD 1 "register_operand" "w")))]
+  "TARGET_NEON"
+  "vrev<V_sz_elem>.8\\t%<V_reg>0, %<V_reg>1"
+  [(set_attr "type" "neon_rev<q>")]
 )
 
 (define_expand "neon_vneg<mode>"
@@ -4140,17 +4148,6 @@
   [(set_attr "type" "neon_permute<q>")]
 )
 
-(define_expand "neon_vtrn<mode>"
-  [(match_operand:SI 0 "s_register_operand" "r")
-   (match_operand:VDQW 1 "s_register_operand" "w")
-   (match_operand:VDQW 2 "s_register_operand" "w")]
-  "TARGET_NEON"
-{
-  neon_emit_pair_result_insn (<MODE>mode, gen_neon_vtrn<mode>_internal,
-			      operands[0], operands[1], operands[2]);
-  DONE;
-})
-
 (define_expand "neon_vzip<mode>_internal"
   [(parallel
     [(set (match_operand:VDQW 0 "s_register_operand" "")
@@ -4177,17 +4174,6 @@
   [(set_attr "type" "neon_zip<q>")]
 )
 
-(define_expand "neon_vzip<mode>"
-  [(match_operand:SI 0 "s_register_operand" "r")
-   (match_operand:VDQW 1 "s_register_operand" "w")
-   (match_operand:VDQW 2 "s_register_operand" "w")]
-  "TARGET_NEON"
-{
-  neon_emit_pair_result_insn (<MODE>mode, gen_neon_vzip<mode>_internal,
-			      operands[0], operands[1], operands[2]);
-  DONE;
-})
-
 (define_expand "neon_vuzp<mode>_internal"
   [(parallel
     [(set (match_operand:VDQW 0 "s_register_operand" "")
@@ -4213,17 +4199,6 @@
   "vuzp.<V_sz_elem>\t%<V_reg>0, %<V_reg>2"
   [(set_attr "type" "neon_zip<q>")]
 )
-
-(define_expand "neon_vuzp<mode>"
-  [(match_operand:SI 0 "s_register_operand" "r")
-   (match_operand:VDQW 1 "s_register_operand" "w")
-   (match_operand:VDQW 2 "s_register_operand" "w")]
-  "TARGET_NEON"
-{
-  neon_emit_pair_result_insn (<MODE>mode, gen_neon_vuzp<mode>_internal,
-			      operands[0], operands[1], operands[2]);
-  DONE;
-})
 
 (define_expand "neon_vreinterpretv8qi<mode>"
   [(match_operand:V8QI 0 "s_register_operand" "")
@@ -5356,61 +5331,6 @@
 }
   [(set_attr "type" "neon_store4_4reg<q>")]
 )
-
-(define_expand "neon_vand<mode>"
-  [(match_operand:VDQX 0 "s_register_operand" "")
-   (match_operand:VDQX 1 "s_register_operand" "")
-   (match_operand:VDQX 2 "neon_inv_logic_op2" "")
-   (match_operand:SI 3 "immediate_operand" "")]
-  "TARGET_NEON"
-{
-  emit_insn (gen_and<mode>3 (operands[0], operands[1], operands[2]));
-  DONE;
-})
-
-(define_expand "neon_vorr<mode>"
-  [(match_operand:VDQX 0 "s_register_operand" "")
-   (match_operand:VDQX 1 "s_register_operand" "")
-   (match_operand:VDQX 2 "neon_logic_op2" "")
-   (match_operand:SI 3 "immediate_operand" "")]
-  "TARGET_NEON"
-{
-  emit_insn (gen_ior<mode>3 (operands[0], operands[1], operands[2]));
-  DONE;
-})
-
-(define_expand "neon_veor<mode>"
-  [(match_operand:VDQX 0 "s_register_operand" "")
-   (match_operand:VDQX 1 "s_register_operand" "")
-   (match_operand:VDQX 2 "s_register_operand" "")
-   (match_operand:SI 3 "immediate_operand" "")]
-  "TARGET_NEON"
-{
-  emit_insn (gen_xor<mode>3 (operands[0], operands[1], operands[2]));
-  DONE;
-})
-
-(define_expand "neon_vbic<mode>"
-  [(match_operand:VDQX 0 "s_register_operand" "")
-   (match_operand:VDQX 1 "s_register_operand" "")
-   (match_operand:VDQX 2 "neon_logic_op2" "")
-   (match_operand:SI 3 "immediate_operand" "")]
-  "TARGET_NEON"
-{
-  emit_insn (gen_bic<mode>3_neon (operands[0], operands[1], operands[2]));
-  DONE;
-})
-
-(define_expand "neon_vorn<mode>"
-  [(match_operand:VDQX 0 "s_register_operand" "")
-   (match_operand:VDQX 1 "s_register_operand" "")
-   (match_operand:VDQX 2 "neon_inv_logic_op2" "")
-   (match_operand:SI 3 "immediate_operand" "")]
-  "TARGET_NEON"
-{
-  emit_insn (gen_orn<mode>3_neon (operands[0], operands[1], operands[2]));
-  DONE;
-})
 
 (define_insn "neon_vec_unpack<US>_lo_<mode>"
   [(set (match_operand:<V_unpack> 0 "register_operand" "=w")

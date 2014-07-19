@@ -1,23 +1,16 @@
-/* { dg-options "-O2 -std=c++11 -fdump-ipa-inline"  } */
-#include <new>
-
-class EmbeddedObject {
-public:
-  virtual int val() { return 2; }
-};
-
-class Container {
-  alignas(EmbeddedObject) char buffer[sizeof(EmbeddedObject)];
-public:
-  EmbeddedObject *obj() { return (EmbeddedObject*)buffer; }
-  Container() { new (buffer) EmbeddedObject(); }
-};
-
-Container o;
-
-int main()
+// { dg-options "-O3 -fdump-tree-ssa" }
+inline void t()
 {
-  __builtin_printf("%d\n", o.obj()->val());
+  struct A {virtual void q() {}};
+  static struct A *a;
+  if (!a)
+    a = new(A);
+  a->q();
+};
+void
+m()
+{
+  t();
 }
-/* { dg-final { scan-ipa-dump-not "__builtin_unreachable"  "inline"  } } */
-/* { dg-final { cleanup-ipa-dump "inline" } } */
+// { dg-final { scan-tree-dump-not "OBJ_TYPE_REF" "ssa" } }
+// { dg-final { cleanup-tree-dump "ssa" } }

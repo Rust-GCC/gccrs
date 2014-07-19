@@ -19,7 +19,7 @@
 
 ;; Register constraints
 
-(define_register_constraint "d" "BASE_REG_CLASS"
+(define_register_constraint "d" "TARGET_MIPS16 ? M16_REGS : GR_REGS"
   "An address register.  This is equivalent to @code{r} unless
    generating MIPS16 code.")
 
@@ -91,6 +91,9 @@
 ;; instructions.  The core MIPS32 ISA provides a hi/lo madd,
 ;; but the DSP version allows any accumulator target.
 (define_register_constraint "ka" "ISA_HAS_DSP_MULT ? ACC_REGS : MD_REGS")
+
+(define_register_constraint "kb" "M16_STORE_REGS"
+  "@internal")
 
 (define_constraint "kf"
   "@internal"

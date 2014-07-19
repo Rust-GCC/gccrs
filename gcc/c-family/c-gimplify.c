@@ -45,6 +45,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "c-pretty-print.h"
 #include "cgraph.h"
 #include "cilk.h"
+#include "c-ubsan.h"
+#include "pointer-set.h"
 
 /*  The gimplification pass converts the language-dependent trees
     (ld-trees) emitted by the parser into language-independent trees
@@ -67,6 +69,39 @@ along with GCC; see the file COPYING3.  If not see
     walk back up, we check that they fit our constraints, and copy them
     into temporaries if not.  */
 
+/* Callback for c_genericize.  */
+
+static tree
+ubsan_walk_array_refs_r (tree *tp, int *walk_subtrees, void *data)
+{
+  struct pointer_set_t *pset = (struct pointer_set_t *) data;
+
+  /* Since walk_tree doesn't call the callback function on the decls
+     in BIND_EXPR_VARS, we have to walk them manually.  */
+  if (TREE_CODE (*tp) == BIND_EXPR)
+    {
+      for (tree decl = BIND_EXPR_VARS (*tp); decl; decl = DECL_CHAIN (decl))
+	{
+	  if (TREE_STATIC (decl))
+	    {
+	      *walk_subtrees = 0;
+	      continue;
+	    }
+	  walk_tree (&DECL_INITIAL (decl), ubsan_walk_array_refs_r, pset,
+		     pset);
+	  walk_tree (&DECL_SIZE (decl), ubsan_walk_array_refs_r, pset, pset);
+	  walk_tree (&DECL_SIZE_UNIT (decl), ubsan_walk_array_refs_r, pset,
+		     pset);
+	}
+    }
+  else if (TREE_CODE (*tp) == ADDR_EXPR
+	   && TREE_CODE (TREE_OPERAND (*tp, 0)) == ARRAY_REF)
+    ubsan_maybe_instrument_array_ref (&TREE_OPERAND (*tp, 0), true);
+  else if (TREE_CODE (*tp) == ARRAY_REF)
+    ubsan_maybe_instrument_array_ref (tp, false);
+  return NULL_TREE;
+}
+
 /* Gimplification of statement trees.  */
 
 /* Convert the tree representation of FNDECL from C frontend trees to
@@ -79,8 +114,16 @@ c_genericize (tree fndecl)
   int local_dump_flags;
   struct cgraph_node *cgn;
 
+  if (flag_sanitize & SANITIZE_BOUNDS)
+    {
+      struct pointer_set_t *pset = pointer_set_create ();
+      walk_tree (&DECL_SAVED_TREE (fndecl), ubsan_walk_array_refs_r, pset,
+		 pset);
+      pointer_set_destroy (pset);
+    }
+
   /* Dump the C-specific tree IR.  */
-  dump_orig = dump_begin (TDI_original, &local_dump_flags);
+  dump_orig = get_dump_info (TDI_original, &local_dump_flags);
   if (dump_orig)
     {
       fprintf (dump_orig, "\n;; Function %s",
@@ -97,8 +140,6 @@ c_genericize (tree fndecl)
       else
 	print_c_tree (dump_orig, DECL_SAVED_TREE (fndecl));
       fprintf (dump_orig, "\n");
-
-      dump_end (TDI_original, dump_orig);
     }
 
   /* Dump all nested functions now.  */
@@ -199,24 +240,22 @@ c_gimplify_expr (tree *expr_p, gimple_seq *pre_p ATTRIBUTE_UNUSED,
 	tree type = TREE_TYPE (TREE_OPERAND (*expr_p, 0));
 	if (INTEGRAL_TYPE_P (type) && c_promoting_integer_type_p (type))
 	  {
-	    if (TYPE_OVERFLOW_UNDEFINED (type)
-		|| ((flag_sanitize & SANITIZE_SI_OVERFLOW)
-		    && !TYPE_OVERFLOW_WRAPS (type)))
+	    if (!TYPE_OVERFLOW_WRAPS (type))
 	      type = unsigned_type_for (type);
 	    return gimplify_self_mod_expr (expr_p, pre_p, post_p, 1, type);
 	  }
 	break;
       }
-      
+
     case CILK_SPAWN_STMT:
-      gcc_assert 
-	(fn_contains_cilk_spawn_p (cfun) 
+      gcc_assert
+	(fn_contains_cilk_spawn_p (cfun)
 	 && cilk_detect_spawn_and_unwrap (expr_p));
-      
+
       /* If errors are seen, then just process it as a CALL_EXPR.  */
       if (!seen_error ())
 	return (enum gimplify_status) gimplify_cilk_spawn (expr_p);
-      
+
     case MODIFY_EXPR:
     case INIT_EXPR:
     case CALL_EXPR:

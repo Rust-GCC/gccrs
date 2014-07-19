@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -180,9 +180,17 @@ package body Sem_Ch7 is
 
    procedure Analyze_Package_Body_Contract (Body_Id : Entity_Id) is
       Spec_Id : constant Entity_Id := Spec_Entity (Body_Id);
+      Mode    : SPARK_Mode_Type;
       Prag    : Node_Id;
 
    begin
+      --  Due to the timing of contract analysis, delayed pragmas may be
+      --  subject to the wrong SPARK_Mode, usually that of the enclosing
+      --  context. To remedy this, restore the original SPARK_Mode of the
+      --  related package body.
+
+      Save_SPARK_Mode_And_Set (Body_Id, Mode);
+
       Prag := Get_Pragma (Body_Id, Pragma_Refined_State);
 
       --  The analysis of pragma Refined_State detects whether the spec has
@@ -200,6 +208,11 @@ package body Sem_Ch7 is
       then
          Error_Msg_N ("package & requires state refinement", Spec_Id);
       end if;
+
+      --  Restore the SPARK_Mode of the enclosing context after all delayed
+      --  pragmas have been analyzed.
+
+      Restore_SPARK_Mode (Mode);
    end Analyze_Package_Body_Contract;
 
    ---------------------------------
@@ -839,9 +852,17 @@ package body Sem_Ch7 is
    ------------------------------
 
    procedure Analyze_Package_Contract (Pack_Id : Entity_Id) is
+      Mode : SPARK_Mode_Type;
       Prag : Node_Id;
 
    begin
+      --  Due to the timing of contract analysis, delayed pragmas may be
+      --  subject to the wrong SPARK_Mode, usually that of the enclosing
+      --  context. To remedy this, restore the original SPARK_Mode of the
+      --  related package.
+
+      Save_SPARK_Mode_And_Set (Pack_Id, Mode);
+
       --  Analyze the initialization related pragmas. Initializes must come
       --  before Initial_Condition due to item dependencies.
 
@@ -867,6 +888,11 @@ package body Sem_Ch7 is
             Check_Missing_Part_Of (Pack_Id);
          end if;
       end if;
+
+      --  Restore the SPARK_Mode of the enclosing context after all delayed
+      --  pragmas have been analyzed.
+
+      Restore_SPARK_Mode (Mode);
    end Analyze_Package_Contract;
 
    ---------------------------------
@@ -917,7 +943,7 @@ package body Sem_Ch7 is
          Analyze_Aspect_Specifications (N, Id);
       end if;
 
-      --  Ada 2005 (AI-217): Check if the package has been erroneously named
+      --  Ada 2005 (AI-217): Check if the package has been illegally named
       --  in a limited-with clause of its own context. In this case the error
       --  has been previously notified by Analyze_Context.
 
@@ -2885,13 +2911,12 @@ package body Sem_Ch7 is
       --  Body required if library package with pragma Elaborate_Body
 
       elsif Has_Pragma_Elaborate_Body (P) then
-         Error_Msg_N
-           ("?Y?info: & requires body (Elaborate_Body)", P);
+         Error_Msg_N ("info: & requires body (Elaborate_Body)?Y?", P);
 
       --  Body required if subprogram
 
       elsif Is_Subprogram (P) or else Is_Generic_Subprogram (P) then
-         Error_Msg_N ("?Y?info: & requires body (subprogram case)", P);
+         Error_Msg_N ("info: & requires body (subprogram case)?Y?", P);
 
       --  Body required if generic parent has Elaborate_Body
 
@@ -2904,7 +2929,7 @@ package body Sem_Ch7 is
          begin
             if Has_Pragma_Elaborate_Body (G_P) then
                Error_Msg_N
-                 ("?Y?info: & requires body (generic parent Elaborate_Body)",
+                 ("info: & requires body (generic parent Elaborate_Body)?Y?",
                   P);
             end if;
          end;
@@ -2922,7 +2947,7 @@ package body Sem_Ch7 is
           not Is_Null_State (Node (First_Elmt (Abstract_States (P))))
       then
          Error_Msg_N
-           ("?Y?info: & requires body (non-null abstract state aspect)", P);
+           ("info: & requires body (non-null abstract state aspect)?Y?", P);
       end if;
 
       --  Otherwise search entity chain for entity requiring completion
@@ -2985,7 +3010,7 @@ package body Sem_Ch7 is
          then
             Error_Msg_Node_2 := E;
             Error_Msg_NE
-              ("?Y?info: & requires body (& requires completion)",
+              ("info: & requires body (& requires completion)?Y?",
                E, P);
 
          --  Entity that does not require completion

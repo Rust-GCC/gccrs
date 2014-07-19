@@ -57,6 +57,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "df.h"
 #include "params.h"
 #include "target.h"
+#include "builtins.h"
 
 struct target_rtl default_target_rtl;
 #if SWITCHABLE_TARGET
@@ -126,6 +127,9 @@ rtx cc0_rtx;
 static GTY ((if_marked ("ggc_marked_p"), param_is (struct rtx_def)))
      htab_t const_int_htab;
 
+static GTY ((if_marked ("ggc_marked_p"), param_is (struct rtx_def)))
+     htab_t const_wide_int_htab;
+
 /* A hash table storing register attribute structures.  */
 static GTY ((if_marked ("ggc_marked_p"), param_is (struct reg_attrs)))
      htab_t reg_attrs_htab;
@@ -142,11 +146,15 @@ static GTY ((if_marked ("ggc_marked_p"), param_is (struct rtx_def)))
 #define cur_debug_insn_uid (crtl->emit.x_cur_debug_insn_uid)
 #define first_label_num (crtl->emit.x_first_label_num)
 
-static rtx change_address_1 (rtx, enum machine_mode, rtx, int);
 static void set_used_decls (tree);
 static void mark_label_nuses (rtx);
 static hashval_t const_int_htab_hash (const void *);
 static int const_int_htab_eq (const void *, const void *);
+#if TARGET_SUPPORTS_WIDE_INT
+static hashval_t const_wide_int_htab_hash (const void *);
+static int const_wide_int_htab_eq (const void *, const void *);
+static rtx lookup_const_wide_int (rtx);
+#endif
 static hashval_t const_double_htab_hash (const void *);
 static int const_double_htab_eq (const void *, const void *);
 static rtx lookup_const_double (rtx);
@@ -181,6 +189,43 @@ const_int_htab_eq (const void *x, const void *y)
   return (INTVAL ((const_rtx) x) == *((const HOST_WIDE_INT *) y));
 }
 
+#if TARGET_SUPPORTS_WIDE_INT
+/* Returns a hash code for X (which is a really a CONST_WIDE_INT).  */
+
+static hashval_t
+const_wide_int_htab_hash (const void *x)
+{
+  int i;
+  HOST_WIDE_INT hash = 0;
+  const_rtx xr = (const_rtx) x;
+
+  for (i = 0; i < CONST_WIDE_INT_NUNITS (xr); i++)
+    hash += CONST_WIDE_INT_ELT (xr, i);
+
+  return (hashval_t) hash;
+}
+
+/* Returns nonzero if the value represented by X (which is really a
+   CONST_WIDE_INT) is the same as that given by Y (which is really a
+   CONST_WIDE_INT).  */
+
+static int
+const_wide_int_htab_eq (const void *x, const void *y)
+{
+  int i;
+  const_rtx xr = (const_rtx) x;
+  const_rtx yr = (const_rtx) y;
+  if (CONST_WIDE_INT_NUNITS (xr) != CONST_WIDE_INT_NUNITS (yr))
+    return 0;
+
+  for (i = 0; i < CONST_WIDE_INT_NUNITS (xr); i++)
+    if (CONST_WIDE_INT_ELT (xr, i) != CONST_WIDE_INT_ELT (yr, i))
+      return 0;
+
+  return 1;
+}
+#endif
+
 /* Returns a hash code for X (which is really a CONST_DOUBLE).  */
 static hashval_t
 const_double_htab_hash (const void *x)
@@ -188,7 +233,7 @@ const_double_htab_hash (const void *x)
   const_rtx const value = (const_rtx) x;
   hashval_t h;
 
-  if (GET_MODE (value) == VOIDmode)
+  if (TARGET_SUPPORTS_WIDE_INT == 0 && GET_MODE (value) == VOIDmode)
     h = CONST_DOUBLE_LOW (value) ^ CONST_DOUBLE_HIGH (value);
   else
     {
@@ -208,7 +253,7 @@ const_double_htab_eq (const void *x, const void *y)
 
   if (GET_MODE (a) != GET_MODE (b))
     return 0;
-  if (GET_MODE (a) == VOIDmode)
+  if (TARGET_SUPPORTS_WIDE_INT == 0 && GET_MODE (a) == VOIDmode)
     return (CONST_DOUBLE_LOW (a) == CONST_DOUBLE_LOW (b)
 	    && CONST_DOUBLE_HIGH (a) == CONST_DOUBLE_HIGH (b));
   else
@@ -275,7 +320,7 @@ set_mem_attrs (rtx mem, mem_attrs *attrs)
   if (!MEM_ATTRS (mem)
       || !mem_attrs_eq_p (attrs, MEM_ATTRS (mem)))
     {
-      MEM_ATTRS (mem) = ggc_alloc_mem_attrs ();
+      MEM_ATTRS (mem) = ggc_alloc<mem_attrs> ();
       memcpy (MEM_ATTRS (mem), attrs, sizeof (mem_attrs));
     }
 }
@@ -322,7 +367,7 @@ get_reg_attrs (tree decl, int offset)
   slot = htab_find_slot (reg_attrs_htab, &attrs, INSERT);
   if (*slot == 0)
     {
-      *slot = ggc_alloc_reg_attrs ();
+      *slot = ggc_alloc<reg_attrs> ();
       memcpy (*slot, &attrs, sizeof (reg_attrs));
     }
 
@@ -446,6 +491,7 @@ const_fixed_from_fixed_value (FIXED_VALUE_TYPE value, enum machine_mode mode)
   return lookup_const_fixed (fixed);
 }
 
+#if TARGET_SUPPORTS_WIDE_INT == 0
 /* Constructs double_int from rtx CST.  */
 
 double_int
@@ -465,17 +511,70 @@ rtx_to_double_int (const_rtx cst)
   
   return r;
 }
+#endif
 
+#if TARGET_SUPPORTS_WIDE_INT
+/* Determine whether CONST_WIDE_INT WINT already exists in the hash table.
+   If so, return its counterpart; otherwise add it to the hash table and
+   return it.  */
 
-/* Return a CONST_DOUBLE or CONST_INT for a value specified as
-   a double_int.  */
+static rtx
+lookup_const_wide_int (rtx wint)
+{
+  void **slot = htab_find_slot (const_wide_int_htab, wint, INSERT);
+  if (*slot == 0)
+    *slot = wint;
+
+  return (rtx) *slot;
+}
+#endif
+
+/* Return an rtx constant for V, given that the constant has mode MODE.
+   The returned rtx will be a CONST_INT if V fits, otherwise it will be
+   a CONST_DOUBLE (if !TARGET_SUPPORTS_WIDE_INT) or a CONST_WIDE_INT
+   (if TARGET_SUPPORTS_WIDE_INT).  */
 
 rtx
-immed_double_int_const (double_int i, enum machine_mode mode)
+immed_wide_int_const (const wide_int_ref &v, enum machine_mode mode)
 {
-  return immed_double_const (i.low, i.high, mode);
+  unsigned int len = v.get_len ();
+  unsigned int prec = GET_MODE_PRECISION (mode);
+
+  /* Allow truncation but not extension since we do not know if the
+     number is signed or unsigned.  */
+  gcc_assert (prec <= v.get_precision ());
+
+  if (len < 2 || prec <= HOST_BITS_PER_WIDE_INT)
+    return gen_int_mode (v.elt (0), mode);
+
+#if TARGET_SUPPORTS_WIDE_INT
+  {
+    unsigned int i;
+    rtx value;
+    unsigned int blocks_needed
+      = (prec + HOST_BITS_PER_WIDE_INT - 1) / HOST_BITS_PER_WIDE_INT;
+
+    if (len > blocks_needed)
+      len = blocks_needed;
+
+    value = const_wide_int_alloc (len);
+
+    /* It is so tempting to just put the mode in here.  Must control
+       myself ... */
+    PUT_MODE (value, VOIDmode);
+    CWI_PUT_NUM_ELEM (value, len);
+
+    for (i = 0; i < len; i++)
+      CONST_WIDE_INT_ELT (value, i) = v.elt (i);
+
+    return lookup_const_wide_int (value);
+  }
+#else
+  return immed_double_const (v.elt (0), v.elt (1), mode);
+#endif
 }
 
+#if TARGET_SUPPORTS_WIDE_INT == 0
 /* Return a CONST_DOUBLE or CONST_INT for a value specified as a pair
    of ints: I0 is the low-order word and I1 is the high-order word.
    For values that are larger than HOST_BITS_PER_DOUBLE_INT, the
@@ -527,6 +626,7 @@ immed_double_const (HOST_WIDE_INT i0, HOST_WIDE_INT i1, enum machine_mode mode)
 
   return lookup_const_double (value);
 }
+#endif
 
 rtx
 gen_rtx_REG (enum machine_mode mode, unsigned int regno)
@@ -758,6 +858,15 @@ gen_lowpart_SUBREG (enum machine_mode mode, rtx reg)
     inmode = mode;
   return gen_rtx_SUBREG (mode, reg,
 			 subreg_lowpart_offset (mode, inmode));
+}
+
+rtx
+gen_rtx_VAR_LOCATION (enum machine_mode mode, tree decl, rtx loc,
+		      enum var_init_status status)
+{
+  rtx x = gen_rtx_fmt_te (VAR_LOCATION, mode, decl, loc);
+  PAT_VAR_LOCATION_STATUS (x) = status;
+  return x;
 }
 
 
@@ -1901,11 +2010,15 @@ clear_mem_size (rtx mem)
 /* Return a memory reference like MEMREF, but with its mode changed to MODE
    and its address changed to ADDR.  (VOIDmode means don't change the mode.
    NULL for ADDR means don't change the address.)  VALIDATE is nonzero if the
-   returned memory location is required to be valid.  The memory
-   attributes are not changed.  */
+   returned memory location is required to be valid.  INPLACE is true if any
+   changes can be made directly to MEMREF or false if MEMREF must be treated
+   as immutable.
+
+   The memory attributes are not changed.  */
 
 static rtx
-change_address_1 (rtx memref, enum machine_mode mode, rtx addr, int validate)
+change_address_1 (rtx memref, enum machine_mode mode, rtx addr, int validate,
+		  bool inplace)
 {
   addr_space_t as;
   rtx new_rtx;
@@ -1933,6 +2046,12 @@ change_address_1 (rtx memref, enum machine_mode mode, rtx addr, int validate)
   if (rtx_equal_p (addr, XEXP (memref, 0)) && mode == GET_MODE (memref))
     return memref;
 
+  if (inplace)
+    {
+      XEXP (memref, 0) = addr;
+      return memref;
+    }
+
   new_rtx = gen_rtx_MEM (mode, addr);
   MEM_COPY_ATTRIBUTES (new_rtx, memref);
   return new_rtx;
@@ -1944,7 +2063,7 @@ change_address_1 (rtx memref, enum machine_mode mode, rtx addr, int validate)
 rtx
 change_address (rtx memref, enum machine_mode mode, rtx addr)
 {
-  rtx new_rtx = change_address_1 (memref, mode, addr, 1);
+  rtx new_rtx = change_address_1 (memref, mode, addr, 1, false);
   enum machine_mode mmode = GET_MODE (new_rtx);
   struct mem_attrs attrs, *defattrs;
 
@@ -2057,7 +2176,7 @@ adjust_address_1 (rtx memref, enum machine_mode mode, HOST_WIDE_INT offset,
 	addr = plus_constant (address_mode, addr, offset);
     }
 
-  new_rtx = change_address_1 (memref, mode, addr, validate);
+  new_rtx = change_address_1 (memref, mode, addr, validate, false);
 
   /* If the address is a REG, change_address_1 rightfully returns memref,
      but this would destroy memref's MEM_ATTRS.  */
@@ -2127,7 +2246,7 @@ rtx
 adjust_automodify_address_1 (rtx memref, enum machine_mode mode, rtx addr,
 			     HOST_WIDE_INT offset, int validate)
 {
-  memref = change_address_1 (memref, VOIDmode, addr, validate);
+  memref = change_address_1 (memref, VOIDmode, addr, validate, false);
   return adjust_address_1 (memref, mode, offset, validate, 0, 0, 0);
 }
 
@@ -2163,7 +2282,7 @@ offset_address (rtx memref, rtx offset, unsigned HOST_WIDE_INT pow2)
     }
 
   update_temp_slot_address (XEXP (memref, 0), new_rtx);
-  new_rtx = change_address_1 (memref, VOIDmode, new_rtx, 1);
+  new_rtx = change_address_1 (memref, VOIDmode, new_rtx, 1, false);
 
   /* If there are no changes, just return the original memory reference.  */
   if (new_rtx == memref)
@@ -2183,23 +2302,25 @@ offset_address (rtx memref, rtx offset, unsigned HOST_WIDE_INT pow2)
 /* Return a memory reference like MEMREF, but with its address changed to
    ADDR.  The caller is asserting that the actual piece of memory pointed
    to is the same, just the form of the address is being changed, such as
-   by putting something into a register.  */
+   by putting something into a register.  INPLACE is true if any changes
+   can be made directly to MEMREF or false if MEMREF must be treated as
+   immutable.  */
 
 rtx
-replace_equiv_address (rtx memref, rtx addr)
+replace_equiv_address (rtx memref, rtx addr, bool inplace)
 {
   /* change_address_1 copies the memory attribute structure without change
      and that's exactly what we want here.  */
   update_temp_slot_address (XEXP (memref, 0), addr);
-  return change_address_1 (memref, VOIDmode, addr, 1);
+  return change_address_1 (memref, VOIDmode, addr, 1, inplace);
 }
 
 /* Likewise, but the reference is not required to be valid.  */
 
 rtx
-replace_equiv_address_nv (rtx memref, rtx addr)
+replace_equiv_address_nv (rtx memref, rtx addr, bool inplace)
 {
-  return change_address_1 (memref, VOIDmode, addr, 0);
+  return change_address_1 (memref, VOIDmode, addr, 0, inplace);
 }
 
 /* Return a memory reference like MEMREF, but with its mode widened to
@@ -2351,7 +2472,7 @@ set_mem_attrs_for_spill (rtx mem)
 rtx
 gen_label_rtx (void)
 {
-  return gen_rtx_CODE_LABEL (VOIDmode, 0, NULL_RTX, NULL_RTX,
+  return gen_rtx_CODE_LABEL (VOIDmode, NULL_RTX, NULL_RTX,
 			     NULL, label_num++, NULL);
 }
 
@@ -2598,7 +2719,11 @@ reset_all_used_flags (void)
 	  {
 	    gcc_assert (REG_NOTES (p) == NULL);
 	    for (int i = 0; i < XVECLEN (pat, 0); i++)
-	      reset_insn_used_flags (XVECEXP (pat, 0, i));
+	      {
+		rtx insn = XVECEXP (pat, 0, i);
+		if (INSN_P (insn))
+		  reset_insn_used_flags (insn);
+	      }
 	  }
       }
 }
@@ -2635,7 +2760,11 @@ verify_rtl_sharing (void)
 	  verify_insn_sharing (p);
 	else
 	  for (int i = 0; i < XVECLEN (pat, 0); i++)
-	    verify_insn_sharing (XVECEXP (pat, 0, i));
+	      {
+		rtx insn = XVECEXP (pat, 0, i);
+		if (INSN_P (insn))
+		  verify_insn_sharing (insn);
+	      }
       }
 
   reset_all_used_flags ();
@@ -3427,6 +3556,7 @@ try_split (rtx pat, rtx trial, int last)
   int probability;
   rtx insn_last, insn;
   int njumps = 0;
+  rtx call_insn = NULL_RTX;
 
   /* We're not good at redistributing frame information.  */
   if (RTX_FRAME_RELATED_P (trial))
@@ -3469,11 +3599,13 @@ try_split (rtx pat, rtx trial, int last)
      may have introduced invalid RTL sharing, so unshare the sequence now.  */
   unshare_all_rtl_in_chain (seq);
 
-  /* Mark labels.  */
+  /* Mark labels and copy flags.  */
   for (insn = insn_last; insn ; insn = PREV_INSN (insn))
     {
       if (JUMP_P (insn))
 	{
+	  if (JUMP_P (trial))
+	    CROSSING_JUMP_P (insn) = CROSSING_JUMP_P (trial);
 	  mark_jump_label (PATTERN (insn), insn, 0);
 	  njumps++;
 	  if (probability != -1
@@ -3498,6 +3630,9 @@ try_split (rtx pat, rtx trial, int last)
 	if (CALL_P (insn))
 	  {
 	    rtx next, *p;
+
+	    gcc_assert (call_insn == NULL_RTX);
+	    call_insn = insn;
 
 	    /* Add the old CALL_INSN_FUNCTION_USAGE to whatever the
 	       target may have explicitly specified.  */
@@ -3547,7 +3682,6 @@ try_split (rtx pat, rtx trial, int last)
 	  break;
 
 	case REG_NON_LOCAL_GOTO:
-	case REG_CROSSING_JUMP:
 	  for (insn = insn_last; insn != NULL_RTX; insn = PREV_INSN (insn))
 	    {
 	      if (JUMP_P (insn))
@@ -3569,6 +3703,11 @@ try_split (rtx pat, rtx trial, int last)
 
 	case REG_ARGS_SIZE:
 	  fixup_args_size_notes (NULL_RTX, insn_last, INTVAL (XEXP (note, 0)));
+	  break;
+
+	case REG_CALL_DECL:
+	  gcc_assert (call_insn != NULL_RTX);
+	  add_reg_note (call_insn, REG_NOTE_KIND (note), XEXP (note, 0));
 	  break;
 
 	default:
@@ -4956,6 +5095,45 @@ gen_use (rtx x)
   return seq;
 }
 
+/* Notes like REG_EQUAL and REG_EQUIV refer to a set in an instruction.
+   Return the set in INSN that such notes describe, or NULL if the notes
+   have no meaning for INSN.  */
+
+rtx
+set_for_reg_notes (rtx insn)
+{
+  rtx pat, reg;
+
+  if (!INSN_P (insn))
+    return NULL_RTX;
+
+  pat = PATTERN (insn);
+  if (GET_CODE (pat) == PARALLEL)
+    {
+      /* We do not use single_set because that ignores SETs of unused
+	 registers.  REG_EQUAL and REG_EQUIV notes really do require the
+	 PARALLEL to have a single SET.  */
+      if (multiple_sets (insn))
+	return NULL_RTX;
+      pat = XVECEXP (pat, 0, 0);
+    }
+
+  if (GET_CODE (pat) != SET)
+    return NULL_RTX;
+
+  reg = SET_DEST (pat);
+
+  /* Notes apply to the contents of a STRICT_LOW_PART.  */
+  if (GET_CODE (reg) == STRICT_LOW_PART)
+    reg = XEXP (reg, 0);
+
+  /* Check that we have a register.  */
+  if (!(REG_P (reg) || GET_CODE (reg) == SUBREG))
+    return NULL_RTX;
+
+  return pat;
+}
+
 /* Place a note of KIND on insn INSN with DATUM as the datum. If a
    note of this type already exists, remove it first.  */
 
@@ -4968,39 +5146,26 @@ set_unique_reg_note (rtx insn, enum reg_note kind, rtx datum)
     {
     case REG_EQUAL:
     case REG_EQUIV:
-      /* Don't add REG_EQUAL/REG_EQUIV notes if the insn
-	 has multiple sets (some callers assume single_set
-	 means the insn only has one set, when in fact it
-	 means the insn only has one * useful * set).  */
-      if (GET_CODE (PATTERN (insn)) == PARALLEL && multiple_sets (insn))
-	{
-	  gcc_assert (!note);
-	  return NULL_RTX;
-	}
+      if (!set_for_reg_notes (insn))
+	return NULL_RTX;
 
       /* Don't add ASM_OPERAND REG_EQUAL/REG_EQUIV notes.
 	 It serves no useful purpose and breaks eliminate_regs.  */
       if (GET_CODE (datum) == ASM_OPERANDS)
 	return NULL_RTX;
-
-      if (note)
-	{
-	  XEXP (note, 0) = datum;
-	  df_notes_rescan (insn);
-	  return note;
-	}
       break;
 
     default:
-      if (note)
-	{
-	  XEXP (note, 0) = datum;
-	  return note;
-	}
       break;
     }
 
-  add_reg_note (insn, kind, datum);
+  if (note)
+    XEXP (note, 0) = datum;
+  else
+    {
+      add_reg_note (insn, kind, datum);
+      note = REG_NOTES (insn);
+    }
 
   switch (kind)
     {
@@ -5012,14 +5177,14 @@ set_unique_reg_note (rtx insn, enum reg_note kind, rtx datum)
       break;
     }
 
-  return REG_NOTES (insn);
+  return note;
 }
 
 /* Like set_unique_reg_note, but don't do anything unless INSN sets DST.  */
 rtx
 set_dst_reg_note (rtx insn, enum reg_note kind, rtx datum, rtx dst)
 {
-  rtx set = single_set (insn);
+  rtx set = set_for_reg_notes (insn);
 
   if (set && SET_DEST (set) == dst)
     return set_unique_reg_note (insn, kind, datum);
@@ -5114,7 +5279,7 @@ start_sequence (void)
       free_sequence_stack = tem->next;
     }
   else
-    tem = ggc_alloc_sequence_stack ();
+    tem = ggc_alloc<sequence_stack> ();
 
   tem->next = seq_stack;
   tem->first = get_insns ();
@@ -5447,7 +5612,7 @@ init_emit (void)
   crtl->emit.regno_pointer_align
     = XCNEWVEC (unsigned char, crtl->emit.regno_pointer_align_length);
 
-  regno_reg_rtx = ggc_alloc_vec_rtx (crtl->emit.regno_pointer_align_length);
+  regno_reg_rtx = ggc_vec_alloc<rtx> (crtl->emit.regno_pointer_align_length);
 
   /* Put copies of all the hard registers into regno_reg_rtx.  */
   memcpy (regno_reg_rtx,
@@ -5597,7 +5762,7 @@ init_emit_regs (void)
   for (i = 0; i < (int) MAX_MACHINE_MODE; i++)
     {
       mode = (enum machine_mode) i;
-      attrs = ggc_alloc_cleared_mem_attrs ();
+      attrs = ggc_cleared_alloc<mem_attrs> ();
       attrs->align = BITS_PER_UNIT;
       attrs->addrspace = ADDR_SPACE_GENERIC;
       if (mode != BLKmode)
@@ -5611,36 +5776,15 @@ init_emit_regs (void)
     }
 }
 
-/* Create some permanent unique rtl objects shared between all functions.  */
+/* Initialize global machine_mode variables.  */
 
 void
-init_emit_once (void)
+init_derived_machine_modes (void)
 {
-  int i;
-  enum machine_mode mode;
-  enum machine_mode double_mode;
-
-  /* Initialize the CONST_INT, CONST_DOUBLE, CONST_FIXED, and memory attribute
-     hash tables.  */
-  const_int_htab = htab_create_ggc (37, const_int_htab_hash,
-				    const_int_htab_eq, NULL);
-
-  const_double_htab = htab_create_ggc (37, const_double_htab_hash,
-				       const_double_htab_eq, NULL);
-
-  const_fixed_htab = htab_create_ggc (37, const_fixed_htab_hash,
-				      const_fixed_htab_eq, NULL);
-
-  reg_attrs_htab = htab_create_ggc (37, reg_attrs_htab_hash,
-				    reg_attrs_htab_eq, NULL);
-
-  /* Compute the word and byte modes.  */
-
   byte_mode = VOIDmode;
   word_mode = VOIDmode;
-  double_mode = VOIDmode;
 
-  for (mode = GET_CLASS_NARROWEST_MODE (MODE_INT);
+  for (enum machine_mode mode = GET_CLASS_NARROWEST_MODE (MODE_INT);
        mode != VOIDmode;
        mode = GET_MODE_WIDER_MODE (mode))
     {
@@ -5653,16 +5797,35 @@ init_emit_once (void)
 	word_mode = mode;
     }
 
-  for (mode = GET_CLASS_NARROWEST_MODE (MODE_FLOAT);
-       mode != VOIDmode;
-       mode = GET_MODE_WIDER_MODE (mode))
-    {
-      if (GET_MODE_BITSIZE (mode) == DOUBLE_TYPE_SIZE
-	  && double_mode == VOIDmode)
-	double_mode = mode;
-    }
-
   ptr_mode = mode_for_size (POINTER_SIZE, GET_MODE_CLASS (Pmode), 0);
+}
+
+/* Create some permanent unique rtl objects shared between all functions.  */
+
+void
+init_emit_once (void)
+{
+  int i;
+  enum machine_mode mode;
+  enum machine_mode double_mode;
+
+  /* Initialize the CONST_INT, CONST_WIDE_INT, CONST_DOUBLE,
+     CONST_FIXED, and memory attribute hash tables.  */
+  const_int_htab = htab_create_ggc (37, const_int_htab_hash,
+				    const_int_htab_eq, NULL);
+
+#if TARGET_SUPPORTS_WIDE_INT
+  const_wide_int_htab = htab_create_ggc (37, const_wide_int_htab_hash,
+					 const_wide_int_htab_eq, NULL);
+#endif
+  const_double_htab = htab_create_ggc (37, const_double_htab_hash,
+				       const_double_htab_eq, NULL);
+
+  const_fixed_htab = htab_create_ggc (37, const_fixed_htab_hash,
+				      const_fixed_htab_eq, NULL);
+
+  reg_attrs_htab = htab_create_ggc (37, reg_attrs_htab_hash,
+				    reg_attrs_htab_eq, NULL);
 
 #ifdef INIT_EXPANDERS
   /* This is to initialize {init|mark|free}_machine_status before the first
@@ -5686,9 +5849,11 @@ init_emit_once (void)
   else
     const_true_rtx = gen_rtx_CONST_INT (VOIDmode, STORE_FLAG_VALUE);
 
-  REAL_VALUE_FROM_INT (dconst0,   0,  0, double_mode);
-  REAL_VALUE_FROM_INT (dconst1,   1,  0, double_mode);
-  REAL_VALUE_FROM_INT (dconst2,   2,  0, double_mode);
+  double_mode = mode_for_size (DOUBLE_TYPE_SIZE, MODE_FLOAT, 0);
+
+  real_from_integer (&dconst0, double_mode, 0, SIGNED);
+  real_from_integer (&dconst1, double_mode, 1, SIGNED);
+  real_from_integer (&dconst2, double_mode, 2, SIGNED);
 
   dconstm1 = dconst1;
   dconstm1.sign = 1;
@@ -5897,6 +6062,7 @@ emit_copy_of_insn_after (rtx insn, rtx after)
 
     case JUMP_INSN:
       new_rtx = emit_jump_insn_after (copy_insn (PATTERN (insn)), after);
+      CROSSING_JUMP_P (new_rtx) = CROSSING_JUMP_P (insn);
       break;
 
     case DEBUG_INSN:
@@ -6014,6 +6180,13 @@ const char *
 insn_file (const_rtx insn)
 {
   return LOCATION_FILE (INSN_LOCATION (insn));
+}
+
+/* Return expanded location of the statement that produced this insn.  */
+expanded_location
+insn_location (const_rtx insn)
+{
+  return expand_location (INSN_LOCATION (insn));
 }
 
 /* Return true if memory model MODEL requires a pre-operation (release-style)

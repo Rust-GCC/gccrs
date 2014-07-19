@@ -1371,7 +1371,7 @@ dump_choices (bool speed_p, const char *description)
   fprintf (dump_file, "Choices when optimizing for %s:\n", description);
 
   for (i = 0; i < MAX_MACHINE_MODE; i++)
-    if (GET_MODE_SIZE (i) > UNITS_PER_WORD)
+    if (GET_MODE_SIZE ((enum machine_mode) i) > UNITS_PER_WORD)
       fprintf (dump_file, "  %s mode %s for copy lowering.\n",
 	       choices[speed_p].move_modes_to_split[i]
 	       ? "Splitting"
@@ -1687,31 +1687,7 @@ decompose_multiword_subregs (bool decompose_copies)
   BITMAP_FREE (subreg_context);
 }
 
-/* Gate function for lower subreg pass.  */
-
-static bool
-gate_handle_lower_subreg (void)
-{
-  return flag_split_wide_types != 0;
-}
-
 /* Implement first lower subreg pass.  */
-
-static unsigned int
-rest_of_handle_lower_subreg (void)
-{
-  decompose_multiword_subregs (false);
-  return 0;
-}
-
-/* Implement second lower subreg pass.  */
-
-static unsigned int
-rest_of_handle_lower_subreg2 (void)
-{
-  decompose_multiword_subregs (true);
-  return 0;
-}
 
 namespace {
 
@@ -1720,14 +1696,12 @@ const pass_data pass_data_lower_subreg =
   RTL_PASS, /* type */
   "subreg1", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_LOWER_SUBREG, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  TODO_verify_flow, /* todo_flags_finish */
+  0, /* todo_flags_finish */
 };
 
 class pass_lower_subreg : public rtl_opt_pass
@@ -1738,8 +1712,12 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_handle_lower_subreg (); }
-  unsigned int execute () { return rest_of_handle_lower_subreg (); }
+  virtual bool gate (function *) { return flag_split_wide_types != 0; }
+  virtual unsigned int execute (function *)
+    {
+      decompose_multiword_subregs (false);
+      return 0;
+    }
 
 }; // class pass_lower_subreg
 
@@ -1751,6 +1729,8 @@ make_pass_lower_subreg (gcc::context *ctxt)
   return new pass_lower_subreg (ctxt);
 }
 
+/* Implement second lower subreg pass.  */
+
 namespace {
 
 const pass_data pass_data_lower_subreg2 =
@@ -1758,15 +1738,12 @@ const pass_data pass_data_lower_subreg2 =
   RTL_PASS, /* type */
   "subreg2", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_LOWER_SUBREG, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  ( TODO_df_finish | TODO_verify_rtl_sharing
-    | TODO_verify_flow ), /* todo_flags_finish */
+  TODO_df_finish, /* todo_flags_finish */
 };
 
 class pass_lower_subreg2 : public rtl_opt_pass
@@ -1777,8 +1754,12 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_handle_lower_subreg (); }
-  unsigned int execute () { return rest_of_handle_lower_subreg2 (); }
+  virtual bool gate (function *) { return flag_split_wide_types != 0; }
+  virtual unsigned int execute (function *)
+    {
+      decompose_multiword_subregs (true);
+      return 0;
+    }
 
 }; // class pass_lower_subreg2
 

@@ -256,6 +256,10 @@ Wabi
 C ObjC C++ ObjC++ LTO Var(warn_abi) Warning
 Warn about things that will change when compiling with an ABI-compliant compiler
 
+Wabi=
+C ObjC C++ ObjC++ LTO Joined RejectNegative UInteger Warning
+Warn about things that change between the current -fabi-version and the specified version
+
 Wabi-tag
 C++ ObjC++ Var(warn_abi_tag) Warning
 Warn if a subobject has an abi_tag attribute that the complete object type does not have
@@ -355,6 +359,10 @@ Wdeprecated
 C C++ ObjC ObjC++ Var(warn_deprecated) Init(1) Warning
 Warn if a deprecated compiler feature, class, method, or field is used
 
+Wdiscarded-qualifiers
+C ObjC Var(warn_discarded_qualifiers) Init(1) Warning
+Warn if type qualifiers on pointers are discarded
+
 Wdiv-by-zero
 C ObjC C++ ObjC++ Var(warn_div_by_zero) Init(1) Warning
 Warn about compile-time integer division by zero
@@ -415,6 +423,10 @@ Wformat-security
 C ObjC C++ ObjC++ Var(warn_format_security) Warning LangEnabledBy(C ObjC C++ ObjC++,Wformat=, warn_format >= 2, 0)
 Warn about possible security problems with format functions
 
+Wformat-signedness
+C ObjC C++ ObjC++ Var(warn_format_signedness) Warning LangEnabledBy(C ObjC C++ ObjC++,Wformat=, warn_format >= 2, 0)
+Warn about sign differences with format functions
+
 Wformat-y2k
 C ObjC C++ ObjC++ Var(warn_format_y2k) Warning LangEnabledBy(C ObjC C++ ObjC++,Wformat=,warn_format >= 2, 0)
 Warn about strftime formats yielding 2-digit years
@@ -430,6 +442,10 @@ Warn about printf/scanf/strftime/strfmon format string anomalies
 Wignored-qualifiers
 C C++ Var(warn_ignored_qualifiers) Warning EnabledBy(Wextra)
 Warn whenever type qualifiers are ignored.
+
+Wincompatible-pointer-types
+C ObjC Var(warn_incompatible_pointer_types) Init(1) Warning
+Warn when there is a conversion between pointers that have incompatible types
 
 Winit-self
 C ObjC C++ ObjC++ Var(warn_init_self) Warning LangEnabledBy(C++ ObjC++,Wall)
@@ -458,6 +474,10 @@ Winherited-variadic-ctor
 C++ ObjC++ Var(warn_inh_var_ctor) Init(1) Warning
 Warn about C++11 inheriting constructors when the base has a variadic constructor
 
+Wint-conversion
+C ObjC Var(warn_int_conversion) Init(1) Warning
+Warn about incompatible integer to pointer and pointer to integer conversions
+
 Wint-to-pointer-cast
 C ObjC C++ ObjC++ Var(warn_int_to_pointer_cast) Init(1) Warning
 Warn when there is a cast to a pointer from an integer of a different size
@@ -482,6 +502,10 @@ Wlogical-op
 C ObjC C++ ObjC++ Var(warn_logical_op) Init(0) Warning 
 Warn when a logical operator is suspiciously always evaluating to true or false
 
+Wlogical-not-parentheses
+C ObjC C++ ObjC++ Var(warn_logical_not_paren) Warning
+Warn when logical not is used on the left hand side operand of a comparison
+
 Wlong-long
 C ObjC C++ ObjC++ Var(warn_long_long) Init(-1) Warning
 Do not warn about using \"long long\" when -pedantic
@@ -493,6 +517,10 @@ Warn about suspicious declarations of \"main\"
 Wmain
 LangEnabledBy(C ObjC C++ ObjC++,Wpedantic, 2, 0)
 ;
+
+Wmemset-transposed-args
+C ObjC C++ ObjC++ Var(warn_memset_transposed_args) Warning LangEnabledBy(C ObjC C++ ObjC++,Wall)
+Warn about suspicious calls to memset where the third argument is constant literal zero and the second is not
 
 Wmissing-braces
 C ObjC C++ ObjC++ Var(warn_missing_braces) Warning LangEnabledBy(C ObjC,Wall)
@@ -508,6 +536,11 @@ Warn about missing fields in struct initializers
 
 Wsizeof-pointer-memaccess
 C ObjC C++ ObjC++ Var(warn_sizeof_pointer_memaccess) Warning LangEnabledBy(C ObjC C++ ObjC++,Wall)
+Warn about suspicious length parameters to certain string functions if the argument uses sizeof
+
+Wsizeof-array-argument
+C ObjC C++ ObjC++ Var(warn_sizeof_array_argument) Warning Init(1)
+Warn when sizeof is applied on a parameter declared as an array
 
 Wsuggest-attribute=format
 C ObjC C++ ObjC++ Var(warn_suggest_attribute_format) Warning
@@ -524,6 +557,10 @@ Warn about enumerated switches missing a \"default:\" statement
 Wswitch-enum
 C ObjC C++ ObjC++ Var(warn_switch_enum) Warning
 Warn about all enumerated switches missing a specific case
+
+Wswitch-bool
+C ObjC C++ ObjC++ Var(warn_switch_bool) Warning Init(1)
+Warn about switches with boolean controlling expression
 
 Wmissing-format-attribute
 C ObjC C++ ObjC++ Alias(Wsuggest-attribute=format)
@@ -680,6 +717,10 @@ Wselector
 ObjC ObjC++ Var(warn_selector) Warning
 Warn if a selector has multiple methods
 
+Wshadow-ivar
+ObjC ObjC++ Var(warn_shadow_ivar) EnabledBy(Wshadow) Init(1) Warning
+Warn if a local declaration hides an instance variable
+
 Wsequence-point
 C ObjC C++ ObjC++ Var(warn_sequence_point) Warning LangEnabledBy(C ObjC C++ ObjC++,Wall)
 Warn about possible violations of sequence point rules
@@ -823,6 +864,10 @@ A synonym for -std=c89 (for C) or -std=c++98 (for C++)
 d
 C ObjC C++ ObjC++ Joined
 ; Documented in common.opt.  FIXME - what about -dI, -dD, -dN and -dD?
+
+fabi-compat-version=
+C++ ObjC++ Joined RejectNegative UInteger Var(flag_abi_compat_version) Init(-1)
+The version of the C++ ABI used for -Wabi warnings and link compatibility aliases
 
 faccess-control
 C++ ObjC++ Var(flag_access_control) Init(1)
@@ -1034,6 +1079,29 @@ fnil-receivers
 ObjC ObjC++ Var(flag_nil_receivers) Init(1)
 Assume that receivers of Objective-C messages may be nil
 
+flocal-ivars
+ObjC ObjC++ Var(flag_local_ivars) Init(1)
+Allow access to instance variables as if they were local declarations within instance method implementations.
+
+fivar-visibility=
+ObjC ObjC++ Joined RejectNegative Enum(ivar_visibility) Var(default_ivar_visibility) Init(IVAR_VISIBILITY_PROTECTED)
+-fvisibility=[private|protected|public|package]	Set the default symbol visibility
+
+Enum
+Name(ivar_visibility) Type(enum ivar_visibility) UnknownError(unrecognized ivar visibility value %qs)
+
+EnumValue
+Enum(ivar_visibility) String(private) Value(IVAR_VISIBILITY_PRIVATE)
+
+EnumValue
+Enum(ivar_visibility) String(protected) Value(IVAR_VISIBILITY_PROTECTED)
+
+EnumValue
+Enum(ivar_visibility) String(public) Value(IVAR_VISIBILITY_PUBLIC)
+
+EnumValue
+Enum(ivar_visibility) String(package) Value(IVAR_VISIBILITY_PACKAGE)
+
 fnonansi-builtins
 C++ ObjC++ Var(flag_no_nonansi_builtin, 0)
 
@@ -1145,11 +1213,11 @@ C ObjC C++ ObjC++ LTO Optimization Var(flag_short_double)
 Use the same size for double as for float
 
 fshort-enums
-C ObjC C++ ObjC++ Optimization Var(flag_short_enums)
+C ObjC C++ ObjC++ LTO Optimization Var(flag_short_enums)
 Use the narrowest integer type possible for enumeration types
 
 fshort-wchar
-C ObjC C++ ObjC++ Optimization Var(flag_short_wchar)
+C ObjC C++ ObjC++ LTO Optimization Var(flag_short_wchar)
 Force the underlying type for \"wchar_t\" to be \"unsigned short\"
 
 fsigned-bitfields
@@ -1203,6 +1271,10 @@ When \"signed\" or \"unsigned\" is not given make the bitfield unsigned
 funsigned-char
 C ObjC C++ ObjC++ LTO Var(flag_signed_char, 0)
 Make \"char\" unsigned by default
+
+fuse-all-virtuals
+C++ ObjC++ Var(flag_use_all_virtuals) Init(1)
+Treat all virtual functions as odr-used
 
 fuse-cxa-atexit
 C++ ObjC++ Var(flag_use_cxa_atexit) Init(DEFAULT_USE_CXA_ATEXIT)
@@ -1362,6 +1434,13 @@ Conform to the ISO 2014(?) C++ draft standard (experimental and incomplete suppo
 std=c++14
 C++ ObjC++ Alias(std=c++1y) Undocumented
 
+std=c++1z
+C++ ObjC++
+Conform to the ISO 2017(?) C++ draft standard (experimental and incomplete support)
+
+std=c++17
+C++ ObjC++ Alias(std=c++1z) Undocumented
+
 std=c11
 C ObjC
 Conform to the ISO 2011 C standard (experimental and incomplete support)
@@ -1406,9 +1485,16 @@ Deprecated in favor of -std=gnu++11
 
 std=gnu++1y
 C++ ObjC++
-Conform to the ISO 201y(7?) C++ draft standard with GNU extensions (experimental and incomplete support)
+Conform to the ISO 201y(4?) C++ draft standard with GNU extensions (experimental and incomplete support)
 
 std=gnu++14
+C++ ObjC++ Alias(std=gnu++1y) Undocumented
+
+std=gnu++1z
+C++ ObjC++
+Conform to the ISO 201z(7?) C++ draft standard with GNU extensions (experimental and incomplete support)
+
+std=gnu++17
 C++ ObjC++ Alias(std=gnu++1y) Undocumented
 
 std=gnu11

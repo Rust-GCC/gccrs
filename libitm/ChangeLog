@@ -1,6 +1,19 @@
-2014-04-22  Release Manager
+2014-05-28  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
-	* GCC 4.9.0 released.
+	* acinclude.m4 (LIBITM_CHECK_LINKER_HWCAP): Check for
+	-mclear-hwcap instead.
+	* configure: Regenerate.
+	* clearcap.map: Remove.
+
+2014-05-21  John Marino  <gnugcc@marino.st>
+
+	* configure.tgt (*-*-dragonfly*): New target.
+
+2014-05-19  Richard Henderson  <rth@redhat.com>
+
+	* config/aarch64/sjlj.S: New file.
+	* config/aarch64/target.h: New file.
+	* configure.tgt: Enable aarch64.
 
 2014-04-09  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 

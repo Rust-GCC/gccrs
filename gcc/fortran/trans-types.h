@@ -97,8 +97,10 @@ int gfc_return_by_reference (gfc_symbol *);
 int gfc_is_nodesc_array (gfc_symbol *);
 
 /* Return the DTYPE for an array.  */
+tree gfc_get_dtype_rank_type (int, tree);
 tree gfc_get_dtype (tree);
 
 tree gfc_get_ppc_type (gfc_component *);
+tree gfc_get_caf_vector_type (int dim);
 
 #endif

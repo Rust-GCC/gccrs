@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -137,12 +137,11 @@ package Opt is
 
    Ada_Version_Explicit : Ada_Version_Type := Ada_Version_Default;
    --  GNAT
-   --  Like Ada_Version, but does not get set implicitly for predefined
-   --  or internal units, so it reflects the Ada version explicitly set
-   --  using configuration pragmas or compiler switches (or if neither
-   --  appears, it remains set to Ada_Version_Default). This is used in
-   --  the rare cases (notably for pragmas Preelaborate_05 and Pure_05/12)
-   --  where in the run-time we want the explicit version set.
+   --  Like Ada_Version, but does not get set implicitly for predefined or
+   --  internal units, so it reflects the Ada version explicitly set using
+   --  configuration pragmas or compiler switches (or if neither appears, it
+   --  remains set to Ada_Version_Default). This is used in the rare cases
+   --  (notably pragma Obsolescent) where we want the explicit version set.
 
    Ada_Version_Runtime : Ada_Version_Type := Ada_2012;
    --  GNAT
@@ -376,6 +375,15 @@ package Opt is
    --    set to True to delete only the files produced by the compiler but not
    --    the library files or the executable files.
 
+   Compiler_Unit : Boolean := False;
+   --  GNAT1
+   --  Set True by an occurrence of pragma Compiler_Unit_Warning (or of the
+   --  obsolete pragma Compiler_Unit) in the main unit. Once set True, stays
+   --  True, since any units that are with'ed directly or indirectly by
+   --  a Compiler_Unit_Warning main unit are subject to the same restrictions.
+   --  Such units really should have their own pragmas, but we do not bother to
+   --  check for that, so this transitivity provides extra checking.
+
    Config_File : Boolean := True;
    --  GNAT
    --  Set to False to inhibit reading and processing of gnat.adc file
@@ -478,7 +486,7 @@ package Opt is
 
    Do_Not_Execute : Boolean := False;
    --  GNATMAKE
-   --  Set to True if no actual compilations should be undertaken.
+   --  Set to True if no actual compilations should be undertaken
 
    Dump_Source_Text : Boolean := False;
    --  GNAT
@@ -767,7 +775,7 @@ package Opt is
    Init_Or_Norm_Scalars : Boolean := False;
    --  GNAT, GANTBIND
    --  Set True if a pragma Initialize_Scalars applies to the current unit.
-   --  Also set True if a pragma Normalize_Scalars applies.
+   --  Also set True if a pragma Restriction (Normalize_Scalars) applies.
 
    Initialize_Scalars : Boolean := False;
    --  GNAT
@@ -877,7 +885,12 @@ package Opt is
 
    List_Closure : Boolean := False;
    --  GNATBIND
-   --  List all sources in the closure of a main (-R gnatbind switch)
+   --  List all sources in the closure of a main (-R or -Ra gnatbind switch)
+
+   List_Closure_All : Boolean := False;
+   --  GNATBIND
+   --  List all sources in closure of main including run-time units (-Ra
+   --  gnatbind switch).
 
    List_Dependencies : Boolean := False;
    --  GNATMAKE
@@ -1022,8 +1035,7 @@ package Opt is
 
    No_Backup : Boolean := False;
    --  GNATNAME
-   --  Set by switch --no-backup.
-   --  Do not create backup copies of project files.
+   --  Do not create backup copies of project files. Set by switch --no-backup.
 
    No_Deletion : Boolean := False;
    --  GNATPREP
@@ -1044,20 +1056,20 @@ package Opt is
    No_Split_Units : Boolean := False;
    --  GPRBUILD
    --  Set to True with switch --no-split-units. When True, unit sources, spec,
-   --  body and subunits, must all be in the same project.This is checked after
-   --  each compilation.
+   --  body and subunits, must all be in the same project. This is checked
+   --  after each compilation.
 
    No_Stdinc : Boolean := False;
    --  GNAT, GNATBIND, GNATMAKE, GNATFIND, GNATXREF
-   --  Set to True if no default source search dirs added to search list
+   --  Set to True if no default source search dirs added to search list.
 
    No_Stdlib : Boolean := False;
    --  GNATMAKE, GNATBIND, GNATFIND, GNATXREF
-   --  Set to True if no default library search dirs added to search list
+   --  Set to True if no default library search dirs added to search list.
 
    No_Strict_Aliasing : Boolean := False;
    --  GNAT
-   --  Set True if pragma No_Strict_Aliasing with no parameters encountered
+   --  Set True if pragma No_Strict_Aliasing with no parameters encountered.
 
    Normalize_Scalars : Boolean := False;
    --  GNAT, GNATBIND
@@ -1233,7 +1245,7 @@ package Opt is
 
    Replace_In_Comments : Boolean := False;
    --  GNATPREP
-   --  Set to True if -C switch used
+   --  Set to True if -C switch used.
 
    RTS_Lib_Path_Name : String_Ptr := null;
    RTS_Src_Path_Name : String_Ptr := null;
@@ -1288,7 +1300,7 @@ package Opt is
 
    SPARK_Mode : SPARK_Mode_Type := None;
    --  GNAT
-   --  Current SPARK mode setting
+   --  Current SPARK mode setting.
 
    SPARK_Mode_Pragma : Node_Id := Empty;
    --  GNAT
@@ -1370,12 +1382,6 @@ package Opt is
    --  the settings of the outer scope level in any unit compiled. This is
    --  initialized by Osint.Initialize, and further initialized by the
    --  Adjust_Global_Switches flag in Gnat1drv.
-
-   Suppress_Back_Annotation : Boolean := False;
-   --  GNAT
-   --  This flag is set True if back annotation of representation information
-   --  is to be suppressed. This is set if neither -gnatt or -gnatR0-3 is set.
-   --  This avoids unnecessary time being spent on back annotation.
 
    Table_Factor : Int := 1;
    --  GNAT

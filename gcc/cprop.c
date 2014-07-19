@@ -374,11 +374,10 @@ dump_hash_table (FILE *file, const char *name, struct hash_table_d *table)
 static void
 make_set_regs_unavailable (rtx insn)
 {
-  struct df_insn_info *insn_info = DF_INSN_INFO_GET (insn);
-  df_ref *def_rec;
+  df_ref def;
 
-  for (def_rec = DF_INSN_INFO_DEFS (insn_info); *def_rec; def_rec++)
-    SET_REGNO_REG_SET (reg_set_bitmap, DF_REF_REGNO (*def_rec));
+  FOR_EACH_INSN_DEF (def, insn)
+    SET_REGNO_REG_SET (reg_set_bitmap, DF_REF_REGNO (def));
 }
 
 /* Top level function to create an assignment hash table.
@@ -533,11 +532,10 @@ reg_not_set_p (const_rtx x, const_rtx insn ATTRIBUTE_UNUSED)
 static void
 mark_oprs_set (rtx insn)
 {
-  struct df_insn_info *insn_info = DF_INSN_INFO_GET (insn);
-  df_ref *def_rec;
+  df_ref def;
 
-  for (def_rec = DF_INSN_INFO_DEFS (insn_info); *def_rec; def_rec++)
-    SET_REGNO_REG_SET (reg_set_bitmap, DF_REF_REGNO (*def_rec));
+  FOR_EACH_INSN_DEF (def, insn)
+    SET_REGNO_REG_SET (reg_set_bitmap, DF_REF_REGNO (def));
 }
 
 /* Compute copy/constant propagation working variables.  */
@@ -1896,14 +1894,6 @@ one_cprop_pass (void)
    setjmp.
    FIXME: Should just handle setjmp via REG_SETJMP notes.  */
 
-static bool
-gate_rtl_cprop (void)
-{
-  return optimize > 0 && flag_gcse
-    && !cfun->calls_setjmp
-    && dbg_cnt (cprop);
-}
-
 static unsigned int
 execute_rtl_cprop (void)
 {
@@ -1925,15 +1915,12 @@ const pass_data pass_data_rtl_cprop =
   RTL_PASS, /* type */
   "cprop", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_CPROP, /* tv_id */
   PROP_cfglayout, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  ( TODO_df_finish | TODO_verify_rtl_sharing
-    | TODO_verify_flow ), /* todo_flags_finish */
+  TODO_df_finish, /* todo_flags_finish */
 };
 
 class pass_rtl_cprop : public rtl_opt_pass
@@ -1945,8 +1932,14 @@ public:
 
   /* opt_pass methods: */
   opt_pass * clone () { return new pass_rtl_cprop (m_ctxt); }
-  bool gate () { return gate_rtl_cprop (); }
-  unsigned int execute () { return execute_rtl_cprop (); }
+  virtual bool gate (function *fun)
+    {
+      return optimize > 0 && flag_gcse
+	&& !fun->calls_setjmp
+	&& dbg_cnt (cprop);
+    }
+
+  virtual unsigned int execute (function *) { return execute_rtl_cprop (); }
 
 }; // class pass_rtl_cprop
 

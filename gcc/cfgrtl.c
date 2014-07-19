@@ -442,8 +442,35 @@ free_bb_for_insn (void)
   return 0;
 }
 
-static unsigned int
-rest_of_pass_free_cfg (void)
+namespace {
+
+const pass_data pass_data_free_cfg =
+{
+  RTL_PASS, /* type */
+  "*free_cfg", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  TV_NONE, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  PROP_cfg, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
+};
+
+class pass_free_cfg : public rtl_opt_pass
+{
+public:
+  pass_free_cfg (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_free_cfg, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  virtual unsigned int execute (function *);
+
+}; // class pass_free_cfg
+
+unsigned int
+pass_free_cfg::execute (function *)
 {
 #ifdef DELAY_SLOTS
   /* The resource.c machinery uses DF but the CFG isn't guaranteed to be
@@ -461,35 +488,6 @@ rest_of_pass_free_cfg (void)
   free_bb_for_insn ();
   return 0;
 }
-
-namespace {
-
-const pass_data pass_data_free_cfg =
-{
-  RTL_PASS, /* type */
-  "*free_cfg", /* name */
-  OPTGROUP_NONE, /* optinfo_flags */
-  false, /* has_gate */
-  true, /* has_execute */
-  TV_NONE, /* tv_id */
-  0, /* properties_required */
-  0, /* properties_provided */
-  PROP_cfg, /* properties_destroyed */
-  0, /* todo_flags_start */
-  0, /* todo_flags_finish */
-};
-
-class pass_free_cfg : public rtl_opt_pass
-{
-public:
-  pass_free_cfg (gcc::context *ctxt)
-    : rtl_opt_pass (pass_data_free_cfg, ctxt)
-  {}
-
-  /* opt_pass methods: */
-  unsigned int execute () { return rest_of_pass_free_cfg (); }
-
-}; // class pass_free_cfg
 
 } // anon namespace
 
@@ -890,7 +888,7 @@ rtl_merge_blocks (basic_block a, basic_block b)
   BB_HEAD (b) = b_empty ? NULL_RTX : b_head;
   delete_insn_chain (del_first, del_last, true);
 
-  /* When not optimizing CFG and the edge is the only place in RTL which holds
+  /* When not optimizing and the edge is the only place in RTL which holds
      some unique locus, emit a nop with that locus in between.  */
   if (!optimize)
     {
@@ -1326,8 +1324,6 @@ redirect_branch_edge (edge e, basic_block target)
 static void
 fixup_partition_crossing (edge e)
 {
-  rtx note;
-
   if (e->src == ENTRY_BLOCK_PTR_FOR_FN (cfun) || e->dest
       == EXIT_BLOCK_PTR_FOR_FN (cfun))
     return;
@@ -1338,10 +1334,9 @@ fixup_partition_crossing (edge e)
   if (BB_PARTITION (e->src) != BB_PARTITION (e->dest))
     {
       e->flags |= EDGE_CROSSING;
-      note = find_reg_note (BB_END (e->src), REG_CROSSING_JUMP, NULL_RTX);
       if (JUMP_P (BB_END (e->src))
-          && !note)
-        add_reg_note (BB_END (e->src), REG_CROSSING_JUMP, NULL_RTX);
+	  && !CROSSING_JUMP_P (BB_END (e->src)))
+	CROSSING_JUMP_P (BB_END (e->src)) = 1;
     }
   else if (BB_PARTITION (e->src) == BB_PARTITION (e->dest))
     {
@@ -1349,8 +1344,7 @@ fixup_partition_crossing (edge e)
       /* Remove the section crossing note from jump at end of
          src if it exists, and if no other successors are
          still crossing.  */
-      note = find_reg_note (BB_END (e->src), REG_CROSSING_JUMP, NULL_RTX);
-      if (note)
+      if (JUMP_P (BB_END (e->src)) && CROSSING_JUMP_P (BB_END (e->src)))
         {
           bool has_crossing_succ = false;
           edge e2;
@@ -1362,7 +1356,7 @@ fixup_partition_crossing (edge e)
                 break;
             }
           if (!has_crossing_succ)
-            remove_note (BB_END (e->src), note);
+	    CROSSING_JUMP_P (BB_END (e->src)) = 0;
         }
     }
 }
@@ -2461,8 +2455,7 @@ rtl_verify_edges (void)
 			 e->src->index);
 		  err = 1;
 		}
-              if (JUMP_P (BB_END (bb))
-                  && !find_reg_note (BB_END (bb), REG_CROSSING_JUMP, NULL_RTX))
+              if (JUMP_P (BB_END (bb)) && !CROSSING_JUMP_P (BB_END (bb)))
 		{
 		  error ("No region crossing jump at section boundary in bb %i",
 			 bb->index);
@@ -2497,7 +2490,8 @@ rtl_verify_edges (void)
 	}
 
         if (!has_crossing_edge
-            && find_reg_note (BB_END (bb), REG_CROSSING_JUMP, NULL_RTX))
+	    && JUMP_P (BB_END (bb))
+	    && CROSSING_JUMP_P (BB_END (bb)))
           {
             print_rtl_with_bb (stderr, get_insns (), TDF_RTL | TDF_BLOCKS | TDF_DETAILS);
             error ("Region crossing jump across same section in bb %i",
@@ -3467,27 +3461,6 @@ record_effective_endpoints (void)
     cfg_layout_function_footer = unlink_insn_chain (cfg_layout_function_footer, get_last_insn ());
 }
 
-static unsigned int
-into_cfg_layout_mode (void)
-{
-  cfg_layout_initialize (0);
-  return 0;
-}
-
-static unsigned int
-outof_cfg_layout_mode (void)
-{
-  basic_block bb;
-
-  FOR_EACH_BB_FN (bb, cfun)
-    if (bb->next_bb != EXIT_BLOCK_PTR_FOR_FN (cfun))
-      bb->aux = bb->next_bb;
-
-  cfg_layout_finalize ();
-
-  return 0;
-}
-
 namespace {
 
 const pass_data pass_data_into_cfg_layout_mode =
@@ -3495,8 +3468,6 @@ const pass_data pass_data_into_cfg_layout_mode =
   RTL_PASS, /* type */
   "into_cfglayout", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  false, /* has_gate */
-  true, /* has_execute */
   TV_CFG, /* tv_id */
   0, /* properties_required */
   PROP_cfglayout, /* properties_provided */
@@ -3513,7 +3484,11 @@ public:
   {}
 
   /* opt_pass methods: */
-  unsigned int execute () { return into_cfg_layout_mode (); }
+  virtual unsigned int execute (function *)
+    {
+      cfg_layout_initialize (0);
+      return 0;
+    }
 
 }; // class pass_into_cfg_layout_mode
 
@@ -3532,8 +3507,6 @@ const pass_data pass_data_outof_cfg_layout_mode =
   RTL_PASS, /* type */
   "outof_cfglayout", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  false, /* has_gate */
-  true, /* has_execute */
   TV_CFG, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
@@ -3550,9 +3523,23 @@ public:
   {}
 
   /* opt_pass methods: */
-  unsigned int execute () { return outof_cfg_layout_mode (); }
+  virtual unsigned int execute (function *);
 
 }; // class pass_outof_cfg_layout_mode
+
+unsigned int
+pass_outof_cfg_layout_mode::execute (function *fun)
+{
+  basic_block bb;
+
+  FOR_EACH_BB_FN (bb, fun)
+    if (bb->next_bb != EXIT_BLOCK_PTR_FOR_FN (fun))
+      bb->aux = bb->next_bb;
+
+  cfg_layout_finalize ();
+
+  return 0;
+}
 
 } // anon namespace
 
@@ -4223,14 +4210,14 @@ cfg_layout_initialize (unsigned int flags)
   rtx x;
   basic_block bb;
 
-  /* Once bb reordering is complete, cfg layout mode should not be re-entered.
-     Entering cfg layout mode will perform optimizations on the cfg that
-     could affect the bb layout negatively or even require fixups. An
-     example of the latter is if edge forwarding performed when optimizing
-     the cfg layout required moving a block from the hot to the cold section
-     under -freorder-blocks-and-partition. This would create an illegal
-     partitioning unless some manual fixup was performed.  */
-  gcc_assert (!crtl->bb_reorder_complete);
+  /* Once bb partitioning is complete, cfg layout mode should not be
+     re-entered.  Entering cfg layout mode may require fixups.  As an
+     example, if edge forwarding performed when optimizing the cfg
+     layout required moving a block from the hot to the cold
+     section. This would create an illegal partitioning unless some
+     manual fixup was performed.  */
+  gcc_assert (!(crtl->bb_reorder_complete
+		&& flag_reorder_blocks_and_partition));
 
   initialize_original_copy_tables ();
 
@@ -4570,7 +4557,7 @@ cfg_layout_merge_blocks (basic_block a, basic_block b)
     try_redirect_by_replacing_jump (EDGE_SUCC (a, 0), b, true);
   gcc_assert (!JUMP_P (BB_END (a)));
 
-  /* When not optimizing CFG and the edge is the only place in RTL which holds
+  /* When not optimizing and the edge is the only place in RTL which holds
      some unique locus, emit a nop with that locus in between.  */
   if (!optimize)
     emit_nop_for_unique_locus_between (a, b);
@@ -4960,7 +4947,7 @@ init_rtl_bb_info (basic_block bb)
 {
   gcc_assert (!bb->il.x.rtl);
   bb->il.x.head_ = NULL;
-  bb->il.x.rtl = ggc_alloc_cleared_rtl_bb_info ();
+  bb->il.x.rtl = ggc_cleared_alloc<rtl_bb_info> ();
 }
 
 /* Returns true if it is possible to remove edge E by redirecting

@@ -1715,7 +1715,6 @@ ira_init (void)
   clarify_prohibited_class_mode_regs ();
   setup_hard_regno_aclass ();
   ira_init_costs ();
-  lra_init ();
 }
 
 /* Function called once at the end of compiler work.  */
@@ -1744,7 +1743,7 @@ setup_prohibited_mode_move_regs (void)
   test_reg1 = gen_rtx_REG (VOIDmode, 0);
   test_reg2 = gen_rtx_REG (VOIDmode, 0);
   move_pat = gen_rtx_SET (VOIDmode, test_reg1, test_reg2);
-  move_insn = gen_rtx_INSN (VOIDmode, 0, 0, 0, 0, move_pat, 0, -1, 0);
+  move_insn = gen_rtx_INSN (VOIDmode, 0, 0, 0, move_pat, 0, -1, 0);
   for (i = 0; i < NUM_MACHINE_MODES; i++)
     {
       SET_HARD_REG_SET (ira_prohibited_mode_move_regs[i]);
@@ -1769,37 +1768,6 @@ setup_prohibited_mode_move_regs (void)
 }
 
 
-
-/* Return TRUE if the operand constraint STR is commutative.  */
-static bool
-commutative_constraint_p (const char *str)
-{
-  int curr_alt, c;
-  bool ignore_p;
-
-  for (ignore_p = false, curr_alt = 0;;)
-    {
-      c = *str;
-      if (c == '\0')
-	break;
-      str += CONSTRAINT_LEN (c, str);
-      if (c == '#' || !recog_data.alternative_enabled_p[curr_alt])
-	ignore_p = true;
-      else if (c == ',')
-	{
-	  curr_alt++;
-	  ignore_p = false;
-	}
-      else if (! ignore_p)
-	{
-	  /* Usually `%' is the first constraint character but the
-	     documentation does not require this.  */
-	  if (c == '%')
-	    return true;
-	}
-    }
-  return false;
-}
 
 /* Setup possible alternatives in ALTS for INSN.  */
 void
@@ -1844,7 +1812,8 @@ ira_setup_alts (rtx insn, HARD_REG_SET &alts)
 	}
       for (nalt = 0; nalt < recog_data.n_alternatives; nalt++)
 	{
-	  if (! recog_data.alternative_enabled_p[nalt] || TEST_HARD_REG_BIT (alts, nalt))
+	  if (!TEST_BIT (recog_data.enabled_alternatives, nalt)
+	      || TEST_HARD_REG_BIT (alts, nalt))
 	    continue;
 
 	  for (nop = 0; nop < recog_data.n_operands; nop++)
@@ -1866,9 +1835,6 @@ ira_setup_alts (rtx insn, HARD_REG_SET &alts)
 		    len = 0;
 		    break;
 		  
-		  case '?':  case '!': case '*':  case '=':  case '+':
-		    break;
-		    
 		  case '%':
 		    /* We only support one commutative marker, the
 		       first one.  We already set commutative
@@ -1877,100 +1843,41 @@ ira_setup_alts (rtx insn, HARD_REG_SET &alts)
 		      commutative = nop;
 		    break;
 
-		  case '&':
-		    break;
-		    
 		  case '0':  case '1':  case '2':  case '3':  case '4':
 		  case '5':  case '6':  case '7':  case '8':  case '9':
 		    goto op_success;
 		    break;
 		    
-		  case 'p':
 		  case 'g':
-		  case 'X':
-		  case TARGET_MEM_CONSTRAINT:
-		    goto op_success;
-		    break;
-		    
-		  case '<':
-		    if (MEM_P (op)
-			&& (GET_CODE (XEXP (op, 0)) == PRE_DEC
-			    || GET_CODE (XEXP (op, 0)) == POST_DEC))
-		    goto op_success;
-		    break;
-		    
-		  case '>':
-		    if (MEM_P (op)
-		      && (GET_CODE (XEXP (op, 0)) == PRE_INC
-			  || GET_CODE (XEXP (op, 0)) == POST_INC))
-		      goto op_success;
-		    break;
-		    
-		  case 'E':
-		  case 'F':
-		    if (CONST_DOUBLE_AS_FLOAT_P (op)
-			|| (GET_CODE (op) == CONST_VECTOR
-			    && GET_MODE_CLASS (GET_MODE (op)) == MODE_VECTOR_FLOAT))
-		      goto op_success;
-		    break;
-		    
-		  case 'G':
-		  case 'H':
-		    if (CONST_DOUBLE_AS_FLOAT_P (op)
-			&& CONST_DOUBLE_OK_FOR_CONSTRAINT_P (op, c, p))
-		      goto op_success;
-		    break;
-		    
-		  case 's':
-		    if (CONST_SCALAR_INT_P (op))
-		      break;
-		  case 'i':
-		    if (CONSTANT_P (op))
-		      goto op_success;
-		    break;
-		    
-		  case 'n':
-		    if (CONST_SCALAR_INT_P (op))
-		      goto op_success;
-		    break;
-		    
-		  case 'I':
-		  case 'J':
-		  case 'K':
-		  case 'L':
-		  case 'M':
-		  case 'N':
-		  case 'O':
-		  case 'P':
-		    if (CONST_INT_P (op)
-			&& CONST_OK_FOR_CONSTRAINT_P (INTVAL (op), c, p))
-		      goto op_success;
-		    break;
-		    
-		  case 'V':
-		    if (MEM_P (op) && ! offsettable_memref_p (op))
-		      goto op_success;
-		    break;
-		    
-		  case 'o':
 		    goto op_success;
 		    break;
 		    
 		  default:
 		    {
-		      enum reg_class cl;
-		      
-		      cl = (c == 'r' ? GENERAL_REGS : REG_CLASS_FROM_CONSTRAINT (c, p));
-		      if (cl != NO_REGS)
-			goto op_success;
-#ifdef EXTRA_CONSTRAINT_STR
-		      else if (EXTRA_CONSTRAINT_STR (op, c, p))
-			goto op_success;
-		      else if (EXTRA_MEMORY_CONSTRAINT (c, p))
-			goto op_success;
-		      else if (EXTRA_ADDRESS_CONSTRAINT (c, p))
-			goto op_success;
-#endif
+		      enum constraint_num cn = lookup_constraint (p);
+		      switch (get_constraint_type (cn))
+			{
+			case CT_REGISTER:
+			  if (reg_class_for_constraint (cn) != NO_REGS)
+			    goto op_success;
+			  break;
+
+			case CT_CONST_INT:
+			  if (CONST_INT_P (op)
+			      && (insn_const_int_ok_for_constraint
+				  (INTVAL (op), cn)))
+			    goto op_success;
+			  break;
+
+			case CT_ADDRESS:
+			case CT_MEMORY:
+			  goto op_success;
+
+			case CT_FIXED_FORM:
+			  if (constraint_satisfied_p (op, cn))
+			    goto op_success;
+			  break;
+			}
 		      break;
 		    }
 		  }
@@ -2003,65 +1910,45 @@ ira_get_dup_out_num (int op_num, HARD_REG_SET &alts)
   int curr_alt, c, original, dup;
   bool ignore_p, use_commut_op_p;
   const char *str;
-#ifdef EXTRA_CONSTRAINT_STR
-  rtx op;
-#endif
 
   if (op_num < 0 || recog_data.n_alternatives == 0)
     return -1;
-  use_commut_op_p = false;
+  /* We should find duplications only for input operands.  */
+  if (recog_data.operand_type[op_num] != OP_IN)
+    return -1;
   str = recog_data.constraints[op_num];
+  use_commut_op_p = false;
   for (;;)
     {
-#ifdef EXTRA_CONSTRAINT_STR
-      op = recog_data.operand[op_num];
-#endif
+      rtx op = recog_data.operand[op_num];
       
-      for (ignore_p = false, original = -1, curr_alt = 0;;)
+      for (curr_alt = 0, ignore_p = !TEST_HARD_REG_BIT (alts, curr_alt),
+	   original = -1;;)
 	{
 	  c = *str;
 	  if (c == '\0')
 	    break;
-	  if (c == '#' || !TEST_HARD_REG_BIT (alts, curr_alt))
+	  if (c == '#')
 	    ignore_p = true;
 	  else if (c == ',')
 	    {
 	      curr_alt++;
-	      ignore_p = false;
+	      ignore_p = !TEST_HARD_REG_BIT (alts, curr_alt);
 	    }
 	  else if (! ignore_p)
 	    switch (c)
 	      {
-		/* We should find duplications only for input operands.  */
-	      case '=':
-	      case '+':
-		goto fail;
-	      case 'X':
-	      case 'p':
 	      case 'g':
 		goto fail;
-	      case 'r':
-	      case 'a': case 'b': case 'c': case 'd': case 'e': case 'f':
-	      case 'h': case 'j': case 'k': case 'l':
-	      case 'q': case 't': case 'u':
-	      case 'v': case 'w': case 'x': case 'y': case 'z':
-	      case 'A': case 'B': case 'C': case 'D':
-	      case 'Q': case 'R': case 'S': case 'T': case 'U':
-	      case 'W': case 'Y': case 'Z':
+	      default:
 		{
-		  enum reg_class cl;
-		  
-		  cl = (c == 'r'
-			? GENERAL_REGS : REG_CLASS_FROM_CONSTRAINT (c, str));
-		  if (cl != NO_REGS)
-		    {
-		      if (! targetm.class_likely_spilled_p (cl))
-			goto fail;
-		    }
-#ifdef EXTRA_CONSTRAINT_STR
-		  else if (EXTRA_CONSTRAINT_STR (op, c, str))
+		  enum constraint_num cn = lookup_constraint (str);
+		  enum reg_class cl = reg_class_for_constraint (cn);
+		  if (cl != NO_REGS
+		      && !targetm.class_likely_spilled_p (cl))
 		    goto fail;
-#endif
+		  if (constraint_satisfied_p (op, cn))
+		    goto fail;
 		  break;
 		}
 		
@@ -2101,10 +1988,9 @@ ira_get_dup_out_num (int op_num, HARD_REG_SET &alts)
       if (use_commut_op_p)
 	break;
       use_commut_op_p = true;
-      if (commutative_constraint_p (recog_data.constraints[op_num]))
+      if (recog_data.constraints[op_num][0] == '%')
 	str = recog_data.constraints[op_num + 1];
-      else if (op_num > 0 && commutative_constraint_p (recog_data.constraints
-						       [op_num - 1]))
+      else if (op_num > 0 && recog_data.constraints[op_num - 1][0] == '%')
 	str = recog_data.constraints[op_num - 1];
       else
 	break;
@@ -2365,12 +2251,11 @@ compute_regs_asm_clobbered (void)
       rtx insn;
       FOR_BB_INSNS_REVERSE (bb, insn)
 	{
-	  df_ref *def_rec;
+	  df_ref def;
 
 	  if (insn_contains_asm (insn))
-	    for (def_rec = DF_INSN_DEFS (insn); *def_rec; def_rec++)
+	    FOR_EACH_INSN_DEF (def, insn)
 	      {
-		df_ref def = *def_rec;
 		unsigned int dregno = DF_REF_REGNO (def);
 		if (HARD_REGISTER_NUM_P (dregno))
 		  add_to_hard_reg_set (&crtl->asm_clobbers,
@@ -4155,9 +4040,8 @@ build_insn_chain (void)
 	{
 	  if (!NOTE_P (insn) && !BARRIER_P (insn))
 	    {
-	      unsigned int uid = INSN_UID (insn);
-	      df_ref *def_rec;
-	      df_ref *use_rec;
+	      struct df_insn_info *insn_info = DF_INSN_INFO_GET (insn);
+	      df_ref def, use;
 
 	      c = new_insn_chain ();
 	      c->next = next;
@@ -4169,9 +4053,8 @@ build_insn_chain (void)
 	      c->block = bb->index;
 
 	      if (NONDEBUG_INSN_P (insn))
-		for (def_rec = DF_INSN_UID_DEFS (uid); *def_rec; def_rec++)
+		FOR_EACH_INSN_INFO_DEF (def, insn_info)
 		  {
-		    df_ref def = *def_rec;
 		    unsigned int regno = DF_REF_REGNO (def);
 
 		    /* Ignore may clobbers because these are generated
@@ -4260,9 +4143,8 @@ build_insn_chain (void)
 	      bitmap_copy (&c->live_throughout, live_relevant_regs);
 
 	      if (NONDEBUG_INSN_P (insn))
-		for (use_rec = DF_INSN_UID_USES (uid); *use_rec; use_rec++)
+		FOR_EACH_INSN_INFO_USE (use, insn_info)
 		  {
-		    df_ref use = *use_rec;
 		    unsigned int regno = DF_REF_REGNO (use);
 		    rtx reg = DF_REF_REG (use);
 
@@ -4554,41 +4436,40 @@ find_moveable_pseudos (void)
       FOR_BB_INSNS (bb, insn)
 	if (NONDEBUG_INSN_P (insn))
 	  {
-	    df_ref *u_rec, *d_rec;
+	    df_insn_info *insn_info = DF_INSN_INFO_GET (insn);
+	    df_ref def, use;
 
 	    uid_luid[INSN_UID (insn)] = i++;
 	    
-	    u_rec = DF_INSN_USES (insn);
-	    d_rec = DF_INSN_DEFS (insn);
-	    if (d_rec[0] != NULL && d_rec[1] == NULL
-		&& u_rec[0] != NULL && u_rec[1] == NULL
-		&& DF_REF_REGNO (*u_rec) == DF_REF_REGNO (*d_rec)
-		&& !bitmap_bit_p (&set, DF_REF_REGNO (*u_rec))
+	    def = df_single_def (insn_info);
+	    use = df_single_use (insn_info);
+	    if (use
+		&& def
+		&& DF_REF_REGNO (use) == DF_REF_REGNO (def)
+		&& !bitmap_bit_p (&set, DF_REF_REGNO (use))
 		&& rtx_moveable_p (&PATTERN (insn), OP_IN))
 	      {
-		unsigned regno = DF_REF_REGNO (*u_rec);
+		unsigned regno = DF_REF_REGNO (use);
 		bitmap_set_bit (moveable, regno);
 		bitmap_set_bit (&set, regno);
 		bitmap_set_bit (&used, regno);
 		bitmap_clear_bit (transp, regno);
 		continue;
 	      }
-	    while (*u_rec)
+	    FOR_EACH_INSN_INFO_USE (use, insn_info)
 	      {
-		unsigned regno = DF_REF_REGNO (*u_rec);
+		unsigned regno = DF_REF_REGNO (use);
 		bitmap_set_bit (&used, regno);
 		if (bitmap_clear_bit (moveable, regno))
 		  bitmap_clear_bit (transp, regno);
-		u_rec++;
 	      }
 
-	    while (*d_rec)
+	    FOR_EACH_INSN_INFO_DEF (def, insn_info)
 	      {
-		unsigned regno = DF_REF_REGNO (*d_rec);
+		unsigned regno = DF_REF_REGNO (def);
 		bitmap_set_bit (&set, regno);
 		bitmap_clear_bit (transp, regno);
 		bitmap_clear_bit (moveable, regno);
-		d_rec++;
 	      }
 	  }
     }
@@ -4605,16 +4486,16 @@ find_moveable_pseudos (void)
       FOR_BB_INSNS (bb, insn)
 	if (NONDEBUG_INSN_P (insn))
 	  {
+	    df_insn_info *insn_info = DF_INSN_INFO_GET (insn);
 	    rtx def_insn, closest_use, note;
-	    df_ref *def_rec, def, use;
+	    df_ref def, use;
 	    unsigned regno;
 	    bool all_dominated, all_local;
 	    enum machine_mode mode;
 
-	    def_rec = DF_INSN_DEFS (insn);
+	    def = df_single_def (insn_info);
 	    /* There must be exactly one def in this insn.  */
-	    def = *def_rec;
-	    if (!def || def_rec[1] || !single_set (insn))
+	    if (!def || !single_set (insn))
 	      continue;
 	    /* This must be the only definition of the reg.  We also limit
 	       which modes we deal with so that we can assume we can generate
@@ -4726,7 +4607,7 @@ find_moveable_pseudos (void)
       bitmap def_bb_transp = bb_transp_live + def_block->index;
       bool local_to_bb_p = bitmap_bit_p (def_bb_local, i);
       rtx use_insn = closest_uses[i];
-      df_ref *def_insn_use_rec = DF_INSN_USES (def_insn);
+      df_ref use;
       bool all_ok = true;
       bool all_transp = true;
 
@@ -4757,9 +4638,8 @@ find_moveable_pseudos (void)
       if (dump_file)
 	fprintf (dump_file, "Examining insn %d, def for %d\n",
 		 INSN_UID (def_insn), i);
-      while (*def_insn_use_rec != NULL)
+      FOR_EACH_INSN_USE (use, def_insn)
 	{
-	  df_ref use = *def_insn_use_rec;
 	  unsigned regno = DF_REF_REGNO (use);
 	  if (bitmap_bit_p (&unusable_as_input, regno))
 	    {
@@ -4802,8 +4682,6 @@ find_moveable_pseudos (void)
 	      else
 		all_transp = false;
 	    }
-
-	  def_insn_use_rec++;
 	}
       if (!all_ok)
 	continue;
@@ -4979,17 +4857,6 @@ split_live_ranges_for_shrink_wrap (void)
 	   use;
 	   use = DF_REF_NEXT_REG (use))
 	{
-	  if (NONDEBUG_INSN_P (DF_REF_INSN (use))
-	      && GET_CODE (DF_REF_REG (use)) == SUBREG)
-	    {
-	      /* This is necessary to avoid hitting an assert at
-		 postreload.c:2294 in libstc++ testcases on x86_64-linux.  I'm
-		 not really sure what the probblem actually is there.  */
-	      bitmap_clear (&need_new);
-	      bitmap_clear (&reachable);
-	      return false;
-	    }
-
 	  int ubbi = DF_REF_BB (use)->index;
 	  if (bitmap_bit_p (&reachable, ubbi))
 	    bitmap_set_bit (&need_new, ubbi);
@@ -5209,7 +5076,8 @@ ira (FILE *f)
 #endif
   bitmap_obstack_initialize (&ira_bitmap_obstack);
 
-  if (flag_caller_saves)
+  /* LRA uses its own infrastructure to handle caller save registers.  */
+  if (flag_caller_saves && !ira_use_lra_p)
     init_caller_save ();
 
   if (flag_ira_verbose < 10)
@@ -5548,12 +5416,6 @@ do_reload (void)
 }
 
 /* Run the integrated register allocator.  */
-static unsigned int
-rest_of_handle_ira (void)
-{
-  ira (dump_file);
-  return 0;
-}
 
 namespace {
 
@@ -5562,8 +5424,6 @@ const pass_data pass_data_ira =
   RTL_PASS, /* type */
   "ira", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  false, /* has_gate */
-  true, /* has_execute */
   TV_IRA, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
@@ -5580,7 +5440,11 @@ public:
   {}
 
   /* opt_pass methods: */
-  unsigned int execute () { return rest_of_handle_ira (); }
+  virtual unsigned int execute (function *)
+    {
+      ira (dump_file);
+      return 0;
+    }
 
 }; // class pass_ira
 
@@ -5592,13 +5456,6 @@ make_pass_ira (gcc::context *ctxt)
   return new pass_ira (ctxt);
 }
 
-static unsigned int
-rest_of_handle_reload (void)
-{
-  do_reload ();
-  return 0;
-}
-
 namespace {
 
 const pass_data pass_data_reload =
@@ -5606,8 +5463,6 @@ const pass_data pass_data_reload =
   RTL_PASS, /* type */
   "reload", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  false, /* has_gate */
-  true, /* has_execute */
   TV_RELOAD, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
@@ -5624,7 +5479,11 @@ public:
   {}
 
   /* opt_pass methods: */
-  unsigned int execute () { return rest_of_handle_reload (); }
+  virtual unsigned int execute (function *)
+    {
+      do_reload ();
+      return 0;
+    }
 
 }; // class pass_reload
 

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -205,8 +205,6 @@ package Tbuild is
    --  captures the value of an expression (e.g. an aggregate). It should be
    --  set whenever possible to point to the expression that is being captured.
    --  This is provided to get better error messages, e.g. from CodePeer.
-   --
-   --  Make_Temp_Id would probably be a better name for this function???
 
    function Make_Unsuppress_Block
      (Loc   : Source_Ptr;
@@ -322,5 +320,17 @@ package Tbuild is
       Expr : Node_Id) return Node_Id;
    --  Like Convert_To, but if a conversion is actually needed, constructs an
    --  N_Unchecked_Type_Conversion node to do the required conversion.
+
+   -------------------------------------
+   -- Subprograms for Use by Gnat1drv --
+   -------------------------------------
+
+   function  Make_Id (Str : Text_Buffer) return Node_Id;
+   function  Make_SC (Pre, Sel : Node_Id) return Node_Id;
+   procedure Set_RND (Unit : Node_Id);
+   --  Subprograms for call to Get_Target_Parameters in Gnat1drv, see spec
+   --  of package Targparm for full description of these three subprograms.
+   --  These have to be declared at the top level of a package (accessibility
+   --  issues), and Gnat1drv is a procedure, so they can't go there.
 
 end Tbuild;

@@ -92,32 +92,39 @@
 ;;   these instr are not simulated
 (define_insn_reservation "cell-load" 2
   (and (eq_attr "type" "load")
+       (eq_attr "sign_extend" "no")
+       (eq_attr "update" "no")
        (eq_attr "cpu" "cell"))
   "slot01,lsu_cell")
 
 ;; ldux, ldu, lbzux, lbzu, hardware breaks it down to two instrs,
 ;;  if with 32bytes alignment, CMC
 (define_insn_reservation "cell-load-ux" 2
-  (and (eq_attr "type" "load_ux,load_u")
+  (and (eq_attr "type" "load")
+       (eq_attr "sign_extend" "no")
+       (eq_attr "update" "yes")
        (eq_attr "cpu" "cell"))
   "slot01,fxu_cell+lsu_cell")
 
 ;; lha, lhax, lhau, lhaux, lwa, lwax, lwaux, MC, latency unknown
 ;;   11/7, 11/8, 11/12
 (define_insn_reservation "cell-load-ext" 2
-  (and (eq_attr "type" "load_ext,load_ext_u,load_ext_ux")
-       (eq_attr "cpu" "cell")) 
+  (and (eq_attr "type" "load")
+       (eq_attr "sign_extend" "yes")
+       (eq_attr "cpu" "cell"))
   "slot01,fxu_cell+lsu_cell")
 
 ;;lfs,lfsx,lfd,lfdx, 1 cycle
 (define_insn_reservation "cell-fpload" 1
   (and (eq_attr "type" "fpload")
+       (eq_attr "update" "no")
        (eq_attr "cpu" "cell"))
   "vsu2_cell+lsu_cell+slot01")
 
 ;; lfsu,lfsux,lfdu,lfdux 1cycle(fpr) 2 cycle(gpr)
 (define_insn_reservation "cell-fpload-update" 1
-  (and (eq_attr "type" "fpload,fpload_u,fpload_ux")
+  (and (eq_attr "type" "fpload")
+       (eq_attr "update" "yes")
        (eq_attr "cpu" "cell"))
   "fxu_cell+vsu2_cell+lsu_cell+slot01")
 
@@ -129,22 +136,26 @@
 ;;st? stw(MC)
 (define_insn_reservation "cell-store" 1
   (and (eq_attr "type" "store")
+       (eq_attr "update" "no")
        (eq_attr "cpu" "cell"))
   "lsu_cell+slot01")
 
 ;;stdux, stdu, (hardware breaks into store and add) 2 for update reg
 (define_insn_reservation "cell-store-update" 1
-  (and (eq_attr "type" "store_ux,store_u")
+  (and (eq_attr "type" "store")
+       (eq_attr "update" "yes")
        (eq_attr "cpu" "cell"))
   "fxu_cell+lsu_cell+slot01")
 
 (define_insn_reservation "cell-fpstore" 1
   (and (eq_attr "type" "fpstore")
+       (eq_attr "update" "no")
        (eq_attr "cpu" "cell"))
   "vsu2_cell+lsu_cell+slot01")
 
 (define_insn_reservation "cell-fpstore-update" 1
-  (and (eq_attr "type" "fpstore_ux,fpstore_u")
+  (and (eq_attr "type" "fpstore")
+       (eq_attr "update" "yes")
        (eq_attr "cpu" "cell"))
   "vsu2_cell+fxu_cell+lsu_cell+slot01")
 
@@ -155,8 +166,11 @@
 
 ;; Integer latency is 2 cycles
 (define_insn_reservation "cell-integer" 2
-  (and (eq_attr "type" "integer,insert_dword,shift,trap,\
-			var_shift_rotate,cntlz,exts,isel")
+  (and (ior (eq_attr "type" "integer,trap,cntlz,exts,isel")
+	    (and (eq_attr "type" "add,logical,shift")
+		 (eq_attr "dot" "no"))
+	    (and (eq_attr "type" "insert")
+		 (eq_attr "size" "64")))
        (eq_attr "cpu" "cell"))
   "slot01,fxu_cell")
 
@@ -174,7 +188,8 @@
 
 ;; rlwimi, alter cr0  
 (define_insn_reservation "cell-insert" 2
-  (and (eq_attr "type" "insert_word")
+  (and (eq_attr "type" "insert")
+       (eq_attr "size" "32")
        (eq_attr "cpu" "cell"))
  "slot01,fxu_cell")
 
@@ -186,51 +201,62 @@
 
 ;; add, addo, sub, subo, alter cr0, rldcli, rlwinm 
 (define_insn_reservation "cell-fast-cmp" 2
-  (and (and (eq_attr "type" "fast_compare,delayed_compare,compare,\
-			    var_delayed_compare")
-            (eq_attr "cpu" "cell"))
-        (eq_attr "cell_micro" "not"))
+  (and (ior (eq_attr "type" "compare")
+	    (and (eq_attr "type" "add,logical,shift")
+		 (eq_attr "dot" "yes")))
+       (eq_attr "cpu" "cell")
+       (eq_attr "cell_micro" "not"))
   "slot01,fxu_cell")
 
 (define_insn_reservation "cell-cmp-microcoded" 9
-  (and (and (eq_attr "type" "fast_compare,delayed_compare,compare,\
-			    var_delayed_compare")
-            (eq_attr "cpu" "cell"))
-        (eq_attr "cell_micro" "always"))
+  (and (ior (eq_attr "type" "compare")
+	    (and (eq_attr "type" "add,logical,shift")
+		 (eq_attr "dot" "yes")))
+       (eq_attr "cpu" "cell")
+       (eq_attr "cell_micro" "always"))
   "slot0+slot1,fxu_cell,fxu_cell*7")
 
 ;; mulld
 (define_insn_reservation "cell-lmul" 15
-  (and (eq_attr "type" "lmul")
+  (and (eq_attr "type" "mul")
+       (eq_attr "dot" "no")
+       (eq_attr "size" "64")
        (eq_attr "cpu" "cell"))
   "slot1,nonpipeline,nonpipeline*13")
 
 ;; mulld. is microcoded
 (define_insn_reservation "cell-lmul-cmp" 22
-  (and (eq_attr "type" "lmul_compare")
+  (and (eq_attr "type" "mul")
+       (eq_attr "dot" "yes")
+       (eq_attr "size" "64")
        (eq_attr "cpu" "cell"))
   "slot0+slot1,nonpipeline,nonpipeline*20")
 
 ;; mulli, 6 cycles
 (define_insn_reservation "cell-imul23" 6
-  (and (eq_attr "type" "imul2,imul3")
+  (and (eq_attr "type" "mul")
+       (eq_attr "size" "8,16")
        (eq_attr "cpu" "cell"))
   "slot1,nonpipeline,nonpipeline*4")
 
 ;; mullw, 9
 (define_insn_reservation "cell-imul" 9
-  (and (eq_attr "type" "imul")
+  (and (eq_attr "type" "mul")
+       (eq_attr "dot" "no")
+       (eq_attr "size" "32")
        (eq_attr "cpu" "cell"))
   "slot1,nonpipeline,nonpipeline*7")
  
 ;; divide
 (define_insn_reservation "cell-idiv" 32
-  (and (eq_attr "type" "idiv")
+  (and (eq_attr "type" "div")
+       (eq_attr "size" "32")
        (eq_attr "cpu" "cell"))
   "slot1,nonpipeline,nonpipeline*30")
 
 (define_insn_reservation "cell-ldiv" 64
-  (and (eq_attr "type" "ldiv")
+  (and (eq_attr "type" "div")
+       (eq_attr "size" "64")
        (eq_attr "cpu" "cell"))
   "slot1,nonpipeline,nonpipeline*62")
 

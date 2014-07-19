@@ -1205,7 +1205,7 @@ add_functions (void)
     *z = "z", *ln = "len", *ut = "unit", *han = "handler",
     *num = "number", *tm = "time", *nm = "name", *md = "mode",
     *vl = "values", *p1 = "path1", *p2 = "path2", *com = "command",
-    *ca = "coarray", *sub = "sub";
+    *ca = "coarray", *sub = "sub", *dist = "distance", *failed="failed";
 
   int di, dr, dd, dl, dc, dz, ii;
 
@@ -2477,9 +2477,11 @@ add_functions (void)
 
   make_generic ("null", GFC_ISYM_NULL, GFC_STD_F95);
 
-  add_sym_0 ("num_images", GFC_ISYM_NUM_IMAGES, CLASS_INQUIRY, ACTUAL_NO,
+  add_sym_2 ("num_images", GFC_ISYM_NUM_IMAGES, CLASS_INQUIRY, ACTUAL_NO,
 	     BT_INTEGER, di, GFC_STD_F2008,
-	     NULL, gfc_simplify_num_images, NULL);
+	     gfc_check_num_images, gfc_simplify_num_images, NULL,
+	     dist, BT_INTEGER, di, OPTIONAL,
+	     failed, BT_LOGICAL, dl, OPTIONAL);
 
   add_sym_3 ("pack", GFC_ISYM_PACK, CLASS_TRANSFORMATIONAL, ACTUAL_NO, BT_REAL, dr, GFC_STD_F95,
 	     gfc_check_pack, gfc_simplify_pack, gfc_resolve_pack,
@@ -2756,7 +2758,7 @@ add_functions (void)
   make_generic ("size", GFC_ISYM_SIZE, GFC_STD_F95);
 
   /* Obtain the stride for a given dimensions; to be used only internally.
-     "make_from_module" makes inaccessible for external users.  */
+     "make_from_module" makes it inaccessible for external users.  */
   add_sym_2 (GFC_PREFIX ("stride"), GFC_ISYM_STRIDE, CLASS_INQUIRY, ACTUAL_NO,
 	     BT_INTEGER, gfc_index_integer_kind, GFC_STD_GNU,
 	     NULL, NULL, gfc_resolve_stride,
@@ -2892,9 +2894,10 @@ add_functions (void)
 
   make_generic ("tanh", GFC_ISYM_TANH, GFC_STD_F77);
 
-  add_sym_2 ("this_image", GFC_ISYM_THIS_IMAGE, CLASS_INQUIRY, ACTUAL_NO, BT_INTEGER, di, GFC_STD_F2008,
+  add_sym_3 ("this_image", GFC_ISYM_THIS_IMAGE, CLASS_INQUIRY, ACTUAL_NO, BT_INTEGER, di, GFC_STD_F2008,
 	     gfc_check_this_image, gfc_simplify_this_image, gfc_resolve_this_image,
-	     ca, BT_REAL, dr, OPTIONAL, dm, BT_INTEGER, ii, OPTIONAL);
+	     ca, BT_REAL, dr, OPTIONAL, dm, BT_INTEGER, ii, OPTIONAL,
+	     dist, BT_INTEGER, di, OPTIONAL);
 
   add_sym_0 ("time", GFC_ISYM_TIME, CLASS_IMPURE, ACTUAL_NO, BT_INTEGER,
 	     di, GFC_STD_GNU, NULL, NULL, gfc_resolve_time);
@@ -2994,6 +2997,13 @@ add_functions (void)
 	     x, BT_UNKNOWN, 0, REQUIRED);
 		
   make_generic ("loc", GFC_ISYM_LOC, GFC_STD_GNU);
+
+  /* The following function is internally used for coarray libray functions.
+     "make_from_module" makes it inaccessible for external users.  */
+  add_sym_1 (GFC_PREFIX ("caf_get"), GFC_ISYM_CAF_GET, CLASS_IMPURE, ACTUAL_NO,
+	     BT_REAL, dr, GFC_STD_GNU, NULL, NULL, NULL,
+	     x, BT_REAL, dr, REQUIRED);
+  make_from_module();
 }
 
 
@@ -3004,7 +3014,7 @@ add_subroutines (void)
 {
   /* Argument names as in the standard (to be used as argument keywords).  */
   const char
-    *h = "harvest", *dt = "date", *vl = "values", *pt = "put",
+    *a = "a", *h = "harvest", *dt = "date", *vl = "values", *pt = "put",
     *c = "count", *tm = "time", *tp = "topos", *gt = "get",
     *t = "to", *zn = "zone", *fp = "frompos", *cm = "count_max",
     *f = "from", *sz = "size", *ln = "len", *cr = "count_rate",
@@ -3013,7 +3023,8 @@ add_subroutines (void)
     *trim_name = "trim_name", *ut = "unit", *han = "handler",
     *sec = "seconds", *res = "result", *of = "offset", *md = "mode",
     *whence = "whence", *pos = "pos", *ptr = "ptr", *p1 = "path1",
-    *p2 = "path2", *msk = "mask", *old = "old";
+    *p2 = "path2", *msk = "mask", *old = "old", *result_image = "result_image",
+    *stat = "stat", *errmsg = "errmsg";
 
   int di, dr, dc, dl, ii;
 
@@ -3027,17 +3038,88 @@ add_subroutines (void)
 
   make_noreturn();
 
-  add_sym_2s ("atomic_define", GFC_ISYM_ATOMIC_DEF, CLASS_ATOMIC,
+  add_sym_3s ("atomic_define", GFC_ISYM_ATOMIC_DEF, CLASS_ATOMIC,
 	      BT_UNKNOWN, 0, GFC_STD_F2008,
 	      gfc_check_atomic_def, NULL, gfc_resolve_atomic_def,
 	      "atom", BT_INTEGER, di, REQUIRED, INTENT_OUT,
-	      "value", BT_INTEGER, di, REQUIRED, INTENT_IN);
+	      "value", BT_INTEGER, di, REQUIRED, INTENT_IN,
+	      stat, BT_INTEGER, di, OPTIONAL, INTENT_OUT);
 
-  add_sym_2s ("atomic_ref", GFC_ISYM_ATOMIC_REF, CLASS_ATOMIC,
+  add_sym_3s ("atomic_ref", GFC_ISYM_ATOMIC_REF, CLASS_ATOMIC,
 	      BT_UNKNOWN, 0, GFC_STD_F2008,
 	      gfc_check_atomic_ref, NULL, gfc_resolve_atomic_ref,
 	      "value", BT_INTEGER, di, REQUIRED, INTENT_OUT,
-	      "atom", BT_INTEGER, di, REQUIRED, INTENT_IN);
+	      "atom", BT_INTEGER, di, REQUIRED, INTENT_IN,
+	      stat, BT_INTEGER, di, OPTIONAL, INTENT_OUT);
+
+  add_sym_5s ("atomic_cas", GFC_ISYM_ATOMIC_CAS, CLASS_ATOMIC,
+	      BT_UNKNOWN, 0, GFC_STD_F2008_TS,
+	      gfc_check_atomic_cas, NULL, NULL,
+	      "atom", BT_INTEGER, di, REQUIRED, INTENT_INOUT,
+	      "old", BT_INTEGER, di, REQUIRED, INTENT_OUT,
+	      "compare", BT_INTEGER, di, REQUIRED, INTENT_IN,
+	      "new", BT_INTEGER, di, REQUIRED, INTENT_IN,
+	      stat, BT_INTEGER, di, OPTIONAL, INTENT_OUT);
+
+  add_sym_3s ("atomic_add", GFC_ISYM_ATOMIC_ADD, CLASS_ATOMIC,
+	      BT_UNKNOWN, 0, GFC_STD_F2008_TS,
+	      gfc_check_atomic_op, NULL, NULL,
+	      "atom", BT_INTEGER, di, REQUIRED, INTENT_OUT,
+	      "value", BT_INTEGER, di, REQUIRED, INTENT_IN,
+	      stat, BT_INTEGER, di, OPTIONAL, INTENT_OUT);
+
+  add_sym_3s ("atomic_and", GFC_ISYM_ATOMIC_AND, CLASS_ATOMIC,
+	      BT_UNKNOWN, 0, GFC_STD_F2008_TS,
+	      gfc_check_atomic_op, NULL, NULL,
+	      "atom", BT_INTEGER, di, REQUIRED, INTENT_OUT,
+	      "value", BT_INTEGER, di, REQUIRED, INTENT_IN,
+	      stat, BT_INTEGER, di, OPTIONAL, INTENT_OUT);
+
+  add_sym_3s ("atomic_or", GFC_ISYM_ATOMIC_OR, CLASS_ATOMIC,
+	      BT_UNKNOWN, 0, GFC_STD_F2008_TS,
+	      gfc_check_atomic_op, NULL, NULL,
+	      "atom", BT_INTEGER, di, REQUIRED, INTENT_OUT,
+	      "value", BT_INTEGER, di, REQUIRED, INTENT_IN,
+	      stat, BT_INTEGER, di, OPTIONAL, INTENT_OUT);
+
+  add_sym_3s ("atomic_xor", GFC_ISYM_ATOMIC_XOR, CLASS_ATOMIC,
+	      BT_UNKNOWN, 0, GFC_STD_F2008_TS,
+	      gfc_check_atomic_op, NULL, NULL,
+	      "atom", BT_INTEGER, di, REQUIRED, INTENT_OUT,
+	      "value", BT_INTEGER, di, REQUIRED, INTENT_IN,
+	      stat, BT_INTEGER, di, OPTIONAL, INTENT_OUT);
+
+  add_sym_4s ("atomic_fetch_add", GFC_ISYM_ATOMIC_FETCH_ADD, CLASS_ATOMIC,
+	      BT_UNKNOWN, 0, GFC_STD_F2008_TS,
+	      gfc_check_atomic_fetch_op, NULL, NULL,
+	      "atom", BT_INTEGER, di, REQUIRED, INTENT_OUT,
+	      "value", BT_INTEGER, di, REQUIRED, INTENT_IN,
+	      "old", BT_INTEGER, di, REQUIRED, INTENT_OUT,
+	      stat, BT_INTEGER, di, OPTIONAL, INTENT_OUT);
+
+  add_sym_4s ("atomic_fetch_and", GFC_ISYM_ATOMIC_FETCH_AND, CLASS_ATOMIC,
+	      BT_UNKNOWN, 0, GFC_STD_F2008_TS,
+	      gfc_check_atomic_fetch_op, NULL, NULL,
+	      "atom", BT_INTEGER, di, REQUIRED, INTENT_OUT,
+	      "value", BT_INTEGER, di, REQUIRED, INTENT_IN,
+	      "old", BT_INTEGER, di, REQUIRED, INTENT_OUT,
+	      stat, BT_INTEGER, di, OPTIONAL, INTENT_OUT);
+
+  add_sym_4s ("atomic_fetch_or", GFC_ISYM_ATOMIC_FETCH_OR, CLASS_ATOMIC,
+	      BT_UNKNOWN, 0, GFC_STD_F2008_TS,
+	      gfc_check_atomic_fetch_op, NULL, NULL,
+	      "atom", BT_INTEGER, di, REQUIRED, INTENT_OUT,
+	      "value", BT_INTEGER, di, REQUIRED, INTENT_IN,
+	      "old", BT_INTEGER, di, REQUIRED, INTENT_OUT,
+	      stat, BT_INTEGER, di, OPTIONAL, INTENT_OUT);
+
+  add_sym_4s ("atomic_fetch_xor", GFC_ISYM_ATOMIC_FETCH_XOR, CLASS_ATOMIC,
+	      BT_UNKNOWN, 0, GFC_STD_F2008_TS,
+	      gfc_check_atomic_fetch_op, NULL, NULL,
+	      "atom", BT_INTEGER, di, REQUIRED, INTENT_OUT,
+	      "value", BT_INTEGER, di, REQUIRED, INTENT_IN,
+	      "old", BT_INTEGER, di, REQUIRED, INTENT_OUT,
+	      stat, BT_INTEGER, di, OPTIONAL, INTENT_OUT);
 
   add_sym_0s ("backtrace", GFC_ISYM_BACKTRACE, GFC_STD_GNU, NULL);
 
@@ -3208,6 +3290,40 @@ add_subroutines (void)
 	      "cptr", BT_VOID, 0, REQUIRED, INTENT_IN,
 	      "fptr", BT_UNKNOWN, 0, REQUIRED, INTENT_OUT);
   make_from_module();
+
+  /* Coarray collectives.  */
+  add_sym_4s ("co_max", GFC_ISYM_CO_MAX, CLASS_IMPURE,
+	      BT_UNKNOWN, 0, GFC_STD_F2008_TS,
+	      gfc_check_co_minmax, NULL, NULL,
+	      a, BT_REAL, dr, REQUIRED, INTENT_INOUT,
+	      result_image, BT_INTEGER, di, OPTIONAL, INTENT_IN,
+	      stat, BT_INTEGER, di, OPTIONAL, INTENT_OUT,
+	      errmsg, BT_CHARACTER, dc, OPTIONAL, INTENT_OUT);
+
+  add_sym_4s ("co_min", GFC_ISYM_CO_MIN, CLASS_IMPURE,
+	      BT_UNKNOWN, 0, GFC_STD_F2008_TS,
+	      gfc_check_co_minmax, NULL, NULL,
+	      a, BT_REAL, dr, REQUIRED, INTENT_INOUT,
+	      result_image, BT_INTEGER, di, OPTIONAL, INTENT_IN,
+	      stat, BT_INTEGER, di, OPTIONAL, INTENT_OUT,
+	      errmsg, BT_CHARACTER, dc, OPTIONAL, INTENT_OUT);
+
+  add_sym_4s ("co_sum", GFC_ISYM_CO_SUM, CLASS_IMPURE,
+	      BT_UNKNOWN, 0, GFC_STD_F2008_TS,
+	      gfc_check_co_sum, NULL, NULL,
+	      a, BT_REAL, dr, REQUIRED, INTENT_INOUT,
+	      result_image, BT_INTEGER, di, OPTIONAL, INTENT_IN,
+	      stat, BT_INTEGER, di, OPTIONAL, INTENT_OUT,
+	      errmsg, BT_CHARACTER, dc, OPTIONAL, INTENT_OUT);
+
+  /* The following subroutine is internally used for coarray libray functions.
+     "make_from_module" makes it inaccessible for external users.  */
+  add_sym_2s (GFC_PREFIX ("caf_send"), GFC_ISYM_CAF_SEND, CLASS_IMPURE,
+	      BT_UNKNOWN, 0, GFC_STD_GNU, NULL, NULL, NULL,
+	      "x", BT_REAL, dr, REQUIRED, INTENT_OUT,
+	      "y", BT_REAL, dr, REQUIRED, INTENT_IN);
+  make_from_module();
+
 
   /* More G77 compatibility garbage.  */
   add_sym_3s ("alarm", GFC_ISYM_ALARM, CLASS_IMPURE, BT_UNKNOWN, 0, GFC_STD_GNU,
@@ -4160,7 +4276,7 @@ gfc_check_intrinsic_standard (const gfc_intrinsic_sym* isym,
       break;
 
     case GFC_STD_F2008_TS:
-      symstd_msg = "new in TS 29113";
+      symstd_msg = "new in TS 29113/TS 18508";
       break;
 
     case GFC_STD_GNU:

@@ -56,6 +56,7 @@ extern int arm_split_constant (RTX_CODE, enum machine_mode, rtx,
 extern int legitimate_pic_operand_p (rtx);
 extern rtx legitimize_pic_address (rtx, enum machine_mode, rtx);
 extern rtx legitimize_tls_address (rtx, rtx);
+extern bool arm_legitimate_address_p (enum machine_mode, rtx, bool);
 extern int arm_legitimate_address_outer_p (enum machine_mode, rtx, RTX_CODE, int);
 extern int thumb_legitimate_offset_p (enum machine_mode, HOST_WIDE_INT);
 extern bool arm_legitimize_reload_address (rtx *, enum machine_mode, int, int,
@@ -126,7 +127,7 @@ extern int arm_const_double_inline_cost (rtx);
 extern bool arm_const_double_by_parts (rtx);
 extern bool arm_const_double_by_immediates (rtx);
 extern const char *fp_immediate_constant (rtx);
-extern void arm_emit_call_insn (rtx, rtx);
+extern void arm_emit_call_insn (rtx, rtx, bool);
 extern const char *output_call (rtx *);
 extern const char *output_call_mem (rtx *);
 void arm_emit_movpair (rtx, rtx);
@@ -272,6 +273,11 @@ struct tune_params
   const struct cpu_vec_costs* vec_costs;
   /* Prefer Neon for 64-bit bitops.  */
   bool prefer_neon_for_64bits;
+  /* Prefer 32-bit encoding instead of flag-setting 16-bit encoding.  */
+  bool disparage_flag_setting_t16_encodings;
+  /* Prefer 32-bit encoding instead of 16-bit encoding where subset of flags
+     would be set.  */
+  bool disparage_partial_flag_setting_t16_encodings;
 };
 
 extern const struct tune_params *current_tune;
@@ -293,5 +299,7 @@ extern void arm_emit_eabi_attribute (const char *, int, int);
 
 /* Defined in gcc/common/config/arm-common.c.  */
 extern const char *arm_rewrite_selected_cpu (const char *name);
+
+extern bool arm_is_constant_pool_ref (rtx);
 
 #endif /* ! GCC_ARM_PROTOS_H */

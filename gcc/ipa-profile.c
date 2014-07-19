@@ -112,12 +112,12 @@ histogram_hash::equal (const histogram_entry *val, const histogram_entry *val2)
    HASHTABLE is the on-side hash kept to avoid duplicates.  */
 
 static void
-account_time_size (hash_table <histogram_hash> hashtable,
+account_time_size (hash_table<histogram_hash> *hashtable,
 		   vec<histogram_entry *> &histogram,
 		   gcov_type count, int time, int size)
 {
   histogram_entry key = {count, 0, 0};
-  histogram_entry **val = hashtable.find_slot (&key, INSERT);
+  histogram_entry **val = hashtable->find_slot (&key, INSERT);
 
   if (!*val)
     {
@@ -163,8 +163,8 @@ dump_histogram (FILE *file, vec<histogram_entry *> histogram)
     {
       cumulated_time += histogram[i]->count * histogram[i]->time;
       cumulated_size += histogram[i]->size;
-      fprintf (file, "  "HOST_WIDEST_INT_PRINT_DEC": time:%i (%2.2f) size:%i (%2.2f)\n",
-	       (HOST_WIDEST_INT) histogram[i]->count,
+      fprintf (file, "  %"PRId64": time:%i (%2.2f) size:%i (%2.2f)\n",
+	       (int64_t) histogram[i]->count,
 	       histogram[i]->time,
 	       cumulated_time * 100.0 / overall_time,
 	       histogram[i]->size,
@@ -179,10 +179,9 @@ ipa_profile_generate_summary (void)
 {
   struct cgraph_node *node;
   gimple_stmt_iterator gsi;
-  hash_table <histogram_hash> hashtable;
   basic_block bb;
 
-  hashtable.create (10);
+  hash_table<histogram_hash> hashtable (10);
   histogram_pool = create_alloc_pool ("IPA histogram", sizeof (struct histogram_entry),
 				      10);
   
@@ -230,9 +229,8 @@ ipa_profile_generate_summary (void)
 	    time += estimate_num_insns (stmt, &eni_time_weights);
 	    size += estimate_num_insns (stmt, &eni_size_weights);
 	  }
-	account_time_size (hashtable, histogram, bb->count, time, size);
+	account_time_size (&hashtable, histogram, bb->count, time, size);
       }
-  hashtable.dispose ();
   histogram.qsort (cmp_counts);
 }
 
@@ -263,10 +261,9 @@ ipa_profile_read_summary (void)
   struct lto_file_decl_data ** file_data_vec
     = lto_get_file_decl_data ();
   struct lto_file_decl_data * file_data;
-  hash_table <histogram_hash> hashtable;
   int j = 0;
 
-  hashtable.create (10);
+  hash_table<histogram_hash> hashtable (10);
   histogram_pool = create_alloc_pool ("IPA histogram", sizeof (struct histogram_entry),
 				      10);
 
@@ -287,7 +284,7 @@ ipa_profile_read_summary (void)
 	      gcov_type count = streamer_read_gcov_count (ib);
 	      int time = streamer_read_uhwi (ib);
 	      int size = streamer_read_uhwi (ib);
-	      account_time_size (hashtable, histogram,
+	      account_time_size (&hashtable, histogram,
 				 count, time, size);
 	    }
 	  lto_destroy_simple_input_block (file_data,
@@ -295,7 +292,6 @@ ipa_profile_read_summary (void)
 					  ib, data, len);
 	}
     }
-  hashtable.dispose ();
   histogram.qsort (cmp_counts);
 }
 
@@ -516,8 +512,8 @@ ipa_profile (void)
 	{
 	  gcov_type min, cumulated_time = 0, cumulated_size = 0;
 
-	  fprintf (dump_file, "Overall time: "HOST_WIDEST_INT_PRINT_DEC"\n", 
-		   (HOST_WIDEST_INT)overall_time);
+	  fprintf (dump_file, "Overall time: %"PRId64"\n",
+		   (int64_t)overall_time);
 	  min = get_hot_bb_threshold ();
           for (i = 0; i < (int)histogram.length () && histogram[i]->count >= min;
 	       i++)
@@ -525,9 +521,9 @@ ipa_profile (void)
 	      cumulated_time += histogram[i]->count * histogram[i]->time;
 	      cumulated_size += histogram[i]->size;
 	    }
-	  fprintf (dump_file, "GCOV min count: "HOST_WIDEST_INT_PRINT_DEC
+	  fprintf (dump_file, "GCOV min count: %"PRId64
 		   " Time:%3.2f%% Size:%3.2f%%\n", 
-		   (HOST_WIDEST_INT)min,
+		   (int64_t)min,
 		   cumulated_time * 100.0 / overall_time,
 		   cumulated_size * 100.0 / overall_size);
 	}
@@ -551,9 +547,9 @@ ipa_profile (void)
 	      cumulated_time += histogram[i]->count * histogram[i]->time;
 	      cumulated_size += histogram[i]->size;
 	    }
-	  fprintf (dump_file, "Determined min count: "HOST_WIDEST_INT_PRINT_DEC
+	  fprintf (dump_file, "Determined min count: %"PRId64
 		   " Time:%3.2f%% Size:%3.2f%%\n", 
-		   (HOST_WIDEST_INT)threshold,
+		   (int64_t)threshold,
 		   cumulated_time * 100.0 / overall_time,
 		   cumulated_size * 100.0 / overall_size);
 	}
@@ -711,12 +707,6 @@ ipa_profile (void)
   return 0;
 }
 
-static bool
-gate_ipa_profile (void)
-{
-  return flag_ipa_profile;
-}
-
 namespace {
 
 const pass_data pass_data_ipa_profile =
@@ -724,8 +714,6 @@ const pass_data pass_data_ipa_profile =
   IPA_PASS, /* type */
   "profile_estimate", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_IPA_PROFILE, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
@@ -751,8 +739,8 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_ipa_profile (); }
-  unsigned int execute () { return ipa_profile (); }
+  virtual bool gate (function *) { return flag_ipa_profile; }
+  virtual unsigned int execute (function *) { return ipa_profile (); }
 
 }; // class pass_ipa_profile
 

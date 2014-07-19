@@ -49,6 +49,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "tree.h"
 #include "varasm.h"
+#include "hard-reg-set.h"
 #include "rtl.h"
 #include "tm_p.h"
 #include "regs.h"
@@ -57,7 +58,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "recog.h"
 #include "conditions.h"
 #include "flags.h"
-#include "hard-reg-set.h"
 #include "output.h"
 #include "except.h"
 #include "function.h"
@@ -80,6 +80,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "params.h"
 #include "tree-pretty-print.h" /* for dump_function_header */
 #include "asan.h"
+#include "wide-int-print.h"
 
 #ifdef XCOFF_DEBUGGING_INFO
 #include "xcoffout.h"		/* Needed for external data
@@ -223,6 +224,8 @@ static int alter_cond (rtx);
 static int final_addr_vec_align (rtx);
 #endif
 static int align_fuzz (rtx, rtx, int, unsigned);
+static void collect_fn_hard_reg_usage (void);
+static tree get_call_fndecl (rtx);
 
 /* Initialize data in final at the beginning of a compilation.  */
 
@@ -370,7 +373,7 @@ init_insn_lengths (void)
 /* Obtain the current length of an insn.  If branch shortening has been done,
    get its actual length.  Otherwise, use FALLBACK_FN to calculate the
    length.  */
-static inline int
+static int
 get_attr_length_1 (rtx insn, int (*fallback_fn) (rtx))
 {
   rtx body;
@@ -775,6 +778,8 @@ compute_alignments (void)
       /* In case block is frequent and reached mostly by non-fallthru edge,
 	 align it.  It is most likely a first block of loop.  */
       if (has_fallthru
+	  && !(single_succ_p (bb)
+	       && single_succ (bb) == EXIT_BLOCK_PTR_FOR_FN (cfun))
 	  && optimize_bb_for_speed_p (bb)
 	  && branch_frequency + fallthru_frequency > freq_threshold
 	  && (branch_frequency
@@ -852,14 +857,12 @@ const pass_data pass_data_compute_alignments =
   RTL_PASS, /* type */
   "alignments", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  false, /* has_gate */
-  true, /* has_execute */
   TV_NONE, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  TODO_verify_rtl_sharing, /* todo_flags_finish */
+  0, /* todo_flags_finish */
 };
 
 class pass_compute_alignments : public rtl_opt_pass
@@ -870,7 +873,7 @@ public:
   {}
 
   /* opt_pass methods: */
-  unsigned int execute () { return compute_alignments (); }
+  virtual unsigned int execute (function *) { return compute_alignments (); }
 
 }; // class pass_compute_alignments
 
@@ -1923,7 +1926,7 @@ dump_basic_block_info (FILE *file, rtx insn, basic_block *start_to_bb,
       if (bb->frequency)
         fprintf (file, " freq:%d", bb->frequency);
       if (bb->count)
-        fprintf (file, " count:" HOST_WIDEST_INT_PRINT_DEC,
+        fprintf (file, " count:%"PRId64,
                  bb->count);
       fprintf (file, " seq:%d", (*bb_seqn)++);
       fprintf (file, "\n%s PRED:", ASM_COMMENT_START);
@@ -3016,10 +3019,16 @@ notice_source_line (rtx insn, bool *is_stmt)
       filename = override_filename;
       linenum = override_linenum;
     }
+  else if (INSN_HAS_LOCATION (insn))
+    {
+      expanded_location xloc = insn_location (insn);
+      filename = xloc.file;
+      linenum = xloc.line;
+    }
   else
     {
-      filename = insn_file (insn);
-      linenum = insn_line (insn);
+      filename = NULL;
+      linenum = 0;
     }
 
   if (filename == NULL)
@@ -3884,8 +3893,21 @@ output_addr_const (FILE *file, rtx x)
       output_addr_const (file, XEXP (x, 0));
       break;
 
+    case CONST_WIDE_INT:
+      /* We do not know the mode here so we have to use a round about
+	 way to build a wide-int to get it printed properly.  */
+      {
+	wide_int w = wide_int::from_array (&CONST_WIDE_INT_ELT (x, 0),
+					   CONST_WIDE_INT_NUNITS (x),
+					   CONST_WIDE_INT_NUNITS (x)
+					   * HOST_BITS_PER_WIDE_INT,
+					   false);
+	print_decs (w, file);
+      }
+      break;
+
     case CONST_DOUBLE:
-      if (GET_MODE (x) == VOIDmode)
+      if (CONST_DOUBLE_AS_INT_P (x))
 	{
 	  /* We can use %d if the number is one word and positive.  */
 	  if (CONST_DOUBLE_HIGH (x))
@@ -4240,7 +4262,9 @@ leaf_function_p (void)
 {
   rtx insn;
 
-  if (crtl->profile || profile_arc_flag)
+  /* Some back-ends (e.g. s390) want leaf functions to stay leaf
+     functions even if they call mcount.  */
+  if (crtl->profile && !targetm.keep_leaf_when_profiled ())
     return 0;
 
   for (insn = get_insns (); insn; insn = NEXT_INSN (insn))
@@ -4425,6 +4449,8 @@ rest_of_handle_final (void)
   assemble_start_function (current_function_decl, fnname);
   final_start_function (get_insns (), asm_out_file, optimize);
   final (get_insns (), asm_out_file, optimize);
+  if (flag_use_caller_save)
+    collect_fn_hard_reg_usage ();
   final_end_function ();
 
   /* The IA-64 ".handlerdata" directive must be issued before the ".endp"
@@ -4481,8 +4507,6 @@ const pass_data pass_data_final =
   RTL_PASS, /* type */
   "final", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  false, /* has_gate */
-  true, /* has_execute */
   TV_FINAL, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
@@ -4499,7 +4523,7 @@ public:
   {}
 
   /* opt_pass methods: */
-  unsigned int execute () { return rest_of_handle_final (); }
+  virtual unsigned int execute (function *) { return rest_of_handle_final (); }
 
 }; // class pass_final
 
@@ -4527,8 +4551,6 @@ const pass_data pass_data_shorten_branches =
   RTL_PASS, /* type */
   "shorten", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  false, /* has_gate */
-  true, /* has_execute */
   TV_SHORTEN_BRANCH, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
@@ -4545,7 +4567,10 @@ public:
   {}
 
   /* opt_pass methods: */
-  unsigned int execute () { return rest_of_handle_shorten_branches (); }
+  virtual unsigned int execute (function *)
+    {
+      return rest_of_handle_shorten_branches ();
+    }
 
 }; // class pass_shorten_branches
 
@@ -4691,8 +4716,6 @@ const pass_data pass_data_clean_state =
   RTL_PASS, /* type */
   "*clean_state", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  false, /* has_gate */
-  true, /* has_execute */
   TV_FINAL, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
@@ -4709,7 +4732,10 @@ public:
   {}
 
   /* opt_pass methods: */
-  unsigned int execute () { return rest_of_clean_state (); }
+  virtual unsigned int execute (function *)
+    {
+      return rest_of_clean_state ();
+    }
 
 }; // class pass_clean_state
 
@@ -4719,4 +4745,136 @@ rtl_opt_pass *
 make_pass_clean_state (gcc::context *ctxt)
 {
   return new pass_clean_state (ctxt);
+}
+
+/* Return true if INSN is a call to the the current function.  */
+
+static bool
+self_recursive_call_p (rtx insn)
+{
+  tree fndecl = get_call_fndecl (insn);
+  return (fndecl == current_function_decl
+	  && decl_binds_to_current_def_p (fndecl));
+}
+
+/* Collect hard register usage for the current function.  */
+
+static void
+collect_fn_hard_reg_usage (void)
+{
+  rtx insn;
+#ifdef STACK_REGS
+  int i;
+#endif
+  struct cgraph_rtl_info *node;
+  HARD_REG_SET function_used_regs;
+
+  /* ??? To be removed when all the ports have been fixed.  */
+  if (!targetm.call_fusage_contains_non_callee_clobbers)
+    return;
+
+  CLEAR_HARD_REG_SET (function_used_regs);
+
+  for (insn = get_insns (); insn != NULL_RTX; insn = next_insn (insn))
+    {
+      HARD_REG_SET insn_used_regs;
+
+      if (!NONDEBUG_INSN_P (insn))
+	continue;
+
+      if (CALL_P (insn)
+	  && !self_recursive_call_p (insn))
+	{
+	  if (!get_call_reg_set_usage (insn, &insn_used_regs,
+				       call_used_reg_set))
+	    return;
+
+	  IOR_HARD_REG_SET (function_used_regs, insn_used_regs);
+	}
+
+      find_all_hard_reg_sets (insn, &insn_used_regs, false);
+      IOR_HARD_REG_SET (function_used_regs, insn_used_regs);
+    }
+
+  /* Be conservative - mark fixed and global registers as used.  */
+  IOR_HARD_REG_SET (function_used_regs, fixed_reg_set);
+
+#ifdef STACK_REGS
+  /* Handle STACK_REGS conservatively, since the df-framework does not
+     provide accurate information for them.  */
+
+  for (i = FIRST_STACK_REG; i <= LAST_STACK_REG; i++)
+    SET_HARD_REG_BIT (function_used_regs, i);
+#endif
+
+  /* The information we have gathered is only interesting if it exposes a
+     register from the call_used_regs that is not used in this function.  */
+  if (hard_reg_set_subset_p (call_used_reg_set, function_used_regs))
+    return;
+
+  node = cgraph_rtl_info (current_function_decl);
+  gcc_assert (node != NULL);
+
+  COPY_HARD_REG_SET (node->function_used_regs, function_used_regs);
+  node->function_used_regs_valid = 1;
+}
+
+/* Get the declaration of the function called by INSN.  */
+
+static tree
+get_call_fndecl (rtx insn)
+{
+  rtx note, datum;
+
+  note = find_reg_note (insn, REG_CALL_DECL, NULL_RTX);
+  if (note == NULL_RTX)
+    return NULL_TREE;
+
+  datum = XEXP (note, 0);
+  if (datum != NULL_RTX)
+    return SYMBOL_REF_DECL (datum);
+
+  return NULL_TREE;
+}
+
+/* Return the cgraph_rtl_info of the function called by INSN.  Returns NULL for
+   call targets that can be overwritten.  */
+
+static struct cgraph_rtl_info *
+get_call_cgraph_rtl_info (rtx insn)
+{
+  tree fndecl;
+
+  if (insn == NULL_RTX)
+    return NULL;
+
+  fndecl = get_call_fndecl (insn);
+  if (fndecl == NULL_TREE
+      || !decl_binds_to_current_def_p (fndecl))
+    return NULL;
+
+  return cgraph_rtl_info (fndecl);
+}
+
+/* Find hard registers used by function call instruction INSN, and return them
+   in REG_SET.  Return DEFAULT_SET in REG_SET if not found.  */
+
+bool
+get_call_reg_set_usage (rtx insn, HARD_REG_SET *reg_set,
+			HARD_REG_SET default_set)
+{
+  if (flag_use_caller_save)
+    {
+      struct cgraph_rtl_info *node = get_call_cgraph_rtl_info (insn);
+      if (node != NULL
+	  && node->function_used_regs_valid)
+	{
+	  COPY_HARD_REG_SET (*reg_set, node->function_used_regs);
+	  AND_HARD_REG_SET (*reg_set, default_set);
+	  return true;
+	}
+    }
+
+  COPY_HARD_REG_SET (*reg_set, default_set);
+  return false;
 }

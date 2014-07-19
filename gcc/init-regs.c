@@ -68,14 +68,12 @@ initialize_uninitialized_regs (void)
 
       FOR_BB_INSNS (bb, insn)
 	{
-	  unsigned int uid = INSN_UID (insn);
-	  df_ref *use_rec;
+	  df_ref use;
 	  if (!NONDEBUG_INSN_P (insn))
 	    continue;
 
-	  for (use_rec = DF_INSN_UID_USES (uid); *use_rec; use_rec++)
+	  FOR_EACH_INSN_USE (use, insn)
 	    {
-	      df_ref use = *use_rec;
 	      unsigned int regno = DF_REF_REGNO (use);
 
 	      /* Only do this for the pseudos.  */
@@ -109,7 +107,8 @@ initialize_uninitialized_regs (void)
 		  if (dump_file)
 		    fprintf (dump_file,
 			     "adding initialization in %s of reg %d at in block %d for insn %d.\n",
-			     current_function_name (), regno, bb->index, uid);
+			     current_function_name (), regno, bb->index,
+			     INSN_UID (insn));
 		}
 	    }
 	}
@@ -125,19 +124,6 @@ initialize_uninitialized_regs (void)
   BITMAP_FREE (already_genned);
 }
 
-static bool
-gate_initialize_regs (void)
-{
-  return optimize > 0;
-}
-
-static unsigned int
-rest_of_handle_initialize_regs (void)
-{
-  initialize_uninitialized_regs ();
-  return 0;
-}
-
 namespace {
 
 const pass_data pass_data_initialize_regs =
@@ -145,8 +131,6 @@ const pass_data pass_data_initialize_regs =
   RTL_PASS, /* type */
   "init-regs", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_NONE, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
@@ -163,8 +147,12 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_initialize_regs (); }
-  unsigned int execute () { return rest_of_handle_initialize_regs (); }
+  virtual bool gate (function *) { return optimize > 0; }
+  virtual unsigned int execute (function *)
+    {
+      initialize_uninitialized_regs ();
+      return 0;
+    }
 
 }; // class pass_initialize_regs
 

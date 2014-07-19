@@ -12,7 +12,10 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 )
@@ -33,7 +36,8 @@ type Cmd struct {
 	// Path is the path of the command to run.
 	//
 	// This is the only field that must be set to a non-zero
-	// value.
+	// value. If Path is relative, it is evaluated relative
+	// to Dir.
 	Path string
 
 	// Args holds command line arguments, including the command as Args[0].
@@ -84,7 +88,7 @@ type Cmd struct {
 	// available after a call to Wait or Run.
 	ProcessState *os.ProcessState
 
-	err             error // last error (from LookPath, stdin, stdout, stderr)
+	lookPathErr     error // LookPath error, if any.
 	finished        bool  // when Wait was called
 	childFiles      []*os.File
 	closeAfterStart []io.Closer
@@ -96,8 +100,7 @@ type Cmd struct {
 // Command returns the Cmd struct to execute the named program with
 // the given arguments.
 //
-// It sets Path and Args in the returned structure and zeroes the
-// other fields.
+// It sets only the Path and Args in the returned structure.
 //
 // If name contains no path separators, Command uses LookPath to
 // resolve the path to a complete name if possible. Otherwise it uses
@@ -107,19 +110,22 @@ type Cmd struct {
 // followed by the elements of arg, so arg should not include the
 // command name itself. For example, Command("echo", "hello")
 func Command(name string, arg ...string) *Cmd {
-	aname, err := LookPath(name)
-	if err != nil {
-		aname = name
-	}
-	return &Cmd{
-		Path: aname,
+	cmd := &Cmd{
+		Path: name,
 		Args: append([]string{name}, arg...),
-		err:  err,
 	}
+	if filepath.Base(name) == name {
+		if lp, err := LookPath(name); err != nil {
+			cmd.lookPathErr = err
+		} else {
+			cmd.Path = lp
+		}
+	}
+	return cmd
 }
 
 // interfaceEqual protects against panics from doing equality tests on
-// two interfaces with non-comparable underlying types
+// two interfaces with non-comparable underlying types.
 func interfaceEqual(a, b interface{}) bool {
 	defer func() {
 		recover()
@@ -233,12 +239,50 @@ func (c *Cmd) Run() error {
 	return c.Wait()
 }
 
+// lookExtensions finds windows executable by its dir and path.
+// It uses LookPath to try appropriate extensions.
+// lookExtensions does not search PATH, instead it converts `prog` into `.\prog`.
+func lookExtensions(path, dir string) (string, error) {
+	if filepath.Base(path) == path {
+		path = filepath.Join(".", path)
+	}
+	if dir == "" {
+		return LookPath(path)
+	}
+	if filepath.VolumeName(path) != "" {
+		return LookPath(path)
+	}
+	if len(path) > 1 && os.IsPathSeparator(path[0]) {
+		return LookPath(path)
+	}
+	dirandpath := filepath.Join(dir, path)
+	// We assume that LookPath will only add file extension.
+	lp, err := LookPath(dirandpath)
+	if err != nil {
+		return "", err
+	}
+	ext := strings.TrimPrefix(lp, dirandpath)
+	return path + ext, nil
+}
+
 // Start starts the specified command but does not wait for it to complete.
+//
+// The Wait method will return the exit code and release associated resources
+// once the command exits.
 func (c *Cmd) Start() error {
-	if c.err != nil {
+	if c.lookPathErr != nil {
 		c.closeDescriptors(c.closeAfterStart)
 		c.closeDescriptors(c.closeAfterWait)
-		return c.err
+		return c.lookPathErr
+	}
+	if runtime.GOOS == "windows" {
+		lp, err := lookExtensions(c.Path, c.Dir)
+		if err != nil {
+			c.closeDescriptors(c.closeAfterStart)
+			c.closeDescriptors(c.closeAfterWait)
+			return err
+		}
+		c.Path = lp
 	}
 	if c.Process != nil {
 		return errors.New("exec: already started")
@@ -300,6 +344,8 @@ func (e *ExitError) Error() string {
 // If the command fails to run or doesn't complete successfully, the
 // error is of type *ExitError. Other error types may be
 // returned for I/O problems.
+//
+// Wait releases any resources associated with the Cmd.
 func (c *Cmd) Wait() error {
 	if c.Process == nil {
 		return errors.New("exec: not started")
@@ -383,15 +429,17 @@ func (c *Cmd) StdinPipe() (io.WriteCloser, error) {
 type closeOnce struct {
 	*os.File
 
-	close    sync.Once
-	closeErr error
+	once sync.Once
+	err  error
 }
 
 func (c *closeOnce) Close() error {
-	c.close.Do(func() {
-		c.closeErr = c.File.Close()
-	})
-	return c.closeErr
+	c.once.Do(c.close)
+	return c.err
+}
+
+func (c *closeOnce) close() {
+	c.err = c.File.Close()
 }
 
 // StdoutPipe returns a pipe that will be connected to the command's

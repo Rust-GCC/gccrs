@@ -29,12 +29,17 @@
 #include "stor-layout.h"
 #include "varasm.h"
 #include "tree-iterator.h"
+#include "cgraph.h"
+#include "convert.h"
 #include "basic-block.h"
 #include "gimple-expr.h"
+#include "gimplify.h"
+#include "langhooks.h"
 #include "toplev.h"
 #include "output.h"
 #include "real.h"
 #include "realmpfr.h"
+#include "builtins.h"
 
 #include "go-c.h"
 
@@ -128,6 +133,8 @@ class Blabel : public Gcc_tree
 class Gcc_backend : public Backend
 {
  public:
+  Gcc_backend();
+
   // Types.
 
   Btype*
@@ -220,10 +227,18 @@ class Gcc_backend : public Backend
   { return this->make_expression(error_mark_node); }
 
   Bexpression*
+  nil_pointer_expression()
+  { return this->make_expression(null_pointer_node); }
+
+  Bexpression*
   var_expression(Bvariable* var, Location);
 
   Bexpression*
-  indirect_expression(Bexpression* expr, bool known_valid, Location);
+  indirect_expression(Btype*, Bexpression* expr, bool known_valid, Location);
+
+  Bexpression*
+  named_constant_expression(Btype* btype, const std::string& name,
+			    Bexpression* val, Location);
 
   Bexpression*
   integer_constant_expression(Btype* btype, mpz_t val);
@@ -233,6 +248,21 @@ class Gcc_backend : public Backend
 
   Bexpression*
   complex_constant_expression(Btype* btype, mpfr_t real, mpfr_t imag);
+
+  Bexpression*
+  string_constant_expression(const std::string& val);
+
+  Bexpression*
+  boolean_constant_expression(bool val);
+
+  Bexpression*
+  real_part_expression(Bexpression* bcomplex, Location);
+
+  Bexpression*
+  imag_part_expression(Bexpression* bcomplex, Location);
+
+  Bexpression*
+  complex_expression(Bexpression* breal, Bexpression* bimag, Location);
 
   Bexpression*
   convert_expression(Btype* type, Bexpression* expr, Location);
@@ -259,6 +289,23 @@ class Gcc_backend : public Backend
   Bexpression*
   binary_expression(Operator, Bexpression*, Bexpression*, Location);
 
+  Bexpression*
+  constructor_expression(Btype*, const std::vector<Bexpression*>&, Location);
+
+  Bexpression*
+  array_constructor_expression(Btype*, const std::vector<unsigned long>&,
+                               const std::vector<Bexpression*>&, Location);
+
+  Bexpression*
+  pointer_offset_expression(Bexpression* base, Bexpression* offset, Location);
+
+  Bexpression*
+  array_index_expression(Bexpression* array, Bexpression* index, Location);
+
+  Bexpression*
+  call_expression(Bexpression* fn, const std::vector<Bexpression*>& args,
+                  Location);
+
   // Statements.
 
   Bstatement*
@@ -283,7 +330,7 @@ class Gcc_backend : public Backend
 	       Location);
 
   Bstatement*
-  switch_statement(Bexpression* value,
+  switch_statement(Bfunction* function, Bexpression* value,
 		   const std::vector<std::vector<Bexpression*> >& cases,
 		   const std::vector<Bstatement*>& statements,
 		   Location);
@@ -293,6 +340,10 @@ class Gcc_backend : public Backend
 
   Bstatement*
   statement_list(const std::vector<Bstatement*>&);
+
+  Bstatement*
+  exception_handler_statement(Bstatement* bstat, Bstatement* except_stmt,
+                              Bstatement* finally_stmt, Location);
 
   // Blocks.
 
@@ -338,6 +389,10 @@ class Gcc_backend : public Backend
 		     Location, Bstatement**);
 
   Bvariable*
+  implicit_variable(const std::string&, Btype*, Bexpression*, bool, bool,
+		    size_t);
+
+  Bvariable*
   immutable_struct(const std::string&, bool, bool, Btype*, Location);
 
   void
@@ -372,6 +427,25 @@ class Gcc_backend : public Backend
            bool is_visible, bool is_declaration, bool is_inlinable,
            bool disable_split_stack, bool in_unique_section, Location);
 
+  Bstatement*
+  function_defer_statement(Bfunction* function, Bexpression* undefer,
+                           Bexpression* defer, Location);
+
+  bool
+  function_set_parameters(Bfunction* function, const std::vector<Bvariable*>&);
+
+  bool
+  function_set_body(Bfunction* function, Bstatement* code_stmt);
+
+  Bfunction*
+  lookup_builtin(const std::string&);
+
+  void
+  write_global_definitions(const std::vector<Btype*>&,
+                           const std::vector<Bexpression*>&,
+                           const std::vector<Bfunction*>&,
+                           const std::vector<Bvariable*>&);
+
  private:
   // Make a Bexpression from a tree.
   Bexpression*
@@ -400,6 +474,14 @@ class Gcc_backend : public Backend
 
   tree
   non_zero_size_type(tree);
+
+private:
+  void
+  define_builtin(built_in_function bcode, const char* name, const char* libname,
+		 tree fntype, bool const_p);
+
+  // A mapping of the GCC built-ins exposed to GCCGo.
+  std::map<std::string, Bfunction*> builtin_functions_;
 };
 
 // A helper function.
@@ -408,6 +490,172 @@ static inline tree
 get_identifier_from_string(const std::string& str)
 {
   return get_identifier_with_length(str.data(), str.length());
+}
+
+// Define the built-in functions that are exposed to GCCGo.
+
+Gcc_backend::Gcc_backend()
+{
+  /* We need to define the fetch_and_add functions, since we use them
+     for ++ and --.  */
+  tree t = this->integer_type(BITS_PER_UNIT, 1)->get_tree();
+  tree p = build_pointer_type(build_qualified_type(t, TYPE_QUAL_VOLATILE));
+  this->define_builtin(BUILT_IN_SYNC_ADD_AND_FETCH_1, "__sync_fetch_and_add_1",
+		       NULL, build_function_type_list(t, p, t, NULL_TREE),
+		       false);
+
+  t = this->integer_type(BITS_PER_UNIT * 2, 1)->get_tree();
+  p = build_pointer_type(build_qualified_type(t, TYPE_QUAL_VOLATILE));
+  this->define_builtin(BUILT_IN_SYNC_ADD_AND_FETCH_2, "__sync_fetch_and_add_2",
+		       NULL, build_function_type_list(t, p, t, NULL_TREE),
+		       false);
+
+  t = this->integer_type(BITS_PER_UNIT * 4, 1)->get_tree();
+  p = build_pointer_type(build_qualified_type(t, TYPE_QUAL_VOLATILE));
+  this->define_builtin(BUILT_IN_SYNC_ADD_AND_FETCH_4, "__sync_fetch_and_add_4",
+		       NULL, build_function_type_list(t, p, t, NULL_TREE),
+		       false);
+
+  t = this->integer_type(BITS_PER_UNIT * 8, 1)->get_tree();
+  p = build_pointer_type(build_qualified_type(t, TYPE_QUAL_VOLATILE));
+  this->define_builtin(BUILT_IN_SYNC_ADD_AND_FETCH_8, "__sync_fetch_and_add_8",
+		       NULL, build_function_type_list(t, p, t, NULL_TREE),
+		       false);
+
+  // We use __builtin_expect for magic import functions.
+  this->define_builtin(BUILT_IN_EXPECT, "__builtin_expect", NULL,
+		       build_function_type_list(long_integer_type_node,
+						long_integer_type_node,
+						long_integer_type_node,
+						NULL_TREE),
+		       true);
+
+  // We use __builtin_memcmp for struct comparisons.
+  this->define_builtin(BUILT_IN_MEMCMP, "__builtin_memcmp", "memcmp",
+		       build_function_type_list(integer_type_node,
+						const_ptr_type_node,
+						const_ptr_type_node,
+						size_type_node,
+						NULL_TREE),
+		       false);
+
+  // We provide some functions for the math library.
+  tree math_function_type = build_function_type_list(double_type_node,
+						     double_type_node,
+						     NULL_TREE);
+  tree math_function_type_long =
+    build_function_type_list(long_double_type_node, long_double_type_node,
+			     long_double_type_node, NULL_TREE);
+  tree math_function_type_two = build_function_type_list(double_type_node,
+							 double_type_node,
+							 double_type_node,
+							 NULL_TREE);
+  tree math_function_type_long_two =
+    build_function_type_list(long_double_type_node, long_double_type_node,
+			     long_double_type_node, NULL_TREE);
+  this->define_builtin(BUILT_IN_ACOS, "__builtin_acos", "acos",
+		       math_function_type, true);
+  this->define_builtin(BUILT_IN_ACOSL, "__builtin_acosl", "acosl",
+		       math_function_type_long, true);
+  this->define_builtin(BUILT_IN_ASIN, "__builtin_asin", "asin",
+		       math_function_type, true);
+  this->define_builtin(BUILT_IN_ASINL, "__builtin_asinl", "asinl",
+		       math_function_type_long, true);
+  this->define_builtin(BUILT_IN_ATAN, "__builtin_atan", "atan",
+		       math_function_type, true);
+  this->define_builtin(BUILT_IN_ATANL, "__builtin_atanl", "atanl",
+		       math_function_type_long, true);
+  this->define_builtin(BUILT_IN_ATAN2, "__builtin_atan2", "atan2",
+		       math_function_type_two, true);
+  this->define_builtin(BUILT_IN_ATAN2L, "__builtin_atan2l", "atan2l",
+		       math_function_type_long_two, true);
+  this->define_builtin(BUILT_IN_CEIL, "__builtin_ceil", "ceil",
+		       math_function_type, true);
+  this->define_builtin(BUILT_IN_CEILL, "__builtin_ceill", "ceill",
+		       math_function_type_long, true);
+  this->define_builtin(BUILT_IN_COS, "__builtin_cos", "cos",
+		       math_function_type, true);
+  this->define_builtin(BUILT_IN_COSL, "__builtin_cosl", "cosl",
+		       math_function_type_long, true);
+  this->define_builtin(BUILT_IN_EXP, "__builtin_exp", "exp",
+		       math_function_type, true);
+  this->define_builtin(BUILT_IN_EXPL, "__builtin_expl", "expl",
+		       math_function_type_long, true);
+  this->define_builtin(BUILT_IN_EXPM1, "__builtin_expm1", "expm1",
+		       math_function_type, true);
+  this->define_builtin(BUILT_IN_EXPM1L, "__builtin_expm1l", "expm1l",
+		       math_function_type_long, true);
+  this->define_builtin(BUILT_IN_FABS, "__builtin_fabs", "fabs",
+		       math_function_type, true);
+  this->define_builtin(BUILT_IN_FABSL, "__builtin_fabsl", "fabsl",
+		       math_function_type_long, true);
+  this->define_builtin(BUILT_IN_FLOOR, "__builtin_floor", "floor",
+		       math_function_type, true);
+  this->define_builtin(BUILT_IN_FLOORL, "__builtin_floorl", "floorl",
+		       math_function_type_long, true);
+  this->define_builtin(BUILT_IN_FMOD, "__builtin_fmod", "fmod",
+		       math_function_type_two, true);
+  this->define_builtin(BUILT_IN_FMODL, "__builtin_fmodl", "fmodl",
+		       math_function_type_long_two, true);
+  this->define_builtin(BUILT_IN_LDEXP, "__builtin_ldexp", "ldexp",
+		       build_function_type_list(double_type_node,
+						double_type_node,
+						integer_type_node,
+						NULL_TREE),
+		       true);
+  this->define_builtin(BUILT_IN_LDEXPL, "__builtin_ldexpl", "ldexpl",
+		       build_function_type_list(long_double_type_node,
+						long_double_type_node,
+						integer_type_node,
+						NULL_TREE),
+		       true);
+  this->define_builtin(BUILT_IN_LOG, "__builtin_log", "log",
+		       math_function_type, true);
+  this->define_builtin(BUILT_IN_LOGL, "__builtin_logl", "logl",
+		       math_function_type_long, true);
+  this->define_builtin(BUILT_IN_LOG1P, "__builtin_log1p", "log1p",
+		       math_function_type, true);
+  this->define_builtin(BUILT_IN_LOG1PL, "__builtin_log1pl", "log1pl",
+		       math_function_type_long, true);
+  this->define_builtin(BUILT_IN_LOG10, "__builtin_log10", "log10",
+		       math_function_type, true);
+  this->define_builtin(BUILT_IN_LOG10L, "__builtin_log10l", "log10l",
+		       math_function_type_long, true);
+  this->define_builtin(BUILT_IN_LOG2, "__builtin_log2", "log2",
+		       math_function_type, true);
+  this->define_builtin(BUILT_IN_LOG2L, "__builtin_log2l", "log2l",
+		       math_function_type_long, true);
+  this->define_builtin(BUILT_IN_SIN, "__builtin_sin", "sin",
+		       math_function_type, true);
+  this->define_builtin(BUILT_IN_SINL, "__builtin_sinl", "sinl",
+		       math_function_type_long, true);
+  this->define_builtin(BUILT_IN_SQRT, "__builtin_sqrt", "sqrt",
+		       math_function_type, true);
+  this->define_builtin(BUILT_IN_SQRTL, "__builtin_sqrtl", "sqrtl",
+		       math_function_type_long, true);
+  this->define_builtin(BUILT_IN_TAN, "__builtin_tan", "tan",
+		       math_function_type, true);
+  this->define_builtin(BUILT_IN_TANL, "__builtin_tanl", "tanl",
+		       math_function_type_long, true);
+  this->define_builtin(BUILT_IN_TRUNC, "__builtin_trunc", "trunc",
+		       math_function_type, true);
+  this->define_builtin(BUILT_IN_TRUNCL, "__builtin_truncl", "truncl",
+		       math_function_type_long, true);
+
+  // We use __builtin_return_address in the thunk we build for
+  // functions which call recover.
+  this->define_builtin(BUILT_IN_RETURN_ADDRESS, "__builtin_return_address",
+		       NULL,
+		       build_function_type_list(ptr_type_node,
+						unsigned_type_node,
+						NULL_TREE),
+		       false);
+
+  // The compiler uses __builtin_trap for some exception handling
+  // cases.
+  this->define_builtin(BUILT_IN_TRAP, "__builtin_trap", NULL,
+		       build_function_type(void_type_node, void_list_node),
+		       false);
 }
 
 // Get an unnamed integer type.
@@ -828,8 +1076,7 @@ Gcc_backend::type_size(Btype* btype)
   if (t == error_mark_node)
     return 1;
   t = TYPE_SIZE_UNIT(t);
-  gcc_assert(TREE_CODE(t) == INTEGER_CST);
-  gcc_assert(TREE_INT_CST_HIGH(t) == 0);
+  gcc_assert(tree_fits_uhwi_p (t));
   unsigned HOST_WIDE_INT val_wide = TREE_INT_CST_LOW(t);
   size_t ret = static_cast<size_t>(val_wide);
   gcc_assert(ret == val_wide);
@@ -891,7 +1138,7 @@ Gcc_backend::zero_expression(Btype* btype)
     ret = error_mark_node;
   else
     ret = build_zero_cst(t);
-  return tree_to_expr(ret);
+  return this->make_expression(ret);
 }
 
 // An expression that references a variable.
@@ -902,20 +1149,55 @@ Gcc_backend::var_expression(Bvariable* var, Location)
   tree ret = var->get_tree();
   if (ret == error_mark_node)
     return this->error_expression();
-  return tree_to_expr(ret);
+  return this->make_expression(ret);
 }
 
 // An expression that indirectly references an expression.
 
 Bexpression*
-Gcc_backend::indirect_expression(Bexpression* expr, bool known_valid,
-                                 Location location)
+Gcc_backend::indirect_expression(Btype* btype, Bexpression* expr,
+				 bool known_valid, Location location)
 {
+  tree expr_tree = expr->get_tree();
+  tree type_tree = btype->get_tree();
+  if (expr_tree == error_mark_node || type_tree == error_mark_node)
+    return this->error_expression();
+
+  // If the type of EXPR is a recursive pointer type, then we
+  // need to insert a cast before indirecting.
+  tree target_type_tree = TREE_TYPE(TREE_TYPE(expr_tree));
+  if (VOID_TYPE_P(target_type_tree))
+    expr_tree = fold_convert_loc(location.gcc_location(),
+				 build_pointer_type(type_tree), expr_tree);
+
   tree ret = build_fold_indirect_ref_loc(location.gcc_location(),
-                                         expr->get_tree());
+                                         expr_tree);
   if (known_valid)
     TREE_THIS_NOTRAP(ret) = 1;
-  return tree_to_expr(ret);
+  return this->make_expression(ret);
+}
+
+// Return an expression that declares a constant named NAME with the
+// constant value VAL in BTYPE.
+
+Bexpression*
+Gcc_backend::named_constant_expression(Btype* btype, const std::string& name,
+				       Bexpression* val, Location location)
+{
+  tree type_tree = btype->get_tree();
+  tree const_val = val->get_tree();
+  if (type_tree == error_mark_node || const_val == error_mark_node)
+    return this->error_expression();
+
+  tree name_tree = get_identifier_from_string(name);
+  tree decl = build_decl(location.gcc_location(), CONST_DECL, name_tree,
+			 type_tree);
+  DECL_INITIAL(decl) = const_val;
+  TREE_CONSTANT(decl) = 1;
+  TREE_READONLY(decl) = 1;
+
+  go_preserve_from_gc(decl);
+  return this->make_expression(decl);
 }
 
 // Return a typed value as a constant integer.
@@ -928,7 +1210,7 @@ Gcc_backend::integer_constant_expression(Btype* btype, mpz_t val)
     return this->error_expression();
 
   tree ret = double_int_to_tree(t, mpz_get_double_int(t, val, true));
-  return tree_to_expr(ret);
+  return this->make_expression(ret);
 }
 
 // Return a typed value as a constant floating-point number.
@@ -946,7 +1228,7 @@ Gcc_backend::float_constant_expression(Btype* btype, mpfr_t val)
   REAL_VALUE_TYPE r2;
   real_convert(&r2, TYPE_MODE(t), &r1);
   ret = build_real(t, r2);
-  return tree_to_expr(ret);
+  return this->make_expression(ret);
 }
 
 // Return a typed real and imaginary value as a constant complex number.
@@ -971,21 +1253,120 @@ Gcc_backend::complex_constant_expression(Btype* btype, mpfr_t real, mpfr_t imag)
 
   ret = build_complex(t, build_real(TREE_TYPE(t), r2),
                       build_real(TREE_TYPE(t), r4));
-  return tree_to_expr(ret);
+  return this->make_expression(ret);
+}
+
+// Make a constant string expression.
+
+Bexpression*
+Gcc_backend::string_constant_expression(const std::string& val)
+{
+  tree index_type = build_index_type(size_int(val.length()));
+  tree const_char_type = build_qualified_type(unsigned_char_type_node,
+					      TYPE_QUAL_CONST);
+  tree string_type = build_array_type(const_char_type, index_type);
+  string_type = build_variant_type_copy(string_type);
+  TYPE_STRING_FLAG(string_type) = 1;
+  tree string_val = build_string(val.length(), val.data());
+  TREE_TYPE(string_val) = string_type;
+
+  return this->make_expression(string_val);
+}
+
+// Make a constant boolean expression.
+
+Bexpression*
+Gcc_backend::boolean_constant_expression(bool val)
+{
+  tree bool_cst = val ? boolean_true_node : boolean_false_node;
+  return this->make_expression(bool_cst);
+}
+
+// Return the real part of a complex expression.
+
+Bexpression*
+Gcc_backend::real_part_expression(Bexpression* bcomplex, Location location)
+{
+  tree complex_tree = bcomplex->get_tree();
+  if (complex_tree == error_mark_node)
+    return this->error_expression();
+  gcc_assert(COMPLEX_FLOAT_TYPE_P(TREE_TYPE(complex_tree)));
+  tree ret = fold_build1_loc(location.gcc_location(), REALPART_EXPR,
+                             TREE_TYPE(TREE_TYPE(complex_tree)),
+                             complex_tree);
+  return this->make_expression(ret);
+}
+
+// Return the imaginary part of a complex expression.
+
+Bexpression*
+Gcc_backend::imag_part_expression(Bexpression* bcomplex, Location location)
+{
+  tree complex_tree = bcomplex->get_tree();
+  if (complex_tree == error_mark_node)
+    return this->error_expression();
+  gcc_assert(COMPLEX_FLOAT_TYPE_P(TREE_TYPE(complex_tree)));
+  tree ret = fold_build1_loc(location.gcc_location(), IMAGPART_EXPR,
+                             TREE_TYPE(TREE_TYPE(complex_tree)),
+                             complex_tree);
+  return this->make_expression(ret);
+}
+
+// Make a complex expression given its real and imaginary parts.
+
+Bexpression*
+Gcc_backend::complex_expression(Bexpression* breal, Bexpression* bimag,
+                                Location location)
+{
+  tree real_tree = breal->get_tree();
+  tree imag_tree = bimag->get_tree();
+  if (real_tree == error_mark_node || imag_tree == error_mark_node)
+    return this->error_expression();
+  gcc_assert(TYPE_MAIN_VARIANT(TREE_TYPE(real_tree))
+            == TYPE_MAIN_VARIANT(TREE_TYPE(imag_tree)));
+  gcc_assert(SCALAR_FLOAT_TYPE_P(TREE_TYPE(real_tree)));
+  tree ret = fold_build2_loc(location.gcc_location(), COMPLEX_EXPR,
+                             build_complex_type(TREE_TYPE(real_tree)),
+                             real_tree, imag_tree);
+  return this->make_expression(ret);
 }
 
 // An expression that converts an expression to a different type.
 
 Bexpression*
-Gcc_backend::convert_expression(Btype* type, Bexpression* expr, Location)
+Gcc_backend::convert_expression(Btype* type, Bexpression* expr,
+				Location location)
 {
   tree type_tree = type->get_tree();
   tree expr_tree = expr->get_tree();
-  if (type_tree == error_mark_node || expr_tree == error_mark_node)
+  if (type_tree == error_mark_node
+      || expr_tree == error_mark_node
+      || TREE_TYPE(expr_tree) == error_mark_node)
     return this->error_expression();
 
-  tree ret = fold_convert(type_tree, expr_tree);
-  return tree_to_expr(ret);
+  tree ret;
+  if (this->type_size(type) == 0)
+    {
+      // Do not convert zero-sized types.
+      ret = expr_tree;
+    }
+  else if (TREE_CODE(type_tree) == INTEGER_TYPE)
+    ret = fold(convert_to_integer(type_tree, expr_tree));
+  else if (TREE_CODE(type_tree) == REAL_TYPE)
+    ret = fold(convert_to_real(type_tree, expr_tree));
+  else if (TREE_CODE(type_tree) == COMPLEX_TYPE)
+    ret = fold(convert_to_complex(type_tree, expr_tree));
+  else if (TREE_CODE(type_tree) == POINTER_TYPE
+           && TREE_CODE(TREE_TYPE(expr_tree)) == INTEGER_TYPE)
+    ret = fold(convert_to_pointer(type_tree, expr_tree));
+  else if (TREE_CODE(type_tree) == RECORD_TYPE
+           || TREE_CODE(type_tree) == ARRAY_TYPE)
+    ret = fold_build1_loc(location.gcc_location(), VIEW_CONVERT_EXPR,
+                          type_tree, expr_tree);
+  else
+    ret = fold_convert_loc(location.gcc_location(), type_tree, expr_tree);
+
+  return this->make_expression(ret);
 }
 
 // Get the address of a function.
@@ -1044,7 +1425,7 @@ Gcc_backend::struct_field_expression(Bexpression* bstruct, size_t index,
                              NULL_TREE);
   if (TREE_CONSTANT(struct_tree))
     TREE_CONSTANT(ret) = 1;
-  return tree_to_expr(ret);
+  return this->make_expression(ret);
 }
 
 // Return an expression that executes BSTAT before BEXPR.
@@ -1243,6 +1624,205 @@ Gcc_backend::binary_expression(Operator op, Bexpression* left,
   return this->make_expression(ret);
 }
 
+// Return an expression that constructs BTYPE with VALS.
+
+Bexpression*
+Gcc_backend::constructor_expression(Btype* btype,
+                                    const std::vector<Bexpression*>& vals,
+                                    Location location)
+{
+  tree type_tree = btype->get_tree();
+  if (type_tree == error_mark_node)
+    return this->error_expression();
+
+  vec<constructor_elt, va_gc> *init;
+  vec_alloc(init, vals.size());
+
+  bool is_constant = true;
+  tree field = TYPE_FIELDS(type_tree);
+  for (std::vector<Bexpression*>::const_iterator p = vals.begin();
+       p != vals.end();
+       ++p, field = DECL_CHAIN(field))
+    {
+      gcc_assert(field != NULL_TREE);
+      tree val = (*p)->get_tree();
+      if (TREE_TYPE(field) == error_mark_node
+          || val == error_mark_node
+          || TREE_TYPE(val) == error_mark_node)
+        return this->error_expression();
+
+      constructor_elt empty = {NULL, NULL};
+      constructor_elt* elt = init->quick_push(empty);
+      elt->index = field;
+      elt->value = fold_convert_loc(location.gcc_location(), TREE_TYPE(field),
+                                    val);
+      if (!TREE_CONSTANT(elt->value))
+	is_constant = false;
+    }
+  gcc_assert(field == NULL_TREE);
+  tree ret = build_constructor(type_tree, init);
+  if (is_constant)
+    TREE_CONSTANT(ret) = 1;
+
+  return this->make_expression(ret);
+}
+
+Bexpression*
+Gcc_backend::array_constructor_expression(
+    Btype* array_btype, const std::vector<unsigned long>& indexes,
+    const std::vector<Bexpression*>& vals, Location)
+{
+  tree type_tree = array_btype->get_tree();
+  if (type_tree == error_mark_node)
+    return this->error_expression();
+
+  gcc_assert(indexes.size() == vals.size());
+  vec<constructor_elt, va_gc> *init;
+  vec_alloc(init, vals.size());
+
+  bool is_constant = true;
+  for (size_t i = 0; i < vals.size(); ++i)
+    {
+      tree index = size_int(indexes[i]);
+      tree val = (vals[i])->get_tree();
+
+      if (index == error_mark_node
+          || val == error_mark_node)
+        return this->error_expression();
+
+      if (!TREE_CONSTANT(val))
+        is_constant = false;
+
+      constructor_elt empty = {NULL, NULL};
+      constructor_elt* elt = init->quick_push(empty);
+      elt->index = index;
+      elt->value = val;
+    }
+
+  tree ret = build_constructor(type_tree, init);
+  if (is_constant)
+    TREE_CONSTANT(ret) = 1;
+  return this->make_expression(ret);
+}
+
+// Return an expression for the address of BASE[INDEX].
+
+Bexpression*
+Gcc_backend::pointer_offset_expression(Bexpression* base, Bexpression* index,
+                                       Location location)
+{
+  tree base_tree = base->get_tree();
+  tree index_tree = index->get_tree();
+  tree element_type_tree = TREE_TYPE(TREE_TYPE(base_tree));
+  if (base_tree == error_mark_node
+      || TREE_TYPE(base_tree) == error_mark_node
+      || index_tree == error_mark_node
+      || element_type_tree == error_mark_node)
+    return this->error_expression();
+
+  tree element_size = TYPE_SIZE_UNIT(element_type_tree);
+  index_tree = fold_convert_loc(location.gcc_location(), sizetype, index_tree);
+  tree offset = fold_build2_loc(location.gcc_location(), MULT_EXPR, sizetype,
+                                index_tree, element_size);
+  tree ptr = fold_build2_loc(location.gcc_location(), POINTER_PLUS_EXPR,
+                             TREE_TYPE(base_tree), base_tree, offset);
+  return this->make_expression(ptr);
+}
+
+// Return an expression representing ARRAY[INDEX]
+
+Bexpression*
+Gcc_backend::array_index_expression(Bexpression* array, Bexpression* index,
+                                    Location location)
+{
+  tree array_tree = array->get_tree();
+  tree index_tree = index->get_tree();
+  if (array_tree == error_mark_node
+      || TREE_TYPE(array_tree) == error_mark_node
+      || index_tree == error_mark_node)
+    return this->error_expression();
+
+  tree ret = build4_loc(location.gcc_location(), ARRAY_REF,
+			TREE_TYPE(TREE_TYPE(array_tree)), array_tree,
+                        index_tree, NULL_TREE, NULL_TREE);
+  return this->make_expression(ret);
+}
+
+// Create an expression for a call to FN_EXPR with FN_ARGS.
+Bexpression*
+Gcc_backend::call_expression(Bexpression* fn_expr,
+                             const std::vector<Bexpression*>& fn_args,
+                             Location location)
+{
+  tree fn = fn_expr->get_tree();
+  if (fn == error_mark_node || TREE_TYPE(fn) == error_mark_node)
+    return this->error_expression();
+
+  gcc_assert(FUNCTION_POINTER_TYPE_P(TREE_TYPE(fn)));
+  tree rettype = TREE_TYPE(TREE_TYPE(TREE_TYPE(fn)));
+
+  size_t nargs = fn_args.size();
+  tree* args = nargs == 0 ? NULL : new tree[nargs];
+  for (size_t i = 0; i < nargs; ++i)
+    {
+      args[i] = fn_args.at(i)->get_tree();
+      if (args[i] == error_mark_node)
+        return this->error_expression();
+    }
+
+  tree fndecl = fn;
+  if (TREE_CODE(fndecl) == ADDR_EXPR)
+    fndecl = TREE_OPERAND(fndecl, 0);
+
+  // This is to support builtin math functions when using 80387 math.
+  tree excess_type = NULL_TREE;
+  if (optimize
+      && TREE_CODE(fndecl) == FUNCTION_DECL
+      && DECL_IS_BUILTIN(fndecl)
+      && DECL_BUILT_IN_CLASS(fndecl) == BUILT_IN_NORMAL
+      && nargs > 0
+      && ((SCALAR_FLOAT_TYPE_P(rettype)
+	   && SCALAR_FLOAT_TYPE_P(TREE_TYPE(args[0])))
+	  || (COMPLEX_FLOAT_TYPE_P(rettype)
+	      && COMPLEX_FLOAT_TYPE_P(TREE_TYPE(args[0])))))
+    {
+      excess_type = excess_precision_type(TREE_TYPE(args[0]));
+      if (excess_type != NULL_TREE)
+	{
+	  tree excess_fndecl = mathfn_built_in(excess_type,
+					       DECL_FUNCTION_CODE(fndecl));
+	  if (excess_fndecl == NULL_TREE)
+	    excess_type = NULL_TREE;
+	  else
+	    {
+	      fn = build_fold_addr_expr_loc(location.gcc_location(),
+                                            excess_fndecl);
+	      for (size_t i = 0; i < nargs; ++i)
+		{
+		  if (SCALAR_FLOAT_TYPE_P(TREE_TYPE(args[i]))
+		      || COMPLEX_FLOAT_TYPE_P(TREE_TYPE(args[i])))
+		    args[i] = ::convert(excess_type, args[i]);
+		}
+	    }
+	}
+    }
+
+  tree ret =
+      build_call_array_loc(location.gcc_location(),
+                           excess_type != NULL_TREE ? excess_type : rettype,
+                           fn, nargs, args);
+
+  if (excess_type != NULL_TREE)
+    {
+      // Calling convert here can undo our excess precision change.
+      // That may or may not be a bug in convert_to_real.
+      ret = build1_loc(location.gcc_location(), NOP_EXPR, rettype, ret);
+    }
+
+  delete[] args;
+  return this->make_expression(ret);
+}
+
 // An expression as a statement.
 
 Bstatement*
@@ -1349,6 +1929,7 @@ Gcc_backend::return_statement(Bfunction* bfunction,
   tree result = DECL_RESULT(fntree);
   if (result == error_mark_node)
     return this->error_statement();
+
   tree ret;
   if (vals.empty())
     ret = fold_build1_loc(location.gcc_location(), RETURN_EXPR, void_type_node,
@@ -1372,7 +1953,14 @@ Gcc_backend::return_statement(Bfunction* bfunction,
       // statement.
       tree stmt_list = NULL_TREE;
       tree rettype = TREE_TYPE(result);
+
+      if (DECL_STRUCT_FUNCTION(fntree) == NULL)
+	push_struct_function(fntree);
+      else
+	push_cfun(DECL_STRUCT_FUNCTION(fntree));
       tree rettmp = create_tmp_var(rettype, "RESULT");
+      pop_cfun();
+
       tree field = TYPE_FIELDS(rettype);
       for (std::vector<Bexpression*>::const_iterator p = vals.begin();
 	   p != vals.end();
@@ -1402,6 +1990,40 @@ Gcc_backend::return_statement(Bfunction* bfunction,
   return this->make_statement(ret);
 }
 
+// Create a statement that attempts to execute BSTAT and calls EXCEPT_STMT if an
+// error occurs.  EXCEPT_STMT may be NULL.  FINALLY_STMT may be NULL and if not
+// NULL, it will always be executed.  This is used for handling defers in Go
+// functions.  In C++, the resulting code is of this form:
+//   try { BSTAT; } catch { EXCEPT_STMT; } finally { FINALLY_STMT; }
+
+Bstatement*
+Gcc_backend::exception_handler_statement(Bstatement* bstat,
+                                         Bstatement* except_stmt,
+                                         Bstatement* finally_stmt,
+                                         Location location)
+{
+  tree stat_tree = bstat->get_tree();
+  tree except_tree = except_stmt == NULL ? NULL_TREE : except_stmt->get_tree();
+  tree finally_tree = finally_stmt == NULL
+      ? NULL_TREE
+      : finally_stmt->get_tree();
+
+  if (stat_tree == error_mark_node
+      || except_tree == error_mark_node
+      || finally_tree == error_mark_node)
+    return this->error_statement();
+
+  if (except_tree != NULL_TREE)
+    stat_tree = build2_loc(location.gcc_location(), TRY_CATCH_EXPR,
+                           void_type_node, stat_tree,
+                           build2_loc(location.gcc_location(), CATCH_EXPR,
+                                      void_type_node, NULL, except_tree));
+  if (finally_tree != NULL_TREE)
+    stat_tree = build2_loc(location.gcc_location(), TRY_FINALLY_EXPR,
+                           void_type_node, stat_tree, finally_tree);
+  return this->make_statement(stat_tree);
+}
+
 // If.
 
 Bstatement*
@@ -1424,12 +2046,19 @@ Gcc_backend::if_statement(Bexpression* condition, Bblock* then_block,
 
 Bstatement*
 Gcc_backend::switch_statement(
+    Bfunction* function,
     Bexpression* value,
     const std::vector<std::vector<Bexpression*> >& cases,
     const std::vector<Bstatement*>& statements,
     Location switch_location)
 {
   gcc_assert(cases.size() == statements.size());
+
+  tree decl = function->get_tree();
+  if (DECL_STRUCT_FUNCTION(decl) == NULL)
+    push_struct_function(decl);
+  else
+    push_cfun(DECL_STRUCT_FUNCTION(decl));
 
   tree stmt_list = NULL_TREE;
   std::vector<std::vector<Bexpression*> >::const_iterator pc = cases.begin();
@@ -1470,6 +2099,7 @@ Gcc_backend::switch_statement(
 	  append_to_statement_list(t, &stmt_list);
 	}
     }
+  pop_cfun();
 
   tree tv = value->get_tree();
   if (tv == error_mark_node)
@@ -1528,13 +2158,7 @@ Gcc_backend::block(Bfunction* function, Bblock* enclosing,
   tree block_tree = make_node(BLOCK);
   if (enclosing == NULL)
     {
-      // FIXME: Permitting FUNCTION to be NULL is a temporary measure
-      // until we have a proper representation of the init function.
-      tree fndecl;
-      if (function == NULL)
-	fndecl = current_function_decl;
-      else
-	fndecl = function->get_tree();
+      tree fndecl = function->get_tree();
       gcc_assert(fndecl != NULL_TREE);
 
       // We may have already created a block for local variables when
@@ -1588,7 +2212,6 @@ Gcc_backend::block(Bfunction* function, Bblock* enclosing,
                               void_type_node, BLOCK_VARS(block_tree),
                               NULL_TREE, block_tree);
   TREE_SIDE_EFFECTS(bind_tree) = 1;
-
   return new Bblock(bind_tree);
 }
 
@@ -1751,9 +2374,10 @@ Gcc_backend::global_variable_set_init(Bvariable* var, Bexpression* expr)
 
   // If this variable goes in a unique section, it may need to go into
   // a different one now that DECL_INITIAL is set.
-  if (DECL_HAS_IMPLICIT_SECTION_NAME_P (var_decl))
+  if (symtab_get_node(var_decl)
+      && symtab_get_node(var_decl)->implicit_section)
     {
-      DECL_SECTION_NAME (var_decl) = NULL_TREE;
+      set_decl_section_name (var_decl, NULL);
       resolve_unique_section (var_decl,
 			      compute_reloc_for_constant (expr_tree),
 			      1);
@@ -1812,9 +2436,13 @@ Gcc_backend::temporary_variable(Bfunction* function, Bblock* bblock,
 				Location location,
 				Bstatement** pstatement)
 {
+  gcc_assert(function != NULL);
+  tree decl = function->get_tree();
   tree type_tree = btype->get_tree();
   tree init_tree = binit == NULL ? NULL_TREE : binit->get_tree();
-  if (type_tree == error_mark_node || init_tree == error_mark_node)
+  if (type_tree == error_mark_node
+      || init_tree == error_mark_node
+      || decl == error_mark_node)
     {
       *pstatement = this->error_statement();
       return this->error_variable();
@@ -1823,7 +2451,15 @@ Gcc_backend::temporary_variable(Bfunction* function, Bblock* bblock,
   tree var;
   // We can only use create_tmp_var if the type is not addressable.
   if (!TREE_ADDRESSABLE(type_tree))
-    var = create_tmp_var(type_tree, "GOTMP");
+    {
+      if (DECL_STRUCT_FUNCTION(decl) == NULL)
+      	push_struct_function(decl);
+      else
+      	push_cfun(DECL_STRUCT_FUNCTION(decl));
+
+      var = create_tmp_var(type_tree, "GOTMP");
+      pop_cfun();
+    }
   else
     {
       gcc_assert(bblock != NULL);
@@ -1833,16 +2469,7 @@ Gcc_backend::temporary_variable(Bfunction* function, Bblock* bblock,
       DECL_ARTIFICIAL(var) = 1;
       DECL_IGNORED_P(var) = 1;
       TREE_USED(var) = 1;
-      // FIXME: Permitting function to be NULL here is a temporary
-      // measure until we have a proper representation of the init
-      // function.
-      if (function != NULL)
-	DECL_CONTEXT(var) = function->get_tree();
-      else
-	{
-	  gcc_assert(current_function_decl != NULL_TREE);
-	  DECL_CONTEXT(var) = current_function_decl;
-	}
+      DECL_CONTEXT(var) = decl;
 
       // We have to add this variable to the BLOCK and the BIND_EXPR.
       tree bind_tree = bblock->get_tree();
@@ -1867,6 +2494,53 @@ Gcc_backend::temporary_variable(Bfunction* function, Bblock* bblock,
   return new Bvariable(var);
 }
 
+// Create an implicit variable that is compiler-defined.  This is used when
+// generating GC root variables and storing the values of a slice initializer.
+
+Bvariable*
+Gcc_backend::implicit_variable(const std::string& name, Btype* type,
+			       Bexpression* init, bool is_constant,
+			       bool is_common, size_t alignment)
+{
+  tree type_tree = type->get_tree();
+  tree init_tree;
+  if (init == NULL)
+    init_tree = NULL_TREE;
+  else
+    init_tree = init->get_tree();
+  if (type_tree == error_mark_node || init_tree == error_mark_node)
+    return this->error_variable();
+
+  tree decl = build_decl(BUILTINS_LOCATION, VAR_DECL,
+                         get_identifier_from_string(name), type_tree);
+  DECL_EXTERNAL(decl) = 0;
+  TREE_PUBLIC(decl) = 0;
+  TREE_STATIC(decl) = 1;
+  DECL_ARTIFICIAL(decl) = 1;
+  if (is_common)
+    {
+      DECL_COMMON(decl) = 1;
+      TREE_PUBLIC(decl) = 1;
+      gcc_assert(init_tree == NULL_TREE);
+    }
+  else if (is_constant)
+    {
+      TREE_READONLY(decl) = 1;
+      TREE_CONSTANT(decl) = 1;
+    }
+  DECL_INITIAL(decl) = init_tree;
+
+  if (alignment != 0)
+    {
+      DECL_ALIGN(decl) = alignment * BITS_PER_UNIT;
+      DECL_USER_ALIGN(decl) = 1;
+    }
+
+  rest_of_decl_compilation(decl, 1, 0);
+
+  return new Bvariable(decl);
+}
+
 // Create a named immutable initialized data structure.
 
 Bvariable*
@@ -1881,9 +2555,9 @@ Gcc_backend::immutable_struct(const std::string& name, bool is_hidden,
 			 get_identifier_from_string(name),
 			 build_qualified_type(type_tree, TYPE_QUAL_CONST));
   TREE_STATIC(decl) = 1;
+  TREE_USED(decl) = 1;
   TREE_READONLY(decl) = 1;
   TREE_CONSTANT(decl) = 1;
-  TREE_USED(decl) = 1;
   DECL_ARTIFICIAL(decl) = 1;
   if (!is_hidden)
     TREE_PUBLIC(decl) = 1;
@@ -1973,7 +2647,17 @@ Gcc_backend::label(Bfunction* function, const std::string& name,
 {
   tree decl;
   if (name.empty())
-    decl = create_artificial_label(location.gcc_location());
+    {
+      tree func_tree = function->get_tree();
+      if (DECL_STRUCT_FUNCTION(func_tree) == NULL)
+	push_struct_function(func_tree);
+      else
+	push_cfun(DECL_STRUCT_FUNCTION(func_tree));
+
+      decl = create_artificial_label(location.gcc_location());
+
+      pop_cfun();
+    }
   else
     {
       tree id = get_identifier_from_string(name);
@@ -2070,84 +2754,209 @@ Gcc_backend::function(Btype* fntype, const std::string& name,
   return new Bfunction(decl);
 }
 
-// The single backend.
+// Create a statement that runs all deferred calls for FUNCTION.  This should
+// be a statement that looks like this in C++:
+//   finish:
+//     try { UNDEFER; } catch { CHECK_DEFER; goto finish; }
 
-static Gcc_backend gcc_backend;
+Bstatement*
+Gcc_backend::function_defer_statement(Bfunction* function, Bexpression* undefer,
+                                      Bexpression* defer, Location location)
+{
+  tree undefer_tree = undefer->get_tree();
+  tree defer_tree = defer->get_tree();
+  tree fntree = function->get_tree();
+
+  if (undefer_tree == error_mark_node
+      || defer_tree == error_mark_node
+      || fntree == error_mark_node)
+    return this->error_statement();
+
+  if (DECL_STRUCT_FUNCTION(fntree) == NULL)
+    push_struct_function(fntree);
+  else
+    push_cfun(DECL_STRUCT_FUNCTION(fntree));
+
+  tree stmt_list = NULL;
+  Blabel* blabel = this->label(function, "", location);
+  Bstatement* label_def = this->label_definition_statement(blabel);
+  append_to_statement_list(label_def->get_tree(), &stmt_list);
+
+  Bstatement* jump_stmt = this->goto_statement(blabel, location);
+  tree jump = jump_stmt->get_tree();
+  tree catch_body = build2(COMPOUND_EXPR, void_type_node, defer_tree, jump);
+  catch_body = build2(CATCH_EXPR, void_type_node, NULL, catch_body);
+  tree try_catch =
+      build2(TRY_CATCH_EXPR, void_type_node, undefer_tree, catch_body);
+  append_to_statement_list(try_catch, &stmt_list);
+  pop_cfun();
+
+  return this->make_statement(stmt_list);
+}
+
+// Record PARAM_VARS as the variables to use for the parameters of FUNCTION.
+// This will only be called for a function definition.
+
+bool
+Gcc_backend::function_set_parameters(Bfunction* function,
+                                     const std::vector<Bvariable*>& param_vars)
+{
+  tree func_tree = function->get_tree();
+  if (func_tree == error_mark_node)
+    return false;
+
+  tree params = NULL_TREE;
+  tree *pp = &params;
+  for (std::vector<Bvariable*>::const_iterator pv = param_vars.begin();
+       pv != param_vars.end();
+       ++pv)
+    {
+      *pp = (*pv)->get_tree();
+      gcc_assert(*pp != error_mark_node);
+      pp = &DECL_CHAIN(*pp);
+    }
+  *pp = NULL_TREE;
+  DECL_ARGUMENTS(func_tree) = params;
+  return true;
+}
+
+// Set the function body for FUNCTION using the code in CODE_BLOCK.
+
+bool
+Gcc_backend::function_set_body(Bfunction* function, Bstatement* code_stmt)
+{
+  tree func_tree = function->get_tree();
+  tree code = code_stmt->get_tree();
+
+  if (func_tree == error_mark_node || code == error_mark_node)
+    return false;
+  DECL_SAVED_TREE(func_tree) = code;
+  return true;
+}
+
+// Look up a named built-in function in the current backend implementation.
+// Returns NULL if no built-in function by that name exists.
+
+Bfunction*
+Gcc_backend::lookup_builtin(const std::string& name)
+{
+  if (this->builtin_functions_.count(name) != 0)
+    return this->builtin_functions_[name];
+  return NULL;
+}
+
+// Write the definitions for all TYPE_DECLS, CONSTANT_DECLS,
+// FUNCTION_DECLS, and VARIABLE_DECLS declared globally.
+
+void
+Gcc_backend::write_global_definitions(
+    const std::vector<Btype*>& type_decls,
+    const std::vector<Bexpression*>& constant_decls,
+    const std::vector<Bfunction*>& function_decls,
+    const std::vector<Bvariable*>& variable_decls)
+{
+  size_t count_definitions = type_decls.size() + constant_decls.size()
+      + function_decls.size() + variable_decls.size();
+
+  tree* defs = new tree[count_definitions];
+
+  // Convert all non-erroneous declarations into Gimple form.
+  size_t i = 0;
+  for (std::vector<Bvariable*>::const_iterator p = variable_decls.begin();
+       p != variable_decls.end();
+       ++p)
+    {
+      if ((*p)->get_tree() != error_mark_node)
+        {
+          defs[i] = (*p)->get_tree();
+          go_preserve_from_gc(defs[i]);
+          ++i;
+        }
+    }
+
+  for (std::vector<Btype*>::const_iterator p = type_decls.begin();
+       p != type_decls.end();
+       ++p)
+    {
+      tree type_tree = (*p)->get_tree();
+      if (type_tree != error_mark_node
+          && IS_TYPE_OR_DECL_P(type_tree))
+        {
+          defs[i] = TYPE_NAME(type_tree);
+          gcc_assert(defs[i] != NULL);
+          go_preserve_from_gc(defs[i]);
+          ++i;
+        }
+    }
+  for (std::vector<Bexpression*>::const_iterator p = constant_decls.begin();
+       p != constant_decls.end();
+       ++p)
+    {
+      if ((*p)->get_tree() != error_mark_node)
+        {
+          defs[i] = (*p)->get_tree();
+          go_preserve_from_gc(defs[i]);
+          ++i;
+        }
+    }
+  for (std::vector<Bfunction*>::const_iterator p = function_decls.begin();
+       p != function_decls.end();
+       ++p)
+    {
+      tree decl = (*p)->get_tree();
+      if (decl != error_mark_node)
+        {
+          go_preserve_from_gc(decl);
+          gimplify_function_tree(decl);
+          cgraph_finalize_function(decl, true);
+
+          defs[i] = decl;
+          ++i;
+        }
+    }
+
+  // Pass everything back to the middle-end.
+
+  wrapup_global_declarations(defs, i);
+
+  finalize_compilation_unit();
+
+  check_global_declarations(defs, i);
+  emit_debug_global_declarations(defs, i);
+
+  delete[] defs;
+}
+
+// Define a builtin function.  BCODE is the builtin function code
+// defined by builtins.def.  NAME is the name of the builtin function.
+// LIBNAME is the name of the corresponding library function, and is
+// NULL if there isn't one.  FNTYPE is the type of the function.
+// CONST_P is true if the function has the const attribute.
+
+void
+Gcc_backend::define_builtin(built_in_function bcode, const char* name,
+			    const char* libname, tree fntype, bool const_p)
+{
+  tree decl = add_builtin_function(name, fntype, bcode, BUILT_IN_NORMAL,
+				   libname, NULL_TREE);
+  if (const_p)
+    TREE_READONLY(decl) = 1;
+  set_builtin_decl(bcode, decl, true);
+  this->builtin_functions_[name] = this->make_function(decl);
+  if (libname != NULL)
+    {
+      decl = add_builtin_function(libname, fntype, bcode, BUILT_IN_NORMAL,
+				  NULL, NULL_TREE);
+      if (const_p)
+	TREE_READONLY(decl) = 1;
+      this->builtin_functions_[libname] = this->make_function(decl);
+    }
+}
 
 // Return the backend generator.
 
 Backend*
 go_get_backend()
 {
-  return &gcc_backend;
-}
-
-// FIXME: Temporary functions while converting to the new backend
-// interface.
-
-Btype*
-tree_to_type(tree t)
-{
-  return new Btype(t);
-}
-
-Bexpression*
-tree_to_expr(tree t)
-{
-  return new Bexpression(t);
-}
-
-Bstatement*
-tree_to_stat(tree t)
-{
-  return new Bstatement(t);
-}
-
-Bfunction*
-tree_to_function(tree t)
-{
-  return new Bfunction(t);
-}
-
-Bblock*
-tree_to_block(tree t)
-{
-  gcc_assert(TREE_CODE(t) == BIND_EXPR);
-  return new Bblock(t);
-}
-
-tree
-type_to_tree(Btype* bt)
-{
-  return bt->get_tree();
-}
-
-tree
-expr_to_tree(Bexpression* be)
-{
-  return be->get_tree();
-}
-
-tree
-stat_to_tree(Bstatement* bs)
-{
-  return bs->get_tree();
-}
-
-tree
-block_to_tree(Bblock* bb)
-{
-  return bb->get_tree();
-}
-
-tree
-var_to_tree(Bvariable* bv)
-{
-  return bv->get_tree();
-}
-
-tree
-function_to_tree(Bfunction* bf)
-{
-  return bf->get_tree();
+  return new Gcc_backend();
 }

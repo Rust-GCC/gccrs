@@ -1014,22 +1014,15 @@ vinsn_writes_one_of_regs_p (vinsn_t vi, regset used_regs,
 static enum reg_class
 get_reg_class (rtx insn)
 {
-  int alt, i, n_ops;
+  int i, n_ops;
 
   extract_insn (insn);
   if (! constrain_operands (1))
     fatal_insn_not_found (insn);
-  preprocess_constraints ();
-  alt = which_alternative;
+  preprocess_constraints (insn);
   n_ops = recog_data.n_operands;
 
-  for (i = 0; i < n_ops; ++i)
-    {
-      int matches = recog_op_alt[i][alt].matches;
-      if (matches >= 0)
-	recog_op_alt[i][alt].cl = recog_op_alt[matches][alt].cl;
-    }
-
+  const operand_alternative *op_alt = which_op_alt ();
   if (asm_noperands (PATTERN (insn)) > 0)
     {
       for (i = 0; i < n_ops; i++)
@@ -1037,7 +1030,7 @@ get_reg_class (rtx insn)
 	  {
 	    rtx *loc = recog_data.operand_loc[i];
 	    rtx op = *loc;
-	    enum reg_class cl = recog_op_alt[i][alt].cl;
+	    enum reg_class cl = alternative_class (op_alt, i);
 
 	    if (REG_P (op)
 		&& REGNO (op) == ORIGINAL_REGNO (op))
@@ -1051,7 +1044,7 @@ get_reg_class (rtx insn)
       for (i = 0; i < n_ops + recog_data.n_dups; i++)
        {
 	 int opn = i < n_ops ? i : recog_data.dup_num[i - n_ops];
-	 enum reg_class cl = recog_op_alt[opn][alt].cl;
+	 enum reg_class cl = alternative_class (op_alt, opn);
 
 	 if (recog_data.operand_type[opn] == OP_OUT ||
 	     recog_data.operand_type[opn] == OP_INOUT)
@@ -2141,7 +2134,7 @@ implicit_clobber_conflict_p (insn_t through_insn, expr_t expr)
 
   /* Calculate implicit clobbers.  */
   extract_insn (insn);
-  preprocess_constraints ();
+  preprocess_constraints (insn);
   ira_implicitly_set_insn_hard_regs (&temp);
   AND_COMPL_HARD_REG_SET (temp, ira_no_alloc_regs);
 
@@ -3502,8 +3495,6 @@ process_pipelined_exprs (av_set_t *av_ptr)
 static void
 process_spec_exprs (av_set_t *av_ptr)
 {
-  bool try_data_p = true;
-  bool try_control_p = true;
   expr_t expr;
   av_set_iterator si;
 
@@ -3528,34 +3519,6 @@ process_spec_exprs (av_set_t *av_ptr)
         {
           av_set_iter_remove (&si);
           continue;
-        }
-
-      if ((spec_info->flags & PREFER_NON_DATA_SPEC)
-          && !(ds & BEGIN_DATA))
-        try_data_p = false;
-
-      if ((spec_info->flags & PREFER_NON_CONTROL_SPEC)
-          && !(ds & BEGIN_CONTROL))
-        try_control_p = false;
-    }
-
-  FOR_EACH_EXPR_1 (expr, si, av_ptr)
-    {
-      ds_t ds;
-
-      ds = EXPR_SPEC_DONE_DS (expr);
-
-      if (ds & SPECULATIVE)
-        {
-          if ((ds & BEGIN_DATA) && !try_data_p)
-            /* We don't want any data speculative instructions right
-               now.  */
-            av_set_iter_remove (&si);
-
-          if ((ds & BEGIN_CONTROL) && !try_control_p)
-            /* We don't want any control speculative instructions right
-               now.  */
-            av_set_iter_remove (&si);
         }
     }
 }
@@ -4255,7 +4218,7 @@ invoke_dfa_lookahead_guard (void)
       if (! have_hook || i == 0)
         r = 0;
       else
-        r = !targetm.sched.first_cycle_multipass_dfa_lookahead_guard (insn);
+        r = targetm.sched.first_cycle_multipass_dfa_lookahead_guard (insn, i);
 
       gcc_assert (INSN_CODE (insn) >= 0);
 

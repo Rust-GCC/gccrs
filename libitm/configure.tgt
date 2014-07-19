@@ -46,6 +46,7 @@ fi
 # Map the target cpu to an ARCH sub-directory.  At the same time,
 # work out any special compilation flags as necessary.
 case "${target_cpu}" in
+  aarch64*)		ARCH=aarch64 ;;
   alpha*)		ARCH=alpha ;;
   rs6000 | powerpc*)
 	XCFLAGS="${XCFLAGS} -mhtm"
@@ -140,7 +141,7 @@ case "${target}" in
   *-*-gnu* | *-*-k*bsd*-gnu \
   | *-*-netbsd* | *-*-freebsd* | *-*-openbsd* \
   | *-*-solaris2* | *-*-sysv4* | *-*-hpux11* \
-  | *-*-darwin* | *-*-aix*)
+  | *-*-darwin* | *-*-aix* | *-*-dragonfly*)
 	# POSIX system.  The OS is supported.
 	;;
 

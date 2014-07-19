@@ -252,20 +252,6 @@ extern unsigned HOST_WIDE_INT choose_multiplier (unsigned HOST_WIDE_INT, int,
 						 int, unsigned HOST_WIDE_INT *,
 						 int *, int *);
 
-/* Functions from builtins.c:  */
-extern rtx expand_builtin (tree, rtx, rtx, enum machine_mode, int);
-extern tree std_build_builtin_va_list (void);
-extern tree std_fn_abi_va_list (tree);
-extern tree std_canonical_va_list_type (tree);
-
-extern void std_expand_builtin_va_start (tree, rtx);
-extern rtx default_expand_builtin (tree, rtx, rtx, enum machine_mode, int);
-extern void expand_builtin_setjmp_setup (rtx, rtx);
-extern void expand_builtin_setjmp_receiver (rtx);
-extern rtx expand_builtin_saveregs (void);
-extern void expand_builtin_trap (void);
-extern rtx builtin_strncpy_read_str (void *, HOST_WIDE_INT, enum machine_mode);
-
 /* Functions from expr.c:  */
 
 /* This is run during target initialization to set up which modes can be
@@ -346,6 +332,7 @@ extern void copy_blkmode_from_reg (rtx, rtx, tree);
 /* Mark REG as holding a parameter for the next CALL_INSN.
    Mode is TYPE_MODE of the non-promoted parameter, or VOIDmode.  */
 extern void use_reg_mode (rtx *, rtx, enum machine_mode);
+extern void clobber_reg_mode (rtx *, rtx, enum machine_mode);
 
 extern rtx copy_blkmode_to_reg (enum machine_mode, tree);
 
@@ -354,6 +341,13 @@ static inline void
 use_reg (rtx *fusage, rtx reg)
 {
   use_reg_mode (fusage, reg, VOIDmode);
+}
+
+/* Mark REG as clobbered by the call with FUSAGE as CALL_INSN_FUNCTION_USAGE.  */
+static inline void
+clobber_reg (rtx *fusage, rtx reg)
+{
+  clobber_reg_mode (fusage, reg, VOIDmode);
 }
 
 /* Mark NREGS consecutive regs, starting at REGNO, as holding parameters

@@ -629,19 +629,12 @@ cp_gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 
 	       Also drop volatile variables on the RHS to avoid infinite
 	       recursion from gimplify_expr trying to load the value.  */
-	    if (!TREE_SIDE_EFFECTS (op1)
-		|| (DECL_P (op1) && TREE_THIS_VOLATILE (op1)))
+	    if (!TREE_SIDE_EFFECTS (op1))
 	      *expr_p = op0;
-	    else if (TREE_CODE (op1) == MEM_REF
-		     && TREE_THIS_VOLATILE (op1))
-	      {
-		/* Similarly for volatile MEM_REFs on the RHS.  */
-		if (!TREE_SIDE_EFFECTS (TREE_OPERAND (op1, 0)))
-		  *expr_p = op0;
-		else
-		  *expr_p = build2 (COMPOUND_EXPR, TREE_TYPE (*expr_p),
-				    TREE_OPERAND (op1, 0), op0);
-	      }
+	    else if (TREE_THIS_VOLATILE (op1)
+		     && (REFERENCE_CLASS_P (op1) || DECL_P (op1)))
+	      *expr_p = build2 (COMPOUND_EXPR, TREE_TYPE (*expr_p),
+				build_fold_addr_expr (op1), op0);
 	    else
 	      *expr_p = build2 (COMPOUND_EXPR, TREE_TYPE (*expr_p),
 				op0, op1);
@@ -722,6 +715,27 @@ cp_gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 	  && cilk_detect_spawn_and_unwrap (expr_p)
 	  && !seen_error ())
 	return (enum gimplify_status) gimplify_cilk_spawn (expr_p);
+
+      /* DR 1030 says that we need to evaluate the elements of an
+	 initializer-list in forward order even when it's used as arguments to
+	 a constructor.  So if the target wants to evaluate them in reverse
+	 order and there's more than one argument other than 'this', gimplify
+	 them in order.  */
+      ret = GS_OK;
+      if (PUSH_ARGS_REVERSED && CALL_EXPR_LIST_INIT_P (*expr_p)
+	  && call_expr_nargs (*expr_p) > 2)
+	{
+	  int nargs = call_expr_nargs (*expr_p);
+	  location_t loc = EXPR_LOC_OR_LOC (*expr_p, input_location);
+	  for (int i = 1; i < nargs; ++i)
+	    {
+	      enum gimplify_status t
+		= gimplify_arg (&CALL_EXPR_ARG (*expr_p, i), pre_p, loc);
+	      if (t == GS_ERROR)
+		ret = GS_ERROR;
+	    }
+	}
+      break;
 
     default:
       ret = (enum gimplify_status) c_gimplify_expr (expr_p, pre_p, post_p);
@@ -1207,7 +1221,7 @@ cp_genericize_tree (tree* t_p)
 
 /* If a function that should end with a return in non-void
    function doesn't obviously end with return, add ubsan
-   instrmentation code to verify it at runtime.  */
+   instrumentation code to verify it at runtime.  */
 
 static void
 cp_ubsan_maybe_instrument_return (tree fndecl)
@@ -1320,7 +1334,10 @@ cp_genericize (tree fndecl)
      walk_tree's hash functionality.  */
   cp_genericize_tree (&DECL_SAVED_TREE (fndecl));
 
-  if (flag_sanitize & SANITIZE_RETURN)
+  if (flag_sanitize & SANITIZE_RETURN
+      && current_function_decl != NULL_TREE
+      && !lookup_attribute ("no_sanitize_undefined",
+			    DECL_ATTRIBUTES (current_function_decl)))
     cp_ubsan_maybe_instrument_return (fndecl);
 
   /* Do everything else.  */
@@ -1578,7 +1595,7 @@ cxx_omp_predetermined_sharing (tree decl)
 /* Finalize an implicitly determined clause.  */
 
 void
-cxx_omp_finish_clause (tree c)
+cxx_omp_finish_clause (tree c, gimple_seq *)
 {
   tree decl, inner_type;
   bool make_shared = false;

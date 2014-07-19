@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2001-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2014, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -270,8 +270,7 @@ package body Layout is
       --  the Integer base type, but it is safe to reduce it to 1 at this
       --  stage, since we will only be loading a single storage unit.
 
-      if Is_Discrete_Type (Etype (E))
-        and then not Has_Alignment_Clause (E)
+      if Is_Discrete_Type (Etype (E)) and then not Has_Alignment_Clause (E)
       then
          loop
             Abits := Abits / 2;
@@ -353,7 +352,7 @@ package body Layout is
 
       elsif Nkind (L) = N_Op_Subtract then
 
-         --  (C1 - E) + C2 = (C1 + C2) + E
+         --  (C1 - E) + C2 = (C1 + C2) - E
 
          if Compile_Time_Known_Value (Sinfo.Left_Opnd (L)) then
             Rewrite_Integer
@@ -363,7 +362,14 @@ package body Layout is
 
          --  (E - C1) + C2 = E - (C1 - C2)
 
-         elsif Compile_Time_Known_Value (Sinfo.Right_Opnd (L)) then
+         --  If the type is unsigned then only do the optimization if C1 >= C2,
+         --  to avoid creating a negative literal that can't be used with the
+         --  unsigned type.
+
+         elsif Compile_Time_Known_Value (Sinfo.Right_Opnd (L))
+           and then (not Is_Unsigned_Type (Etype (Sinfo.Right_Opnd (L)))
+                      or else Expr_Value (Sinfo.Right_Opnd (L)) >= R)
+         then
             Rewrite_Integer
               (Sinfo.Right_Opnd (L),
                Expr_Value (Sinfo.Right_Opnd (L)) - R);
@@ -619,8 +625,8 @@ package body Layout is
             --  parameter rather than passing "V" directly.
 
             if Present (Comp)
-               and then Base_Type (Etype (Comp))
-                          = Base_Type (Etype (First_Formal (Ent)))
+               and then Base_Type (Etype (Comp)) =
+                        Base_Type (Etype (First_Formal (Ent)))
             then
                return
                  Make_Function_Call (Loc,
@@ -748,7 +754,8 @@ package body Layout is
          --  Value of the current subscript range is statically known
 
          if Compile_Time_Known_Value (Lo)
-           and then Compile_Time_Known_Value (Hi)
+              and then
+            Compile_Time_Known_Value (Hi)
          then
             S := Expr_Value (Hi) - Expr_Value (Lo) + 1;
 
@@ -1085,7 +1092,8 @@ package body Layout is
          --  Value of the current subscript range is statically known
 
          if Compile_Time_Known_Value (Lo)
-           and then Compile_Time_Known_Value (Hi)
+              and then
+            Compile_Time_Known_Value (Hi)
          then
             S := Expr_Value (Hi) - Expr_Value (Lo) + 1;
 
@@ -1192,8 +1200,7 @@ package body Layout is
 
                   Len := Convert_To (Standard_Unsigned, Len);
 
-                  --  If range definitely flat or superflat,
-                  --  result size is zero
+                  --  If range definitely flat or superflat, result size is 0
 
                   if OK and then LHi <= 0 then
                      Set_Esize (E, Uint_0);
@@ -1381,9 +1388,7 @@ package body Layout is
       --  not set by an explicit Object_Size attribute clause, then we reset
       --  the Esize to unknown, since we really don't know it.
 
-      if Unknown_Alignment (E)
-        and then not Has_Size_Clause (E)
-      then
+      if Unknown_Alignment (E) and then not Has_Size_Clause (E) then
          Set_Esize (E, Uint_0);
       end if;
    end Layout_Object;
@@ -1719,7 +1724,7 @@ package body Layout is
 
             elsif Is_Array_Type (Ctyp)
               and then Is_Bit_Packed_Array (Ctyp)
-              and then Is_Modular_Integer_Type (Packed_Array_Type (Ctyp))
+              and then Is_Modular_Integer_Type (Packed_Array_Impl_Type (Ctyp))
             then
                Forc := False;
 
@@ -2426,7 +2431,6 @@ package body Layout is
       --  represents them the same way.
 
       if Is_Access_Type (E) then
-
          Desig_Type :=  Underlying_Type (Designated_Type (E));
 
          --  If we only have a limited view of the type, see whether the
@@ -2463,10 +2467,13 @@ package body Layout is
          --  address size to accommodate a fat pointer.
 
          elsif Present (Desig_Type)
-            and then Is_Array_Type (Desig_Type)
-            and then not Is_Constrained (Desig_Type)
-            and then not Has_Completion_In_Body (Desig_Type)
-            and then not Debug_Flag_6
+           and then Is_Array_Type (Desig_Type)
+           and then not Is_Constrained (Desig_Type)
+           and then not Has_Completion_In_Body (Desig_Type)
+
+           --  Debug Flag -gnatd6 says make all pointers to unconstrained thin
+
+           and then not Debug_Flag_6
          then
             Init_Size (E, 2 * System_Address_Size);
 
@@ -2487,12 +2494,11 @@ package body Layout is
          --  fat pointer.
 
          elsif Present (Desig_Type)
-            and then Present (Parent (Desig_Type))
-            and then Nkind (Parent (Desig_Type)) = N_Full_Type_Declaration
-            and then
-              Nkind (Type_Definition (Parent (Desig_Type)))
-                 = N_Unconstrained_Array_Definition
-            and then not Debug_Flag_6
+           and then Present (Parent (Desig_Type))
+           and then Nkind (Parent (Desig_Type)) = N_Full_Type_Declaration
+           and then Nkind (Type_Definition (Parent (Desig_Type))) =
+                                             N_Unconstrained_Array_Definition
+           and then not Debug_Flag_6
          then
             Init_Size (E, 2 * System_Address_Size);
 
@@ -2505,14 +2511,17 @@ package body Layout is
          elsif AAMP_On_Target
            and then
              ((Ekind (E) = E_Access_Subprogram_Type
-                  and then Present (Enclosing_Subprogram (E)))
-                or else
-                  (Ekind (E) = E_Anonymous_Access_Subprogram_Type
-                    and then
-                      (not Is_Local_Anonymous_Access (E)
-                        or else Present (Enclosing_Subprogram (E)))))
+                and then Present (Enclosing_Subprogram (E)))
+               or else
+                 (Ekind (E) = E_Anonymous_Access_Subprogram_Type
+                   and then
+                     (not Is_Local_Anonymous_Access (E)
+                       or else Present (Enclosing_Subprogram (E)))))
          then
             Init_Size (E, 2 * System_Address_Size);
+
+         --  Normal case of thin pointer
+
          else
             Init_Size (E, System_Address_Size);
          end if;
@@ -2534,7 +2543,7 @@ package body Layout is
 
          if Opt.True_VMS_Target
            and then (Convention (E) = Convention_C
-                      or else
+                       or else
                      Convention (E) = Convention_CPP)
            and then No (Get_Attribute_Definition_Clause (E, Attribute_Size))
            and then Esize (E) = 64
@@ -2615,9 +2624,11 @@ package body Layout is
          --  array type if a packed array type has been created and the fields
          --  are not currently set.
 
-         if Is_Array_Type (E) and then Present (Packed_Array_Type (E)) then
+         if Is_Array_Type (E)
+           and then Present (Packed_Array_Impl_Type (E))
+         then
             declare
-               PAT : constant Entity_Id := Packed_Array_Type (E);
+               PAT : constant Entity_Id := Packed_Array_Impl_Type (E);
 
             begin
                if Unknown_Esize (E) then
@@ -2646,14 +2657,12 @@ package body Layout is
          --  component type is known and is a small power of 2 (8, 16, 32, 64),
          --  since this is what will always be used.
 
-         if Ekind (E) = E_Array_Type
-           and then Unknown_Component_Size (E)
-         then
+         if Ekind (E) = E_Array_Type and then Unknown_Component_Size (E) then
             declare
                CT : constant Entity_Id := Component_Type (E);
 
             begin
-               --  For some reasons, access types can cause trouble, So let's
+               --  For some reason, access types can cause trouble, So let's
                --  just do this for scalar types ???
 
                if Present (CT)
@@ -2693,9 +2702,7 @@ package body Layout is
             --  For these types, we set a corresponding alignment matching
             --  the size if possible, or as large as possible if not.
 
-            if Convention (E) = Convention_Ada
-               and then not Debug_Flag_Q
-            then
+            if Convention (E) = Convention_Ada and then not Debug_Flag_Q then
                Set_Composite_Alignment (E);
             end if;
 
@@ -2717,9 +2724,7 @@ package body Layout is
             --  arrays when passed to subprogram parameters (see special test
             --  in Exp_Ch6.Expand_Actuals).
 
-            if not Is_Packed (E)
-              and then Unknown_Alignment (E)
-            then
+            if not Is_Packed (E) and then Unknown_Alignment (E) then
                if Known_Static_Component_Size (E)
                  and then Component_Size (E) = 1
                then
@@ -2982,12 +2987,8 @@ package body Layout is
 
          if Known_Static_Esize (E) then
             Siz := Esize (E);
-
-         elsif Unknown_Esize (E)
-           and then Known_Static_RM_Size (E)
-         then
+         elsif Unknown_Esize (E) and then Known_Static_RM_Size (E) then
             Siz := RM_Size (E);
-
          else
             return;
          end if;
@@ -3095,7 +3096,7 @@ package body Layout is
                             (Unknown_Esize (Comp)
                               or else (Known_Static_Esize (Comp)
                                         and then
-                                         Esize (Comp) =
+                                          Esize (Comp) =
                                               Calign * System_Storage_Unit))
                         then
                            Align := UI_To_Int (Calign);
@@ -3170,7 +3171,9 @@ package body Layout is
       --  front end layout, because otherwise this is always handled in the
       --  backend.
 
-      if Is_Packed_Array_Type (E) and then not Frontend_Layout_On_Target then
+      if Is_Packed_Array_Impl_Type (E)
+        and then not Frontend_Layout_On_Target
+      then
          return;
 
       --  If there is an alignment clause, then we respect it
@@ -3187,9 +3190,7 @@ package body Layout is
       --  For access types, do not set the alignment if the size is less than
       --  the allowed minimum size. This avoids cascaded error messages.
 
-      elsif Is_Access_Type (E)
-        and then Esize (E) < System_Address_Size
-      then
+      elsif Is_Access_Type (E) and then Esize (E) < System_Address_Size then
          return;
       end if;
 

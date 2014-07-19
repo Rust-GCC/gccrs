@@ -62,6 +62,7 @@
 #include "tilepro-builtins.h"
 #include "tilepro-multiply.h"
 #include "diagnostic.h"
+#include "builtins.h"
 
 /* SYMBOL_REF for GOT */
 static GTY(()) rtx g_got_symbol = NULL;
@@ -674,7 +675,7 @@ create_temp_reg_if_possible (enum machine_mode mode, rtx default_reg)
 static struct machine_function *
 tilepro_init_machine_status (void)
 {
-  return ggc_alloc_cleared_machine_function ();
+  return ggc_cleared_alloc<machine_function> ();
 }
 
 

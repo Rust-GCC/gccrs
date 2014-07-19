@@ -62,7 +62,6 @@ static rtx extract_fixed_bit_field (enum machine_mode, rtx,
 static rtx extract_fixed_bit_field_1 (enum machine_mode, rtx,
 				      unsigned HOST_WIDE_INT,
 				      unsigned HOST_WIDE_INT, rtx, int);
-static rtx mask_rtx (enum machine_mode, int, int, int);
 static rtx lshift_value (enum machine_mode, unsigned HOST_WIDE_INT, int);
 static rtx extract_split_bit_field (rtx, unsigned HOST_WIDE_INT,
 				    unsigned HOST_WIDE_INT, int);
@@ -70,30 +69,43 @@ static void do_cmp_and_jump (rtx, rtx, enum rtx_code, enum machine_mode, rtx);
 static rtx expand_smod_pow2 (enum machine_mode, rtx, HOST_WIDE_INT);
 static rtx expand_sdiv_pow2 (enum machine_mode, rtx, HOST_WIDE_INT);
 
+/* Return a constant integer mask value of mode MODE with BITSIZE ones
+   followed by BITPOS zeros, or the complement of that if COMPLEMENT.
+   The mask is truncated if necessary to the width of mode MODE.  The
+   mask is zero-extended if BITSIZE+BITPOS is too small for MODE.  */
+
+static inline rtx
+mask_rtx (enum machine_mode mode, int bitpos, int bitsize, bool complement)
+{
+  return immed_wide_int_const
+    (wi::shifted_mask (bitpos, bitsize, complement,
+		       GET_MODE_PRECISION (mode)), mode);
+}
+
 /* Test whether a value is zero of a power of two.  */
 #define EXACT_POWER_OF_2_OR_ZERO_P(x) \
   (((x) & ((x) - (unsigned HOST_WIDE_INT) 1)) == 0)
 
 struct init_expmed_rtl
 {
-  struct rtx_def reg;
-  struct rtx_def plus;
-  struct rtx_def neg;
-  struct rtx_def mult;
-  struct rtx_def sdiv;
-  struct rtx_def udiv;
-  struct rtx_def sdiv_32;
-  struct rtx_def smod_32;
-  struct rtx_def wide_mult;
-  struct rtx_def wide_lshr;
-  struct rtx_def wide_trunc;
-  struct rtx_def shift;
-  struct rtx_def shift_mult;
-  struct rtx_def shift_add;
-  struct rtx_def shift_sub0;
-  struct rtx_def shift_sub1;
-  struct rtx_def zext;
-  struct rtx_def trunc;
+  rtx reg;
+  rtx plus;
+  rtx neg;
+  rtx mult;
+  rtx sdiv;
+  rtx udiv;
+  rtx sdiv_32;
+  rtx smod_32;
+  rtx wide_mult;
+  rtx wide_lshr;
+  rtx wide_trunc;
+  rtx shift;
+  rtx shift_mult;
+  rtx shift_add;
+  rtx shift_sub0;
+  rtx shift_sub1;
+  rtx zext;
+  rtx trunc;
 
   rtx pow2[MAX_BITS_PER_WORD];
   rtx cint[MAX_BITS_PER_WORD];
@@ -115,9 +127,9 @@ init_expmed_one_conv (struct init_expmed_rtl *all, enum machine_mode to_mode,
 	       - (GET_MODE_CLASS (from_mode) == MODE_PARTIAL_INT));
   
   /* Assume cost of zero-extend and sign-extend is the same.  */
-  which = (to_size < from_size ? &all->trunc : &all->zext);
+  which = (to_size < from_size ? all->trunc : all->zext);
 
-  PUT_MODE (&all->reg, from_mode);
+  PUT_MODE (all->reg, from_mode);
   set_convert_cost (to_mode, from_mode, speed, set_src_cost (which, speed));
 }
 
@@ -130,32 +142,32 @@ init_expmed_one_mode (struct init_expmed_rtl *all,
 
   mode_bitsize = GET_MODE_UNIT_BITSIZE (mode);
 
-  PUT_MODE (&all->reg, mode);
-  PUT_MODE (&all->plus, mode);
-  PUT_MODE (&all->neg, mode);
-  PUT_MODE (&all->mult, mode);
-  PUT_MODE (&all->sdiv, mode);
-  PUT_MODE (&all->udiv, mode);
-  PUT_MODE (&all->sdiv_32, mode);
-  PUT_MODE (&all->smod_32, mode);
-  PUT_MODE (&all->wide_trunc, mode);
-  PUT_MODE (&all->shift, mode);
-  PUT_MODE (&all->shift_mult, mode);
-  PUT_MODE (&all->shift_add, mode);
-  PUT_MODE (&all->shift_sub0, mode);
-  PUT_MODE (&all->shift_sub1, mode);
-  PUT_MODE (&all->zext, mode);
-  PUT_MODE (&all->trunc, mode);
+  PUT_MODE (all->reg, mode);
+  PUT_MODE (all->plus, mode);
+  PUT_MODE (all->neg, mode);
+  PUT_MODE (all->mult, mode);
+  PUT_MODE (all->sdiv, mode);
+  PUT_MODE (all->udiv, mode);
+  PUT_MODE (all->sdiv_32, mode);
+  PUT_MODE (all->smod_32, mode);
+  PUT_MODE (all->wide_trunc, mode);
+  PUT_MODE (all->shift, mode);
+  PUT_MODE (all->shift_mult, mode);
+  PUT_MODE (all->shift_add, mode);
+  PUT_MODE (all->shift_sub0, mode);
+  PUT_MODE (all->shift_sub1, mode);
+  PUT_MODE (all->zext, mode);
+  PUT_MODE (all->trunc, mode);
 
-  set_add_cost (speed, mode, set_src_cost (&all->plus, speed));
-  set_neg_cost (speed, mode, set_src_cost (&all->neg, speed));
-  set_mul_cost (speed, mode, set_src_cost (&all->mult, speed));
-  set_sdiv_cost (speed, mode, set_src_cost (&all->sdiv, speed));
-  set_udiv_cost (speed, mode, set_src_cost (&all->udiv, speed));
+  set_add_cost (speed, mode, set_src_cost (all->plus, speed));
+  set_neg_cost (speed, mode, set_src_cost (all->neg, speed));
+  set_mul_cost (speed, mode, set_src_cost (all->mult, speed));
+  set_sdiv_cost (speed, mode, set_src_cost (all->sdiv, speed));
+  set_udiv_cost (speed, mode, set_src_cost (all->udiv, speed));
 
-  set_sdiv_pow2_cheap (speed, mode, (set_src_cost (&all->sdiv_32, speed)
+  set_sdiv_pow2_cheap (speed, mode, (set_src_cost (all->sdiv_32, speed)
 				     <= 2 * add_cost (speed, mode)));
-  set_smod_pow2_cheap (speed, mode, (set_src_cost (&all->smod_32, speed)
+  set_smod_pow2_cheap (speed, mode, (set_src_cost (all->smod_32, speed)
 				     <= 4 * add_cost (speed, mode)));
 
   set_shift_cost (speed, mode, 0, 0);
@@ -169,13 +181,13 @@ init_expmed_one_mode (struct init_expmed_rtl *all,
   n = MIN (MAX_BITS_PER_WORD, mode_bitsize);
   for (m = 1; m < n; m++)
     {
-      XEXP (&all->shift, 1) = all->cint[m];
-      XEXP (&all->shift_mult, 1) = all->pow2[m];
+      XEXP (all->shift, 1) = all->cint[m];
+      XEXP (all->shift_mult, 1) = all->pow2[m];
 
-      set_shift_cost (speed, mode, m, set_src_cost (&all->shift, speed));
-      set_shiftadd_cost (speed, mode, m, set_src_cost (&all->shift_add, speed));
-      set_shiftsub0_cost (speed, mode, m, set_src_cost (&all->shift_sub0, speed));
-      set_shiftsub1_cost (speed, mode, m, set_src_cost (&all->shift_sub1, speed));
+      set_shift_cost (speed, mode, m, set_src_cost (all->shift, speed));
+      set_shiftadd_cost (speed, mode, m, set_src_cost (all->shift_add, speed));
+      set_shiftsub0_cost (speed, mode, m, set_src_cost (all->shift_sub0, speed));
+      set_shiftsub1_cost (speed, mode, m, set_src_cost (all->shift_sub1, speed));
     }
 
   if (SCALAR_INT_MODE_P (mode))
@@ -189,15 +201,15 @@ init_expmed_one_mode (struct init_expmed_rtl *all,
       enum machine_mode  wider_mode = GET_MODE_WIDER_MODE (mode);
       if (wider_mode != VOIDmode)
 	{
-	  PUT_MODE (&all->zext, wider_mode);
-	  PUT_MODE (&all->wide_mult, wider_mode);
-	  PUT_MODE (&all->wide_lshr, wider_mode);
-	  XEXP (&all->wide_lshr, 1) = GEN_INT (mode_bitsize);
+	  PUT_MODE (all->zext, wider_mode);
+	  PUT_MODE (all->wide_mult, wider_mode);
+	  PUT_MODE (all->wide_lshr, wider_mode);
+	  XEXP (all->wide_lshr, 1) = GEN_INT (mode_bitsize);
 
 	  set_mul_widen_cost (speed, wider_mode,
-			      set_src_cost (&all->wide_mult, speed));
+			      set_src_cost (all->wide_mult, speed));
 	  set_mul_highpart_cost (speed, mode,
-				 set_src_cost (&all->wide_trunc, speed));
+				 set_src_cost (all->wide_trunc, speed));
 	}
     }
 }
@@ -206,7 +218,7 @@ void
 init_expmed (void)
 {
   struct init_expmed_rtl all;
-  enum machine_mode mode;
+  enum machine_mode mode = QImode;
   int m, speed;
 
   memset (&all, 0, sizeof all);
@@ -216,70 +228,25 @@ init_expmed (void)
       all.cint[m] = GEN_INT (m);
     }
 
-  PUT_CODE (&all.reg, REG);
   /* Avoid using hard regs in ways which may be unsupported.  */
-  SET_REGNO (&all.reg, LAST_VIRTUAL_REGISTER + 1);
-
-  PUT_CODE (&all.plus, PLUS);
-  XEXP (&all.plus, 0) = &all.reg;
-  XEXP (&all.plus, 1) = &all.reg;
-
-  PUT_CODE (&all.neg, NEG);
-  XEXP (&all.neg, 0) = &all.reg;
-
-  PUT_CODE (&all.mult, MULT);
-  XEXP (&all.mult, 0) = &all.reg;
-  XEXP (&all.mult, 1) = &all.reg;
-
-  PUT_CODE (&all.sdiv, DIV);
-  XEXP (&all.sdiv, 0) = &all.reg;
-  XEXP (&all.sdiv, 1) = &all.reg;
-
-  PUT_CODE (&all.udiv, UDIV);
-  XEXP (&all.udiv, 0) = &all.reg;
-  XEXP (&all.udiv, 1) = &all.reg;
-
-  PUT_CODE (&all.sdiv_32, DIV);
-  XEXP (&all.sdiv_32, 0) = &all.reg;
-  XEXP (&all.sdiv_32, 1) = 32 < MAX_BITS_PER_WORD ? all.cint[32] : GEN_INT (32);
-
-  PUT_CODE (&all.smod_32, MOD);
-  XEXP (&all.smod_32, 0) = &all.reg;
-  XEXP (&all.smod_32, 1) = XEXP (&all.sdiv_32, 1);
-
-  PUT_CODE (&all.zext, ZERO_EXTEND);
-  XEXP (&all.zext, 0) = &all.reg;
-
-  PUT_CODE (&all.wide_mult, MULT);
-  XEXP (&all.wide_mult, 0) = &all.zext;
-  XEXP (&all.wide_mult, 1) = &all.zext;
-
-  PUT_CODE (&all.wide_lshr, LSHIFTRT);
-  XEXP (&all.wide_lshr, 0) = &all.wide_mult;
-
-  PUT_CODE (&all.wide_trunc, TRUNCATE);
-  XEXP (&all.wide_trunc, 0) = &all.wide_lshr;
-
-  PUT_CODE (&all.shift, ASHIFT);
-  XEXP (&all.shift, 0) = &all.reg;
-
-  PUT_CODE (&all.shift_mult, MULT);
-  XEXP (&all.shift_mult, 0) = &all.reg;
-
-  PUT_CODE (&all.shift_add, PLUS);
-  XEXP (&all.shift_add, 0) = &all.shift_mult;
-  XEXP (&all.shift_add, 1) = &all.reg;
-
-  PUT_CODE (&all.shift_sub0, MINUS);
-  XEXP (&all.shift_sub0, 0) = &all.shift_mult;
-  XEXP (&all.shift_sub0, 1) = &all.reg;
-
-  PUT_CODE (&all.shift_sub1, MINUS);
-  XEXP (&all.shift_sub1, 0) = &all.reg;
-  XEXP (&all.shift_sub1, 1) = &all.shift_mult;
-
-  PUT_CODE (&all.trunc, TRUNCATE);
-  XEXP (&all.trunc, 0) = &all.reg;
+  all.reg = gen_rtx_raw_REG (mode, LAST_VIRTUAL_REGISTER + 1);
+  all.plus = gen_rtx_PLUS (mode, all.reg, all.reg);
+  all.neg = gen_rtx_NEG (mode, all.reg);
+  all.mult = gen_rtx_MULT (mode, all.reg, all.reg);
+  all.sdiv = gen_rtx_DIV (mode, all.reg, all.reg);
+  all.udiv = gen_rtx_UDIV (mode, all.reg, all.reg);
+  all.sdiv_32 = gen_rtx_DIV (mode, all.reg, all.pow2[5]);
+  all.smod_32 = gen_rtx_MOD (mode, all.reg, all.pow2[5]);
+  all.zext = gen_rtx_ZERO_EXTEND (mode, all.reg);
+  all.wide_mult = gen_rtx_MULT (mode, all.zext, all.zext);
+  all.wide_lshr = gen_rtx_LSHIFTRT (mode, all.wide_mult, all.reg);
+  all.wide_trunc = gen_rtx_TRUNCATE (mode, all.wide_lshr);
+  all.shift = gen_rtx_ASHIFT (mode, all.reg, all.reg);
+  all.shift_mult = gen_rtx_MULT (mode, all.reg, all.reg);
+  all.shift_add = gen_rtx_PLUS (mode, all.shift_mult, all.reg);
+  all.shift_sub0 = gen_rtx_MINUS (mode, all.shift_mult, all.reg);
+  all.shift_sub1 = gen_rtx_MINUS (mode, all.reg, all.shift_mult);
+  all.trunc = gen_rtx_TRUNCATE (mode, all.reg);
 
   for (speed = 0; speed < 2; speed++)
     {
@@ -309,6 +276,25 @@ init_expmed (void)
   else
     set_alg_hash_used_p (true);
   default_rtl_profile ();
+
+  ggc_free (all.trunc);
+  ggc_free (all.shift_sub1);
+  ggc_free (all.shift_sub0);
+  ggc_free (all.shift_add);
+  ggc_free (all.shift_mult);
+  ggc_free (all.shift);
+  ggc_free (all.wide_trunc);
+  ggc_free (all.wide_lshr);
+  ggc_free (all.wide_mult);
+  ggc_free (all.zext);
+  ggc_free (all.smod_32);
+  ggc_free (all.sdiv_32);
+  ggc_free (all.udiv);
+  ggc_free (all.sdiv);
+  ggc_free (all.mult);
+  ggc_free (all.neg);
+  ggc_free (all.plus);
+  ggc_free (all.reg);
 }
 
 /* Return an rtx representing minus the value of X.
@@ -1885,26 +1871,6 @@ extract_fixed_bit_field_1 (enum machine_mode tmode, rtx op0,
   return expand_shift (RSHIFT_EXPR, mode, op0,
 		       GET_MODE_BITSIZE (mode) - bitsize, target, 0);
 }
-
-/* Return a constant integer (CONST_INT or CONST_DOUBLE) mask value
-   of mode MODE with BITSIZE ones followed by BITPOS zeros, or the
-   complement of that if COMPLEMENT.  The mask is truncated if
-   necessary to the width of mode MODE.  The mask is zero-extended if
-   BITSIZE+BITPOS is too small for MODE.  */
-
-static rtx
-mask_rtx (enum machine_mode mode, int bitpos, int bitsize, int complement)
-{
-  double_int mask;
-
-  mask = double_int::mask (bitsize);
-  mask = mask.llshift (bitpos, HOST_BITS_PER_DOUBLE_INT);
-
-  if (complement)
-    mask = ~mask;
-
-  return immed_double_int_const (mask, mode);
-}
 
 /* Return a constant integer (CONST_INT or CONST_DOUBLE) rtx with the value
    VALUE << BITPOS.  */
@@ -1913,12 +1879,7 @@ static rtx
 lshift_value (enum machine_mode mode, unsigned HOST_WIDE_INT value,
 	      int bitpos)
 {
-  double_int val;
-  
-  val = double_int::from_uhwi (value);
-  val = val.llshift (bitpos, HOST_BITS_PER_DOUBLE_INT);
-
-  return immed_double_int_const (val, mode);
+  return immed_wide_int_const (wi::lshift (value, bitpos), mode);
 }
 
 /* Extract a bit field that is split across two words
@@ -2141,9 +2102,12 @@ expand_shift_1 (enum tree_code code, enum machine_mode mode, rtx shifted,
   optab lrotate_optab = rotl_optab;
   optab rrotate_optab = rotr_optab;
   enum machine_mode op1_mode;
+  enum machine_mode scalar_mode = mode;
   int attempt;
   bool speed = optimize_insn_for_speed_p ();
 
+  if (VECTOR_MODE_P (mode))
+    scalar_mode = GET_MODE_INNER (mode);
   op1 = amount;
   op1_mode = GET_MODE (op1);
 
@@ -2166,9 +2130,9 @@ expand_shift_1 (enum tree_code code, enum machine_mode mode, rtx shifted,
     {
       if (CONST_INT_P (op1)
 	  && ((unsigned HOST_WIDE_INT) INTVAL (op1) >=
-	      (unsigned HOST_WIDE_INT) GET_MODE_BITSIZE (mode)))
+	      (unsigned HOST_WIDE_INT) GET_MODE_BITSIZE (scalar_mode)))
 	op1 = GEN_INT ((unsigned HOST_WIDE_INT) INTVAL (op1)
-		       % GET_MODE_BITSIZE (mode));
+		       % GET_MODE_BITSIZE (scalar_mode));
       else if (GET_CODE (op1) == SUBREG
 	       && subreg_lowpart_p (op1)
 	       && SCALAR_INT_MODE_P (GET_MODE (SUBREG_REG (op1)))
@@ -2182,10 +2146,10 @@ expand_shift_1 (enum tree_code code, enum machine_mode mode, rtx shifted,
      amount instead.  */
   if (rotate
       && CONST_INT_P (op1)
-      && IN_RANGE (INTVAL (op1), GET_MODE_BITSIZE (mode) / 2 + left,
-		   GET_MODE_BITSIZE (mode) - 1))
+      && IN_RANGE (INTVAL (op1), GET_MODE_BITSIZE (scalar_mode) / 2 + left,
+		   GET_MODE_BITSIZE (scalar_mode) - 1))
     {
-      op1 = GEN_INT (GET_MODE_BITSIZE (mode) - INTVAL (op1));
+      op1 = GEN_INT (GET_MODE_BITSIZE (scalar_mode) - INTVAL (op1));
       left = !left;
       code = left ? LROTATE_EXPR : RROTATE_EXPR;
     }
@@ -2198,7 +2162,7 @@ expand_shift_1 (enum tree_code code, enum machine_mode mode, rtx shifted,
   if (code == LSHIFT_EXPR
       && CONST_INT_P (op1)
       && INTVAL (op1) > 0
-      && INTVAL (op1) < GET_MODE_PRECISION (mode)
+      && INTVAL (op1) < GET_MODE_PRECISION (scalar_mode)
       && INTVAL (op1) < MAX_BITS_PER_WORD
       && (shift_cost (speed, mode, INTVAL (op1))
 	  > INTVAL (op1) * add_cost (speed, mode))
@@ -2253,14 +2217,14 @@ expand_shift_1 (enum tree_code code, enum machine_mode mode, rtx shifted,
 	      if (op1 == const0_rtx)
 		return shifted;
 	      else if (CONST_INT_P (op1))
-		other_amount = GEN_INT (GET_MODE_BITSIZE (mode)
+		other_amount = GEN_INT (GET_MODE_BITSIZE (scalar_mode)
 					- INTVAL (op1));
 	      else
 		{
 		  other_amount
 		    = simplify_gen_unary (NEG, GET_MODE (op1),
 					  op1, GET_MODE (op1));
-		  HOST_WIDE_INT mask = GET_MODE_PRECISION (mode) - 1;
+		  HOST_WIDE_INT mask = GET_MODE_PRECISION (scalar_mode) - 1;
 		  other_amount
 		    = simplify_gen_binary (AND, GET_MODE (op1), other_amount,
 					   gen_int_mode (mask, GET_MODE (op1)));
@@ -3154,38 +3118,22 @@ expand_mult (enum machine_mode mode, rtx op0, rtx op1, rtx target,
 	 only if the constant value exactly fits in an `unsigned int' without
 	 any truncation.  This means that multiplying by negative values does
 	 not work; results are off by 2^32 on a 32 bit machine.  */
-
       if (CONST_INT_P (scalar_op1))
 	{
 	  coeff = INTVAL (scalar_op1);
 	  is_neg = coeff < 0;
 	}
+#if TARGET_SUPPORTS_WIDE_INT
+      else if (CONST_WIDE_INT_P (scalar_op1))
+#else
       else if (CONST_DOUBLE_AS_INT_P (scalar_op1))
+#endif
 	{
-	  /* If we are multiplying in DImode, it may still be a win
-	     to try to work with shifts and adds.  */
-	  if (CONST_DOUBLE_HIGH (scalar_op1) == 0
-	      && (CONST_DOUBLE_LOW (scalar_op1) > 0
-		  || (CONST_DOUBLE_LOW (scalar_op1) < 0
-		      && EXACT_POWER_OF_2_OR_ZERO_P
-			   (CONST_DOUBLE_LOW (scalar_op1)))))
-	    {
-	      coeff = CONST_DOUBLE_LOW (scalar_op1);
-	      is_neg = false;
-	    }
-	  else if (CONST_DOUBLE_LOW (scalar_op1) == 0)
-	    {
-	      coeff = CONST_DOUBLE_HIGH (scalar_op1);
-	      if (EXACT_POWER_OF_2_OR_ZERO_P (coeff))
-		{
-		  int shift = floor_log2 (coeff) + HOST_BITS_PER_WIDE_INT;
-		  if (shift < HOST_BITS_PER_DOUBLE_INT - 1
-		      || mode_bitsize <= HOST_BITS_PER_DOUBLE_INT)
-		    return expand_shift (LSHIFT_EXPR, mode, op0,
-					 shift, target, unsignedp);
-		}
-	      goto skip_synth;
-	    }
+	  int shift = wi::exact_log2 (std::make_pair (scalar_op1, mode));
+	  /* Perfect power of 2 (other than 1, which is handled above).  */
+	  if (shift > 0)
+	    return expand_shift (LSHIFT_EXPR, mode, op0,
+				 shift, target, unsignedp);
 	  else
 	    goto skip_synth;
 	}
@@ -3362,7 +3310,6 @@ choose_multiplier (unsigned HOST_WIDE_INT d, int n, int precision,
 		   unsigned HOST_WIDE_INT *multiplier_ptr,
 		   int *post_shift_ptr, int *lgup_ptr)
 {
-  double_int mhigh, mlow;
   int lgup, post_shift;
   int pow, pow2;
 
@@ -3374,23 +3321,13 @@ choose_multiplier (unsigned HOST_WIDE_INT d, int n, int precision,
   pow = n + lgup;
   pow2 = n + lgup - precision;
 
-  /* We could handle this with some effort, but this case is much
-     better handled directly with a scc insn, so rely on caller using
-     that.  */
-  gcc_assert (pow != HOST_BITS_PER_DOUBLE_INT);
-
   /* mlow = 2^(N + lgup)/d */
-  double_int val = double_int_zero.set_bit (pow);
-  mlow = val.div (double_int::from_uhwi (d), true, TRUNC_DIV_EXPR); 
+  wide_int val = wi::set_bit_in_zero (pow, HOST_BITS_PER_DOUBLE_INT);
+  wide_int mlow = wi::udiv_trunc (val, d);
 
   /* mhigh = (2^(N + lgup) + 2^(N + lgup - precision))/d */
-  val |= double_int_zero.set_bit (pow2);
-  mhigh = val.div (double_int::from_uhwi (d), true, TRUNC_DIV_EXPR);
-
-  gcc_assert (!mhigh.high || val.high - d < d);
-  gcc_assert (mhigh.high <= 1 && mlow.high <= 1);
-  /* Assert that mlow < mhigh.  */
-  gcc_assert (mlow.ult (mhigh));
+  val |= wi::set_bit_in_zero (pow2, HOST_BITS_PER_DOUBLE_INT);
+  wide_int mhigh = wi::udiv_trunc (val, d);
 
   /* If precision == N, then mlow, mhigh exceed 2^N
      (but they do not exceed 2^(N+1)).  */
@@ -3398,14 +3335,15 @@ choose_multiplier (unsigned HOST_WIDE_INT d, int n, int precision,
   /* Reduce to lowest terms.  */
   for (post_shift = lgup; post_shift > 0; post_shift--)
     {
-      int shft = HOST_BITS_PER_WIDE_INT - 1;
-      unsigned HOST_WIDE_INT ml_lo = (mlow.high << shft) | (mlow.low >> 1);
-      unsigned HOST_WIDE_INT mh_lo = (mhigh.high << shft) | (mhigh.low >> 1);
+      unsigned HOST_WIDE_INT ml_lo = wi::extract_uhwi (mlow, 1,
+						       HOST_BITS_PER_WIDE_INT);
+      unsigned HOST_WIDE_INT mh_lo = wi::extract_uhwi (mhigh, 1,
+						       HOST_BITS_PER_WIDE_INT);
       if (ml_lo >= mh_lo)
 	break;
 
-      mlow = double_int::from_uhwi (ml_lo);
-      mhigh = double_int::from_uhwi (mh_lo);
+      mlow = wi::uhwi (ml_lo, HOST_BITS_PER_DOUBLE_INT);
+      mhigh = wi::uhwi (mh_lo, HOST_BITS_PER_DOUBLE_INT);
     }
 
   *post_shift_ptr = post_shift;
@@ -3413,13 +3351,13 @@ choose_multiplier (unsigned HOST_WIDE_INT d, int n, int precision,
   if (n < HOST_BITS_PER_WIDE_INT)
     {
       unsigned HOST_WIDE_INT mask = ((unsigned HOST_WIDE_INT) 1 << n) - 1;
-      *multiplier_ptr = mhigh.low & mask;
-      return mhigh.low >= mask;
+      *multiplier_ptr = mhigh.to_uhwi () & mask;
+      return mhigh.to_uhwi () >= mask;
     }
   else
     {
-      *multiplier_ptr = mhigh.low;
-      return mhigh.high;
+      *multiplier_ptr = mhigh.to_uhwi ();
+      return wi::extract_uhwi (mhigh, HOST_BITS_PER_WIDE_INT, 1);
     }
 }
 
@@ -3686,9 +3624,9 @@ expmed_mult_highpart (enum machine_mode mode, rtx op0, rtx op1,
 static rtx
 expand_smod_pow2 (enum machine_mode mode, rtx op0, HOST_WIDE_INT d)
 {
-  unsigned HOST_WIDE_INT masklow, maskhigh;
   rtx result, temp, shift, label;
   int logd;
+  int prec = GET_MODE_PRECISION (mode);
 
   logd = floor_log2 (d);
   result = gen_reg_rtx (mode);
@@ -3701,8 +3639,8 @@ expand_smod_pow2 (enum machine_mode mode, rtx op0, HOST_WIDE_INT d)
 				      mode, 0, -1);
       if (signmask)
 	{
+	  HOST_WIDE_INT masklow = ((HOST_WIDE_INT) 1 << logd) - 1;
 	  signmask = force_reg (mode, signmask);
-	  masklow = ((HOST_WIDE_INT) 1 << logd) - 1;
 	  shift = GEN_INT (GET_MODE_BITSIZE (mode) - logd);
 
 	  /* Use the rtx_cost of a LSHIFTRT instruction to determine
@@ -3749,19 +3687,11 @@ expand_smod_pow2 (enum machine_mode mode, rtx op0, HOST_WIDE_INT d)
      modulus.  By including the signbit in the operation, many targets
      can avoid an explicit compare operation in the following comparison
      against zero.  */
-
-  masklow = ((HOST_WIDE_INT) 1 << logd) - 1;
-  if (GET_MODE_BITSIZE (mode) <= HOST_BITS_PER_WIDE_INT)
-    {
-      masklow |= HOST_WIDE_INT_M1U << (GET_MODE_BITSIZE (mode) - 1);
-      maskhigh = -1;
-    }
-  else
-    maskhigh = HOST_WIDE_INT_M1U
-		 << (GET_MODE_BITSIZE (mode) - HOST_BITS_PER_WIDE_INT - 1);
+  wide_int mask = wi::mask (logd, false, prec);
+  mask = wi::set_bit (mask, prec - 1);
 
   temp = expand_binop (mode, and_optab, op0,
-		       immed_double_const (masklow, maskhigh, mode),
+		       immed_wide_int_const (mask, mode),
 		       result, 1, OPTAB_LIB_WIDEN);
   if (temp != result)
     emit_move_insn (result, temp);
@@ -3771,10 +3701,10 @@ expand_smod_pow2 (enum machine_mode mode, rtx op0, HOST_WIDE_INT d)
 
   temp = expand_binop (mode, sub_optab, result, const1_rtx, result,
 		       0, OPTAB_LIB_WIDEN);
-  masklow = HOST_WIDE_INT_M1U << logd;
-  maskhigh = -1;
+
+  mask = wi::mask (logd, true, prec);
   temp = expand_binop (mode, ior_optab, temp,
-		       immed_double_const (masklow, maskhigh, mode),
+		       immed_wide_int_const (mask, mode),
 		       result, 1, OPTAB_LIB_WIDEN);
   temp = expand_binop (mode, add_optab, temp, const1_rtx, result,
 		       0, OPTAB_LIB_WIDEN);
@@ -3839,8 +3769,9 @@ expand_sdiv_pow2 (enum machine_mode mode, rtx op0, HOST_WIDE_INT d)
 
       temp = gen_reg_rtx (mode);
       temp = emit_store_flag (temp, LT, op0, const0_rtx, mode, 0, -1);
-      if (shift_cost (optimize_insn_for_speed_p (), mode, ushift)
-	  > COSTS_N_INSNS (1))
+      if (GET_MODE_BITSIZE (mode) >= BITS_PER_WORD
+	  || shift_cost (optimize_insn_for_speed_p (), mode, ushift)
+	     > COSTS_N_INSNS (1))
 	temp = expand_binop (mode, and_optab, temp, gen_int_mode (d - 1, mode),
 			     NULL_RTX, 0, OPTAB_LIB_WIDEN);
       else
@@ -5013,24 +4944,16 @@ make_tree (tree type, rtx x)
   switch (GET_CODE (x))
     {
     case CONST_INT:
-      {
-	HOST_WIDE_INT hi = 0;
-
-	if (INTVAL (x) < 0
-	    && !(TYPE_UNSIGNED (type)
-		 && (GET_MODE_BITSIZE (TYPE_MODE (type))
-		     < HOST_BITS_PER_WIDE_INT)))
-	  hi = -1;
-
-	t = build_int_cst_wide (type, INTVAL (x), hi);
-
-	return t;
-      }
+    case CONST_WIDE_INT:
+      t = wide_int_to_tree (type, std::make_pair (x, TYPE_MODE (type)));
+      return t;
 
     case CONST_DOUBLE:
-      if (GET_MODE (x) == VOIDmode)
-	t = build_int_cst_wide (type,
-				CONST_DOUBLE_LOW (x), CONST_DOUBLE_HIGH (x));
+      STATIC_ASSERT (HOST_BITS_PER_WIDE_INT * 2 <= MAX_BITSIZE_MODE_ANY_INT);
+      if (TARGET_SUPPORTS_WIDE_INT == 0 && GET_MODE (x) == VOIDmode)
+	t = wide_int_to_tree (type,
+			      wide_int::from_array (&CONST_DOUBLE_LOW (x), 2,
+						    HOST_BITS_PER_WIDE_INT * 2));
       else
 	{
 	  REAL_VALUE_TYPE d;

@@ -410,6 +410,8 @@ enum tree_index {
   TI_UINT32_TYPE,
   TI_UINT64_TYPE,
 
+  TI_VOID,
+
   TI_INTEGER_ZERO,
   TI_INTEGER_ONE,
   TI_INTEGER_THREE,
@@ -657,9 +659,19 @@ enum tree_node_kind {
 };
 
 enum annot_expr_kind {
-  annot_expr_ivdep_kind
+  annot_expr_ivdep_kind,
+  annot_expr_no_vector_kind,
+  annot_expr_vector_kind,
+  annot_expr_kind_last
 };
 
+/* Internal functions.  */
+enum internal_fn {
+#define DEF_INTERNAL_FN(CODE, FLAGS) IFN_##CODE,
+#include "internal-fn.def"
+#undef DEF_INTERNAL_FN
+  IFN_LAST
+};
 
 /*---------------------------------------------------------------------------
                                 Type definitions
@@ -755,13 +767,36 @@ struct GTY(()) tree_base {
 	 of the field must be large enough to hold addr_space_t values.  */
       unsigned address_space : 8;
     } bits;
+
     /* The following fields are present in tree_base to save space.  The
        nodes using them do not require any of the flags above and so can
        make better use of the 4-byte sized word.  */
+
+    /* The number of HOST_WIDE_INTs in an INTEGER_CST.  */
+    struct {
+      /* The number of HOST_WIDE_INTs if the INTEGER_CST is accessed in
+	 its native precision.  */
+      unsigned char unextended;
+
+      /* The number of HOST_WIDE_INTs if the INTEGER_CST is extended to
+	 wider precisions based on its TYPE_SIGN.  */
+      unsigned char extended;
+
+      /* The number of HOST_WIDE_INTs if the INTEGER_CST is accessed in
+	 offset_int precision, with smaller integers being extended
+	 according to their TYPE_SIGN.  This is equal to one of the two
+	 fields above but is cached for speed.  */
+      unsigned char offset;
+    } int_length;
+
     /* VEC length.  This field is only used with TREE_VEC.  */
     int length;
+
     /* SSA version number.  This field is only used with SSA_NAME.  */
     unsigned int version;
+
+    /* Internal function code.  */
+    enum internal_fn ifn;
   } GTY((skip(""))) u;
 };
 
@@ -987,7 +1022,7 @@ struct GTY(()) tree_base {
        SSA_NAME_IN_FREELIST in
           SSA_NAME
 
-       VAR_DECL_NONALIASED in
+       DECL_NONALIASED in
 	  VAR_DECL
 
    deprecated_flag:
@@ -1048,7 +1083,7 @@ struct GTY(()) tree_common {
 
 struct GTY(()) tree_int_cst {
   struct tree_typed typed;
-  double_int int_cst;
+  HOST_WIDE_INT val[1];
 };
 
 
@@ -1127,6 +1162,11 @@ enum omp_clause_map_kind
      array sections.  OMP_CLAUSE_SIZE for these is not the pointer size,
      which is implicitly POINTER_SIZE / BITS_PER_UNIT, but the bias.  */
   OMP_CLAUSE_MAP_POINTER,
+  /* Also internal, behaves like OMP_CLAUS_MAP_TO, but additionally any
+     OMP_CLAUSE_MAP_POINTER records consecutive after it which have addresses
+     falling into that range will not be ignored if OMP_CLAUSE_MAP_TO_PSET
+     wasn't mapped already.  */
+  OMP_CLAUSE_MAP_TO_PSET,
   OMP_CLAUSE_MAP_LAST
 };
 
@@ -1223,6 +1263,7 @@ struct GTY(()) tree_block {
   unsigned block_num : 31;
 
   location_t locus;
+  location_t end_locus;
 
   tree vars;
   vec<tree, va_gc> *nonlocalized_vars;
@@ -1416,8 +1457,7 @@ struct GTY(()) tree_parm_decl {
 struct GTY(()) tree_decl_with_vis {
  struct tree_decl_with_rtl common;
  tree assembler_name;
- tree section_name;
- tree comdat_group;
+ struct symtab_node *symtab_node;
 
  /* Belong to VAR_DECL exclusively.  */
  unsigned defer_output : 1;
@@ -1428,15 +1468,12 @@ struct GTY(()) tree_decl_with_vis {
  unsigned dllimport_flag : 1;
  /* Don't belong to VAR_DECL exclusively.  */
  unsigned weak_flag : 1;
- /* When SECTION_NAME is implied by -ffunction-section.  */
- unsigned implicit_section_name_p : 1;
 
  unsigned seen_in_bind_expr : 1;
  unsigned comdat_flag : 1;
+ /* Used for FUNCTION_DECL, VAR_DECL and in C++ for TYPE_DECL.  */
  ENUM_BITFIELD(symbol_visibility) visibility : 2;
  unsigned visibility_specified : 1;
- /* Belongs to VAR_DECL exclusively.  */
- ENUM_BITFIELD(tls_model) tls_model : 3;
 
  /* Belong to FUNCTION_DECL exclusively.  */
  unsigned init_priority_p : 1;
@@ -1448,7 +1485,7 @@ struct GTY(()) tree_decl_with_vis {
  unsigned cxx_destructor : 1;
  /* Belong to FUNCTION_DECL exclusively.  */
  unsigned final : 1;
- /* 11 unused bits. */
+ /* 15 unused bits. */
 };
 
 struct GTY(()) tree_var_decl {
@@ -1457,14 +1494,8 @@ struct GTY(()) tree_var_decl {
 
 struct GTY(()) tree_decl_non_common {
   struct tree_decl_with_vis common;
-  /* C++ uses this in namespaces.  */
-  tree saved_tree;
-  /* C++ uses this in templates.  */
-  tree arguments;
   /* Almost all FE's use this.  */
   tree result;
-  /* C++ uses this in namespaces and function_decls.  */
-  tree vindex;
 };
 
 /* FUNCTION_DECL inherits from DECL_NON_COMMON because of the use of the
@@ -1477,12 +1508,19 @@ struct GTY(()) tree_function_decl {
 
   struct function *f;
 
+  /* Arguments of the function.  */
+  tree arguments;
   /* The personality function. Used for stack unwinding. */
   tree personality;
 
   /* Function specific options that are used by this function.  */
   tree function_specific_target;	/* target options */
   tree function_specific_optimization;	/* optimization options */
+
+  /* Generic function body.  */
+  tree saved_tree;
+  /* Index within a virtual table.  */
+  tree vindex;
 
   /* In a FUNCTION_DECL for which DECL_BUILT_IN holds, this is
      DECL_FUNCTION_CODE.  Otherwise unused.
@@ -1732,13 +1770,6 @@ struct GTY(()) tree_decl_map {
 struct GTY(()) tree_int_map {
   struct tree_map_base base;
   unsigned int to;
-};
-
-/* Map from a tree to initialization/finalization priorities.  */
-struct GTY(()) tree_priority_map {
-  struct tree_map_base base;
-  priority_type init;
-  priority_type fini;
 };
 
 /* Map from a decl tree to a tree vector.  */

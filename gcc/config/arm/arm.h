@@ -17,8 +17,13 @@
    or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
    License for more details.
 
-   You should have received a copy of the GNU General Public License
-   along with GCC; see the file COPYING3.  If not see
+   Under Section 7 of GPL version 3, you are granted additional
+   permissions described in the GCC Runtime Library Exception, version
+   3.1, as published by the Free Software Foundation.
+
+   You should have received a copy of the GNU General Public License and
+   a copy of the GCC Runtime Library Exception along with this program;
+   see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    <http://www.gnu.org/licenses/>.  */
 
 #ifndef GCC_ARM_H
@@ -99,8 +104,6 @@ extern char arm_arch_name[];
 	    builtin_define ("__ARM_BIG_ENDIAN");	\
 	    if (TARGET_THUMB)				\
 	      builtin_define ("__THUMBEB__");		\
-	    if (TARGET_LITTLE_WORDS)			\
-	      builtin_define ("__ARMWEL__");		\
 	  }						\
         else						\
 	  {						\
@@ -638,9 +641,8 @@ extern int arm_arch_crc;
 #define BYTES_BIG_ENDIAN  (TARGET_BIG_END != 0)
 
 /* Define this if most significant word of a multiword number is the lowest
-   numbered.
-   This is always false, even when in big-endian mode.  */
-#define WORDS_BIG_ENDIAN  (BYTES_BIG_ENDIAN && ! TARGET_LITTLE_WORDS)
+   numbered.  */
+#define WORDS_BIG_ENDIAN  (BYTES_BIG_ENDIAN)
 
 #define UNITS_PER_WORD	4
 
@@ -1152,7 +1154,7 @@ extern int arm_regs_in_sequence[];
 
 /* Tell IRA to use the order we define rather than messing it up with its
    own cost calculations.  */
-#define HONOR_REG_ALLOC_ORDER
+#define HONOR_REG_ALLOC_ORDER 1
 
 /* Interrupt functions can only use registers that have already been
    saved by the prologue, even if they would normally be
@@ -1543,6 +1545,8 @@ typedef struct GTY(()) machine_function
   rtx thumb1_cc_op1;
   /* Also record the CC mode that is supported.  */
   enum machine_mode thumb1_cc_mode;
+  /* Set to 1 after arm_reorg has started.  */
+  int after_arm_reorg;
 }
 machine_function;
 #endif
@@ -2141,8 +2145,7 @@ extern int making_const_table;
   do { cfun->machine->thumb1_cc_insn = NULL_RTX; } while (0)
 
 #undef  ASM_APP_OFF
-#define ASM_APP_OFF (TARGET_THUMB1 ? "\t.code\t16\n" : \
-		     TARGET_THUMB2 ? "\t.thumb\n" : "")
+#define ASM_APP_OFF (TARGET_ARM ? "" : "\t.thumb\n")
 
 /* Output a push or a pop instruction (only used when profiling).
    We can't push STATIC_CHAIN_REGNUM (r12) directly with Thumb-1.  We know
@@ -2389,5 +2392,5 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 #endif
 
 #define DRIVER_SELF_SPECS MCPU_MTUNE_NATIVE_SPECS
-
+#define TARGET_SUPPORTS_WIDE_INT 1
 #endif /* ! GCC_ARM_H */

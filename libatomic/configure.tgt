@@ -27,7 +27,11 @@
 # work out any special compilation flags as necessary.
 
 case "${target_cpu}" in
-  alpha*)		ARCH=alpha ;;
+  alpha*)
+	# fenv.c needs this option to generate inexact exceptions.
+	XCFLAGS="${XCFLAGS} -mfp-trap-mode=sui"
+	ARCH=alpha
+	;;
   rs6000 | powerpc*)	ARCH=powerpc ;;
   sh*)			ARCH=sh ;;
 
@@ -108,6 +112,17 @@ case "${target}" in
 	config_path="${config_path} posix"
 	;;
 
+  *-*-mingw*)
+	# OS support for atomic primitives.
+        case ${target_thread_file} in
+          win32)
+            config_path="${config_path} mingw"
+            ;;
+          posix)
+            config_path="${config_path} posix"
+            ;;
+        esac
+	;;
   *-*-elf*)
 	# ??? No target OS.  We could be targeting bare-metal kernel-mode,
 	# or user-mode for some custom OS.  If the target supports TAS,

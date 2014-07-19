@@ -26,9 +26,13 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #ifndef LIBCAF_H
 #define LIBCAF_H
 
+#include <stdbool.h>
+#include <stddef.h>	/* For size_t.  */
 #include <stdint.h>	/* For int32_t.  */
-#include <stddef.h>	/* For ptrdiff_t.  */
 
+#include "libgfortran.h"
+
+#if 0
 #ifndef __GNUC__
 #define __attribute__(x)
 #define likely(x)       (x)
@@ -44,6 +48,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define STAT_LOCKED		1
 #define STAT_LOCKED_OTHER_IMAGE	2
 #define STAT_STOPPED_IMAGE 	6000
+#endif
 
 /* Describes what type of array we are registerring. Keep in sync with
    gcc/fortran/trans.h.  */
@@ -55,21 +60,43 @@ typedef enum caf_register_t {
 }
 caf_register_t;
 
+typedef void* caf_token_t;
+typedef gfc_array_void gfc_descriptor_t;
+
 /* Linked list of static coarrays registered.  */
 typedef struct caf_static_t {
-  void **token;
+  caf_token_t token;
   struct caf_static_t *prev;
 }
 caf_static_t;
 
+/* When there is a vector subscript in this dimension, nvec == 0, otherwise,
+   lower_bound, upper_bound, stride contains the bounds relative to the declared
+   bounds; kind denotes the integer kind of the elements of vector[].  */
+typedef struct caf_vector_t {
+  size_t nvec;
+  union {
+    struct {
+      void *vector;
+      int kind;
+    } v;
+    struct {
+      ptrdiff_t lower_bound, upper_bound, stride;
+    } triplet;
+  } u;
+}
+caf_vector_t;
 
-void _gfortran_caf_init (int *, char ***, int *, int *);
+
+void _gfortran_caf_init (int *, char ***);
 void _gfortran_caf_finalize (void);
 
-void * _gfortran_caf_register (ptrdiff_t, caf_register_t, void ***, int *,
-			       char *, int);
-void _gfortran_caf_deregister (void ***, int *, char *, int);
+int _gfortran_caf_this_image (int);
+int _gfortran_caf_num_images (int, int);
 
+void *_gfortran_caf_register (size_t, caf_register_t, caf_token_t *, int *,
+			      char *, int);
+void _gfortran_caf_deregister (caf_token_t *, int *, char *, int);
 
 void _gfortran_caf_sync_all (int *, char *, int);
 void _gfortran_caf_sync_images (int, int[], int *, char *, int);
@@ -87,4 +114,27 @@ void _gfortran_caf_error_stop_str (const char *, int32_t)
      __attribute__ ((noreturn));
 void _gfortran_caf_error_stop (int32_t) __attribute__ ((noreturn));
 
+void _gfortran_caf_co_sum (gfc_descriptor_t *, int, int *,
+			   char *, int);
+void _gfortran_caf_co_min (gfc_descriptor_t *, int, int *, char *,
+			   int, int);
+void _gfortran_caf_co_max (gfc_descriptor_t *, int, int *, char *,
+			   int, int);
+
+void _gfortran_caf_get (caf_token_t, size_t, int, gfc_descriptor_t *,
+                        caf_vector_t *, gfc_descriptor_t *, int, int);
+void _gfortran_caf_send (caf_token_t, size_t, int, gfc_descriptor_t *,
+			 caf_vector_t *, gfc_descriptor_t *, int, int);
+void _gfortran_caf_sendget (caf_token_t, size_t, int, gfc_descriptor_t *,
+			    caf_vector_t *, caf_token_t, size_t, int,
+			    gfc_descriptor_t *, caf_vector_t *, int, int);
+
+void _gfortran_caf_atomic_define (caf_token_t, size_t, int, void *, int *,
+				  int, int);
+void _gfortran_caf_atomic_ref (caf_token_t, size_t, int, void *, int *,
+			       int, int);
+void _gfortran_caf_atomic_cas (caf_token_t, size_t, int, void *, void *,
+			       void *, int *, int, int);
+void _gfortran_caf_atomic_op (int, caf_token_t, size_t, int, void *, void *,
+			      int *, int, int);
 #endif  /* LIBCAF_H  */

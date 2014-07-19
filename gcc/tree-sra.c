@@ -112,6 +112,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple-pretty-print.h"
 #include "ipa-inline.h"
 #include "ipa-utils.h"
+#include "builtins.h"
 
 /* Enumeration of all aggregate reductions we can do.  */
 enum sra_mode { SRA_MODE_EARLY_IPA,   /* early call regularization */
@@ -319,7 +320,7 @@ uid_decl_hasher::equal (const value_type *a, const compare_type *b)
 
 /* Set of candidates.  */
 static bitmap candidate_bitmap;
-static hash_table <uid_decl_hasher> candidates;
+static hash_table<uid_decl_hasher> *candidates;
 
 /* For a candidate UID return the candidates decl.  */
 
@@ -328,7 +329,7 @@ candidate (unsigned uid)
 {
  tree_node t;
  t.decl_minimal.uid = uid;
- return candidates.find_with_hash (&t, static_cast <hashval_t> (uid));
+ return candidates->find_with_hash (&t, static_cast <hashval_t> (uid));
 }
 
 /* Bitmap of candidates which we should try to entirely scalarize away and
@@ -659,7 +660,8 @@ static void
 sra_initialize (void)
 {
   candidate_bitmap = BITMAP_ALLOC (NULL);
-  candidates.create (vec_safe_length (cfun->local_decls) / 2);
+  candidates = new hash_table<uid_decl_hasher>
+    (vec_safe_length (cfun->local_decls) / 2);
   should_scalarize_away_bitmap = BITMAP_ALLOC (NULL);
   cannot_scalarize_away_bitmap = BITMAP_ALLOC (NULL);
   gcc_obstack_init (&name_obstack);
@@ -689,7 +691,8 @@ static void
 sra_deinitialize (void)
 {
   BITMAP_FREE (candidate_bitmap);
-  candidates.dispose ();
+  delete candidates;
+  candidates = NULL;
   BITMAP_FREE (should_scalarize_away_bitmap);
   BITMAP_FREE (cannot_scalarize_away_bitmap);
   free_alloc_pool (access_pool);
@@ -706,9 +709,7 @@ static void
 disqualify_candidate (tree decl, const char *reason)
 {
   if (bitmap_clear_bit (candidate_bitmap, DECL_UID (decl)))
-    candidates.clear_slot (candidates.find_slot_with_hash (decl,
-							   DECL_UID (decl),
-							   NO_INSERT));
+    candidates->remove_elt_with_hash (decl, DECL_UID (decl));
 
   if (dump_file && (dump_flags & TDF_DETAILS))
     {
@@ -1142,17 +1143,41 @@ build_access_from_expr (tree expr, gimple stmt, bool write)
   return false;
 }
 
-/* Disqualify LHS and RHS for scalarization if STMT must end its basic block in
-   modes in which it matters, return true iff they have been disqualified.  RHS
-   may be NULL, in that case ignore it.  If we scalarize an aggregate in
-   intra-SRA we may need to add statements after each statement.  This is not
-   possible if a statement unconditionally has to end the basic block.  */
+/* Return the single non-EH successor edge of BB or NULL if there is none or
+   more than one.  */
+
+static edge
+single_non_eh_succ (basic_block bb)
+{
+  edge e, res = NULL;
+  edge_iterator ei;
+
+  FOR_EACH_EDGE (e, ei, bb->succs)
+    if (!(e->flags & EDGE_EH))
+      {
+	if (res)
+	  return NULL;
+	res = e;
+      }
+
+  return res;
+}
+
+/* Disqualify LHS and RHS for scalarization if STMT has to terminate its BB and
+   there is no alternative spot where to put statements SRA might need to
+   generate after it.  The spot we are looking for is an edge leading to a
+   single non-EH successor, if it exists and is indeed single.  RHS may be
+   NULL, in that case ignore it.  */
+
 static bool
-disqualify_ops_if_throwing_stmt (gimple stmt, tree lhs, tree rhs)
+disqualify_if_bad_bb_terminating_stmt (gimple stmt, tree lhs, tree rhs)
 {
   if ((sra_mode == SRA_MODE_EARLY_INTRA || sra_mode == SRA_MODE_INTRA)
-      && (stmt_can_throw_internal (stmt) || stmt_ends_bb_p (stmt)))
+      && stmt_ends_bb_p (stmt))
     {
+      if (single_non_eh_succ (gimple_bb (stmt)))
+	return false;
+
       disqualify_base_of_expr (lhs, "LHS of a throwing stmt.");
       if (rhs)
 	disqualify_base_of_expr (rhs, "RHS of a throwing stmt.");
@@ -1180,7 +1205,7 @@ build_accesses_from_assign (gimple stmt)
   lhs = gimple_assign_lhs (stmt);
   rhs = gimple_assign_rhs1 (stmt);
 
-  if (disqualify_ops_if_throwing_stmt (stmt, lhs, rhs))
+  if (disqualify_if_bad_bb_terminating_stmt (stmt, lhs, rhs))
     return false;
 
   racc = build_access_from_expr_1 (rhs, stmt, false);
@@ -1319,7 +1344,7 @@ scan_function (void)
 		}
 
 	      t = gimple_call_lhs (stmt);
-	      if (t && !disqualify_ops_if_throwing_stmt (stmt, t, NULL))
+	      if (t && !disqualify_if_bad_bb_terminating_stmt (stmt, t, NULL))
 		ret |= build_access_from_expr (t, stmt, true);
 	      break;
 
@@ -1808,7 +1833,7 @@ maybe_add_sra_candidate (tree var)
     }
 
   bitmap_set_bit (candidate_bitmap, DECL_UID (var));
-  slot = candidates.find_slot_with_hash (var, DECL_UID (var), INSERT);
+  slot = candidates->find_slot_with_hash (var, DECL_UID (var), INSERT);
   *slot = var;
 
   if (dump_file && (dump_flags & TDF_DETAILS))
@@ -2745,7 +2770,7 @@ sra_modify_expr (tree *expr, gimple_stmt_iterator *gsi, bool write)
 {
   location_t loc;
   struct access *access;
-  tree type, bfr;
+  tree type, bfr, orig_expr;
 
   if (TREE_CODE (*expr) == BIT_FIELD_REF)
     {
@@ -2761,8 +2786,16 @@ sra_modify_expr (tree *expr, gimple_stmt_iterator *gsi, bool write)
   if (!access)
     return false;
   type = TREE_TYPE (*expr);
+  orig_expr = *expr;
 
   loc = gimple_location (gsi_stmt (*gsi));
+  gimple_stmt_iterator alt_gsi = gsi_none ();
+  if (write && stmt_ends_bb_p (gsi_stmt (*gsi)))
+    {
+      alt_gsi = gsi_start_edge (single_non_eh_succ (gsi_bb (*gsi)));
+      gsi = &alt_gsi;
+    }
+
   if (access->grp_to_be_replaced)
     {
       tree repl = get_access_replacement (access);
@@ -2780,8 +2813,7 @@ sra_modify_expr (tree *expr, gimple_stmt_iterator *gsi, bool write)
 	{
 	  tree ref;
 
-	  ref = build_ref_for_model (loc, access->base, access->offset, access,
-				     NULL, false);
+	  ref = build_ref_for_model (loc, orig_expr, 0, access, gsi, false);
 
 	  if (write)
 	    {
@@ -2832,7 +2864,7 @@ sra_modify_expr (tree *expr, gimple_stmt_iterator *gsi, bool write)
       else
 	start_offset = chunk_size = 0;
 
-      generate_subtree_copies (access->first_child, access->base, 0,
+      generate_subtree_copies (access->first_child, orig_expr, access->offset,
 			       start_offset, chunk_size, gsi, write, write,
 			       loc);
     }
@@ -2846,53 +2878,70 @@ enum unscalarized_data_handling { SRA_UDH_NONE,  /* Nothing done so far. */
 				  SRA_UDH_RIGHT, /* Data flushed to the RHS. */
 				  SRA_UDH_LEFT }; /* Data flushed to the LHS. */
 
+struct subreplacement_assignment_data
+{
+  /* Offset of the access representing the lhs of the assignment.  */
+  HOST_WIDE_INT left_offset;
+
+  /* LHS and RHS of the original assignment.  */
+  tree assignment_lhs, assignment_rhs;
+
+  /* Access representing the rhs of the whole assignment.  */
+  struct access *top_racc;
+
+  /* Stmt iterator used for statement insertions after the original assignment.
+   It points to the main GSI used to traverse a BB during function body
+   modification.  */
+  gimple_stmt_iterator *new_gsi;
+
+  /* Stmt iterator used for statement insertions before the original
+   assignment.  Keeps on pointing to the original statement.  */
+  gimple_stmt_iterator old_gsi;
+
+  /* Location of the assignment.   */
+  location_t loc;
+
+  /* Keeps the information whether we have needed to refresh replacements of
+   the LHS and from which side of the assignments this takes place.  */
+  enum unscalarized_data_handling refreshed;
+};
+
 /* Store all replacements in the access tree rooted in TOP_RACC either to their
    base aggregate if there are unscalarized data or directly to LHS of the
    statement that is pointed to by GSI otherwise.  */
 
-static enum unscalarized_data_handling
-handle_unscalarized_data_in_subtree (struct access *top_racc,
-				     gimple_stmt_iterator *gsi)
+static void
+handle_unscalarized_data_in_subtree (struct subreplacement_assignment_data *sad)
 {
-  if (top_racc->grp_unscalarized_data)
+  tree src;
+  if (sad->top_racc->grp_unscalarized_data)
     {
-      generate_subtree_copies (top_racc->first_child, top_racc->base, 0, 0, 0,
-			       gsi, false, false,
-			       gimple_location (gsi_stmt (*gsi)));
-      return SRA_UDH_RIGHT;
+      src = sad->assignment_rhs;
+      sad->refreshed = SRA_UDH_RIGHT;
     }
   else
     {
-      tree lhs = gimple_assign_lhs (gsi_stmt (*gsi));
-      generate_subtree_copies (top_racc->first_child, lhs, top_racc->offset,
-			       0, 0, gsi, false, false,
-			       gimple_location (gsi_stmt (*gsi)));
-      return SRA_UDH_LEFT;
+      src = sad->assignment_lhs;
+      sad->refreshed = SRA_UDH_LEFT;
     }
+  generate_subtree_copies (sad->top_racc->first_child, src,
+			   sad->top_racc->offset, 0, 0,
+			   &sad->old_gsi, false, false, sad->loc);
 }
 
-
 /* Try to generate statements to load all sub-replacements in an access subtree
-   formed by children of LACC from scalar replacements in the TOP_RACC subtree.
-   If that is not possible, refresh the TOP_RACC base aggregate and load the
-   accesses from it.  LEFT_OFFSET is the offset of the left whole subtree being
-   copied. NEW_GSI is stmt iterator used for statement insertions after the
-   original assignment, OLD_GSI is used to insert statements before the
-   assignment.  *REFRESHED keeps the information whether we have needed to
-   refresh replacements of the LHS and from which side of the assignments this
-   takes place.  */
+   formed by children of LACC from scalar replacements in the SAD->top_racc
+   subtree.  If that is not possible, refresh the SAD->top_racc base aggregate
+   and load the accesses from it.  */
 
 static void
-load_assign_lhs_subreplacements (struct access *lacc, struct access *top_racc,
-				 HOST_WIDE_INT left_offset,
-				 gimple_stmt_iterator *old_gsi,
-				 gimple_stmt_iterator *new_gsi,
-				 enum unscalarized_data_handling *refreshed)
+load_assign_lhs_subreplacements (struct access *lacc,
+				 struct subreplacement_assignment_data *sad)
 {
-  location_t loc = gimple_location (gsi_stmt (*old_gsi));
   for (lacc = lacc->first_child; lacc; lacc = lacc->next_sibling)
     {
-      HOST_WIDE_INT offset = lacc->offset - left_offset + top_racc->offset;
+      HOST_WIDE_INT offset;
+      offset = lacc->offset - sad->left_offset + sad->top_racc->offset;
 
       if (lacc->grp_to_be_replaced)
 	{
@@ -2900,53 +2949,57 @@ load_assign_lhs_subreplacements (struct access *lacc, struct access *top_racc,
 	  gimple stmt;
 	  tree rhs;
 
-	  racc = find_access_in_subtree (top_racc, offset, lacc->size);
+	  racc = find_access_in_subtree (sad->top_racc, offset, lacc->size);
 	  if (racc && racc->grp_to_be_replaced)
 	    {
 	      rhs = get_access_replacement (racc);
 	      if (!useless_type_conversion_p (lacc->type, racc->type))
-		rhs = fold_build1_loc (loc, VIEW_CONVERT_EXPR, lacc->type, rhs);
+		rhs = fold_build1_loc (sad->loc, VIEW_CONVERT_EXPR,
+				       lacc->type, rhs);
 
 	      if (racc->grp_partial_lhs && lacc->grp_partial_lhs)
-		rhs = force_gimple_operand_gsi (old_gsi, rhs, true, NULL_TREE,
-						true, GSI_SAME_STMT);
+		rhs = force_gimple_operand_gsi (&sad->old_gsi, rhs, true,
+						NULL_TREE, true, GSI_SAME_STMT);
 	    }
 	  else
 	    {
 	      /* No suitable access on the right hand side, need to load from
 		 the aggregate.  See if we have to update it first... */
-	      if (*refreshed == SRA_UDH_NONE)
-		*refreshed = handle_unscalarized_data_in_subtree (top_racc,
-								  old_gsi);
+	      if (sad->refreshed == SRA_UDH_NONE)
+		handle_unscalarized_data_in_subtree (sad);
 
-	      if (*refreshed == SRA_UDH_LEFT)
-		rhs = build_ref_for_model (loc, lacc->base, lacc->offset, lacc,
-					    new_gsi, true);
+	      if (sad->refreshed == SRA_UDH_LEFT)
+		rhs = build_ref_for_model (sad->loc, sad->assignment_lhs,
+					   lacc->offset - sad->left_offset,
+					   lacc, sad->new_gsi, true);
 	      else
-		rhs = build_ref_for_model (loc, top_racc->base, offset, lacc,
-					    new_gsi, true);
+		rhs = build_ref_for_model (sad->loc, sad->assignment_rhs,
+					   lacc->offset - sad->left_offset,
+					   lacc, sad->new_gsi, true);
 	      if (lacc->grp_partial_lhs)
-		rhs = force_gimple_operand_gsi (new_gsi, rhs, true, NULL_TREE,
+		rhs = force_gimple_operand_gsi (sad->new_gsi,
+						rhs, true, NULL_TREE,
 						false, GSI_NEW_STMT);
 	    }
 
 	  stmt = gimple_build_assign (get_access_replacement (lacc), rhs);
-	  gsi_insert_after (new_gsi, stmt, GSI_NEW_STMT);
-	  gimple_set_location (stmt, loc);
+	  gsi_insert_after (sad->new_gsi, stmt, GSI_NEW_STMT);
+	  gimple_set_location (stmt, sad->loc);
 	  update_stmt (stmt);
 	  sra_stats.subreplacements++;
 	}
       else
 	{
-	  if (*refreshed == SRA_UDH_NONE
+	  if (sad->refreshed == SRA_UDH_NONE
 	      && lacc->grp_read && !lacc->grp_covered)
-	    *refreshed = handle_unscalarized_data_in_subtree (top_racc,
-							      old_gsi);
+	    handle_unscalarized_data_in_subtree (sad);
+
 	  if (lacc && lacc->grp_to_be_debug_replaced)
 	    {
 	      gimple ds;
 	      tree drhs;
-	      struct access *racc = find_access_in_subtree (top_racc, offset,
+	      struct access *racc = find_access_in_subtree (sad->top_racc,
+							    offset,
 							    lacc->size);
 
 	      if (racc && racc->grp_to_be_replaced)
@@ -2956,27 +3009,26 @@ load_assign_lhs_subreplacements (struct access *lacc, struct access *top_racc,
 		  else
 		    drhs = NULL;
 		}
-	      else if (*refreshed == SRA_UDH_LEFT)
-		drhs = build_debug_ref_for_model (loc, lacc->base, lacc->offset,
-						  lacc);
-	      else if (*refreshed == SRA_UDH_RIGHT)
-		drhs = build_debug_ref_for_model (loc, top_racc->base, offset,
-						  lacc);
+	      else if (sad->refreshed == SRA_UDH_LEFT)
+		drhs = build_debug_ref_for_model (sad->loc, lacc->base,
+						  lacc->offset, lacc);
+	      else if (sad->refreshed == SRA_UDH_RIGHT)
+		drhs = build_debug_ref_for_model (sad->loc, sad->top_racc->base,
+						  offset, lacc);
 	      else
 		drhs = NULL_TREE;
 	      if (drhs
 		  && !useless_type_conversion_p (lacc->type, TREE_TYPE (drhs)))
-		drhs = fold_build1_loc (loc, VIEW_CONVERT_EXPR,
+		drhs = fold_build1_loc (sad->loc, VIEW_CONVERT_EXPR,
 					lacc->type, drhs);
 	      ds = gimple_build_debug_bind (get_access_replacement (lacc),
-					    drhs, gsi_stmt (*old_gsi));
-	      gsi_insert_after (new_gsi, ds, GSI_NEW_STMT);
+					    drhs, gsi_stmt (sad->old_gsi));
+	      gsi_insert_after (sad->new_gsi, ds, GSI_NEW_STMT);
 	    }
 	}
 
       if (lacc->first_child)
-	load_assign_lhs_subreplacements (lacc, top_racc, left_offset,
-					 old_gsi, new_gsi, refreshed);
+	load_assign_lhs_subreplacements (lacc, sad);
     }
 }
 
@@ -3022,7 +3074,7 @@ sra_modify_constructor_assign (gimple *stmt, gimple_stmt_iterator *gsi)
       /* I have never seen this code path trigger but if it can happen the
 	 following should handle it gracefully.  */
       if (access_has_children_p (acc))
-	generate_subtree_copies (acc->first_child, acc->base, 0, 0, 0, gsi,
+	generate_subtree_copies (acc->first_child, lhs, acc->offset, 0, 0, gsi,
 				 true, true, loc);
       return SRA_AM_MODIFIED;
     }
@@ -3226,14 +3278,23 @@ sra_modify_assign (gimple *stmt, gimple_stmt_iterator *gsi)
   if (modify_this_stmt
       || gimple_has_volatile_ops (*stmt)
       || contains_vce_or_bfcref_p (rhs)
-      || contains_vce_or_bfcref_p (lhs))
+      || contains_vce_or_bfcref_p (lhs)
+      || stmt_ends_bb_p (*stmt))
     {
       if (access_has_children_p (racc))
-	generate_subtree_copies (racc->first_child, racc->base, 0, 0, 0,
+	generate_subtree_copies (racc->first_child, rhs, racc->offset, 0, 0,
 				 gsi, false, false, loc);
       if (access_has_children_p (lacc))
-	generate_subtree_copies (lacc->first_child, lacc->base, 0, 0, 0,
-				 gsi, true, true, loc);
+	{
+	  gimple_stmt_iterator alt_gsi = gsi_none ();
+	  if (stmt_ends_bb_p (*stmt))
+	    {
+	      alt_gsi = gsi_start_edge (single_non_eh_succ (gsi_bb (*gsi)));
+	      gsi = &alt_gsi;
+	    }
+	  generate_subtree_copies (lacc->first_child, lhs, lacc->offset, 0, 0,
+				   gsi, true, true, loc);
+	}
       sra_stats.separate_lhs_rhs_handling++;
 
       /* This gimplification must be done after generate_subtree_copies,
@@ -3261,21 +3322,26 @@ sra_modify_assign (gimple *stmt, gimple_stmt_iterator *gsi)
 	  && !lacc->grp_unscalarizable_region
 	  && !racc->grp_unscalarizable_region)
 	{
-	  gimple_stmt_iterator orig_gsi = *gsi;
-	  enum unscalarized_data_handling refreshed;
+	  struct subreplacement_assignment_data sad;
+
+	  sad.left_offset = lacc->offset;
+	  sad.assignment_lhs = lhs;
+	  sad.assignment_rhs = rhs;
+	  sad.top_racc = racc;
+	  sad.old_gsi = *gsi;
+	  sad.new_gsi = gsi;
+	  sad.loc = gimple_location (*stmt);
+	  sad.refreshed = SRA_UDH_NONE;
 
 	  if (lacc->grp_read && !lacc->grp_covered)
-	    refreshed = handle_unscalarized_data_in_subtree (racc, gsi);
-	  else
-	    refreshed = SRA_UDH_NONE;
+	    handle_unscalarized_data_in_subtree (&sad);
 
-	  load_assign_lhs_subreplacements (lacc, racc, lacc->offset,
-					   &orig_gsi, gsi, &refreshed);
-	  if (refreshed != SRA_UDH_RIGHT)
+	  load_assign_lhs_subreplacements (lacc, &sad);
+	  if (sad.refreshed != SRA_UDH_RIGHT)
 	    {
 	      gsi_next (gsi);
 	      unlink_stmt_vdef (*stmt);
-	      gsi_remove (&orig_gsi, true);
+	      gsi_remove (&sad.old_gsi, true);
 	      release_defs (*stmt);
 	      sra_stats.deleted++;
 	      return SRA_AM_REMOVED;
@@ -3304,7 +3370,7 @@ sra_modify_assign (gimple *stmt, gimple_stmt_iterator *gsi)
 	  /* Restore the aggregate RHS from its components so the
 	     prevailing aggregate copy does the right thing.  */
 	  if (access_has_children_p (racc))
-	    generate_subtree_copies (racc->first_child, racc->base, 0, 0, 0,
+	    generate_subtree_copies (racc->first_child, rhs, racc->offset, 0, 0,
 				     gsi, false, false, loc);
 	  /* Re-load the components of the aggregate copy destination.
 	     But use the RHS aggregate to load from to expose more
@@ -3397,6 +3463,7 @@ sra_modify_function_body (void)
 	}
     }
 
+  gsi_commit_edge_inserts ();
   return cfg_changed;
 }
 
@@ -3507,14 +3574,12 @@ const pass_data pass_data_sra_early =
   GIMPLE_PASS, /* type */
   "esra", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_TREE_SRA, /* tv_id */
   ( PROP_cfg | PROP_ssa ), /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  ( TODO_update_ssa | TODO_verify_ssa ), /* todo_flags_finish */
+  TODO_update_ssa, /* todo_flags_finish */
 };
 
 class pass_sra_early : public gimple_opt_pass
@@ -3525,8 +3590,8 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_intra_sra (); }
-  unsigned int execute () { return early_intra_sra (); }
+  virtual bool gate (function *) { return gate_intra_sra (); }
+  virtual unsigned int execute (function *) { return early_intra_sra (); }
 
 }; // class pass_sra_early
 
@@ -3545,14 +3610,12 @@ const pass_data pass_data_sra =
   GIMPLE_PASS, /* type */
   "sra", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_TREE_SRA, /* tv_id */
   ( PROP_cfg | PROP_ssa ), /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   TODO_update_address_taken, /* todo_flags_start */
-  ( TODO_update_ssa | TODO_verify_ssa ), /* todo_flags_finish */
+  TODO_update_ssa, /* todo_flags_finish */
 };
 
 class pass_sra : public gimple_opt_pass
@@ -3563,8 +3626,8 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_intra_sra (); }
-  unsigned int execute () { return late_intra_sra (); }
+  virtual bool gate (function *) { return gate_intra_sra (); }
+  virtual unsigned int execute (function *) { return late_intra_sra (); }
 
 }; // class pass_sra
 
@@ -3727,7 +3790,7 @@ find_param_candidates (void)
 	continue;
 
       bitmap_set_bit (candidate_bitmap, DECL_UID (parm));
-      slot = candidates.find_slot_with_hash (parm, DECL_UID (parm), INSERT);
+      slot = candidates->find_slot_with_hash (parm, DECL_UID (parm), INSERT);
       *slot = parm;
 
       ret = true;
@@ -4861,12 +4924,15 @@ modify_function (struct cgraph_node *node, ipa_parm_adjustment_vec adjustments)
 {
   struct cgraph_node *new_node;
   bool cfg_changed;
-  vec<cgraph_edge_p> redirect_callers = collect_callers_of_node (node);
 
   rebuild_cgraph_edges ();
   free_dominance_info (CDI_DOMINATORS);
   pop_cfun ();
 
+  /* This must be done after rebuilding cgraph edges for node above.
+     Otherwise any recursive calls to node that are recorded in
+     redirect_callers will be corrupted.  */
+  vec<cgraph_edge_p> redirect_callers = collect_callers_of_node (node);
   new_node = cgraph_function_versioning (node, redirect_callers,
 					 NULL,
 					 NULL, false, NULL, NULL, "isra");
@@ -4960,6 +5026,14 @@ ipa_sra_preliminary_function_checks (struct cgraph_node *node)
   if (TYPE_ATTRIBUTES (TREE_TYPE (node->decl)))
     return false;
 
+  if (DECL_DISREGARD_INLINE_LIMITS (node->decl))
+    {
+      if (dump_file)
+	fprintf (dump_file, "Always inline function will be inlined "
+		 "anyway. \n");
+      return false;
+    }
+
   return true;
 }
 
@@ -5045,13 +5119,6 @@ ipa_early_sra (void)
   return ret;
 }
 
-/* Return if early ipa sra shall be performed.  */
-static bool
-ipa_early_sra_gate (void)
-{
-  return flag_ipa_sra && dbg_cnt (eipa_sra);
-}
-
 namespace {
 
 const pass_data pass_data_early_ipa_sra =
@@ -5059,8 +5126,6 @@ const pass_data pass_data_early_ipa_sra =
   GIMPLE_PASS, /* type */
   "eipa_sra", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_IPA_SRA, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
@@ -5077,8 +5142,8 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return ipa_early_sra_gate (); }
-  unsigned int execute () { return ipa_early_sra (); }
+  virtual bool gate (function *) { return flag_ipa_sra && dbg_cnt (eipa_sra); }
+  virtual unsigned int execute (function *) { return ipa_early_sra (); }
 
 }; // class pass_early_ipa_sra
 

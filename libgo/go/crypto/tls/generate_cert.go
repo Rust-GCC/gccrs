@@ -43,7 +43,6 @@ func main() {
 	priv, err := rsa.GenerateKey(rand.Reader, *rsaBits)
 	if err != nil {
 		log.Fatalf("failed to generate private key: %s", err)
-		return
 	}
 
 	var notBefore time.Time
@@ -59,14 +58,14 @@ func main() {
 
 	notAfter := notBefore.Add(*validFor)
 
-	// end of ASN.1 time
-	endOfTime := time.Date(2049, 12, 31, 23, 59, 59, 0, time.UTC)
-	if notAfter.After(endOfTime) {
-		notAfter = endOfTime
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	if err != nil {
+		log.Fatalf("failed to generate serial number: %s", err)
 	}
 
 	template := x509.Certificate{
-		SerialNumber: new(big.Int).SetInt64(0),
+		SerialNumber: serialNumber,
 		Subject: pkix.Name{
 			Organization: []string{"Acme Co"},
 		},
@@ -95,13 +94,11 @@ func main() {
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
 	if err != nil {
 		log.Fatalf("Failed to create certificate: %s", err)
-		return
 	}
 
 	certOut, err := os.Create("cert.pem")
 	if err != nil {
 		log.Fatalf("failed to open cert.pem for writing: %s", err)
-		return
 	}
 	pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
 	certOut.Close()

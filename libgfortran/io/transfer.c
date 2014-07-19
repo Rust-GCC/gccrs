@@ -3512,7 +3512,7 @@ next_record (st_parameter_dt *dtp, int done)
     pre_position (dtp);
 
   fbuf_flush (dtp->u.p.current_unit, dtp->u.p.mode);
-  flush_if_unbuffered (dtp->u.p.current_unit->s);
+  smarkeor (dtp->u.p.current_unit->s);
 }
 
 
@@ -3786,9 +3786,9 @@ st_set_nml_var (st_parameter_dt *dtp, void * var_addr, char * var_name,
   if (nml->var_rank > 0)
     {
       nml->dim = (descriptor_dimension*)
-		   xmalloc (nml->var_rank * sizeof (descriptor_dimension));
+	xmallocarray (nml->var_rank, sizeof (descriptor_dimension));
       nml->ls = (array_loop_spec*)
-		  xmalloc (nml->var_rank * sizeof (array_loop_spec));
+	xmallocarray (nml->var_rank, sizeof (array_loop_spec));
     }
   else
     {

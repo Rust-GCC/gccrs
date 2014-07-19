@@ -1,6 +1,15 @@
-2014-04-22  Release Manager
+2014-06-12  Richard Biener  <rguenther@suse.de>
 
-	* GCC 4.9.0 released.
+	* crontab: Remove 4.7 snapshot entry.
+	* update_version_svn: Update IGNORE_BRANCHES.
+
+2014-05-30  Jonathan Wakely  <jwakely@redhat.com>
+
+	* generate_libstdcxx_web_docs: New script.
+
+2014-04-11  Jakub Jelinek  <jakub@redhat.com>
+
+	* crontab: Enable snapshots from gcc-4_9-branch.
 
 2014-02-01  Dmitry Gorbachev  <d.g.gorbachev@gmail.com>
 

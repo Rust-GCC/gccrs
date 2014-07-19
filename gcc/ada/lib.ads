@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -279,9 +279,9 @@ package Lib is
    --      This is the number of the unit within the generated dependency
    --      lines (D lines in the ALI file) which are sorted into alphabetical
    --      order. The number is ones origin, so a value of 2 refers to the
-   --      second generated D line. The Dependency_Number values are set
-   --      as the D lines are generated, and are used to generate proper
-   --      unit references in the generated xref information and SCO output.
+   --      second generated D line. The Dependency_Num values are set as the
+   --      D lines are generated, and are used to generate proper unit
+   --      references in the generated xref information and SCO output.
 
    --    Dynamic_Elab
    --      A flag indicating if this unit was compiled with dynamic elaboration
@@ -316,19 +316,11 @@ package Lib is
    --      code is to be generated. This includes the unit explicitly compiled,
    --      together with its specification, and any subunits.
 
-   --    Has_Allocator
-   --      This flag is set if a subprogram unit has an allocator after the
-   --      BEGIN (it is used to set the AB flag in the M ALI line).
-
    --    Has_RACW
    --      A Boolean flag, initially set to False when a unit entry is created,
    --      and set to True if the unit defines a remote access to class wide
    --      (RACW) object. This is used for controlling generation of the RA
    --      attribute in the ali file.
-
-   --    Is_Compiler_Unit
-   --      A Boolean flag, initially set False by default, set to True if a
-   --      pragma Compiler_Unit_Warning appears in the unit.
 
    --    Ident_String
    --      N_String_Literal node from a valid pragma Ident that applies to
@@ -413,9 +405,7 @@ package Lib is
    function Fatal_Error       (U : Unit_Number_Type) return Boolean;
    function Generate_Code     (U : Unit_Number_Type) return Boolean;
    function Ident_String      (U : Unit_Number_Type) return Node_Id;
-   function Has_Allocator     (U : Unit_Number_Type) return Boolean;
    function Has_RACW          (U : Unit_Number_Type) return Boolean;
-   function Is_Compiler_Unit  (U : Unit_Number_Type) return Boolean;
    function Loading           (U : Unit_Number_Type) return Boolean;
    function Main_CPU          (U : Unit_Number_Type) return Int;
    function Main_Priority     (U : Unit_Number_Type) return Int;
@@ -433,8 +423,6 @@ package Lib is
    procedure Set_Fatal_Error       (U : Unit_Number_Type; B : Boolean := True);
    procedure Set_Generate_Code     (U : Unit_Number_Type; B : Boolean := True);
    procedure Set_Has_RACW          (U : Unit_Number_Type; B : Boolean := True);
-   procedure Set_Has_Allocator     (U : Unit_Number_Type; B : Boolean := True);
-   procedure Set_Is_Compiler_Unit  (U : Unit_Number_Type; B : Boolean := True);
    procedure Set_Ident_String      (U : Unit_Number_Type; N : Node_Id);
    procedure Set_Loading           (U : Unit_Number_Type; B : Boolean := True);
    procedure Set_Main_CPU          (U : Unit_Number_Type; P : Int);
@@ -732,9 +720,7 @@ private
    pragma Inline (Dependency_Num);
    pragma Inline (Fatal_Error);
    pragma Inline (Generate_Code);
-   pragma Inline (Has_Allocator);
    pragma Inline (Has_RACW);
-   pragma Inline (Is_Compiler_Unit);
    pragma Inline (Increment_Serial_Number);
    pragma Inline (Loading);
    pragma Inline (Main_CPU);
@@ -745,7 +731,6 @@ private
    pragma Inline (Set_Cunit_Entity);
    pragma Inline (Set_Fatal_Error);
    pragma Inline (Set_Generate_Code);
-   pragma Inline (Set_Has_Allocator);
    pragma Inline (Set_Has_RACW);
    pragma Inline (Set_Loading);
    pragma Inline (Set_Main_CPU);
@@ -774,10 +759,9 @@ private
       Fatal_Error       : Boolean;
       Generate_Code     : Boolean;
       Has_RACW          : Boolean;
-      Is_Compiler_Unit  : Boolean;
       Dynamic_Elab      : Boolean;
+      Filler            : Boolean;
       Loading           : Boolean;
-      Has_Allocator     : Boolean;
       OA_Setting        : Character;
       SPARK_Mode_Pragma : Node_Id;
    end record;
@@ -805,10 +789,9 @@ private
       Generate_Code     at 57 range 0 ..  7;
       Has_RACW          at 58 range 0 ..  7;
       Dynamic_Elab      at 59 range 0 ..  7;
-      Is_Compiler_Unit  at 60 range 0 ..  7;
-      OA_Setting        at 61 range 0 ..  7;
-      Loading           at 62 range 0 ..  7;
-      Has_Allocator     at 63 range 0 ..  7;
+      Filler            at 60 range 0 ..  15;
+      OA_Setting        at 62 range 0 ..  7;
+      Loading           at 63 range 0 ..  7;
       SPARK_Mode_Pragma at 64 range 0 .. 31;
    end record;
 

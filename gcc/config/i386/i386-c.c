@@ -393,6 +393,12 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
     def_or_undef (parse_in, "__SSE_MATH__");
   if ((fpmath & FPMATH_SSE) && (isa_flag & OPTION_MASK_ISA_SSE2))
     def_or_undef (parse_in, "__SSE2_MATH__");
+  if (isa_flag & OPTION_MASK_ISA_CLFLUSHOPT)
+    def_or_undef (parse_in, "__CLFLUSHOPT__");
+  if (isa_flag & OPTION_MASK_ISA_XSAVEC)
+    def_or_undef (parse_in, "__XSAVEC__");
+  if (isa_flag & OPTION_MASK_ISA_XSAVES)
+    def_or_undef (parse_in, "__XSAVES__");
 }
 
 
@@ -517,6 +523,13 @@ ix86_target_macros (void)
 
   if (TARGET_LONG_DOUBLE_128)
     cpp_define (parse_in, "__LONG_DOUBLE_128__");
+
+  if (TARGET_128BIT_LONG_DOUBLE)
+    cpp_define (parse_in, "__SIZEOF_FLOAT80__=16");
+  else
+    cpp_define (parse_in, "__SIZEOF_FLOAT80__=12");
+
+  cpp_define (parse_in, "__SIZEOF_FLOAT128__=16");
 
   cpp_define_formatted (parse_in, "__ATOMIC_HLE_ACQUIRE=%d", IX86_HLE_ACQUIRE);
   cpp_define_formatted (parse_in, "__ATOMIC_HLE_RELEASE=%d", IX86_HLE_RELEASE);

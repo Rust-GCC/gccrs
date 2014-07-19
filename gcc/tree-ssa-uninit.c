@@ -123,17 +123,25 @@ uninit_undefined_value_p (tree t) {
 
 /* Emit a warning for EXPR based on variable VAR at the point in the
    program T, an SSA_NAME, is used being uninitialized.  The exact
-   warning text is in MSGID and LOCUS may contain a location or be null.
-   WC is the warning code.  */
+   warning text is in MSGID and DATA is the gimple stmt with info about
+   the location in source code. When DATA is a GIMPLE_PHI, PHIARG_IDX
+   gives which argument of the phi node to take the location from.  WC
+   is the warning code.  */
 
 static void
-warn_uninit (enum opt_code wc, tree t,
-	     tree expr, tree var, const char *gmsgid, void *data)
+warn_uninit (enum opt_code wc, tree t, tree expr, tree var,
+	     const char *gmsgid, void *data, location_t phiarg_loc)
 {
   gimple context = (gimple) data;
   location_t location, cfun_loc;
   expanded_location xloc, floc;
 
+  /* Ignore COMPLEX_EXPR as initializing only a part of a complex
+     turns in a COMPLEX_EXPR with the not initialized part being
+     set to its previous (undefined) value.  */
+  if (is_gimple_assign (context)
+      && gimple_assign_rhs_code (context) == COMPLEX_EXPR)
+    return;
   if (!has_undefined_value_p (t))
     return;
 
@@ -146,9 +154,12 @@ warn_uninit (enum opt_code wc, tree t,
       || TREE_NO_WARNING (expr))
     return;
 
-  location = (context != NULL && gimple_has_location (context))
-	     ? gimple_location (context)
-	     : DECL_SOURCE_LOCATION (var);
+  if (context != NULL && gimple_has_location (context))
+    location = gimple_location (context);
+  else if (phiarg_loc != UNKNOWN_LOCATION)
+    location = phiarg_loc;
+  else
+    location = DECL_SOURCE_LOCATION (var);
   location = linemap_resolve_location (line_table, location,
 				       LRK_SPELLING_LOCATION,
 				       NULL);
@@ -200,17 +211,16 @@ warn_uninitialized_vars (bool warn_possibly_uninitialized)
 		warn_uninit (OPT_Wuninitialized, use,
 			     SSA_NAME_VAR (use), SSA_NAME_VAR (use),
 			     "%qD is used uninitialized in this function",
-			     stmt);
+			     stmt, UNKNOWN_LOCATION);
 	      else if (warn_possibly_uninitialized)
 		warn_uninit (OPT_Wmaybe_uninitialized, use,
 			     SSA_NAME_VAR (use), SSA_NAME_VAR (use),
 			     "%qD may be used uninitialized in this function",
-			     stmt);
+			     stmt, UNKNOWN_LOCATION);
 	    }
 
 	  /* For memory the only cheap thing we can do is see if we
 	     have a use of the default def of the virtual operand.
-	     ???  Note that at -O0 we do not have virtual operands.
 	     ???  Not so cheap would be to use the alias oracle via
 	     walk_aliased_vdefs, if we don't find any aliasing vdef
 	     warn as is-used-uninitialized, if we don't find an aliasing
@@ -237,12 +247,12 @@ warn_uninitialized_vars (bool warn_possibly_uninitialized)
 		warn_uninit (OPT_Wuninitialized, use,
 			     gimple_assign_rhs1 (stmt), base,
 			     "%qE is used uninitialized in this function",
-			     stmt);
+			     stmt, UNKNOWN_LOCATION);
 	      else if (warn_possibly_uninitialized)
 		warn_uninit (OPT_Wmaybe_uninitialized, use,
 			     gimple_assign_rhs1 (stmt), base,
 			     "%qE may be used uninitialized in this function",
-			     stmt);
+			     stmt, UNKNOWN_LOCATION);
 	    }
 	}
     }
@@ -855,12 +865,11 @@ is_value_included_in (tree val, tree boundary, enum tree_code cmpc)
       if (cmpc == EQ_EXPR)
         result = tree_int_cst_equal (val, boundary);
       else if (cmpc == LT_EXPR)
-        result = INT_CST_LT_UNSIGNED (val, boundary);
+        result = tree_int_cst_lt (val, boundary);
       else
         {
           gcc_assert (cmpc == LE_EXPR);
-          result = (tree_int_cst_equal (val, boundary)
-                    || INT_CST_LT_UNSIGNED (val, boundary));
+          result = tree_int_cst_le (val, boundary);
         }
     }
   else
@@ -868,12 +877,12 @@ is_value_included_in (tree val, tree boundary, enum tree_code cmpc)
       if (cmpc == EQ_EXPR)
         result = tree_int_cst_equal (val, boundary);
       else if (cmpc == LT_EXPR)
-        result = INT_CST_LT (val, boundary);
+        result = tree_int_cst_lt (val, boundary);
       else
         {
           gcc_assert (cmpc == LE_EXPR);
           result = (tree_int_cst_equal (val, boundary)
-                    || INT_CST_LT (val, boundary));
+                    || tree_int_cst_lt (val, boundary));
         }
     }
 
@@ -2248,6 +2257,8 @@ warn_uninitialized_phi (gimple phi, vec<gimple> *worklist,
   unsigned uninit_opnds;
   gimple uninit_use_stmt = 0;
   tree uninit_op;
+  int phiarg_index;
+  location_t loc;
 
   /* Don't look at virtual operands.  */
   if (virtual_operand_p (gimple_phi_result (phi)))
@@ -2272,21 +2283,58 @@ warn_uninitialized_phi (gimple phi, vec<gimple> *worklist,
   if (!uninit_use_stmt)
     return;
 
-  uninit_op = gimple_phi_arg_def (phi, MASK_FIRST_SET_BIT (uninit_opnds));
+  phiarg_index = MASK_FIRST_SET_BIT (uninit_opnds);
+  uninit_op = gimple_phi_arg_def (phi, phiarg_index);
   if (SSA_NAME_VAR (uninit_op) == NULL_TREE)
     return;
+  if (gimple_phi_arg_has_location (phi, phiarg_index))
+    loc = gimple_phi_arg_location (phi, phiarg_index);
+  else
+    loc = UNKNOWN_LOCATION;
   warn_uninit (OPT_Wmaybe_uninitialized, uninit_op, SSA_NAME_VAR (uninit_op),
 	       SSA_NAME_VAR (uninit_op),
                "%qD may be used uninitialized in this function",
-               uninit_use_stmt);
+               uninit_use_stmt, loc);
 
 }
 
+static bool
+gate_warn_uninitialized (void)
+{
+  return warn_uninitialized || warn_maybe_uninitialized;
+}
 
-/* Entry point to the late uninitialized warning pass.  */
+namespace {
 
-static unsigned int
-execute_late_warn_uninitialized (void)
+const pass_data pass_data_late_warn_uninitialized =
+{
+  GIMPLE_PASS, /* type */
+  "uninit", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  TV_NONE, /* tv_id */
+  PROP_ssa, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
+};
+
+class pass_late_warn_uninitialized : public gimple_opt_pass
+{
+public:
+  pass_late_warn_uninitialized (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_late_warn_uninitialized, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  opt_pass * clone () { return new pass_late_warn_uninitialized (m_ctxt); }
+  virtual bool gate (function *) { return gate_warn_uninitialized (); }
+  virtual unsigned int execute (function *);
+
+}; // class pass_late_warn_uninitialized
+
+unsigned int
+pass_late_warn_uninitialized::execute (function *fun)
 {
   basic_block bb;
   gimple_stmt_iterator gsi;
@@ -2306,34 +2354,34 @@ execute_late_warn_uninitialized (void)
   added_to_worklist = pointer_set_create ();
 
   /* Initialize worklist  */
-  FOR_EACH_BB_FN (bb, cfun)
+  FOR_EACH_BB_FN (bb, fun)
     for (gsi = gsi_start_phis (bb); !gsi_end_p (gsi); gsi_next (&gsi))
       {
-        gimple phi = gsi_stmt (gsi);
-        size_t n, i;
+	gimple phi = gsi_stmt (gsi);
+	size_t n, i;
 
-        n = gimple_phi_num_args (phi);
+	n = gimple_phi_num_args (phi);
 
-        /* Don't look at virtual operands.  */
-        if (virtual_operand_p (gimple_phi_result (phi)))
-          continue;
+	/* Don't look at virtual operands.  */
+	if (virtual_operand_p (gimple_phi_result (phi)))
+	  continue;
 
-        for (i = 0; i < n; ++i)
-          {
-            tree op = gimple_phi_arg_def (phi, i);
-            if (TREE_CODE (op) == SSA_NAME
-                && uninit_undefined_value_p (op))
-              {
-                worklist.safe_push (phi);
+	for (i = 0; i < n; ++i)
+	  {
+	    tree op = gimple_phi_arg_def (phi, i);
+	    if (TREE_CODE (op) == SSA_NAME
+		&& uninit_undefined_value_p (op))
+	      {
+		worklist.safe_push (phi);
 		pointer_set_insert (added_to_worklist, phi);
-                if (dump_file && (dump_flags & TDF_DETAILS))
-                  {
-                    fprintf (dump_file, "[WORKLIST]: add to initial list: ");
-                    print_gimple_stmt (dump_file, phi, 0, 0);
-                  }
-                break;
-              }
-          }
+		if (dump_file && (dump_flags & TDF_DETAILS))
+		  {
+		    fprintf (dump_file, "[WORKLIST]: add to initial list: ");
+		    print_gimple_stmt (dump_file, phi, 0, 0);
+		  }
+		break;
+	      }
+	  }
       }
 
   while (worklist.length () != 0)
@@ -2351,43 +2399,6 @@ execute_late_warn_uninitialized (void)
   timevar_pop (TV_TREE_UNINIT);
   return 0;
 }
-
-static bool
-gate_warn_uninitialized (void)
-{
-  return warn_uninitialized || warn_maybe_uninitialized;
-}
-
-namespace {
-
-const pass_data pass_data_late_warn_uninitialized =
-{
-  GIMPLE_PASS, /* type */
-  "uninit", /* name */
-  OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
-  TV_NONE, /* tv_id */
-  PROP_ssa, /* properties_required */
-  0, /* properties_provided */
-  0, /* properties_destroyed */
-  0, /* todo_flags_start */
-  0, /* todo_flags_finish */
-};
-
-class pass_late_warn_uninitialized : public gimple_opt_pass
-{
-public:
-  pass_late_warn_uninitialized (gcc::context *ctxt)
-    : gimple_opt_pass (pass_data_late_warn_uninitialized, ctxt)
-  {}
-
-  /* opt_pass methods: */
-  opt_pass * clone () { return new pass_late_warn_uninitialized (m_ctxt); }
-  bool gate () { return gate_warn_uninitialized (); }
-  unsigned int execute () { return execute_late_warn_uninitialized (); }
-
-}; // class pass_late_warn_uninitialized
 
 } // anon namespace
 
@@ -2425,8 +2436,6 @@ const pass_data pass_data_early_warn_uninitialized =
   GIMPLE_PASS, /* type */
   "*early_warn_uninitialized", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_TREE_UNINIT, /* tv_id */
   PROP_ssa, /* properties_required */
   0, /* properties_provided */
@@ -2443,8 +2452,11 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_warn_uninitialized (); }
-  unsigned int execute () { return execute_early_warn_uninitialized (); }
+  virtual bool gate (function *) { return gate_warn_uninitialized (); }
+  virtual unsigned int execute (function *)
+    {
+      return execute_early_warn_uninitialized ();
+    }
 
 }; // class pass_early_warn_uninitialized
 

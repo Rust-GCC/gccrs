@@ -63,6 +63,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "plugin.h"
 #include "c-family/c-ada-spec.h"
 #include "cilk.h"
+#include "builtins.h"
 
 /* In grokdeclarator, distinguish syntactic contexts of declarators.  */
 enum decl_context
@@ -638,7 +639,7 @@ bind (tree name, tree decl, struct c_scope *scope, bool invisible,
       binding_freelist = b->prev;
     }
   else
-    b = ggc_alloc_c_binding ();
+    b = ggc_alloc<c_binding> ();
 
   b->shadowed = 0;
   b->decl = decl;
@@ -755,7 +756,7 @@ void
 record_inline_static (location_t loc, tree func, tree decl,
 		      enum c_inline_static_type type)
 {
-  struct c_inline_static *csi = ggc_alloc_c_inline_static ();
+  c_inline_static *csi = ggc_alloc<c_inline_static> ();
   csi->location = loc;
   csi->function = func;
   csi->static_decl = decl;
@@ -952,7 +953,7 @@ push_scope (void)
 	  scope_freelist = scope->outer;
 	}
       else
-	scope = ggc_alloc_cleared_c_scope ();
+	scope = ggc_cleared_alloc<c_scope> ();
 
       /* The FLOAT_CONST_DECIMAL64 pragma applies to nested scopes.  */
       if (current_scope)
@@ -2099,18 +2100,38 @@ diagnose_mismatched_decls (tree newdecl, tree olddecl,
       /* Diagnose inline __attribute__ ((noinline)) which is silly.  */
       if (DECL_DECLARED_INLINE_P (newdecl)
 	  && lookup_attribute ("noinline", DECL_ATTRIBUTES (olddecl)))
-	{
-	  warned |= warning (OPT_Wattributes,
-			     "inline declaration of %qD follows "
-			     "declaration with attribute noinline", newdecl);
-	}
+	warned |= warning (OPT_Wattributes,
+			   "inline declaration of %qD follows "
+			   "declaration with attribute noinline", newdecl);
       else if (DECL_DECLARED_INLINE_P (olddecl)
 	       && lookup_attribute ("noinline", DECL_ATTRIBUTES (newdecl)))
-	{
-	  warned |= warning (OPT_Wattributes,
-			     "declaration of %q+D with attribute "
-			     "noinline follows inline declaration ", newdecl);
-	}
+	warned |= warning (OPT_Wattributes,
+			   "declaration of %q+D with attribute "
+			   "noinline follows inline declaration ", newdecl);
+      else if (lookup_attribute ("noinline", DECL_ATTRIBUTES (newdecl))
+	       && lookup_attribute ("always_inline", DECL_ATTRIBUTES (olddecl)))
+	warned |= warning (OPT_Wattributes,
+			   "declaration of %q+D with attribute "
+			   "%qs follows declaration with attribute %qs",
+			   newdecl, "noinline", "always_inline");
+      else if (lookup_attribute ("always_inline", DECL_ATTRIBUTES (newdecl))
+	       && lookup_attribute ("noinline", DECL_ATTRIBUTES (olddecl)))
+	warned |= warning (OPT_Wattributes,
+			   "declaration of %q+D with attribute "
+			   "%qs follows declaration with attribute %qs",
+			   newdecl, "always_inline", "noinline");
+      else if (lookup_attribute ("cold", DECL_ATTRIBUTES (newdecl))
+	       && lookup_attribute ("hot", DECL_ATTRIBUTES (olddecl)))
+	warned |= warning (OPT_Wattributes,
+			   "declaration of %q+D with attribute %qs follows "
+			   "declaration with attribute %qs", newdecl, "cold",
+			   "hot");
+      else if (lookup_attribute ("hot", DECL_ATTRIBUTES (newdecl))
+	       && lookup_attribute ("cold", DECL_ATTRIBUTES (olddecl)))
+	warned |= warning (OPT_Wattributes,
+			   "declaration of %q+D with attribute %qs follows "
+			   "declaration with attribute %qs", newdecl, "hot",
+			   "cold");
     }
   else /* PARM_DECL, VAR_DECL */
     {
@@ -2273,7 +2294,7 @@ merge_decls (tree newdecl, tree olddecl, tree newtype, tree oldtype)
   /* Merge the threadprivate attribute.  */
   if (TREE_CODE (olddecl) == VAR_DECL && C_DECL_THREADPRIVATE_P (olddecl))
     {
-      DECL_TLS_MODEL (newdecl) = DECL_TLS_MODEL (olddecl);
+      set_decl_tls_model (newdecl, DECL_TLS_MODEL (olddecl));
       C_DECL_THREADPRIVATE_P (newdecl) = 1;
     }
 
@@ -2283,8 +2304,10 @@ merge_decls (tree newdecl, tree olddecl, tree newtype, tree oldtype)
 	 We want to issue an error if the sections conflict but that
 	 must be done later in decl_attributes since we are called
 	 before attributes are assigned.  */
-      if (DECL_SECTION_NAME (newdecl) == NULL_TREE)
-	DECL_SECTION_NAME (newdecl) = DECL_SECTION_NAME (olddecl);
+      if ((DECL_EXTERNAL (olddecl) || TREE_PUBLIC (olddecl) || TREE_STATIC (olddecl))
+	  && DECL_SECTION_NAME (newdecl) == NULL
+	  && DECL_SECTION_NAME (olddecl))
+	set_decl_section_name (newdecl, DECL_SECTION_NAME (olddecl));
 
       /* Copy the assembler name.
 	 Currently, it can only be defined in the prototype.  */
@@ -2487,8 +2510,18 @@ merge_decls (tree newdecl, tree olddecl, tree newtype, tree oldtype)
     switch (TREE_CODE (olddecl))
       {
       case FUNCTION_DECL:
-      case FIELD_DECL:
       case VAR_DECL:
+	{
+	  struct symtab_node *snode = olddecl->decl_with_vis.symtab_node;
+
+	  memcpy ((char *) olddecl + sizeof (struct tree_decl_common),
+		  (char *) newdecl + sizeof (struct tree_decl_common),
+		  tree_code_size (TREE_CODE (olddecl)) - sizeof (struct tree_decl_common));
+	  olddecl->decl_with_vis.symtab_node = snode;
+	  break;
+	}
+
+      case FIELD_DECL:
       case PARM_DECL:
       case LABEL_DECL:
       case RESULT_DECL:
@@ -2541,6 +2574,23 @@ duplicate_decls (tree newdecl, tree olddecl)
     }
 
   merge_decls (newdecl, olddecl, newtype, oldtype);
+
+  /* The NEWDECL will no longer be needed.
+
+     Before releasing the node, be sure to remove function from symbol
+     table that might have been inserted there to record comdat group.
+     Be sure to however do not free DECL_STRUCT_FUNCTION because this
+     structure is shared in between NEWDECL and OLDECL.  */
+  if (TREE_CODE (newdecl) == FUNCTION_DECL)
+    DECL_STRUCT_FUNCTION (newdecl) = NULL;
+  if (TREE_CODE (newdecl) == FUNCTION_DECL
+      || TREE_CODE (newdecl) == VAR_DECL)
+    {
+      struct symtab_node *snode = symtab_get_node (newdecl);
+      if (snode)
+	symtab_remove_node (snode);
+    }
+  ggc_free (newdecl);
   return true;
 }
 
@@ -2567,6 +2617,7 @@ warn_if_shadowing (tree new_decl)
 					     DECL_SOURCE_LOCATION (b->decl))))
       {
 	tree old_decl = b->decl;
+	bool warned = false;
 
 	if (old_decl == error_mark_node)
 	  {
@@ -2575,8 +2626,9 @@ warn_if_shadowing (tree new_decl)
 	    break;
 	  }
 	else if (TREE_CODE (old_decl) == PARM_DECL)
-	  warning (OPT_Wshadow, "declaration of %q+D shadows a parameter",
-		   new_decl);
+	  warned = warning (OPT_Wshadow,
+			    "declaration of %q+D shadows a parameter",
+			    new_decl);
 	else if (DECL_FILE_SCOPE_P (old_decl))
 	  {
 	    /* Do not warn if a variable shadows a function, unless
@@ -2586,9 +2638,10 @@ warn_if_shadowing (tree new_decl)
 		&& !FUNCTION_POINTER_TYPE_P (TREE_TYPE (new_decl)))
 		continue;
 
-	    warning_at (DECL_SOURCE_LOCATION (new_decl), OPT_Wshadow, 
-			"declaration of %qD shadows a global declaration",
-			new_decl);
+	    warned = warning_at (DECL_SOURCE_LOCATION (new_decl), OPT_Wshadow,
+				 "declaration of %qD shadows a global "
+				 "declaration",
+				 new_decl);
 	  }
 	else if (TREE_CODE (old_decl) == FUNCTION_DECL
 		 && DECL_BUILT_IN (old_decl))
@@ -2598,11 +2651,12 @@ warn_if_shadowing (tree new_decl)
 	    break;
 	  }
 	else
-	  warning (OPT_Wshadow, "declaration of %q+D shadows a previous local",
-		   new_decl);
+	  warned = warning (OPT_Wshadow, "declaration of %q+D shadows a "
+			    "previous local", new_decl);
 
-	warning_at (DECL_SOURCE_LOCATION (old_decl), OPT_Wshadow,
-		    "shadowed declaration is here");
+	if (warned)
+	  inform (DECL_SOURCE_LOCATION (old_decl),
+		  "shadowed declaration is here");
 
 	break;
       }
@@ -3064,12 +3118,10 @@ make_label (location_t location, tree name, bool defining,
 	    struct c_label_vars **p_label_vars)
 {
   tree label = build_decl (location, LABEL_DECL, name, void_type_node);
-  struct c_label_vars *label_vars;
-
   DECL_CONTEXT (label) = current_function_decl;
   DECL_MODE (label) = VOIDmode;
 
-  label_vars = ggc_alloc_c_label_vars ();
+  c_label_vars *label_vars = ggc_alloc<c_label_vars> ();
   label_vars->shadowed = NULL;
   set_spot_bindings (&label_vars->label_bindings, defining);
   label_vars->decls_in_scope = make_tree_vector ();
@@ -3165,9 +3217,8 @@ lookup_label_for_goto (location_t loc, tree name)
      list for possible later warnings.  */
   if (label_vars->label_bindings.scope == NULL)
     {
-      struct c_goto_bindings *g;
+      c_goto_bindings *g = ggc_alloc<c_goto_bindings> ();
 
-      g = ggc_alloc_c_goto_bindings ();
       g->loc = loc;
       set_spot_bindings (&g->goto_bindings, true);
       vec_safe_push (label_vars->gotos, g);
@@ -4860,8 +4911,8 @@ check_bitfield_type_and_width (tree *type, tree *width, tree orig_name)
     {
       struct lang_type *lt = TYPE_LANG_SPECIFIC (*type);
       if (!lt
-	  || w < tree_int_cst_min_precision (lt->enum_min, TYPE_UNSIGNED (*type))
-	  || w < tree_int_cst_min_precision (lt->enum_max, TYPE_UNSIGNED (*type)))
+	  || w < tree_int_cst_min_precision (lt->enum_min, TYPE_SIGN (*type))
+	  || w < tree_int_cst_min_precision (lt->enum_max, TYPE_SIGN (*type)))
 	warning (0, "%qs is narrower than values of its type", name);
     }
 }
@@ -5461,7 +5512,11 @@ grokdeclarator (const struct c_declarator *declarator,
 		    this_size_varies = size_varies = true;
 		    warn_variable_length_array (name, size);
 		    if (flag_sanitize & SANITIZE_VLA
-		        && decl_context == NORMAL)
+		        && decl_context == NORMAL
+			&& current_function_decl != NULL_TREE
+			&& !lookup_attribute ("no_sanitize_undefined",
+					      DECL_ATTRIBUTES
+						(current_function_decl)))
 		      {
 			/* Evaluate the array size only once.  */
 			size = c_save_expr (size);
@@ -5911,7 +5966,7 @@ grokdeclarator (const struct c_declarator *declarator,
       else if (declspecs->align_log != -1)
 	{
 	  alignas_align = 1U << declspecs->align_log;
-	  if (alignas_align < TYPE_ALIGN_UNIT (type))
+	  if (alignas_align < min_align_of_type (type))
 	    {
 	      if (name)
 		error_at (loc, "%<_Alignas%> specifiers cannot reduce "
@@ -6048,6 +6103,7 @@ grokdeclarator (const struct c_declarator *declarator,
     if (decl_context == PARM)
       {
 	tree promoted_type;
+	bool array_parameter_p = false;
 
 	/* A parameter declared as an array of T is really a pointer to T.
 	   One declared as a function is really a pointer to a function.  */
@@ -6069,6 +6125,7 @@ grokdeclarator (const struct c_declarator *declarator,
 			  "attributes in parameter array declarator ignored");
 
 	    size_varies = false;
+	    array_parameter_p = true;
 	  }
 	else if (TREE_CODE (type) == FUNCTION_TYPE)
 	  {
@@ -6093,6 +6150,7 @@ grokdeclarator (const struct c_declarator *declarator,
 			   PARM_DECL, declarator->u.id, type);
 	if (size_varies)
 	  C_DECL_VARIABLE_SIZE (decl) = 1;
+	C_ARRAY_PARAMETER (decl) = array_parameter_p;
 
 	/* Compute the type actually passed in the parmlist,
 	   for the case where there is no prototype.
@@ -6301,7 +6359,7 @@ grokdeclarator (const struct c_declarator *declarator,
 	  }
 
 	if (threadp)
-	  DECL_TLS_MODEL (decl) = decl_default_tls_model (decl);
+	  set_decl_tls_model (decl, decl_default_tls_model (decl));
       }
 
     if ((storage_class == csc_extern
@@ -7032,7 +7090,7 @@ is_duplicate_field (tree x, tree y)
 
 static void
 detect_field_duplicates_hash (tree fieldlist,
-			      hash_table <pointer_hash <tree_node> > htab)
+			      hash_table<pointer_hash <tree_node> > *htab)
 {
   tree x, y;
   tree_node **slot;
@@ -7040,7 +7098,7 @@ detect_field_duplicates_hash (tree fieldlist,
   for (x = fieldlist; x ; x = DECL_CHAIN (x))
     if ((y = DECL_NAME (x)) != 0)
       {
-	slot = htab.find_slot (y, INSERT);
+	slot = htab->find_slot (y, INSERT);
 	if (*slot)
 	  {
 	    error ("duplicate member %q+D", x);
@@ -7060,7 +7118,7 @@ detect_field_duplicates_hash (tree fieldlist,
 	    && TREE_CODE (TYPE_NAME (TREE_TYPE (x))) == TYPE_DECL)
 	  {
 	    tree xn = DECL_NAME (TYPE_NAME (TREE_TYPE (x)));
-	    slot = htab.find_slot (xn, INSERT);
+	    slot = htab->find_slot (xn, INSERT);
 	    if (*slot)
 	      error ("duplicate member %q+D", TYPE_NAME (TREE_TYPE (x)));
 	    *slot = xn;
@@ -7132,11 +7190,8 @@ detect_field_duplicates (tree fieldlist)
     }
   else
     {
-      hash_table <pointer_hash <tree_node> > htab;
-      htab.create (37);
-
-      detect_field_duplicates_hash (fieldlist, htab);
-      htab.dispose ();
+      hash_table<pointer_hash <tree_node> > htab (37);
+      detect_field_duplicates_hash (fieldlist, &htab);
     }
 }
 
@@ -7403,8 +7458,8 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
 	  ensure that this lives as long as the rest of the struct decl.
 	  All decls in an inline function need to be saved.  */
 
-	space = ggc_alloc_cleared_lang_type (sizeof (struct lang_type));
-	space2 = ggc_alloc_sorted_fields_type
+	space = ggc_cleared_alloc<struct lang_type> ();
+	space2 = (sorted_fields_type *) ggc_internal_alloc
 	  (sizeof (struct sorted_fields_type) + len * sizeof (tree));
 
 	len = 0;
@@ -7585,7 +7640,8 @@ finish_enum (tree enumtype, tree values, tree attributes)
 {
   tree pair, tem;
   tree minnode = 0, maxnode = 0;
-  int precision, unsign;
+  int precision;
+  signop sign;
   bool toplevel = (file_scope == current_scope);
   struct lang_type *lt;
 
@@ -7612,13 +7668,13 @@ finish_enum (tree enumtype, tree values, tree attributes)
      as one of the integral types - the narrowest one that fits, except
      that normally we only go as narrow as int - and signed iff any of
      the values are negative.  */
-  unsign = (tree_int_cst_sgn (minnode) >= 0);
-  precision = MAX (tree_int_cst_min_precision (minnode, unsign),
-		   tree_int_cst_min_precision (maxnode, unsign));
+  sign = (tree_int_cst_sgn (minnode) >= 0) ? UNSIGNED : SIGNED;
+  precision = MAX (tree_int_cst_min_precision (minnode, sign),
+		   tree_int_cst_min_precision (maxnode, sign));
 
   if (TYPE_PACKED (enumtype) || precision > TYPE_PRECISION (integer_type_node))
     {
-      tem = c_common_type_for_size (precision, unsign);
+      tem = c_common_type_for_size (precision, sign == UNSIGNED ? 1 : 0);
       if (tem == NULL)
 	{
 	  warning (0, "enumeration values exceed range of largest integer");
@@ -7626,7 +7682,7 @@ finish_enum (tree enumtype, tree values, tree attributes)
 	}
     }
   else
-    tem = unsign ? unsigned_type_node : integer_type_node;
+    tem = sign == UNSIGNED ? unsigned_type_node : integer_type_node;
 
   TYPE_MIN_VALUE (enumtype) = TYPE_MIN_VALUE (tem);
   TYPE_MAX_VALUE (enumtype) = TYPE_MAX_VALUE (tem);
@@ -7684,7 +7740,7 @@ finish_enum (tree enumtype, tree values, tree attributes)
 
   /* Record the min/max values so that we can warn about bit-field
      enumerations that are too small for the values.  */
-  lt = ggc_alloc_cleared_lang_type (sizeof (struct lang_type));
+  lt = ggc_cleared_alloc<struct lang_type> ();
   lt->enum_min = minnode;
   lt->enum_max = maxnode;
   TYPE_LANG_SPECIFIC (enumtype) = lt;
@@ -8024,6 +8080,9 @@ start_function (struct c_declspecs *declspecs, struct c_declarator *declarator,
       if (TYPE_MAIN_VARIANT (TREE_TYPE (TREE_TYPE (decl1)))
 	  != integer_type_node)
 	pedwarn (loc, OPT_Wmain, "return type of %qD is not %<int%>", decl1);
+      else if (TYPE_ATOMIC (TREE_TYPE (TREE_TYPE (decl1))))
+	pedwarn (loc, OPT_Wmain, "%<_Atomic%>-qualified return type of %qD",
+		 decl1);
 
       check_main_parameter_types (decl1);
 
@@ -8455,7 +8514,7 @@ store_parm_decls (void)
   allocate_struct_function (fndecl, false);
 
   if (warn_unused_local_typedefs)
-    cfun->language = ggc_alloc_cleared_language_function ();
+    cfun->language = ggc_cleared_alloc<language_function> ();
 
   /* Begin the statement tree for this function.  */
   DECL_SAVED_TREE (fndecl) = push_stmt_list ();
@@ -8779,7 +8838,7 @@ c_push_function_context (void)
   /* cfun->language might have been already allocated by the use of
      -Wunused-local-typedefs.  In that case, just re-use it.  */
   if (p == NULL)
-    cfun->language = p = ggc_alloc_cleared_language_function ();
+    cfun->language = p = ggc_cleared_alloc<language_function> ();
 
   p->base.x_stmt_tree = c_stmt_tree;
   c_stmt_tree.x_cur_stmt_list = vec_safe_copy (c_stmt_tree.x_cur_stmt_list);
@@ -9544,6 +9603,9 @@ declspecs_add_type (location_t loc, struct c_declspecs *specs,
 		}
 	      return specs;
 	    case RID_BOOL:
+	      if (!flag_isoc99 && !in_system_header_at (loc))
+		pedwarn (loc, OPT_Wpedantic,
+			 "ISO C90 does not support boolean types");
 	      if (specs->long_p)
 		error_at (loc,
 			  ("both %<long%> and %<_Bool%> in "

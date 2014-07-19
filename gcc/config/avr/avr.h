@@ -251,18 +251,18 @@ enum reg_class {
 #define REG_CLASS_CONTENTS {						\
   {0x00000000,0x00000000},	/* NO_REGS */				\
   {0x00000001,0x00000000},	/* R0_REG */                            \
-  {3 << REG_X,0x00000000},      /* POINTER_X_REGS, r26 - r27 */		\
-  {3 << REG_Y,0x00000000},      /* POINTER_Y_REGS, r28 - r29 */		\
-  {3 << REG_Z,0x00000000},      /* POINTER_Z_REGS, r30 - r31 */		\
+  {3u << REG_X,0x00000000},     /* POINTER_X_REGS, r26 - r27 */		\
+  {3u << REG_Y,0x00000000},     /* POINTER_Y_REGS, r28 - r29 */		\
+  {3u << REG_Z,0x00000000},     /* POINTER_Z_REGS, r30 - r31 */		\
   {0x00000000,0x00000003},	/* STACK_REG, STACK */			\
-  {(3 << REG_Y) | (3 << REG_Z),						\
+  {(3u << REG_Y) | (3u << REG_Z),					\
      0x00000000},		/* BASE_POINTER_REGS, r28 - r31 */	\
-  {(3 << REG_X) | (3 << REG_Y) | (3 << REG_Z),				\
+  {(3u << REG_X) | (3u << REG_Y) | (3u << REG_Z),			\
      0x00000000},		/* POINTER_REGS, r26 - r31 */		\
-  {(3 << REG_X) | (3 << REG_Y) | (3 << REG_Z) | (3 << REG_W),		\
+  {(3u << REG_X) | (3u << REG_Y) | (3u << REG_Z) | (3u << REG_W),	\
      0x00000000},		/* ADDW_REGS, r24 - r31 */		\
   {0x00ff0000,0x00000000},	/* SIMPLE_LD_REGS r16 - r23 */          \
-  {(3 << REG_X)|(3 << REG_Y)|(3 << REG_Z)|(3 << REG_W)|(0xff << 16),	\
+  {(3u << REG_X)|(3u << REG_Y)|(3u << REG_Z)|(3u << REG_W)|(0xffu << 16),\
      0x00000000},	/* LD_REGS, r16 - r31 */			\
   {0x0000ffff,0x00000000},	/* NO_LD_REGS  r0 - r15 */              \
   {0xffffffff,0x00000000},	/* GENERAL_REGS, r0 - r31 */		\
@@ -491,6 +491,7 @@ typedef struct avr_args
 extern const char *avr_device_to_as (int argc, const char **argv);
 extern const char *avr_device_to_ld (int argc, const char **argv);
 extern const char *avr_device_to_data_start (int argc, const char **argv);
+extern const char *avr_device_to_text_start (int argc, const char **argv);
 extern const char *avr_device_to_startfiles (int argc, const char **argv);
 extern const char *avr_device_to_devicelib (int argc, const char **argv);
 extern const char *avr_device_to_sp8 (int argc, const char **argv);
@@ -499,6 +500,7 @@ extern const char *avr_device_to_sp8 (int argc, const char **argv);
   { "device_to_as", avr_device_to_as },                 \
   { "device_to_ld", avr_device_to_ld },                 \
   { "device_to_data_start", avr_device_to_data_start }, \
+  { "device_to_text_start", avr_device_to_text_start }, \
   { "device_to_startfile", avr_device_to_startfiles },  \
   { "device_to_devicelib", avr_device_to_devicelib },   \
   { "device_to_sp8", avr_device_to_sp8 },
@@ -525,6 +527,7 @@ extern const char *avr_device_to_sp8 (int argc, const char **argv);
                                mmcu=at90usb64*:--pmem-wrap-around=64k}}}\
 %:device_to_ld(%{mmcu=*:%*})\
 %:device_to_data_start(%{mmcu=*:%*})\
+%:device_to_text_start(%{mmcu=*:%*}) \
 %{shared:%eshared is not supported}"
 
 #define LIB_SPEC \
