@@ -15,6 +15,7 @@ import (
 	. "reflect"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -678,6 +679,7 @@ var deepEqualTests = []DeepEqualTest{
 	{1, nil, false},
 	{fn1, fn3, false},
 	{fn3, fn3, false},
+	{[][]int{[]int{1}}, [][]int{[]int{2}}, false},
 
 	// Nil vs empty: not the same.
 	{[]int{}, []int(nil), false},
@@ -969,6 +971,31 @@ func TestMap(t *testing.T) {
 	if m != nil {
 		t.Errorf("mv.Set(nil) failed")
 	}
+}
+
+func TestNilMap(t *testing.T) {
+	var m map[string]int
+	mv := ValueOf(m)
+	keys := mv.MapKeys()
+	if len(keys) != 0 {
+		t.Errorf(">0 keys for nil map: %v", keys)
+	}
+
+	// Check that value for missing key is zero.
+	x := mv.MapIndex(ValueOf("hello"))
+	if x.Kind() != Invalid {
+		t.Errorf("m.MapIndex(\"hello\") for nil map = %v, want Invalid Value", x)
+	}
+
+	// Check big value too.
+	var mbig map[string][10 << 20]byte
+	x = ValueOf(mbig).MapIndex(ValueOf("hello"))
+	if x.Kind() != Invalid {
+		t.Errorf("mbig.MapIndex(\"hello\") for nil map = %v, want Invalid Value", x)
+	}
+
+	// Test that deletes from a nil map succeed.
+	mv.SetMapIndex(ValueOf("hi"), Value{})
 }
 
 func TestChan(t *testing.T) {
@@ -1456,31 +1483,25 @@ func takesNonEmpty(n nonEmptyStruct) int {
 }
 
 func TestCallWithStruct(t *testing.T) {
-	r := ValueOf(returnEmpty).Call([]Value{})
+	r := ValueOf(returnEmpty).Call(nil)
 	if len(r) != 1 || r[0].Type() != TypeOf(emptyStruct{}) {
-		t.Errorf("returning empty struct returned %s instead", r)
+		t.Errorf("returning empty struct returned %#v instead", r)
 	}
 	r = ValueOf(takesEmpty).Call([]Value{ValueOf(emptyStruct{})})
 	if len(r) != 0 {
-		t.Errorf("takesEmpty returned values: %s", r)
+		t.Errorf("takesEmpty returned values: %#v", r)
 	}
 	r = ValueOf(returnNonEmpty).Call([]Value{ValueOf(42)})
 	if len(r) != 1 || r[0].Type() != TypeOf(nonEmptyStruct{}) || r[0].Field(0).Int() != 42 {
-		t.Errorf("returnNonEmpty returned %s", r)
+		t.Errorf("returnNonEmpty returned %#v", r)
 	}
 	r = ValueOf(takesNonEmpty).Call([]Value{ValueOf(nonEmptyStruct{member: 42})})
 	if len(r) != 1 || r[0].Type() != TypeOf(1) || r[0].Int() != 42 {
-		t.Errorf("takesNonEmpty returned %s", r)
+		t.Errorf("takesNonEmpty returned %#v", r)
 	}
 }
 
 func TestMakeFunc(t *testing.T) {
-	switch runtime.GOARCH {
-	case "amd64", "386":
-	default:
-		t.Skip("MakeFunc not implemented for " + runtime.GOARCH)
-	}
-
 	f := dummy
 	fv := MakeFunc(TypeOf(f), func(in []Value) []Value { return in })
 	ValueOf(&f).Elem().Set(fv)
@@ -1499,12 +1520,6 @@ func TestMakeFunc(t *testing.T) {
 }
 
 func TestMakeFuncInterface(t *testing.T) {
-	switch runtime.GOARCH {
-	case "amd64", "386":
-	default:
-		t.Skip("MakeFunc not implemented for " + runtime.GOARCH)
-	}
-
 	fn := func(i int) int { return i }
 	incr := func(in []Value) []Value {
 		return []Value{ValueOf(int(in[0].Int() + 1))}
@@ -1519,6 +1534,23 @@ func TestMakeFuncInterface(t *testing.T) {
 	}
 	if r := fv.Interface().(func(int) int)(26); r != 27 {
 		t.Errorf("Call returned %d, want 27", r)
+	}
+}
+
+func TestMakeFuncVariadic(t *testing.T) {
+	// Test that variadic arguments are packed into a slice and passed as last arg
+	fn := func(_ int, is ...int) []int { return nil }
+	fv := MakeFunc(TypeOf(fn), func(in []Value) []Value { return in[1:2] })
+	ValueOf(&fn).Elem().Set(fv)
+
+	r := fv.Call([]Value{ValueOf(1), ValueOf(2), ValueOf(3)})[0].Interface().([]int)
+	if r[0] != 2 || r[1] != 3 {
+		t.Errorf("Call returned [%v, %v]; want 2, 3", r[0], r[1])
+	}
+
+	r = fv.CallSlice([]Value{ValueOf(1), ValueOf([]int{2, 3})})[0].Interface().([]int)
+	if r[0] != 2 || r[1] != 3 {
+		t.Errorf("Call returned [%v, %v]; want 2, 3", r[0], r[1])
 	}
 }
 
@@ -1632,12 +1664,6 @@ func TestMethod(t *testing.T) {
 }
 
 func TestMethodValue(t *testing.T) {
-	switch runtime.GOARCH {
-	case "amd64", "386":
-	default:
-		t.Skip("reflect method values not implemented for " + runtime.GOARCH)
-	}
-
 	p := Point{3, 4}
 	var i int64
 
@@ -1809,12 +1835,6 @@ type Tm4 struct {
 func (t4 Tm4) M(x int, b byte) (byte, int) { return b, x + 40 }
 
 func TestMethod5(t *testing.T) {
-	switch runtime.GOARCH {
-	case "amd64", "386":
-	default:
-		t.Skip("reflect method values not implemented for " + runtime.GOARCH)
-	}
-
 	CheckF := func(name string, f func(int, byte) (byte, int), inc int) {
 		b, x := f(1000, 99)
 		if b != 99 || x != 1000+inc {
@@ -3686,4 +3706,143 @@ func (x *exhaustive) Choose(max int) int {
 
 func (x *exhaustive) Maybe() bool {
 	return x.Choose(2) == 1
+}
+
+func GCFunc(args []Value) []Value {
+	runtime.GC()
+	return []Value{}
+}
+
+func TestReflectFuncTraceback(t *testing.T) {
+	f := MakeFunc(TypeOf(func() {}), GCFunc)
+	f.Call([]Value{})
+}
+
+func (p Point) GCMethod(k int) int {
+	runtime.GC()
+	return k + p.x
+}
+
+func TestReflectMethodTraceback(t *testing.T) {
+	p := Point{3, 4}
+	m := ValueOf(p).MethodByName("GCMethod")
+	i := ValueOf(m.Interface()).Call([]Value{ValueOf(5)})[0].Int()
+	if i != 8 {
+		t.Errorf("Call returned %d; want 8", i)
+	}
+}
+
+func TestBigZero(t *testing.T) {
+	const size = 1 << 10
+	var v [size]byte
+	z := Zero(ValueOf(v).Type()).Interface().([size]byte)
+	for i := 0; i < size; i++ {
+		if z[i] != 0 {
+			t.Fatalf("Zero object not all zero, index %d", i)
+		}
+	}
+}
+
+func TestFieldByIndexNil(t *testing.T) {
+	type P struct {
+		F int
+	}
+	type T struct {
+		*P
+	}
+	v := ValueOf(T{})
+
+	v.FieldByName("P") // should be fine
+
+	defer func() {
+		if err := recover(); err == nil {
+			t.Fatalf("no error")
+		} else if !strings.Contains(fmt.Sprint(err), "nil pointer to embedded struct") {
+			t.Fatalf(`err=%q, wanted error containing "nil pointer to embedded struct"`, err)
+		}
+	}()
+	v.FieldByName("F") // should panic
+
+	t.Fatalf("did not panic")
+}
+
+// Given
+//	type Outer struct {
+//		*Inner
+//		...
+//	}
+// the compiler generates the implementation of (*Outer).M dispatching to the embedded Inner.
+// The implementation is logically:
+//	func (p *Outer) M() {
+//		(p.Inner).M()
+//	}
+// but since the only change here is the replacement of one pointer receiver with another,
+// the actual generated code overwrites the original receiver with the p.Inner pointer and
+// then jumps to the M method expecting the *Inner receiver.
+//
+// During reflect.Value.Call, we create an argument frame and the associated data structures
+// to describe it to the garbage collector, populate the frame, call reflect.call to
+// run a function call using that frame, and then copy the results back out of the frame.
+// The reflect.call function does a memmove of the frame structure onto the
+// stack (to set up the inputs), runs the call, and the memmoves the stack back to
+// the frame structure (to preserve the outputs).
+//
+// Originally reflect.call did not distinguish inputs from outputs: both memmoves
+// were for the full stack frame. However, in the case where the called function was
+// one of these wrappers, the rewritten receiver is almost certainly a different type
+// than the original receiver. This is not a problem on the stack, where we use the
+// program counter to determine the type information and understand that
+// during (*Outer).M the receiver is an *Outer while during (*Inner).M the receiver in the same
+// memory word is now an *Inner. But in the statically typed argument frame created
+// by reflect, the receiver is always an *Outer. Copying the modified receiver pointer
+// off the stack into the frame will store an *Inner there, and then if a garbage collection
+// happens to scan that argument frame before it is discarded, it will scan the *Inner
+// memory as if it were an *Outer. If the two have different memory layouts, the
+// collection will intepret the memory incorrectly.
+//
+// One such possible incorrect interpretation is to treat two arbitrary memory words
+// (Inner.P1 and Inner.P2 below) as an interface (Outer.R below). Because interpreting
+// an interface requires dereferencing the itab word, the misinterpretation will try to
+// deference Inner.P1, causing a crash during garbage collection.
+//
+// This came up in a real program in issue 7725.
+
+type Outer struct {
+	*Inner
+	R io.Reader
+}
+
+type Inner struct {
+	X  *Outer
+	P1 uintptr
+	P2 uintptr
+}
+
+func (pi *Inner) M() {
+	// Clear references to pi so that the only way the
+	// garbage collection will find the pointer is in the
+	// argument frame, typed as a *Outer.
+	pi.X.Inner = nil
+
+	// Set up an interface value that will cause a crash.
+	// P1 = 1 is a non-zero, so the interface looks non-nil.
+	// P2 = pi ensures that the data word points into the
+	// allocated heap; if not the collection skips the interface
+	// value as irrelevant, without dereferencing P1.
+	pi.P1 = 1
+	pi.P2 = uintptr(unsafe.Pointer(pi))
+}
+
+func TestCallMethodJump(t *testing.T) {
+	// In reflect.Value.Call, trigger a garbage collection after reflect.call
+	// returns but before the args frame has been discarded.
+	// This is a little clumsy but makes the failure repeatable.
+	*CallGC = true
+
+	p := &Outer{Inner: new(Inner)}
+	p.Inner.X = p
+	ValueOf(p).Method(0).Call(nil)
+
+	// Stop garbage collecting during reflect.call.
+	*CallGC = false
 }

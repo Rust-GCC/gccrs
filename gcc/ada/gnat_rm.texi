@@ -1,3 +1,4 @@
+
 \input texinfo   @c -*-texinfo-*-
 
 @c %**start of header
@@ -84,8 +85,9 @@ AdaCore
 * Implementation of Ada 2012 Features::
 * Obsolescent Features::
 * GNU Free Documentation License::
-* Index::
+* Index:Concept Index.
 
+@detailmenu
  --- The Detailed Node Listing ---
 
 About This Guide
@@ -110,8 +112,10 @@ Implementation Defined Pragmas
 * Pragma Assertion_Policy::
 * Pragma Assume::
 * Pragma Assume_No_Invalid_Values::
-* Pragma Attribute_Definition::
 * Pragma Ast_Entry::
+* Pragma Async_Readers::
+* Pragma Async_Writers::
+* Pragma Attribute_Definition::
 * Pragma C_Pass_By_Copy::
 * Pragma Check::
 * Pragma Check_Float_Overflow::
@@ -141,6 +145,8 @@ Implementation Defined Pragmas
 * Pragma Detect_Blocking::
 * Pragma Disable_Atomic_Synchronization::
 * Pragma Dispatching_Domain::
+* Pragma Effective_Reads::
+* Pragma Effective_Writes::
 * Pragma Elaboration_Checks::
 * Pragma Eliminate::
 * Pragma Enable_Atomic_Synchronization::
@@ -208,6 +214,7 @@ Implementation Defined Pragmas
 * Pragma Overflow_Mode::
 * Pragma Overriding_Renamings::
 * Pragma Partition_Elaboration_Policy::
+* Pragma Part_Of::
 * Pragma Passive::
 * Pragma Persistent_BSS::
 * Pragma Polling::
@@ -218,7 +225,6 @@ Implementation Defined Pragmas
 * Pragma Precondition::
 * Pragma Predicate::
 * Pragma Preelaborable_Initialization::
-* Pragma Preelaborate_05::
 * Pragma Pre_Class::
 * Pragma Priority_Specific_Dispatching::
 * Pragma Profile::
@@ -226,10 +232,11 @@ Implementation Defined Pragmas
 * Pragma Propagate_Exceptions::
 * Pragma Provide_Shift_Operators::
 * Pragma Psect_Object::
-* Pragma Pure_05::
-* Pragma Pure_12::
 * Pragma Pure_Function::
 * Pragma Ravenscar::
+* Pragma Refined_Depends::
+* Pragma Refined_Global::
+* Pragma Refined_Post::
 * Pragma Refined_State::
 * Pragma Relative_Deadline::
 * Pragma Remote_Access_Type::
@@ -254,7 +261,6 @@ Implementation Defined Pragmas
 * Pragma Suppress_Debug_Info::
 * Pragma Suppress_Exception_Locations::
 * Pragma Suppress_Initialization::
-* Pragma Task_Info::
 * Pragma Task_Name::
 * Pragma Task_Storage::
 * Pragma Test_Case::
@@ -283,10 +289,15 @@ Implementation Defined Pragmas
 Implementation Defined Aspects
 
 * Aspect Abstract_State::
+* Aspect Annotate::
+* Aspect Async_Readers::
+* Aspect Async_Writers::
 * Aspect Contract_Cases::
 * Aspect Depends::
 * Aspect Dimension::
 * Aspect Dimension_System::
+* Aspect Effective_Reads::
+* Aspect Effective_Writes::
 * Aspect Favor_Top_Level::
 * Aspect Global::
 * Aspect Initial_Condition::
@@ -295,12 +306,13 @@ Implementation Defined Aspects
 * Aspect Invariant::
 * Aspect Linker_Section::
 * Aspect Object_Size::
+* Aspect Part_Of::
 * Aspect Persistent_BSS::
 * Aspect Predicate::
-* Aspect Preelaborate_05::
-* Aspect Pure_05::
-* Aspect Pure_12::
 * Aspect Pure_Function::
+* Aspect Refined_Depends::
+* Aspect Refined_Global::
+* Aspect Refined_Post::
 * Aspect Refined_State::
 * Aspect Remote_Access_Type::
 * Aspect Scalar_Storage_Order::
@@ -310,6 +322,7 @@ Implementation Defined Aspects
 * Aspect SPARK_Mode::
 * Aspect Suppress_Debug_Info::
 * Aspect Test_Case::
+* Aspect Thread_Local_Storage::
 * Aspect Universal_Aliasing::
 * Aspect Universal_Data::
 * Aspect Unmodified::
@@ -351,8 +364,6 @@ Implementation Defined Attributes
 * Attribute Loop_Entry::
 * Attribute Machine_Size::
 * Attribute Mantissa::
-* Attribute Max_Interrupt_Priority::
-* Attribute Max_Priority::
 * Attribute Maximum_Alignment::
 * Attribute Mechanism_Code::
 * Attribute Null_Parameter::
@@ -434,6 +445,8 @@ Partition-Wide Restrictions
 * No_Local_Allocators::
 * No_Local_Protected_Objects::
 * No_Local_Timing_Events::
+* No_Long_Long_Integers::
+* No_Multiple_Elaboration::
 * No_Nested_Finalization::
 * No_Protected_Type_Allocators::
 * No_Protected_Types::
@@ -488,6 +501,7 @@ The Implementation of Standard I/O
 * Text Translation::
 * Shared Files::
 * Filenames encoding::
+* File content encoding::
 * Open Modes::
 * Operations on C Streams::
 * Interfacing to C Streams::
@@ -584,6 +598,7 @@ The GNAT Library
 * GNAT.Regexp (g-regexp.ads)::
 * GNAT.Registry (g-regist.ads)::
 * GNAT.Regpat (g-regpat.ads)::
+* GNAT.Rewrite_Data (g-rewdat.ads)::
 * GNAT.Secondary_Stack_Info (g-sestin.ads)::
 * GNAT.Semaphores (g-semaph.ads)::
 * GNAT.Serial_Communications (g-sercom.ads)::
@@ -635,7 +650,7 @@ The GNAT Library
 * System.Restrictions (s-restri.ads)::
 * System.Rident (s-rident.ads)::
 * System.Strings.Stream_Ops (s-ststop.ads)::
-* System.Task_Info (s-tasinf.ads)::
+* System.Unsigned_Types (s-unstyp.ads)::
 * System.Wch_Cnv (s-wchcnv.ads)::
 * System.Wch_Con (s-wchcon.ads)::
 
@@ -683,6 +698,7 @@ Obsolescent Features
 GNU Free Documentation License
 
 Index
+@end detailmenu
 @end menu
 
 @end ifnottex
@@ -945,8 +961,10 @@ consideration, the use of these pragmas should be minimized.
 * Pragma Assertion_Policy::
 * Pragma Assume::
 * Pragma Assume_No_Invalid_Values::
-* Pragma Attribute_Definition::
 * Pragma Ast_Entry::
+* Pragma Async_Readers::
+* Pragma Async_Writers::
+* Pragma Attribute_Definition::
 * Pragma C_Pass_By_Copy::
 * Pragma Check::
 * Pragma Check_Float_Overflow::
@@ -976,6 +994,8 @@ consideration, the use of these pragmas should be minimized.
 * Pragma Detect_Blocking::
 * Pragma Disable_Atomic_Synchronization::
 * Pragma Dispatching_Domain::
+* Pragma Effective_Reads::
+* Pragma Effective_Writes::
 * Pragma Elaboration_Checks::
 * Pragma Eliminate::
 * Pragma Enable_Atomic_Synchronization::
@@ -1043,6 +1063,7 @@ consideration, the use of these pragmas should be minimized.
 * Pragma Overflow_Mode::
 * Pragma Overriding_Renamings::
 * Pragma Partition_Elaboration_Policy::
+* Pragma Part_Of::
 * Pragma Passive::
 * Pragma Persistent_BSS::
 * Pragma Polling::
@@ -1053,7 +1074,6 @@ consideration, the use of these pragmas should be minimized.
 * Pragma Precondition::
 * Pragma Predicate::
 * Pragma Preelaborable_Initialization::
-* Pragma Preelaborate_05::
 * Pragma Pre_Class::
 * Pragma Priority_Specific_Dispatching::
 * Pragma Profile::
@@ -1061,10 +1081,11 @@ consideration, the use of these pragmas should be minimized.
 * Pragma Propagate_Exceptions::
 * Pragma Provide_Shift_Operators::
 * Pragma Psect_Object::
-* Pragma Pure_05::
-* Pragma Pure_12::
 * Pragma Pure_Function::
 * Pragma Ravenscar::
+* Pragma Refined_Depends::
+* Pragma Refined_Global::
+* Pragma Refined_Post::
 * Pragma Refined_State::
 * Pragma Relative_Deadline::
 * Pragma Remote_Access_Type::
@@ -1089,7 +1110,6 @@ consideration, the use of these pragmas should be minimized.
 * Pragma Suppress_Debug_Info::
 * Pragma Suppress_Exception_Locations::
 * Pragma Suppress_Initialization::
-* Pragma Task_Info::
 * Pragma Task_Name::
 * Pragma Task_Storage::
 * Pragma Test_Case::
@@ -1327,7 +1347,7 @@ in the two situations.
 @noindent
 Syntax:
 @smallexample @c ada
-pragma Annotate (IDENTIFIER [,IDENTIFIER @{, ARG@}]);
+pragma Annotate (IDENTIFIER [,IDENTIFIER @{, ARG@}] [entity => local_NAME]);
 
 ARG ::= NAME | EXPRESSION
 @end smallexample
@@ -1343,7 +1363,8 @@ String literals are assumed to be either of type
 @code{Standard.String} or else @code{Wide_String} or @code{Wide_Wide_String}
 depending on the character literals they contain.
 All other kinds of arguments are analyzed as expressions, and must be
-unambiguous.
+unambiguous. The last argument if present must have the identifier
+@code{Entity} and GNAT verifies that a local name is given.
 
 The analyzed pragma is retained in the tree, but not otherwise processed
 by any part of the GNAT compiler, except to generate corresponding note
@@ -1621,6 +1642,20 @@ values will generally give an exception, though formally the program
 is erroneous so there are no guarantees that this will always be the
 case, and it is recommended that these two options not be used together.
 
+@node Pragma Async_Readers
+@unnumberedsec Pragma Async_Readers
+@findex Async_Readers
+@noindent
+For the description of this pragma, see SPARK 2014 Reference Manual,
+section 7.1.2.
+
+@node Pragma Async_Writers
+@unnumberedsec Pragma Async_Writers
+@findex Async_Writers
+@noindent
+For the description of this pragma, see SPARK 2014 Reference Manual,
+section 7.1.2.
+
 @node Pragma Ast_Entry
 @unnumberedsec Pragma Ast_Entry
 @cindex OpenVMS
@@ -1789,7 +1824,8 @@ as overflow checking could be guaranteed.
 The @code{Check_Float_Overflow}
 configuration pragma achieves this effect. If a unit is compiled
 subject to this configuration pragma, then all operations
-on predefined floating-point types will be treated as
+on predefined floating-point types including operations on
+base types of these floating-point types will be treated as
 though those types were constrained, and overflow checks
 will be generated. The @code{Constraint_Error}
 exception is raised if the result is out of range.
@@ -2407,7 +2443,7 @@ This pragma is now obsolete and, other than generating a warning if warnings
 on obsolescent features are enabled, is completely ignored.
 It used to be required to ensure compatibility with C++, but
 is no longer required for that purpose because GNAT generates
-the same object layout than the G++ compiler by default.
+the same object layout as the G++ compiler by default.
 
 See @ref{Interfacing to C++} for related information.
 
@@ -2548,6 +2584,20 @@ pragma Dispatching_Domain (EXPRESSION);
 This pragma is standard in Ada 2012, but is available in all earlier
 versions of Ada as an implementation-defined pragma.
 See Ada 2012 Reference Manual for details.
+
+@node Pragma Effective_Reads
+@unnumberedsec Pragma Effective_Reads
+@findex Effective_Reads
+@noindent
+For the description of this pragma, see SPARK 2014 Reference Manual,
+section 7.1.2.
+
+@node Pragma Effective_Writes
+@unnumberedsec Pragma Effective_Writes
+@findex Effective_Writes
+@noindent
+For the description of this pragma, see SPARK 2014 Reference Manual,
+section 7.1.2.
 
 @node Pragma Elaboration_Checks
 @unnumberedsec Pragma Elaboration_Checks
@@ -4113,8 +4163,6 @@ Normally a unit with no @code{License} pragma is considered to have an
 unknown license, and no checking is done.  However, standard GNAT headers
 are recognized, and license information is derived from them as follows.
 
-@itemize @bullet
-
 A GNAT license header starts with a line containing 78 hyphens.  The following
 comment text is searched for the appearance of any of the following strings.
 
@@ -4126,7 +4174,6 @@ If one of the strings
 ``This specification is adapted from the Ada Semantic Interface'' or
 ``This specification is derived from the Ada Reference Manual'' is found
 then the unit is assumed to be unrestricted.
-@end itemize
 
 @noindent
 These default actions means that a program with a restricted license pragma
@@ -4417,7 +4464,7 @@ Syntax:
 @smallexample @c ada
 pragma Loop_Optimize (OPTIMIZATION_HINT @{, OPTIMIZATION_HINT@});
 
-OPTIMIZATION_HINT ::= No_Unroll | Unroll | No_Vector | Vector
+OPTIMIZATION_HINT ::= Ivdep | No_Unroll | Unroll | No_Vector | Vector
 @end smallexample
 
 @noindent
@@ -4426,8 +4473,13 @@ programmer to specify optimization hints for the enclosing loop.  The hints
 are not mutually exclusive and can be freely mixed, but not all combinations
 will yield a sensible outcome.
 
-There are four supported optimization hints for a loop:
+There are five supported optimization hints for a loop:
+
 @itemize @bullet
+@item Ivdep
+
+The programmer asserts that there are no loop-carried dependencies which would prevent consecutive iterations of the loop from being executed simultaneously.
+
 @item No_Unroll
 
 The loop must not be unrolled.  This is a strong hint: the compiler will not
@@ -5124,6 +5176,13 @@ This pragma is standard in Ada 2005, but is available in all earlier
 versions of Ada as an implementation-defined pragma.
 See Ada 2012 Reference Manual for details.
 
+@node Pragma Part_Of
+@unnumberedsec Pragma Part_Of
+@findex Part_Of
+@noindent
+For the description of this pragma, see SPARK 2014 Reference Manual,
+section 7.2.6.
+
 @node Pragma Passive
 @unnumberedsec Pragma Passive
 @findex Passive
@@ -5592,24 +5651,6 @@ This pragma is standard in Ada 2005, but is available in all earlier
 versions of Ada as an implementation-defined pragma.
 See Ada 2012 Reference Manual for details.
 
-@node Pragma Preelaborate_05
-@unnumberedsec Pragma Preelaborate_05
-@findex Preelaborate_05
-@noindent
-Syntax:
-
-@smallexample @c ada
-pragma Preelaborate_05 [(library_unit_NAME)];
-@end smallexample
-
-@noindent
-This pragma is only available in GNAT mode (@option{-gnatg} switch set)
-and is intended for use in the standard run-time library only. It has
-no effect in Ada 83 or Ada 95 mode, but is
-equivalent to @code{pragma Prelaborate} when operating in later
-Ada versions. This is used to handle some cases where packages
-not previously preelaborable became so in Ada 2005.
-
 @node Pragma Pre_Class
 @unnumberedsec Pragma Pre_Class
 @cindex Pre_Class
@@ -5873,7 +5914,7 @@ pragma Provide_Shift_Operators (integer_first_subtype_LOCAL_NAME);
 This pragma can be applied to a first subtype local name that specifies
 either an unsigned or signed type. It has the effect of providing the
 five shift operators (Shift_Left, Shift_Right, Shift_Right_Arithmetic,
-Rotate_Left and Rotate_Right) for the given type. It is equivalent to
+Rotate_Left and Rotate_Right) for the given type. It is similar to
 including the function declarations for these five operators, together
 with the pragma Import (Intrinsic, ...) statements.
 
@@ -5896,42 +5937,6 @@ EXTERNAL_SYMBOL ::=
 
 @noindent
 This pragma is identical in effect to pragma @code{Common_Object}.
-
-@node Pragma Pure_05
-@unnumberedsec Pragma Pure_05
-@findex Pure_05
-@noindent
-Syntax:
-
-@smallexample @c ada
-pragma Pure_05 [(library_unit_NAME)];
-@end smallexample
-
-@noindent
-This pragma is only available in GNAT mode (@option{-gnatg} switch set)
-and is intended for use in the standard run-time library only. It has
-no effect in Ada 83 or Ada 95 mode, but is
-equivalent to @code{pragma Pure} when operating in later
-Ada versions. This is used to handle some cases where packages
-not previously pure became so in Ada 2005.
-
-@node Pragma Pure_12
-@unnumberedsec Pragma Pure_12
-@findex Pure_12
-@noindent
-Syntax:
-
-@smallexample @c ada
-pragma Pure_12 [(library_unit_NAME)];
-@end smallexample
-
-@noindent
-This pragma is only available in GNAT mode (@option{-gnatg} switch set)
-and is intended for use in the standard run-time library only. It has
-no effect in Ada 83, Ada 95, or Ada 2005 modes, but is
-equivalent to @code{pragma Pure} when operating in later
-Ada versions. This is used to handle some cases where packages
-not previously pure became so in Ada 2012.
 
 @node Pragma Pure_Function
 @unnumberedsec Pragma Pure_Function
@@ -6016,6 +6021,27 @@ pragma Profile (Ravenscar);
 
 @noindent
 which is the preferred method of setting the @code{Ravenscar} profile.
+
+@node Pragma Refined_Depends
+@unnumberedsec Pragma Refined_Depends
+@findex Refined_Depends
+@noindent
+For the description of this pragma, see SPARK 2014 Reference Manual,
+section 6.1.5.
+
+@node Pragma Refined_Global
+@unnumberedsec Pragma Refined_Global
+@findex Refined_Global
+@noindent
+For the description of this pragma, see SPARK 2014 Reference Manual,
+section 6.1.4.
+
+@node Pragma Refined_Post
+@unnumberedsec Pragma Refined_Post
+@findex Refined_Post
+@noindent
+For the description of this pragma, see SPARK 2014 Reference Manual,
+section 7.2.7.
 
 @node Pragma Refined_State
 @unnumberedsec Pragma Refined_State
@@ -6809,6 +6835,16 @@ by suppressing range checks, but the specific use of @code{Alignment_Check}
 allows suppression of alignment checks without suppressing other range checks.
 
 @item
+@code{Atomic_Synchronization} can be used to suppress the special memory
+synchronization instructions that are normally generated for access to
+@code{Atomic} variables to ensure correct synchronization between tasks
+that use such variables for synchronization purposes.
+
+@item
+@code{Duplicated_Tag_Check} Can be used to suppress the check that is generated
+for a duplicated tag value when a tagged type is declared.
+
+@item
 @code{Predicate_Check} can be used to control whether predicate checks are
 active. It is applicable only to predicates for which the policy is
 @code{Check}. Unlike @code{Assertion_Policy}, which determines if a given
@@ -6926,26 +6962,11 @@ to apply to the base type and all its subtypes. If the pragma is given
 for other than a first subtype, then it applies only to the given subtype.
 The pragma may not be given after the type is frozen.
 
-@node Pragma Task_Info
-@unnumberedsec Pragma Task_Info
-@findex Task_Info
-@noindent
-Syntax
-
-@smallexample @c ada
-pragma Task_Info (EXPRESSION);
-@end smallexample
-
-@noindent
-This pragma appears within a task definition (like pragma
-@code{Priority}) and applies to the task in which it appears.  The
-argument must be of type @code{System.Task_Info.Task_Info_Type}.
-The @code{Task_Info} pragma provides system dependent control over
-aspects of tasking implementation, for example, the ability to map
-tasks to specific processors.  For details on the facilities available
-for the version of GNAT that you are using, see the documentation
-in the spec of package System.Task_Info in the runtime
-library.
+Note that this includes eliminating initialization of discriminants
+for discriminated types, and tags for tagged types. In these cases,
+you will have to use some non-portable mechanism (e.g. address
+overlays or unchecked conversion) to achieve required initialization
+of these fields before accessing any object of the corresponding type.
 
 @node Pragma Task_Name
 @unnumberedsec Pragma Task_Name
@@ -7330,7 +7351,8 @@ pragma Unreferenced (library_unit_NAME @{, library_unit_NAME@});
 
 @noindent
 This pragma signals that the entities whose names are listed are
-deliberately not referenced in the current source unit. This
+deliberately not referenced in the current source unit after the
+occurrence of the pragma. This
 suppresses warnings about the
 entities being unreferenced, and in addition a warning will be
 generated if one of these entities is in fact subsequently referenced in the
@@ -7452,8 +7474,16 @@ in pragma @code{Suppress}.
 One important application is to ensure that checks are on in cases where
 code depends on the checks for its correct functioning, so that the code
 will compile correctly even if the compiler switches are set to suppress
-checks.
+checks. For example, in a program that depends on external names of tagged
+types and wants to ensure that the duplicated tag check occurs even if all
+run-time checks are suppressed by a compiler switch, the following
+configuration pragma will ensure this test is not suppressed:
 
+@smallexample @c ada
+pragma Unsuppress (Duplicated_Tag_Check);
+@end smallexample
+
+@noindent
 This pragma is standard in Ada 2005. It is available in all earlier versions
 of Ada as an implementation-defined pragma.
 
@@ -7578,11 +7608,15 @@ which treats all warnings as errors.
 
 The pattern may contain asterisks, which match zero or more characters in
 the message. For example, you can use
-@code{pragma Warning_As_Error ("*bits of*unused")} to treat the warning
+@code{pragma Warning_As_Error ("bits of*unused")} to treat the warning
 message @code{warning: 960 bits of "a" unused} as an error. No other regular
 expression notations are permitted. All characters other than asterisk in
 these three specific cases are treated as literal characters in the match.
 The match is case insensitive, for example XYZ matches xyz.
+
+Note that the pattern matches if it occurs anywhere within the warning
+message string (it is not necessary to put an asterisk at the start and
+the end of the message, since this is implied).
 
 Another possibility for the static_string_EXPRESSION which works whether
 or not error tags are enabled (@option{-gnatw.d}) is to use the
@@ -7718,11 +7752,15 @@ warning messages (not including the initial "warning: " tag).
 
 The pattern may contain asterisks, which match zero or more characters in
 the message. For example, you can use
-@code{pragma Warnings (Off, "*bits of*unused")} to suppress the warning
+@code{pragma Warnings (Off, "bits of*unused")} to suppress the warning
 message @code{warning: 960 bits of "a" unused}. No other regular
 expression notations are permitted. All characters other than asterisk in
 these three specific cases are treated as literal characters in the match.
 The match is case insensitive, for example XYZ matches xyz.
+
+Note that the pattern matches if it occurs anywhere within the warning
+message string (it is not necessary to put an asterisk at the start and
+the end of the message, since this is implied).
 
 The above use of patterns to match the message applies only to warning
 messages generated by the front end. This form of the pragma with a string
@@ -7730,8 +7768,8 @@ argument can also be used to control warnings provided by the back end and
 mentioned above. By using a single full @option{-Wxxx} switch in the pragma,
 such warnings can be turned on and off.
 
-There are two ways to use the pragma in this form. The OFF form can be used as a
-configuration pragma. The effect is to suppress all warnings (if any)
+There are two ways to use the pragma in this form. The OFF form can be used
+as a configuration pragma. The effect is to suppress all warnings (if any)
 that match the pattern string throughout the compilation (or match the
 -W switch in the back end case).
 
@@ -7899,10 +7937,15 @@ clause.
 
 @menu
 * Aspect Abstract_State::
+* Aspect Annotate::
+* Aspect Async_Readers::
+* Aspect Async_Writers::
 * Aspect Contract_Cases::
 * Aspect Depends::
 * Aspect Dimension::
 * Aspect Dimension_System::
+* Aspect Effective_Reads::
+* Aspect Effective_Writes::
 * Aspect Favor_Top_Level::
 * Aspect Global::
 * Aspect Initial_Condition::
@@ -7912,12 +7955,13 @@ clause.
 * Aspect Linker_Section::
 * Aspect Lock_Free::
 * Aspect Object_Size::
+* Aspect Part_Of::
 * Aspect Persistent_BSS::
 * Aspect Predicate::
-* Aspect Preelaborate_05::
-* Aspect Pure_05::
-* Aspect Pure_12::
 * Aspect Pure_Function::
+* Aspect Refined_Depends::
+* Aspect Refined_Global::
+* Aspect Refined_Post::
 * Aspect Refined_State::
 * Aspect Remote_Access_Type::
 * Aspect Scalar_Storage_Order::
@@ -7927,6 +7971,7 @@ clause.
 * Aspect SPARK_Mode::
 * Aspect Suppress_Debug_Info::
 * Aspect Test_Case::
+* Aspect Thread_Local_Storage::
 * Aspect Universal_Aliasing::
 * Aspect Universal_Data::
 * Aspect Unmodified::
@@ -7941,6 +7986,36 @@ clause.
 @findex Abstract_State
 @noindent
 This aspect is equivalent to pragma @code{Abstract_State}.
+
+@node Aspect Annotate
+@unnumberedsec Annotate
+@findex Annotate
+@noindent
+There are three forms of this aspect (where ID is an identifier,
+and ARG is a general expression).
+
+@table @code
+@item Annotate => ID
+Equivalent to @code{pragma Annotate (ID, Entity => Name);}
+
+@item Annotate => (ID)
+Equivalent to @code{pragma Annotate (ID, Entity => Name);}
+
+@item Annotate => (ID ,ID @{, ARG@})
+Equivalent to @code{pragma Annotate (ID, ID @{, ARG@}, Entity => Name);}
+@end table
+
+@node Aspect Async_Readers
+@unnumberedsec Aspect Async_Readers
+@findex Async_Readers
+@noindent
+This aspect is equivalent to pragma @code{Async_Readers}.
+
+@node Aspect Async_Writers
+@unnumberedsec Aspect Async_Writers
+@findex Async_Writers
+@noindent
+This aspect is equivalent to pragma @code{Async_Writers}.
 
 @node Aspect Contract_Cases
 @unnumberedsec Aspect Contract_Cases
@@ -8046,6 +8121,18 @@ following aspect:
 See section ``Performing Dimensionality Analysis in GNAT'' in the GNAT Users
 Guide for detailed examples of use of the dimension system.
 
+@node Aspect Effective_Reads
+@unnumberedsec Aspect Effective_Reads
+@findex Effective_Reads
+@noindent
+This aspect is equivalent to pragma @code{Effective_Reads}.
+
+@node Aspect Effective_Writes
+@unnumberedsec Aspect Effective_Writes
+@findex Effective_Writes
+@noindent
+This aspect is equivalent to pragma @code{Effective_Writes}.
+
 @node Aspect Favor_Top_Level
 @unnumberedsec Aspect Favor_Top_Level
 @findex Favor_Top_Level
@@ -8103,6 +8190,12 @@ This aspect is equivalent to pragma @code{Lock_Free}.
 This aspect is equivalent to an @code{Object_Size} attribute definition
 clause.
 
+@node Aspect Part_Of
+@unnumberedsec Aspect Part_Of
+@findex Part_Of
+@noindent
+This aspect is equivalent to pragma @code{Part_Of}.
+
 @node Aspect Persistent_BSS
 @unnumberedsec Aspect Persistent_BSS
 @findex Persistent_BSS
@@ -8120,29 +8213,29 @@ predicate is static or dynamic is controlled by the form of the
 expression. It is also separately controllable using pragma
 @code{Assertion_Policy}.
 
-@node Aspect Preelaborate_05
-@unnumberedsec Aspect Preelaborate_05
-@findex Preelaborate_05
-@noindent
-This aspect is equivalent to pragma @code{Preelaborate_05}.
-
-@node Aspect Pure_05
-@unnumberedsec Aspect Pure_05
-@findex Pure_05
-@noindent
-This aspect is equivalent to pragma @code{Pure_05}.
-
-@node Aspect Pure_12
-@unnumberedsec Aspect Pure_12
-@findex Pure_12
-@noindent
-This aspect is equivalent to pragma @code{Pure_12}.
-
 @node Aspect Pure_Function
 @unnumberedsec Aspect Pure_Function
 @findex Pure_Function
 @noindent
 This aspect is equivalent to pragma @code{Pure_Function}.
+
+@node Aspect Refined_Depends
+@unnumberedsec Aspect Refined_Depends
+@findex Refined_Depends
+@noindent
+This aspect is equivalent to pragma @code{Refined_Depends}.
+
+@node Aspect Refined_Global
+@unnumberedsec Aspect Refined_Global
+@findex Refined_Global
+@noindent
+This aspect is equivalent to pragma @code{Refined_Global}.
+
+@node Aspect Refined_Post
+@unnumberedsec Aspect Refined_Post
+@findex Refined_Post
+@noindent
+This aspect is equivalent to pragma @code{Refined_Post}.
 
 @node Aspect Refined_State
 @unnumberedsec Aspect Refined_State
@@ -8202,6 +8295,12 @@ This aspect is equivalent to pragma @code{Suppress_Debug_Info}.
 @findex Test_Case
 @noindent
 This aspect is equivalent to pragma @code{Test_Case}.
+
+@node Aspect Thread_Local_Storage
+@unnumberedsec Aspect Thread_Local_Storage
+@findex Thread_Local_Storage
+@noindent
+This aspect is equivalent to pragma @code{Thread_Local_Storage}.
 
 @node Aspect Universal_Aliasing
 @unnumberedsec Aspect Universal_Aliasing
@@ -8300,8 +8399,6 @@ consideration, you should minimize the use of these attributes.
 * Attribute Loop_Entry::
 * Attribute Machine_Size::
 * Attribute Mantissa::
-* Attribute Max_Interrupt_Priority::
-* Attribute Max_Priority::
 * Attribute Maximum_Alignment::
 * Attribute Mechanism_Code::
 * Attribute Null_Parameter::
@@ -8866,23 +8963,6 @@ The @code{Mantissa} attribute is provided for compatibility with Ada 83.  See
 the Ada 83 reference manual for an exact description of the semantics of
 this attribute.
 
-@node Attribute Max_Interrupt_Priority
-@unnumberedsec Attribute Max_Interrupt_Priority
-@cindex Interrupt priority, maximum
-@findex Max_Interrupt_Priority
-@noindent
-@code{Standard'Max_Interrupt_Priority} (@code{Standard} is the only
-permissible prefix), provides the same value as
-@code{System.Max_Interrupt_Priority}.
-
-@node Attribute Max_Priority
-@unnumberedsec Attribute Max_Priority
-@cindex Priority, maximum
-@findex Max_Priority
-@noindent
-@code{Standard'Max_Priority} (@code{Standard} is the only permissible
-prefix) provides the same value as @code{System.Max_Priority}.
-
 @node Attribute Maximum_Alignment
 @unnumberedsec Attribute Maximum_Alignment
 @cindex Alignment, maximum
@@ -9205,9 +9285,8 @@ that make up scalar components are ordered within S:
    --  the former is used.
 @end smallexample
 
-Other properties are
-as for standard representation attribute @code{Bit_Order}, as defined by
-Ada RM 13.5.3(4). The default is @code{System.Default_Bit_Order}.
+Other properties are as for standard representation attribute @code{Bit_Order},
+as defined by Ada RM 13.5.3(4). The default is @code{System.Default_Bit_Order}.
 
 For a record type @var{S}, if @code{@var{S}'Scalar_Storage_Order} is
 specified explicitly, it shall be equal to @code{@var{S}'Bit_Order}. Note:
@@ -9218,18 +9297,15 @@ specified explicitly and set to the same value.
 For a record extension, the derived type shall have the same scalar storage
 order as the parent type.
 
-If a component of @var{S} has itself a record or array type, then it shall also
-have a @code{Scalar_Storage_Order} attribute definition clause. In addition,
-if the component is a packed array, or does not start on a byte boundary, then
-the scalar storage order specified for S and for the nested component type shall
-be identical.
+If a component of @var{S} is of a record or array type, then that type shall
+also have a @code{Scalar_Storage_Order} attribute definition clause.
 
-If @var{S} appears as the type of a record or array component, the enclosing
-record or array shall also have a @code{Scalar_Storage_Order} attribute
-definition clause.
+A component of a record or array type that is a packed array, or that
+does not start on a byte boundary, must have the same scalar storage order
+as the enclosing record or array type.
 
-No component of a type that has a @code{Scalar_Storage_Order} attribute
-definition may be aliased.
+No component of a type that has an explicit @code{Scalar_Storage_Order}
+attribute definition may be aliased.
 
 A confirming @code{Scalar_Storage_Order} attribute definition clause (i.e.
 with a value equal to @code{System.Default_Bit_Order}) has no effect.
@@ -9421,16 +9497,16 @@ corresponding actual subtype.  The value of this attribute is of type
 @code{System.Aux_DEC.Type_Class}, which has the following definition:
 
 @smallexample @c ada
-  type Type_Class is
-    (Type_Class_Enumeration,
-     Type_Class_Integer,
-     Type_Class_Fixed_Point,
-     Type_Class_Floating_Point,
-     Type_Class_Array,
-     Type_Class_Record,
-     Type_Class_Access,
-     Type_Class_Task,
-     Type_Class_Address);
+type Type_Class is
+  (Type_Class_Enumeration,
+   Type_Class_Integer,
+   Type_Class_Fixed_Point,
+   Type_Class_Floating_Point,
+   Type_Class_Array,
+   Type_Class_Record,
+   Type_Class_Access,
+   Type_Class_Task,
+   Type_Class_Address);
 @end smallexample
 
 @noindent
@@ -9490,23 +9566,184 @@ end;
 @noindent
 The @code{Unrestricted_Access} attribute is similar to @code{Access}
 except that all accessibility and aliased view checks are omitted.  This
-is a user-beware attribute.  It is similar to
-@code{Address}, for which it is a desirable replacement where the value
-desired is an access type.  In other words, its effect is identical to
-first applying the @code{Address} attribute and then doing an unchecked
-conversion to a desired access type.  In GNAT, but not necessarily in
-other implementations, the use of static chains for inner level
-subprograms means that @code{Unrestricted_Access} applied to a
-subprogram yields a value that can be called as long as the subprogram
-is in scope (normal Ada accessibility rules restrict this usage).
+is a user-beware attribute.
 
-It is possible to use @code{Unrestricted_Access} for any type, but care
-must be exercised if it is used to create pointers to unconstrained
-objects. In this case, the resulting pointer has the same scope as the
-context of the attribute, and may not be returned to some enclosing
-scope. For instance, a function cannot use @code{Unrestricted_Access}
-to create a unconstrained pointer and then return that value to the
-caller.
+For objects, it is similar to @code{Address}, for which it is a
+desirable replacement where the value desired is an access type.
+In other words, its effect is similar to first applying the
+@code{Address} attribute and then doing an unchecked conversion to a
+desired access type.
+
+For subprograms, @code{P'Unrestricted_Access} may be used where
+@code{P'Access} would be illegal, to construct a value of a
+less-nested named access type that designates a more-nested
+subprogram. This value may be used in indirect calls, so long as the
+more-nested subprogram still exists; once the subprogram containing it
+has returned, such calls are erroneous. For example:
+
+@smallexample @c ada
+package body P is
+
+   type Less_Nested is not null access procedure;
+   Global : Less_Nested;
+
+   procedure P1 is
+   begin
+      Global.all;
+   end P1;
+
+   procedure P2 is
+      Local_Var : Integer;
+
+      procedure More_Nested is
+      begin
+         ... Local_Var ...
+      end More_Nested;
+   begin
+      Global := More_Nested'Unrestricted_Access;
+      P1;
+   end P2;
+
+end P;
+@end smallexample
+
+When P1 is called from P2, the call via Global is OK, but if P1 were
+called after P2 returns, it would be an erroneous use of a dangling
+pointer.
+
+For objects, it is possible to use @code{Unrestricted_Access} for any
+type, but care must be exercised if it is used to create pointers to
+unconstrained array objects.  In this case, the resulting pointer has
+the same scope as the context of the attribute, and may not be
+returned to some enclosing scope.  For instance, a function cannot use
+@code{Unrestricted_Access} to create a pointer to unconstrained and
+then return that value to the caller.  In addition, it is only valid
+to create pointers to unconstrained arrays using this attribute if the
+pointer has the normal default ``fat'' representation where a pointer
+has two components, one points to the array and one points to the
+bounds.  If a size clause is used to force ``thin'' representation for
+a pointer to unconstrained where there is only space for a single
+pointer, then the resulting pointer is not usable.
+
+In the simple case where a direct use of Unrestricted_Access attempts
+to make a thin pointer for a non-aliased object, the compiler will
+reject the use as illegal, as shown in the following example:
+
+@smallexample @c ada
+with System; use System;
+procedure SliceUA2 is
+   type A is access all String;
+   for A'Size use Standard'Address_Size;
+
+   procedure P (Arg : A) is
+   begin
+      null;
+   end P;
+
+   X : String := "hello world!";
+   X2 : aliased String := "hello world!";
+
+   AV : A := X'Unrestricted_Access;    -- ERROR
+             |
+>>> illegal use of Unrestricted_Access attribute
+>>> attempt to generate thin pointer to unaliased object
+
+begin
+   P (X'Unrestricted_Access);          -- ERROR
+      |
+>>> illegal use of Unrestricted_Access attribute
+>>> attempt to generate thin pointer to unaliased object
+
+   P (X(7 .. 12)'Unrestricted_Access); -- ERROR
+      |
+>>> illegal use of Unrestricted_Access attribute
+>>> attempt to generate thin pointer to unaliased object
+
+   P (X2'Unrestricted_Access);         -- OK
+end;
+@end smallexample
+
+@noindent
+but other cases cannot be detected by the compiler, and are
+considered to be erroneous. Consider the following example:
+
+@smallexample @c ada
+with System; use System;
+with System; use System;
+procedure SliceUA is
+   type AF is access all String;
+
+   type A is access all String;
+   for A'Size use Standard'Address_Size;
+
+   procedure P (Arg : A) is
+   begin
+      if Arg'Length /= 6 then
+         raise Program_Error;
+      end if;
+   end P;
+
+   X : String := "hello world!";
+   Y : AF := X (7 .. 12)'Unrestricted_Access;
+
+begin
+   P (A (Y));
+end;
+@end smallexample
+
+@noindent
+A normal unconstrained array value
+or a constrained array object marked as aliased has the bounds in memory
+just before the array, so a thin pointer can retrieve both the data and
+the bounds.  But in this case, the non-aliased object @code{X} does not have the
+bounds before the string.  If the size clause for type @code{A}
+were not present, then the pointer
+would be a fat pointer, where one component is a pointer to the bounds,
+and all would be well.  But with the size clause present, the conversion from
+fat pointer to thin pointer in the call loses the bounds, and so this
+is erroneous, and the program likely raises a @code{Program_Error} exception.
+
+In general, it is advisable to completely
+avoid mixing the use of thin pointers and the use of
+@code{Unrestricted_Access} where the designated type is an
+unconstrained array.  The use of thin pointers should be restricted to
+cases of porting legacy code that implicitly assumes the size of pointers,
+and such code should not in any case be using this attribute.
+
+Another erroneous situation arises if the attribute is
+applied to a constant. The resulting pointer can be used to access the
+constant, but the effect of trying to modify a constant in this manner
+is not well-defined. Consider this example:
+
+@smallexample @c ada
+P : constant Integer := 4;
+type R is access all Integer;
+RV : R := P'Unrestricted_Access;
+..
+RV.all := 3;
+@end smallexample
+
+@noindent
+Here we attempt to modify the constant P from 4 to 3, but the compiler may
+or may not notice this attempt, and subsequent references to P may yield
+either the value 3 or the value 4 or the assignment may blow up if the
+compiler decides to put P in read-only memory. One particular case where
+@code{Unrestricted_Access} can be used in this way is to modify the
+value of an @code{IN} parameter:
+
+@smallexample @c ada
+procedure K (S : in String) is
+   type R is access all Character;
+   RV : R := S (3)'Unrestricted_Access;
+begin
+   RV.all := 'a';
+end;
+@end smallexample
+
+@noindent
+In general this is a risky approach. It may appear to "work" but such uses of
+@code{Unrestricted_Access} are potentially non-portable, even from one version
+of @code{GNAT} to another, so are best avoided if possible.
 
 @node Attribute Update
 @unnumberedsec Attribute Update
@@ -9640,13 +9877,14 @@ but, unlike @code{Size}, may be set for non-first subtypes.
 @code{Standard'Wchar_T_Size} (@code{Standard} is the only permissible
 prefix) provides the size in bits of the C @code{wchar_t} type
 primarily for constructing the definition of this type in
-package @code{Interfaces.C}.
+package @code{Interfaces.C}. The result is a static constant.
 
 @node Attribute Word_Size
 @unnumberedsec Attribute Word_Size
 @findex Word_Size
 @code{Standard'Word_Size} (@code{Standard} is the only permissible
-prefix) provides the value @code{System.Word_Size}.
+prefix) provides the value @code{System.Word_Size}. The result is
+a static constant.
 
 @node Standard and Implementation Defined Restrictions
 @chapter Standard and Implementation Defined Restrictions
@@ -9719,6 +9957,8 @@ then all compilation units in the partition must obey the restriction).
 * No_Local_Allocators::
 * No_Local_Protected_Objects::
 * No_Local_Timing_Events::
+* No_Long_Long_Integers::
+* No_Multiple_Elaboration::
 * No_Nested_Finalization::
 * No_Protected_Type_Allocators::
 * No_Protected_Types::
@@ -10168,6 +10408,31 @@ only declared at the library level.
 [RM D.7] All objects of type Ada.Timing_Events.Timing_Event are
 declared at the library level.
 
+@node No_Long_Long_Integers
+@unnumberedsubsec No_Long_Long_Integers
+@findex No_Long_Long_Integers
+[GNAT] This partition-wide restriction forbids any explicit reference to
+type Standard.Long_Long_Integer, and also forbids declaring range types whose
+implicit base type is Long_Long_Integer, and modular types whose size exceeds
+Long_Integer'Size.
+
+@node No_Multiple_Elaboration
+@unnumberedsubsec No_Multiple_Elaboration
+@findex No_Multiple_Elaboration
+[GNAT] Normally each package contains a 16-bit counter used to check for access
+before elaboration, and to control multiple elaboration attempts.
+This counter is eliminated for units compiled with the static model
+of elaboration if restriction @code{No_Elaboration_Code}
+is active but because of
+the need to check for multiple elaboration in the general case, these
+counters cannot be eliminated if elaboration code may be present. The
+restriction @code{No_Multiple_Elaboration}
+allows suppression of these counters
+in static elaboration units even if they do have elaboration code. If this
+restriction is used, then the situations in which multiple elaboration is
+possible, including non-Ada main programs, and Stand Alone libraries, are not
+permitted, and will be diagnosed by the binder.
+
 @node No_Nested_Finalization
 @unnumberedsubsec No_Nested_Finalization
 @findex No_Nested_Finalization
@@ -10533,8 +10798,8 @@ violation of restriction "SPARK" at <file>
 @end smallexample
 
 This is not a replacement for the semantic checks performed by the
-SPARK Examiner tool, as the compiler only deals currently with code,
-not at all with SPARK 2005 annotations and does not guarantee catching all
+SPARK Examiner tool, as the compiler currently only deals with code,
+not SPARK 2005 annotations, and does not guarantee catching all
 cases of constructs forbidden by SPARK 2005.
 
 Thus it may well be the case that code which passes the compiler with
@@ -10546,7 +10811,123 @@ This restriction can be useful in providing an initial filter for code
 developed using SPARK 2005, or in examining legacy code to see how far
 it is from meeting SPARK restrictions.
 
-Note that if a unit is compiled in Ada 95 mode with SPARK restriction,
+The list below summarises the checks that are performed when this
+restriction is in force:
+@itemize @bullet
+@item No block statements
+@item No case statements with only an others clause
+@item Exit statements in loops must respect the SPARK 2005 language restrictions
+@item No goto statements
+@item Return can only appear as last statement in function
+@item Function must have return statement
+@item Loop parameter specification must include subtype mark
+@item Prefix of expanded name cannot be a loop statement
+@item Abstract subprogram not allowed
+@item User-defined operators not allowed
+@item Access type parameters not allowed
+@item Default expressions for parameters not allowed
+@item Default expressions for record fields not allowed
+@item No tasking constructs allowed
+@item Label needed at end of subprograms and packages
+@item No mixing of positional and named parameter association
+@item No access types as result type
+@item No unconstrained arrays as result types
+@item No null procedures
+@item Initial and later declarations must be in correct order (declaration can't come after body)
+@item No attributes on private types if full declaration not visible
+@item No package declaration within package specification
+@item No controlled types
+@item No discriminant types
+@item No overloading
+@item Selector name cannot be operator symbol (i.e. operator symbol cannot be prefixed)
+@item Access attribute not allowed
+@item Allocator not allowed
+@item Result of catenation must be String
+@item Operands of catenation must be string literal, static char or another catenation
+@item No conditional expressions
+@item No explicit dereference
+@item Quantified expression not allowed
+@item Slicing not allowed
+@item No exception renaming
+@item No generic renaming
+@item No object renaming
+@item No use clause
+@item Aggregates must be qualified
+@item Non-static choice in array aggregates not allowed
+@item The only view conversions which are allowed as in-out parameters are conversions of a tagged type to an ancestor type
+@item No mixing of positional and named association in aggregate, no multi choice
+@item AND, OR and XOR for arrays only allowed when operands have same static bounds
+@item Fixed point operands to * or / must be qualified or converted
+@item Comparison operators not allowed for Booleans or arrays (except strings)
+@item Equality not allowed for arrays with non-matching static bounds (except strings)
+@item Conversion / qualification not allowed for arrays with non-matching static bounds
+@item Subprogram declaration only allowed in package spec (unless followed by import)
+@item Access types not allowed
+@item Incomplete type declaration not allowed
+@item Object and subtype declarations must respect SPARK restrictions
+@item Digits or delta constraint not allowed
+@item Decimal fixed point type not allowed
+@item Aliasing of objects not allowed
+@item Modular type modulus must be power of 2
+@item Base not allowed on subtype mark
+@item Unary operators not allowed on modular types (except not)
+@item Non-tagged record cannot be null
+@item No class-wide operations
+@item Initialization expressions must respect SPARK restrictions
+@item Non-static ranges not allowed except in iteration schemes
+@item String subtypes must have lower bound of 1
+@item Subtype of Boolean cannot have constraint
+@item At most one tagged type or extension per package
+@item Interface is not allowed
+@item Character literal cannot be prefixed (selector name cannot be character literal)
+@item Record aggregate cannot contain 'others'
+@item Component association in record aggregate must contain a single choice
+@item Ancestor part cannot be a type mark
+@item Attributes 'Image, 'Width and 'Value not allowed
+@item Functions may not update globals
+@item Subprograms may not contain direct calls to themselves (prevents recursion within unit)
+@item Call to subprogram not allowed in same unit before body has been seen (prevents recursion within unit)
+@end itemize
+
+The following restrictions are enforced, but note that they are actually more
+strict that the latest SPARK 2005 language definition:
+
+@itemize @bullet
+@item No derived types other than tagged type extensions
+@item Subtype of unconstrained array must have constraint
+@end itemize
+
+This list summarises the main SPARK 2005 language rules that are not
+currently checked by the SPARK_05 restriction:
+
+@itemize @bullet
+@item SPARK annotations are treated as comments so are not checked at all
+@item Based real literals not allowed
+@item Objects cannot be initialized at declaration by calls to user-defined functions
+@item Objects cannot be initialized at declaration by assignments from variables
+@item Objects cannot be initialized at declaration by assignments from indexed/selected components
+@item Ranges shall not be null
+@item A fixed point delta expression must be a simple expression
+@item Restrictions on where renaming declarations may be placed
+@item Externals of mode 'out' cannot be referenced
+@item Externals of mode 'in' cannot be updated
+@item Loop with no iteration scheme or exits only allowed as last statement in main program or task
+@item Subprogram cannot have parent unit name
+@item SPARK 2005 inherited subprogram must be prefixed with overriding
+@item External variables (or functions that reference them) may not be passed as actual parameters
+@item Globals must be explicitly mentioned in contract
+@item Deferred constants cannot be completed by pragma Import
+@item Package initialization cannot read/write variables from other packages
+@item Prefix not allowed for entities that are directly visible
+@item Identifier declaration can't override inherited package name
+@item Cannot use Standard or other predefined packages as identifiers
+@item After renaming, cannot use the original name
+@item Subprograms can only be renamed to remove package prefix
+@item Pragma import must be immediately after entity it names
+@item No mutual recursion between multiple units (this can be checked with gnatcheck)
+@end itemize
+
+Note that if a unit is compiled in Ada 95 mode with the SPARK restriction,
 violations will be reported for constructs forbidden in SPARK 95,
 instead of SPARK 2005.
 
@@ -12016,82 +12397,96 @@ Manual, and are summarized in Annex M@.
 
 A requirement for conforming Ada compilers is that they provide
 documentation describing how the implementation deals with each of these
-issues.  In this chapter, you will find each point in Annex M listed
-followed by a description in italic font of how GNAT
+issues.  In this chapter you will find each point in Annex M listed,
+followed by a description of how GNAT
 handles the implementation dependence.
 
 You can use this chapter as a guide to minimizing implementation
 dependent features in your programs if portability to other compilers
 and other operating systems is an important consideration.  The numbers
-in each section below correspond to the paragraph number in the Ada
+in each entry below correspond to the paragraph numbers in the Ada
 Reference Manual.
 
+
+@itemize @bullet
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{2}.  Whether or not each recommendation given in Implementation
+Whether or not each recommendation given in Implementation
 Advice is followed.  See 1.1.2(37).
 @end cartouche
 @noindent
 @xref{Implementation Advice}.
 
+
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{3}.  Capacity limitations of the implementation.  See 1.1.3(3).
+Capacity limitations of the implementation.  See 1.1.3(3).
 @end cartouche
 @noindent
 The complexity of programs that can be processed is limited only by the
 total amount of available virtual memory, and disk space for the
 generated object files.
 
+
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{4}.  Variations from the standard that are impractical to avoid
+Variations from the standard that are impractical to avoid
 given the implementation's execution environment.  See 1.1.3(6).
 @end cartouche
 @noindent
 There are no variations from the standard.
 
+
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{5}.  Which @code{code_statement}s cause external
+Which @code{code_statement}s cause external
 interactions.  See 1.1.3(10).
 @end cartouche
 @noindent
 Any @code{code_statement} can potentially cause external interactions.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{6}.  The coded representation for the text of an Ada
+The coded representation for the text of an Ada
 program.  See 2.1(4).
 @end cartouche
 @noindent
 See separate section on source representation.
 
+
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{7}.  The control functions allowed in comments.  See 2.1(14).
+The control functions allowed in comments.  See 2.1(14).
 @end cartouche
 @noindent
 See separate section on source representation.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{8}.  The representation for an end of line.  See 2.2(2).
+The representation for an end of line.  See 2.2(2).
 @end cartouche
 @noindent
 See separate section on source representation.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{9}.  Maximum supported line length and lexical element
+Maximum supported line length and lexical element
 length.  See 2.2(15).
 @end cartouche
 @noindent
@@ -12103,18 +12498,20 @@ line length to be specified to be any value up to 32767. The maximum
 length of a lexical element is the same as the maximum line length.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{10}.  Implementation defined pragmas.  See 2.8(14).
+Implementation defined pragmas.  See 2.8(14).
 @end cartouche
 @noindent
 
 @xref{Implementation Defined Pragmas}.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{11}.  Effect of pragma @code{Optimize}.  See 2.8(27).
+Effect of pragma @code{Optimize}.  See 2.8(27).
 @end cartouche
 @noindent
 Pragma @code{Optimize}, if given with a @code{Time} or @code{Space}
@@ -12122,9 +12519,10 @@ parameter, checks that the optimization flag is set, and aborts if it is
 not.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{12}.  The sequence of characters of the value returned by
+The sequence of characters of the value returned by
 @code{@var{S}'Image} when some of the graphic characters of
 @code{@var{S}'Wide_Image} are not defined in @code{Character}.  See
 3.5(37).
@@ -12135,9 +12533,10 @@ method used for the source.  See section on source representation for
 further details.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{13}.  The predefined integer types declared in
+The predefined integer types declared in
 @code{Standard}.  See 3.5.4(25).
 @end cartouche
 @noindent
@@ -12156,36 +12555,40 @@ further details.
 @end table
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{14}.  Any nonstandard integer types and the operators defined
+Any nonstandard integer types and the operators defined
 for them.  See 3.5.4(26).
 @end cartouche
 @noindent
 There are no nonstandard integer types.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{15}.  Any nonstandard real types and the operators defined for
+Any nonstandard real types and the operators defined for
 them.  See 3.5.6(8).
 @end cartouche
 @noindent
 There are no nonstandard real types.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{16}.  What combinations of requested decimal precision and range
+What combinations of requested decimal precision and range
 are supported for floating point types.  See 3.5.7(7).
 @end cartouche
 @noindent
 The precision and range is as defined by the IEEE standard.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{17}.  The predefined floating point types declared in
+The predefined floating point types declared in
 @code{Standard}.  See 3.5.7(16).
 @end cartouche
 @noindent
@@ -12201,17 +12604,19 @@ The precision and range is as defined by the IEEE standard.
 @end table
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{18}.  The small of an ordinary fixed point type.  See 3.5.9(8).
+The small of an ordinary fixed point type.  See 3.5.9(8).
 @end cartouche
 @noindent
 @code{Fine_Delta} is 2**(@minus{}63)
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{19}.  What combinations of small, range, and digits are
+What combinations of small, range, and digits are
 supported for fixed point types.  See 3.5.9(10).
 @end cartouche
 @noindent
@@ -12223,9 +12628,10 @@ Text_IO is accurate to only 53 bits, rather than the full mantissa.  This
 is because floating-point conversions are used to convert fixed point.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{20}.  The result of @code{Tags.Expanded_Name} for types declared
+The result of @code{Tags.Expanded_Name} for types declared
 within an unnamed @code{block_statement}.  See 3.9(10).
 @end cartouche
 @noindent
@@ -12233,34 +12639,38 @@ Block numbers of the form @code{B@var{nnn}}, where @var{nnn} is a
 decimal integer are allocated.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{21}.  Implementation-defined attributes.  See 4.1.4(12).
+Implementation-defined attributes.  See 4.1.4(12).
 @end cartouche
 @noindent
 @xref{Implementation Defined Attributes}.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{22}.  Any implementation-defined time types.  See 9.6(6).
+Any implementation-defined time types.  See 9.6(6).
 @end cartouche
 @noindent
 There are no implementation-defined time types.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{23}.  The time base associated with relative delays.
+The time base associated with relative delays.
 @end cartouche
 @noindent
 See 9.6(20).  The time base used is that provided by the C library
 function @code{gettimeofday}.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{24}.  The time base of the type @code{Calendar.Time}.  See
+The time base of the type @code{Calendar.Time}.  See
 9.6(23).
 @end cartouche
 @noindent
@@ -12268,9 +12678,10 @@ The time base used is that provided by the C library function
 @code{gettimeofday}.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{25}.  The time zone used for package @code{Calendar}
+The time zone used for package @code{Calendar}
 operations.  See 9.6(24).
 @end cartouche
 @noindent
@@ -12279,18 +12690,20 @@ setting for local time, as accessed by the C library function
 @code{localtime}.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{26}.  Any limit on @code{delay_until_statements} of
+Any limit on @code{delay_until_statements} of
 @code{select_statements}.  See 9.6(29).
 @end cartouche
 @noindent
 There are no such limits.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{27}.  Whether or not two non-overlapping parts of a composite
+Whether or not two non-overlapping parts of a composite
 object are independently addressable, in the case where packing, record
 layout, or @code{Component_Size} is specified for the object.  See
 9.10(1).
@@ -12300,18 +12713,20 @@ Separate components are independently addressable if they do not share
 overlapping storage units.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{28}.  The representation for a compilation.  See 10.1(2).
+The representation for a compilation.  See 10.1(2).
 @end cartouche
 @noindent
 A compilation is represented by a sequence of files presented to the
 compiler in a single invocation of the @command{gcc} command.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{29}.  Any restrictions on compilations that contain multiple
+Any restrictions on compilations that contain multiple
 compilation_units.  See 10.1(4).
 @end cartouche
 @noindent
@@ -12320,18 +12735,20 @@ sequence of files can be presented to the compiler as a single
 compilation.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{30}.  The mechanisms for creating an environment and for adding
+The mechanisms for creating an environment and for adding
 and replacing compilation units.  See 10.1.4(3).
 @end cartouche
 @noindent
 See separate section on compilation model.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{31}.  The manner of explicitly assigning library units to a
+The manner of explicitly assigning library units to a
 partition.  See 10.2(2).
 @end cartouche
 @noindent
@@ -12355,9 +12772,10 @@ options, refer to @ref{The GNAT Make Program gnatmake,,, gnat_ugn,
 @value{EDITION} User's Guide}.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{32}.  The implementation-defined means, if any, of specifying
+The implementation-defined means, if any, of specifying
 which compilation units are needed by a given compilation unit.  See
 10.2(2).
 @end cartouche
@@ -12368,9 +12786,10 @@ implementation-defined pragmas or other implementation-defined
 means for specifying needed units.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{33}.  The manner of designating the main subprogram of a
+The manner of designating the main subprogram of a
 partition.  See 10.2(7).
 @end cartouche
 @noindent
@@ -12378,9 +12797,10 @@ The main program is designated by providing the name of the
 corresponding @file{ALI} file as the input parameter to the binder.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{34}.  The order of elaboration of @code{library_items}.  See
+The order of elaboration of @code{library_items}.  See
 10.2(18).
 @end cartouche
 @noindent
@@ -12394,9 +12814,10 @@ third by elaborating in alphabetical order of unit names
 where a choice still remains.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{35}.  Parameter passing and function return for the main
+Parameter passing and function return for the main
 subprogram.  See 10.2(21).
 @end cartouche
 @noindent
@@ -12406,9 +12827,10 @@ value is the return code of the program (overriding any value that
 may have been set by a call to @code{Ada.Command_Line.Set_Exit_Status}).
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{36}.  The mechanisms for building and running partitions.  See
+The mechanisms for building and running partitions.  See
 10.2(24).
 @end cartouche
 @noindent
@@ -12419,18 +12841,20 @@ programs consisting of multiple partitions.  See the separate GLADE manual
 for details.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{37}.  The details of program execution, including program
+The details of program execution, including program
 termination.  See 10.2(25).
 @end cartouche
 @noindent
 See separate section on compilation model.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{38}.  The semantics of any non-active partitions supported by the
+The semantics of any non-active partitions supported by the
 implementation.  See 10.2(28).
 @end cartouche
 @noindent
@@ -12439,9 +12863,10 @@ provided by the operating system.  See the GLADE reference manual for
 further details.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{39}.  The information returned by @code{Exception_Message}.  See
+The information returned by @code{Exception_Message}.  See
 11.4.1(10).
 @end cartouche
 @noindent
@@ -12449,9 +12874,10 @@ Exception message returns the null string unless a specific message has
 been passed by the program.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{40}.  The result of @code{Exceptions.Exception_Name} for types
+The result of @code{Exceptions.Exception_Name} for types
 declared within an unnamed @code{block_statement}.  See 11.4.1(12).
 @end cartouche
 @noindent
@@ -12459,9 +12885,10 @@ Blocks have implementation defined names of the form @code{B@var{nnn}}
 where @var{nnn} is an integer.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{41}.  The information returned by
+The information returned by
 @code{Exception_Information}.  See 11.4.1(13).
 @end cartouche
 @noindent
@@ -12506,9 +12933,10 @@ The line terminator sequence at the end of each line, including
 the last line is a single @code{LF} character (@code{16#0A#}).
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{42}.  Implementation-defined check names.  See 11.5(27).
+Implementation-defined check names.  See 11.5(27).
 @end cartouche
 @noindent
 The implementation defined check name Alignment_Check controls checking of
@@ -12525,27 +12953,30 @@ In addition, a user program can add implementation-defined check names
 by means of the pragma Check_Name.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{43}.  The interpretation of each aspect of representation.  See
+The interpretation of each aspect of representation.  See
 13.1(20).
 @end cartouche
 @noindent
 See separate section on data representations.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{44}.  Any restrictions placed upon representation items.  See
+Any restrictions placed upon representation items.  See
 13.1(20).
 @end cartouche
 @noindent
 See separate section on data representations.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{45}.  The meaning of @code{Size} for indefinite subtypes.  See
+The meaning of @code{Size} for indefinite subtypes.  See
 13.3(48).
 @end cartouche
 @noindent
@@ -12554,9 +12985,10 @@ for the case of a subprogram parameter, the size of the parameter object
 is the actual size.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{46}.  The default external representation for a type tag.  See
+The default external representation for a type tag.  See
 13.3(75).
 @end cartouche
 @noindent
@@ -12564,9 +12996,10 @@ The default external representation for a type tag is the fully expanded
 name of the type in upper case letters.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{47}.  What determines whether a compilation unit is the same in
+What determines whether a compilation unit is the same in
 two different partitions.  See 13.3(76).
 @end cartouche
 @noindent
@@ -12574,18 +13007,20 @@ A compilation unit is the same in two different partitions if and only
 if it derives from the same source file.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{48}.  Implementation-defined components.  See 13.5.1(15).
+Implementation-defined components.  See 13.5.1(15).
 @end cartouche
 @noindent
 The only implementation defined component is the tag for a tagged type,
 which contains a pointer to the dispatching table.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{49}.  If @code{Word_Size} = @code{Storage_Unit}, the default bit
+If @code{Word_Size} = @code{Storage_Unit}, the default bit
 ordering.  See 13.5.3(5).
 @end cartouche
 @noindent
@@ -12594,19 +13029,29 @@ implementation, so no non-default bit ordering is supported.  The default
 bit ordering corresponds to the natural endianness of the target architecture.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{50}.  The contents of the visible part of package @code{System}
+The contents of the visible part of package @code{System}
 and its language-defined children.  See 13.7(2).
 @end cartouche
 @noindent
 See the definition of these packages in files @file{system.ads} and
-@file{s-stoele.ads}.
+@file{s-stoele.ads}. Note that two declarations are added to package
+System.
+
+@smallexample @c ada
+   Max_Priority           : constant Positive :=
+     Priority'Last;
+   Max_Interrupt_Priority : constant Positive :=
+     Interrupt_Priority'Last;
+@end smallexample
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{51}.  The contents of the visible part of package
+The contents of the visible part of package
 @code{System.Machine_Code}, and the meaning of
 @code{code_statements}.  See 13.8(7).
 @end cartouche
@@ -12614,9 +13059,10 @@ See the definition of these packages in files @file{system.ads} and
 See the definition and documentation in file @file{s-maccod.ads}.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{52}.  The effect of unchecked conversion.  See 13.9(11).
+The effect of unchecked conversion.  See 13.9(11).
 @end cartouche
 @noindent
 Unchecked conversion between types of the same size
@@ -12634,9 +13080,10 @@ greater than the source alignment, then a copy of the result is
 made with appropriate alignment
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{53}. The semantics of operations on invalid representations.
+The semantics of operations on invalid representations.
 See 13.9.2(10-11).
 @end cartouche
 @noindent
@@ -12663,9 +13110,10 @@ As indicated, an exception is raised on the array assignment, but not
 on the simple assignment of the invalid negative value from Y to Z.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{53}.  The manner of choosing a storage pool for an access type
+The manner of choosing a storage pool for an access type
 when @code{Storage_Pool} is not specified for the type.  See 13.11(17).
 @end cartouche
 @noindent
@@ -12679,21 +13127,23 @@ library units @code{System.Pool_Global}, @code{System.Pool_Size} and
 default pools used.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{54}.  Whether or not the implementation provides user-accessible
+Whether or not the implementation provides user-accessible
 names for the standard pool type(s).  See 13.11(17).
 @end cartouche
 @noindent
 
-See documentation in the sources of the run time mentioned in paragraph
-@strong{53} .  All these pools are accessible by means of @code{with}'ing
+See documentation in the sources of the run time mentioned in the previous
+paragraph.  All these pools are accessible by means of @code{with}'ing
 these units.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{55}.  The meaning of @code{Storage_Size}.  See 13.11(18).
+The meaning of @code{Storage_Size}.  See 13.11(18).
 @end cartouche
 @noindent
 @code{Storage_Size} is measured in storage units, and refers to the
@@ -12701,28 +13151,32 @@ total space available for an access type collection, or to the primary
 stack space for a task.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{56}.  Implementation-defined aspects of storage pools.  See
+Implementation-defined aspects of storage pools.  See
 13.11(22).
 @end cartouche
 @noindent
-See documentation in the sources of the run time mentioned in paragraph
-@strong{53} for details on GNAT-defined aspects of storage pools.
+See documentation in the sources of the run time mentioned in the
+paragraph about standard storage pools above
+for details on GNAT-defined aspects of storage pools.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{57}.  The set of restrictions allowed in a pragma
+The set of restrictions allowed in a pragma
 @code{Restrictions}.  See 13.12(7).
 @end cartouche
 @noindent
 @xref{Standard and Implementation Defined Restrictions}.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{58}.  The consequences of violating limitations on
+The consequences of violating limitations on
 @code{Restrictions} pragmas.  See 13.12(9).
 @end cartouche
 @noindent
@@ -12731,9 +13185,10 @@ if violated.  Currently there are no other consequences of violating
 restrictions.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{59}.  The representation used by the @code{Read} and
+The representation used by the @code{Read} and
 @code{Write} attributes of elementary types in terms of stream
 elements.  See 13.13.2(9).
 @end cartouche
@@ -12743,18 +13198,20 @@ the type, using the number of bits corresponding to the
 @code{@var{type}'Size} value, and the natural ordering of the machine.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{60}.  The names and characteristics of the numeric subtypes
+The names and characteristics of the numeric subtypes
 declared in the visible part of package @code{Standard}.  See A.1(3).
 @end cartouche
 @noindent
 See items describing the integer and floating-point types supported.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{61}. The string returned by @code{Character_Set_Version}.
+The string returned by @code{Character_Set_Version}.
 See A.3.5(3).
 @end cartouche
 @noindent
@@ -12763,9 +13220,10 @@ the string "Unicode 4.0", referring to version 4.0 of the
 Unicode specification.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{62}.  The accuracy actually achieved by the elementary
+The accuracy actually achieved by the elementary
 functions.  See A.5.1(1).
 @end cartouche
 @noindent
@@ -12773,9 +13231,10 @@ The elementary functions correspond to the functions available in the C
 library.  Only fast math mode is implemented.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{63}.  The sign of a zero result from some of the operators or
+The sign of a zero result from some of the operators or
 functions in @code{Numerics.Generic_Elementary_Functions}, when
 @code{Float_Type'Signed_Zeros} is @code{True}.  See A.5.1(46).
 @end cartouche
@@ -12784,27 +13243,30 @@ The sign of zeroes follows the requirements of the IEEE 754 standard on
 floating-point.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{64}.  The value of
+The value of
 @code{Numerics.Float_Random.Max_Image_Width}.  See A.5.2(27).
 @end cartouche
 @noindent
 Maximum image width is 6864, see library file @file{s-rannum.ads}.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{65}.  The value of
+The value of
 @code{Numerics.Discrete_Random.Max_Image_Width}.  See A.5.2(27).
 @end cartouche
 @noindent
 Maximum image width is 6864, see library file @file{s-rannum.ads}.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{66}.  The algorithms for random number generation.  See
+The algorithms for random number generation.  See
 A.5.2(32).
 @end cartouche
 @noindent
@@ -12813,9 +13275,10 @@ The algorithm is the Mersenne Twister, as documented in the source file
 2**19937-1.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{67}.  The string representation of a random number generator's
+The string representation of a random number generator's
 state.  See A.5.2(38).
 @end cartouche
 @noindent
@@ -12824,9 +13287,10 @@ the fixed-width decimal representations of the 624 32-bit integers
 of the state vector.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{68}.  The minimum time interval between calls to the
+The minimum time interval between calls to the
 time-dependent Reset procedure that are guaranteed to initiate different
 random number sequences.  See A.5.2(45).
 @end cartouche
@@ -12835,9 +13299,10 @@ The minimum period between reset calls to guarantee distinct series of
 random numbers is one microsecond.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{69}.  The values of the @code{Model_Mantissa},
+The values of the @code{Model_Mantissa},
 @code{Model_Emin}, @code{Model_Epsilon}, @code{Model},
 @code{Safe_First}, and @code{Safe_Last} attributes, if the Numerics
 Annex is not supported.  See A.5.3(72).
@@ -12847,9 +13312,10 @@ Run the compiler with @option{-gnatS} to produce a listing of package
 @code{Standard}, has the values of all numeric attributes.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{70}.  Any implementation-defined characteristics of the
+Any implementation-defined characteristics of the
 input-output packages.  See A.7(14).
 @end cartouche
 @noindent
@@ -12857,9 +13323,10 @@ There are no special implementation defined characteristics for these
 packages.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{71}.  The value of @code{Buffer_Size} in @code{Storage_IO}.  See
+The value of @code{Buffer_Size} in @code{Storage_IO}.  See
 A.9(10).
 @end cartouche
 @noindent
@@ -12868,9 +13335,10 @@ the value of @code{@var{type}'Size} rounded up to the next storage unit
 boundary.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{72}.  External files for standard input, standard output, and
+External files for standard input, standard output, and
 standard error See A.10(5).
 @end cartouche
 @noindent
@@ -12878,9 +13346,10 @@ These files are mapped onto the files provided by the C streams
 libraries.  See source file @file{i-cstrea.ads} for further details.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{73}.  The accuracy of the value produced by @code{Put}.  See
+The accuracy of the value produced by @code{Put}.  See
 A.10.9(36).
 @end cartouche
 @noindent
@@ -12889,9 +13358,10 @@ precision of the value, zeroes are output in the corresponding least
 significant digit positions.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{74}.  The meaning of @code{Argument_Count}, @code{Argument}, and
+The meaning of @code{Argument_Count}, @code{Argument}, and
 @code{Command_Name}.  See A.15(1).
 @end cartouche
 @noindent
@@ -12899,27 +13369,30 @@ These are mapped onto the @code{argv} and @code{argc} parameters of the
 main program in the natural manner.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{75}.  The interpretation of the @code{Form} parameter in procedure
+The interpretation of the @code{Form} parameter in procedure
 @code{Create_Directory}.  See A.16(56).
 @end cartouche
 @noindent
 The @code{Form} parameter is not used.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{76}.  The interpretation of the @code{Form} parameter in procedure
+The interpretation of the @code{Form} parameter in procedure
 @code{Create_Path}.  See A.16(60).
 @end cartouche
 @noindent
 The @code{Form} parameter is not used.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{77}.  The interpretation of the @code{Form} parameter in procedure
+The interpretation of the @code{Form} parameter in procedure
 @code{Copy_File}.  See A.16(68).
 @end cartouche
 @noindent
@@ -12996,9 +13469,24 @@ Form => "mode=internal, preserve=timestamps"
 @end smallexample
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{78}.  Implementation-defined convention names.  See B.1(11).
+The interpretation of the @code{Pattern} parameter, when not the null string,
+in the @code{Start_Search} and @code{Search} procedures.
+See A.16(104) and A.16(112).
+@end cartouche
+@noindent
+When the @code{Pattern} parameter is not the null string, it is interpreted
+according to the syntax of regular expressions as defined in the
+@code{GNAT.Regexp} package.
+@xref{GNAT.Regexp (g-regexp.ads)}.
+
+@sp 1
+@item
+@cartouche
+@noindent
+Implementation-defined convention names.  See B.1(11).
 @end cartouche
 @noindent
 The following convention names are supported
@@ -13063,17 +13551,19 @@ except for VMS, use of such other names results in a warning.  In VMS
 implementations, these names are accepted silently.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{79}.  The meaning of link names.  See B.1(36).
+The meaning of link names.  See B.1(36).
 @end cartouche
 @noindent
 Link names are the actual names used by the linker.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{80}.  The manner of choosing link names when neither the link
+The manner of choosing link names when neither the link
 name nor the address of an imported or exported entity is specified.  See
 B.1(36).
 @end cartouche
@@ -13083,9 +13573,10 @@ external language, interpreting the Ada name as being in all lower case
 letters.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{81}.  The effect of pragma @code{Linker_Options}.  See B.1(37).
+The effect of pragma @code{Linker_Options}.  See B.1(37).
 @end cartouche
 @noindent
 The string passed to @code{Linker_Options} is presented uninterpreted as
@@ -13104,18 +13595,20 @@ order. For example, linker options for a body always appear before the options
 from the corresponding package spec.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{82}.  The contents of the visible part of package
+The contents of the visible part of package
 @code{Interfaces} and its language-defined descendants.  See B.2(1).
 @end cartouche
 @noindent
 See files with prefix @file{i-} in the distributed library.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{83}.  Implementation-defined children of package
+Implementation-defined children of package
 @code{Interfaces}.  The contents of the visible part of package
 @code{Interfaces}.  See B.2(11).
 @end cartouche
@@ -13123,9 +13616,10 @@ See files with prefix @file{i-} in the distributed library.
 See files with prefix @file{i-} in the distributed library.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{84}.  The types @code{Floating}, @code{Long_Floating},
+The types @code{Floating}, @code{Long_Floating},
 @code{Binary}, @code{Long_Binary}, @code{Decimal_ Element}, and
 @code{COBOL_Character}; and the initialization of the variables
 @code{Ada_To_COBOL} and @code{COBOL_To_Ada}, in
@@ -13151,26 +13645,29 @@ Character
 For initialization, see the file @file{i-cobol.ads} in the distributed library.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{85}.  Support for access to machine instructions.  See C.1(1).
+Support for access to machine instructions.  See C.1(1).
 @end cartouche
 @noindent
 See documentation in file @file{s-maccod.ads} in the distributed library.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{86}.  Implementation-defined aspects of access to machine
+Implementation-defined aspects of access to machine
 operations.  See C.1(9).
 @end cartouche
 @noindent
 See documentation in file @file{s-maccod.ads} in the distributed library.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{87}.  Implementation-defined aspects of interrupts.  See C.3(2).
+Implementation-defined aspects of interrupts.  See C.3(2).
 @end cartouche
 @noindent
 Interrupts are mapped to signals or conditions as appropriate.  See
@@ -13179,9 +13676,10 @@ definition of unit
 on the interrupts supported on a particular target.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{88}.  Implementation-defined aspects of pre-elaboration.  See
+Implementation-defined aspects of pre-elaboration.  See
 C.4(13).
 @end cartouche
 @noindent
@@ -13189,9 +13687,10 @@ GNAT does not permit a partition to be restarted without reloading,
 except under control of the debugger.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{89}.  The semantics of pragma @code{Discard_Names}.  See C.5(7).
+The semantics of pragma @code{Discard_Names}.  See C.5(7).
 @end cartouche
 @noindent
 Pragma @code{Discard_Names} causes names of enumeration literals to
@@ -13200,9 +13699,10 @@ provides the image of the Pos of the literal, and Value accepts
 Pos values.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{90}.  The result of the @code{Task_Identification.Image}
+The result of the @code{Task_Identification.Image}
 attribute.  See C.7.1(7).
 @end cartouche
 @noindent
@@ -13230,9 +13730,10 @@ No_Implicit_Heap_Allocation is in effect,  the image reduces to
 the numeric suffix, that is to say the hexadecimal representation of the
 virtual address of the control block of the task.
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{91}.  The value of @code{Current_Task} when in a protected entry
+The value of @code{Current_Task} when in a protected entry
 or interrupt handler.  See C.7.1(17).
 @end cartouche
 @noindent
@@ -13240,9 +13741,10 @@ Protected entries or interrupt handlers can be executed by any
 convenient thread, so the value of @code{Current_Task} is undefined.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{92}.  The effect of calling @code{Current_Task} from an entry
+The effect of calling @code{Current_Task} from an entry
 body or interrupt handler.  See C.7.1(19).
 @end cartouche
 @noindent
@@ -13251,18 +13753,20 @@ interrupt handler is to return the identification of the task currently
 executing the code.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{93}.  Implementation-defined aspects of
+Implementation-defined aspects of
 @code{Task_Attributes}.  See C.7.2(19).
 @end cartouche
 @noindent
 There are no implementation-defined aspects of @code{Task_Attributes}.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{94}.  Values of all @code{Metrics}.  See D(2).
+Values of all @code{Metrics}.  See D(2).
 @end cartouche
 @noindent
 The metrics information for GNAT depends on the performance of the
@@ -13275,26 +13779,29 @@ on the exact target in use, this information can be used to determine
 the required metrics.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{95}.  The declarations of @code{Any_Priority} and
+The declarations of @code{Any_Priority} and
 @code{Priority}.  See D.1(11).
 @end cartouche
 @noindent
 See declarations in file @file{system.ads}.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{96}.  Implementation-defined execution resources.  See D.1(15).
+Implementation-defined execution resources.  See D.1(15).
 @end cartouche
 @noindent
 There are no implementation-defined execution resources.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{97}.  Whether, on a multiprocessor, a task that is waiting for
+Whether, on a multiprocessor, a task that is waiting for
 access to a protected object keeps its processor busy.  See D.2.1(3).
 @end cartouche
 @noindent
@@ -13302,9 +13809,10 @@ On a multi-processor, a task that is waiting for access to a protected
 object does not keep its processor busy.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{98}.  The affect of implementation defined execution resources
+The affect of implementation defined execution resources
 on task dispatching.  See D.2.1(9).
 @end cartouche
 @noindent
@@ -13313,9 +13821,10 @@ and appropriate, these threads correspond to native threads of the
 underlying operating system.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{99}.  Implementation-defined @code{policy_identifiers} allowed
+Implementation-defined @code{policy_identifiers} allowed
 in a pragma @code{Task_Dispatching_Policy}.  See D.2.2(3).
 @end cartouche
 @noindent
@@ -13323,9 +13832,10 @@ There are no implementation-defined policy-identifiers allowed in this
 pragma.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{100}.  Implementation-defined aspects of priority inversion.  See
+Implementation-defined aspects of priority inversion.  See
 D.2.2(16).
 @end cartouche
 @noindent
@@ -13333,17 +13843,19 @@ Execution of a task cannot be preempted by the implementation processing
 of delay expirations for lower priority tasks.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{101}.  Implementation-defined task dispatching.  See D.2.2(18).
+Implementation-defined task dispatching.  See D.2.2(18).
 @end cartouche
 @noindent
 The policy is the same as that of the underlying threads implementation.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{102}.  Implementation-defined @code{policy_identifiers} allowed
+Implementation-defined @code{policy_identifiers} allowed
 in a pragma @code{Locking_Policy}.  See D.3(4).
 @end cartouche
 @noindent
@@ -13358,9 +13870,10 @@ read/write lock allowing multiple propected object functions to enter
 concurrently.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{103}.  Default ceiling priorities.  See D.3(10).
+Default ceiling priorities.  See D.3(10).
 @end cartouche
 @noindent
 The ceiling priority of protected objects of the type
@@ -13368,9 +13881,10 @@ The ceiling priority of protected objects of the type
 Reference Manual D.3(10),
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{104}.  The ceiling of any protected object used internally by
+The ceiling of any protected object used internally by
 the implementation.  See D.3(16).
 @end cartouche
 @noindent
@@ -13378,17 +13892,19 @@ The ceiling priority of internal protected objects is
 @code{System.Priority'Last}.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{105}.  Implementation-defined queuing policies.  See D.4(1).
+Implementation-defined queuing policies.  See D.4(1).
 @end cartouche
 @noindent
 There are no implementation-defined queuing policies.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{106}.  On a multiprocessor, any conditions that cause the
+On a multiprocessor, any conditions that cause the
 completion of an aborted construct to be delayed later than what is
 specified for a single processor.  See D.6(3).
 @end cartouche
@@ -13397,9 +13913,10 @@ The semantics for abort on a multi-processor is the same as on a single
 processor, there are no further delays.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{107}.  Any operations that implicitly require heap storage
+Any operations that implicitly require heap storage
 allocation.  See D.7(8).
 @end cartouche
 @noindent
@@ -13407,27 +13924,30 @@ The only operation that implicitly requires heap storage allocation is
 task creation.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{108}.  Implementation-defined aspects of pragma
+Implementation-defined aspects of pragma
 @code{Restrictions}.  See D.7(20).
 @end cartouche
 @noindent
 There are no such implementation-defined aspects.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{109}.  Implementation-defined aspects of package
+Implementation-defined aspects of package
 @code{Real_Time}.  See D.8(17).
 @end cartouche
 @noindent
 There are no implementation defined aspects of package @code{Real_Time}.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{110}.  Implementation-defined aspects of
+Implementation-defined aspects of
 @code{delay_statements}.  See D.9(8).
 @end cartouche
 @noindent
@@ -13435,9 +13955,10 @@ Any difference greater than one microsecond will cause the task to be
 delayed (see D.9(7)).
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{111}.  The upper bound on the duration of interrupt blocking
+The upper bound on the duration of interrupt blocking
 caused by the implementation.  See D.12(5).
 @end cartouche
 @noindent
@@ -13445,9 +13966,10 @@ The upper bound is determined by the underlying operating system.  In
 no cases is it more than 10 milliseconds.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{112}.  The means for creating and executing distributed
+The means for creating and executing distributed
 programs.  See E(5).
 @end cartouche
 @noindent
@@ -13455,18 +13977,20 @@ The GLADE package provides a utility GNATDIST for creating and executing
 distributed programs.  See the GLADE reference manual for further details.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{113}.  Any events that can result in a partition becoming
+Any events that can result in a partition becoming
 inaccessible.  See E.1(7).
 @end cartouche
 @noindent
 See the GLADE reference manual for full details on such events.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{114}.  The scheduling policies, treatment of priorities, and
+The scheduling policies, treatment of priorities, and
 management of shared resources between partitions in certain cases.  See
 E.1(11).
 @end cartouche
@@ -13475,9 +13999,10 @@ See the GLADE reference manual for full details on these aspects of
 multi-partition execution.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{115}.  Events that cause the version of a compilation unit to
+Events that cause the version of a compilation unit to
 change.  See E.3(5).
 @end cartouche
 @noindent
@@ -13488,9 +14013,10 @@ are significant except those which affect only layout, capitalization or
 comments.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{116}.  Whether the execution of the remote subprogram is
+Whether the execution of the remote subprogram is
 immediately aborted as a result of cancellation.  See E.4(13).
 @end cartouche
 @noindent
@@ -13498,18 +14024,20 @@ See the GLADE reference manual for details on the effect of abort in
 a distributed application.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{117}.  Implementation-defined aspects of the PCS@.  See E.5(25).
+Implementation-defined aspects of the PCS@.  See E.5(25).
 @end cartouche
 @noindent
 See the GLADE reference manual for a full description of all implementation
 defined aspects of the PCS@.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{118}.  Implementation-defined interfaces in the PCS@.  See
+Implementation-defined interfaces in the PCS@.  See
 E.5(26).
 @end cartouche
 @noindent
@@ -13517,9 +14045,10 @@ See the GLADE reference manual for a full description of all
 implementation defined interfaces.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{119}.  The values of named numbers in the package
+The values of named numbers in the package
 @code{Decimal}.  See F.2(7).
 @end cartouche
 @noindent
@@ -13537,27 +14066,30 @@ implementation defined interfaces.
 @end table
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{120}.  The value of @code{Max_Picture_Length} in the package
+The value of @code{Max_Picture_Length} in the package
 @code{Text_IO.Editing}.  See F.3.3(16).
 @end cartouche
 @noindent
 64
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{121}.  The value of @code{Max_Picture_Length} in the package
+The value of @code{Max_Picture_Length} in the package
 @code{Wide_Text_IO.Editing}.  See F.3.4(5).
 @end cartouche
 @noindent
 64
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{122}.  The accuracy actually achieved by the complex elementary
+The accuracy actually achieved by the complex elementary
 functions and by other complex arithmetic operations.  See G.1(1).
 @end cartouche
 @noindent
@@ -13565,9 +14097,10 @@ Standard library functions are used for the complex arithmetic
 operations.  Only fast math mode is currently supported.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{123}.  The sign of a zero result (or a component thereof) from
+The sign of a zero result (or a component thereof) from
 any operator or function in @code{Numerics.Generic_Complex_Types}, when
 @code{Real'Signed_Zeros} is True.  See G.1.1(53).
 @end cartouche
@@ -13576,9 +14109,10 @@ The signs of zero values are as recommended by the relevant
 implementation advice.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{124}.  The sign of a zero result (or a component thereof) from
+The sign of a zero result (or a component thereof) from
 any operator or function in
 @code{Numerics.Generic_Complex_Elementary_Functions}, when
 @code{Real'Signed_Zeros} is @code{True}.  See G.1.2(45).
@@ -13588,9 +14122,10 @@ The signs of zero values are as recommended by the relevant
 implementation advice.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{125}.  Whether the strict mode or the relaxed mode is the
+Whether the strict mode or the relaxed mode is the
 default.  See G.2(2).
 @end cartouche
 @noindent
@@ -13598,9 +14133,10 @@ The strict mode is the default.  There is no separate relaxed mode.  GNAT
 provides a highly efficient implementation of strict mode.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{126}.  The result interval in certain cases of fixed-to-float
+The result interval in certain cases of fixed-to-float
 conversion.  See G.2.1(10).
 @end cartouche
 @noindent
@@ -13609,9 +14145,10 @@ accuracy is that provided by performing all operations in 64-bit IEEE
 floating-point format.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{127}.  The result of a floating point arithmetic operation in
+The result of a floating point arithmetic operation in
 overflow situations, when the @code{Machine_Overflows} attribute of the
 result type is @code{False}.  See G.2.1(13).
 @end cartouche
@@ -13626,9 +14163,10 @@ of a significant performance penalty), so infinite and NaN values are
 properly generated.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{128}.  The result interval for division (or exponentiation by a
+The result interval for division (or exponentiation by a
 negative exponent), when the floating point hardware implements division
 as multiplication by a reciprocal.  See G.2.1(16).
 @end cartouche
@@ -13636,9 +14174,10 @@ as multiplication by a reciprocal.  See G.2.1(16).
 Not relevant, division is IEEE exact.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{129}.  The definition of close result set, which determines the
+The definition of close result set, which determines the
 accuracy of certain fixed point multiplications and divisions.  See
 G.2.3(5).
 @end cartouche
@@ -13649,9 +14188,10 @@ floating-point, the operation is done in floating-point, and the result
 is converted to the target type.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{130}.  Conditions on a @code{universal_real} operand of a fixed
+Conditions on a @code{universal_real} operand of a fixed
 point multiplication or division for which the result shall be in the
 perfect result set.  See G.2.3(22).
 @end cartouche
@@ -13661,9 +14201,10 @@ can be computed by a single scaling operation involving a scale factor
 representable in 64-bits.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{131}.  The result of a fixed point arithmetic operation in
+The result of a fixed point arithmetic operation in
 overflow situations, when the @code{Machine_Overflows} attribute of the
 result type is @code{False}.  See G.2.3(27).
 @end cartouche
@@ -13672,9 +14213,10 @@ Not relevant, @code{Machine_Overflows} is @code{True} for fixed-point
 types.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{132}.  The result of an elementary function reference in
+The result of an elementary function reference in
 overflow situations, when the @code{Machine_Overflows} attribute of the
 result type is @code{False}.  See G.2.4(4).
 @end cartouche
@@ -13682,9 +14224,10 @@ result type is @code{False}.  See G.2.4(4).
 IEEE infinite and Nan values are produced as appropriate.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{133}.  The value of the angle threshold, within which certain
+The value of the angle threshold, within which certain
 elementary functions, complex arithmetic operations, and complex
 elementary functions yield results conforming to a maximum relative
 error bound.  See G.2.4(10).
@@ -13693,18 +14236,20 @@ error bound.  See G.2.4(10).
 Information on this subject is not yet available.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{134}.  The accuracy of certain elementary functions for
+The accuracy of certain elementary functions for
 parameters beyond the angle threshold.  See G.2.4(10).
 @end cartouche
 @noindent
 Information on this subject is not yet available.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{135}.  The result of a complex arithmetic operation or complex
+The result of a complex arithmetic operation or complex
 elementary function reference in overflow situations, when the
 @code{Machine_Overflows} attribute of the corresponding real type is
 @code{False}.  See G.2.6(5).
@@ -13713,9 +14258,10 @@ elementary function reference in overflow situations, when the
 IEEE infinite and Nan values are produced as appropriate.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{136}.  The accuracy of certain complex arithmetic operations and
+The accuracy of certain complex arithmetic operations and
 certain complex elementary functions for parameters (or components
 thereof) beyond the angle threshold.  See G.2.6(8).
 @end cartouche
@@ -13723,18 +14269,20 @@ thereof) beyond the angle threshold.  See G.2.6(8).
 Information on those subjects is not yet available.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{137}.  Information regarding bounded errors and erroneous
+Information regarding bounded errors and erroneous
 execution.  See H.2(1).
 @end cartouche
 @noindent
 Information on this subject is not yet available.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{138}.  Implementation-defined aspects of pragma
+Implementation-defined aspects of pragma
 @code{Inspection_Point}.  See H.3.2(8).
 @end cartouche
 @noindent
@@ -13742,9 +14290,10 @@ Pragma @code{Inspection_Point} ensures that the variable is live and can
 be examined by the debugger at the inspection point.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{139}.  Implementation-defined aspects of pragma
+Implementation-defined aspects of pragma
 @code{Restrictions}.  See H.4(25).
 @end cartouche
 @noindent
@@ -13753,14 +14302,19 @@ use of pragma @code{Restrictions [No_Exceptions]} has no effect on the
 generated code.  Checks must suppressed by use of pragma @code{Suppress}.
 
 @sp 1
+@item
 @cartouche
 @noindent
-@strong{140}.  Any restrictions on pragma @code{Restrictions}.  See
+Any restrictions on pragma @code{Restrictions}.  See
 H.4(27).
 @end cartouche
 @noindent
 There are no restrictions on pragma @code{Restrictions}.
 
+@end itemize
+
+
+@c =======================
 @node Intrinsic Subprograms
 @chapter Intrinsic Subprograms
 @cindex Intrinsic Subprograms
@@ -15143,7 +15697,8 @@ taken by components.  We distinguish between @emph{packable} components and
 Components of the following types are considered packable:
 @itemize @bullet
 @item
-All primitive types are packable.
+Components of a primitive type are packable unless they are aliased
+or of an atomic type.
 
 @item
 Small packed arrays, whose size does not exceed 64 bits, and where the
@@ -15165,49 +15720,51 @@ For example, consider the record
 
 @smallexample @c ada
    type Rb1 is array (1 .. 13) of Boolean;
-   pragma Pack (rb1);
+   pragma Pack (Rb1);
 
    type Rb2 is array (1 .. 65) of Boolean;
-   pragma Pack (rb2);
+   pragma Pack (Rb2);
 
-   type x2 is record
-      l1 : Boolean;
-      l2 : Duration;
-      l3 : Float;
-      l4 : Boolean;
-      l5 : Rb1;
-      l6 : Rb2;
+   type AF is new Float with Atomic;
+
+   type X2 is record
+      L1 : Boolean;
+      L2 : Duration;
+      L3 : AF;
+      L4 : Boolean;
+      L5 : Rb1;
+      L6 : Rb2;
    end record;
-   pragma Pack (x2);
+   pragma Pack (X2);
 @end smallexample
 
 @noindent
-The representation for the record x2 is as follows:
+The representation for the record X2 is as follows:
 
 @smallexample @c ada
-for x2'Size use 224;
-for x2 use record
-   l1 at  0 range  0 .. 0;
-   l2 at  0 range  1 .. 64;
-   l3 at 12 range  0 .. 31;
-   l4 at 16 range  0 .. 0;
-   l5 at 16 range  1 .. 13;
-   l6 at 18 range  0 .. 71;
+for X2'Size use 224;
+for X2 use record
+   L1 at  0 range  0 .. 0;
+   L2 at  0 range  1 .. 64;
+   L3 at 12 range  0 .. 31;
+   L4 at 16 range  0 .. 0;
+   L5 at 16 range  1 .. 13;
+   L6 at 18 range  0 .. 71;
 end record;
 @end smallexample
 
 @noindent
-Studying this example, we see that the packable fields @code{l1}
-and @code{l2} are
+Studying this example, we see that the packable fields @code{L1}
+and @code{L2} are
 of length equal to their sizes, and placed at specific bit boundaries (and
 not byte boundaries) to
-eliminate padding.  But @code{l3} is of a non-packable float type, so
-it is on the next appropriate alignment boundary.
+eliminate padding.  But @code{L3} is of a non-packable float type (because
+it is aliased), so it is on the next appropriate alignment boundary.
 
-The next two fields are fully packable, so @code{l4} and @code{l5} are
+The next two fields are fully packable, so @code{L4} and @code{L5} are
 minimally packed with no gaps.  However, type @code{Rb2} is a packed
 array that is longer than 64 bits, so it is itself non-packable.  Thus
-the @code{l6} field is aligned to the next byte boundary, and takes an
+the @code{L6} field is aligned to the next byte boundary, and takes an
 integral number of bytes, i.e.@: 72 bits.
 
 @node Record Representation Clauses
@@ -15741,7 +16298,7 @@ end Overwrite_Array;
 @end smallexample
 
 @noindent
-then the program compiles without the waraning and when run will generate
+then the program compiles without the warning and when run will generate
 the output @code{X was not clobbered}.
 
 @node Effect of Convention on Representation
@@ -16722,6 +17279,7 @@ these additional facilities are also described in this chapter.
 * Text Translation::
 * Shared Files::
 * Filenames encoding::
+* File content encoding::
 * Open Modes::
 * Operations on C Streams::
 * Interfacing to C Streams::
@@ -16799,7 +17357,7 @@ between values.  The order of the entries is not important.  Currently
 the following keywords defined.
 
 @smallexample
-TEXT_TRANSLATION=[YES|NO]
+TEXT_TRANSLATION=[YES|NO|TEXT|BINARY|U8TEXT|WTEXT|U16TEXT]
 SHARED=[YES|NO]
 WCEM=[n|h|u|s|e|8|b]
 ENCODING=[UTF8|8BITS]
@@ -17528,14 +18086,35 @@ manner described for stream attributes.
 
 @noindent
 @samp{Text_Translation=@var{xxx}} may be used as the Form parameter
-passed to Text_IO.Create and Text_IO.Open:
-@samp{Text_Translation=@var{Yes}} is the default, which means to
+passed to Text_IO.Create and Text_IO.Open. @samp{Text_Translation=@var{xxx}}
+has no effect on Unix systems. Possible values are:
+
+@itemize @bullet
+
+@item
+@samp{@var{Yes} or @var{Text}} is the default, which means to
 translate LF to/from CR/LF on Windows systems.
-@samp{Text_Translation=@var{No}} disables this translation; i.e. it
+
+@samp{@var{No}} disables this translation; i.e. it
 uses binary mode. For output files, @samp{Text_Translation=@var{No}}
 may be used to create Unix-style files on
-Windows. @samp{Text_Translation=@var{xxx}} has no effect on Unix
-systems.
+Windows.
+
+@item
+@samp{@var{wtext}} translation enabled in Unicode mode.
+(corresponds to _O_WTEXT).
+
+@item
+@samp{@var{u8text}} translation enabled in Unicode UTF-8 mode.
+(corresponds to O_U8TEXT).
+
+@item
+@samp{@var{u16text}} translation enabled in Unicode UTF-16
+mode. (corresponds to_O_U16TEXT).
+
+@end itemize
+
+
 
 @node Shared Files
 @section Shared Files
@@ -17629,6 +18208,29 @@ UTF-8 encoding
 This encoding form parameter is only supported on the Windows
 platform. On the other Operating Systems the run-time is supporting
 UTF-8 natively.
+
+@node File content encoding
+@section File content encoding
+
+@noindent
+For text files it is possible to specify the encoding to use. This is
+controlled by the by the @samp{GNAT_CCS_ENCODING} environment
+variable. And if not set @samp{TEXT} is assumed.
+
+The possible values are those supported on Windows:
+
+@table @samp
+@item TEXT
+Translated text mode
+@item WTEXT
+Translated unicode encoding
+@item U16TEXT
+Unicode 16-bit encoding
+@item U8TEXT
+Unicode 8-bit encoding
+@end table
+
+This encoding is only supported on the Windows platform.
 
 @node Open Modes
 @section Open Modes
@@ -18035,6 +18637,7 @@ of GNAT, and will generate a warning message.
 * GNAT.Regexp (g-regexp.ads)::
 * GNAT.Registry (g-regist.ads)::
 * GNAT.Regpat (g-regpat.ads)::
+* GNAT.Rewrite_Data (g-rewdat.ads)::
 * GNAT.Secondary_Stack_Info (g-sestin.ads)::
 * GNAT.Semaphores (g-semaph.ads)::
 * GNAT.Serial_Communications (g-sercom.ads)::
@@ -18086,7 +18689,7 @@ of GNAT, and will generate a warning message.
 * System.Restrictions (s-restri.ads)::
 * System.Rident (s-rident.ads)::
 * System.Strings.Stream_Ops (s-ststop.ads)::
-* System.Task_Info (s-tasinf.ads)::
+* System.Unsigned_Types (s-unstyp.ads)::
 * System.Wch_Cnv (s-wchcnv.ads)::
 * System.Wch_Con (s-wchcon.ads)::
 @end menu
@@ -18641,19 +19244,6 @@ C @code{timeval} format.
 @cindex Time
 @cindex @code{GNAT.Calendar.Time_IO} (@file{g-catiio.ads})
 
-@node GNAT.CRC32 (g-crc32.ads)
-@section @code{GNAT.CRC32} (@file{g-crc32.ads})
-@cindex @code{GNAT.CRC32} (@file{g-crc32.ads})
-@cindex CRC32
-@cindex Cyclic Redundancy Check
-
-@noindent
-This package implements the CRC-32 algorithm.  For a full description
-of this algorithm see
-``Computation of Cyclic Redundancy Checks via Table Look-Up'',
-@cite{Communications of the ACM}, Vol.@: 31 No.@: 8, pp.@: 1008-1013,
-Aug.@: 1988.  Sarwate, D.V@.
-
 @node GNAT.Case_Util (g-casuti.ads)
 @section @code{GNAT.Case_Util} (@file{g-casuti.ads})
 @cindex @code{GNAT.Case_Util} (@file{g-casuti.ads})
@@ -18727,6 +19317,19 @@ of a partition).
 
 @noindent
 Provides a simple interface to handle Ctrl-C keyboard events.
+
+@node GNAT.CRC32 (g-crc32.ads)
+@section @code{GNAT.CRC32} (@file{g-crc32.ads})
+@cindex @code{GNAT.CRC32} (@file{g-crc32.ads})
+@cindex CRC32
+@cindex Cyclic Redundancy Check
+
+@noindent
+This package implements the CRC-32 algorithm.  For a full description
+of this algorithm see
+``Computation of Cyclic Redundancy Checks via Table Look-Up'',
+@cite{Communications of the ACM}, Vol.@: 31 No.@: 8, pp.@: 1008-1013,
+Aug.@: 1988.  Sarwate, D.V@.
 
 @node GNAT.Current_Exception (g-curexc.ads)
 @section @code{GNAT.Current_Exception} (@file{g-curexc.ads})
@@ -19109,7 +19712,7 @@ standard Ada library and are more convenient to use.
 @noindent
 A simple implementation of regular expressions, using a subset of regular
 expression syntax copied from familiar Unix style utilities.  This is the
-simples of the three pattern matching packages provided, and is particularly
+simplest of the three pattern matching packages provided, and is particularly
 suitable for ``file globbing'' applications.
 
 @node GNAT.Registry (g-regist.ads)
@@ -19133,6 +19736,17 @@ package provided with the Win32Ada binding
 A complete implementation of Unix-style regular expression matching, copied
 from the original V7 style regular expression library written in C by
 Henry Spencer (and binary compatible with this C library).
+
+@node GNAT.Rewrite_Data (g-rewdat.ads)
+@section @code{GNAT.Rewrite_Data} (@file{g-rewdat.ads})
+@cindex @code{GNAT.Rewrite_Data} (@file{g-rewdat.ads})
+@cindex Rewrite data
+
+@noindent
+A unit to rewrite on-the-fly string occurrences in a stream of
+data. The implementation has a very minimal memory footprint as the
+full content to be processed is not loaded into memory all at once. This makes
+this interface usable for large files or socket streams.
 
 @node GNAT.Secondary_Stack_Info (g-sestin.ads)
 @section @code{GNAT.Secondary_Stack_Info} (@file{g-sestin.ads})
@@ -19373,17 +19987,6 @@ A very simple facility for locking and unlocking sections of code using a
 single global task lock.  Appropriate for use in situations where contention
 between tasks is very rarely expected.
 
-@node GNAT.Time_Stamp (g-timsta.ads)
-@section @code{GNAT.Time_Stamp} (@file{g-timsta.ads})
-@cindex @code{GNAT.Time_Stamp} (@file{g-timsta.ads})
-@cindex Time stamp
-@cindex Current time
-
-@noindent
-Provides a simple function that returns a string YYYY-MM-DD HH:MM:SS.SS that
-represents the current date and time in ISO 8601 format. This is a very simple
-routine with minimal code and there are no dependencies on any other unit.
-
 @node GNAT.Threads (g-thread.ads)
 @section @code{GNAT.Threads} (@file{g-thread.ads})
 @cindex @code{GNAT.Threads} (@file{g-thread.ads})
@@ -19395,6 +19998,17 @@ Provides facilities for dealing with foreign threads which need to be known
 by the GNAT run-time system. Consult the documentation of this package for
 further details if your program has threads that are created by a non-Ada
 environment which then accesses Ada code.
+
+@node GNAT.Time_Stamp (g-timsta.ads)
+@section @code{GNAT.Time_Stamp} (@file{g-timsta.ads})
+@cindex @code{GNAT.Time_Stamp} (@file{g-timsta.ads})
+@cindex Time stamp
+@cindex Current time
+
+@noindent
+Provides a simple function that returns a string YYYY-MM-DD HH:MM:SS.SS that
+represents the current date and time in ISO 8601 format. This is a very simple
+routine with minimal code and there are no dependencies on any other unit.
 
 @node GNAT.Traceback (g-traceb.ads)
 @section @code{GNAT.Traceback} (@file{g-traceb.ads})
@@ -19666,14 +20280,16 @@ It is intended primarily to support implicit use of such subprograms when
 stream attributes are applied to string types, but the subprograms in this
 package can be used directly by application programs.
 
-@node System.Task_Info (s-tasinf.ads)
-@section @code{System.Task_Info} (@file{s-tasinf.ads})
-@cindex @code{System.Task_Info} (@file{s-tasinf.ads})
-@cindex Task_Info pragma
+@node System.Unsigned_Types (s-unstyp.ads)
+@section @code{System.Unsigned_Types} (@file{s-unstyp.ads})
+@cindex @code{System.Unsigned_Types} (@file{s-unstyp.ads})
 
 @noindent
-This package provides target dependent functionality that is used
-to support the @code{Task_Info} pragma
+This package contains definitions of standard unsigned types that
+correspond in size to the standard signed types declared in Standard,
+and (unlike the types in Interfaces) have corresponding names. It
+also contains some related definitions for other specialized types
+used by the compiler in connection with packed array types.
 
 @node System.Wch_Cnv (s-wchcnv.ads)
 @section @code{System.Wch_Cnv} (@file{s-wchcnv.ads})
@@ -19942,16 +20558,15 @@ including machine instructions in a subprogram.
 The two features are similar, and both are closely related to the mechanism
 provided by the asm instruction in the GNU C compiler.  Full understanding
 and use of the facilities in this package requires understanding the asm
-instruction, see @ref{Extended Asm,, Assembler Instructions with C Expression
-Operands, gcc, Using the GNU Compiler Collection (GCC)}.
+instruction, see @ref{Extended Asm,,, gcc, Using the GNU Compiler 
+Collection (GCC)}.
 
 Calls to the function @code{Asm} and the procedure @code{Asm} have identical
 semantic restrictions and effects as described below.  Both are provided so
 that the procedure call can be used as a statement, and the function call
 can be used to form a code_statement.
 
-The first example given in the GCC documentation is the C @code{asm}
-instruction:
+Consider this C @code{asm} instruction:
 @smallexample
    asm ("fsinx %1 %0" : "=f" (result) : "f" (angle));
 @end smallexample
@@ -19977,12 +20592,15 @@ The @code{Asm_Output} attribute denotes a function that takes two
 parameters.  The first is a string, the second is the name of a variable
 of the type designated by the attribute prefix.  The first (string)
 argument is required to be a static expression and designates the
-constraint for the parameter (e.g.@: what kind of register is
-required).  The second argument is the variable to be updated with the
+constraint (@pxref{Constraints,,, gcc, Using the GNU Compiler 
+Collection (GCC)})
+for the parameter (e.g.@: what kind of register is required).  The second
+argument is the variable to be written or updated with the
 result.  The possible values for constraint are the same as those used in
 the RTL, and are dependent on the configuration file used to build the
 GCC back end.  If there are no output operands, then this argument may
 either be omitted, or explicitly given as @code{No_Output_Operands}.
+No support is provided for GNU C's symbolic names for output parameters.
 
 The second argument of @code{@var{my_float}'Asm_Output} functions as
 though it were an @code{out} parameter, which is a little curious, but
@@ -19999,8 +20617,9 @@ type designated by the prefix.  The first (string) argument is required
 to be a static expression, and is the constraint for the parameter,
 (e.g.@: what kind of register is required).  The second argument is the
 value to be used as the input argument.  The possible values for the
-constant are the same as those used in the RTL, and are dependent on
+constraint are the same as those used in the RTL, and are dependent on
 the configuration file used to built the GCC back end.
+No support is provided for GNU C's symbolic names for input parameters.
 
 If there are no input operands, this argument may either be omitted, or
 explicitly given as @code{No_Input_Operands}.  The fourth argument, not
@@ -20010,19 +20629,22 @@ expression, and is a space or comma separated list of names of registers
 that must be considered destroyed as a result of the @code{Asm} call.  If
 this argument is the null string (the default value), then the code
 generator assumes that no additional registers are destroyed.
+In addition to registers, the special clobbers @code{memory} and 
+@code{cc} as described in the GNU C docs are both supported.
 
 The fifth argument, not present in the above example, called the
 @dfn{volatile} argument, is by default @code{False}.  It can be set to
 the literal value @code{True} to indicate to the code generator that all
 optimizations with respect to the instruction specified should be
-suppressed, and that in particular, for an instruction that has outputs,
-the instruction will still be generated, even if none of the outputs are
-used.  @xref{Extended Asm,, Assembler Instructions with C Expression Operands,
+suppressed, and in particular an instruction that has outputs
+will still be generated, even if none of the outputs are
+used.  @xref{Volatile,,,
 gcc, Using the GNU Compiler Collection (GCC)}, for the full description.
 Generally it is strongly advisable to use Volatile for any ASM statement
-that is missing either input or output operands, or when two or more ASM
-statements appear in sequence, to avoid unwanted optimizations. A warning
-is generated if this advice is not followed.
+that is missing either input or output operands or to avoid unwanted 
+optimizations. A warning is generated if this advice is not followed.
+
+No support is provided for GNU C's @code{asm goto} feature.
 
 The @code{Asm} subprograms may be used in two ways.  First the procedure
 forms can be used anywhere a procedure call would be valid, and
@@ -20048,7 +20670,7 @@ and more flexible.  The code statement form is provided to meet the RM
 suggestion that such a facility should be made available.  The following
 is the exact syntax of the call to @code{Asm}. As usual, if named notation
 is used, the arguments may be given in arbitrary order, following the
-normal rules for use of positional and named arguments)
+normal rules for use of positional and named arguments:
 
 @smallexample
 ASM_CALL ::= Asm (
@@ -20738,6 +21360,7 @@ A complete description of the AIs may be found in
 @item @code{Suppress} @tab
 @item @code{Suppress_Debug_Info} @tab           -- GNAT
 @item @code{Test_Case} @tab                     -- GNAT
+@item @code{Thread_Local_Storage} @tab          -- GNAT
 @item @code{Type_Invariant} @tab
 @item @code{Unchecked_Union} @tab
 @item @code{Universal_Aliasing} @tab            -- GNAT
@@ -22213,6 +22836,8 @@ compatibility purposes.
 * pragma No_Run_Time::
 * pragma Ravenscar::
 * pragma Restricted_Run_Time::
+* pragma Task_Info::
+* System.Task_Info (s-tasinf.ads)::
 @end menu
 
 @node pragma No_Run_Time
@@ -22241,10 +22866,45 @@ pragma @code{Profile (Restricted)}. The latter usage is
 preferred since the Ada 2005 pragma @code{Profile} is intended for
 this kind of implementation dependent addition.
 
+@node pragma Task_Info
+@section pragma Task_Info
+
+The functionality provided by pragma @code{Task_Info} is now part of the
+Ada language. The @code{CPU} aspect and the package
+@code{System.Multiprocessors} offer a less system-dependent way to specify
+task affinity or to query the number of processsors.
+
+@noindent
+Syntax
+
+@smallexample @c ada
+pragma Task_Info (EXPRESSION);
+@end smallexample
+
+@noindent
+This pragma appears within a task definition (like pragma
+@code{Priority}) and applies to the task in which it appears.  The
+argument must be of type @code{System.Task_Info.Task_Info_Type}.
+The @code{Task_Info} pragma provides system dependent control over
+aspects of tasking implementation, for example, the ability to map
+tasks to specific processors.  For details on the facilities available
+for the version of GNAT that you are using, see the documentation
+in the spec of package System.Task_Info in the runtime
+library.
+
+@node System.Task_Info (s-tasinf.ads)
+@section package System.Task_Info (@file{s-tasinf.ads})
+
+@noindent
+This package provides target dependent functionality that is used
+to support the @code{Task_Info} pragma. The predefined Ada package
+ @code{System.Multiprocessors} and the @code{CPU} aspect now provide a
+standard replacement for GNAT's @code{Task_Info} functionality.
+
 @include fdl.texi
 @c GNU Free Documentation License
 
-@node Index,,GNU Free Documentation License, Top
+@node Concept Index
 @unnumbered Index
 
 @printindex cp
@@ -22252,5 +22912,3 @@ this kind of implementation dependent addition.
 @contents
 
 @bye
-tablishes the following set of restrictions:
-Pragma Shared

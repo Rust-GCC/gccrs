@@ -7,6 +7,7 @@ package httputil
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -29,7 +30,7 @@ func drainBody(b io.ReadCloser) (r1, r2 io.ReadCloser, err error) {
 	if err = b.Close(); err != nil {
 		return nil, nil, err
 	}
-	return ioutil.NopCloser(&buf), ioutil.NopCloser(bytes.NewBuffer(buf.Bytes())), nil
+	return ioutil.NopCloser(&buf), ioutil.NopCloser(bytes.NewReader(buf.Bytes())), nil
 }
 
 // dumpConn is a net.Conn which writes to Writer and reads from Reader
@@ -106,6 +107,7 @@ func DumpRequestOut(req *http.Request, body bool) ([]byte, error) {
 			return &dumpConn{io.MultiWriter(&buf, pw), dr}, nil
 		},
 	}
+	defer t.CloseIdleConnections()
 
 	_, err := t.RoundTrip(reqSend)
 
@@ -230,14 +232,31 @@ func DumpRequest(req *http.Request, body bool) (dump []byte, err error) {
 	return
 }
 
+// errNoBody is a sentinel error value used by failureToReadBody so we can detect
+// that the lack of body was intentional.
+var errNoBody = errors.New("sentinel error value")
+
+// failureToReadBody is a io.ReadCloser that just returns errNoBody on
+// Read.  It's swapped in when we don't actually want to consume the
+// body, but need a non-nil one, and want to distinguish the error
+// from reading the dummy body.
+type failureToReadBody struct{}
+
+func (failureToReadBody) Read([]byte) (int, error) { return 0, errNoBody }
+func (failureToReadBody) Close() error             { return nil }
+
+var emptyBody = ioutil.NopCloser(strings.NewReader(""))
+
 // DumpResponse is like DumpRequest but dumps a response.
 func DumpResponse(resp *http.Response, body bool) (dump []byte, err error) {
 	var b bytes.Buffer
 	save := resp.Body
 	savecl := resp.ContentLength
-	if !body || resp.Body == nil {
-		resp.Body = nil
-		resp.ContentLength = 0
+
+	if !body {
+		resp.Body = failureToReadBody{}
+	} else if resp.Body == nil {
+		resp.Body = emptyBody
 	} else {
 		save, resp.Body, err = drainBody(resp.Body)
 		if err != nil {
@@ -245,11 +264,13 @@ func DumpResponse(resp *http.Response, body bool) (dump []byte, err error) {
 		}
 	}
 	err = resp.Write(&b)
+	if err == errNoBody {
+		err = nil
+	}
 	resp.Body = save
 	resp.ContentLength = savecl
 	if err != nil {
-		return
+		return nil, err
 	}
-	dump = b.Bytes()
-	return
+	return b.Bytes(), nil
 }

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1996-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1996-2014, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -3270,7 +3270,12 @@ package VMS_Data is
                                             "UNCHECKED_CONVERSIONS "       &
                                                "-gnatwz "                  &
                                             "NOUNCHECKED_CONVERSIONS "     &
-                                               "-gnatwZ";
+                                               "-gnatwZ "                  &
+                                            "SIZE_ALIGNMENT "              &
+                                               "-gnatw.z "                 &
+                                            "NOSIZE_ALIGNMENT "            &
+                                               "-gnatw.Z";
+
    --        /NOWARNINGS
    --
    --   Suppress the output of all warning messages from the GNAT front end.
@@ -3300,6 +3305,7 @@ package VMS_Data is
    --                               MISSING_PARENS
    --                               OVERLAPPING_ACTUALS
    --                               REVERSE_BIT_ORDER
+   --                               SIZE_ALIGNMENT
    --                               SUSPICIOUS_CONTRACT
    --                               SUSPICIOUS_MODULUS
    --                               UNCHECKED_CONVERSIONS
@@ -3588,6 +3594,12 @@ package VMS_Data is
    --   (-gnatw.v)              Generates information messages that show the
    --                           effect of specifying reverse bit order for
    --                           a record on individual components.
+   --
+   --   SIZE_ALIGNMENT          Activates warnings for record types for which
+   --   (-gnatw.z)              explicit size and alignment values are given,
+   --                           where the size value is not a multiple of the
+   --                           alignment value, resulting in an object size
+   --                           larger than the specified size.
    --
    --   STANDARD_REDEFINITION   Activate warnings on standard redefinition.
    --   (-gnatw.k)              Generates a warning message if a declaration
@@ -5665,30 +5677,30 @@ package VMS_Data is
    --
    --   All combinations of line metrics options are allowed.
 
-   S_Metric_Complexity : aliased constant S := "/COMPLEXITY_METRICS="      &
-                                               "ALL "                      &
-                                               "--complexity-all "         &
-                                              "NONE "                      &
-                                              "--no-complexity-all "       &
-                                              "CYCLOMATIC "                &
-                                              "--complexity-cyclomatic "   &
-                                              "NOCYCLOMATIC "              &
-                                              "--no-complexity-cyclomatic "&
-                                              "ESSENTIAL "                 &
-                                              "--complexity-essential "    &
-                                              "NOESSENTIAL "               &
-                                              "--no-complexity-essential " &
-                                              "LOOP_NESTING "              &
-                                              "--loop-nesting "            &
-                                              "NOLOOP_NESTING "            &
-                                              "--no-loop-nesting "         &
-                                              "AVERAGE_COMPLEXITY "        &
-                                              "--complexity-average "      &
-                                              "NOAVERAGE_COMPLEXITY "      &
-                                              "--no-complexity-average "   &
-                                              "EXTRA_EXIT_POINTS "         &
-                                              "--extra-exit-points "       &
-                                              "NOEXTRA_EXIT_POINTS "       &
+   S_Metric_Complexity : aliased constant S := "/COMPLEXITY_METRICS="       &
+                                               "ALL "                       &
+                                               "--complexity-all "          &
+                                              "NONE "                       &
+                                              "--no-complexity-all "        &
+                                              "CYCLOMATIC "                 &
+                                              "--complexity-cyclomatic "    &
+                                              "NOCYCLOMATIC "               &
+                                              "--no-complexity-cyclomatic " &
+                                              "ESSENTIAL "                  &
+                                              "--complexity-essential "     &
+                                              "NOESSENTIAL "                &
+                                              "--no-complexity-essential "  &
+                                              "LOOP_NESTING "               &
+                                              "--loop-nesting "             &
+                                              "NOLOOP_NESTING "             &
+                                              "--no-loop-nesting "          &
+                                              "AVERAGE_COMPLEXITY "         &
+                                              "--complexity-average "       &
+                                              "NOAVERAGE_COMPLEXITY "       &
+                                              "--no-complexity-average "    &
+                                              "EXTRA_EXIT_POINTS "          &
+                                              "--extra-exit-points "        &
+                                              "NOEXTRA_EXIT_POINTS "        &
                                               "--no-extra-exit-points";
    --      /COMPLEXITY_METRICS=(option, option ...)
 
@@ -7155,6 +7167,40 @@ package VMS_Data is
    --
    --   Look for source, library or object files in the default directory.
 
+   S_Stub_Encoding : aliased constant S := "/RESULT_ENCODING="             &
+                                            "BRACKETS "                    &
+                                               "-Wb "                      &
+                                            "HEX "                         &
+                                               "-Wh "                      &
+                                            "UPPER "                       &
+                                               "-Wu "                      &
+                                            "SHIFT_JIS "                   &
+                                               "-Ws "                      &
+                                            "EUC "                         &
+                                               "-We "                      &
+                                            "UTF8 "                        &
+                                               "-W8";
+   --        /RESULT_ENCODING[=encoding-type]
+   --
+   --   Specify the wide character encoding method used when writing the
+   --   generated body in the result file. 'encoding-type' is one of the
+   --   following:
+   --
+   --      BRACKETS (D)      Brackets encoding.
+   --
+   --      HEX               Hex ESC encoding.
+   --
+   --      UPPER             Upper half encoding.
+   --
+   --      SHIFT_JIS         Shift-JIS encoding.
+   --
+   --      EUC               EUC Encoding.
+   --
+   --      UTF8              UTF-8 encoding.
+   --
+   --   See 'HELP GNAT COMPILE /WIDE_CHARACTER_ENCODING' for an explanation
+   --   about the different character encoding methods.
+
    S_Stub_Ext     : aliased constant S := "/EXTERNAL_REFERENCE=" & '"'     &
                                             "-X" & '"';
    --        /EXTERNAL_REFERENCE="name=val"
@@ -7349,6 +7395,7 @@ package VMS_Data is
                      (S_Stub_Add        'Access,
                       S_Stub_Config     'Access,
                       S_Stub_Current    'Access,
+                      S_Stub_Encoding   'Access,
                       S_Stub_Ext        'Access,
                       S_Stub_Follow     'Access,
                       S_Stub_Full       'Access,

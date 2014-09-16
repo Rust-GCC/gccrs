@@ -138,7 +138,7 @@ func (w WaitStatus) TrapCause() int
 //sys	Select(nfd int, r *FdSet, w *FdSet, e *FdSet, timeout *Timeval) (n int, err error)
 //select(nfd _C_int, r *FdSet, w *FdSet, e *FdSet, timeout *Timeval) _C_int
 
-const nfdbits = int(unsafe.Sizeof(fds_bits_type) * 8)
+const nfdbits = int(unsafe.Sizeof(fds_bits_type(0)) * 8)
 
 type FdSet struct {
 	Bits [(FD_SETSIZE + nfdbits - 1) / nfdbits]fds_bits_type
@@ -208,6 +208,9 @@ func FDZero(set *FdSet) {
 //sys	fcntl(fd int, cmd int, arg int) (val int, err error)
 //__go_fcntl(fd _C_int, cmd _C_int, arg _C_int) _C_int
 
+//sys	FcntlFlock(fd uintptr, cmd int, lk *Flock_t) (err error)
+//__go_fcntl_flock(fd _C_int, cmd _C_int, arg *Flock_t) _C_int
+
 //sys	Fdatasync(fd int) (err error)
 //fdatasync(fd _C_int) _C_int
 
@@ -240,9 +243,6 @@ func FDZero(set *FdSet) {
 
 //sys Getpriority(which int, who int) (prio int, err error)
 //getpriority(which _C_int, who _C_int) _C_int
-
-//sysnb	Getrlimit(resource int, rlim *Rlimit) (err error)
-//getrlimit(resource _C_int, rlim *Rlimit) _C_int
 
 //sysnb	Getrusage(who int, rusage *Rusage) (err error)
 //getrusage(who _C_int, rusage *Rusage) _C_int
@@ -315,9 +315,6 @@ func Gettimeofday(tv *Timeval) (err error) {
 
 //sysnb	Setreuid(ruid int, euid int) (err error)
 //setreuid(ruid Uid_t, euid Uid_t) _C_int
-
-//sysnb	Setrlimit(resource int, rlim *Rlimit) (err error)
-//setrlimit(resource int, rlim *Rlimit) _C_int
 
 //sysnb	Setsid() (pid int, err error)
 //setsid() Pid_t

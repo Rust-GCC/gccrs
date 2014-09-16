@@ -49,6 +49,7 @@
 #include "tm_p.h"
 #include "langhooks.h"
 #include "df.h"
+#include "builtins.h"
 
 #define LOSE_AND_RETURN(msgid, x)		\
   do						\
@@ -229,7 +230,7 @@ struct GTY(()) machine_function
 static struct machine_function *
 moxie_init_machine_status (void)
 {
-  return ggc_alloc_cleared_machine_function ();
+  return ggc_cleared_alloc<machine_function> ();
 }
 
 

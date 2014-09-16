@@ -159,7 +159,9 @@ func (a *Address) String() string {
 	// If every character is printable ASCII, quoting is simple.
 	allPrintable := true
 	for i := 0; i < len(a.Name); i++ {
-		if !isVchar(a.Name[i]) {
+		// isWSP here should actually be isFWS,
+		// but we don't support folding yet.
+		if !isVchar(a.Name[i]) && !isWSP(a.Name[i]) {
 			allPrintable = false
 			break
 		}
@@ -167,7 +169,7 @@ func (a *Address) String() string {
 	if allPrintable {
 		b := bytes.NewBufferString(`"`)
 		for i := 0; i < len(a.Name); i++ {
-			if !isQtext(a.Name[i]) {
+			if !isQtext(a.Name[i]) && !isWSP(a.Name[i]) {
 				b.WriteByte('\\')
 			}
 			b.WriteByte(a.Name[i])
@@ -361,7 +363,7 @@ func (p *addrParser) consumePhrase() (phrase string, err error) {
 	// Ignore any error if we got at least one word.
 	if err != nil && len(words) == 0 {
 		debug.Printf("consumePhrase: hit err: %v", err)
-		return "", errors.New("mail: missing word in phrase")
+		return "", fmt.Errorf("mail: missing word in phrase: %v", err)
 	}
 	phrase = strings.Join(words, " ")
 	return phrase, nil
@@ -440,11 +442,11 @@ func (p *addrParser) len() int {
 func decodeRFC2047Word(s string) (string, error) {
 	fields := strings.Split(s, "?")
 	if len(fields) != 5 || fields[0] != "=" || fields[4] != "=" {
-		return "", errors.New("mail: address not RFC 2047 encoded")
+		return "", errors.New("address not RFC 2047 encoded")
 	}
 	charset, enc := strings.ToLower(fields[1]), strings.ToLower(fields[2])
 	if charset != "iso-8859-1" && charset != "utf-8" {
-		return "", fmt.Errorf("mail: charset not supported: %q", charset)
+		return "", fmt.Errorf("charset not supported: %q", charset)
 	}
 
 	in := bytes.NewBufferString(fields[3])
@@ -455,7 +457,7 @@ func decodeRFC2047Word(s string) (string, error) {
 	case "q":
 		r = qDecoder{r: in}
 	default:
-		return "", fmt.Errorf("mail: RFC 2047 encoding not supported: %q", enc)
+		return "", fmt.Errorf("RFC 2047 encoding not supported: %q", enc)
 	}
 
 	dec, err := ioutil.ReadAll(r)
@@ -534,4 +536,10 @@ func isQtext(c byte) bool {
 func isVchar(c byte) bool {
 	// Visible (printing) characters.
 	return '!' <= c && c <= '~'
+}
+
+// isWSP returns true if c is a WSP (white space).
+// WSP is a space or horizontal tab (RFC5234 Appendix B).
+func isWSP(c byte) bool {
+	return c == ' ' || c == '\t'
 }

@@ -16,11 +16,11 @@ import (
 
 var connTests = []struct {
 	net  string
-	addr func() string
+	addr string
 }{
-	{"tcp", func() string { return "127.0.0.1:0" }},
-	{"unix", testUnixAddr},
-	{"unixpacket", testUnixAddr},
+	{"tcp", "127.0.0.1:0"},
+	{"unix", testUnixAddr()},
+	{"unixpacket", testUnixAddr()},
 }
 
 // someTimeout is used just to test that net.Conn implementations
@@ -31,18 +31,21 @@ const someTimeout = 10 * time.Second
 func TestConnAndListener(t *testing.T) {
 	for _, tt := range connTests {
 		switch tt.net {
-		case "unix", "unixpacket":
+		case "unix":
 			switch runtime.GOOS {
-			case "plan9", "windows":
+			case "nacl", "plan9", "windows":
 				continue
 			}
-			if tt.net == "unixpacket" && runtime.GOOS != "linux" {
+		case "unixpacket":
+			switch runtime.GOOS {
+			case "darwin", "nacl", "openbsd", "plan9", "windows":
+				continue
+			case "freebsd": // FreeBSD 8 doesn't support unixpacket
 				continue
 			}
 		}
 
-		addr := tt.addr()
-		ln, err := Listen(tt.net, addr)
+		ln, err := Listen(tt.net, tt.addr)
 		if err != nil {
 			t.Fatalf("Listen failed: %v", err)
 		}
@@ -52,8 +55,10 @@ func TestConnAndListener(t *testing.T) {
 			case "unix", "unixpacket":
 				os.Remove(addr)
 			}
-		}(ln, tt.net, addr)
-		ln.Addr()
+		}(ln, tt.net, tt.addr)
+		if ln.Addr().Network() != tt.net {
+			t.Fatalf("got %v; expected %v", ln.Addr().Network(), tt.net)
+		}
 
 		done := make(chan int)
 		go transponder(t, ln, done)
@@ -63,8 +68,9 @@ func TestConnAndListener(t *testing.T) {
 			t.Fatalf("Dial failed: %v", err)
 		}
 		defer c.Close()
-		c.LocalAddr()
-		c.RemoteAddr()
+		if c.LocalAddr().Network() != tt.net || c.LocalAddr().Network() != tt.net {
+			t.Fatalf("got %v->%v; expected %v->%v", c.LocalAddr().Network(), c.RemoteAddr().Network(), tt.net, tt.net)
+		}
 		c.SetDeadline(time.Now().Add(someTimeout))
 		c.SetReadDeadline(time.Now().Add(someTimeout))
 		c.SetWriteDeadline(time.Now().Add(someTimeout))
@@ -96,8 +102,11 @@ func transponder(t *testing.T, ln Listener, done chan<- int) {
 		return
 	}
 	defer c.Close()
-	c.LocalAddr()
-	c.RemoteAddr()
+	network := ln.Addr().Network()
+	if c.LocalAddr().Network() != network || c.LocalAddr().Network() != network {
+		t.Errorf("got %v->%v; expected %v->%v", c.LocalAddr().Network(), c.RemoteAddr().Network(), network, network)
+		return
+	}
 	c.SetDeadline(time.Now().Add(someTimeout))
 	c.SetReadDeadline(time.Now().Add(someTimeout))
 	c.SetWriteDeadline(time.Now().Add(someTimeout))

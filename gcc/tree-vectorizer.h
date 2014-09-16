@@ -332,7 +332,7 @@ typedef struct _loop_vec_info {
   vec<gimple> reduction_chains;
 
   /* Hash table used to choose the best peeling option.  */
-  hash_table <peel_info_hasher> peeling_htab;
+  hash_table<peel_info_hasher> *peeling_htab;
 
   /* Cost data used by the target cost model.  */
   void *target_cost_data;
@@ -958,7 +958,7 @@ known_alignment_for_access_p (struct data_reference *data_ref_info)
 static inline bool
 unlimited_cost_model (loop_p loop)
 {
-  if (loop != NULL && loop->force_vect
+  if (loop != NULL && loop->force_vectorize
       && flag_simd_cost_model != VECT_COST_MODEL_DEFAULT)
     return flag_simd_cost_model == VECT_COST_MODEL_UNLIMITED;
   return (flag_vect_cost_model == VECT_COST_MODEL_UNLIMITED);
@@ -1123,7 +1123,7 @@ extern void vect_slp_transform_bb (basic_block);
    Additional pattern recognition functions can (and will) be added
    in the future.  */
 typedef gimple (* vect_recog_func_ptr) (vec<gimple> *, tree *, tree *);
-#define NUM_PATTERNS 11
+#define NUM_PATTERNS 12
 void vect_pattern_recog (loop_vec_info, bb_vec_info);
 
 /* In tree-vectorizer.c.  */

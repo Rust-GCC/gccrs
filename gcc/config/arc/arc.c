@@ -65,6 +65,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-pass.h"
 #include "context.h"
 #include "pass_manager.h"
+#include "wide-int.h"
+#include "builtins.h"
 
 /* Which cpu we're compiling for (A5, ARC600, ARC601, ARC700).  */
 static const char *arc_cpu_string = "";
@@ -391,7 +393,8 @@ static bool arc_return_in_memory (const_tree, const_tree);
 static void arc_init_simd_builtins (void);
 static bool arc_vector_mode_supported_p (enum machine_mode);
 
-static bool arc_can_use_doloop_p (double_int, double_int, unsigned int, bool);
+static bool arc_can_use_doloop_p (const widest_int &, const widest_int &,
+				  unsigned int, bool);
 static const char *arc_invalid_within_doloop (const_rtx);
 
 static void output_short_suffix (FILE *file);
@@ -550,6 +553,7 @@ static void arc_finalize_pic (void);
 
 #define TARGET_INSN_LENGTH_PARAMETERS arc_insn_length_parameters
 
+#undef TARGET_LRA_P
 #define TARGET_LRA_P arc_lra_p
 #define TARGET_REGISTER_PRIORITY arc_register_priority
 /* Stores with scaled offsets have different displacement ranges.  */
@@ -605,8 +609,6 @@ const pass_data pass_data_arc_ifcvt =
   RTL_PASS,
   "arc_ifcvt",				/* name */
   OPTGROUP_NONE,			/* optinfo_flags */
-  false,				/* has_gate */
-  true,					/* has_execute */
   TV_IFCVT2,				/* tv_id */
   0,					/* properties_required */
   0,					/* properties_provided */
@@ -624,7 +626,7 @@ public:
 
   /* opt_pass methods: */
   opt_pass * clone () { return new pass_arc_ifcvt (m_ctxt); }
-  unsigned int execute () { return arc_ifcvt (); }
+  virtual unsigned int execute (function *) { return arc_ifcvt (); }
 };
 
 } // anon namespace
@@ -644,8 +646,6 @@ const pass_data pass_data_arc_predicate_delay_insns =
   RTL_PASS,
   "arc_predicate_delay_insns",		/* name */
   OPTGROUP_NONE,			/* optinfo_flags */
-  false,				/* has_gate */
-  true,					/* has_execute */
   TV_IFCVT2,				/* tv_id */
   0,					/* properties_required */
   0,					/* properties_provided */
@@ -662,7 +662,10 @@ public:
   {}
 
   /* opt_pass methods: */
-  unsigned int execute () { return arc_predicate_delay_insns (); }
+  virtual unsigned int execute (function *)
+    {
+      return arc_predicate_delay_insns ();
+    }
 };
 
 } // anon namespace
@@ -746,7 +749,7 @@ arc_init (void)
       error ("-mmul32x16 supported only for ARC600 or ARC601");
 
   if (!TARGET_DPFP && TARGET_DPFP_DISABLE_LRSR)
-      error ("-mno-dpfp-lrsr suppforted only with -mdpfp");
+      error ("-mno-dpfp-lrsr supported only with -mdpfp");
 
   /* FPX-1. No fast and compact together.  */
   if ((TARGET_DPFP_FAST_SET && TARGET_DPFP_COMPACT_SET)
@@ -993,7 +996,7 @@ arc_select_cc_mode (enum rtx_code op, rtx x, rtx y)
   if (GET_MODE_CLASS (mode) == MODE_INT
       && y == const0_rtx
       && (op == EQ || op == NE
-	  || ((op == LT || op == GE) && GET_MODE_SIZE (GET_MODE (x) <= 4))))
+	  || ((op == LT || op == GE) && GET_MODE_SIZE (GET_MODE (x)) <= 4)))
     return CC_ZNmode;
 
   /* add.f for if (a+b) */
@@ -1132,31 +1135,33 @@ arc_init_reg_tables (void)
 
   for (i = 0; i < NUM_MACHINE_MODES; i++)
     {
-      switch (GET_MODE_CLASS (i))
+      enum machine_mode m = (enum machine_mode) i;
+
+      switch (GET_MODE_CLASS (m))
 	{
 	case MODE_INT:
 	case MODE_PARTIAL_INT:
 	case MODE_COMPLEX_INT:
-	  if (GET_MODE_SIZE (i) <= 4)
+	  if (GET_MODE_SIZE (m) <= 4)
 	    arc_mode_class[i] = 1 << (int) S_MODE;
-	  else if (GET_MODE_SIZE (i) == 8)
+	  else if (GET_MODE_SIZE (m) == 8)
 	    arc_mode_class[i] = 1 << (int) D_MODE;
-	  else if (GET_MODE_SIZE (i) == 16)
+	  else if (GET_MODE_SIZE (m) == 16)
 	    arc_mode_class[i] = 1 << (int) T_MODE;
-	  else if (GET_MODE_SIZE (i) == 32)
+	  else if (GET_MODE_SIZE (m) == 32)
 	    arc_mode_class[i] = 1 << (int) O_MODE;
 	  else
 	    arc_mode_class[i] = 0;
 	  break;
 	case MODE_FLOAT:
 	case MODE_COMPLEX_FLOAT:
-	  if (GET_MODE_SIZE (i) <= 4)
+	  if (GET_MODE_SIZE (m) <= 4)
 	    arc_mode_class[i] = 1 << (int) SF_MODE;
-	  else if (GET_MODE_SIZE (i) == 8)
+	  else if (GET_MODE_SIZE (m) == 8)
 	    arc_mode_class[i] = 1 << (int) DF_MODE;
-	  else if (GET_MODE_SIZE (i) == 16)
+	  else if (GET_MODE_SIZE (m) == 16)
 	    arc_mode_class[i] = 1 << (int) TF_MODE;
-	  else if (GET_MODE_SIZE (i) == 32)
+	  else if (GET_MODE_SIZE (m) == 32)
 	    arc_mode_class[i] = 1 << (int) OF_MODE;
 	  else
 	    arc_mode_class[i] = 0;
@@ -2132,7 +2137,7 @@ arc_save_restore (rtx base_reg,
 	  if (*first_offset)
 	    {
 	      /* "reg_size" won't be more than 127 .  */
-	      gcc_assert (epilogue_p || abs (*first_offset <= 127));
+	      gcc_assert (epilogue_p || abs (*first_offset) <= 127);
 	      frame_add (base_reg, *first_offset);
 	      *first_offset = 0;
 	    }
@@ -5696,7 +5701,7 @@ arc_pass_by_reference (cumulative_args_t ca_v ATTRIBUTE_UNUSED,
 /* Implement TARGET_CAN_USE_DOLOOP_P.  */
 
 static bool
-arc_can_use_doloop_p (double_int iterations, double_int,
+arc_can_use_doloop_p (const widest_int &iterations, const widest_int &,
 		      unsigned int loop_depth, bool entered_at_top)
 {
   if (loop_depth > 1)
@@ -5704,9 +5709,8 @@ arc_can_use_doloop_p (double_int iterations, double_int,
   /* Setting up the loop with two sr instructions costs 6 cycles.  */
   if (TARGET_ARC700
       && !entered_at_top
-      && iterations.high == 0
-      && iterations.low > 0
-      && iterations.low <= (flag_pic ? 6 : 3))
+      && wi::gtu_p (iterations, 0)
+      && wi::leu_p (iterations, flag_pic ? 6 : 3))
     return false;
   return true;
 }
@@ -6046,7 +6050,7 @@ arc_reorg (void)
 	    continue;
 
 	  /* Now check if the jump is beyond the s9 range.  */
-	  if (find_reg_note (insn, REG_CROSSING_JUMP, NULL_RTX))
+	  if (CROSSING_JUMP_P (insn))
 	    continue;
 	  offset = branch_dest (insn) - INSN_ADDRESSES (INSN_UID (insn));
 
@@ -6271,7 +6275,7 @@ arc_in_small_data_p (const_tree decl)
       const char *name;
 
       /* Reject anything that isn't in a known small-data section.  */
-      name = TREE_STRING_POINTER (DECL_SECTION_NAME (decl));
+      name = DECL_SECTION_NAME (decl);
       if (strcmp (name, ".sdata") != 0 && strcmp (name, ".sbss") != 0)
 	return false;
 
@@ -8717,7 +8721,7 @@ static struct machine_function *
 arc_init_machine_status (void)
 {
   struct machine_function *machine;
-  machine = ggc_alloc_cleared_machine_function ();
+  machine = ggc_cleared_alloc<machine_function> ();
   machine->fn_type = ARC_FUNCTION_UNKNOWN;
   machine->force_short_suffix = -1;
 
@@ -9201,7 +9205,7 @@ arc_decl_pretend_args (tree decl)
 
 /* Without this, gcc.dg/tree-prof/bb-reorg.c fails to assemble
   when compiling with -O2 -freorder-blocks-and-partition -fprofile-use
-  -D_PROFILE_USE; delay branch scheduling then follows a REG_CROSSING_JUMP
+  -D_PROFILE_USE; delay branch scheduling then follows a crossing jump
   to redirect two breqs.  */
 
 static bool
@@ -9211,7 +9215,7 @@ arc_can_follow_jump (const_rtx follower, const_rtx followee)
   union { const_rtx c; rtx r; } u;
 
   u.c = follower;
-  if (find_reg_note (followee, REG_CROSSING_JUMP, NULL_RTX))
+  if (CROSSING_JUMP_P (followee))
     switch (get_attr_type (u.r))
       {
       case TYPE_BRCC:

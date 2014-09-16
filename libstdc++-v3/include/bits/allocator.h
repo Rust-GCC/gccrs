@@ -83,7 +83,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   /**
    * @brief  The @a standard allocator, as per [20.4].
    *
-   *  See http://gcc.gnu.org/onlinedocs/libstdc++/manual/bk01pt04ch11.html
+   *  See https://gcc.gnu.org/onlinedocs/libstdc++/manual/memory.html#std.util.memory.allocator
    *  for further details.
    *
    *  @tparam  _Tp  Type of allocated object.
@@ -126,21 +126,25 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _T1, typename _T2>
     inline bool
     operator==(const allocator<_T1>&, const allocator<_T2>&)
+    _GLIBCXX_USE_NOEXCEPT
     { return true; }
 
   template<typename _Tp>
     inline bool
     operator==(const allocator<_Tp>&, const allocator<_Tp>&)
+    _GLIBCXX_USE_NOEXCEPT
     { return true; }
 
   template<typename _T1, typename _T2>
     inline bool
     operator!=(const allocator<_T1>&, const allocator<_T2>&)
+    _GLIBCXX_USE_NOEXCEPT
     { return false; }
 
   template<typename _Tp>
     inline bool
     operator!=(const allocator<_Tp>&, const allocator<_Tp>&)
+    _GLIBCXX_USE_NOEXCEPT
     { return false; }
 
   /// @} group allocator

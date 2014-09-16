@@ -210,6 +210,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "pass_manager.h"
 #include "tree-nested.h"
 #include "gimplify.h"
+#include "dbgcnt.h"
 
 /* Queue of cgraph nodes scheduled to be added into cgraph.  This is a
    secondary queue used during optimization to accommodate passes that
@@ -392,7 +393,7 @@ cgraph_reset_node (struct cgraph_node *node)
   node->cpp_implicit_alias = false;
 
   cgraph_node_remove_callees (node);
-  ipa_remove_all_references (&node->ref_list);
+  node->remove_all_references ();
 }
 
 /* Return true when there are references to NODE.  */
@@ -400,13 +401,13 @@ cgraph_reset_node (struct cgraph_node *node)
 static bool
 referred_to_p (symtab_node *node)
 {
-  struct ipa_ref *ref;
+  struct ipa_ref *ref = NULL;
 
   /* See if there are any references at all.  */
-  if (ipa_ref_list_referring_iterate (&node->ref_list, 0, ref))
+  if (node->iterate_referring (0, ref))
     return true;
   /* For functions check also calls.  */
-  cgraph_node *cn = dyn_cast <cgraph_node> (node);
+  cgraph_node *cn = dyn_cast <cgraph_node *> (node);
   if (cn && cn->callers)
     return true;
   return false;
@@ -498,7 +499,7 @@ cgraph_add_new_function (tree fndecl, bool lowered)
 	break;
       case CGRAPH_STATE_CONSTRUCTION:
 	/* Just enqueue function to be processed at nearest occurrence.  */
-	node = cgraph_create_node (fndecl);
+	node = cgraph_get_create_node (fndecl);
 	if (lowered)
 	  node->lowered = true;
 	if (!cgraph_new_nodes)
@@ -520,7 +521,7 @@ cgraph_add_new_function (tree fndecl, bool lowered)
 	    push_cfun (DECL_STRUCT_FUNCTION (fndecl));
 	    gimple_register_cfg_hooks ();
 	    bitmap_obstack_initialize (NULL);
-	    execute_pass_list (passes->all_lowering_passes);
+	    execute_pass_list (cfun, passes->all_lowering_passes);
 	    passes->execute_early_local_passes ();
 	    bitmap_obstack_release (NULL);
 	    pop_cfun ();
@@ -570,7 +571,7 @@ add_asm_node (tree asm_str)
 {
   struct asm_node *node;
 
-  node = ggc_alloc_cleared_asm_node ();
+  node = ggc_cleared_alloc<asm_node> ();
   node->asm_str = asm_str;
   node->order = symtab_order++;
   node->next = NULL;
@@ -609,7 +610,7 @@ analyze_function (struct cgraph_node *node)
     {
       cgraph_create_edge (node, cgraph_get_node (node->thunk.alias),
 		          NULL, 0, CGRAPH_FREQ_BASE);
-      if (!expand_thunk (node, false))
+      if (!expand_thunk (node, false, false))
 	{
 	  node->thunk.alias = NULL;
 	  node->analyzed = true;
@@ -658,7 +659,7 @@ analyze_function (struct cgraph_node *node)
 
 	  gimple_register_cfg_hooks ();
 	  bitmap_obstack_initialize (NULL);
-	  execute_pass_list (g->get_passes ()->all_lowering_passes);
+	  execute_pass_list (cfun, g->get_passes ()->all_lowering_passes);
 	  free_dominance_info (CDI_POST_DOMINATORS);
 	  free_dominance_info (CDI_DOMINATORS);
 	  compact_blocks ();
@@ -886,7 +887,7 @@ walk_polymorphic_call_targets (pointer_set_t *reachable_call_targets,
      make the edge direct.  */
   if (final)
     {
-      if (targets.length () <= 1)
+      if (targets.length () <= 1 && dbg_cnt (devirt))
 	{
 	  cgraph_node *target;
 	  if (targets.length () == 1)
@@ -903,6 +904,14 @@ walk_polymorphic_call_targets (pointer_set_t *reachable_call_targets,
 				 edge->call_stmt, 0,
 				 TDF_SLIM);
 	    }
+          if (dump_enabled_p ())
+            {
+	      location_t locus = gimple_location_safe (edge->call_stmt);
+	      dump_printf_loc (MSG_OPTIMIZED_LOCATIONS, locus,
+			       "devirtualizing call in %s to %s\n",
+			       edge->caller->name (), target->name ());
+	    }
+
 	  cgraph_make_edge_direct (edge, target);
 	  cgraph_redirect_edge_call_stmt_to_callee (edge);
 	  if (cgraph_dump_file)
@@ -965,6 +974,8 @@ analyze_functions (void)
 	   node != first_analyzed
 	   && node != first_analyzed_var; node = node->next)
 	{
+	  /* Convert COMDAT group designators to IDENTIFIER_NODEs.  */
+	  node->get_comdat_group_id ();
 	  if (decide_is_symbol_needed (node))
 	    {
 	      enqueue_node (node);
@@ -984,7 +995,7 @@ analyze_functions (void)
       first_analyzed_var = varpool_first_variable ();
       first_analyzed = cgraph_first_function ();
 
-      if (changed && dump_file)
+      if (changed && cgraph_dump_file)
 	fprintf (cgraph_dump_file, "\n");
 
       /* Lower representation, build callgraph edges and references for all trivially
@@ -994,7 +1005,7 @@ analyze_functions (void)
 	  changed = true;
 	  node = queued_nodes;
 	  queued_nodes = (symtab_node *)queued_nodes->aux;
-	  cgraph_node *cnode = dyn_cast <cgraph_node> (node);
+	  cgraph_node *cnode = dyn_cast <cgraph_node *> (node);
 	  if (cnode && cnode->definition)
 	    {
 	      struct cgraph_edge *edge;
@@ -1045,7 +1056,7 @@ analyze_functions (void)
 	    }
 	  else
 	    {
-	      varpool_node *vnode = dyn_cast <varpool_node> (node);
+	      varpool_node *vnode = dyn_cast <varpool_node *> (node);
 	      if (vnode && vnode->definition && !vnode->analyzed)
 		varpool_analyze_node (vnode);
 	    }
@@ -1058,7 +1069,7 @@ analyze_functions (void)
 		   next = next->same_comdat_group)
 		enqueue_node (next);
 	    }
-	  for (i = 0; ipa_ref_list_reference_iterate (&node->ref_list, i, ref); i++)
+	  for (i = 0; node->iterate_reference (i, ref); i++)
 	    if (ref->referred->definition)
 	      enqueue_node (ref->referred);
           cgraph_process_new_functions ();
@@ -1089,7 +1100,7 @@ analyze_functions (void)
 	  symtab_remove_node (node);
 	  continue;
 	}
-      if (cgraph_node *cnode = dyn_cast <cgraph_node> (node))
+      if (cgraph_node *cnode = dyn_cast <cgraph_node *> (node))
 	{
 	  tree decl = node->decl;
 
@@ -1179,7 +1190,7 @@ handle_alias_pairs (void)
 	}
 
       if (TREE_CODE (p->decl) == FUNCTION_DECL
-          && target_node && is_a <cgraph_node> (target_node))
+          && target_node && is_a <cgraph_node *> (target_node))
 	{
 	  struct cgraph_node *src_node = cgraph_get_node (p->decl);
 	  if (src_node && src_node->definition)
@@ -1188,7 +1199,7 @@ handle_alias_pairs (void)
 	  alias_pairs->unordered_remove (i);
 	}
       else if (TREE_CODE (p->decl) == VAR_DECL
-	       && target_node && is_a <varpool_node> (target_node))
+	       && target_node && is_a <varpool_node *> (target_node))
 	{
 	  varpool_create_variable_alias (p->decl, target_node->decl);
 	  alias_pairs->unordered_remove (i);
@@ -1337,7 +1348,7 @@ init_lowered_empty_function (tree decl, bool in_ssa)
   cfun->curr_properties |= (PROP_gimple_lcf | PROP_gimple_leh | PROP_gimple_any
 			    | PROP_cfg | PROP_loops);
 
-  set_loops_for_fn (cfun, ggc_alloc_cleared_loops ());
+  set_loops_for_fn (cfun, ggc_cleared_alloc<loops> ());
   init_loops_structure (cfun, loops_for_fn (cfun), 1);
   loops_for_fn (cfun)->state |= LOOPS_MAY_HAVE_MULTIPLE_LATCHES;
 
@@ -1455,11 +1466,13 @@ thunk_adjust (gimple_stmt_iterator * bsi,
 }
 
 /* Expand thunk NODE to gimple if possible.
+   When FORCE_GIMPLE_THUNK is true, gimple thunk is created and
+   no assembler is produced.
    When OUTPUT_ASM_THUNK is true, also produce assembler for
    thunks that are not lowered.  */
 
 bool
-expand_thunk (struct cgraph_node *node, bool output_asm_thunks)
+expand_thunk (struct cgraph_node *node, bool output_asm_thunks, bool force_gimple_thunk)
 {
   bool this_adjusting = node->thunk.this_adjusting;
   HOST_WIDE_INT fixed_offset = node->thunk.fixed_offset;
@@ -1470,7 +1483,7 @@ expand_thunk (struct cgraph_node *node, bool output_asm_thunks)
   tree a;
 
 
-  if (this_adjusting
+  if (!force_gimple_thunk && this_adjusting
       && targetm.asm_out.can_output_mi_thunk (thunk_fndecl, fixed_offset,
 					      virtual_value, alias))
     {
@@ -1680,6 +1693,7 @@ expand_thunk (struct cgraph_node *node, bool output_asm_thunks)
 #ifdef ENABLE_CHECKING
       verify_flow_info ();
 #endif
+      free_dominance_info (CDI_DOMINATORS);
 
       /* Since we want to emit the thunk, we explicitly mark its name as
 	 referenced.  */
@@ -1698,7 +1712,6 @@ static void
 assemble_thunks_and_aliases (struct cgraph_node *node)
 {
   struct cgraph_edge *e;
-  int i;
   struct ipa_ref *ref;
 
   for (e = node->callers; e;)
@@ -1707,26 +1720,25 @@ assemble_thunks_and_aliases (struct cgraph_node *node)
 	struct cgraph_node *thunk = e->caller;
 
 	e = e->next_caller;
+        expand_thunk (thunk, true, false);
 	assemble_thunks_and_aliases (thunk);
-        expand_thunk (thunk, true);
       }
     else
       e = e->next_caller;
-  for (i = 0; ipa_ref_list_referring_iterate (&node->ref_list,
-					     i, ref); i++)
-    if (ref->use == IPA_REF_ALIAS)
-      {
-	struct cgraph_node *alias = ipa_ref_referring_node (ref);
-        bool saved_written = TREE_ASM_WRITTEN (node->decl);
 
-	/* Force assemble_alias to really output the alias this time instead
-	   of buffering it in same alias pairs.  */
-	TREE_ASM_WRITTEN (node->decl) = 1;
-	do_assemble_alias (alias->decl,
-			   DECL_ASSEMBLER_NAME (node->decl));
-	assemble_thunks_and_aliases (alias);
-	TREE_ASM_WRITTEN (node->decl) = saved_written;
-      }
+  FOR_EACH_ALIAS (node, ref)
+    {
+      struct cgraph_node *alias = dyn_cast <cgraph_node *> (ref->referring);
+      bool saved_written = TREE_ASM_WRITTEN (node->decl);
+
+      /* Force assemble_alias to really output the alias this time instead
+	 of buffering it in same alias pairs.  */
+      TREE_ASM_WRITTEN (node->decl) = 1;
+      do_assemble_alias (alias->decl,
+			 DECL_ASSEMBLER_NAME (node->decl));
+      assemble_thunks_and_aliases (alias);
+      TREE_ASM_WRITTEN (node->decl) = saved_written;
+    }
 }
 
 /* Expand function specified by NODE.  */
@@ -1771,7 +1783,7 @@ expand_function (struct cgraph_node *node)
   /* Signal the start of passes.  */
   invoke_plugin_callbacks (PLUGIN_ALL_PASSES_START, NULL);
 
-  execute_pass_list (g->get_passes ()->all_passes);
+  execute_pass_list (cfun, g->get_passes ()->all_passes);
 
   /* Signal the end of passes.  */
   invoke_plugin_callbacks (PLUGIN_ALL_PASSES_END, NULL);
@@ -1839,7 +1851,7 @@ expand_function (struct cgraph_node *node)
   /* Eliminate all call edges.  This is important so the GIMPLE_CALL no longer
      points to the dead function body.  */
   cgraph_node_remove_callees (node);
-  ipa_remove_all_references (&node->ref_list);
+  node->remove_all_references ();
 }
 
 /* Node comparer that is responsible for the order that corresponds
@@ -2331,5 +2343,41 @@ finalize_compilation_unit (void)
   timevar_pop (TV_CGRAPH);
 }
 
+/* Creates a wrapper from SOURCE node to TARGET node. Thunk is used for this
+   kind of wrapper method.  */
+
+void
+cgraph_make_wrapper (struct cgraph_node *source, struct cgraph_node *target)
+{
+    /* Preserve DECL_RESULT so we get right by reference flag.  */
+    tree decl_result = DECL_RESULT (source->decl);
+
+    /* Remove the function's body.  */
+    cgraph_release_function_body (source);
+    cgraph_reset_node (source);
+
+    DECL_RESULT (source->decl) = decl_result;
+    DECL_INITIAL (source->decl) = NULL;
+    allocate_struct_function (source->decl, false);
+    set_cfun (NULL);
+
+    /* Turn alias into thunk and expand it into GIMPLE representation.  */
+    source->definition = true;
+    source->thunk.thunk_p = true;
+    source->thunk.this_adjusting = false;
+
+    struct cgraph_edge *e = cgraph_create_edge (source, target, NULL, 0,
+						CGRAPH_FREQ_BASE);
+
+    if (!expand_thunk (source, false, true))
+      source->analyzed = true;
+
+    e->call_stmt_cannot_inline_p = true;
+
+    /* Inline summary set-up.  */
+
+    analyze_function (source);
+    inline_analyze_function (source);
+}
 
 #include "gt-cgraphunit.h"

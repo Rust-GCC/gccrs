@@ -61,6 +61,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple.h"
 #include "gimplify.h"
 #include "df.h"
+#include "builtins.h"
 
 
 /* Enumeration for all of the relational tests, so that we can build
@@ -1355,7 +1356,7 @@ xtensa_expand_nonlocal_goto (rtx *operands)
 static struct machine_function *
 xtensa_init_machine_status (void)
 {
-  return ggc_alloc_cleared_machine_function ();
+  return ggc_cleared_alloc<machine_function> ();
 }
 
 

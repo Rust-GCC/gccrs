@@ -61,6 +61,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple.h"
 #include "gimplify.h"
 #include "lto-streamer.h"
+#include "lto-section-names.h"
 
 /* Darwin supports a feature called fix-and-continue, which is used
    for rapid turn around debugging.  When code is compiled with the
@@ -561,7 +562,7 @@ machopic_indirection_name (rtx sym_ref, bool stub_p)
     }
   else
     {
-      p = ggc_alloc_machopic_indirection ();
+      p = ggc_alloc<machopic_indirection> ();
       p->symbol = sym_ref;
       p->ptr_name = xstrdup (buffer);
       p->stub_p = stub_p;
@@ -1299,22 +1300,17 @@ darwin_mergeable_constant_section (tree exp,
     {
       tree size = TYPE_SIZE_UNIT (TREE_TYPE (exp));
 
-      if (TREE_CODE (size) == INTEGER_CST
-	  && TREE_INT_CST_LOW (size) == 4
-	  && TREE_INT_CST_HIGH (size) == 0)
-        return darwin_sections[literal4_section];
-      else if (TREE_CODE (size) == INTEGER_CST
-	       && TREE_INT_CST_LOW (size) == 8
-	       && TREE_INT_CST_HIGH (size) == 0)
-        return darwin_sections[literal8_section];
-      else if (HAVE_GAS_LITERAL16
-	       && TARGET_64BIT
-               && TREE_CODE (size) == INTEGER_CST
-               && TREE_INT_CST_LOW (size) == 16
-               && TREE_INT_CST_HIGH (size) == 0)
-        return darwin_sections[literal16_section];
-      else
-        return readonly_data_section;
+      if (TREE_CODE (size) == INTEGER_CST)
+	{
+	  if (wi::eq_p (size, 4))
+	    return darwin_sections[literal4_section];
+	  else if (wi::eq_p (size, 8))
+	    return darwin_sections[literal8_section];
+	  else if (HAVE_GAS_LITERAL16
+		   && TARGET_64BIT
+		   && wi::eq_p (size, 16))
+	    return darwin_sections[literal16_section];
+	}
     }
 
   return readonly_data_section;
@@ -1526,7 +1522,7 @@ machopic_select_section (tree decl,
 
   one = DECL_P (decl) 
 	&& TREE_CODE (decl) == VAR_DECL 
-	&& DECL_ONE_ONLY (decl);
+	&& DECL_COMDAT_GROUP (decl);
 
   ro = TREE_READONLY (decl) || TREE_CONSTANT (decl) ;
 
@@ -1741,16 +1737,19 @@ machopic_select_rtx_section (enum machine_mode mode, rtx x,
 {
   if (GET_MODE_SIZE (mode) == 8
       && (GET_CODE (x) == CONST_INT
+	  || GET_CODE (x) == CONST_WIDE_INT
 	  || GET_CODE (x) == CONST_DOUBLE))
     return darwin_sections[literal8_section];
   else if (GET_MODE_SIZE (mode) == 4
 	   && (GET_CODE (x) == CONST_INT
+	       || GET_CODE (x) == CONST_WIDE_INT
 	       || GET_CODE (x) == CONST_DOUBLE))
     return darwin_sections[literal4_section];
   else if (HAVE_GAS_LITERAL16
 	   && TARGET_64BIT
 	   && GET_MODE_SIZE (mode) == 16
 	   && (GET_CODE (x) == CONST_INT
+	       || GET_CODE (x) == CONST_WIDE_INT
 	       || GET_CODE (x) == CONST_DOUBLE
 	       || GET_CODE (x) == CONST_VECTOR))
     return darwin_sections[literal16_section];
@@ -1899,9 +1898,6 @@ typedef struct GTY (()) darwin_lto_section_e {
 } darwin_lto_section_e ;
 
 static GTY (()) vec<darwin_lto_section_e, va_gc> *lto_section_names;
-
-/* Segment for LTO data.  */
-#define LTO_SEGMENT_NAME "__GNU_LTO"
 
 /* Section wrapper scheme (used here to wrap the unlimited number of LTO
    sections into three Mach-O ones).
@@ -3501,7 +3497,7 @@ darwin_build_constant_cfstring (tree str)
 	      }
 	}
 
-      *loc = desc = ggc_alloc_cleared_cfstring_descriptor ();
+      *loc = desc = ggc_cleared_alloc<cfstring_descriptor> ();
       desc->literal = str;
 
       /* isa *. */
@@ -3588,7 +3584,7 @@ darwin_enter_string_into_cfstring_table (tree str)
 
   if (!*loc)
     {
-      *loc = ggc_alloc_cleared_cfstring_descriptor ();
+      *loc = ggc_cleared_alloc<cfstring_descriptor> ();
       ((struct cfstring_descriptor *)*loc)->literal = str;
     }
 }
@@ -3608,7 +3604,7 @@ darwin_function_section (tree decl, enum node_frequency freq,
 
   /* If there is a specified section name, we should not be trying to
      override.  */
-  if (decl && DECL_SECTION_NAME (decl) != NULL_TREE)
+  if (decl && DECL_SECTION_NAME (decl) != NULL)
     return get_named_section (decl, NULL, 0);
 
   /* We always put unlikely executed stuff in the cold section.  */

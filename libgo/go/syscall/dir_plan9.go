@@ -11,6 +11,7 @@ import "errors"
 var (
 	ErrShortStat = errors.New("stat buffer too short")
 	ErrBadStat   = errors.New("malformed stat buffer")
+	ErrBadName   = errors.New("bad character in file name")
 )
 
 // A Qid represents a 9P server's unique identification for a file.
@@ -53,7 +54,7 @@ var nullDir = Dir{
 }
 
 // Null assigns special "don't touch" values to members of d to
-// avoid modifiying them during syscall.Wstat.
+// avoid modifying them during syscall.Wstat.
 func (d *Dir) Null() { *d = nullDir }
 
 // Marshal encodes a 9P stat message corresponding to d into b
@@ -63,6 +64,12 @@ func (d *Dir) Marshal(b []byte) (n int, err error) {
 	n = STATFIXLEN + len(d.Name) + len(d.Uid) + len(d.Gid) + len(d.Muid)
 	if n > len(b) {
 		return n, ErrShortStat
+	}
+
+	for _, c := range d.Name {
+		if c == '/' {
+			return n, ErrBadName
+		}
 	}
 
 	b = pbit16(b, uint16(n)-2)

@@ -367,6 +367,7 @@ check_conflict (symbol_attribute *attr, const char *name, locus *where)
     *asynchronous = "ASYNCHRONOUS", *codimension = "CODIMENSION",
     *contiguous = "CONTIGUOUS", *generic = "GENERIC";
   static const char *threadprivate = "THREADPRIVATE";
+  static const char *omp_declare_target = "OMP DECLARE TARGET";
 
   const char *a1, *a2;
   int standard;
@@ -453,9 +454,11 @@ check_conflict (symbol_attribute *attr, const char *name, locus *where)
   conf (dummy, entry);
   conf (dummy, intrinsic);
   conf (dummy, threadprivate);
+  conf (dummy, omp_declare_target);
   conf (pointer, target);
   conf (pointer, intrinsic);
   conf (pointer, elemental);
+  conf (pointer, codimension);
   conf (allocatable, elemental);
 
   conf (target, external);
@@ -495,6 +498,7 @@ check_conflict (symbol_attribute *attr, const char *name, locus *where)
   conf (in_equivalence, entry);
   conf (in_equivalence, allocatable);
   conf (in_equivalence, threadprivate);
+  conf (in_equivalence, omp_declare_target);
 
   conf (dummy, result);
   conf (entry, result);
@@ -531,8 +535,8 @@ check_conflict (symbol_attribute *attr, const char *name, locus *where)
   conf (cray_pointer, entry);
 
   conf (cray_pointee, allocatable);
-  conf (cray_pointer, contiguous);
-  conf (cray_pointer, codimension);
+  conf (cray_pointee, contiguous);
+  conf (cray_pointee, codimension);
   conf (cray_pointee, intent);
   conf (cray_pointee, optional);
   conf (cray_pointee, dummy);
@@ -543,6 +547,7 @@ check_conflict (symbol_attribute *attr, const char *name, locus *where)
   conf (cray_pointee, in_common);
   conf (cray_pointee, in_equivalence);
   conf (cray_pointee, threadprivate);
+  conf (cray_pointee, omp_declare_target);
 
   conf (data, dummy);
   conf (data, function);
@@ -596,6 +601,8 @@ check_conflict (symbol_attribute *attr, const char *name, locus *where)
 
   conf (proc_pointer, abstract)
 
+  conf (entry, omp_declare_target)
+
   a1 = gfc_code2string (flavors, attr->flavor);
 
   if (attr->in_namelist
@@ -631,6 +638,7 @@ check_conflict (symbol_attribute *attr, const char *name, locus *where)
       conf2 (function);
       conf2 (subroutine);
       conf2 (threadprivate);
+      conf2 (omp_declare_target);
 
       if (attr->access == ACCESS_PUBLIC || attr->access == ACCESS_PRIVATE)
 	{
@@ -712,6 +720,7 @@ check_conflict (symbol_attribute *attr, const char *name, locus *where)
       conf2 (subroutine);
       conf2 (threadprivate);
       conf2 (result);
+      conf2 (omp_declare_target);
 
       if (attr->intent != INTENT_UNKNOWN)
 	{
@@ -1202,6 +1211,22 @@ gfc_add_threadprivate (symbol_attribute *attr, const char *name, locus *where)
     }
 
   attr->threadprivate = 1;
+  return check_conflict (attr, name, where);
+}
+
+
+bool
+gfc_add_omp_declare_target (symbol_attribute *attr, const char *name,
+			    locus *where)
+{
+
+  if (check_used (attr, name, where))
+    return false;
+
+  if (attr->omp_declare_target)
+    return true;
+
+  attr->omp_declare_target = 1;
   return check_conflict (attr, name, where);
 }
 
@@ -1760,6 +1785,9 @@ gfc_copy_attr (symbol_attribute *dest, symbol_attribute *src, locus *where)
     goto fail;
   if (src->threadprivate
       && !gfc_add_threadprivate (dest, NULL, where))
+    goto fail;
+  if (src->omp_declare_target
+      && !gfc_add_omp_declare_target (dest, NULL, where))
     goto fail;
   if (src->target && !gfc_add_target (dest, where))
     goto fail;
@@ -2450,17 +2478,20 @@ gfc_get_uop (const char *name)
 {
   gfc_user_op *uop;
   gfc_symtree *st;
+  gfc_namespace *ns = gfc_current_ns;
 
-  st = gfc_find_symtree (gfc_current_ns->uop_root, name);
+  if (ns->omp_udr_ns)
+    ns = ns->parent;
+  st = gfc_find_symtree (ns->uop_root, name);
   if (st != NULL)
     return st->n.uop;
 
-  st = gfc_new_symtree (&gfc_current_ns->uop_root, name);
+  st = gfc_new_symtree (&ns->uop_root, name);
 
   uop = st->n.uop = XCNEW (gfc_user_op);
   uop->name = gfc_get_string (name);
   uop->access = ACCESS_UNKNOWN;
-  uop->ns = gfc_current_ns;
+  uop->ns = ns;
 
   return uop;
 }
@@ -2770,6 +2801,12 @@ gfc_get_sym_tree (const char *name, gfc_namespace *ns, gfc_symtree **result,
 
   /* Try to find the symbol in ns.  */
   st = gfc_find_symtree (ns->sym_root, name);
+
+  if (st == NULL && ns->omp_udr_ns)
+    {
+      ns = ns->parent;
+      st = gfc_find_symtree (ns->sym_root, name);
+    }
 
   if (st == NULL)
     {
@@ -3269,6 +3306,23 @@ free_common_tree (gfc_symtree * common_tree)
 }  
 
 
+/* Recursive function that deletes an entire tree and all the common
+   head structures it points to.  */
+
+static void
+free_omp_udr_tree (gfc_symtree * omp_udr_tree)
+{
+  if (omp_udr_tree == NULL)
+    return;
+
+  free_omp_udr_tree (omp_udr_tree->left);
+  free_omp_udr_tree (omp_udr_tree->right);
+
+  gfc_free_omp_udr (omp_udr_tree->n.omp_udr);
+  free (omp_udr_tree);
+}
+
+
 /* Recursive function that deletes an entire tree and all the user
    operator nodes that it contains.  */
 
@@ -3465,9 +3519,11 @@ gfc_free_namespace (gfc_namespace *ns)
   free_sym_tree (ns->sym_root);
   free_uop_tree (ns->uop_root);
   free_common_tree (ns->common_root);
+  free_omp_udr_tree (ns->omp_udr_root);
   free_tb_tree (ns->tb_sym_root);
   free_tb_tree (ns->tb_uop_root);
   gfc_free_finalizer_list (ns->finalizers);
+  gfc_free_omp_declare_simd_list (ns->omp_declare_simd);
   gfc_free_charlen (ns->cl_list, NULL);
   free_st_labels (ns->st_labels);
 
@@ -4014,16 +4070,21 @@ add_proc_interface (gfc_symbol *sym, ifsrc source, gfc_formal_arglist *formal)
    each arg is set according to the existing ones.  This function is
    used when creating procedure declaration variables from a procedure
    declaration statement (see match_proc_decl()) to create the formal
-   args based on the args of a given named interface.  */
+   args based on the args of a given named interface.
+
+   When an actual argument list is provided, skip the absent arguments.
+   To be used together with gfc_se->ignore_optional.  */
 
 void
-gfc_copy_formal_args_intr (gfc_symbol *dest, gfc_intrinsic_sym *src)
+gfc_copy_formal_args_intr (gfc_symbol *dest, gfc_intrinsic_sym *src,
+			   gfc_actual_arglist *actual)
 {
   gfc_formal_arglist *head = NULL;
   gfc_formal_arglist *tail = NULL;
   gfc_formal_arglist *formal_arg = NULL;
   gfc_intrinsic_arg *curr_arg = NULL;
   gfc_formal_arglist *formal_prev = NULL;
+  gfc_actual_arglist *act_arg = actual;
   /* Save current namespace so we can change it for formal args.  */
   gfc_namespace *parent_ns = gfc_current_ns;
 
@@ -4034,6 +4095,17 @@ gfc_copy_formal_args_intr (gfc_symbol *dest, gfc_intrinsic_sym *src)
 
   for (curr_arg = src->formal; curr_arg; curr_arg = curr_arg->next)
     {
+      /* Skip absent arguments.  */
+      if (actual)
+	{
+	  gcc_assert (act_arg != NULL);
+	  if (act_arg->expr == NULL)
+	    {
+	      act_arg = act_arg->next;
+	      continue;
+	    }
+	  act_arg = act_arg->next;
+	}
       formal_arg = gfc_get_formal_arglist ();
       gfc_get_symbol (curr_arg->name, gfc_current_ns, &(formal_arg->sym));
 

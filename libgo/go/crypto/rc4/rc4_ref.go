@@ -2,19 +2,12 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build !amd64,!arm,!386
+// +build !amd64,!amd64p32,!arm,!386
 
 package rc4
 
 // XORKeyStream sets dst to the result of XORing src with the key stream.
 // Dst and src may be the same slice but otherwise should not overlap.
 func (c *Cipher) XORKeyStream(dst, src []byte) {
-	i, j := c.i, c.j
-	for k, v := range src {
-		i += 1
-		j += uint8(c.s[i])
-		c.s[i], c.s[j] = c.s[j], c.s[i]
-		dst[k] = v ^ byte(c.s[byte(c.s[i]+c.s[j])])
-	}
-	c.i, c.j = i, j
+	c.xorKeyStreamGeneric(dst, src)
 }

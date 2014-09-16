@@ -758,11 +758,10 @@
   [(set_attr "type" "sselog1,ssemov,ssemov")
    (set_attr "prefix" "maybe_vex")
    (set (attr "mode")
-	(cond [(match_test "TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL")
-		 (const_string "<ssePSmode>")
-	       (and (match_test "<MODE_SIZE> == 16")
-		    (and (eq_attr "alternative" "2")
-			 (match_test "TARGET_SSE_TYPELESS_STORES")))
+	(cond [(and (match_test "<MODE_SIZE> == 16")
+		    (ior (match_test "TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL")
+			 (and (eq_attr "alternative" "2")
+			      (match_test "TARGET_SSE_TYPELESS_STORES"))))
 		 (const_string "<ssePSmode>")
 	       (match_test "TARGET_AVX")
 		 (const_string "<sseinsnmode>")
@@ -967,7 +966,8 @@
    (set_attr "ssememalign" "8")
    (set_attr "prefix" "maybe_vex")
    (set (attr "mode")
-	(cond [(match_test "TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL")
+	(cond [(and (match_test "<MODE_SIZE> == 16")
+		    (match_test "TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL"))
 		 (const_string "<ssePSmode>")
 	       (match_test "TARGET_AVX")
 		 (const_string "<MODE>")
@@ -1089,7 +1089,8 @@
      (const_string "1")))
    (set_attr "prefix" "maybe_vex")
    (set (attr "mode")
-	(cond [(match_test "TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL")
+	(cond [(and (match_test "<MODE_SIZE> == 16")
+		    (match_test "TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL"))
 		 (const_string "<ssePSmode>")
 	       (match_test "TARGET_AVX")
 		 (const_string "<sseinsnmode>")
@@ -2377,7 +2378,8 @@
    (set_attr "type" "sselog")
    (set_attr "prefix" "orig,maybe_evex")
    (set (attr "mode")
-	(cond [(match_test "TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL")
+	(cond [(and (match_test "<MODE_SIZE> == 16")
+		    (match_test "TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL"))
 		 (const_string "<ssePSmode>")
 	       (match_test "TARGET_AVX")
 		 (const_string "<MODE>")
@@ -2449,7 +2451,8 @@
    (set_attr "type" "sselog")
    (set_attr "prefix" "orig,maybe_evex")
    (set (attr "mode")
-	(cond [(match_test "TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL")
+	(cond [(and (match_test "<MODE_SIZE> == 16")
+		    (match_test "TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL"))
 		 (const_string "<ssePSmode>")
 	       (match_test "TARGET_AVX")
 		 (const_string "<MODE>")
@@ -2513,7 +2516,8 @@
    (set_attr "type" "sselog")
    (set_attr "prefix" "orig,vex")
    (set (attr "mode")
-	(cond [(match_test "TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL")
+	(cond [(and (match_test "<MODE_SIZE> == 16")
+		    (match_test "TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL"))
 		 (const_string "V4SF")
 	       (match_test "TARGET_AVX")
 		 (const_string "<ssevecmode>")
@@ -2600,7 +2604,8 @@
    (set_attr "type" "sselog")
    (set_attr "prefix" "orig,vex")
    (set (attr "mode")
-	(cond [(match_test "TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL")
+	(cond [(and (match_test "<MODE_SIZE> == 16")
+		    (match_test "TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL"))
 		 (const_string "V4SF")
 	       (match_test "TARGET_AVX")
 		 (const_string "<ssevecmode>")
@@ -5887,9 +5892,10 @@
 	      (match_operand 5  "const_0_to_15_operand")]))
 	  (match_operand:<ssequartermode> 6 "memory_operand" "0")
 	  (match_operand:QI 7 "register_operand" "Yk")))]
-  "TARGET_AVX512F && (INTVAL (operands[2]) = INTVAL (operands[3]) - 1)
-  && (INTVAL (operands[3]) = INTVAL (operands[4]) - 1)
-  && (INTVAL (operands[4]) = INTVAL (operands[5]) - 1)"
+  "TARGET_AVX512F
+   && (INTVAL (operands[2]) == (INTVAL (operands[3]) - 1)
+       && INTVAL (operands[3]) == (INTVAL (operands[4]) - 1)
+       && INTVAL (operands[4]) == (INTVAL (operands[5]) - 1))"
 {
   operands[2] = GEN_INT ((INTVAL (operands[2])) >> 2);
   return "vextract<shuffletype>32x4\t{%2, %1, %0%{%7%}|%0%{%7%}, %1, %2}";
@@ -5909,9 +5915,10 @@
             (match_operand 3  "const_0_to_15_operand")
             (match_operand 4  "const_0_to_15_operand")
             (match_operand 5  "const_0_to_15_operand")])))]
-  "TARGET_AVX512F && (INTVAL (operands[2]) = INTVAL (operands[3]) - 1)
-  && (INTVAL (operands[3]) = INTVAL (operands[4]) - 1)
-  && (INTVAL (operands[4]) = INTVAL (operands[5]) - 1)"
+  "TARGET_AVX512F
+   && (INTVAL (operands[2]) == (INTVAL (operands[3]) - 1)
+       && INTVAL (operands[3]) == (INTVAL (operands[4]) - 1)
+       && INTVAL (operands[4]) == (INTVAL (operands[5]) - 1))"
 {
   operands[2] = GEN_INT ((INTVAL (operands[2])) >> 2);
   return "vextract<shuffletype>32x4\t{%2, %1, %0<mask_operand6>|%0<mask_operand6>, %1, %2}";
@@ -8255,6 +8262,36 @@
   DONE;
 })
 
+(define_expand "usadv16qi"
+  [(match_operand:V4SI 0 "register_operand")
+   (match_operand:V16QI 1 "register_operand")
+   (match_operand:V16QI 2 "nonimmediate_operand")
+   (match_operand:V4SI 3 "nonimmediate_operand")]
+  "TARGET_SSE2"
+{
+  rtx t1 = gen_reg_rtx (V2DImode);
+  rtx t2 = gen_reg_rtx (V4SImode);
+  emit_insn (gen_sse2_psadbw (t1, operands[1], operands[2]));
+  convert_move (t2, t1, 0);
+  emit_insn (gen_addv4si3 (operands[0], t2, operands[3]));
+  DONE;
+})
+
+(define_expand "usadv32qi"
+  [(match_operand:V8SI 0 "register_operand")
+   (match_operand:V32QI 1 "register_operand")
+   (match_operand:V32QI 2 "nonimmediate_operand")
+   (match_operand:V8SI 3 "nonimmediate_operand")]
+  "TARGET_AVX2"
+{
+  rtx t1 = gen_reg_rtx (V4DImode);
+  rtx t2 = gen_reg_rtx (V8SImode);
+  emit_insn (gen_avx2_psadbw (t1, operands[1], operands[2]));
+  convert_move (t2, t1, 0);
+  emit_insn (gen_addv8si3 (operands[0], t2, operands[3]));
+  DONE;
+})
+
 (define_insn "ashr<mode>3"
   [(set (match_operand:VI24_AVX2 0 "register_operand" "=x,x")
 	(ashiftrt:VI24_AVX2
@@ -9047,7 +9084,8 @@
        (const_string "*")))
    (set_attr "prefix" "<mask_prefix3>")
    (set (attr "mode")
-	(cond [(match_test "TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL")
+	(cond [(and (match_test "<MODE_SIZE> == 16")
+		    (match_test "TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL"))
 		 (const_string "<ssePSmode>")
 	       (match_test "TARGET_AVX2")
 		 (const_string "<sseinsnmode>")
@@ -9140,7 +9178,8 @@
        (const_string "*")))
    (set_attr "prefix" "<mask_prefix3>")
    (set (attr "mode")
-	(cond [(match_test "TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL")
+	(cond [(and (match_test "<MODE_SIZE> == 16")
+		    (match_test "TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL"))
 		 (const_string "<ssePSmode>")
 	       (match_test "TARGET_AVX2")
 		 (const_string "<sseinsnmode>")
@@ -14543,6 +14582,35 @@
    (set_attr "length_immediate" "1")
    (set_attr "prefix" "vex")
    (set_attr "mode" "<sseinsnmode>")])
+
+(define_insn "*ssse3_palignr<mode>_perm"
+  [(set (match_operand:V_128 0 "register_operand" "=x,x")
+      (vec_select:V_128
+	(match_operand:V_128 1 "register_operand" "0,x")
+	(match_parallel 2 "palignr_operand"
+	  [(match_operand 3 "const_int_operand" "n, n")])))]
+  "TARGET_SSSE3"
+{
+  enum machine_mode imode = GET_MODE_INNER (GET_MODE (operands[0]));
+  operands[2] = GEN_INT (INTVAL (operands[3]) * GET_MODE_SIZE (imode));
+
+  switch (which_alternative)
+    {
+    case 0:
+      return "palignr\t{%2, %1, %0|%0, %1, %2}";
+    case 1:
+      return "vpalignr\t{%2, %1, %1, %0|%0, %1, %1, %2}";
+    default:
+      gcc_unreachable ();
+    }
+}
+  [(set_attr "isa" "noavx,avx")
+   (set_attr "type" "sseishft")
+   (set_attr "atom_unit" "sishuf")
+   (set_attr "prefix_data16" "1,*")
+   (set_attr "prefix_extra" "1")
+   (set_attr "length_immediate" "1")
+   (set_attr "prefix" "orig,vex")])
 
 (define_expand "avx_vinsertf128<mode>"
   [(match_operand:V_256 0 "register_operand")

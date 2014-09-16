@@ -60,6 +60,7 @@ extern size_t lhd_tree_size (enum tree_code);
 extern HOST_WIDE_INT lhd_to_target_charset (HOST_WIDE_INT);
 extern tree lhd_expr_to_decl (tree, bool *, bool *);
 extern tree lhd_builtin_function (tree);
+extern tree lhd_enum_underlying_base_type (const_tree);
 
 /* Declarations of default tree inlining hooks.  */
 extern void lhd_initialize_diagnostics (diagnostic_context *);
@@ -74,6 +75,7 @@ extern bool lhd_handle_option (size_t, const char *, int, int, location_t,
 extern int lhd_gimplify_expr (tree *, gimple_seq *, gimple_seq *);
 extern enum omp_clause_default_kind lhd_omp_predetermined_sharing (tree);
 extern tree lhd_omp_assignment (tree, tree, tree);
+extern void lhd_omp_finish_clause (tree, gimple_seq *);
 struct gimplify_omp_ctx;
 extern void lhd_omp_firstprivatize_type_sizes (struct gimplify_omp_ctx *,
 					       tree);
@@ -173,6 +175,7 @@ extern tree lhd_make_node (enum tree_code);
 #define LANG_HOOKS_GET_SUBRANGE_BOUNDS	NULL
 #define LANG_HOOKS_DESCRIPTIVE_TYPE	NULL
 #define LANG_HOOKS_RECONSTRUCT_COMPLEX_TYPE reconstruct_complex_type
+#define LANG_HOOKS_ENUM_UNDERLYING_BASE_TYPE lhd_enum_underlying_base_type
 
 #define LANG_HOOKS_FOR_TYPES_INITIALIZER { \
   LANG_HOOKS_MAKE_TYPE, \
@@ -191,7 +194,8 @@ extern tree lhd_make_node (enum tree_code);
   LANG_HOOKS_GET_ARRAY_DESCR_INFO, \
   LANG_HOOKS_GET_SUBRANGE_BOUNDS, \
   LANG_HOOKS_DESCRIPTIVE_TYPE, \
-  LANG_HOOKS_RECONSTRUCT_COMPLEX_TYPE \
+  LANG_HOOKS_RECONSTRUCT_COMPLEX_TYPE, \
+  LANG_HOOKS_ENUM_UNDERLYING_BASE_TYPE \
 }
 
 /* Declaration hooks.  */
@@ -211,8 +215,9 @@ extern tree lhd_make_node (enum tree_code);
 #define LANG_HOOKS_OMP_CLAUSE_DEFAULT_CTOR hook_tree_tree_tree_tree_null
 #define LANG_HOOKS_OMP_CLAUSE_COPY_CTOR lhd_omp_assignment
 #define LANG_HOOKS_OMP_CLAUSE_ASSIGN_OP lhd_omp_assignment
+#define LANG_HOOKS_OMP_CLAUSE_LINEAR_CTOR NULL
 #define LANG_HOOKS_OMP_CLAUSE_DTOR hook_tree_tree_tree_null
-#define LANG_HOOKS_OMP_FINISH_CLAUSE hook_void_tree
+#define LANG_HOOKS_OMP_FINISH_CLAUSE lhd_omp_finish_clause
 
 #define LANG_HOOKS_DECLS { \
   LANG_HOOKS_GLOBAL_BINDINGS_P, \
@@ -234,6 +239,7 @@ extern tree lhd_make_node (enum tree_code);
   LANG_HOOKS_OMP_CLAUSE_DEFAULT_CTOR, \
   LANG_HOOKS_OMP_CLAUSE_COPY_CTOR, \
   LANG_HOOKS_OMP_CLAUSE_ASSIGN_OP, \
+  LANG_HOOKS_OMP_CLAUSE_LINEAR_CTOR, \
   LANG_HOOKS_OMP_CLAUSE_DTOR, \
   LANG_HOOKS_OMP_FINISH_CLAUSE \
 }

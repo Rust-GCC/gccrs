@@ -1,6 +1,121 @@
-2014-04-22  Release Manager
+2014-07-17  Roman Gareev  <gareevroman@gmail.com>
 
-	* GCC 4.9.0 released.
+	* configure.ac: Don't accept isl 0.11.
+	* configure: Regenerate.
+
+2014-07-16  Adhemerval Zanella  <azanella@linux.vnet.ibm.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2014-07-05  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac: Don't accept isl 0.10.
+	* configure: Regenerate.
+
+2014-06-23  Bernd Edlinger  <bernd.edlinger@hotmail.de>
+
+	Fix include path for in-tree cloog.
+	* config/cloog.m4 (CLOOG_INIT_FLAGS): Remove bogus include path.
+	* configure: Regenerate.
+
+2014-06-18  Richard Henderson  <rth@redhat.com>
+
+	* .gitignore: Import gcc_update output.
+
+2014-06-13  Thomas Schwinge  <thomas@codesourcery.com>
+
+	* config-ml.in: Robustify ac_configure_args parsing.
+
+	* configure.ac (--enable-linker-plugin-configure-flags)
+	(--enable-linker-plugin-flags): New flags.
+	(configdirs): Conditionally add libiberty-linker-plugin.
+	* configure: Regenerate.
+	* Makefile.def (host_modules): Add libiberty-linker-plugin.
+	(host_modules) <lto-plugin>: Pay attention to
+	@extra_linker_plugin_flags@ and
+	@extra_linker_plugin_configure_flags@.
+	(all-lto-plugin): Also depend on all-libiberty-linker-plugin.
+	* Makefile.in: Regenerate.
+
+	* Makefile.tpl (configure-[+prefix+][+module+])
+	(configure-stage[+id+]-[+prefix+][+module+]): If specified, use
+	"module_srcdir" instead of "module" for locating a module's srcdir.
+	* Makefile.in: Regenerate.
+
+2014-06-10  Matthew Fortune  <matthew.fortune@imgtec.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2014-06-06  Sebastian Pop  <sebpop@gmail.com>
+
+	* MAINTAINERS: Update my email address.
+
+2014-06-04  Thomas Preud'homme  <thomas.preudhomme@arm.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2014-06-03  Andrew Bennett  <andrew.bennett@imgtec.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2014-05-30  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/61011
+	* configure.ac (--disable-libstdcxx): Set noconfigdirs correctly.
+	Disable libcilkrts, libitm, libsanitizer when not building libstdc++.
+	* configure: Regenerate.
+
+2014-05-28  Pedro Alves  <palves@redhat.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2014-05-22  Maxim Kuvyrkov  <maxim.kuvyrkov@linaro.org>
+
+	* MAINTAINERS: Update my affiliation/email.
+
+2014-05-19  Mike Stump  <mikestump@comcast.net>
+
+	* MAINTAINERS: Add wide-int reviewers.
+
+2014-05-14  Sandra Loosemore  <sandra@codesourcery.com>
+
+	* configure.ac (target_makefile_frag): Set for nios2-*-elf*.
+	* configure: Regenerated.
+
+2014-05-15  Torvald Riegel  <triegel@redhat.com>
+
+	* MAINTAINERS (libitm): Add myself as maintainer.
+
+2014-05-07  Charles Baylis  <charles.baylis@linaro.org>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2014-05-01  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* config.sub, config.guess: Import from upstream.
+
+2014-04-29  Alan Lawrence  <alan.lawrence@arm.com>
+
+	* MAINTAINERS (Write After Approval): Put myself in correct order.
+
+2014-04-29  Alan Lawrence  <alan.lawrence@arm.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2014-04-24  Laurynas Biveinis  <laurynas.biveinis@gmail.com>
+
+	* MAINTAINERS: Move myself from Reviewers to Write After Approval
+	section.
+
+2014-04-21 Rafael Ávila de Espíndola <rafael.espindola@gmail.com>
+
+	* MAINTAINERS (Write After Approval): Delete myself.
+
+2014-04-17  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/56781
+	* libtool-ldflags: Also prefix -static-lib*, -shared-lib*
+	and -B* options with -Xcompiler.
 
 2014-04-04  Eric Botcazou  <ebotcazou@adacore.com>
 
@@ -197,7 +312,7 @@
 2013-09-12  DJ Delorie  <dj@redhat.com>
 
 	* MAINTAINERS: Add Nick Clifton and DJ Delorie as msp430
-        maintainers.
+	maintainers.
 
 2013-09-03  Richard Biener  <rguenther@suse.de>
 

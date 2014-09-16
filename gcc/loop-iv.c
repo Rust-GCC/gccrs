@@ -134,7 +134,7 @@ biv_entry_hasher::equal (const value_type *b, const compare_type *r)
 
 /* Bivs of the current loop.  */
 
-static hash_table <biv_entry_hasher> bivs;
+static hash_table<biv_entry_hasher> *bivs;
 
 static bool iv_analyze_op (rtx, rtx, struct rtx_iv *);
 
@@ -269,7 +269,7 @@ clear_iv_info (void)
 	}
     }
 
-  bivs.empty ();
+  bivs->empty ();
 }
 
 
@@ -284,7 +284,7 @@ iv_analysis_loop_init (struct loop *loop)
   if (clean_slate)
     {
       df_set_flags (DF_EQ_NOTES + DF_DEFER_INSN_RESCAN);
-      bivs.create (10);
+      bivs = new hash_table<biv_entry_hasher> (10);
       clean_slate = false;
     }
   else
@@ -844,7 +844,7 @@ record_iv (df_ref def, struct rtx_iv *iv)
 static bool
 analyzed_for_bivness_p (rtx def, struct rtx_iv *iv)
 {
-  struct biv_entry *biv = bivs.find_with_hash (def, REGNO (def));
+  struct biv_entry *biv = bivs->find_with_hash (def, REGNO (def));
 
   if (!biv)
     return false;
@@ -857,7 +857,7 @@ static void
 record_biv (rtx def, struct rtx_iv *iv)
 {
   struct biv_entry *biv = XNEW (struct biv_entry);
-  biv_entry **slot = bivs.find_slot_with_hash (def, REGNO (def), INSERT);
+  biv_entry **slot = bivs->find_slot_with_hash (def, REGNO (def), INSERT);
 
   biv->regno = REGNO (def);
   biv->iv = *iv;
@@ -1299,7 +1299,8 @@ iv_analysis_done (void)
       clear_iv_info ();
       clean_slate = true;
       df_finish_pass (true);
-      bivs.dispose ();
+      delete bivs;
+      bivs = NULL;
       free (iv_ref_table);
       iv_ref_table = NULL;
       iv_ref_table_size = 0;
@@ -1308,12 +1309,12 @@ iv_analysis_done (void)
 
 /* Computes inverse to X modulo (1 << MOD).  */
 
-static unsigned HOST_WIDEST_INT
-inverse (unsigned HOST_WIDEST_INT x, int mod)
+static uint64_t
+inverse (uint64_t x, int mod)
 {
-  unsigned HOST_WIDEST_INT mask =
-	  ((unsigned HOST_WIDEST_INT) 1 << (mod - 1) << 1) - 1;
-  unsigned HOST_WIDEST_INT rslt = 1;
+  uint64_t mask =
+	  ((uint64_t) 1 << (mod - 1) << 1) - 1;
+  uint64_t rslt = 1;
   int i;
 
   for (i = 0; i < mod - 1; i++)
@@ -1730,6 +1731,21 @@ canon_condition (rtx cond)
     cond = gen_rtx_fmt_ee (code, SImode, op0, op1);
 
   return cond;
+}
+
+/* Reverses CONDition; returns NULL if we cannot.  */
+
+static rtx
+reversed_condition (rtx cond)
+{
+  enum rtx_code reversed;
+  reversed = reversed_comparison_code (cond, NULL);
+  if (reversed == UNKNOWN)
+    return NULL_RTX;
+  else
+    return gen_rtx_fmt_ee (reversed,
+			   GET_MODE (cond), XEXP (cond, 0),
+			   XEXP (cond, 1));
 }
 
 /* Tries to use the fact that COND holds to simplify EXPR.  ALTERED is the
@@ -2248,13 +2264,13 @@ canonicalize_iv_subregs (struct rtx_iv *iv0, struct rtx_iv *iv1,
    a number of fields in DESC already filled in.  OLD_NITER is the original
    expression for the number of iterations, before we tried to simplify it.  */
 
-static unsigned HOST_WIDEST_INT
+static uint64_t
 determine_max_iter (struct loop *loop, struct niter_desc *desc, rtx old_niter)
 {
   rtx niter = desc->niter_expr;
   rtx mmin, mmax, cmp;
-  unsigned HOST_WIDEST_INT nmax, inc;
-  unsigned HOST_WIDEST_INT andmax = 0;
+  uint64_t nmax, inc;
+  uint64_t andmax = 0;
 
   /* We used to look for constant operand 0 of AND,
      but canonicalization should always make this impossible.  */
@@ -2297,7 +2313,7 @@ determine_max_iter (struct loop *loop, struct niter_desc *desc, rtx old_niter)
   if (andmax)
     nmax = MIN (nmax, andmax);
   if (dump_file)
-    fprintf (dump_file, ";; Determined upper bound "HOST_WIDEST_INT_PRINT_DEC".\n",
+    fprintf (dump_file, ";; Determined upper bound %"PRId64".\n",
 	     nmax);
   return nmax;
 }
@@ -2316,8 +2332,8 @@ iv_number_of_iterations (struct loop *loop, rtx insn, rtx condition,
   enum rtx_code cond;
   enum machine_mode mode, comp_mode;
   rtx mmin, mmax, mode_mmin, mode_mmax;
-  unsigned HOST_WIDEST_INT s, size, d, inv, max;
-  HOST_WIDEST_INT up, down, inc, step_val;
+  uint64_t s, size, d, inv, max;
+  int64_t up, down, inc, step_val;
   int was_sharp = false;
   rtx old_niter;
   bool step_is_pow2;
@@ -2610,8 +2626,7 @@ iv_number_of_iterations (struct loop *loop, rtx insn, rtx condition,
 	  max = (up - down) / inc + 1;
 	  if (!desc->infinite
 	      && !desc->assumptions)
-	    record_niter_bound (loop, double_int::from_uhwi (max),
-			        false, true);
+	    record_niter_bound (loop, max, false, true);
 
 	  if (iv0.step == const0_rtx)
 	    {
@@ -2650,8 +2665,8 @@ iv_number_of_iterations (struct loop *loop, rtx insn, rtx condition,
       iv1.step = const0_rtx;
       if (INTVAL (iv0.step) < 0)
 	{
-	  iv0.step = simplify_gen_unary (NEG, comp_mode, iv0.step, mode);
-	  iv1.base = simplify_gen_unary (NEG, comp_mode, iv1.base, mode);
+	  iv0.step = simplify_gen_unary (NEG, comp_mode, iv0.step, comp_mode);
+	  iv1.base = simplify_gen_unary (NEG, comp_mode, iv1.base, comp_mode);
 	}
       iv0.step = lowpart_subreg (mode, iv0.step, comp_mode);
 
@@ -2665,7 +2680,7 @@ iv_number_of_iterations (struct loop *loop, rtx insn, rtx condition,
 	  d *= 2;
 	  size--;
 	}
-      bound = GEN_INT (((unsigned HOST_WIDEST_INT) 1 << (size - 1 ) << 1) - 1);
+      bound = GEN_INT (((uint64_t) 1 << (size - 1 ) << 1) - 1);
 
       tmp1 = lowpart_subreg (mode, iv1.base, comp_mode);
       tmp = simplify_gen_binary (UMOD, mode, tmp1, gen_int_mode (d, mode));
@@ -2819,14 +2834,13 @@ iv_number_of_iterations (struct loop *loop, rtx insn, rtx condition,
 
   if (CONST_INT_P (desc->niter_expr))
     {
-      unsigned HOST_WIDEST_INT val = INTVAL (desc->niter_expr);
+      uint64_t val = INTVAL (desc->niter_expr);
 
       desc->const_iter = true;
       desc->niter = val & GET_MODE_MASK (desc->mode);
       if (!desc->infinite
 	  && !desc->assumptions)
-        record_niter_bound (loop, double_int::from_uhwi (desc->niter),
-			    false, true);
+        record_niter_bound (loop, desc->niter, false, true);
     }
   else
     {
@@ -2835,8 +2849,7 @@ iv_number_of_iterations (struct loop *loop, rtx insn, rtx condition,
 	goto zero_iter_simplify;
       if (!desc->infinite
 	  && !desc->assumptions)
-	record_niter_bound (loop, double_int::from_uhwi (max),
-			    false, true);
+	record_niter_bound (loop, max, false, true);
 
       /* simplify_using_initial_values does a copy propagation on the registers
 	 in the expression for the number of iterations.  This prolongs life
@@ -2861,8 +2874,7 @@ zero_iter_simplify:
 zero_iter:
   desc->const_iter = true;
   desc->niter = 0;
-  record_niter_bound (loop, double_int_zero,
-		      true, true);
+  record_niter_bound (loop, 0, true, true);
   desc->noloop_assumptions = NULL_RTX;
   desc->niter_expr = const0_rtx;
   return;
@@ -3021,7 +3033,7 @@ get_simple_loop_desc (struct loop *loop)
 
   /* At least desc->infinite is not always initialized by
      find_simple_loop_exit.  */
-  desc = ggc_alloc_cleared_niter_desc ();
+  desc = ggc_cleared_alloc<niter_desc> ();
   iv_analysis_loop_init (loop);
   find_simple_exit (loop, desc);
   loop->simple_loop_desc = desc;

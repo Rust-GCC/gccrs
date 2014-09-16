@@ -28,6 +28,7 @@
 with Einfo;   use Einfo;
 with Exp_Tss; use Exp_Tss;
 with Namet;   use Namet;
+with Opt;     use Opt;
 with Snames;  use Snames;
 with Types;   use Types;
 with Uintp;   use Uintp;
@@ -89,6 +90,17 @@ package Sem_Util is
    pragma Inline (Addressable);
    --  Returns True if the value of V is the word size of an addressable
    --  factor of the word size (typically 8, 16, 32 or 64).
+
+   procedure Aggregate_Constraint_Checks
+     (Exp       : Node_Id;
+      Check_Typ : Entity_Id);
+   --  Checks expression Exp against subtype Check_Typ. If Exp is an aggregate
+   --  and Check_Typ a constrained record type with discriminants, we generate
+   --  the appropriate discriminant checks. If Exp is an array aggregate then
+   --  emit the appropriate length checks. If Exp is a scalar type, or a string
+   --  literal, Exp is changed into Check_Typ'(Exp) to ensure that range checks
+   --  are performed at run time. Also used for expressions in the argument of
+   --  'Update, which shares some of the features of an aggregate.
 
    function Alignment_In_Bits (E : Entity_Id) return Uint;
    --  If the alignment of the type or object E is currently known to the
@@ -1302,10 +1314,15 @@ package Sem_Util is
    function Is_SPARK_Object_Reference (N : Node_Id) return Boolean;
    --  Determines if the tree referenced by N represents an object in SPARK
 
+   function Is_SPARK_Volatile (Id : Entity_Id) return Boolean;
+   --  This routine is similar to predicate Is_Volatile, but it takes SPARK
+   --  semantics into account. In SPARK volatile components to not render a
+   --  type volatile.
+
    function Is_SPARK_Volatile_Object (N : Node_Id) return Boolean;
    --  Determine whether an arbitrary node denotes a volatile object reference
    --  according to the semantics of SPARK. To qualify as volatile, an object
-   --  must be subject to aspect/pragma Volatile or Atomic or have a [sub]type
+   --  must be subject to aspect/pragma Volatile or Atomic, or have a [sub]type
    --  subject to the same attributes. Note that volatile components do not
    --  render an object volatile.
 
@@ -1451,7 +1468,7 @@ package Sem_Util is
    procedure Mark_Coextensions (Context_Nod : Node_Id; Root_Nod : Node_Id);
    --  Given a node which designates the context of analysis and an origin in
    --  the tree, traverse from Root_Nod and mark all allocators as either
-   --  dynamic or static depending on Context_Nod. Any erroneous marking is
+   --  dynamic or static depending on Context_Nod. Any incorrect marking is
    --  cleaned up during resolution.
 
    function May_Be_Lvalue (N : Node_Id) return Boolean;
@@ -1684,8 +1701,17 @@ package Sem_Util is
    procedure Reset_Analyzed_Flags (N : Node_Id);
    --  Reset the Analyzed flags in all nodes of the tree whose root is N
 
+   procedure Restore_SPARK_Mode (Mode : SPARK_Mode_Type);
+   --  Set the current SPARK_Mode to whatever Mode denotes. This routime must
+   --  be used in tandem with Save_SPARK_Mode_And_Set.
+
    function Returns_Unconstrained_Type (Subp : Entity_Id) return Boolean;
    --  Return true if Subp is a function that returns an unconstrained type
+
+   function Root_Type_Of_Full_View (T : Entity_Id) return Entity_Id;
+   --  Similar to attribute Root_Type, but this version always follows the
+   --  Full_View of a private type (if available) while searching for the
+   --  ultimate derivation ancestor.
 
    function Safe_To_Capture_Value
      (N    : Node_Id;
@@ -1735,6 +1761,13 @@ package Sem_Util is
    --  A result of False does not necessarily mean they have different values,
    --  just that it is not possible to determine they have the same value.
 
+   procedure Save_SPARK_Mode_And_Set
+     (Context : Entity_Id;
+      Mode    : out SPARK_Mode_Type);
+   --  Save the current SPARK_Mode in effect in Mode. Establish the SPARK_Mode
+   --  (if any) of a package or a subprogram denoted by Context. This routine
+   --  must be used in tandem with Restore_SPARK_Mode.
+
    function Scope_Within_Or_Same (Scope1, Scope2 : Entity_Id) return Boolean;
    --  Determines if the entity Scope1 is the same as Scope2, or if it is
    --  inside it, where both entities represent scopes. Note that scopes
@@ -1778,6 +1811,9 @@ package Sem_Util is
    --
    --    If restriction No_Dynamic_Attachment is set, then it checks that the
    --    entity is not one of the restricted names for this restriction.
+   --
+   --    If restriction No_Long_Long_Integers is set, then it checks that the
+   --    entity is not Standard.Long_Long_Integer.
    --
    --    If restriction No_Implementation_Identifiers is set, then it checks
    --    that the entity is not implementation defined.

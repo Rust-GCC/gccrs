@@ -1420,6 +1420,32 @@ assign_by_spills (void)
 		 alternatives of insns containing the pseudo.  */
 	      bitmap_set_bit (&changed_pseudo_bitmap, regno);
 	    }
+	  else
+	    {
+	      enum reg_class rclass = lra_get_allocno_class (regno);
+	      enum reg_class spill_class;
+	      
+	      if (targetm.spill_class == NULL
+		  || lra_reg_info[regno].restore_regno < 0
+		  || ! bitmap_bit_p (&lra_inheritance_pseudos, regno)
+		  || (spill_class
+		      = ((enum reg_class)
+			 targetm.spill_class
+			 ((reg_class_t) rclass,
+			  PSEUDO_REGNO_MODE (regno)))) == NO_REGS)
+		continue;
+	      regno_allocno_class_array[regno] = spill_class;
+	      hard_regno = find_hard_regno_for (regno, &cost, -1, false);
+	      if (hard_regno < 0)
+		regno_allocno_class_array[regno] = rclass;
+	      else
+		{
+		  setup_reg_classes
+		    (regno, spill_class, spill_class, spill_class);
+		  assign_hard_regno (hard_regno, regno);
+		  bitmap_set_bit (&changed_pseudo_bitmap, regno);
+		}
+	    }
 	}
     }
   free (update_hard_regno_preference_check);
@@ -1460,12 +1486,13 @@ lra_assign (void)
   create_live_range_start_chains ();
   setup_live_pseudos_and_spill_after_risky_transforms (&all_spilled_pseudos);
 #ifdef ENABLE_CHECKING
-  for (i = FIRST_PSEUDO_REGISTER; i < max_regno; i++)
-    if (lra_reg_info[i].nrefs != 0 && reg_renumber[i] >= 0
-	&& lra_reg_info[i].call_p
-	&& overlaps_hard_reg_set_p (call_used_reg_set,
-				    PSEUDO_REGNO_MODE (i), reg_renumber[i]))
-      gcc_unreachable ();
+  if (!flag_use_caller_save)
+    for (i = FIRST_PSEUDO_REGISTER; i < max_regno; i++)
+      if (lra_reg_info[i].nrefs != 0 && reg_renumber[i] >= 0
+	  && lra_reg_info[i].call_p
+	  && overlaps_hard_reg_set_p (call_used_reg_set,
+				      PSEUDO_REGNO_MODE (i), reg_renumber[i]))
+	gcc_unreachable ();
 #endif
   /* Setup insns to process on the next constraint pass.  */
   bitmap_initialize (&changed_pseudo_bitmap, &reg_obstack);

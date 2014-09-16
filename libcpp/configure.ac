@@ -64,6 +64,10 @@ AC_TYPE_SIZE_T
 AC_TYPE_SSIZE_T
 AC_TYPE_UINTPTR_T
 AC_CHECK_TYPE(ptrdiff_t, int)
+AC_TYPE_UINT64_T
+if test x"$ac_cv_c_uint64_t" = x"no"; then
+  AC_MSG_ERROR([uint64_t not found])
+fi
 AC_STRUCT_TM
 AC_CHECK_SIZEOF(int)
 AC_CHECK_SIZEOF(long)
@@ -179,39 +183,6 @@ if test $enable_canonical_system_headers != no; then
   AC_DEFINE(ENABLE_CANONICAL_SYSTEM_HEADERS,
             1, [Define to enable system headers canonicalization.])
 fi
-
-m4_changequote(,)
-case $target in
-	aarch64*-*-* | \
-	alpha*-*-* | \
-	arm*-*-* | \
-	x86_64-*-* | \
-	ia64-*-* | \
-	hppa*64*-*-* | \
-	i[34567]86-*-* | x86_64-*-solaris2.1[0-9]* | \
-	mips*-*-* | \
-	mmix-*-* | \
-	powerpc*-*-* | \
-	rs6000*-*-* | \
-	s390*-*-* | \
-	sparc*-*-* | \
-	spu-*-* | \
-	sh[123456789lbe]*-*-* | sh-*-* | \
-	tilegx*-*-* | tilepro*-*-* )
-		need_64bit_hwint=yes ;;
-	*)
-		need_64bit_hwint=no ;;
-esac
-
-case $need_64bit_hwint:$ac_cv_sizeof_long in
-	*:8 | no:*) host_wide_int=long ;;
-	*) host_wide_int='long long' ;;
-esac
-m4_changequote([,])
-
-AC_DEFINE_UNQUOTED(HOST_WIDE_INT, $host_wide_int,
-[Define to the widest efficient host integer type at least
-   as wide as the target's size_t type.])
 
 case $target in
   i?86-* | x86_64-*)

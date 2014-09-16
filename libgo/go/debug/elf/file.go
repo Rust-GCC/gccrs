@@ -76,6 +76,9 @@ type Section struct {
 func (s *Section) Data() ([]byte, error) {
 	dat := make([]byte, s.sr.Size())
 	n, err := s.sr.ReadAt(dat, 0)
+	if n == len(dat) {
+		err = nil
+	}
 	return dat[0:n], err
 }
 
@@ -412,7 +415,7 @@ func (f *File) getSymbols32(typ SectionType) ([]Symbol, []byte, error) {
 	if err != nil {
 		return nil, nil, errors.New("cannot load symbol section")
 	}
-	symtab := bytes.NewBuffer(data)
+	symtab := bytes.NewReader(data)
 	if symtab.Len()%Sym32Size != 0 {
 		return nil, nil, errors.New("length of symbol section is not a multiple of SymSize")
 	}
@@ -455,7 +458,7 @@ func (f *File) getSymbols64(typ SectionType) ([]Symbol, []byte, error) {
 	if err != nil {
 		return nil, nil, errors.New("cannot load symbol section")
 	}
-	symtab := bytes.NewBuffer(data)
+	symtab := bytes.NewReader(data)
 	if symtab.Len()%Sym64Size != 0 {
 		return nil, nil, errors.New("length of symbol section is not a multiple of Sym64Size")
 	}
@@ -519,13 +522,17 @@ func (f *File) applyRelocations(dst []byte, rels []byte) error {
 	if f.Class == ELFCLASS64 && f.Machine == EM_X86_64 {
 		return f.applyRelocationsAMD64(dst, rels)
 	}
+	if f.Class == ELFCLASS32 && f.Machine == EM_386 {
+		return f.applyRelocations386(dst, rels)
+	}
 
 	return errors.New("not implemented")
 }
 
 func (f *File) applyRelocationsAMD64(dst []byte, rels []byte) error {
-	if len(rels)%Sym64Size != 0 {
-		return errors.New("length of relocation section is not a multiple of Sym64Size")
+	// 24 is the size of Rela64.
+	if len(rels)%24 != 0 {
+		return errors.New("length of relocation section is not a multiple of 24")
 	}
 
 	symbols, _, err := f.getSymbols(SHT_SYMTAB)
@@ -533,7 +540,7 @@ func (f *File) applyRelocationsAMD64(dst []byte, rels []byte) error {
 		return err
 	}
 
-	b := bytes.NewBuffer(rels)
+	b := bytes.NewReader(rels)
 	var rela Rela64
 
 	for b.Len() > 0 {
@@ -561,6 +568,43 @@ func (f *File) applyRelocationsAMD64(dst []byte, rels []byte) error {
 				continue
 			}
 			f.ByteOrder.PutUint32(dst[rela.Off:rela.Off+4], uint32(rela.Addend))
+		}
+	}
+
+	return nil
+}
+
+func (f *File) applyRelocations386(dst []byte, rels []byte) error {
+	// 8 is the size of Rel32.
+	if len(rels)%8 != 0 {
+		return errors.New("length of relocation section is not a multiple of 8")
+	}
+
+	symbols, _, err := f.getSymbols(SHT_SYMTAB)
+	if err != nil {
+		return err
+	}
+
+	b := bytes.NewReader(rels)
+	var rel Rel32
+
+	for b.Len() > 0 {
+		binary.Read(b, f.ByteOrder, &rel)
+		symNo := rel.Info >> 8
+		t := R_386(rel.Info & 0xff)
+
+		if symNo == 0 || symNo > uint32(len(symbols)) {
+			continue
+		}
+		sym := &symbols[symNo-1]
+
+		if t == R_386_32 {
+			if rel.Off+4 >= uint32(len(dst)) {
+				continue
+			}
+			val := f.ByteOrder.Uint32(dst[rel.Off : rel.Off+4])
+			val += uint32(sym.Value)
+			f.ByteOrder.PutUint32(dst[rel.Off:rel.Off+4], val)
 		}
 	}
 
@@ -600,8 +644,58 @@ func (f *File) DWARF() (*dwarf.Data, error) {
 		}
 	}
 
+	// When using clang we need to process relocations even for 386.
+	rel := f.Section(".rel.debug_info")
+	if rel != nil && rel.Type == SHT_REL && f.Machine == EM_386 {
+		data, err := rel.Data()
+		if err != nil {
+			return nil, err
+		}
+		err = f.applyRelocations(dat[1], data)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	abbrev, info, line, ranges, str := dat[0], dat[1], dat[2], dat[3], dat[4]
-	return dwarf.New(abbrev, nil, nil, info, line, nil, ranges, str)
+	d, err := dwarf.New(abbrev, nil, nil, info, line, nil, ranges, str)
+	if err != nil {
+		return nil, err
+	}
+
+	// Look for DWARF4 .debug_types sections.
+	for i, s := range f.Sections {
+		if s.Name == ".debug_types" {
+			b, err := s.Data()
+			if err != nil && uint64(len(b)) < s.Size {
+				return nil, err
+			}
+
+			for _, r := range f.Sections {
+				if r.Type != SHT_RELA && r.Type != SHT_REL {
+					continue
+				}
+				if int(r.Info) != i {
+					continue
+				}
+				rd, err := r.Data()
+				if err != nil {
+					return nil, err
+				}
+				err = f.applyRelocations(b, rd)
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			err = d.AddTypes(fmt.Sprintf("types-%d", i), b)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return d, nil
 }
 
 // Symbols returns the symbol table for f.

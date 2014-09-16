@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 	"testing/iotest"
+	"time"
 	"unicode/utf8"
 )
 
@@ -65,12 +66,12 @@ func readBytes(buf *Reader) string {
 
 func TestReaderSimple(t *testing.T) {
 	data := "hello world"
-	b := NewReader(bytes.NewBufferString(data))
+	b := NewReader(strings.NewReader(data))
 	if s := readBytes(b); s != "hello world" {
 		t.Errorf("simple hello world test failed: got %q", s)
 	}
 
-	b = NewReader(newRot13Reader(bytes.NewBufferString(data)))
+	b = NewReader(newRot13Reader(strings.NewReader(data)))
 	if s := readBytes(b); s != "uryyb jbeyq" {
 		t.Errorf("rot13 hello world test failed: got %q", s)
 	}
@@ -139,7 +140,7 @@ var bufreaders = []bufReader{
 const minReadBufferSize = 16
 
 var bufsizes = []int{
-	minReadBufferSize, 23, 32, 46, 64, 93, 128, 1024, 4096,
+	0, minReadBufferSize, 23, 32, 46, 64, 93, 128, 1024, 4096,
 }
 
 func TestReader(t *testing.T) {
@@ -161,7 +162,7 @@ func TestReader(t *testing.T) {
 					readmaker := readMakers[i]
 					bufreader := bufreaders[j]
 					bufsize := bufsizes[k]
-					read := readmaker.fn(bytes.NewBufferString(text))
+					read := readmaker.fn(strings.NewReader(text))
 					buf := NewReaderSize(read, bufsize)
 					s := bufreader.fn(buf)
 					if s != text {
@@ -171,6 +172,34 @@ func TestReader(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+type zeroReader struct{}
+
+func (zeroReader) Read(p []byte) (int, error) {
+	return 0, nil
+}
+
+func TestZeroReader(t *testing.T) {
+	var z zeroReader
+	r := NewReader(z)
+
+	c := make(chan error)
+	go func() {
+		_, err := r.ReadByte()
+		c <- err
+	}()
+
+	select {
+	case err := <-c:
+		if err == nil {
+			t.Error("error expected")
+		} else if err != io.ErrNoProgress {
+			t.Error("unexpected error:", err)
+		}
+	case <-time.After(time.Second):
+		t.Error("test timed out (endless loop in ReadByte?)")
 	}
 }
 
@@ -228,34 +257,150 @@ func TestReadRune(t *testing.T) {
 }
 
 func TestUnreadRune(t *testing.T) {
-	got := ""
 	segments := []string{"Hello, world:", "日本語"}
-	data := strings.Join(segments, "")
 	r := NewReader(&StringReader{data: segments})
+	got := ""
+	want := strings.Join(segments, "")
 	// Normal execution.
 	for {
 		r1, _, err := r.ReadRune()
 		if err != nil {
 			if err != io.EOF {
-				t.Error("unexpected EOF")
+				t.Error("unexpected error on ReadRune:", err)
 			}
 			break
 		}
 		got += string(r1)
-		// Put it back and read it again
+		// Put it back and read it again.
 		if err = r.UnreadRune(); err != nil {
-			t.Error("unexpected error on UnreadRune:", err)
+			t.Fatal("unexpected error on UnreadRune:", err)
 		}
 		r2, _, err := r.ReadRune()
 		if err != nil {
-			t.Error("unexpected error reading after unreading:", err)
+			t.Fatal("unexpected error reading after unreading:", err)
 		}
 		if r1 != r2 {
-			t.Errorf("incorrect rune after unread: got %c wanted %c", r1, r2)
+			t.Fatalf("incorrect rune after unread: got %c, want %c", r1, r2)
 		}
 	}
-	if got != data {
-		t.Errorf("want=%q got=%q", data, got)
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestUnreadByte(t *testing.T) {
+	segments := []string{"Hello, ", "world"}
+	r := NewReader(&StringReader{data: segments})
+	got := ""
+	want := strings.Join(segments, "")
+	// Normal execution.
+	for {
+		b1, err := r.ReadByte()
+		if err != nil {
+			if err != io.EOF {
+				t.Error("unexpected error on ReadByte:", err)
+			}
+			break
+		}
+		got += string(b1)
+		// Put it back and read it again.
+		if err = r.UnreadByte(); err != nil {
+			t.Fatal("unexpected error on UnreadByte:", err)
+		}
+		b2, err := r.ReadByte()
+		if err != nil {
+			t.Fatal("unexpected error reading after unreading:", err)
+		}
+		if b1 != b2 {
+			t.Fatalf("incorrect byte after unread: got %q, want %q", b1, b2)
+		}
+	}
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestUnreadByteMultiple(t *testing.T) {
+	segments := []string{"Hello, ", "world"}
+	data := strings.Join(segments, "")
+	for n := 0; n <= len(data); n++ {
+		r := NewReader(&StringReader{data: segments})
+		// Read n bytes.
+		for i := 0; i < n; i++ {
+			b, err := r.ReadByte()
+			if err != nil {
+				t.Fatalf("n = %d: unexpected error on ReadByte: %v", n, err)
+			}
+			if b != data[i] {
+				t.Fatalf("n = %d: incorrect byte returned from ReadByte: got %q, want %q", n, b, data[i])
+			}
+		}
+		// Unread one byte if there is one.
+		if n > 0 {
+			if err := r.UnreadByte(); err != nil {
+				t.Errorf("n = %d: unexpected error on UnreadByte: %v", n, err)
+			}
+		}
+		// Test that we cannot unread any further.
+		if err := r.UnreadByte(); err == nil {
+			t.Errorf("n = %d: expected error on UnreadByte", n)
+		}
+	}
+}
+
+func TestUnreadByteOthers(t *testing.T) {
+	// A list of readers to use in conjunction with UnreadByte.
+	var readers = []func(*Reader, byte) ([]byte, error){
+		(*Reader).ReadBytes,
+		(*Reader).ReadSlice,
+		func(r *Reader, delim byte) ([]byte, error) {
+			data, err := r.ReadString(delim)
+			return []byte(data), err
+		},
+		// ReadLine doesn't fit the data/pattern easily
+		// so we leave it out. It should be covered via
+		// the ReadSlice test since ReadLine simply calls
+		// ReadSlice, and it's that function that handles
+		// the last byte.
+	}
+
+	// Try all readers with UnreadByte.
+	for rno, read := range readers {
+		// Some input data that is longer than the minimum reader buffer size.
+		const n = 10
+		var buf bytes.Buffer
+		for i := 0; i < n; i++ {
+			buf.WriteString("abcdefg")
+		}
+
+		r := NewReaderSize(&buf, minReadBufferSize)
+		readTo := func(delim byte, want string) {
+			data, err := read(r, delim)
+			if err != nil {
+				t.Fatalf("#%d: unexpected error reading to %c: %v", rno, delim, err)
+			}
+			if got := string(data); got != want {
+				t.Fatalf("#%d: got %q, want %q", rno, got, want)
+			}
+		}
+
+		// Read the data with occasional UnreadByte calls.
+		for i := 0; i < n; i++ {
+			readTo('d', "abcd")
+			for j := 0; j < 3; j++ {
+				if err := r.UnreadByte(); err != nil {
+					t.Fatalf("#%d: unexpected error on UnreadByte: %v", rno, err)
+				}
+				readTo('d', "d")
+			}
+			readTo('g', "efg")
+		}
+
+		// All data should have been read.
+		_, err := r.ReadByte()
+		if err != io.EOF {
+			t.Errorf("#%d: got error %v; want EOF", rno, err)
+		}
 	}
 }
 
@@ -447,7 +592,7 @@ func TestWriteErrors(t *testing.T) {
 
 func TestNewReaderSizeIdempotent(t *testing.T) {
 	const BufSize = 1000
-	b := NewReaderSize(bytes.NewBufferString("hello world"), BufSize)
+	b := NewReaderSize(strings.NewReader("hello world"), BufSize)
 	// Does it recognize itself?
 	b1 := NewReaderSize(b, BufSize)
 	if b1 != b {
@@ -515,6 +660,9 @@ func TestPeek(t *testing.T) {
 	}
 	if s, err := buf.Peek(4); string(s) != "abcd" || err != nil {
 		t.Fatalf("want %q got %q, err=%v", "abcd", string(s), err)
+	}
+	if _, err := buf.Peek(-1); err != ErrNegativeCount {
+		t.Fatalf("want ErrNegativeCount got %v", err)
 	}
 	if _, err := buf.Peek(32); err != ErrBufferFull {
 		t.Fatalf("want ErrBufFull got %v", err)
@@ -642,7 +790,7 @@ func TestLineTooLong(t *testing.T) {
 	for i := 0; i < minReadBufferSize*5/2; i++ {
 		data = append(data, '0'+byte(i%10))
 	}
-	buf := bytes.NewBuffer(data)
+	buf := bytes.NewReader(data)
 	l := NewReaderSize(buf, minReadBufferSize)
 	line, isPrefix, err := l.ReadLine()
 	if !isPrefix || !bytes.Equal(line, data[:minReadBufferSize]) || err != nil {
@@ -667,7 +815,7 @@ func TestLineTooLong(t *testing.T) {
 func TestReadAfterLines(t *testing.T) {
 	line1 := "this is line1"
 	restData := "this is line2\nthis is line 3\n"
-	inbuf := bytes.NewBuffer([]byte(line1 + "\n" + restData))
+	inbuf := bytes.NewReader([]byte(line1 + "\n" + restData))
 	outbuf := new(bytes.Buffer)
 	maxLineLength := len(line1) + len(restData)/2
 	l := NewReaderSize(inbuf, maxLineLength)
@@ -693,7 +841,7 @@ func TestReadEmptyBuffer(t *testing.T) {
 }
 
 func TestLinesAfterRead(t *testing.T) {
-	l := NewReaderSize(bytes.NewBuffer([]byte("foo")), minReadBufferSize)
+	l := NewReaderSize(bytes.NewReader([]byte("foo")), minReadBufferSize)
 	_, err := ioutil.ReadAll(l)
 	if err != nil {
 		t.Error(err)
@@ -783,7 +931,7 @@ func createTestInput(n int) []byte {
 
 func TestReaderWriteTo(t *testing.T) {
 	input := createTestInput(8192)
-	r := NewReader(onlyReader{bytes.NewBuffer(input)})
+	r := NewReader(onlyReader{bytes.NewReader(input)})
 	w := new(bytes.Buffer)
 	if n, err := r.WriteTo(w); err != nil || n != int64(len(input)) {
 		t.Fatalf("r.WriteTo(w) = %d, %v, want %d, nil", n, err, len(input))
@@ -842,7 +990,7 @@ func TestWriterReadFrom(t *testing.T) {
 			input := createTestInput(8192)
 			b := new(bytes.Buffer)
 			w := NewWriter(wfunc(b))
-			r := rfunc(bytes.NewBuffer(input))
+			r := rfunc(bytes.NewReader(input))
 			if n, err := w.ReadFrom(r); err != nil || n != int64(len(input)) {
 				t.Errorf("ws[%d],rs[%d]: w.ReadFrom(r) = %d, %v, want %d, nil", wi, ri, n, err, len(input))
 				continue
@@ -1021,7 +1169,61 @@ func TestWriterReadFromWhileFull(t *testing.T) {
 	// Use ReadFrom to read in some data.
 	n2, err := w.ReadFrom(strings.NewReader("abcdef"))
 	if n2 != 6 || err != nil {
-		t.Fatalf("ReadFrom returned (%v, %v), want (6, nil)", n, err)
+		t.Fatalf("ReadFrom returned (%v, %v), want (6, nil)", n2, err)
+	}
+}
+
+type emptyThenNonEmptyReader struct {
+	r io.Reader
+	n int
+}
+
+func (r *emptyThenNonEmptyReader) Read(p []byte) (int, error) {
+	if r.n <= 0 {
+		return r.r.Read(p)
+	}
+	r.n--
+	return 0, nil
+}
+
+// Test for golang.org/issue/7611
+func TestWriterReadFromUntilEOF(t *testing.T) {
+	buf := new(bytes.Buffer)
+	w := NewWriterSize(buf, 5)
+
+	// Partially fill buffer
+	n, err := w.Write([]byte("0123"))
+	if n != 4 || err != nil {
+		t.Fatalf("Write returned (%v, %v), want (4, nil)", n, err)
+	}
+
+	// Use ReadFrom to read in some data.
+	r := &emptyThenNonEmptyReader{r: strings.NewReader("abcd"), n: 3}
+	n2, err := w.ReadFrom(r)
+	if n2 != 4 || err != nil {
+		t.Fatalf("ReadFrom returned (%v, %v), want (4, nil)", n2, err)
+	}
+	w.Flush()
+	if got, want := string(buf.Bytes()), "0123abcd"; got != want {
+		t.Fatalf("buf.Bytes() returned %q, want %q", got, want)
+	}
+}
+
+func TestWriterReadFromErrNoProgress(t *testing.T) {
+	buf := new(bytes.Buffer)
+	w := NewWriterSize(buf, 5)
+
+	// Partially fill buffer
+	n, err := w.Write([]byte("0123"))
+	if n != 4 || err != nil {
+		t.Fatalf("Write returned (%v, %v), want (4, nil)", n, err)
+	}
+
+	// Use ReadFrom to read in some data.
+	r := &emptyThenNonEmptyReader{r: strings.NewReader("abcd"), n: 100}
+	n2, err := w.ReadFrom(r)
+	if n2 != 0 || err != io.ErrNoProgress {
+		t.Fatalf("buf.Bytes() returned (%v, %v), want (0, io.ErrNoProgress)", n2, err)
 	}
 }
 
@@ -1059,81 +1261,114 @@ func TestWriterReset(t *testing.T) {
 
 // An onlyReader only implements io.Reader, no matter what other methods the underlying implementation may have.
 type onlyReader struct {
-	r io.Reader
-}
-
-func (r onlyReader) Read(b []byte) (int, error) {
-	return r.r.Read(b)
+	io.Reader
 }
 
 // An onlyWriter only implements io.Writer, no matter what other methods the underlying implementation may have.
 type onlyWriter struct {
-	w io.Writer
-}
-
-func (w onlyWriter) Write(b []byte) (int, error) {
-	return w.w.Write(b)
+	io.Writer
 }
 
 func BenchmarkReaderCopyOptimal(b *testing.B) {
 	// Optimal case is where the underlying reader implements io.WriterTo
+	srcBuf := bytes.NewBuffer(make([]byte, 8192))
+	src := NewReader(srcBuf)
+	dstBuf := new(bytes.Buffer)
+	dst := onlyWriter{dstBuf}
 	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		src := NewReader(bytes.NewBuffer(make([]byte, 8192)))
-		dst := onlyWriter{new(bytes.Buffer)}
-		b.StartTimer()
+		srcBuf.Reset()
+		src.Reset(srcBuf)
+		dstBuf.Reset()
 		io.Copy(dst, src)
 	}
 }
 
 func BenchmarkReaderCopyUnoptimal(b *testing.B) {
 	// Unoptimal case is where the underlying reader doesn't implement io.WriterTo
+	srcBuf := bytes.NewBuffer(make([]byte, 8192))
+	src := NewReader(onlyReader{srcBuf})
+	dstBuf := new(bytes.Buffer)
+	dst := onlyWriter{dstBuf}
 	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		src := NewReader(onlyReader{bytes.NewBuffer(make([]byte, 8192))})
-		dst := onlyWriter{new(bytes.Buffer)}
-		b.StartTimer()
+		srcBuf.Reset()
+		src.Reset(onlyReader{srcBuf})
+		dstBuf.Reset()
 		io.Copy(dst, src)
 	}
 }
 
 func BenchmarkReaderCopyNoWriteTo(b *testing.B) {
+	srcBuf := bytes.NewBuffer(make([]byte, 8192))
+	srcReader := NewReader(srcBuf)
+	src := onlyReader{srcReader}
+	dstBuf := new(bytes.Buffer)
+	dst := onlyWriter{dstBuf}
 	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		src := onlyReader{NewReader(bytes.NewBuffer(make([]byte, 8192)))}
-		dst := onlyWriter{new(bytes.Buffer)}
-		b.StartTimer()
+		srcBuf.Reset()
+		srcReader.Reset(srcBuf)
+		dstBuf.Reset()
 		io.Copy(dst, src)
+	}
+}
+
+func BenchmarkReaderWriteToOptimal(b *testing.B) {
+	const bufSize = 16 << 10
+	buf := make([]byte, bufSize)
+	r := bytes.NewReader(buf)
+	srcReader := NewReaderSize(onlyReader{r}, 1<<10)
+	if _, ok := ioutil.Discard.(io.ReaderFrom); !ok {
+		b.Fatal("ioutil.Discard doesn't support ReaderFrom")
+	}
+	for i := 0; i < b.N; i++ {
+		r.Seek(0, 0)
+		srcReader.Reset(onlyReader{r})
+		n, err := srcReader.WriteTo(ioutil.Discard)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if n != bufSize {
+			b.Fatalf("n = %d; want %d", n, bufSize)
+		}
 	}
 }
 
 func BenchmarkWriterCopyOptimal(b *testing.B) {
 	// Optimal case is where the underlying writer implements io.ReaderFrom
+	srcBuf := bytes.NewBuffer(make([]byte, 8192))
+	src := onlyReader{srcBuf}
+	dstBuf := new(bytes.Buffer)
+	dst := NewWriter(dstBuf)
 	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		src := onlyReader{bytes.NewBuffer(make([]byte, 8192))}
-		dst := NewWriter(new(bytes.Buffer))
-		b.StartTimer()
+		srcBuf.Reset()
+		dstBuf.Reset()
+		dst.Reset(dstBuf)
 		io.Copy(dst, src)
 	}
 }
 
 func BenchmarkWriterCopyUnoptimal(b *testing.B) {
+	srcBuf := bytes.NewBuffer(make([]byte, 8192))
+	src := onlyReader{srcBuf}
+	dstBuf := new(bytes.Buffer)
+	dst := NewWriter(onlyWriter{dstBuf})
 	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		src := onlyReader{bytes.NewBuffer(make([]byte, 8192))}
-		dst := NewWriter(onlyWriter{new(bytes.Buffer)})
-		b.StartTimer()
+		srcBuf.Reset()
+		dstBuf.Reset()
+		dst.Reset(onlyWriter{dstBuf})
 		io.Copy(dst, src)
 	}
 }
 
 func BenchmarkWriterCopyNoReadFrom(b *testing.B) {
+	srcBuf := bytes.NewBuffer(make([]byte, 8192))
+	src := onlyReader{srcBuf}
+	dstBuf := new(bytes.Buffer)
+	dstWriter := NewWriter(dstBuf)
+	dst := onlyWriter{dstWriter}
 	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		src := onlyReader{bytes.NewBuffer(make([]byte, 8192))}
-		dst := onlyWriter{NewWriter(new(bytes.Buffer))}
-		b.StartTimer()
+		srcBuf.Reset()
+		dstBuf.Reset()
+		dstWriter.Reset(dstBuf)
 		io.Copy(dst, src)
 	}
 }

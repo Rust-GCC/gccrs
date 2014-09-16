@@ -182,7 +182,7 @@ trace_info_hasher::equal (const value_type *a, const compare_type *b)
 /* The variables making up the pseudo-cfg, as described above.  */
 static vec<dw_trace_info> trace_info;
 static vec<dw_trace_info_ref> trace_work_list;
-static hash_table <trace_info_hasher> trace_index;
+static hash_table<trace_info_hasher> *trace_index;
 
 /* A vector of call frame insns for the CIE.  */
 cfi_vec cie_cfi_vec;
@@ -307,7 +307,7 @@ get_trace_info (rtx insn)
 {
   dw_trace_info dummy;
   dummy.head = insn;
-  return trace_index.find_with_hash (&dummy, INSN_UID (insn));
+  return trace_index->find_with_hash (&dummy, INSN_UID (insn));
 }
 
 static bool
@@ -356,7 +356,7 @@ need_data_align_sf_opcode (HOST_WIDE_INT off)
 static inline dw_cfi_ref
 new_cfi (void)
 {
-  dw_cfi_ref cfi = ggc_alloc_dw_cfi_node ();
+  dw_cfi_ref cfi = ggc_alloc<dw_cfi_node> ();
 
   cfi->dw_cfi_oprnd1.dw_cfi_reg_num = 0;
   cfi->dw_cfi_oprnd2.dw_cfi_reg_num = 0;
@@ -369,7 +369,7 @@ new_cfi (void)
 static dw_cfi_row *
 new_cfi_row (void)
 {
-  dw_cfi_row *row = ggc_alloc_cleared_dw_cfi_row ();
+  dw_cfi_row *row = ggc_cleared_alloc<dw_cfi_row> ();
 
   row->cfa.reg = INVALID_REGNUM;
 
@@ -381,7 +381,7 @@ new_cfi_row (void)
 static dw_cfi_row *
 copy_cfi_row (dw_cfi_row *src)
 {
-  dw_cfi_row *dst = ggc_alloc_dw_cfi_row ();
+  dw_cfi_row *dst = ggc_alloc<dw_cfi_row> ();
 
   *dst = *src;
   dst->reg_save = vec_safe_copy (src->reg_save);
@@ -2774,7 +2774,8 @@ create_pseudo_cfg (void)
 
   /* Create the trace index after we've finished building trace_info,
      avoiding stale pointer problems due to reallocation.  */
-  trace_index.create (trace_info.length ());
+  trace_index
+    = new hash_table<trace_info_hasher> (trace_info.length ());
   dw_trace_info *tp;
   FOR_EACH_VEC_ELT (trace_info, i, tp)
     {
@@ -2785,7 +2786,7 @@ create_pseudo_cfg (void)
 		 rtx_name[(int) GET_CODE (tp->head)], INSN_UID (tp->head),
 		 tp->switch_sections ? " (section switch)" : "");
 
-      slot = trace_index.find_slot_with_hash (tp, INSN_UID (tp->head), INSERT);
+      slot = trace_index->find_slot_with_hash (tp, INSN_UID (tp->head), INSERT);
       gcc_assert (*slot == NULL);
       *slot = tp;
     }
@@ -2892,7 +2893,7 @@ create_cie_data (void)
 	case 0:
 	  break;
 	case 1:
-	  cie_return_save = ggc_alloc_reg_saved_in_data ();
+	  cie_return_save = ggc_alloc<reg_saved_in_data> ();
 	  *cie_return_save = cie_trace.regs_saved_in_regs[0];
 	  cie_trace.regs_saved_in_regs.release ();
 	  break;
@@ -2936,7 +2937,8 @@ execute_dwarf2_frame (void)
   }
   trace_info.release ();
 
-  trace_index.dispose ();
+  delete trace_index;
+  trace_index = NULL;
 
   return 0;
 }
@@ -3377,21 +3379,6 @@ dwarf2out_do_cfi_asm (void)
   return true;
 }
 
-static bool
-gate_dwarf2_frame (void)
-{
-#ifndef HAVE_prologue
-  /* Targets which still implement the prologue in assembler text
-     cannot use the generic dwarf2 unwinding.  */
-  return false;
-#endif
-
-  /* ??? What to do for UI_TARGET unwinding?  They might be able to benefit
-     from the optimized shrink-wrapping annotations that we will compute.
-     For now, only produce the CFI notes for dwarf2.  */
-  return dwarf2out_do_frame ();
-}
-
 namespace {
 
 const pass_data pass_data_dwarf2_frame =
@@ -3399,8 +3386,6 @@ const pass_data pass_data_dwarf2_frame =
   RTL_PASS, /* type */
   "dwarf2", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_FINAL, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
@@ -3417,10 +3402,25 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_dwarf2_frame (); }
-  unsigned int execute () { return execute_dwarf2_frame (); }
+  virtual bool gate (function *);
+  virtual unsigned int execute (function *) { return execute_dwarf2_frame (); }
 
 }; // class pass_dwarf2_frame
+
+bool
+pass_dwarf2_frame::gate (function *)
+{
+#ifndef HAVE_prologue
+  /* Targets which still implement the prologue in assembler text
+     cannot use the generic dwarf2 unwinding.  */
+  return false;
+#endif
+
+  /* ??? What to do for UI_TARGET unwinding?  They might be able to benefit
+     from the optimized shrink-wrapping annotations that we will compute.
+     For now, only produce the CFI notes for dwarf2.  */
+  return dwarf2out_do_frame ();
+}
 
 } // anon namespace
 

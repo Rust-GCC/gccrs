@@ -120,8 +120,19 @@ static unsigned bbg_file_stamp;
 static char *da_file_name;
 
 /* The names of merge functions for counters.  */
-static const char *const ctr_merge_functions[GCOV_COUNTERS] = GCOV_MERGE_FUNCTIONS;
-static const char *const ctr_names[GCOV_COUNTERS] = GCOV_COUNTER_NAMES;
+#define STR(str) #str
+#define DEF_GCOV_COUNTER(COUNTER, NAME, FN_TYPE) STR(__gcov_merge ## FN_TYPE),
+static const char *const ctr_merge_functions[GCOV_COUNTERS] = {
+#include "gcov-counter.def"
+};
+#undef DEF_GCOV_COUNTER
+#undef STR
+
+#define DEF_GCOV_COUNTER(COUNTER, NAME, FN_TYPE) NAME,
+static const char *const ctr_names[GCOV_COUNTERS] = {
+#include "gcov-counter.def"
+};
+#undef DEF_GCOV_COUNTER
 
 /* Forward declarations.  */
 static void read_counts_file (void);
@@ -174,7 +185,7 @@ counts_entry::remove (value_type *entry)
 }
 
 /* Hash table of count data.  */
-static hash_table <counts_entry> counts_hash;
+static hash_table<counts_entry> *counts_hash;
 
 /* Read in the counts file, if available.  */
 
@@ -215,7 +226,7 @@ read_counts_file (void)
   tag = gcov_read_unsigned ();
   bbg_file_stamp = crc32_unsigned (bbg_file_stamp, tag);
 
-  counts_hash.create (10);
+  counts_hash = new hash_table<counts_entry> (10);
   while ((tag = gcov_read_unsigned ()))
     {
       gcov_unsigned_t length;
@@ -270,7 +281,7 @@ read_counts_file (void)
 	  elt.ident = fn_ident;
 	  elt.ctr = GCOV_COUNTER_FOR_TAG (tag);
 
-	  slot = counts_hash.find_slot (&elt, INSERT);
+	  slot = counts_hash->find_slot (&elt, INSERT);
 	  entry = *slot;
 	  if (!entry)
 	    {
@@ -291,14 +302,16 @@ read_counts_file (void)
 	      error ("checksum is (%x,%x) instead of (%x,%x)",
 		     entry->lineno_checksum, entry->cfg_checksum,
 		     lineno_checksum, cfg_checksum);
-	      counts_hash.dispose ();
+	      delete counts_hash;
+	      counts_hash = NULL;
 	      break;
 	    }
 	  else if (entry->summary.num != n_counts)
 	    {
 	      error ("Profile data for function %u is corrupted", fn_ident);
 	      error ("number of counters is %d instead of %d", entry->summary.num, n_counts);
-	      counts_hash.dispose ();
+	      delete counts_hash;
+	      counts_hash = NULL;
 	      break;
 	    }
 	  else if (elt.ctr >= GCOV_COUNTERS_SUMMABLE)
@@ -324,7 +337,8 @@ read_counts_file (void)
 	{
 	  error (is_error < 0 ? "%qs has overflowed" : "%qs is corrupted",
 		 da_file_name);
-	  counts_hash.dispose ();
+	  delete counts_hash;
+	  counts_hash = NULL;
 	  break;
 	}
     }
@@ -342,7 +356,7 @@ get_coverage_counts (unsigned counter, unsigned expected,
   counts_entry_t *entry, elt;
 
   /* No hash table, no counts.  */
-  if (!counts_hash.is_created ())
+  if (!counts_hash)
     {
       static int warned = 0;
 
@@ -358,7 +372,7 @@ get_coverage_counts (unsigned counter, unsigned expected,
 
   elt.ident = current_function_funcdef_no + 1;
   elt.ctr = counter;
-  entry = counts_hash.find (&elt);
+  entry = counts_hash->find (&elt);
   if (!entry || !entry->summary.num)
     /* The function was not emitted, or is weak and not chosen in the
        final executable.  Silently fail, because there's nothing we
@@ -555,24 +569,35 @@ coverage_compute_lineno_checksum (void)
 unsigned
 coverage_compute_profile_id (struct cgraph_node *n)
 {
-  expanded_location xloc
-    = expand_location (DECL_SOURCE_LOCATION (n->decl));
-  unsigned chksum = xloc.line;
+  unsigned chksum;
 
-  chksum = coverage_checksum_string (chksum, xloc.file);
-  chksum = coverage_checksum_string
-    (chksum, IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (n->decl)));
-  if (first_global_object_name)
-    chksum = coverage_checksum_string
-      (chksum, first_global_object_name);
-  chksum = coverage_checksum_string
-    (chksum, aux_base_name);
+  /* Externally visible symbols have unique name.  */
+  if (TREE_PUBLIC (n->decl) || DECL_EXTERNAL (n->decl))
+    {
+      chksum = coverage_checksum_string
+	(0, IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (n->decl)));
+    }
+  else
+    {
+      expanded_location xloc
+	= expand_location (DECL_SOURCE_LOCATION (n->decl));
+
+      chksum = xloc.line;
+      chksum = coverage_checksum_string (chksum, xloc.file);
+      chksum = coverage_checksum_string
+	(chksum, IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (n->decl)));
+      if (first_global_object_name)
+	chksum = coverage_checksum_string
+	  (chksum, first_global_object_name);
+      chksum = coverage_checksum_string
+	(chksum, aux_base_name);
+    }
 
   /* Non-negative integers are hopefully small enough to fit in all targets.  */
   return chksum & 0x7fffffff;
 }
 
-/* Compute cfg checksum for the current function.
+/* Compute cfg checksum for the function FN given as argument.
    The checksum is calculated carefully so that
    source code changes that doesn't affect the control flow graph
    won't change the checksum.
@@ -583,12 +608,12 @@ coverage_compute_profile_id (struct cgraph_node *n)
    but the compiler won't detect the change and use the wrong profile data.  */
 
 unsigned
-coverage_compute_cfg_checksum (void)
+coverage_compute_cfg_checksum (struct function *fn)
 {
   basic_block bb;
-  unsigned chksum = n_basic_blocks_for_fn (cfun);
+  unsigned chksum = n_basic_blocks_for_fn (fn);
 
-  FOR_EACH_BB_FN (bb, cfun)
+  FOR_EACH_BB_FN (bb, fn)
     {
       edge e;
       edge_iterator ei;
@@ -656,7 +681,7 @@ coverage_end_function (unsigned lineno_checksum, unsigned cfg_checksum)
 	 list.  */
       if (!DECL_EXTERNAL (current_function_decl))
 	{
-	  item = ggc_alloc_coverage_data ();
+	  item = ggc_alloc<coverage_data> ();
 	  
 	  item->ident = current_function_funcdef_no + 1;
 	  item->lineno_checksum = lineno_checksum;

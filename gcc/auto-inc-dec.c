@@ -969,7 +969,7 @@ find_inc (bool first_try)
   rtx insn;
   basic_block bb = BLOCK_FOR_INSN (mem_insn.insn);
   rtx other_insn;
-  df_ref *def_rec;
+  df_ref def;
 
   /* Make sure this reg appears only once in this insn.  */
   if (count_occurrences (PATTERN (mem_insn.insn), mem_insn.reg0, 1) != 1)
@@ -1013,9 +1013,8 @@ find_inc (bool first_try)
 
   /* Need to assure that none of the operands of the inc instruction are
      assigned to by the mem insn.  */
-  for (def_rec = DF_INSN_DEFS (mem_insn.insn); *def_rec; def_rec++)
+  FOR_EACH_INSN_DEF (def, mem_insn.insn)
     {
-      df_ref def = *def_rec;
       unsigned int regno = DF_REF_REGNO (def);
       if ((regno == REGNO (inc_insn.reg0))
 	  || (regno == REGNO (inc_insn.reg_res)))
@@ -1342,7 +1341,6 @@ merge_in_block (int max_reg, basic_block bb)
 
   FOR_BB_INSNS_REVERSE_SAFE (bb, insn, curr)
     {
-      unsigned int uid = INSN_UID (insn);
       bool insn_is_add_or_inc = true;
 
       if (!NONDEBUG_INSN_P (insn))
@@ -1418,22 +1416,20 @@ merge_in_block (int max_reg, basic_block bb)
 
       /* If the inc insn was merged with a mem, the inc insn is gone
 	 and there is noting to update.  */
-      if (DF_INSN_UID_GET (uid))
+      if (df_insn_info *insn_info = DF_INSN_INFO_GET (insn))
 	{
-	  df_ref *def_rec;
-	  df_ref *use_rec;
+	  df_ref def, use;
+
 	  /* Need to update next use.  */
-	  for (def_rec = DF_INSN_UID_DEFS (uid); *def_rec; def_rec++)
+	  FOR_EACH_INSN_INFO_DEF (def, insn_info)
 	    {
-	      df_ref def = *def_rec;
 	      reg_next_use[DF_REF_REGNO (def)] = NULL;
 	      reg_next_inc_use[DF_REF_REGNO (def)] = NULL;
 	      reg_next_def[DF_REF_REGNO (def)] = insn;
 	    }
 
-	  for (use_rec = DF_INSN_UID_USES (uid); *use_rec; use_rec++)
+	  FOR_EACH_INSN_INFO_USE (use, insn_info)
 	    {
-	      df_ref use = *use_rec;
 	      reg_next_use[DF_REF_REGNO (use)] = insn;
 	      if (insn_is_add_or_inc)
 		reg_next_inc_use[DF_REF_REGNO (use)] = insn;
@@ -1442,7 +1438,8 @@ merge_in_block (int max_reg, basic_block bb)
 	    }
 	}
       else if (dump_file)
-	fprintf (dump_file, "skipping update of deleted insn %d\n", uid);
+	fprintf (dump_file, "skipping update of deleted insn %d\n",
+		 INSN_UID (insn));
     }
 
   /* If we were successful, try again.  There may have been several
@@ -1462,49 +1459,7 @@ merge_in_block (int max_reg, basic_block bb)
 
 #endif
 
-static unsigned int
-rest_of_handle_auto_inc_dec (void)
-{
-#ifdef AUTO_INC_DEC
-  basic_block bb;
-  int max_reg = max_reg_num ();
-
-  if (!initialized)
-    init_decision_table ();
-
-  mem_tmp = gen_rtx_MEM (Pmode, NULL_RTX);
-
-  df_note_add_problem ();
-  df_analyze ();
-
-  reg_next_use = XCNEWVEC (rtx, max_reg);
-  reg_next_inc_use = XCNEWVEC (rtx, max_reg);
-  reg_next_def = XCNEWVEC (rtx, max_reg);
-  FOR_EACH_BB_FN (bb, cfun)
-    merge_in_block (max_reg, bb);
-
-  free (reg_next_use);
-  free (reg_next_inc_use);
-  free (reg_next_def);
-
-  mem_tmp = NULL;
-#endif
-  return 0;
-}
-
-
 /* Discover auto-inc auto-dec instructions.  */
-
-static bool
-gate_auto_inc_dec (void)
-{
-#ifdef AUTO_INC_DEC
-  return (optimize > 0 && flag_auto_inc_dec);
-#else
-  return false;
-#endif
-}
-
 
 namespace {
 
@@ -1513,8 +1468,6 @@ const pass_data pass_data_inc_dec =
   RTL_PASS, /* type */
   "auto_inc_dec", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_AUTO_INC_DEC, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
@@ -1531,10 +1484,49 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_auto_inc_dec (); }
-  unsigned int execute () { return rest_of_handle_auto_inc_dec (); }
+  virtual bool gate (function *)
+    {
+#ifdef AUTO_INC_DEC
+      return (optimize > 0 && flag_auto_inc_dec);
+#else
+      return false;
+#endif
+    }
+
+
+  unsigned int execute (function *);
 
 }; // class pass_inc_dec
+
+unsigned int
+pass_inc_dec::execute (function *fun ATTRIBUTE_UNUSED)
+{
+#ifdef AUTO_INC_DEC
+  basic_block bb;
+  int max_reg = max_reg_num ();
+
+  if (!initialized)
+    init_decision_table ();
+
+  mem_tmp = gen_rtx_MEM (Pmode, NULL_RTX);
+
+  df_note_add_problem ();
+  df_analyze ();
+
+  reg_next_use = XCNEWVEC (rtx, max_reg);
+  reg_next_inc_use = XCNEWVEC (rtx, max_reg);
+  reg_next_def = XCNEWVEC (rtx, max_reg);
+  FOR_EACH_BB_FN (bb, fun)
+    merge_in_block (max_reg, bb);
+
+  free (reg_next_use);
+  free (reg_next_inc_use);
+  free (reg_next_def);
+
+  mem_tmp = NULL;
+#endif
+  return 0;
+}
 
 } // anon namespace
 

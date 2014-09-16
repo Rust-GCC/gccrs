@@ -6,7 +6,7 @@
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *          Copyright (C) 1992-2013, Free Software Foundation, Inc.         *
+ *          Copyright (C) 1992-2014, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -556,9 +556,14 @@ __gnat_error_handler (int sig, siginfo_t *si ATTRIBUTE_UNUSED, void *ucontext)
   Raise_From_Signal_Handler (exception, msg);
 }
 
-#if defined (i386) || defined (__x86_64__) || defined (__powerpc__)
-/* This must be in keeping with System.OS_Interface.Alternate_Stack_Size.  */
-char __gnat_alternate_stack[16 * 1024]; /* 2 * SIGSTKSZ */
+#ifndef __ia64__
+#define HAVE_GNAT_ALTERNATE_STACK 1
+/* This must be in keeping with System.OS_Interface.Alternate_Stack_Size.
+   It must be larger than MINSIGSTKSZ and hopefully near 2 * SIGSTKSZ.  */
+# if 16 * 1024 < MINSIGSTKSZ
+#  error "__gnat_alternate_stack too small"
+# endif
+char __gnat_alternate_stack[16 * 1024];
 #endif
 
 #ifdef __XENO__
@@ -612,7 +617,7 @@ __gnat_install_handler (void)
     sigaction (SIGBUS,  &act, NULL);
   if (__gnat_get_interrupt_state (SIGSEGV) != 's')
     {
-#if defined (i386) || defined (__x86_64__) || defined (__powerpc__)
+#ifdef HAVE_GNAT_ALTERNATE_STACK
       /* Setup an alternate stack region for the handler execution so that
 	 stack overflows can be handled properly, avoiding a SEGV generation
 	 from stack usage by the handler itself.  */
@@ -1917,7 +1922,7 @@ __gnat_error_handler (int sig, siginfo_t *si, void *sc)
   #include "sigtramp.h"
 
   __gnat_sigtramp (sig, (void *)si, (void *)sc,
-		   (sighandler_t *)&__gnat_map_signal);
+		   (__sigtramphandler_t *)&__gnat_map_signal);
 
 #else
   __gnat_map_signal (sig, si, sc);
@@ -2367,12 +2372,23 @@ __gnat_install_handler (void)
 /*******************/
 
 #include <signal.h>
-#include <stdlib.h>
+#include "sigtramp.h"
+
+#define HAVE_GNAT_ADJUST_CONTEXT_FOR_RAISE
+
+void
+__gnat_adjust_context_for_raise (int signo ATTRIBUTE_UNUSED, void *ucontext)
+{
+  mcontext_t *mcontext = &((ucontext_t *) ucontext)->uc_mcontext;
+
+  /* ARM Bump has to be an even number because of odd/even architecture.  */
+  ((mcontext_t *) mcontext)->arm_pc += 2;
+}
 
 static void
-__gnat_error_handler (int sig,
-		      siginfo_t *si ATTRIBUTE_UNUSED,
-		      void *ucontext ATTRIBUTE_UNUSED)
+__gnat_map_signal (int sig,
+		   siginfo_t *si ATTRIBUTE_UNUSED,
+		   void *ucontext ATTRIBUTE_UNUSED)
 {
   struct Exception_Data *exception;
   const char *msg;
@@ -2400,6 +2416,17 @@ __gnat_error_handler (int sig,
     }
 
   Raise_From_Signal_Handler (exception, msg);
+}
+
+static void
+__gnat_error_handler (int sig,
+		      siginfo_t *si ATTRIBUTE_UNUSED,
+		      void *ucontext ATTRIBUTE_UNUSED)
+{
+  __gnat_adjust_context_for_raise (sig, ucontext);
+
+  __gnat_sigtramp (sig, (void *) si, (void *) ucontext,
+		   (__sigtramphandler_t *)&__gnat_map_signal);
 }
 
 /* This must be in keeping with System.OS_Interface.Alternate_Stack_Size.  */

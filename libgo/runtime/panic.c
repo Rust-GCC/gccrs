@@ -12,6 +12,42 @@
 uint32 runtime_panicking;
 static Lock paniclk;
 
+// Allocate a Defer, usually using per-P pool.
+// Each defer must be released with freedefer.
+Defer*
+runtime_newdefer()
+{
+	Defer *d;
+	P *p;
+
+	d = nil;
+	p = runtime_m()->p;
+	d = p->deferpool;
+	if(d)
+		p->deferpool = d->__next;
+	if(d == nil) {
+		// deferpool is empty
+		d = runtime_malloc(sizeof(Defer));
+	}
+	return d;
+}
+
+// Free the given defer.
+// The defer cannot be used after this call.
+void
+runtime_freedefer(Defer *d)
+{
+	P *p;
+
+	if(d->__special)
+		return;
+	p = runtime_m()->p;
+	d->__next = p->deferpool;
+	p->deferpool = d;
+	// No need to wipe out pointers in argp/pc/fn/args,
+	// because we empty the pool before GC.
+}
+
 // Run all deferred functions for the current goroutine.
 static void
 rundefer(void)
@@ -28,8 +64,7 @@ rundefer(void)
 		d->__pfn = nil;
 		if (pfn != nil)
 			(*pfn)(d->__arg);
-		if (d->__free)
-		  runtime_free(d);
+		runtime_freedefer(d);
 	}
 }
 
@@ -44,18 +79,34 @@ runtime_startpanic(void)
 		m->mallocing = 1; // tell rest of panic not to try to malloc
 	} else if(m->mcache == nil) // can happen if called from signal handler or throw
 		m->mcache = runtime_allocmcache();
-	if(m->dying) {
+	switch(m->dying) {
+	case 0:
+		m->dying = 1;
+		if(runtime_g() != nil)
+			runtime_g()->writebuf = nil;
+		runtime_xadd(&runtime_panicking, 1);
+		runtime_lock(&paniclk);
+		if(runtime_debug.schedtrace > 0 || runtime_debug.scheddetail > 0)
+			runtime_schedtrace(true);
+		runtime_freezetheworld();
+		return;
+	case 1:
+		// Something failed while panicing, probably the print of the
+		// argument to panic().  Just print a stack trace and exit.
+		m->dying = 2;
 		runtime_printf("panic during panic\n");
+		runtime_dopanic(0);
 		runtime_exit(3);
+	case 2:
+		// This is a genuine bug in the runtime, we couldn't even
+		// print the stack trace successfully.
+		m->dying = 3;
+		runtime_printf("stack trace unavailable\n");
+		runtime_exit(4);
+	default:
+		// Can't even print!  Just exit.
+		runtime_exit(5);
 	}
-	m->dying = 1;
-	if(runtime_g() != nil)
-		runtime_g()->writebuf = nil;
-	runtime_xadd(&runtime_panicking, 1);
-	runtime_lock(&paniclk);
-	if(runtime_debug.schedtrace > 0 || runtime_debug.scheddetail > 0)
-		runtime_schedtrace(true);
-	runtime_freezetheworld();
 }
 
 void
@@ -103,6 +154,30 @@ runtime_dopanic(int32 unused __attribute__ ((unused)))
 	runtime_exit(2);
 }
 
+bool
+runtime_canpanic(G *gp)
+{
+	M *m = runtime_m();
+	byte g;
+
+	USED(&g);  // don't use global g, it points to gsignal
+
+	// Is it okay for gp to panic instead of crashing the program?
+	// Yes, as long as it is running Go code, not runtime code,
+	// and not stuck in a system call.
+	if(gp == nil || gp != m->curg)
+		return false;
+	if(m->locks-m->softfloat != 0 || m->mallocing != 0 || m->throwing != 0 || m->gcing != 0 || m->dying != 0)
+		return false;
+	if(gp->status != Grunning)
+		return false;
+#ifdef GOOS_windows
+	if(m->libcallsp != 0)
+		return false;
+#endif
+	return true;
+}
+
 void
 runtime_throw(const char *s)
 {
@@ -131,6 +206,10 @@ runtime_panicstring(const char *s)
 		runtime_printf("panic: %s\n", s);
 		runtime_throw("panic during gc");
 	}
+	if(runtime_m()->locks) {
+		runtime_printf("panic: %s\n", s);
+		runtime_throw("panic holding locks");
+	}
 	runtime_newErrorCString(s, &err);
 	runtime_panic(err);
 }
@@ -142,4 +221,10 @@ runtime_Goexit(void)
 {
 	rundefer();
 	runtime_goexit();
+}
+
+void
+runtime_panicdivide(void)
+{
+	runtime_panicstring("integer divide by zero");
 }

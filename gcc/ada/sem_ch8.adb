@@ -625,10 +625,10 @@ package body Sem_Ch8 is
 
    procedure Analyze_Generic_Package_Renaming   (N : Node_Id) is
    begin
-      --  Apply the Text_IO Kludge here, since we may be renaming one of the
-      --  subpackages of Text_IO, then join common routine.
+      --  Test for the Text_IO special unit case here, since we may be renaming
+      --  one of the subpackages of Text_IO, then join common routine.
 
-      Text_IO_Kludge (Name (N));
+      Check_Text_IO_Special_Unit (Name (N));
 
       Analyze_Generic_Renaming (N, E_Generic_Package);
    end Analyze_Generic_Package_Renaming;
@@ -704,6 +704,14 @@ package body Sem_Ch8 is
 
          if In_Open_Scopes (Old_P) then
             Error_Msg_N ("within its scope, generic denotes its instance", N);
+         end if;
+
+         --  For subprograms, propagate the Intrinsic flag, to allow, e.g.
+         --  renamings and subsequent instantiations of Unchecked_Conversion.
+
+         if Ekind_In (Old_P, E_Generic_Function, E_Generic_Procedure) then
+            Set_Is_Intrinsic_Subprogram
+              (New_P, Is_Intrinsic_Subprogram (Old_P));
          end if;
 
          Check_Library_Unit_Renaming (N, Old_P);
@@ -1317,9 +1325,9 @@ package body Sem_Ch8 is
          return;
       end if;
 
-      --  Apply Text_IO kludge here since we may be renaming a child of Text_IO
+      --  Check for Text_IO special unit (we may be renaming a Text_IO child)
 
-      Text_IO_Kludge (Name (N));
+      Check_Text_IO_Special_Unit (Name (N));
 
       if Current_Scope /= Standard_Standard then
          Set_Is_Pure (New_P, Is_Pure (Current_Scope));
@@ -2512,13 +2520,18 @@ package body Sem_Ch8 is
 
       Set_Kill_Elaboration_Checks (New_S, True);
 
+      --  If we had a previous error, indicate a completely is present to stop
+      --  junk cascaded messages, but don't take any further action.
+
       if Etype (Nam) = Any_Type then
          Set_Has_Completion (New_S);
          return;
 
+      --  Case where name has the form of a selected component
+
       elsif Nkind (Nam) = N_Selected_Component then
 
-         --  A prefix of the form  A.B can designate an entry of task A, a
+         --  A name which has the form A.B can designate an entry of task A, a
          --  protected operation of protected object A, or finally a primitive
          --  operation of object A. In the later case, A is an object of some
          --  tagged type, or an access type that denotes one such. To further
@@ -2567,6 +2580,8 @@ package body Sem_Ch8 is
             end if;
          end;
 
+      --  Case where name is an explicit dereference X.all
+
       elsif Nkind (Nam) = N_Explicit_Dereference then
 
          --  Renamed entity is designated by access_to_subprogram expression.
@@ -2575,13 +2590,20 @@ package body Sem_Ch8 is
          Analyze_Renamed_Dereference (N, New_S, Present (Rename_Spec));
          return;
 
+      --  Indexed component
+
       elsif Nkind (Nam) = N_Indexed_Component then
          Analyze_Renamed_Family_Member (N, New_S, Present (Rename_Spec));
          return;
 
+      --  Character literal
+
       elsif Nkind (Nam) = N_Character_Literal then
          Analyze_Renamed_Character (N, New_S, Present (Rename_Spec));
          return;
+
+      --  Only remaining case is where we have a non-entity name, or a
+      --  renaming of some other non-overloadable entity.
 
       elsif not Is_Entity_Name (Nam)
         or else not Is_Overloadable (Entity (Nam))
@@ -2601,9 +2623,9 @@ package body Sem_Ch8 is
       --  Ada_83 because there is no requirement of full conformance between
       --  renamed entity and new entity, even though the same circuit is used.
 
-      --  This is a bit of a kludge, which introduces a really irregular use of
-      --  Ada_Version[_Explicit]. Would be nice to find cleaner way to do this
-      --  ???
+      --  This is a bit of an odd case, which introduces a really irregular use
+      --  of Ada_Version[_Explicit]. Would be nice to find cleaner way to do
+      --  this. ???
 
       Ada_Version := Ada_Version_Type'Max (Ada_Version, Ada_95);
       Ada_Version_Pragma := Empty;
@@ -4745,7 +4767,7 @@ package body Sem_Ch8 is
                if Is_Array_Type (Entyp)
                  and then Is_Packed (Entyp)
                  and then Present (Etype (N))
-                 and then Etype (N) = Packed_Array_Type (Entyp)
+                 and then Etype (N) = Packed_Array_Impl_Type (Entyp)
                then
                   null;
 
@@ -7527,10 +7549,7 @@ package body Sem_Ch8 is
       --  this case (and we do the abort even with assertions off since the
       --  penalty is incorrect code generation).
 
-      if SST.Actions_To_Be_Wrapped_Before /= No_List
-           or else
-         SST.Actions_To_Be_Wrapped_After  /= No_List
-      then
+      if SST.Actions_To_Be_Wrapped /= Scope_Actions'(others => No_List) then
          raise Program_Error;
       end if;
 
@@ -7597,8 +7616,7 @@ package body Sem_Ch8 is
          SST.Is_Transient                   := False;
          SST.Node_To_Be_Wrapped             := Empty;
          SST.Pending_Freeze_Actions         := No_List;
-         SST.Actions_To_Be_Wrapped_Before   := No_List;
-         SST.Actions_To_Be_Wrapped_After    := No_List;
+         SST.Actions_To_Be_Wrapped          := (others => No_List);
          SST.First_Use_Clause               := Empty;
          SST.Is_Active_Stack_Base           := False;
          SST.Previous_Visibility            := False;

@@ -43,7 +43,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     struct _BracketMatcher;
 
   /**
-   * @brief Builds an NFA from an input iterator interval.
+   * @brief Builds an NFA from an input iterator range.
    *
    * The %_TraitsT type should fulfill requirements [28.3].
    */
@@ -329,7 +329,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       operator()(_CharT __ch) const
       {
 	_GLIBCXX_DEBUG_ASSERT(_M_is_ready);
-	return _M_apply(__ch, _IsChar());
+	return _M_apply(__ch, _UseCache());
       }
 
       void
@@ -369,15 +369,19 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #endif
       }
 
+      // __neg should be true for \D, \S and \W only.
       void
-      _M_add_character_class(const _StringT& __s)
+      _M_add_character_class(const _StringT& __s, bool __neg)
       {
 	auto __mask = _M_traits.lookup_classname(__s.data(),
 						 __s.data() + __s.size(),
 						 __icase);
 	if (__mask == 0)
 	  __throw_regex_error(regex_constants::error_ctype);
-	_M_class_set |= __mask;
+	if (!__neg)
+	  _M_class_set |= __mask;
+	else
+	  _M_neg_class_set.push_back(__mask);
 #ifdef _GLIBCXX_DEBUG
 	_M_is_ready = false;
 #endif
@@ -387,7 +391,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _M_make_range(_CharT __l, _CharT __r)
       {
 	_M_range_set.push_back(make_pair(_M_translator._M_transform(__l),
-				      _M_translator._M_transform(__r)));
+					 _M_translator._M_transform(__r)));
 #ifdef _GLIBCXX_DEBUG
 	_M_is_ready = false;
 #endif
@@ -396,21 +400,28 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       void
       _M_ready()
       {
-	_M_make_cache(_IsChar());
+	std::sort(_M_char_set.begin(), _M_char_set.end());
+	auto __end = std::unique(_M_char_set.begin(), _M_char_set.end());
+	_M_char_set.erase(__end, _M_char_set.end());
+	_M_make_cache(_UseCache());
 #ifdef _GLIBCXX_DEBUG
 	_M_is_ready = true;
 #endif
       }
 
     private:
-      typedef typename is_same<_CharT, char>::type _IsChar;
-      struct _Dummy { };
-      typedef typename conditional<_IsChar::value,
-				   std::bitset<1 << (8 * sizeof(_CharT))>,
-				   _Dummy>::type _CacheT;
-      typedef typename make_unsigned<_CharT>::type _UnsignedCharT;
+      // Currently we only use the cache for char
+      typedef typename std::is_same<_CharT, char>::type _UseCache;
 
-    private:
+      static constexpr size_t
+      _S_cache_size() { return 1ul << (sizeof(_CharT) * __CHAR_BIT__); }
+
+      struct _Dummy { };
+      typedef typename std::conditional<_UseCache::value,
+					std::bitset<_S_cache_size()>,
+					_Dummy>::type _CacheT;
+      typedef typename std::make_unsigned<_CharT>::type _UnsignedCharT;
+
       bool
       _M_apply(_CharT __ch, false_type) const;
 
@@ -421,9 +432,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       void
       _M_make_cache(true_type)
       {
-	for (int __i = 0; __i < _M_cache.size(); __i++)
-	  _M_cache[static_cast<_UnsignedCharT>(__i)] =
-	    _M_apply(__i, false_type());
+	for (unsigned __i = 0; __i < _M_cache.size(); __i++)
+	  _M_cache[__i] = _M_apply(static_cast<_CharT>(__i), false_type());
       }
 
       void
@@ -431,14 +441,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       { }
 
     private:
-      _CacheT                                   _M_cache;
       std::vector<_CharT>                       _M_char_set;
       std::vector<_StringT>                     _M_equiv_set;
       std::vector<pair<_StrTransT, _StrTransT>> _M_range_set;
+      std::vector<_CharClassT>                  _M_neg_class_set;
       _CharClassT                               _M_class_set;
       _TransT                                   _M_translator;
       const _TraitsT&                           _M_traits;
       bool                                      _M_is_non_matching;
+      _CacheT					_M_cache;
 #ifdef _GLIBCXX_DEBUG
       bool                                      _M_is_ready;
 #endif

@@ -380,6 +380,10 @@ msynci
 Target Report Mask(SYNCI)
 Use synci instruction to invalidate i-cache
 
+mlra
+Target Report Var(mips_lra_flag) Init(1) Save
+Use LRA instead of reload
+
 mtune=
 Target RejectNegative Joined Var(mips_tune_option) ToLower Enum(mips_arch_opt_value)
 -mtune=PROCESSOR	Optimize the output for PROCESSOR
@@ -391,6 +395,10 @@ Put uninitialized constants in ROM (needs -membedded-data)
 mvirt
 Target Report Var(TARGET_VIRT)
 Use Virtualization Application Specific instructions
+
+mxpa
+Target Report Var(TARGET_XPA)
+Use eXtended Physical Address (XPA) instructions
 
 mvr4130-align
 Target Report Mask(VR4130_ALIGN)

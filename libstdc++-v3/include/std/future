@@ -45,7 +45,7 @@
 #include <bits/unique_ptr.h>
 #include <bits/shared_ptr.h>
 #include <bits/uses_allocator.h>
-#include <bits/alloc_traits.h>
+#include <bits/allocated_ptr.h>
 #include <ext/aligned_buffer.h>
 
 namespace std _GLIBCXX_VISIBILITY(default)
@@ -251,42 +251,31 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     template<typename _Res, typename _Alloc>
       struct _Result_alloc final : _Result<_Res>, _Alloc
       {
-        typedef typename allocator_traits<_Alloc>::template
-          rebind_alloc<_Result_alloc> __allocator_type;
+	using __allocator_type = __alloc_rebind<_Alloc, _Result_alloc>;
 
         explicit
 	_Result_alloc(const _Alloc& __a) : _Result<_Res>(), _Alloc(__a)
-        { }
+	{ }
 	
       private:
 	void _M_destroy()
-        {
-	  typedef allocator_traits<__allocator_type> __traits;
-          __allocator_type __a(*this);
-	  __traits::destroy(__a, this);
-	  __traits::deallocate(__a, this, 1);
-        }
+	{
+	  __allocator_type __a(*this);
+	  __allocated_ptr<__allocator_type> __guard_ptr{ __a, this };
+	  this->~_Result_alloc();
+	}
       };
 
     template<typename _Res, typename _Allocator>
       static _Ptr<_Result_alloc<_Res, _Allocator>>
       _S_allocate_result(const _Allocator& __a)
       {
-        typedef _Result_alloc<_Res, _Allocator>	__result_type;
-	typedef allocator_traits<typename __result_type::__allocator_type>
-	  __traits;
-        typename __traits::allocator_type __a2(__a);
-        __result_type* __p = __traits::allocate(__a2, 1);
-        __try
-	  {
-	    __traits::construct(__a2, __p, __a);
-	  }
-        __catch(...)
-	  {
-	    __traits::deallocate(__a2, __p, 1);
-	    __throw_exception_again;
-	  }
-        return _Ptr<__result_type>(__p);
+	using __result_type = _Result_alloc<_Res, _Allocator>;
+	typename __result_type::__allocator_type __a2(__a);
+	auto __guard = std::__allocate_guarded(__a2);
+	__result_type* __p = ::new((void*)__guard.get()) __result_type{__a};
+	__guard = nullptr;
+	return _Ptr<__result_type>(__p);
       }
 
     template<typename _Res, typename _Tp>
@@ -365,12 +354,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       void
       _M_set_result(function<_Ptr_type()> __res, bool __ignore_failure = false)
       {
-        bool __set = __ignore_failure;
+	unique_lock<mutex> __lock(_M_mutex, defer_lock);
         // all calls to this function are serialized,
         // side-effects of invoking __res only happen once
-        call_once(_M_once, &_State_baseV2::_M_do_set, this, ref(__res),
-            ref(__set));
-        if (!__set)
+	call_once(_M_once, &_State_baseV2::_M_do_set, this,
+		  ref(__res), ref(__lock));
+	if (__lock.owns_lock())
+	  _M_cond.notify_all();
+	else if (!__ignore_failure)
           __throw_future_error(int(future_errc::promise_already_satisfied));
       }
 
@@ -478,15 +469,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     private:
       void
-      _M_do_set(function<_Ptr_type()>& __f, bool& __set)
+      _M_do_set(function<_Ptr_type()>& __f, unique_lock<mutex>& __lock)
       {
-        _Ptr_type __res = __f();
-        {
-          lock_guard<mutex> __lock(_M_mutex);
-          _M_result.swap(__res);
-        }
-        _M_cond.notify_all();
-        __set = true;
+        _Ptr_type __res = __f(); // do not hold lock while running setter
+	__lock.lock();
+        _M_result.swap(__res);
       }
 
       bool _M_ready() const noexcept { return static_cast<bool>(_M_result); }
@@ -495,6 +482,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       virtual void _M_complete_async() { }
 
       // Return true if state contains a deferred function.
+      // Caller must own _M_mutex.
       virtual bool _M_has_deferred() const { return false; }
     };
 
@@ -1231,6 +1219,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  {
 	    _M_result->_M_set(_M_fn());
 	  }
+	__catch(const __cxxabiv1::__forced_unwind&)
+	  {
+	    __throw_exception_again; // will cause broken_promise
+	  }
 	__catch(...)
 	  {
 	    _M_result->_M_error = current_exception();
@@ -1249,6 +1241,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	__try
 	  {
 	    _M_fn();
+	  }
+	__catch(const __cxxabiv1::__forced_unwind&)
+	  {
+	    __throw_exception_again; // will cause broken_promise
 	  }
 	__catch(...)
 	  {
@@ -1510,7 +1506,17 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       : _M_result(new _Result<_Res>()), _M_fn(std::move(__fn))
       {
 	_M_thread = std::thread{ [this] {
-	  _M_set_result(_S_task_setter(_M_result, _M_fn));
+	    __try
+	      {
+		_M_set_result(_S_task_setter(_M_result, _M_fn));
+	      }
+	    __catch (const __cxxabiv1::__forced_unwind&)
+	      {
+		// make the shared state ready on thread cancellation
+		if (static_cast<bool>(_M_result))
+		  this->_M_break_promise(std::move(_M_result));
+		__throw_exception_again;
+	      }
         } };
       }
 

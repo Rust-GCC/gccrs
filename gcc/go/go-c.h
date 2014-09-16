@@ -34,20 +34,20 @@ extern void go_add_search_path (const char*);
 
 extern void go_create_gogo (int int_type_size, int pointer_size,
 			    const char* pkgpath, const char *prefix,
-			    const char *relative_import_path);
+			    const char *relative_import_path,
+			    bool check_divide_zero, bool check_divide_overflow);
 
 extern void go_parse_input_files (const char**, unsigned int,
 				  bool only_check_syntax,
 				  bool require_return_statement);
 extern void go_write_globals (void);
 
-extern tree go_type_for_size (unsigned int bits, int unsignedp);
-extern tree go_type_for_mode (enum machine_mode, int unsignedp);
-
 /* Functions defined in the GCC interface called by the Go frontend
    proper.  */
 
 extern void go_preserve_from_gc (tree);
+
+extern bool saw_errors (void);
 
 extern const char *go_localize_identifier (const char*);
 

@@ -419,7 +419,7 @@ func TestServeMuxHandlerRedirects(t *testing.T) {
 func TestMuxRedirectLeadingSlashes(t *testing.T) {
 	paths := []string{"//foo.txt", "///foo.txt", "/../../foo.txt"}
 	for _, path := range paths {
-		req, err := ReadRequest(bufio.NewReader(bytes.NewBufferString("GET " + path + " HTTP/1.1\r\nHost: test\r\n\r\n")))
+		req, err := ReadRequest(bufio.NewReader(strings.NewReader("GET " + path + " HTTP/1.1\r\nHost: test\r\n\r\n")))
 		if err != nil {
 			t.Errorf("%s", err)
 		}
@@ -441,6 +441,9 @@ func TestMuxRedirectLeadingSlashes(t *testing.T) {
 }
 
 func TestServerTimeouts(t *testing.T) {
+	if runtime.GOOS == "plan9" {
+		t.Skip("skipping test; see http://golang.org/issue/7237")
+	}
 	defer afterTest(t)
 	reqNum := 0
 	ts := httptest.NewUnstartedServer(HandlerFunc(func(res ResponseWriter, req *Request) {
@@ -517,6 +520,9 @@ func TestServerTimeouts(t *testing.T) {
 // shouldn't cause a handler to block forever on reads (next HTTP
 // request) that will never happen.
 func TestOnlyWriteTimeout(t *testing.T) {
+	if runtime.GOOS == "plan9" {
+		t.Skip("skipping test; see http://golang.org/issue/7237")
+	}
 	defer afterTest(t)
 	var conn net.Conn
 	var afterTimeoutErrc = make(chan error, 1)
@@ -840,9 +846,14 @@ func TestHeadResponses(t *testing.T) {
 }
 
 func TestTLSHandshakeTimeout(t *testing.T) {
+	if runtime.GOOS == "plan9" {
+		t.Skip("skipping test; see http://golang.org/issue/7237")
+	}
 	defer afterTest(t)
 	ts := httptest.NewUnstartedServer(HandlerFunc(func(w ResponseWriter, r *Request) {}))
+	errc := make(chanWriter, 10) // but only expecting 1
 	ts.Config.ReadTimeout = 250 * time.Millisecond
+	ts.Config.ErrorLog = log.New(errc, "", 0)
 	ts.StartTLS()
 	defer ts.Close()
 	conn, err := net.Dial("tcp", ts.Listener.Addr().String())
@@ -857,6 +868,14 @@ func TestTLSHandshakeTimeout(t *testing.T) {
 			t.Errorf("Read = %d, %v; want an error and no bytes", n, err)
 		}
 	})
+	select {
+	case v := <-errc:
+		if !strings.Contains(v, "timeout") && !strings.Contains(v, "TLS handshake") {
+			t.Errorf("expected a TLS handshake timeout error; got %q", v)
+		}
+	case <-time.After(5 * time.Second):
+		t.Errorf("timeout waiting for logged error")
+	}
 }
 
 func TestTLSServer(t *testing.T) {
@@ -869,6 +888,7 @@ func TestTLSServer(t *testing.T) {
 			}
 		}
 	}))
+	ts.Config.ErrorLog = log.New(ioutil.Discard, "", 0)
 	defer ts.Close()
 
 	// Connect an idle TCP connection to this server before we run
@@ -913,31 +933,50 @@ func TestTLSServer(t *testing.T) {
 }
 
 type serverExpectTest struct {
-	contentLength    int    // of request body
+	contentLength    int // of request body
+	chunked          bool
 	expectation      string // e.g. "100-continue"
 	readBody         bool   // whether handler should read the body (if false, sends StatusUnauthorized)
 	expectedResponse string // expected substring in first line of http response
 }
 
+func expectTest(contentLength int, expectation string, readBody bool, expectedResponse string) serverExpectTest {
+	return serverExpectTest{
+		contentLength:    contentLength,
+		expectation:      expectation,
+		readBody:         readBody,
+		expectedResponse: expectedResponse,
+	}
+}
+
 var serverExpectTests = []serverExpectTest{
 	// Normal 100-continues, case-insensitive.
-	{100, "100-continue", true, "100 Continue"},
-	{100, "100-cOntInUE", true, "100 Continue"},
+	expectTest(100, "100-continue", true, "100 Continue"),
+	expectTest(100, "100-cOntInUE", true, "100 Continue"),
 
 	// No 100-continue.
-	{100, "", true, "200 OK"},
+	expectTest(100, "", true, "200 OK"),
 
 	// 100-continue but requesting client to deny us,
 	// so it never reads the body.
-	{100, "100-continue", false, "401 Unauthorized"},
+	expectTest(100, "100-continue", false, "401 Unauthorized"),
 	// Likewise without 100-continue:
-	{100, "", false, "401 Unauthorized"},
+	expectTest(100, "", false, "401 Unauthorized"),
 
 	// Non-standard expectations are failures
-	{0, "a-pony", false, "417 Expectation Failed"},
+	expectTest(0, "a-pony", false, "417 Expectation Failed"),
 
-	// Expect-100 requested but no body
-	{0, "100-continue", true, "400 Bad Request"},
+	// Expect-100 requested but no body (is apparently okay: Issue 7625)
+	expectTest(0, "100-continue", true, "200 OK"),
+	// Expect-100 requested but handler doesn't read the body
+	expectTest(0, "100-continue", false, "401 Unauthorized"),
+	// Expect-100 continue with no body, but a chunked body.
+	{
+		expectation:      "100-continue",
+		readBody:         true,
+		chunked:          true,
+		expectedResponse: "100 Continue",
+	},
 }
 
 // Tests that the server responds to the "Expect" request header
@@ -966,21 +1005,38 @@ func TestServerExpect(t *testing.T) {
 
 		// Only send the body immediately if we're acting like an HTTP client
 		// that doesn't send 100-continue expectations.
-		writeBody := test.contentLength > 0 && strings.ToLower(test.expectation) != "100-continue"
+		writeBody := test.contentLength != 0 && strings.ToLower(test.expectation) != "100-continue"
 
 		go func() {
+			contentLen := fmt.Sprintf("Content-Length: %d", test.contentLength)
+			if test.chunked {
+				contentLen = "Transfer-Encoding: chunked"
+			}
 			_, err := fmt.Fprintf(conn, "POST /?readbody=%v HTTP/1.1\r\n"+
 				"Connection: close\r\n"+
-				"Content-Length: %d\r\n"+
+				"%s\r\n"+
 				"Expect: %s\r\nHost: foo\r\n\r\n",
-				test.readBody, test.contentLength, test.expectation)
+				test.readBody, contentLen, test.expectation)
 			if err != nil {
 				t.Errorf("On test %#v, error writing request headers: %v", test, err)
 				return
 			}
 			if writeBody {
+				var targ io.WriteCloser = struct {
+					io.Writer
+					io.Closer
+				}{
+					conn,
+					ioutil.NopCloser(nil),
+				}
+				if test.chunked {
+					targ = httputil.NewChunkedWriter(conn)
+				}
 				body := strings.Repeat("A", test.contentLength)
-				_, err = fmt.Fprint(conn, body)
+				_, err = fmt.Fprint(targ, body)
+				if err == nil {
+					err = targ.Close()
+				}
 				if err != nil {
 					if !test.readBody {
 						// Server likely already hung up on us.
@@ -1414,6 +1470,9 @@ func TestRequestBodyLimit(t *testing.T) {
 // TestClientWriteShutdown tests that if the client shuts down the write
 // side of their TCP connection, the server doesn't send a 400 Bad Request.
 func TestClientWriteShutdown(t *testing.T) {
+	if runtime.GOOS == "plan9" {
+		t.Skip("skipping test; see http://golang.org/issue/7237")
+	}
 	defer afterTest(t)
 	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {}))
 	defer ts.Close()
@@ -1934,6 +1993,31 @@ func TestWriteAfterHijack(t *testing.T) {
 	}
 }
 
+func TestDoubleHijack(t *testing.T) {
+	req := reqBytes("GET / HTTP/1.1\nHost: golang.org")
+	var buf bytes.Buffer
+	conn := &rwTestConn{
+		Reader: bytes.NewReader(req),
+		Writer: &buf,
+		closec: make(chan bool, 1),
+	}
+	handler := HandlerFunc(func(rw ResponseWriter, r *Request) {
+		conn, _, err := rw.(Hijacker).Hijack()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		_, _, err = rw.(Hijacker).Hijack()
+		if err == nil {
+			t.Errorf("got err = nil;  want err != nil")
+		}
+		conn.Close()
+	})
+	ln := &oneConnListener{conn: conn}
+	go Serve(ln, handler)
+	<-conn.closec
+}
+
 // http://code.google.com/p/go/issues/detail?id=5955
 // Note that this does not test the "request too large"
 // exit path from the http server. This is intentional;
@@ -2037,31 +2121,160 @@ func TestServerReaderFromOrder(t *testing.T) {
 	}
 }
 
-// Issue 6157
-func TestNoContentTypeOnNotModified(t *testing.T) {
+// Issue 6157, Issue 6685
+func TestCodesPreventingContentTypeAndBody(t *testing.T) {
+	for _, code := range []int{StatusNotModified, StatusNoContent, StatusContinue} {
+		ht := newHandlerTest(HandlerFunc(func(w ResponseWriter, r *Request) {
+			if r.URL.Path == "/header" {
+				w.Header().Set("Content-Length", "123")
+			}
+			w.WriteHeader(code)
+			if r.URL.Path == "/more" {
+				w.Write([]byte("stuff"))
+			}
+		}))
+		for _, req := range []string{
+			"GET / HTTP/1.0",
+			"GET /header HTTP/1.0",
+			"GET /more HTTP/1.0",
+			"GET / HTTP/1.1",
+			"GET /header HTTP/1.1",
+			"GET /more HTTP/1.1",
+		} {
+			got := ht.rawResponse(req)
+			wantStatus := fmt.Sprintf("%d %s", code, StatusText(code))
+			if !strings.Contains(got, wantStatus) {
+				t.Errorf("Code %d: Wanted %q Modified for %q: %s", code, wantStatus, req, got)
+			} else if strings.Contains(got, "Content-Length") {
+				t.Errorf("Code %d: Got a Content-Length from %q: %s", code, req, got)
+			} else if strings.Contains(got, "stuff") {
+				t.Errorf("Code %d: Response contains a body from %q: %s", code, req, got)
+			}
+		}
+	}
+}
+
+func TestContentTypeOkayOn204(t *testing.T) {
 	ht := newHandlerTest(HandlerFunc(func(w ResponseWriter, r *Request) {
-		if r.URL.Path == "/header" {
-			w.Header().Set("Content-Length", "123")
-		}
-		w.WriteHeader(StatusNotModified)
-		if r.URL.Path == "/more" {
-			w.Write([]byte("stuff"))
-		}
+		w.Header().Set("Content-Length", "123") // suppressed
+		w.Header().Set("Content-Type", "foo/bar")
+		w.WriteHeader(204)
 	}))
-	for _, req := range []string{
-		"GET / HTTP/1.0",
-		"GET /header HTTP/1.0",
-		"GET /more HTTP/1.0",
-		"GET / HTTP/1.1",
-		"GET /header HTTP/1.1",
-		"GET /more HTTP/1.1",
-	} {
-		got := ht.rawResponse(req)
-		if !strings.Contains(got, "304 Not Modified") {
-			t.Errorf("Non-304 Not Modified for %q: %s", req, got)
-		} else if strings.Contains(got, "Content-Length") {
-			t.Errorf("Got a Content-Length from %q: %s", req, got)
+	got := ht.rawResponse("GET / HTTP/1.1")
+	if !strings.Contains(got, "Content-Type: foo/bar") {
+		t.Errorf("Response = %q; want Content-Type: foo/bar", got)
+	}
+	if strings.Contains(got, "Content-Length: 123") {
+		t.Errorf("Response = %q; don't want a Content-Length", got)
+	}
+}
+
+// Issue 6995
+// A server Handler can receive a Request, and then turn around and
+// give a copy of that Request.Body out to the Transport (e.g. any
+// proxy).  So then two people own that Request.Body (both the server
+// and the http client), and both think they can close it on failure.
+// Therefore, all incoming server requests Bodies need to be thread-safe.
+func TestTransportAndServerSharedBodyRace(t *testing.T) {
+	defer afterTest(t)
+
+	const bodySize = 1 << 20
+
+	unblockBackend := make(chan bool)
+	backend := httptest.NewServer(HandlerFunc(func(rw ResponseWriter, req *Request) {
+		io.CopyN(rw, req.Body, bodySize/2)
+		<-unblockBackend
+	}))
+	defer backend.Close()
+
+	backendRespc := make(chan *Response, 1)
+	proxy := httptest.NewServer(HandlerFunc(func(rw ResponseWriter, req *Request) {
+		if req.RequestURI == "/foo" {
+			rw.Write([]byte("bar"))
+			return
 		}
+		req2, _ := NewRequest("POST", backend.URL, req.Body)
+		req2.ContentLength = bodySize
+
+		bresp, err := DefaultClient.Do(req2)
+		if err != nil {
+			t.Errorf("Proxy outbound request: %v", err)
+			return
+		}
+		_, err = io.CopyN(ioutil.Discard, bresp.Body, bodySize/4)
+		if err != nil {
+			t.Errorf("Proxy copy error: %v", err)
+			return
+		}
+		backendRespc <- bresp // to close later
+
+		// Try to cause a race: Both the DefaultTransport and the proxy handler's Server
+		// will try to read/close req.Body (aka req2.Body)
+		DefaultTransport.(*Transport).CancelRequest(req2)
+		rw.Write([]byte("OK"))
+	}))
+	defer proxy.Close()
+
+	req, _ := NewRequest("POST", proxy.URL, io.LimitReader(neverEnding('a'), bodySize))
+	res, err := DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Original request: %v", err)
+	}
+
+	// Cleanup, so we don't leak goroutines.
+	res.Body.Close()
+	close(unblockBackend)
+	(<-backendRespc).Body.Close()
+}
+
+// Test that a hanging Request.Body.Read from another goroutine can't
+// cause the Handler goroutine's Request.Body.Close to block.
+func TestRequestBodyCloseDoesntBlock(t *testing.T) {
+	t.Skipf("Skipping known issue; see golang.org/issue/7121")
+	if testing.Short() {
+		t.Skip("skipping in -short mode")
+	}
+	defer afterTest(t)
+
+	readErrCh := make(chan error, 1)
+	errCh := make(chan error, 2)
+
+	server := httptest.NewServer(HandlerFunc(func(rw ResponseWriter, req *Request) {
+		go func(body io.Reader) {
+			_, err := body.Read(make([]byte, 100))
+			readErrCh <- err
+		}(req.Body)
+		time.Sleep(500 * time.Millisecond)
+	}))
+	defer server.Close()
+
+	closeConn := make(chan bool)
+	defer close(closeConn)
+	go func() {
+		conn, err := net.Dial("tcp", server.Listener.Addr().String())
+		if err != nil {
+			errCh <- err
+			return
+		}
+		defer conn.Close()
+		_, err = conn.Write([]byte("POST / HTTP/1.1\r\nConnection: close\r\nHost: foo\r\nContent-Length: 100000\r\n\r\n"))
+		if err != nil {
+			errCh <- err
+			return
+		}
+		// And now just block, making the server block on our
+		// 100000 bytes of body that will never arrive.
+		<-closeConn
+	}()
+	select {
+	case err := <-readErrCh:
+		if err == nil {
+			t.Error("Read was nil. Expected error.")
+		}
+	case err := <-errCh:
+		t.Error(err)
+	case <-time.After(5 * time.Second):
+		t.Error("timeout")
 	}
 }
 
@@ -2074,8 +2287,8 @@ func TestResponseWriterWriteStringAllocs(t *testing.T) {
 			w.Write([]byte("Hello world"))
 		}
 	}))
-	before := testing.AllocsPerRun(25, func() { ht.rawResponse("GET / HTTP/1.0") })
-	after := testing.AllocsPerRun(25, func() { ht.rawResponse("GET /s HTTP/1.0") })
+	before := testing.AllocsPerRun(50, func() { ht.rawResponse("GET / HTTP/1.0") })
+	after := testing.AllocsPerRun(50, func() { ht.rawResponse("GET /s HTTP/1.0") })
 	if int(after) >= int(before) {
 		t.Errorf("WriteString allocs of %v >= Write allocs of %v", after, before)
 	}
@@ -2094,6 +2307,230 @@ func TestAppendTime(t *testing.T) {
 	}
 }
 
+func TestServerConnState(t *testing.T) {
+	defer afterTest(t)
+	handler := map[string]func(w ResponseWriter, r *Request){
+		"/": func(w ResponseWriter, r *Request) {
+			fmt.Fprintf(w, "Hello.")
+		},
+		"/close": func(w ResponseWriter, r *Request) {
+			w.Header().Set("Connection", "close")
+			fmt.Fprintf(w, "Hello.")
+		},
+		"/hijack": func(w ResponseWriter, r *Request) {
+			c, _, _ := w.(Hijacker).Hijack()
+			c.Write([]byte("HTTP/1.0 200 OK\r\nConnection: close\r\n\r\nHello."))
+			c.Close()
+		},
+		"/hijack-panic": func(w ResponseWriter, r *Request) {
+			c, _, _ := w.(Hijacker).Hijack()
+			c.Write([]byte("HTTP/1.0 200 OK\r\nConnection: close\r\n\r\nHello."))
+			c.Close()
+			panic("intentional panic")
+		},
+	}
+	ts := httptest.NewUnstartedServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+		handler[r.URL.Path](w, r)
+	}))
+	defer ts.Close()
+
+	var mu sync.Mutex // guard stateLog and connID
+	var stateLog = map[int][]ConnState{}
+	var connID = map[net.Conn]int{}
+
+	ts.Config.ErrorLog = log.New(ioutil.Discard, "", 0)
+	ts.Config.ConnState = func(c net.Conn, state ConnState) {
+		if c == nil {
+			t.Errorf("nil conn seen in state %s", state)
+			return
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		id, ok := connID[c]
+		if !ok {
+			id = len(connID) + 1
+			connID[c] = id
+		}
+		stateLog[id] = append(stateLog[id], state)
+	}
+	ts.Start()
+
+	mustGet(t, ts.URL+"/")
+	mustGet(t, ts.URL+"/close")
+
+	mustGet(t, ts.URL+"/")
+	mustGet(t, ts.URL+"/", "Connection", "close")
+
+	mustGet(t, ts.URL+"/hijack")
+	mustGet(t, ts.URL+"/hijack-panic")
+
+	// New->Closed
+	{
+		c, err := net.Dial("tcp", ts.Listener.Addr().String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.Close()
+	}
+
+	// New->Active->Closed
+	{
+		c, err := net.Dial("tcp", ts.Listener.Addr().String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := io.WriteString(c, "BOGUS REQUEST\r\n\r\n"); err != nil {
+			t.Fatal(err)
+		}
+		c.Close()
+	}
+
+	// New->Idle->Closed
+	{
+		c, err := net.Dial("tcp", ts.Listener.Addr().String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := io.WriteString(c, "GET / HTTP/1.1\r\nHost: foo\r\n\r\n"); err != nil {
+			t.Fatal(err)
+		}
+		res, err := ReadResponse(bufio.NewReader(c), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := io.Copy(ioutil.Discard, res.Body); err != nil {
+			t.Fatal(err)
+		}
+		c.Close()
+	}
+
+	want := map[int][]ConnState{
+		1: []ConnState{StateNew, StateActive, StateIdle, StateActive, StateClosed},
+		2: []ConnState{StateNew, StateActive, StateIdle, StateActive, StateClosed},
+		3: []ConnState{StateNew, StateActive, StateHijacked},
+		4: []ConnState{StateNew, StateActive, StateHijacked},
+		5: []ConnState{StateNew, StateClosed},
+		6: []ConnState{StateNew, StateActive, StateClosed},
+		7: []ConnState{StateNew, StateActive, StateIdle, StateClosed},
+	}
+	logString := func(m map[int][]ConnState) string {
+		var b bytes.Buffer
+		for id, l := range m {
+			fmt.Fprintf(&b, "Conn %d: ", id)
+			for _, s := range l {
+				fmt.Fprintf(&b, "%s ", s)
+			}
+			b.WriteString("\n")
+		}
+		return b.String()
+	}
+
+	for i := 0; i < 5; i++ {
+		time.Sleep(time.Duration(i) * 50 * time.Millisecond)
+		mu.Lock()
+		match := reflect.DeepEqual(stateLog, want)
+		mu.Unlock()
+		if match {
+			return
+		}
+	}
+
+	mu.Lock()
+	t.Errorf("Unexpected events.\nGot log: %s\n   Want: %s\n", logString(stateLog), logString(want))
+	mu.Unlock()
+}
+
+func mustGet(t *testing.T, url string, headers ...string) {
+	req, err := NewRequest("GET", url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for len(headers) > 0 {
+		req.Header.Add(headers[0], headers[1])
+		headers = headers[2:]
+	}
+	res, err := DefaultClient.Do(req)
+	if err != nil {
+		t.Errorf("Error fetching %s: %v", url, err)
+		return
+	}
+	_, err = ioutil.ReadAll(res.Body)
+	defer res.Body.Close()
+	if err != nil {
+		t.Errorf("Error reading %s: %v", url, err)
+	}
+}
+
+func TestServerKeepAlivesEnabled(t *testing.T) {
+	defer afterTest(t)
+	ts := httptest.NewUnstartedServer(HandlerFunc(func(w ResponseWriter, r *Request) {}))
+	ts.Config.SetKeepAlivesEnabled(false)
+	ts.Start()
+	defer ts.Close()
+	res, err := Get(ts.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if !res.Close {
+		t.Errorf("Body.Close == false; want true")
+	}
+}
+
+// golang.org/issue/7856
+func TestServerEmptyBodyRace(t *testing.T) {
+	defer afterTest(t)
+	var n int32
+	ts := httptest.NewServer(HandlerFunc(func(rw ResponseWriter, req *Request) {
+		atomic.AddInt32(&n, 1)
+	}))
+	defer ts.Close()
+	var wg sync.WaitGroup
+	const reqs = 20
+	for i := 0; i < reqs; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			res, err := Get(ts.URL)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			defer res.Body.Close()
+			_, err = io.Copy(ioutil.Discard, res.Body)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+		}()
+	}
+	wg.Wait()
+	if got := atomic.LoadInt32(&n); got != reqs {
+		t.Errorf("handler ran %d times; want %d", got, reqs)
+	}
+}
+
+func TestServerConnStateNew(t *testing.T) {
+	sawNew := false // if the test is buggy, we'll race on this variable.
+	srv := &Server{
+		ConnState: func(c net.Conn, state ConnState) {
+			if state == StateNew {
+				sawNew = true // testing that this write isn't racy
+			}
+		},
+		Handler: HandlerFunc(func(w ResponseWriter, r *Request) {}), // irrelevant
+	}
+	srv.Serve(&oneConnListener{
+		conn: &rwTestConn{
+			Reader: strings.NewReader("GET / HTTP/1.1\r\nHost: foo\r\n\r\n"),
+			Writer: ioutil.Discard,
+		},
+	})
+	if !sawNew { // testing that this read isn't racy
+		t.Error("StateNew not seen")
+	}
+}
+
 func BenchmarkClientServer(b *testing.B) {
 	b.ReportAllocs()
 	b.StopTimer()
@@ -2109,6 +2546,7 @@ func BenchmarkClientServer(b *testing.B) {
 			b.Fatal("Get:", err)
 		}
 		all, err := ioutil.ReadAll(res.Body)
+		res.Body.Close()
 		if err != nil {
 			b.Fatal("ReadAll:", err)
 		}
@@ -2129,41 +2567,33 @@ func BenchmarkClientServerParallel64(b *testing.B) {
 	benchmarkClientServerParallel(b, 64)
 }
 
-func benchmarkClientServerParallel(b *testing.B, conc int) {
+func benchmarkClientServerParallel(b *testing.B, parallelism int) {
 	b.ReportAllocs()
-	b.StopTimer()
 	ts := httptest.NewServer(HandlerFunc(func(rw ResponseWriter, r *Request) {
 		fmt.Fprintf(rw, "Hello world.\n")
 	}))
 	defer ts.Close()
-	b.StartTimer()
-
-	numProcs := runtime.GOMAXPROCS(-1) * conc
-	var wg sync.WaitGroup
-	wg.Add(numProcs)
-	n := int32(b.N)
-	for p := 0; p < numProcs; p++ {
-		go func() {
-			for atomic.AddInt32(&n, -1) >= 0 {
-				res, err := Get(ts.URL)
-				if err != nil {
-					b.Logf("Get: %v", err)
-					continue
-				}
-				all, err := ioutil.ReadAll(res.Body)
-				if err != nil {
-					b.Logf("ReadAll: %v", err)
-					continue
-				}
-				body := string(all)
-				if body != "Hello world.\n" {
-					panic("Got body: " + body)
-				}
+	b.ResetTimer()
+	b.SetParallelism(parallelism)
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			res, err := Get(ts.URL)
+			if err != nil {
+				b.Logf("Get: %v", err)
+				continue
 			}
-			wg.Done()
-		}()
-	}
-	wg.Wait()
+			all, err := ioutil.ReadAll(res.Body)
+			res.Body.Close()
+			if err != nil {
+				b.Logf("ReadAll: %v", err)
+				continue
+			}
+			body := string(all)
+			if body != "Hello world.\n" {
+				panic("Got body: " + body)
+			}
+		}
+	})
 }
 
 // A benchmark for profiling the server without the HTTP client code.
@@ -2188,6 +2618,7 @@ func BenchmarkServer(b *testing.B) {
 				log.Panicf("Get: %v", err)
 			}
 			all, err := ioutil.ReadAll(res.Body)
+			res.Body.Close()
 			if err != nil {
 				log.Panicf("ReadAll: %v", err)
 			}
@@ -2389,5 +2820,30 @@ Host: golang.org
 	<-conn.closec
 	if b.N != handled {
 		b.Errorf("b.N=%d but handled %d", b.N, handled)
+	}
+}
+
+func BenchmarkServerHijack(b *testing.B) {
+	b.ReportAllocs()
+	req := reqBytes(`GET / HTTP/1.1
+Host: golang.org
+`)
+	h := HandlerFunc(func(w ResponseWriter, r *Request) {
+		conn, _, err := w.(Hijacker).Hijack()
+		if err != nil {
+			panic(err)
+		}
+		conn.Close()
+	})
+	conn := &rwTestConn{
+		Writer: ioutil.Discard,
+		closec: make(chan bool, 1),
+	}
+	ln := &oneConnListener{conn: conn}
+	for i := 0; i < b.N; i++ {
+		conn.Reader = bytes.NewReader(req)
+		ln.conn = conn
+		Serve(ln, h)
+		<-conn.closec
 	}
 }

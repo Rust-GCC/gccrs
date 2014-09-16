@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
 --                                                                          --
 -- This specification is derived from the Ada Reference Manual for use with --
 -- GNAT. The copyright notice above, and the license provisions that follow --
@@ -33,11 +33,32 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
-with System;
+--  The operations in this package provide the guarantee that all dispatching
+--  calls on primitive operations of tagged types and interfaces take constant
+--  time (in terms of source lines executed), that is to say, the cost of these
+--  calls is independent of the number of primitives of the type or interface,
+--  and independent of the number of ancestors or interface progenitors that a
+--  tagged type may have.
+
+--  The following subprograms of the public part of this package take constant
+--  time (in terms of source lines executed):
+
+--    Expanded_Name, Wide_Expanded_Name, Wide_Wide_Expanded_Name, External_Tag,
+--    Is_Descendant_At_Same_Level, Parent_Tag
+--    Descendant_Tag (when used with a library-level tagged type),
+--    Internal_Tag (when used with a library-level tagged type).
+
+--  The following subprograms of the public part of this package take non
+--  constant time (in terms of sources line executed):
+
+--    Descendant_Tag (when used with a locally defined tagged type)
+--    Internal_Tag (when used with a locally defined tagged type)
+--    Interface_Ancestor_Tagswith System
+
 with System.Storage_Elements;
 
 package Ada.Tags is
-   pragma Preelaborate_05;
+   pragma Preelaborate;
    --  In accordance with Ada 2005 AI-362
 
    type Tag is private;

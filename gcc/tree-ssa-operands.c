@@ -166,6 +166,7 @@ create_vop_var (struct function *fn)
 			   get_identifier (".MEM"),
 			   void_type_node);
   DECL_ARTIFICIAL (global_var) = 1;
+  DECL_IGNORED_P (global_var) = 1;
   TREE_READONLY (global_var) = 0;
   DECL_EXTERNAL (global_var) = 1;
   TREE_STATIC (global_var) = 1;
@@ -275,8 +276,8 @@ ssa_operand_alloc (struct function *fn, unsigned size)
 	}
 
 
-      ptr = ggc_alloc_ssa_operand_memory_d (sizeof (void *)
-                        + gimple_ssa_operands (fn)->ssa_operand_mem_size);
+      ptr = (ssa_operand_memory_d *) ggc_internal_alloc
+	(sizeof (void *) + gimple_ssa_operands (fn)->ssa_operand_mem_size);
 
       ptr->next = gimple_ssa_operands (fn)->operand_memory;
       gimple_ssa_operands (fn)->operand_memory = ptr;
@@ -477,9 +478,6 @@ append_use (tree *use_p)
 static inline void
 append_vdef (tree var)
 {
-  if (!optimize)
-    return;
-
   gcc_assert ((build_vdef == NULL_TREE
 	       || build_vdef == var)
 	      && (build_vuse == NULL_TREE
@@ -495,9 +493,6 @@ append_vdef (tree var)
 static inline void
 append_vuse (tree var)
 {
-  if (!optimize)
-    return;
-
   gcc_assert (build_vuse == NULL_TREE
 	      || build_vuse == var);
 
@@ -864,6 +859,7 @@ get_expr_operands (struct function *fn, gimple stmt, tree *expr_p, int flags)
       }
 
     case DOT_PROD_EXPR:
+    case SAD_EXPR:
     case REALIGN_LOAD_EXPR:
     case WIDEN_MULT_PLUS_EXPR:
     case WIDEN_MULT_MINUS_EXPR:

@@ -290,31 +290,8 @@ fix_loop_structure (bitmap changed_bbs)
   return number_of_loops (cfun) - old_nloops;
 }
 
-/* Gate for the RTL loop superpass.  The actual passes are subpasses.
-   See passes.c for more on that.  */
-
-static bool
-gate_handle_loop2 (void)
-{
-  if (optimize > 0
-      && (flag_move_loop_invariants
-	  || flag_unswitch_loops
-	  || flag_peel_loops
-	  || flag_unroll_loops
-#ifdef HAVE_doloop_end
-	  || (flag_branch_on_count_reg && HAVE_doloop_end)
-#endif
-	 ))
-    return true;
-  else
-    {
-      /* No longer preserve loops, remove them now.  */
-      cfun->curr_properties &= ~PROP_loops;
-      if (current_loops)
-	loop_optimizer_finalize ();
-      return false;
-    } 
-}
+/* The RTL loop superpass.  The actual passes are subpasses.  See passes.c for
+   more on that.  */
 
 namespace {
 
@@ -323,8 +300,6 @@ const pass_data pass_data_loop2 =
   RTL_PASS, /* type */
   "loop2", /* name */
   OPTGROUP_LOOP, /* optinfo_flags */
-  true, /* has_gate */
-  false, /* has_execute */
   TV_LOOP, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
@@ -341,9 +316,32 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_handle_loop2 (); }
+  virtual bool gate (function *);
 
 }; // class pass_loop2
+
+bool
+pass_loop2::gate (function *fun)
+{
+  if (optimize > 0
+      && (flag_move_loop_invariants
+	  || flag_unswitch_loops
+	  || flag_peel_loops
+	  || flag_unroll_loops
+#ifdef HAVE_doloop_end
+	  || (flag_branch_on_count_reg && HAVE_doloop_end)
+#endif
+      ))
+    return true;
+  else
+    {
+      /* No longer preserve loops, remove them now.  */
+      fun->curr_properties &= ~PROP_loops;
+      if (current_loops)
+	loop_optimizer_finalize ();
+      return false;
+    } 
+}
 
 } // anon namespace
 
@@ -377,14 +375,12 @@ const pass_data pass_data_rtl_loop_init =
   RTL_PASS, /* type */
   "loop2_init", /* name */
   OPTGROUP_LOOP, /* optinfo_flags */
-  false, /* has_gate */
-  true, /* has_execute */
   TV_LOOP, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  TODO_verify_rtl_sharing, /* todo_flags_finish */
+  0, /* todo_flags_finish */
 };
 
 class pass_rtl_loop_init : public rtl_opt_pass
@@ -395,7 +391,7 @@ public:
   {}
 
   /* opt_pass methods: */
-  unsigned int execute () { return rtl_loop_init (); }
+  virtual unsigned int execute (function *) { return rtl_loop_init (); }
 
 }; // class pass_rtl_loop_init
 
@@ -410,11 +406,38 @@ make_pass_rtl_loop_init (gcc::context *ctxt)
 
 /* Finalization of the RTL loop passes.  */
 
-static unsigned int
-rtl_loop_done (void)
+namespace {
+
+const pass_data pass_data_rtl_loop_done =
+{
+  RTL_PASS, /* type */
+  "loop2_done", /* name */
+  OPTGROUP_LOOP, /* optinfo_flags */
+  TV_LOOP, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  PROP_loops, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
+};
+
+class pass_rtl_loop_done : public rtl_opt_pass
+{
+public:
+  pass_rtl_loop_done (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_rtl_loop_done, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  virtual unsigned int execute (function *);
+
+}; // class pass_rtl_loop_done
+
+unsigned int
+pass_rtl_loop_done::execute (function *fun)
 {
   /* No longer preserve loops, remove them now.  */
-  cfun->curr_properties &= ~PROP_loops;
+  fun->curr_properties &= ~PROP_loops;
   loop_optimizer_finalize ();
   free_dominance_info (CDI_DOMINATORS);
 
@@ -428,35 +451,6 @@ rtl_loop_done (void)
   return 0;
 }
 
-namespace {
-
-const pass_data pass_data_rtl_loop_done =
-{
-  RTL_PASS, /* type */
-  "loop2_done", /* name */
-  OPTGROUP_LOOP, /* optinfo_flags */
-  false, /* has_gate */
-  true, /* has_execute */
-  TV_LOOP, /* tv_id */
-  0, /* properties_required */
-  0, /* properties_provided */
-  PROP_loops, /* properties_destroyed */
-  0, /* todo_flags_start */
-  ( TODO_verify_flow | TODO_verify_rtl_sharing ), /* todo_flags_finish */
-};
-
-class pass_rtl_loop_done : public rtl_opt_pass
-{
-public:
-  pass_rtl_loop_done (gcc::context *ctxt)
-    : rtl_opt_pass (pass_data_rtl_loop_done, ctxt)
-  {}
-
-  /* opt_pass methods: */
-  unsigned int execute () { return rtl_loop_done (); }
-
-}; // class pass_rtl_loop_done
-
 } // anon namespace
 
 rtl_opt_pass *
@@ -467,19 +461,6 @@ make_pass_rtl_loop_done (gcc::context *ctxt)
 
 
 /* Loop invariant code motion.  */
-static bool
-gate_rtl_move_loop_invariants (void)
-{
-  return flag_move_loop_invariants;
-}
-
-static unsigned int
-rtl_move_loop_invariants (void)
-{
-  if (number_of_loops (cfun) > 1)
-    move_loop_invariants ();
-  return 0;
-}
 
 namespace {
 
@@ -488,15 +469,12 @@ const pass_data pass_data_rtl_move_loop_invariants =
   RTL_PASS, /* type */
   "loop2_invariant", /* name */
   OPTGROUP_LOOP, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_LOOP_MOVE_INVARIANTS, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  ( TODO_df_verify | TODO_df_finish
-    | TODO_verify_rtl_sharing ), /* todo_flags_finish */
+  ( TODO_df_verify | TODO_df_finish ), /* todo_flags_finish */
 };
 
 class pass_rtl_move_loop_invariants : public rtl_opt_pass
@@ -507,8 +485,13 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_rtl_move_loop_invariants (); }
-  unsigned int execute () { return rtl_move_loop_invariants (); }
+  virtual bool gate (function *) { return flag_move_loop_invariants; }
+  virtual unsigned int execute (function *fun)
+    {
+      if (number_of_loops (fun) > 1)
+	move_loop_invariants ();
+      return 0;
+    }
 
 }; // class pass_rtl_move_loop_invariants
 
@@ -521,71 +504,42 @@ make_pass_rtl_move_loop_invariants (gcc::context *ctxt)
 }
 
 
-/* Loop unswitching for RTL.  */
-static bool
-gate_rtl_unswitch (void)
-{
-  return flag_unswitch_loops;
-}
-
-static unsigned int
-rtl_unswitch (void)
-{
-  if (number_of_loops (cfun) > 1)
-    unswitch_loops ();
-  return 0;
-}
-
 namespace {
 
-const pass_data pass_data_rtl_unswitch =
+const pass_data pass_data_rtl_unroll_and_peel_loops =
 {
   RTL_PASS, /* type */
-  "loop2_unswitch", /* name */
+  "loop2_unroll", /* name */
   OPTGROUP_LOOP, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
-  TV_LOOP_UNSWITCH, /* tv_id */
+  TV_LOOP_UNROLL, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  TODO_verify_rtl_sharing, /* todo_flags_finish */
+  0, /* todo_flags_finish */
 };
 
-class pass_rtl_unswitch : public rtl_opt_pass
+class pass_rtl_unroll_and_peel_loops : public rtl_opt_pass
 {
 public:
-  pass_rtl_unswitch (gcc::context *ctxt)
-    : rtl_opt_pass (pass_data_rtl_unswitch, ctxt)
+  pass_rtl_unroll_and_peel_loops (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_rtl_unroll_and_peel_loops, ctxt)
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_rtl_unswitch (); }
-  unsigned int execute () { return rtl_unswitch (); }
+  virtual bool gate (function *)
+    {
+      return (flag_peel_loops || flag_unroll_loops || flag_unroll_all_loops);
+    }
 
-}; // class pass_rtl_unswitch
+  virtual unsigned int execute (function *);
 
-} // anon namespace
+}; // class pass_rtl_unroll_and_peel_loops
 
-rtl_opt_pass *
-make_pass_rtl_unswitch (gcc::context *ctxt)
+unsigned int
+pass_rtl_unroll_and_peel_loops::execute (function *fun)
 {
-  return new pass_rtl_unswitch (ctxt);
-}
-
-
-/* Loop unswitching for RTL.  */
-static bool
-gate_rtl_unroll_and_peel_loops (void)
-{
-  return (flag_peel_loops || flag_unroll_loops || flag_unroll_all_loops);
-}
-
-static unsigned int
-rtl_unroll_and_peel_loops (void)
-{
-  if (number_of_loops (cfun) > 1)
+  if (number_of_loops (fun) > 1)
     {
       int flags = 0;
       if (dump_file)
@@ -603,36 +557,6 @@ rtl_unroll_and_peel_loops (void)
   return 0;
 }
 
-namespace {
-
-const pass_data pass_data_rtl_unroll_and_peel_loops =
-{
-  RTL_PASS, /* type */
-  "loop2_unroll", /* name */
-  OPTGROUP_LOOP, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
-  TV_LOOP_UNROLL, /* tv_id */
-  0, /* properties_required */
-  0, /* properties_provided */
-  0, /* properties_destroyed */
-  0, /* todo_flags_start */
-  TODO_verify_rtl_sharing, /* todo_flags_finish */
-};
-
-class pass_rtl_unroll_and_peel_loops : public rtl_opt_pass
-{
-public:
-  pass_rtl_unroll_and_peel_loops (gcc::context *ctxt)
-    : rtl_opt_pass (pass_data_rtl_unroll_and_peel_loops, ctxt)
-  {}
-
-  /* opt_pass methods: */
-  bool gate () { return gate_rtl_unroll_and_peel_loops (); }
-  unsigned int execute () { return rtl_unroll_and_peel_loops (); }
-
-}; // class pass_rtl_unroll_and_peel_loops
-
 } // anon namespace
 
 rtl_opt_pass *
@@ -642,27 +566,6 @@ make_pass_rtl_unroll_and_peel_loops (gcc::context *ctxt)
 }
 
 
-/* The doloop optimization.  */
-static bool
-gate_rtl_doloop (void)
-{
-#ifdef HAVE_doloop_end
-  return (flag_branch_on_count_reg && HAVE_doloop_end);
-#else
-  return 0;
-#endif
-}
-
-static unsigned int
-rtl_doloop (void)
-{
-#ifdef HAVE_doloop_end
-  if (number_of_loops (cfun) > 1)
-    doloop_optimize_loops ();
-#endif
-  return 0;
-}
-
 namespace {
 
 const pass_data pass_data_rtl_doloop =
@@ -670,14 +573,12 @@ const pass_data pass_data_rtl_doloop =
   RTL_PASS, /* type */
   "loop2_doloop", /* name */
   OPTGROUP_LOOP, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_LOOP_DOLOOP, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  TODO_verify_rtl_sharing, /* todo_flags_finish */
+  0, /* todo_flags_finish */
 };
 
 class pass_rtl_doloop : public rtl_opt_pass
@@ -688,10 +589,30 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_rtl_doloop (); }
-  unsigned int execute () { return rtl_doloop (); }
+  virtual bool gate (function *);
+  virtual unsigned int execute (function *);
 
 }; // class pass_rtl_doloop
+
+bool
+pass_rtl_doloop::gate (function *)
+{
+#ifdef HAVE_doloop_end
+  return (flag_branch_on_count_reg && HAVE_doloop_end);
+#else
+  return false;
+#endif
+}
+
+unsigned int
+pass_rtl_doloop::execute (function *fun ATTRIBUTE_UNUSED)
+{
+#ifdef HAVE_doloop_end
+  if (number_of_loops (fun) > 1)
+    doloop_optimize_loops ();
+#endif
+  return 0;
+}
 
 } // anon namespace
 

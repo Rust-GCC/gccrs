@@ -558,7 +558,11 @@ process_bb_lives (basic_block bb, int &curr_point)
 	      /* It might be 'inheritance pseudo <- reload pseudo'.  */
 	      || (src_regno >= lra_constraint_new_regno_start
 		  && ((int) REGNO (SET_DEST (set))
-		      >= lra_constraint_new_regno_start))))
+		      >= lra_constraint_new_regno_start)
+		  /* Remember to skip special cases where src/dest regnos are
+		     the same, e.g. insn SET pattern has matching constraints
+		     like =r,0.  */
+		  && src_regno != (int) REGNO (SET_DEST (set)))))
 	{
 	  int hard_regno = -1, regno = -1;
 
@@ -624,6 +628,17 @@ process_bb_lives (basic_block bb, int &curr_point)
 
       if (call_p)
 	{
+	  if (flag_use_caller_save)
+	    {
+	      HARD_REG_SET this_call_used_reg_set;
+	      get_call_reg_set_usage (curr_insn, &this_call_used_reg_set,
+				      call_used_reg_set);
+
+	      EXECUTE_IF_SET_IN_SPARSESET (pseudos_live, j)
+		IOR_HARD_REG_SET (lra_reg_info[j].actual_call_used_reg_set,
+				  this_call_used_reg_set);
+	    }
+
 	  sparseset_ior (pseudos_live_through_calls,
 			 pseudos_live_through_calls, pseudos_live);
 	  if (cfun->has_nonlocal_label

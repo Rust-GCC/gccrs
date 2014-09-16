@@ -959,7 +959,7 @@ error:
    TODO: verify the variable annotations.  */
 
 DEBUG_FUNCTION void
-verify_ssa (bool check_modified_stmt)
+verify_ssa (bool check_modified_stmt, bool check_ssa_operands)
 {
   size_t i;
   basic_block bb;
@@ -1042,7 +1042,7 @@ verify_ssa (bool check_modified_stmt)
 	      goto err;
 	    }
 
-	  if (verify_ssa_operands (cfun, stmt))
+	  if (check_ssa_operands && verify_ssa_operands (cfun, stmt))
 	    {
 	      print_gimple_stmt (stderr, stmt, 0, TDF_VOPS);
 	      goto err;
@@ -1120,7 +1120,7 @@ uid_ssaname_map_hash (const void *item)
 void
 init_tree_ssa (struct function *fn)
 {
-  fn->gimple_df = ggc_alloc_cleared_gimple_df ();
+  fn->gimple_df = ggc_cleared_alloc<gimple_df> ();
   fn->gimple_df->default_defs = htab_create_ggc (20, uid_ssaname_map_hash,
 				                 uid_ssaname_map_eq, NULL);
   pt_solution_reset (&fn->gimple_df->escaped);
@@ -1139,15 +1139,6 @@ execute_init_datastructures (void)
   return 0;
 }
 
-/* Gate for IPCP optimization.  */
-
-static bool
-gate_init_datastructures (void)
-{
-  /* Do nothing for funcions that was produced already in SSA form.  */
-  return !(cfun->curr_properties & PROP_ssa);
-}
-
 namespace {
 
 const pass_data pass_data_init_datastructures =
@@ -1155,8 +1146,6 @@ const pass_data pass_data_init_datastructures =
   GIMPLE_PASS, /* type */
   "*init_datastructures", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_NONE, /* tv_id */
   PROP_cfg, /* properties_required */
   0, /* properties_provided */
@@ -1173,8 +1162,16 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_init_datastructures (); }
-  unsigned int execute () { return execute_init_datastructures (); }
+  virtual bool gate (function *fun)
+    {
+      /* Do nothing for funcions that was produced already in SSA form.  */
+      return !(fun->curr_properties & PROP_ssa);
+    }
+
+  virtual unsigned int execute (function *)
+    {
+      return execute_init_datastructures ();
+    }
 
 }; // class pass_init_datastructures
 
@@ -1248,6 +1245,7 @@ tree_ssa_strip_useless_type_conversions (tree exp)
 bool
 ssa_undefined_value_p (tree t)
 {
+  gimple def_stmt;
   tree var = SSA_NAME_VAR (t);
 
   if (!var)
@@ -1264,7 +1262,22 @@ ssa_undefined_value_p (tree t)
     return false;
 
   /* The value is undefined iff its definition statement is empty.  */
-  return gimple_nop_p (SSA_NAME_DEF_STMT (t));
+  def_stmt = SSA_NAME_DEF_STMT (t);
+  if (gimple_nop_p (def_stmt))
+    return true;
+
+  /* Check if the complex was not only partially defined.  */
+  if (is_gimple_assign (def_stmt)
+      && gimple_assign_rhs_code (def_stmt) == COMPLEX_EXPR)
+    {
+      tree rhs1, rhs2;
+
+      rhs1 = gimple_assign_rhs1 (def_stmt);
+      rhs2 = gimple_assign_rhs2 (def_stmt);
+      return (TREE_CODE (rhs1) == SSA_NAME && ssa_undefined_value_p (rhs1))
+	     || (TREE_CODE (rhs2) == SSA_NAME && ssa_undefined_value_p (rhs2));
+    }
+  return false;
 }
 
 
@@ -1342,9 +1355,9 @@ non_rewritable_mem_ref_base (tree ref)
 	   || TREE_CODE (TREE_TYPE (decl)) == COMPLEX_TYPE)
 	  && useless_type_conversion_p (TREE_TYPE (base),
 					TREE_TYPE (TREE_TYPE (decl)))
-	  && mem_ref_offset (base).fits_uhwi ()
-	  && tree_to_double_int (TYPE_SIZE_UNIT (TREE_TYPE (decl)))
-	     .ugt (mem_ref_offset (base))
+	  && wi::fits_uhwi_p (mem_ref_offset (base))
+	  && wi::gtu_p (wi::to_offset (TYPE_SIZE_UNIT (TREE_TYPE (decl))),
+			mem_ref_offset (base))
 	  && multiple_of_p (sizetype, TREE_OPERAND (base, 1),
 			    TYPE_SIZE_UNIT (TREE_TYPE (base))))
 	return NULL_TREE;
@@ -1686,8 +1699,6 @@ const pass_data pass_data_update_address_taken =
   GIMPLE_PASS, /* type */
   "addressables", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  false, /* has_gate */
-  false, /* has_execute */
   TV_ADDRESS_TAKEN, /* tv_id */
   PROP_ssa, /* properties_required */
   0, /* properties_provided */

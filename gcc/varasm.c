@@ -114,7 +114,6 @@ static hashval_t const_desc_hash (const void *);
 static int const_desc_eq (const void *, const void *);
 static hashval_t const_hash_1 (const tree);
 static int compare_constant (const tree, const tree);
-static tree copy_constant (tree);
 static void output_constant_def_contents (rtx);
 static void output_addressed_constants (tree);
 static unsigned HOST_WIDE_INT output_constant (tree, unsigned HOST_WIDE_INT,
@@ -174,7 +173,7 @@ static GTY(()) section *unnamed_sections;
 /* Return a nonzero value if DECL has a section attribute.  */
 #define IN_NAMED_SECTION(DECL) \
   ((TREE_CODE (DECL) == FUNCTION_DECL || TREE_CODE (DECL) == VAR_DECL) \
-   && DECL_SECTION_NAME (DECL) != NULL_TREE)
+   && DECL_SECTION_NAME (DECL) != NULL)
 
 /* Hash table of named sections.  */
 static GTY((param_is (section))) htab_t section_htab;
@@ -242,7 +241,7 @@ get_unnamed_section (unsigned int flags, void (*callback) (const void *),
 {
   section *sect;
 
-  sect = ggc_alloc_section ();
+  sect = ggc_alloc<section> ();
   sect->unnamed.common.flags = flags | SECTION_UNNAMED;
   sect->unnamed.callback = callback;
   sect->unnamed.data = data;
@@ -259,7 +258,7 @@ get_noswitch_section (unsigned int flags, noswitch_section_callback callback)
 {
   section *sect;
 
-  sect = ggc_alloc_section ();
+  sect = ggc_alloc<section> ();
   sect->noswitch.common.flags = flags | SECTION_NOSWITCH;
   sect->noswitch.callback = callback;
 
@@ -280,7 +279,7 @@ get_section (const char *name, unsigned int flags, tree decl)
   flags |= SECTION_NAMED;
   if (*slot == NULL)
     {
-      sect = ggc_alloc_section ();
+      sect = ggc_alloc<section> ();
       sect->named.common.flags = flags;
       sect->named.name = ggc_strdup (name);
       sect->named.decl = decl;
@@ -361,7 +360,7 @@ get_block_for_section (section *sect)
   block = (struct object_block *) *slot;
   if (block == NULL)
     {
-      block = ggc_alloc_cleared_object_block ();
+      block = ggc_cleared_alloc<object_block> ();
       block->sect = sect;
       *slot = block;
     }
@@ -381,7 +380,7 @@ create_block_symbol (const char *label, struct object_block *block,
 
   /* Create the extended SYMBOL_REF.  */
   size = RTX_HDR_SIZE + sizeof (struct block_symbol);
-  symbol = ggc_alloc_rtx_def (size);
+  symbol = (rtx) ggc_internal_alloc (size);
 
   /* Initialize the normal SYMBOL_REF fields.  */
   memset (symbol, 0, size);
@@ -412,11 +411,20 @@ get_named_section (tree decl, const char *name, int reloc)
   if (name == NULL)
     {
       gcc_assert (decl && DECL_P (decl) && DECL_SECTION_NAME (decl));
-      name = TREE_STRING_POINTER (DECL_SECTION_NAME (decl));
+      name = DECL_SECTION_NAME (decl);
     }
 
   flags = targetm.section_type_flags (decl, name, reloc);
   return get_section (name, flags, decl);
+}
+
+/* Worker for resolve_unique_section.  */
+
+static bool
+set_implicit_section (struct symtab_node *n, void *data ATTRIBUTE_UNUSED)
+{
+  n->implicit_section = true;
+  return false;
 }
 
 /* If required, set DECL_SECTION_NAME to a unique name.  */
@@ -425,13 +433,15 @@ void
 resolve_unique_section (tree decl, int reloc ATTRIBUTE_UNUSED,
 			int flag_function_or_data_sections)
 {
-  if (DECL_SECTION_NAME (decl) == NULL_TREE
+  if (DECL_SECTION_NAME (decl) == NULL
       && targetm_common.have_named_sections
       && (flag_function_or_data_sections
-	  || DECL_ONE_ONLY (decl)))
+	  || DECL_COMDAT_GROUP (decl)))
     {
       targetm.asm_out.unique_section (decl, reloc);
-      DECL_HAS_IMPLICIT_SECTION_NAME_P (decl) = true;
+      if (DECL_SECTION_NAME (decl))
+        symtab_for_node_and_aliases (symtab_get_node (decl),
+				     set_implicit_section, NULL, true);
     }
 }
 
@@ -473,7 +483,7 @@ static section *
 hot_function_section (tree decl)
 {
   if (decl != NULL_TREE
-      && DECL_SECTION_NAME (decl) != NULL_TREE
+      && DECL_SECTION_NAME (decl) != NULL
       && targetm_common.have_named_sections)
     return get_named_section (decl, NULL, 0);
   else
@@ -498,26 +508,26 @@ get_named_text_section (tree decl,
     {
       if (named_section_suffix)
 	{
-	  tree dsn = DECL_SECTION_NAME (decl);
+	  const char *dsn = DECL_SECTION_NAME (decl);
 	  const char *stripped_name;
 	  char *name, *buffer;
 
-	  name = (char *) alloca (TREE_STRING_LENGTH (dsn) + 1);
-	  memcpy (name, TREE_STRING_POINTER (dsn),
-		  TREE_STRING_LENGTH (dsn) + 1);
+	  name = (char *) alloca (strlen (dsn) + 1);
+	  memcpy (name, dsn,
+		  strlen (dsn) + 1);
 
 	  stripped_name = targetm.strip_name_encoding (name);
 
 	  buffer = ACONCAT ((stripped_name, named_section_suffix, NULL));
 	  return get_named_section (decl, buffer, 0);
 	}
-      else if (DECL_HAS_IMPLICIT_SECTION_NAME_P (decl))
+      else if (symtab_get_node (decl)->implicit_section)
 	{
 	  const char *name;
 
 	  /* Do not try to split gnu_linkonce functions.  This gets somewhat
 	     slipperly.  */
-	  if (DECL_ONE_ONLY (decl) && !HAVE_COMDAT_GROUP)
+	  if (DECL_COMDAT_GROUP (decl) && !HAVE_COMDAT_GROUP)
 	    return NULL;
 	  name = IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (decl));
 	  name = targetm.strip_name_encoding (name);
@@ -540,8 +550,7 @@ default_function_section (tree decl, enum node_frequency freq,
   /* Old GNU linkers have buggy --gc-section support, which sometimes
      results in .gcc_except_table* sections being garbage collected.  */
   if (decl
-      && DECL_SECTION_NAME (decl)
-      && DECL_HAS_IMPLICIT_SECTION_NAME_P (decl))
+      && symtab_get_node (decl)->implicit_section)
     return NULL;
 #endif
 
@@ -611,7 +620,7 @@ function_section_1 (tree decl, bool force_cold)
 
 #ifdef USE_SELECT_SECTION_FOR_FUNCTIONS
   if (decl != NULL_TREE
-      && DECL_SECTION_NAME (decl) != NULL_TREE)
+      && DECL_SECTION_NAME (decl) != NULL)
     {
       if (targetm.asm_out.function_section)
 	section = targetm.asm_out.function_section (decl, freq,
@@ -685,9 +694,9 @@ default_function_rodata_section (tree decl)
 {
   if (decl != NULL_TREE && DECL_SECTION_NAME (decl))
     {
-      const char *name = TREE_STRING_POINTER (DECL_SECTION_NAME (decl));
+      const char *name = DECL_SECTION_NAME (decl);
 
-      if (DECL_ONE_ONLY (decl) && HAVE_COMDAT_GROUP)
+      if (DECL_COMDAT_GROUP (decl) && HAVE_COMDAT_GROUP)
         {
 	  const char *dot;
 	  size_t len;
@@ -704,7 +713,7 @@ default_function_rodata_section (tree decl)
 	  return get_section (rname, SECTION_LINKONCE, decl);
 	}
       /* For .gnu.linkonce.t.foo we want to use .gnu.linkonce.r.foo.  */
-      else if (DECL_ONE_ONLY (decl)
+      else if (DECL_COMDAT_GROUP (decl)
 	       && strncmp (name, ".gnu.linkonce.t.", 16) == 0)
 	{
 	  size_t len = strlen (name) + 1;
@@ -996,7 +1005,8 @@ align_variable (tree decl, bool dont_output_data)
 	 and for code accessing the variable as guaranteed alignment, we
 	 can only increase the alignment if it is a performance optimization
 	 if the references to it must bind to the current definition.  */
-      if (decl_binds_to_current_def_p (decl))
+      if (decl_binds_to_current_def_p (decl)
+	  && !DECL_VIRTUAL_P (decl))
 	{
 #ifdef DATA_ALIGNMENT
 	  unsigned int data_align = DATA_ALIGNMENT (TREE_TYPE (decl), align);
@@ -1082,6 +1092,9 @@ get_variable_section (tree decl, bool prefer_noswitch_p)
 {
   addr_space_t as = ADDR_SPACE_GENERIC;
   int reloc;
+  symtab_node *snode = symtab_get_node (decl);
+  if (snode)
+    decl = symtab_alias_ultimate_target (snode)->decl;
 
   if (TREE_TYPE (decl) != error_mark_node)
     as = TYPE_ADDR_SPACE (TREE_TYPE (decl));
@@ -1142,7 +1155,7 @@ get_block_for_decl (tree decl)
 
       /* There's no point using object blocks for something that is
 	 isolated by definition.  */
-      if (DECL_ONE_ONLY (decl))
+      if (DECL_COMDAT_GROUP (decl))
 	return NULL;
     }
 
@@ -1181,6 +1194,8 @@ change_symbol_block (rtx symbol, struct object_block *block)
 static bool
 use_blocks_for_decl_p (tree decl)
 {
+  struct symtab_node *snode;
+
   /* Only data DECLs can be placed into object blocks.  */
   if (TREE_CODE (decl) != VAR_DECL && TREE_CODE (decl) != CONST_DECL)
     return false;
@@ -1194,7 +1209,9 @@ use_blocks_for_decl_p (tree decl)
 
   /* If this decl is an alias, then we don't want to emit a
      definition.  */
-  if (lookup_attribute ("alias", DECL_ATTRIBUTES (decl)))
+  if (TREE_CODE (decl) == VAR_DECL
+      && (snode = symtab_get_node (decl)) != NULL
+      && snode->alias)
     return false;
 
   return targetm.use_blocks_for_decl_p (decl);
@@ -1362,7 +1379,8 @@ make_decl_rtl (tree decl)
      is called early and it needs to make DECL_RTL to get the name.
      we take care of recomputing the DECL_RTL after visibility is changed.  */
   if (TREE_CODE (decl) == VAR_DECL
-      && DECL_SECTION_NAME (decl) != NULL_TREE
+      && (TREE_STATIC (decl) || DECL_EXTERNAL (decl))
+      && DECL_SECTION_NAME (decl) != NULL
       && DECL_INITIAL (decl) == NULL_TREE
       && DECL_COMMON (decl))
     DECL_COMMON (decl) = 0;
@@ -2738,7 +2756,7 @@ decode_addr_const (tree exp, struct addr_const *value)
       else if (TREE_CODE (target) == MEM_REF
 	       && TREE_CODE (TREE_OPERAND (target, 0)) == ADDR_EXPR)
 	{
-	  offset += mem_ref_offset (target).low;
+	  offset += mem_ref_offset (target).to_short_addr ();
 	  target = TREE_OPERAND (TREE_OPERAND (target, 0), 0);
 	}
       else if (TREE_CODE (target) == INDIRECT_REF
@@ -2818,8 +2836,8 @@ const_hash_1 (const tree exp)
   switch (code)
     {
     case INTEGER_CST:
-      p = (char *) &TREE_INT_CST (exp);
-      len = sizeof TREE_INT_CST (exp);
+      p = (char *) &TREE_INT_CST_ELT (exp, 0);
+      len = TREE_INT_CST_NUNITS (exp) * sizeof (HOST_WIDE_INT);
       break;
 
     case REAL_CST:
@@ -3099,71 +3117,6 @@ compare_constant (const tree t1, const tree t2)
   gcc_unreachable ();
 }
 
-/* Make a copy of the whole tree structure for a constant.  This
-   handles the same types of nodes that compare_constant handles.  */
-
-static tree
-copy_constant (tree exp)
-{
-  switch (TREE_CODE (exp))
-    {
-    case ADDR_EXPR:
-      /* For ADDR_EXPR, we do not want to copy the decl whose address
-	 is requested.  We do want to copy constants though.  */
-      if (CONSTANT_CLASS_P (TREE_OPERAND (exp, 0)))
-	return build1 (TREE_CODE (exp), TREE_TYPE (exp),
-		       copy_constant (TREE_OPERAND (exp, 0)));
-      else
-	return copy_node (exp);
-
-    case INTEGER_CST:
-    case REAL_CST:
-    case FIXED_CST:
-    case STRING_CST:
-      return copy_node (exp);
-
-    case COMPLEX_CST:
-      return build_complex (TREE_TYPE (exp),
-			    copy_constant (TREE_REALPART (exp)),
-			    copy_constant (TREE_IMAGPART (exp)));
-
-    case PLUS_EXPR:
-    case POINTER_PLUS_EXPR:
-    case MINUS_EXPR:
-      return build2 (TREE_CODE (exp), TREE_TYPE (exp),
-		     copy_constant (TREE_OPERAND (exp, 0)),
-		     copy_constant (TREE_OPERAND (exp, 1)));
-
-    CASE_CONVERT:
-    case VIEW_CONVERT_EXPR:
-      return build1 (TREE_CODE (exp), TREE_TYPE (exp),
-		     copy_constant (TREE_OPERAND (exp, 0)));
-
-    case VECTOR_CST:
-      return build_vector (TREE_TYPE (exp), VECTOR_CST_ELTS (exp));
-
-    case CONSTRUCTOR:
-      {
-	tree copy = copy_node (exp);
-	vec<constructor_elt, va_gc> *v;
-	unsigned HOST_WIDE_INT idx;
-	tree purpose, value;
-
-	vec_alloc (v, vec_safe_length (CONSTRUCTOR_ELTS (exp)));
-	FOR_EACH_CONSTRUCTOR_ELT (CONSTRUCTOR_ELTS (exp), idx, purpose, value)
-	  {
-	    constructor_elt ce = {purpose, copy_constant (value)};
-	    v->quick_push (ce);
-	  }
-	CONSTRUCTOR_ELTS (copy) = v;
-	return copy;
-      }
-
-    default:
-      gcc_unreachable ();
-    }
-}
-
 /* Return the section into which constant EXP should be placed.  */
 
 static section *
@@ -3203,8 +3156,8 @@ build_constant_desc (tree exp)
   int labelno;
   tree decl;
 
-  desc = ggc_alloc_constant_descriptor_tree ();
-  desc->value = copy_constant (exp);
+  desc = ggc_alloc<constant_descriptor_tree> ();
+  desc->value = exp;
 
   /* Create a string containing the label name, in LABEL.  */
   labelno = const_labelno++;
@@ -3520,6 +3473,7 @@ const_rtx_hash_1 (rtx *xp, void *data)
   enum rtx_code code;
   hashval_t h, *hp;
   rtx x;
+  int i;
 
   x = *xp;
   code = GET_CODE (x);
@@ -3530,11 +3484,11 @@ const_rtx_hash_1 (rtx *xp, void *data)
     {
     case CONST_INT:
       hwi = INTVAL (x);
+
     fold_hwi:
       {
 	int shift = sizeof (hashval_t) * CHAR_BIT;
 	const int n = sizeof (HOST_WIDE_INT) / sizeof (hashval_t);
-	int i;
 
 	h ^= (hashval_t) hwi;
 	for (i = 1; i < n; ++i)
@@ -3545,8 +3499,16 @@ const_rtx_hash_1 (rtx *xp, void *data)
       }
       break;
 
+    case CONST_WIDE_INT:
+      hwi = GET_MODE_PRECISION (mode);
+      {
+	for (i = 0; i < CONST_WIDE_INT_NUNITS (x); i++)
+	  hwi ^= CONST_WIDE_INT_ELT (x, i);
+	goto fold_hwi;
+      }
+
     case CONST_DOUBLE:
-      if (mode == VOIDmode)
+      if (TARGET_SUPPORTS_WIDE_INT == 0 && mode == VOIDmode)
 	{
 	  hwi = CONST_DOUBLE_LOW (x) ^ CONST_DOUBLE_HIGH (x);
 	  goto fold_hwi;
@@ -3607,7 +3569,7 @@ create_constant_pool (void)
 {
   struct rtx_constant_pool *pool;
 
-  pool = ggc_alloc_rtx_constant_pool ();
+  pool = ggc_alloc<rtx_constant_pool> ();
   pool->const_rtx_htab = htab_create_ggc (31, const_desc_rtx_hash,
 					  const_desc_rtx_eq, NULL);
   pool->first = NULL;
@@ -3673,7 +3635,7 @@ force_const_mem (enum machine_mode mode, rtx x)
     return copy_rtx (desc->mem);
 
   /* Otherwise, create a new descriptor.  */
-  desc = ggc_alloc_constant_descriptor_rtx ();
+  desc = ggc_alloc<constant_descriptor_rtx> ();
   *slot = desc;
 
   /* Align the location counter as required by EXP's data type.  */
@@ -4639,8 +4601,7 @@ output_constant (tree exp, unsigned HOST_WIDE_INT size, unsigned int align)
 	exp = build1 (ADDR_EXPR, saved_type, TREE_OPERAND (exp, 0));
       /* Likewise for constant ints.  */
       else if (TREE_CODE (exp) == INTEGER_CST)
-	exp = build_int_cst_wide (saved_type, TREE_INT_CST_LOW (exp),
-				  TREE_INT_CST_HIGH (exp));
+	exp = wide_int_to_tree (saved_type, exp);
 
     }
 
@@ -4779,7 +4740,7 @@ array_size_for_constructor (tree val)
   tree max_index;
   unsigned HOST_WIDE_INT cnt;
   tree index, value, tmp;
-  double_int i;
+  offset_int i;
 
   /* This code used to attempt to handle string constants that are not
      arrays of single-bytes, but nothing else does, so there's no point in
@@ -4801,14 +4762,13 @@ array_size_for_constructor (tree val)
 
   /* Compute the total number of array elements.  */
   tmp = TYPE_MIN_VALUE (TYPE_DOMAIN (TREE_TYPE (val)));
-  i = tree_to_double_int (max_index) - tree_to_double_int (tmp);
-  i += double_int_one;
+  i = wi::to_offset (max_index) - wi::to_offset (tmp) + 1;
 
   /* Multiply by the array element unit size to find number of bytes.  */
-  i *= tree_to_double_int (TYPE_SIZE_UNIT (TREE_TYPE (TREE_TYPE (val))));
+  i *= wi::to_offset (TYPE_SIZE_UNIT (TREE_TYPE (TREE_TYPE (val))));
 
-  gcc_assert (i.fits_uhwi ());
-  return i.low;
+  gcc_assert (wi::fits_uhwi_p (i));
+  return i.to_uhwi ();
 }
 
 /* Other datastructures + helpers for output_constructor.  */
@@ -4888,11 +4848,10 @@ output_constructor_regular_field (oc_local_state *local)
 	 sign-extend the result because Ada has negative DECL_FIELD_OFFSETs
 	 but we are using an unsigned sizetype.  */
       unsigned prec = TYPE_PRECISION (sizetype);
-      double_int idx = tree_to_double_int (local->index)
-		       - tree_to_double_int (local->min_index);
-      idx = idx.sext (prec);
-      fieldpos = (tree_to_uhwi (TYPE_SIZE_UNIT (TREE_TYPE (local->val)))
-		  * idx.low);
+      offset_int idx = wi::sext (wi::to_offset (local->index)
+				 - wi::to_offset (local->min_index), prec);
+      fieldpos = (idx * wi::to_offset (TYPE_SIZE_UNIT (TREE_TYPE (local->val))))
+	.to_short_addr ();
     }
   else if (local->field != NULL_TREE)
     fieldpos = int_byte_position (local->field);
@@ -5075,33 +5034,27 @@ output_constructor_bitfield (oc_local_state *local, unsigned int bit_offset)
       this_time = MIN (end_offset - next_offset, BITS_PER_UNIT - next_bit);
       if (BYTES_BIG_ENDIAN)
 	{
-	  /* On big-endian machine, take the most significant bits
-	     first (of the bits that are significant)
-	     and put them into bytes from the most significant end.  */
+	  /* On big-endian machine, take the most significant bits (of the
+	     bits that are significant) first and put them into bytes from
+	     the most significant end.  */
 	  shift = end_offset - next_offset - this_time;
 
 	  /* Don't try to take a bunch of bits that cross
-	     the word boundary in the INTEGER_CST. We can
-	     only select bits from the LOW or HIGH part
-	     not from both.  */
-	  if (shift < HOST_BITS_PER_WIDE_INT
-	      && shift + this_time > HOST_BITS_PER_WIDE_INT)
+	     the word boundary in the INTEGER_CST.  We can
+	     only select bits from one element.  */
+	  if ((shift / HOST_BITS_PER_WIDE_INT)
+	      != ((shift + this_time - 1) / HOST_BITS_PER_WIDE_INT))
 	    {
-	      this_time = shift + this_time - HOST_BITS_PER_WIDE_INT;
-	      shift = HOST_BITS_PER_WIDE_INT;
+	      const int end = shift + this_time - 1;
+	      shift = end & -HOST_BITS_PER_WIDE_INT;
+	      this_time = end - shift + 1;
 	    }
 
 	  /* Now get the bits from the appropriate constant word.  */
-	  if (shift < HOST_BITS_PER_WIDE_INT)
-	    value = TREE_INT_CST_LOW (local->val);
-	  else
-	    {
-	      gcc_assert (shift < HOST_BITS_PER_DOUBLE_INT);
-	      value = TREE_INT_CST_HIGH (local->val);
-	      shift -= HOST_BITS_PER_WIDE_INT;
-	    }
+	  value = TREE_INT_CST_ELT (local->val, shift / HOST_BITS_PER_WIDE_INT);
+	  shift = shift & (HOST_BITS_PER_WIDE_INT - 1);
 
-	  /* Get the result. This works only when:
+	  /* Get the result.  This works only when:
 	     1 <= this_time <= HOST_BITS_PER_WIDE_INT.  */
 	  local->byte |= (((value >> shift)
 			   & (((HOST_WIDE_INT) 2 << (this_time - 1)) - 1))
@@ -5109,31 +5062,24 @@ output_constructor_bitfield (oc_local_state *local, unsigned int bit_offset)
 	}
       else
 	{
-	  /* On little-endian machines,
-	     take first the least significant bits of the value
-	     and pack them starting at the least significant
+	  /* On little-endian machines, take the least significant bits of
+	     the value first and pack them starting at the least significant
 	     bits of the bytes.  */
 	  shift = next_offset - byte_relative_ebitpos;
 
 	  /* Don't try to take a bunch of bits that cross
-	     the word boundary in the INTEGER_CST. We can
-	     only select bits from the LOW or HIGH part
-	     not from both.  */
-	  if (shift < HOST_BITS_PER_WIDE_INT
-	      && shift + this_time > HOST_BITS_PER_WIDE_INT)
-	    this_time = (HOST_BITS_PER_WIDE_INT - shift);
+	     the word boundary in the INTEGER_CST.  We can
+	     only select bits from one element.  */
+	  if ((shift / HOST_BITS_PER_WIDE_INT)
+	      != ((shift + this_time - 1) / HOST_BITS_PER_WIDE_INT))
+	    this_time
+	      = HOST_BITS_PER_WIDE_INT - (shift & (HOST_BITS_PER_WIDE_INT - 1));
 
 	  /* Now get the bits from the appropriate constant word.  */
-	  if (shift < HOST_BITS_PER_WIDE_INT)
-	    value = TREE_INT_CST_LOW (local->val);
-	  else
-	    {
-	      gcc_assert (shift < HOST_BITS_PER_DOUBLE_INT);
-	      value = TREE_INT_CST_HIGH (local->val);
-	      shift -= HOST_BITS_PER_WIDE_INT;
-	    }
+	  value = TREE_INT_CST_ELT (local->val, shift / HOST_BITS_PER_WIDE_INT);
+	  shift = shift & (HOST_BITS_PER_WIDE_INT - 1);
 
-	  /* Get the result. This works only when:
+	  /* Get the result.  This works only when:
 	     1 <= this_time <= HOST_BITS_PER_WIDE_INT.  */
 	  local->byte |= (((value >> shift)
 			   & (((HOST_WIDE_INT) 2 << (this_time - 1)) - 1))
@@ -5721,7 +5667,7 @@ record_tm_clone_pair (tree o, tree n)
   if (tm_clone_hash == NULL)
     tm_clone_hash = htab_create_ggc (32, tree_map_hash, tree_map_eq, 0);
 
-  h = ggc_alloc_tree_map ();
+  h = ggc_alloc<tree_map> ();
   h->hash = htab_hash_pointer (o);
   h->base.from = o;
   h->to = n;
@@ -5925,17 +5871,23 @@ supports_one_only (void)
 void
 make_decl_one_only (tree decl, tree comdat_group)
 {
+  struct symtab_node *symbol;
   gcc_assert (TREE_CODE (decl) == VAR_DECL
 	      || TREE_CODE (decl) == FUNCTION_DECL);
 
   TREE_PUBLIC (decl) = 1;
+
+  if (TREE_CODE (decl) == VAR_DECL)
+    symbol = varpool_node_for_decl (decl);
+  else
+    symbol = cgraph_get_create_node (decl);
 
   if (SUPPORTS_ONE_ONLY)
     {
 #ifdef MAKE_DECL_ONE_ONLY
       MAKE_DECL_ONE_ONLY (decl);
 #endif
-      DECL_COMDAT_GROUP (decl) = comdat_group;
+      symbol->set_comdat_group (comdat_group);
     }
   else if (TREE_CODE (decl) == VAR_DECL
       && (DECL_INITIAL (decl) == 0 || DECL_INITIAL (decl) == error_mark_node))
@@ -6085,7 +6037,7 @@ default_section_type_flags (tree decl, const char *name, int reloc)
 	flags |= SECTION_RELRO;
     }
 
-  if (decl && DECL_P (decl) && DECL_ONE_ONLY (decl))
+  if (decl && DECL_P (decl) && DECL_COMDAT_GROUP (decl))
     flags |= SECTION_LINKONCE;
 
   if (strcmp (name, ".vtable_map_vars") == 0)
@@ -6519,7 +6471,7 @@ default_unique_section (tree decl, int reloc)
 
   string = ACONCAT ((linkonce, prefix, ".", name, NULL));
 
-  DECL_SECTION_NAME (decl) = build_string (strlen (string), string);
+  set_decl_section_name (decl, string);
 }
 
 /* Like compute_reloc_for_constant, except for an RTX.  The return value
@@ -6822,7 +6774,7 @@ default_binds_local_p_1 (const_tree exp, int shlib)
    definition from different object file) and when resolution info is available
    we simply use the knowledge passed to us by linker plugin.  */
 bool
-decl_binds_to_current_def_p (tree decl)
+decl_binds_to_current_def_p (const_tree decl)
 {
   gcc_assert (DECL_P (decl));
   if (!targetm.binds_local_p (decl))
@@ -6877,6 +6829,9 @@ decl_replaceable_p (tree decl)
 {
   gcc_assert (DECL_P (decl));
   if (!TREE_PUBLIC (decl) || DECL_COMDAT (decl))
+    return false;
+  if (!flag_semantic_interposition
+      && !DECL_WEAK (decl))
     return false;
   return !decl_binds_to_current_def_p (decl);
 }
@@ -7084,7 +7039,18 @@ place_block_symbol (rtx symbol)
     }
   else
     {
+      struct symtab_node *snode;
       decl = SYMBOL_REF_DECL (symbol);
+
+      snode = symtab_get_node (decl);
+      if (snode->alias)
+	{
+	  rtx target = DECL_RTL (symtab_alias_ultimate_target (snode)->decl);
+
+	  place_block_symbol (target);
+	  SYMBOL_REF_BLOCK_OFFSET (symbol) = SYMBOL_REF_BLOCK_OFFSET (target);
+	  return;
+	}
       alignment = get_variable_align (decl);
       size = tree_to_uhwi (DECL_SIZE_UNIT (decl));
       if ((flag_sanitize & SANITIZE_ADDRESS)

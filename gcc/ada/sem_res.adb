@@ -1564,9 +1564,13 @@ package body Sem_Res is
       --  the call has already been constant-folded, nothing to do. We
       --  relocate the operand nodes rather than copy them, to preserve
       --  original_node pointers, given that the operands themselves may
-      --  have been rewritten.
+      --  have been rewritten. If the call was itself a rewriting of an
+      --  operator node, nothing to do.
 
-      if ASIS_Mode and then Nkind (N) in N_Op then
+      if ASIS_Mode
+        and then Nkind (N) in N_Op
+        and then Nkind (Original_Node (N)) = N_Function_Call
+      then
          if Is_Binary then
             Rewrite (First (Parameter_Associations (Original_Node (N))),
                Relocate_Node (Left_Opnd (N)));
@@ -1790,10 +1794,6 @@ package body Sem_Res is
       --  Try and fix up a literal so that it matches its expected type. New
       --  literals are manufactured if necessary to avoid cascaded errors.
 
-      function Proper_Current_Scope return Entity_Id;
-      --  Return the current scope. Skip loop scopes created for the purpose of
-      --  quantified expression analysis since those do not appear in the tree.
-
       procedure Report_Ambiguous_Argument;
       --  Additional diagnostics when an ambiguous call has an ambiguous
       --  argument (typically a controlling actual).
@@ -1855,30 +1855,6 @@ package body Sem_Res is
             Patch_Up_Value (High_Bound (N), Typ);
          end if;
       end Patch_Up_Value;
-
-      --------------------------
-      -- Proper_Current_Scope --
-      --------------------------
-
-      function Proper_Current_Scope return Entity_Id is
-         S : Entity_Id := Current_Scope;
-
-      begin
-         while Present (S) loop
-
-            --  Skip a loop scope created for quantified expression analysis
-
-            if Ekind (S) = E_Loop
-              and then Nkind (Parent (S)) = N_Quantified_Expression
-            then
-               S := Scope (S);
-            else
-               exit;
-            end if;
-         end loop;
-
-         return S;
-      end Proper_Current_Scope;
 
       -------------------------------
       -- Report_Ambiguous_Argument --
@@ -2481,8 +2457,8 @@ package body Sem_Res is
             --  the allocator.
 
             elsif Nkind (N) = N_Allocator
-              and then Ekind (Typ) in Access_Kind
-              and then Ekind (Etype (N)) in Access_Kind
+              and then Is_Access_Type (Typ)
+              and then Is_Access_Type (Etype (N))
               and then Designated_Type (Etype (N)) = Typ
             then
                Wrong_Type (Expression (N), Designated_Type (Typ));
@@ -2933,15 +2909,12 @@ package body Sem_Res is
          --  default expression mode (the Freeze_Expression routine tests this
          --  flag and only freezes static types if it is set).
 
-         --  Ada 2012 (AI05-177): Expression functions do not freeze. Only
-         --  their use (in an expanded call) freezes.
+         --  Ada 2012 (AI05-177): The declaration of an expression function
+         --  does not cause freezing, but we never reach here in that case.
+         --  Here we are resolving the corresponding expanded body, so we do
+         --  need to perform normal freezing.
 
-         if Ekind (Proper_Current_Scope) /= E_Function
-           or else Nkind (Original_Node (Unit_Declaration_Node
-                     (Proper_Current_Scope))) /= N_Expression_Function
-         then
-            Freeze_Expression (N);
-         end if;
+         Freeze_Expression (N);
 
          --  Now we can do the expansion
 
@@ -4684,7 +4657,7 @@ package body Sem_Res is
          Check_Restriction (No_Task_Hierarchy, N);
       end if;
 
-      --  An erroneous allocator may be rewritten as a raise Program_Error
+      --  An illegal allocator may be rewritten as a raise Program_Error
       --  statement.
 
       if Nkind (N) = N_Allocator then
@@ -5632,9 +5605,8 @@ package body Sem_Res is
 
                      Index_Node :=
                        Make_Indexed_Component (Loc,
-                         Prefix =>
-                           Make_Function_Call (Loc,
-                             Name => New_Subp),
+                         Prefix      =>
+                           Make_Function_Call (Loc, Name => New_Subp),
                          Expressions => Parameter_Associations (N));
                   else
                      --  An Ada 2005 prefixed call to a primitive operation
@@ -5645,9 +5617,9 @@ package body Sem_Res is
 
                      Index_Node :=
                         Make_Indexed_Component (Loc,
-                          Prefix =>
+                          Prefix       =>
                             Make_Function_Call (Loc,
-                               Name => New_Subp,
+                               Name                   => New_Subp,
                                Parameter_Associations =>
                                  New_List
                                    (Remove_Head (Parameter_Associations (N)))),
@@ -5776,9 +5748,8 @@ package body Sem_Res is
                         begin
                            P := Prev (N);
                            while Present (P) loop
-                              if not Nkind_In (P,
-                                N_Assignment_Statement,
-                                N_Raise_Constraint_Error)
+                              if not Nkind_In (P, N_Assignment_Statement,
+                                                  N_Raise_Constraint_Error)
                               then
                                  exit Scope_Loop;
                               end if;
@@ -6128,6 +6099,18 @@ package body Sem_Res is
                     Reason => PE_Explicit_Raise));
             end if;
          end;
+      end if;
+
+      --  Check for calling a function with OUT or IN OUT parameter when the
+      --  calling context (us right now) is not Ada 2012, so does not allow
+      --  OUT or IN OUT parameters in function calls.
+
+      if Ada_Version < Ada_2012
+        and then Ekind (Nam) = E_Function
+        and then Has_Out_Or_In_Out_Parameter (Nam)
+      then
+         Error_Msg_NE ("& has at least one OUT or `IN OUT` parameter", N, Nam);
+         Error_Msg_N ("\call to this function only allowed in Ada 2012", N);
       end if;
 
       --  Check the dimensions of the actuals in the call. For function calls,
@@ -6579,11 +6562,11 @@ package body Sem_Res is
       --  standard Ada legality rules.
 
       if SPARK_Mode = On
-        and then Ekind_In (E, E_Abstract_State, E_Variable)
-        and then Is_SPARK_Volatile_Object (E)
+        and then Is_Object (E)
+        and then Is_SPARK_Volatile (E)
+        and then Comes_From_Source (E)
         and then
-          (Async_Writers_Enabled (E)
-             or else Effective_Reads_Enabled (E))
+          (Async_Writers_Enabled (E) or else Effective_Reads_Enabled (E))
       then
          --  The volatile object can appear on either side of an assignment
 
@@ -9159,7 +9142,7 @@ package body Sem_Res is
                Comp := First_Entity (T);
                while Present (Comp) loop
                   if Chars (Comp) = Chars (S)
-                    and then Covers (Etype (Comp), Typ)
+                    and then Covers (Typ, Etype (Comp))
                   then
                      if not Found then
                         Found := True;
@@ -9213,6 +9196,9 @@ package body Sem_Res is
             Get_Next_Interp (I, It);
          end loop Search;
 
+         --  There must be a legal interpretation at this point
+
+         pragma Assert (Found);
          Resolve (P, It1.Typ);
          Set_Etype (N, Typ);
          Set_Entity_With_Checks (S, Comp1);
@@ -11827,7 +11813,12 @@ package body Sem_Res is
       --  after the return.
 
       elsif Is_Access_Subprogram_Type (Target_Type)
-        and then No (Corresponding_Remote_Type (Opnd_Type))
+
+        --  Note: this test of Opnd_Type is there to prevent entering this
+        --  branch in the case of a remote access to subprogram type, which
+        --  is internally represented as an E_Record_Type.
+
+        and then Is_Access_Type (Opnd_Type)
       then
          if Ekind (Base_Type (Opnd_Type)) = E_Anonymous_Access_Subprogram_Type
            and then Is_Entity_Name (Operand)
@@ -11892,13 +11883,22 @@ package body Sem_Res is
 
          return True;
 
-      --  Remote subprogram access types
+      --  Remote access to subprogram types
 
       elsif Is_Remote_Access_To_Subprogram_Type (Target_Type)
         and then Is_Remote_Access_To_Subprogram_Type (Opnd_Type)
       then
          --  It is valid to convert from one RAS type to another provided
          --  that their specification statically match.
+
+         --  Note: at this point, remote access to subprogram types have been
+         --  expanded to their E_Record_Type representation, and we need to
+         --  go back to the original access type definition using the
+         --  Corresponding_Remote_Type attribute in order to check that the
+         --  designated profiles match.
+
+         pragma Assert (Ekind (Target_Type) = E_Record_Type);
+         pragma Assert (Ekind (Opnd_Type) = E_Record_Type);
 
          Check_Subtype_Conformant
            (New_Id  =>

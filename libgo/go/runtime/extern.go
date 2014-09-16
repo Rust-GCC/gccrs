@@ -24,17 +24,27 @@ percentage at run time. See http://golang.org/pkg/runtime/debug/#SetGCPercent.
 The GODEBUG variable controls debug output from the runtime. GODEBUG value is
 a comma-separated list of name=val pairs. Supported names are:
 
+	allocfreetrace: setting allocfreetrace=1 causes every allocation to be
+	profiled and a stack trace printed on each object's allocation and free.
+
+	efence: setting efence=1 causes the allocator to run in a mode
+	where each object is allocated on a unique page and addresses are
+	never recycled.
+
 	gctrace: setting gctrace=1 causes the garbage collector to emit a single line to standard
 	error at each collection, summarizing the amount of memory collected and the
 	length of the pause. Setting gctrace=2 emits the same summary but also
 	repeats each collection.
 
-	schedtrace: setting schedtrace=X causes the scheduler to emit a single line to standard
-	error every X milliseconds, summarizing the scheduler state.
+	gcdead: setting gcdead=1 causes the garbage collector to clobber all stack slots
+	that it thinks are dead.
 
 	scheddetail: setting schedtrace=X and scheddetail=1 causes the scheduler to emit
 	detailed multiline info every X milliseconds, describing state of the scheduler,
 	processors, threads and goroutines.
+
+	schedtrace: setting schedtrace=X causes the scheduler to emit a single line to standard
+	error every X milliseconds, summarizing the scheduler state.
 
 The GOMAXPROCS variable limits the number of operating system threads that
 can execute user-level Go code simultaneously. There is no limit to the number of threads
@@ -69,6 +79,11 @@ func Gosched()
 
 // Goexit terminates the goroutine that calls it.  No other goroutine is affected.
 // Goexit runs all deferred calls before terminating the goroutine.
+//
+// Calling Goexit from the main goroutine terminates that goroutine
+// without func main returning. Since func main has not returned,
+// the program continues execution of other goroutines.
+// If all other goroutines exit, the program crashes.
 func Goexit()
 
 // Caller reports file and line number information about function invocations on
@@ -153,6 +168,9 @@ func funcentry_go(*Func) uintptr
 // to depend on a finalizer to flush an in-memory I/O buffer such as a
 // bufio.Writer, because the buffer would not be flushed at program exit.
 //
+// It is not guaranteed that a finalizer will run if the size of *x is
+// zero bytes.
+//
 // A single goroutine runs all finalizers for a program, sequentially.
 // If a finalizer must run for a long time, it should do so by starting
 // a new goroutine.
@@ -172,10 +190,8 @@ func GOROOT() string {
 }
 
 // Version returns the Go tree's version string.
-// It is either a sequence number or, when possible,
-// a release tag like "release.2010-03-04".
-// A trailing + indicates that the tree had local modifications
-// at the time of the build.
+// It is either the commit hash and date at the time of the build or,
+// when possible, a release tag like "go1.3".
 func Version() string {
 	return theVersion
 }

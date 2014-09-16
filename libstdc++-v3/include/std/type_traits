@@ -37,6 +37,18 @@
 
 #include <bits/c++config.h>
 
+#ifdef _GLIBCXX_USE_C99_STDINT_TR1
+# if defined (__UINT_LEAST16_TYPE__) && defined(__UINT_LEAST32_TYPE__)
+namespace std
+{
+  typedef __UINT_LEAST16_TYPE__ uint_least16_t;
+  typedef __UINT_LEAST32_TYPE__ uint_least32_t;
+}
+# else
+#  include <cstdint>
+# endif
+#endif
+
 namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
@@ -1583,6 +1595,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     struct __make_unsigned<long long>
     { typedef unsigned long long __type; };
 
+#if defined(_GLIBCXX_USE_WCHAR_T) && !defined(__WCHAR_UNSIGNED__)
+  template<>
+    struct __make_unsigned<wchar_t> : __make_unsigned<__WCHAR_TYPE__>
+    { };
+#endif
+
 #if !defined(__STRICT_ANSI__) && defined(_GLIBCXX_USE_INT128)
   template<>
     struct __make_unsigned<__int128>
@@ -1664,6 +1682,21 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<>
     struct __make_signed<unsigned long long>
     { typedef signed long long __type; };
+
+#if defined(_GLIBCXX_USE_WCHAR_T) && defined(__WCHAR_UNSIGNED__)
+  template<>
+    struct __make_signed<wchar_t> : __make_signed<__WCHAR_TYPE__>
+    { };
+#endif
+
+#ifdef _GLIBCXX_USE_C99_STDINT_TR1
+  template<>
+    struct __make_signed<char16_t> : __make_signed<uint_least16_t>
+    { };
+  template<>
+    struct __make_signed<char32_t> : __make_signed<uint_least32_t>
+    { };
+#endif
 
 #if !defined(__STRICT_ANSI__) && defined(_GLIBCXX_USE_INT128)
   template<>
@@ -1837,6 +1870,52 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       };
     };
 
+  template <typename... _Types>
+    struct __strictest_alignment
+    {
+      static const size_t _S_alignment = 0;
+      static const size_t _S_size = 0;
+    };
+
+  template <typename _Tp, typename... _Types>
+    struct __strictest_alignment<_Tp, _Types...>
+    {
+      static const size_t _S_alignment =
+        alignof(_Tp) > __strictest_alignment<_Types...>::_S_alignment
+	? alignof(_Tp) : __strictest_alignment<_Types...>::_S_alignment;
+      static const size_t _S_size =
+        sizeof(_Tp) > __strictest_alignment<_Types...>::_S_size
+	? sizeof(_Tp) : __strictest_alignment<_Types...>::_S_size;
+    };
+
+  /**
+   *  @brief Provide aligned storage for types.
+   *
+   *  [meta.trans.other]
+   *
+   *  Provides aligned storage for any of the provided types of at
+   *  least size _Len.
+   *
+   *  @see aligned_storage
+   */
+  template <size_t _Len, typename... _Types>
+    struct aligned_union
+    {
+    private:
+      static_assert(sizeof...(_Types) != 0, "At least one type is required");
+
+      using __strictest = __strictest_alignment<_Types...>;
+      static const size_t _S_len = _Len > __strictest::_S_size
+	? _Len : __strictest::_S_size;
+    public:
+      /// The value of the strictest alignment of _Types.
+      static const size_t alignment_value = __strictest::_S_alignment;
+      /// The storage.
+      typedef typename aligned_storage<_S_len, alignment_value>::type type;
+    };
+
+  template <size_t _Len, typename... _Types>
+    const size_t aligned_union<_Len, _Types...>::alignment_value;
 
   // Decay trait for arrays and functions, used for perfect forwarding
   // in make_pair, make_tuple, etc.
@@ -2172,6 +2251,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<size_t _Len, size_t _Align =
 	    __alignof__(typename __aligned_storage_msa<_Len>::__type)>
     using aligned_storage_t = typename aligned_storage<_Len, _Align>::type;
+
+  template <size_t _Len, typename... _Types>
+    using aligned_union_t = typename aligned_union<_Len, _Types...>::type;
 
   /// Alias template for decay
   template<typename _Tp>

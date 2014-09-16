@@ -2289,8 +2289,8 @@ fill_simple_delay_slots (int non_jumps_p)
    If LABEL is not followed by a jump, return LABEL.
    If the chain loops or we can't find end, return LABEL,
    since that tells caller to avoid changing the insn.
-   If the returned label is obtained by following a REG_CROSSING_JUMP
-   jump, set *CROSSING to true, otherwise set it to false.  */
+   If the returned label is obtained by following a crossing jump,
+   set *CROSSING to true, otherwise set it to false.  */
 
 static rtx
 follow_jumps (rtx label, rtx jump, bool *crossing)
@@ -2330,8 +2330,7 @@ follow_jumps (rtx label, rtx jump, bool *crossing)
       if (!targetm.can_follow_jump (jump, insn))
 	break;
       if (!*crossing)
-	*crossing
-	  = find_reg_note (insn, REG_CROSSING_JUMP, NULL_RTX) != NULL_RTX;
+	*crossing = CROSSING_JUMP_P (jump);
       value = this_label;
     }
   if (depth == 10)
@@ -2800,7 +2799,7 @@ fill_slots_from_thread (rtx insn, rtx condition, rtx thread,
 	{
 	  reorg_redirect_jump (insn, label);
 	  if (crossing)
-	    set_unique_reg_note (insn, REG_CROSSING_JUMP, NULL_RTX);
+	    CROSSING_JUMP_P (insn) = 1;
 	}
     }
 
@@ -3175,7 +3174,7 @@ relax_delay_slots (rtx first)
 	    {
 	      reorg_redirect_jump (insn, target_label);
 	      if (crossing)
-		set_unique_reg_note (insn, REG_CROSSING_JUMP, NULL_RTX);
+		CROSSING_JUMP_P (insn) = 1;
 	    }
 
 	  /* See if this jump conditionally branches around an unconditional
@@ -3320,7 +3319,7 @@ relax_delay_slots (rtx first)
 	  reorg_redirect_jump (delay_insn, trial);
 	  target_label = trial;
 	  if (crossing)
-	    set_unique_reg_note (insn, REG_CROSSING_JUMP, NULL_RTX);
+	    CROSSING_JUMP_P (insn) = 1;
 	}
 
       /* If the first insn at TARGET_LABEL is redundant with a previous
@@ -3863,17 +3862,6 @@ dbr_schedule (rtx first)
 }
 #endif /* DELAY_SLOTS */
 
-static bool
-gate_handle_delay_slots (void)
-{
-#ifdef DELAY_SLOTS
-  /* At -O0 dataflow info isn't updated after RA.  */
-  return optimize > 0 && flag_delayed_branch && !crtl->dbr_scheduled_p;
-#else
-  return 0;
-#endif
-}
-
 /* Run delay slot optimization.  */
 static unsigned int
 rest_of_handle_delay_slots (void)
@@ -3891,8 +3879,6 @@ const pass_data pass_data_delay_slots =
   RTL_PASS, /* type */
   "dbr", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_DBR_SCHED, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
@@ -3909,10 +3895,24 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_handle_delay_slots (); }
-  unsigned int execute () { return rest_of_handle_delay_slots (); }
+  virtual bool gate (function *);
+  virtual unsigned int execute (function *)
+    {
+      return rest_of_handle_delay_slots ();
+    }
 
 }; // class pass_delay_slots
+
+bool
+pass_delay_slots::gate (function *)
+{
+#ifdef DELAY_SLOTS
+  /* At -O0 dataflow info isn't updated after RA.  */
+  return optimize > 0 && flag_delayed_branch && !crtl->dbr_scheduled_p;
+#else
+  return 0;
+#endif
+}
 
 } // anon namespace
 
@@ -3923,19 +3923,6 @@ make_pass_delay_slots (gcc::context *ctxt)
 }
 
 /* Machine dependent reorg pass.  */
-static bool
-gate_handle_machine_reorg (void)
-{
-  return targetm.machine_dependent_reorg != 0;
-}
-
-
-static unsigned int
-rest_of_handle_machine_reorg (void)
-{
-  targetm.machine_dependent_reorg ();
-  return 0;
-}
 
 namespace {
 
@@ -3944,8 +3931,6 @@ const pass_data pass_data_machine_reorg =
   RTL_PASS, /* type */
   "mach", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_MACH_DEP, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
@@ -3962,8 +3947,16 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_handle_machine_reorg (); }
-  unsigned int execute () { return rest_of_handle_machine_reorg (); }
+  virtual bool gate (function *)
+    {
+      return targetm.machine_dependent_reorg != 0;
+    }
+
+  virtual unsigned int execute (function *)
+    {
+      targetm.machine_dependent_reorg ();
+      return 0;
+    }
 
 }; // class pass_machine_reorg
 

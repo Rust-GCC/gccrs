@@ -403,6 +403,73 @@ int_mode_for_mode (enum machine_mode mode)
   return mode;
 }
 
+/* Find a mode that can be used for efficient bitwise operations on MODE.
+   Return BLKmode if no such mode exists.  */
+
+enum machine_mode
+bitwise_mode_for_mode (enum machine_mode mode)
+{
+  /* Quick exit if we already have a suitable mode.  */
+  unsigned int bitsize = GET_MODE_BITSIZE (mode);
+  if (SCALAR_INT_MODE_P (mode) && bitsize <= MAX_FIXED_MODE_SIZE)
+    return mode;
+
+  /* Reuse the sanity checks from int_mode_for_mode.  */
+  gcc_checking_assert ((int_mode_for_mode (mode), true));
+
+  /* Try to replace complex modes with complex modes.  In general we
+     expect both components to be processed independently, so we only
+     care whether there is a register for the inner mode.  */
+  if (COMPLEX_MODE_P (mode))
+    {
+      enum machine_mode trial = mode;
+      if (GET_MODE_CLASS (mode) != MODE_COMPLEX_INT)
+	trial = mode_for_size (bitsize, MODE_COMPLEX_INT, false);
+      if (trial != BLKmode
+	  && have_regs_of_mode[GET_MODE_INNER (trial)])
+	return trial;
+    }
+
+  /* Try to replace vector modes with vector modes.  Also try using vector
+     modes if an integer mode would be too big.  */
+  if (VECTOR_MODE_P (mode) || bitsize > MAX_FIXED_MODE_SIZE)
+    {
+      enum machine_mode trial = mode;
+      if (GET_MODE_CLASS (mode) != MODE_VECTOR_INT)
+	trial = mode_for_size (bitsize, MODE_VECTOR_INT, 0);
+      if (trial != BLKmode
+	  && have_regs_of_mode[trial]
+	  && targetm.vector_mode_supported_p (trial))
+	return trial;
+    }
+
+  /* Otherwise fall back on integers while honoring MAX_FIXED_MODE_SIZE.  */
+  return mode_for_size (bitsize, MODE_INT, true);
+}
+
+/* Find a type that can be used for efficient bitwise operations on MODE.
+   Return null if no such mode exists.  */
+
+tree
+bitwise_type_for_mode (enum machine_mode mode)
+{
+  mode = bitwise_mode_for_mode (mode);
+  if (mode == BLKmode)
+    return NULL_TREE;
+
+  unsigned int inner_size = GET_MODE_UNIT_BITSIZE (mode);
+  tree inner_type = build_nonstandard_integer_type (inner_size, true);
+
+  if (VECTOR_MODE_P (mode))
+    return build_vector_type_for_mode (inner_type, mode);
+
+  if (COMPLEX_MODE_P (mode))
+    return build_complex_type (inner_type);
+
+  gcc_checking_assert (GET_MODE_INNER (mode) == VOIDmode);
+  return inner_type;
+}
+
 /* Find a mode that is suitable for representing a vector with
    NUNITS elements of mode INNERMODE.  Returns BLKmode if there
    is no suitable mode.  */
@@ -1417,6 +1484,10 @@ place_field (record_layout_info rli, tree field)
   DECL_FIELD_BIT_OFFSET (field) = rli->bitpos;
   SET_DECL_OFFSET_ALIGN (field, rli->offset_align);
 
+  /* Evaluate nonconstant offsets only once, either now or as soon as safe.  */
+  if (TREE_CODE (DECL_FIELD_OFFSET (field)) != INTEGER_CST)
+    DECL_FIELD_OFFSET (field) = variable_size (DECL_FIELD_OFFSET (field));
+
   /* If this field ended up more aligned than we thought it would be (we
      approximate this by seeing if its position changed), lay out the field
      again; perhaps we can use an integral mode for it now.  */
@@ -1515,6 +1586,11 @@ finalize_record_size (record_layout_info rli)
   if (! integer_zerop (rli->bitpos))
     unpadded_size_unit
       = size_binop (PLUS_EXPR, unpadded_size_unit, size_one_node);
+
+  if (TREE_CODE (unpadded_size_unit) == INTEGER_CST
+      && !TREE_OVERFLOW (unpadded_size_unit)
+      && !valid_constant_size_p (unpadded_size_unit))
+    error ("type %qT is too large", rli->t);
 
   /* Round the size up to be a multiple of the required alignment.  */
   TYPE_SIZE (rli->t) = round_up (unpadded_size, TYPE_ALIGN (rli->t));
@@ -2193,13 +2269,10 @@ layout_type (tree type)
 		    && TYPE_UNSIGNED (TREE_TYPE (lb))
 		    && tree_int_cst_lt (ub, lb))
 		  {
-		    unsigned prec = TYPE_PRECISION (TREE_TYPE (lb));
-		    lb = double_int_to_tree
-			   (ssizetype,
-			    tree_to_double_int (lb).sext (prec));
-		    ub = double_int_to_tree
-			   (ssizetype,
-			    tree_to_double_int (ub).sext (prec));
+		    lb = wide_int_to_tree (ssizetype,
+					   offset_int::from (lb, SIGNED));
+		    ub = wide_int_to_tree (ssizetype,
+					   offset_int::from (ub, SIGNED));
 		  }
 		length
 		  = fold_convert (sizetype,
@@ -2475,16 +2548,14 @@ initialize_sizetypes (void)
   TYPE_ALIGN (sizetype) = GET_MODE_ALIGNMENT (TYPE_MODE (sizetype));
   TYPE_SIZE (sizetype) = bitsize_int (precision);
   TYPE_SIZE_UNIT (sizetype) = size_int (GET_MODE_SIZE (TYPE_MODE (sizetype)));
-  set_min_and_max_values_for_integral_type (sizetype, precision,
-					    /*is_unsigned=*/true);
+  set_min_and_max_values_for_integral_type (sizetype, precision, UNSIGNED);
 
   SET_TYPE_MODE (bitsizetype, smallest_mode_for_size (bprecision, MODE_INT));
   TYPE_ALIGN (bitsizetype) = GET_MODE_ALIGNMENT (TYPE_MODE (bitsizetype));
   TYPE_SIZE (bitsizetype) = bitsize_int (bprecision);
   TYPE_SIZE_UNIT (bitsizetype)
     = size_int (GET_MODE_SIZE (TYPE_MODE (bitsizetype)));
-  set_min_and_max_values_for_integral_type (bitsizetype, bprecision,
-					    /*is_unsigned=*/true);
+  set_min_and_max_values_for_integral_type (bitsizetype, bprecision, UNSIGNED);
 
   /* Create the signed variants of *sizetype.  */
   ssizetype = make_signed_type (TYPE_PRECISION (sizetype));
@@ -2504,58 +2575,18 @@ initialize_sizetypes (void)
 void
 set_min_and_max_values_for_integral_type (tree type,
 					  int precision,
-					  bool is_unsigned)
+					  signop sgn)
 {
-  tree min_value;
-  tree max_value;
-
   /* For bitfields with zero width we end up creating integer types
      with zero precision.  Don't assign any minimum/maximum values
      to those types, they don't have any valid value.  */
   if (precision < 1)
     return;
 
-  if (is_unsigned)
-    {
-      min_value = build_int_cst (type, 0);
-      max_value
-	= build_int_cst_wide (type, precision - HOST_BITS_PER_WIDE_INT >= 0
-			      ? -1
-			      : (HOST_WIDE_INT_1U << precision) - 1,
-			      precision - HOST_BITS_PER_WIDE_INT > 0
-			      ? ((unsigned HOST_WIDE_INT) ~0
-				 >> (HOST_BITS_PER_WIDE_INT
-				     - (precision - HOST_BITS_PER_WIDE_INT)))
-			      : 0);
-    }
-  else
-    {
-      min_value
-	= build_int_cst_wide (type,
-			      (precision - HOST_BITS_PER_WIDE_INT > 0
-			       ? 0
-			       : HOST_WIDE_INT_M1U << (precision - 1)),
-			      (((HOST_WIDE_INT) (-1)
-				<< (precision - HOST_BITS_PER_WIDE_INT - 1 > 0
-				    ? precision - HOST_BITS_PER_WIDE_INT - 1
-				    : 0))));
-      max_value
-	= build_int_cst_wide (type,
-			      (precision - HOST_BITS_PER_WIDE_INT > 0
-			       ? -1
-			       : (HOST_WIDE_INT)
-				 (((unsigned HOST_WIDE_INT) 1
-				   << (precision - 1)) - 1)),
-			      (precision - HOST_BITS_PER_WIDE_INT - 1 > 0
-			       ? (HOST_WIDE_INT)
-				 ((((unsigned HOST_WIDE_INT) 1
-				    << (precision - HOST_BITS_PER_WIDE_INT
-					- 1))) - 1)
-			       : 0));
-    }
-
-  TYPE_MIN_VALUE (type) = min_value;
-  TYPE_MAX_VALUE (type) = max_value;
+  TYPE_MIN_VALUE (type)
+    = wide_int_to_tree (type, wi::min_value (precision, sgn));
+  TYPE_MAX_VALUE (type)
+    = wide_int_to_tree (type, wi::max_value (precision, sgn));
 }
 
 /* Set the extreme values of TYPE based on its precision in bits,
@@ -2568,14 +2599,7 @@ fixup_signed_type (tree type)
 {
   int precision = TYPE_PRECISION (type);
 
-  /* We can not represent properly constants greater then
-     HOST_BITS_PER_DOUBLE_INT, still we need the types
-     as they are used by i386 vector extensions and friends.  */
-  if (precision > HOST_BITS_PER_DOUBLE_INT)
-    precision = HOST_BITS_PER_DOUBLE_INT;
-
-  set_min_and_max_values_for_integral_type (type, precision,
-					    /*is_unsigned=*/false);
+  set_min_and_max_values_for_integral_type (type, precision, SIGNED);
 
   /* Lay out the type: set its alignment, size, etc.  */
   layout_type (type);
@@ -2590,16 +2614,9 @@ fixup_unsigned_type (tree type)
 {
   int precision = TYPE_PRECISION (type);
 
-  /* We can not represent properly constants greater then
-     HOST_BITS_PER_DOUBLE_INT, still we need the types
-     as they are used by i386 vector extensions and friends.  */
-  if (precision > HOST_BITS_PER_DOUBLE_INT)
-    precision = HOST_BITS_PER_DOUBLE_INT;
-
   TYPE_UNSIGNED (type) = 1;
 
-  set_min_and_max_values_for_integral_type (type, precision,
-					    /*is_unsigned=*/true);
+  set_min_and_max_values_for_integral_type (type, precision, UNSIGNED);
 
   /* Lay out the type: set its alignment, size, etc.  */
   layout_type (type);

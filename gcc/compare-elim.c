@@ -100,6 +100,9 @@ struct comparison
      constants.  */
   rtx in_a, in_b;
 
+  /* The REG_EH_REGION of the comparison.  */
+  rtx eh_note;
+
   /* Information about how this comparison is used.  */
   struct comparison_use uses[MAX_CMP_USE];
 
@@ -193,14 +196,14 @@ arithmetic_flags_clobber_p (rtx insn)
 static void
 find_flags_uses_in_insn (struct comparison *cmp, rtx insn)
 {
-  df_ref *use_rec, use;
+  df_ref use;
 
   /* If we've already lost track of uses, don't bother collecting more.  */
   if (cmp->missing_uses)
     return;
 
   /* Find a USE of the flags register.  */
-  for (use_rec = DF_INSN_USES (insn); (use = *use_rec) != NULL; use_rec++)
+  FOR_EACH_INSN_USE (use, insn)
     if (DF_REF_REGNO (use) == targetm.flags_regnum)
       {
 	rtx x, *loc;
@@ -262,6 +265,7 @@ find_comparison_dom_walker::before_dom_children (basic_block bb)
   struct comparison *last_cmp;
   rtx insn, next, last_clobber;
   bool last_cmp_valid;
+  bool need_purge = false;
   bitmap killed;
 
   killed = BITMAP_ALLOC (NULL);
@@ -303,44 +307,60 @@ find_comparison_dom_walker::before_dom_children (basic_block bb)
       if (src)
 	{
 	  enum machine_mode src_mode = GET_MODE (src);
+	  rtx eh_note = NULL;
 
-	  /* Eliminate a compare that's redundant with the previous.  */
-	  if (last_cmp_valid
-	      && rtx_equal_p (last_cmp->in_a, XEXP (src, 0))
-	      && rtx_equal_p (last_cmp->in_b, XEXP (src, 1)))
-	    {
-	      rtx flags, x;
-	      enum machine_mode new_mode
-		= targetm.cc_modes_compatible (last_cmp->orig_mode, src_mode);
+	  if (flag_non_call_exceptions)
+	    eh_note = find_reg_note (insn, REG_EH_REGION, NULL);
 
-	      /* New mode is incompatible with the previous compare mode.  */
-	      if (new_mode == VOIDmode)
-		continue;
+	  if (!last_cmp_valid)
+	    goto dont_delete;
 
-	      if (new_mode != last_cmp->orig_mode)
-		{
-		  flags = gen_rtx_REG (src_mode, targetm.flags_regnum);
+	  /* Take care that it's in the same EH region.  */
+	  if (flag_non_call_exceptions
+	      && !rtx_equal_p (eh_note, last_cmp->eh_note))
+	    goto dont_delete;
 
-		  /* Generate new comparison for substitution.  */
-		  x = gen_rtx_COMPARE (new_mode, XEXP (src, 0), XEXP (src, 1));
-		  x = gen_rtx_SET (VOIDmode, flags, x);
+	  /* Make sure the compare is redundant with the previous.  */
+	  if (!rtx_equal_p (last_cmp->in_a, XEXP (src, 0))
+	      || !rtx_equal_p (last_cmp->in_b, XEXP (src, 1)))
+	    goto dont_delete;
 
-		  if (!validate_change (last_cmp->insn,
-					&PATTERN (last_cmp->insn), x, false))
-		    continue;
+	  /* New mode must be compatible with the previous compare mode.  */
+	  {
+	    enum machine_mode new_mode
+	      = targetm.cc_modes_compatible (last_cmp->orig_mode, src_mode);
+	    if (new_mode == VOIDmode)
+	      goto dont_delete;
 
-		  last_cmp->orig_mode = new_mode;
-		}
+	    if (new_mode != last_cmp->orig_mode)
+	      {
+		rtx x, flags = gen_rtx_REG (src_mode, targetm.flags_regnum);
 
-	      delete_insn (insn);
-	      continue;
-	    }
+		/* Generate new comparison for substitution.  */
+		x = gen_rtx_COMPARE (new_mode, XEXP (src, 0), XEXP (src, 1));
+		x = gen_rtx_SET (VOIDmode, flags, x);
 
+		if (!validate_change (last_cmp->insn,
+				      &PATTERN (last_cmp->insn), x, false))
+		  goto dont_delete;
+
+		last_cmp->orig_mode = new_mode;
+	      }
+	  }
+
+	  /* All tests and substitutions succeeded!  */
+	  if (eh_note)
+	    need_purge = true;
+	  delete_insn (insn);
+	  continue;
+
+	dont_delete:
 	  last_cmp = XCNEW (struct comparison);
 	  last_cmp->insn = insn;
 	  last_cmp->prev_clobber = last_clobber;
 	  last_cmp->in_a = XEXP (src, 0);
 	  last_cmp->in_b = XEXP (src, 1);
+	  last_cmp->eh_note = eh_note;
 	  last_cmp->orig_mode = src_mode;
 	  all_compares.safe_push (last_cmp);
 
@@ -404,6 +424,11 @@ find_comparison_dom_walker::before_dom_children (basic_block bb)
 	    }
 	}
     }
+
+  /* If we deleted a compare with a REG_EH_REGION note, we may need to
+     remove EH edges.  */
+  if (need_purge)
+    purge_dead_edges (bb);
 }
 
 /* Find all comparisons in the function.  */
@@ -522,7 +547,7 @@ try_eliminate_compare (struct comparison *cmp)
 	   | DF_REF_MUST_CLOBBER | DF_REF_SIGN_EXTRACT
 	   | DF_REF_ZERO_EXTRACT | DF_REF_STRICT_LOW_PART
 	   | DF_REF_PRE_POST_MODIFY);
-      df_ref *def_rec, def;
+      df_ref def;
 
       /* Note that the BB_HEAD is always either a note or a label, but in
 	 any case it means that IN_A is defined outside the block.  */
@@ -532,7 +557,7 @@ try_eliminate_compare (struct comparison *cmp)
 	continue;
 
       /* Find a possible def of IN_A in INSN.  */
-      for (def_rec = DF_INSN_DEFS (insn); (def = *def_rec) != NULL; def_rec++)
+      FOR_EACH_INSN_DEF (def, insn)
 	if (DF_REF_REGNO (def) == REGNO (in_a))
 	  break;
 
@@ -643,15 +668,6 @@ execute_compare_elim_after_reload (void)
   return 0;
 }
 
-static bool
-gate_compare_elim_after_reload (void)
-{
-  /* Setting this target hook value is how a backend indicates the need.  */
-  if (targetm.flags_regnum == INVALID_REGNUM)
-    return false;
-  return flag_compare_elim_after_reload;
-}
-
 namespace {
 
 const pass_data pass_data_compare_elim_after_reload =
@@ -659,15 +675,12 @@ const pass_data pass_data_compare_elim_after_reload =
   RTL_PASS, /* type */
   "cmpelim", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_NONE, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  ( TODO_df_finish | TODO_df_verify
-    | TODO_verify_rtl_sharing ), /* todo_flags_finish */
+  ( TODO_df_finish | TODO_df_verify ), /* todo_flags_finish */
 };
 
 class pass_compare_elim_after_reload : public rtl_opt_pass
@@ -678,8 +691,18 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_compare_elim_after_reload (); }
-  unsigned int execute () { return execute_compare_elim_after_reload (); }
+  virtual bool gate (function *)
+    {
+      /* Setting this target hook value is how a backend indicates the need.  */
+      if (targetm.flags_regnum == INVALID_REGNUM)
+	return false;
+      return flag_compare_elim_after_reload;
+    }
+
+  virtual unsigned int execute (function *)
+    {
+      return execute_compare_elim_after_reload ();
+    }
 
 }; // class pass_compare_elim_after_reload
 

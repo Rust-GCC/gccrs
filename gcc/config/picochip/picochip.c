@@ -65,6 +65,7 @@ along with GCC; see the file COPYING3.  If not, see
 #include "libfuncs.h"		/* For memcpy_libfuncs, etc. */
 #include "df.h"			/* For df_regs_ever_live_df_regs_ever_live_pp, etc. */
 #include "dbxout.h"
+#include "builtins.h"
 
 
 /* Target AE ISA information. */
@@ -1229,7 +1230,7 @@ picochip_arg_area_byte_offset (void)
 }
 
 int
-picochip_regno_nregs (int regno ATTRIBUTE_UNUSED, int mode)
+picochip_regno_nregs (int regno ATTRIBUTE_UNUSED, enum machine_mode mode)
 {
 
   /* Special case - only one register needed. */
@@ -1249,7 +1250,7 @@ picochip_regno_nregs (int regno ATTRIBUTE_UNUSED, int mode)
 }
 
 int
-picochip_class_max_nregs (int reg_class, int mode)
+picochip_class_max_nregs (int reg_class, enum machine_mode mode)
 {
   int size = ((GET_MODE_SIZE (mode) + UNITS_PER_WORD - 1) / UNITS_PER_WORD);
 

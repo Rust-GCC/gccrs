@@ -2750,7 +2750,8 @@ sched_analyze_2 (struct deps_desc *deps, rtx x, rtx insn)
 	   Consider for instance a volatile asm that changes the fpu rounding
 	   mode.  An insn should not be moved across this even if it only uses
 	   pseudo-regs because it might give an incorrectly rounded result.  */
-	if (code != ASM_OPERANDS || MEM_VOLATILE_P (x))
+	if ((code != ASM_OPERANDS || MEM_VOLATILE_P (x))
+	    && !DEBUG_INSN_P (insn))
 	  reg_pending_barrier = TRUE_BARRIER;
 
 	/* For all ASM_OPERANDS, we must traverse the vector of input operands.
@@ -2865,7 +2866,7 @@ sched_analyze_insn (struct deps_desc *deps, rtx x, rtx insn)
       HARD_REG_SET temp;
 
       extract_insn (insn);
-      preprocess_constraints ();
+      preprocess_constraints (insn);
       ira_implicitly_set_insn_hard_regs (&temp);
       AND_COMPL_HARD_REG_SET (temp, ira_no_alloc_regs);
       IOR_HARD_REG_SET (implicit_reg_pending_clobbers, temp);
@@ -4725,7 +4726,7 @@ find_inc (struct mem_inc_info *mii, bool backwards)
       if (parse_add_or_inc (mii, inc_cand, backwards))
 	{
 	  struct dep_replacement *desc;
-	  df_ref *def_rec;
+	  df_ref def;
 	  rtx newaddr, newmem;
 
 	  if (sched_verbose >= 5)
@@ -4734,18 +4735,15 @@ find_inc (struct mem_inc_info *mii, bool backwards)
 
 	  /* Need to assure that none of the operands of the inc
 	     instruction are assigned to by the mem insn.  */
-	  for (def_rec = DF_INSN_DEFS (mii->mem_insn); *def_rec; def_rec++)
-	    {
-	      df_ref def = *def_rec;
-	      if (reg_overlap_mentioned_p (DF_REF_REG (def), mii->inc_input)
-		  || reg_overlap_mentioned_p (DF_REF_REG (def), mii->mem_reg0))
-		{
-		  if (sched_verbose >= 5)
-		    fprintf (sched_dump,
-			     "inc conflicts with store failure.\n");
-		  goto next;
-		}
-	    }
+	  FOR_EACH_INSN_DEF (def, mii->mem_insn)
+	    if (reg_overlap_mentioned_p (DF_REF_REG (def), mii->inc_input)
+		|| reg_overlap_mentioned_p (DF_REF_REG (def), mii->mem_reg0))
+	      {
+		if (sched_verbose >= 5)
+		  fprintf (sched_dump,
+			   "inc conflicts with store failure.\n");
+		goto next;
+	      }
 	  newaddr = mii->inc_input;
 	  if (mii->mem_index != NULL_RTX)
 	    newaddr = gen_rtx_PLUS (GET_MODE (newaddr), newaddr,
@@ -4820,22 +4818,19 @@ find_mem (struct mem_inc_info *mii, rtx *address_of_x)
 	}
       if (REG_P (reg0))
 	{
-	  df_ref *def_rec;
+	  df_ref use;
 	  int occurrences = 0;
 
 	  /* Make sure this reg appears only once in this insn.  Can't use
 	     count_occurrences since that only works for pseudos.  */
-	  for (def_rec = DF_INSN_USES (mii->mem_insn); *def_rec; def_rec++)
-	    {
-	      df_ref def = *def_rec;
-	      if (reg_overlap_mentioned_p (reg0, DF_REF_REG (def)))
-		if (++occurrences > 1)
-		  {
-		    if (sched_verbose >= 5)
-		      fprintf (sched_dump, "mem count failure\n");
-		    return false;
-		  }
-	    }
+	  FOR_EACH_INSN_USE (use, mii->mem_insn)
+	    if (reg_overlap_mentioned_p (reg0, DF_REF_REG (use)))
+	      if (++occurrences > 1)
+		{
+		  if (sched_verbose >= 5)
+		    fprintf (sched_dump, "mem count failure\n");
+		  return false;
+		}
 
 	  mii->mem_reg0 = reg0;
 	  return find_inc (mii, true) || find_inc (mii, false);

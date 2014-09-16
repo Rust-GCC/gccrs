@@ -243,6 +243,17 @@ is_proper_for_analysis (tree t)
   if (TREE_READONLY (t))
     return false;
 
+  /* We can not track variables with address taken.  */
+  if (TREE_ADDRESSABLE (t))
+    return false;
+
+  /* TODO: We could track public variables that are not addressable, but currently
+     frontends don't give us those.  */
+  if (TREE_PUBLIC (t))
+    return false;
+
+  /* TODO: Check aliases.  */
+
   /* This is a variable we care about.  Check if we have seen it
      before, and if not add it the set of variables we care about.  */
   if (all_module_statics
@@ -307,26 +318,6 @@ union_static_var_sets (bitmap &x, bitmap y)
 	      BITMAP_FREE (x);
 	      x = all_module_statics;
 	    }
-	}
-    }
-  return x == all_module_statics;
-}
-
-/* Compute X &= Y, taking into account the possibility that
-   X may become the maximum set.  */
-
-static bool
-intersect_static_var_sets (bitmap &x, bitmap y)
-{
-  if (x != all_module_statics)
-    {
-      bitmap_and_into (x, y);
-      /* As with union_static_var_sets, reducing to the maximum
-	 set as early as possible is an overall win.  */
-      if (bitmap_equal_p (x, all_module_statics))
-	{
-	  BITMAP_FREE (x);
-	  x = all_module_statics;
 	}
     }
   return x == all_module_statics;
@@ -459,16 +450,16 @@ static void
 analyze_function (struct cgraph_node *fn)
 {
   ipa_reference_local_vars_info_t local;
-  struct ipa_ref *ref;
+  struct ipa_ref *ref = NULL;
   int i;
   tree var;
 
   local = init_function_info (fn);
-  for (i = 0; ipa_ref_list_reference_iterate (&fn->ref_list, i, ref); i++)
+  for (i = 0; fn->iterate_reference (i, ref); i++)
     {
-      if (!is_a <varpool_node> (ref->referred))
+      if (!is_a <varpool_node *> (ref->referred))
 	continue;
-      var = ipa_ref_varpool_node (ref)->decl;
+      var = ref->referred->decl;
       if (!is_proper_for_analysis (var))
 	continue;
       switch (ref->use)
@@ -477,12 +468,14 @@ analyze_function (struct cgraph_node *fn)
           bitmap_set_bit (local->statics_read, DECL_UID (var));
 	  break;
 	case IPA_REF_STORE:
-	  if (ipa_ref_cannot_lead_to_return (ref))
+	  if (ref->cannot_lead_to_return ())
 	    break;
           bitmap_set_bit (local->statics_written, DECL_UID (var));
 	  break;
 	case IPA_REF_ADDR:
 	  break;
+	default:
+	  gcc_unreachable ();
 	}
     }
 
@@ -667,7 +660,6 @@ static unsigned int
 propagate (void)
 {
   struct cgraph_node *node;
-  varpool_node *vnode;
   struct cgraph_node **order =
     XCNEWVEC (struct cgraph_node *, cgraph_n_nodes);
   int order_pos;
@@ -678,25 +670,6 @@ propagate (void)
 
   ipa_discover_readonly_nonaddressable_vars ();
   generate_summary ();
-
-  /* Now we know what vars are really statics; prune out those that aren't.  */
-  FOR_EACH_VARIABLE (vnode)
-    if (vnode->externally_visible
-	|| TREE_ADDRESSABLE (vnode->decl)
-	|| TREE_READONLY (vnode->decl)
-	|| !is_proper_for_analysis (vnode->decl)
-	|| !vnode->definition)
-      bitmap_clear_bit (all_module_statics, DECL_UID (vnode->decl));
-
-  /* Forget info we collected "just for fun" on variables that turned out to be
-     non-local.  */
-  FOR_EACH_DEFINED_FUNCTION (node)
-    {
-      ipa_reference_local_vars_info_t node_l;
-      node_l = &get_reference_vars_info (node)->local;
-      intersect_static_var_sets (node_l->statics_read, all_module_statics);
-      intersect_static_var_sets (node_l->statics_written, all_module_statics);
-    }
 
   /* Propagate the local information through the call graph to produce
      the global information.  All the nodes within a cycle will have
@@ -909,7 +882,7 @@ write_node_summary_p (struct cgraph_node *node,
      In future we might also want to include summaries of functions references
      by initializers of constant variables references in current unit.  */
   if (!reachable_from_this_partition_p (node, encoder)
-      && !referenced_from_this_partition_p (&node->ref_list, encoder))
+      && !referenced_from_this_partition_p (node, encoder))
     return false;
 
   /* See if the info has non-empty intersections with vars we want to encode.  */
@@ -973,10 +946,10 @@ ipa_reference_write_optimization_summary (void)
   for (i = 0; i < lto_symtab_encoder_size (encoder); i++)
     {
       symtab_node *snode = lto_symtab_encoder_deref (encoder, i);
-      varpool_node *vnode = dyn_cast <varpool_node> (snode);
+      varpool_node *vnode = dyn_cast <varpool_node *> (snode);
       if (vnode
 	  && bitmap_bit_p (all_module_statics, DECL_UID (vnode->decl))
-	  && referenced_from_this_partition_p (&vnode->ref_list, encoder))
+	  && referenced_from_this_partition_p (vnode, encoder))
 	{
 	  tree decl = vnode->decl;
 	  bitmap_set_bit (ltrans_statics, DECL_UID (decl));
@@ -991,7 +964,7 @@ ipa_reference_write_optimization_summary (void)
     for (i = 0; i < lto_symtab_encoder_size (encoder); i++)
       {
 	symtab_node *snode = lto_symtab_encoder_deref (encoder, i);
-	cgraph_node *cnode = dyn_cast <cgraph_node> (snode);
+	cgraph_node *cnode = dyn_cast <cgraph_node *> (snode);
 	if (cnode && write_node_summary_p (cnode, encoder, ltrans_statics))
 	  count++;
       }
@@ -1006,7 +979,7 @@ ipa_reference_write_optimization_summary (void)
     for (i = 0; i < lto_symtab_encoder_size (encoder); i++)
       {
 	symtab_node *snode = lto_symtab_encoder_deref (encoder, i);
-	cgraph_node *cnode = dyn_cast <cgraph_node> (snode);
+	cgraph_node *cnode = dyn_cast <cgraph_node *> (snode);
 	if (cnode && write_node_summary_p (cnode, encoder, ltrans_statics))
 	  {
 	    ipa_reference_optimization_summary_t info;
@@ -1148,14 +1121,6 @@ ipa_reference_read_optimization_summary (void)
     }
 }
 
-static bool
-gate_reference (void)
-{
-  return (flag_ipa_reference
-	  /* Don't bother doing anything if the program has errors.  */
-	  && !seen_error ());
-}
-
 namespace {
 
 const pass_data pass_data_ipa_reference =
@@ -1163,8 +1128,6 @@ const pass_data pass_data_ipa_reference =
   IPA_PASS, /* type */
   "static-var", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_IPA_REFERENCE, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
@@ -1192,8 +1155,14 @@ public:
     {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_reference (); }
-  unsigned int execute () { return propagate (); }
+  virtual bool gate (function *)
+    {
+      return (flag_ipa_reference
+	      /* Don't bother doing anything if the program has errors.  */
+	      && !seen_error ());
+    }
+
+  virtual unsigned int execute (function *) { return propagate (); }
 
 }; // class pass_ipa_reference
 

@@ -37,6 +37,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "diagnostic-core.h"
 #include "tree-streamer.h"
 #include "lto-streamer.h"
+#include "lto-section-names.h"
 #include "streamer-hooks.h"
 
 /* Statistics gathered during LTO, WPA and LTRANS.  */
@@ -289,7 +290,7 @@ tree_entry_hasher::equal (const value_type *e1, const compare_type *e2)
   return (e1->key == e2->key);
 }
 
-static hash_table <tree_hash_entry> tree_htab;
+static hash_table<tree_hash_entry> *tree_htab;
 #endif
 
 /* Initialization common to the LTO reader and writer.  */
@@ -304,7 +305,7 @@ lto_streamer_init (void)
   streamer_check_handled_ts_structures ();
 
 #ifdef LTO_STREAMER_DEBUG
-  tree_htab.create (31);
+  tree_htab = new hash_table<tree_hash_entry> (31);
 #endif
 }
 
@@ -339,7 +340,7 @@ lto_orig_address_map (tree t, intptr_t orig_t)
 
   ent.key = t;
   ent.value = orig_t;
-  slot = tree_htab.find_slot (&ent, INSERT);
+  slot = tree_htab->find_slot (&ent, INSERT);
   gcc_assert (!*slot);
   *slot = XNEW (struct tree_hash_entry);
   **slot = ent;
@@ -356,7 +357,7 @@ lto_orig_address_get (tree t)
   struct tree_hash_entry **slot;
 
   ent.key = t;
-  slot = tree_htab.find_slot (&ent, NO_INSERT);
+  slot = tree_htab->find_slot (&ent, NO_INSERT);
   return (slot ? (*slot)->value : 0);
 }
 
@@ -370,10 +371,10 @@ lto_orig_address_remove (tree t)
   struct tree_hash_entry **slot;
 
   ent.key = t;
-  slot = tree_htab.find_slot (&ent, NO_INSERT);
+  slot = tree_htab->find_slot (&ent, NO_INSERT);
   gcc_assert (slot);
   free (*slot);
-  tree_htab.clear_slot (slot);
+  tree_htab->clear_slot (slot);
 }
 #endif
 

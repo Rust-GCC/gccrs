@@ -60,6 +60,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "target.h"
 #include "params.h"
 #include "diagnostic-core.h"
+#include "builtins.h"
 
 /*  This is a simple global reassociation pass.  It is, in part, based
     on the LLVM pass of the same name (They do some things more/less
@@ -1022,32 +1023,36 @@ static vec<oecount> cvec;
 
 /* Oecount hashtable helpers.  */
 
-struct oecount_hasher : typed_noop_remove <void>
+struct oecount_hasher
 {
-  /* Note that this hash table stores integers, not pointers.
-     So, observe the casting in the member functions.  */
-  typedef void value_type;
-  typedef void compare_type;
-  static inline hashval_t hash (const value_type *);
-  static inline bool equal (const value_type *, const compare_type *);
+  typedef int value_type;
+  typedef int compare_type;
+  typedef int store_values_directly;
+  static inline hashval_t hash (const value_type &);
+  static inline bool equal (const value_type &, const compare_type &);
+  static bool is_deleted (int &v) { return v == 1; }
+  static void mark_deleted (int &e) { e = 1; }
+  static bool is_empty (int &v) { return v == 0; }
+  static void mark_empty (int &e) { e = 0; }
+  static void remove (int &) {}
 };
 
 /* Hash function for oecount.  */
 
 inline hashval_t
-oecount_hasher::hash (const value_type *p)
+oecount_hasher::hash (const value_type &p)
 {
-  const oecount *c = &cvec[(size_t)p - 42];
+  const oecount *c = &cvec[p - 42];
   return htab_hash_pointer (c->op) ^ (hashval_t)c->oecode;
 }
 
 /* Comparison function for oecount.  */
 
 inline bool
-oecount_hasher::equal (const value_type *p1, const compare_type *p2)
+oecount_hasher::equal (const value_type &p1, const compare_type &p2)
 {
-  const oecount *c1 = &cvec[(size_t)p1 - 42];
-  const oecount *c2 = &cvec[(size_t)p2 - 42];
+  const oecount *c1 = &cvec[p1 - 42];
+  const oecount *c2 = &cvec[p2 - 42];
   return (c1->oecode == c2->oecode
 	  && c1->op == c2->op);
 }
@@ -1111,7 +1116,7 @@ decrement_power (gimple stmt)
       arg1 = gimple_call_arg (stmt, 1);
       c = TREE_REAL_CST (arg1);
       power = real_to_integer (&c) - 1;
-      real_from_integer (&cint, VOIDmode, power, 0, 0);
+      real_from_integer (&cint, VOIDmode, power, SIGNED);
       gimple_call_set_arg (stmt, 1, build_real (TREE_TYPE (arg1), cint));
       return power;
 
@@ -1404,7 +1409,6 @@ undistribute_ops_list (enum tree_code opcode,
   unsigned nr_candidates, nr_candidates2;
   sbitmap_iterator sbi0;
   vec<operand_entry_t> *subops;
-  hash_table <oecount_hasher> ctable;
   bool changed = false;
   int next_oecount_id = 0;
 
@@ -1452,7 +1456,9 @@ undistribute_ops_list (enum tree_code opcode,
 
   /* Build linearized sub-operand lists and the counting table.  */
   cvec.create (0);
-  ctable.create (15);
+
+  hash_table<oecount_hasher> ctable (15);
+
   /* ??? Macro arguments cannot have multi-argument template types in
      them.  This typedef is needed to workaround that limitation.  */
   typedef vec<operand_entry_t> vec_operand_entry_t_heap;
@@ -1471,27 +1477,26 @@ undistribute_ops_list (enum tree_code opcode,
       FOR_EACH_VEC_ELT (subops[i], j, oe1)
 	{
 	  oecount c;
-	  void **slot;
-	  size_t idx;
+	  int *slot;
+	  int idx;
 	  c.oecode = oecode;
 	  c.cnt = 1;
 	  c.id = next_oecount_id++;
 	  c.op = oe1->op;
 	  cvec.safe_push (c);
 	  idx = cvec.length () + 41;
-	  slot = ctable.find_slot ((void *)idx, INSERT);
+	  slot = ctable.find_slot (idx, INSERT);
 	  if (!*slot)
 	    {
-	      *slot = (void *)idx;
+	      *slot = idx;
 	    }
 	  else
 	    {
 	      cvec.pop ();
-	      cvec[(size_t)*slot - 42].cnt++;
+	      cvec[*slot - 42].cnt++;
 	    }
 	}
     }
-  ctable.dispose ();
 
   /* Sort the counting table.  */
   cvec.qsort (oecount_cmp);
@@ -3704,8 +3709,7 @@ acceptable_pow_call (gimple stmt, tree *base, HOST_WIDE_INT *exponent)
 	return false;
 
       *exponent = real_to_integer (&c);
-      real_from_integer (&cint, VOIDmode, *exponent,
-			 *exponent < 0 ? -1 : 0, 0);
+      real_from_integer (&cint, VOIDmode, *exponent, SIGNED);
       if (!real_identical (&c, &cint))
 	return false;
 
@@ -4694,12 +4698,6 @@ execute_reassoc (void)
   return 0;
 }
 
-static bool
-gate_tree_ssa_reassoc (void)
-{
-  return flag_tree_reassoc != 0;
-}
-
 namespace {
 
 const pass_data pass_data_reassoc =
@@ -4707,16 +4705,12 @@ const pass_data pass_data_reassoc =
   GIMPLE_PASS, /* type */
   "reassoc", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_TREE_REASSOC, /* tv_id */
   ( PROP_cfg | PROP_ssa ), /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  ( TODO_verify_ssa
-    | TODO_update_ssa_only_virtuals
-    | TODO_verify_flow ), /* todo_flags_finish */
+  TODO_update_ssa_only_virtuals, /* todo_flags_finish */
 };
 
 class pass_reassoc : public gimple_opt_pass
@@ -4728,8 +4722,8 @@ public:
 
   /* opt_pass methods: */
   opt_pass * clone () { return new pass_reassoc (m_ctxt); }
-  bool gate () { return gate_tree_ssa_reassoc (); }
-  unsigned int execute () { return execute_reassoc (); }
+  virtual bool gate (function *) { return flag_tree_reassoc != 0; }
+  virtual unsigned int execute (function *) { return execute_reassoc (); }
 
 }; // class pass_reassoc
 

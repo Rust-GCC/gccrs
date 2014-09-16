@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -73,6 +73,7 @@ with Ada.Directories;
 with Ada.Exceptions;            use Ada.Exceptions;
 
 with GNAT.Case_Util;            use GNAT.Case_Util;
+with GNAT.Command_Line;         use GNAT.Command_Line;
 with GNAT.Directory_Operations; use GNAT.Directory_Operations;
 with GNAT.Dynamic_HTables;      use GNAT.Dynamic_HTables;
 with GNAT.OS_Lib;               use GNAT.OS_Lib;
@@ -3728,6 +3729,13 @@ package body Make is
                      Inform
                        (Data.Lib_File,
                         "WARNING: ALI or object file not found after compile");
+
+                     if not Is_Regular_File
+                              (Get_Name_String (Name_Id (Data.Full_Lib_File)))
+                     then
+                        Inform (Data.Full_Lib_File, "not found");
+                     end if;
+
                      Record_Failure (Data.Full_Source_File, Data.Source_Unit);
                   end if;
                end if;
@@ -5320,7 +5328,7 @@ package body Make is
             if Compute_Builder then
                Do_Compute_Builder_Switches
                  (Project_Tree     => Project_Tree,
-                  Root_Environment => Root_Environment,
+                  Env              => Root_Environment,
                   Main_Project     => Main_Project,
                   Only_For_Lang    => Name_Ada);
 
@@ -5849,9 +5857,14 @@ package body Make is
 
             Targparm.Get_Target_Parameters;
 
-            --  Output usage information if no files to compile
+            --  Output usage information if no argument on the command line
 
-            Usage;
+            if Argument_Count = 0 then
+               Usage;
+            else
+               Try_Help;
+            end if;
+
             Finish_Program (Project_Tree, E_Success);
          end if;
       end if;
@@ -6664,13 +6677,15 @@ package body Make is
 
          Fname.UF.Initialize;
 
-         begin
-            Fname.SF.Read_Source_File_Name_Pragmas;
+         if Config_File then
+            begin
+               Fname.SF.Read_Source_File_Name_Pragmas;
 
-         exception
-            when Err : SFN_Scan.Syntax_Error_In_GNAT_ADC =>
-               Make_Failed (Exception_Message (Err));
-         end;
+            exception
+               when Err : SFN_Scan.Syntax_Error_In_GNAT_ADC =>
+                  Make_Failed (Exception_Message (Err));
+            end;
+         end if;
       end if;
 
       --  Make sure no project object directory is recorded
@@ -7899,6 +7914,12 @@ package body Make is
                Do_Bind_Step := False;
                Do_Link_Step := False;
             end if;
+
+         --  If -gnatA is specified, make sure that gnat.adc is never read
+
+         elsif Argv'Length >= 6 and then Argv (2 .. 6) = "gnatA" then
+            Add_Switch (Argv, Compiler, And_Save => And_Save);
+            Opt.Config_File := False;
 
          elsif Argv (2 .. Argv'Last) = "nostdlib" then
 

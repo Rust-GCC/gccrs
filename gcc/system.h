@@ -22,6 +22,12 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_SYSTEM_H
 #define GCC_SYSTEM_H
 
+/* Define this so that inttypes.h defines the PRI?64 macros even
+   when compiling with a C++ compiler.  Define it here so in the
+   event inttypes.h gets pulled in by another header it is already
+   defined.  */
+#define __STDC_FORMAT_MACROS
+
 /* We must include stdarg.h before stdio.h.  */
 #include <stdarg.h>
 
@@ -711,6 +717,16 @@ extern void fancy_abort (const char *, int, const char *) ATTRIBUTE_NORETURN;
 #define gcc_unreachable() (fancy_abort (__FILE__, __LINE__, __FUNCTION__))
 #endif
 
+#if GCC_VERSION >= 3001
+#define STATIC_CONSTANT_P(X) (__builtin_constant_p (X) && (X))
+#else
+#define STATIC_CONSTANT_P(X) (false && (X))
+#endif
+
+/* Until we can use C++11's static_assert.  */
+#define STATIC_ASSERT(X) \
+  typedef int assertion1[(X) ? 1 : -1] ATTRIBUTE_UNUSED
+
 /* Provide a fake boolean type.  We make no attempt to use the
    C99 _Bool, as it may not be available in the bootstrap compiler,
    and even if it is, it is liable to be buggy.
@@ -912,7 +928,12 @@ extern void fancy_abort (const char *, int, const char *) ATTRIBUTE_NORETURN;
 	USE_COMMON_FOR_ONE_ONLY IFCVT_EXTRA_FIELDS IFCVT_INIT_EXTRA_FIELDS \
 	CASE_USE_BIT_TESTS FIXUNS_TRUNC_LIKE_FIX_TRUNC                     \
         GO_IF_MODE_DEPENDENT_ADDRESS DELAY_SLOTS_FOR_EPILOGUE              \
-        ELIGIBLE_FOR_EPILOGUE_DELAY TARGET_C99_FUNCTIONS TARGET_HAS_SINCOS
+        ELIGIBLE_FOR_EPILOGUE_DELAY TARGET_C99_FUNCTIONS TARGET_HAS_SINCOS \
+	REG_CLASS_FROM_LETTER CONST_OK_FOR_LETTER_P			   \
+	CONST_DOUBLE_OK_FOR_LETTER_P EXTRA_CONSTRAINT			   \
+	REG_CLASS_FROM_CONSTRAINT REG_CLASS_FOR_CONSTRAINT		   \
+	EXTRA_CONSTRAINT_STR EXTRA_MEMORY_CONSTRAINT			   \
+	EXTRA_ADDRESS_CONSTRAINT CONST_DOUBLE_OK_FOR_CONSTRAINT_P
 
 /* Hooks that are no longer used.  */
  #pragma GCC poison LANG_HOOKS_FUNCTION_MARK LANG_HOOKS_FUNCTION_FREE	\
@@ -1025,7 +1046,7 @@ helper_const_non_const_cast (const char *p)
 #endif
 #endif
 
-#ifdef ENABLE_VALGRIND_CHECKING
+#ifdef ENABLE_VALGRIND_ANNOTATIONS
 # ifdef HAVE_VALGRIND_MEMCHECK_H
 #  include <valgrind/memcheck.h>
 # elif defined HAVE_MEMCHECK_H
@@ -1060,7 +1081,10 @@ helper_const_non_const_cast (const char *p)
 #define DEBUG_VARIABLE
 #endif
 
-/* Get definitions of HOST_WIDE_INT and HOST_WIDEST_INT.  */
+/* General macro to extract bit Y of X.  */
+#define TEST_BIT(X, Y) (((X) >> (Y)) & 1)
+
+/* Get definitions of HOST_WIDE_INT.  */
 #include "hwint.h"
 
 #endif /* ! GCC_SYSTEM_H */

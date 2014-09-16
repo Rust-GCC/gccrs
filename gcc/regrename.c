@@ -533,7 +533,7 @@ static void
 init_rename_info (struct bb_rename_info *p, basic_block bb)
 {
   int i;
-  df_ref *def_rec;
+  df_ref def;
   HARD_REG_SET start_chains_set;
 
   p->bb = bb;
@@ -545,12 +545,9 @@ init_rename_info (struct bb_rename_info *p, basic_block bb)
 
   CLEAR_HARD_REG_SET (live_in_chains);
   REG_SET_TO_HARD_REG_SET (live_hard_regs, df_get_live_in (bb));
-  for (def_rec = df_get_artificial_defs (bb->index); *def_rec; def_rec++)
-    {
-      df_ref def = *def_rec;
-      if (DF_REF_FLAGS (def) & DF_REF_AT_TOP)
-	SET_HARD_REG_BIT (live_hard_regs, DF_REF_REGNO (def));
-    }
+  FOR_EACH_ARTIFICIAL_DEF (def, bb->index)
+    if (DF_REF_FLAGS (def) & DF_REF_AT_TOP)
+      SET_HARD_REG_BIT (live_hard_regs, DF_REF_REGNO (def));
 
   /* Open chains based on information from (at least one) predecessor
      block.  This gives us a chance later on to combine chains across
@@ -1427,7 +1424,7 @@ hide_operands (int n_ops, rtx *old_operands, rtx *old_dups,
 	       unsigned HOST_WIDE_INT do_not_hide, bool inout_and_ec_only)
 {
   int i;
-  int alt = which_alternative;
+  const operand_alternative *op_alt = which_op_alt ();
   for (i = 0; i < n_ops; i++)
     {
       old_operands[i] = recog_data.operand[i];
@@ -1439,7 +1436,7 @@ hide_operands (int n_ops, rtx *old_operands, rtx *old_dups,
       if (do_not_hide & (1 << i))
 	continue;
       if (!inout_and_ec_only || recog_data.operand_type[i] == OP_INOUT
-	  || recog_op_alt[i][alt].earlyclobber)
+	  || op_alt[i].earlyclobber)
 	*recog_data.operand_loc[i] = cc0_rtx;
     }
   for (i = 0; i < recog_data.n_dups; i++)
@@ -1449,7 +1446,7 @@ hide_operands (int n_ops, rtx *old_operands, rtx *old_dups,
       if (do_not_hide & (1 << opn))
 	continue;
       if (!inout_and_ec_only || recog_data.operand_type[opn] == OP_INOUT
-	  || recog_op_alt[opn][alt].earlyclobber)
+	  || op_alt[opn].earlyclobber)
 	*recog_data.dup_loc[i] = cc0_rtx;
     }
 }
@@ -1478,7 +1475,7 @@ static void
 record_out_operands (rtx insn, bool earlyclobber, insn_rr_info *insn_info)
 {
   int n_ops = recog_data.n_operands;
-  int alt = which_alternative;
+  const operand_alternative *op_alt = which_op_alt ();
 
   int i;
 
@@ -1489,12 +1486,12 @@ record_out_operands (rtx insn, bool earlyclobber, insn_rr_info *insn_info)
 		  ? recog_data.operand_loc[opn]
 		  : recog_data.dup_loc[i - n_ops]);
       rtx op = *loc;
-      enum reg_class cl = recog_op_alt[opn][alt].cl;
+      enum reg_class cl = alternative_class (op_alt, opn);
 
       struct du_head *prev_open;
 
       if (recog_data.operand_type[opn] != OP_OUT
-	  || recog_op_alt[opn][alt].earlyclobber != earlyclobber)
+	  || op_alt[opn].earlyclobber != earlyclobber)
 	continue;
 
       if (insn_info)
@@ -1539,7 +1536,6 @@ build_def_use (basic_block bb)
 	  rtx old_operands[MAX_RECOG_OPERANDS];
 	  rtx old_dups[MAX_DUP_OPERANDS];
 	  int i;
-	  int alt;
 	  int predicated;
 	  enum rtx_code set_code = SET;
 	  enum rtx_code clobber_code = CLOBBER;
@@ -1571,8 +1567,8 @@ build_def_use (basic_block bb)
 	  extract_insn (insn);
 	  if (! constrain_operands (1))
 	    fatal_insn_not_found (insn);
-	  preprocess_constraints ();
-	  alt = which_alternative;
+	  preprocess_constraints (insn);
+	  const operand_alternative *op_alt = which_op_alt ();
 	  n_ops = recog_data.n_operands;
 	  untracked_operands = 0;
 
@@ -1585,8 +1581,7 @@ build_def_use (basic_block bb)
 		      sizeof (operand_rr_info) * recog_data.n_operands);
 	    }
 
-	  /* Simplify the code below by rewriting things to reflect
-	     matching constraints.  Also promote OP_OUT to OP_INOUT in
+	  /* Simplify the code below by promoting OP_OUT to OP_INOUT in
 	     predicated instructions, but only for register operands
 	     that are already tracked, so that we can create a chain
 	     when the first SET makes a register live.  */
@@ -1595,10 +1590,8 @@ build_def_use (basic_block bb)
 	  for (i = 0; i < n_ops; ++i)
 	    {
 	      rtx op = recog_data.operand[i];
-	      int matches = recog_op_alt[i][alt].matches;
-	      if (matches >= 0)
-		recog_op_alt[i][alt].cl = recog_op_alt[matches][alt].cl;
-	      if (matches >= 0 || recog_op_alt[i][alt].matched >= 0
+	      int matches = op_alt[i].matches;
+	      if (matches >= 0 || op_alt[i].matched >= 0
 	          || (predicated && recog_data.operand_type[i] == OP_OUT))
 		{
 		  recog_data.operand_type[i] = OP_INOUT;
@@ -1682,7 +1675,7 @@ build_def_use (basic_block bb)
 	      rtx *loc = (i < n_ops
 			  ? recog_data.operand_loc[opn]
 			  : recog_data.dup_loc[i - n_ops]);
-	      enum reg_class cl = recog_op_alt[opn][alt].cl;
+	      enum reg_class cl = alternative_class (op_alt, opn);
 	      enum op_type type = recog_data.operand_type[opn];
 
 	      /* Don't scan match_operand here, since we've no reg class
@@ -1694,7 +1687,7 @@ build_def_use (basic_block bb)
 
 	      if (insn_info)
 		cur_operand = i == opn ? insn_info->op_info + i : NULL;
-	      if (recog_op_alt[opn][alt].is_address)
+	      if (op_alt[opn].is_address)
 		scan_rtx_address (insn, loc, cl, mark_read,
 				  VOIDmode, ADDR_SPACE_GENERIC);
 	      else
@@ -1836,12 +1829,6 @@ regrename_optimize (void)
   return 0;
 }
 
-static bool
-gate_handle_regrename (void)
-{
-  return (optimize > 0 && (flag_rename_registers));
-}
-
 namespace {
 
 const pass_data pass_data_regrename =
@@ -1849,14 +1836,12 @@ const pass_data pass_data_regrename =
   RTL_PASS, /* type */
   "rnreg", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_RENAME_REGISTERS, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  ( TODO_df_finish | TODO_verify_rtl_sharing | 0 ), /* todo_flags_finish */
+  TODO_df_finish, /* todo_flags_finish */
 };
 
 class pass_regrename : public rtl_opt_pass
@@ -1867,8 +1852,12 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_handle_regrename (); }
-  unsigned int execute () { return regrename_optimize (); }
+  virtual bool gate (function *)
+    {
+      return (optimize > 0 && (flag_rename_registers));
+    }
+
+  virtual unsigned int execute (function *) { return regrename_optimize (); }
 
 }; // class pass_regrename
 

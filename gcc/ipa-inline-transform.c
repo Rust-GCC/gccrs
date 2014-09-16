@@ -86,7 +86,7 @@ can_remove_node_now_p_1 (struct cgraph_node *node)
      can remove its offline copy, but we would need to keep unanalyzed node in
      the callgraph so references can point to it.  */
   return (!node->address_taken
-	  && !ipa_ref_has_aliases_p (&node->ref_list)
+	  && !node->has_aliases_p ()
 	  && !node->used_as_abstract_origin
 	  && cgraph_can_remove_if_no_direct_calls_p (node)
 	  /* Inlining might enable more devirtualizing, so we want to remove
@@ -183,8 +183,9 @@ clone_inlined_nodes (struct cgraph_edge *e, bool duplicate,
 	  if (freq_scale == -1)
 	    freq_scale = e->frequency;
 	  n = cgraph_clone_node (e->callee, e->callee->decl,
-				 e->count, freq_scale, update_original,
-				 vNULL, true, inlining_into, NULL);
+				 MIN (e->count, e->callee->count), freq_scale,
+				 update_original, vNULL, true, inlining_into,
+				 NULL);
 	  cgraph_redirect_edge_callee (e, n);
 	}
     }
@@ -214,6 +215,7 @@ clone_inlined_nodes (struct cgraph_edge *e, bool duplicate,
    it is NULL. If UPDATE_OVERALL_SUMMARY is false, do not bother to recompute overall
    size of caller after inlining. Caller is required to eventually do it via
    inline_update_overall_summary.
+   If callee_removed is non-NULL, set it to true if we removed callee node.
 
    Return true iff any new callgraph edges were discovered as a
    result of inlining.  */
@@ -221,7 +223,8 @@ clone_inlined_nodes (struct cgraph_edge *e, bool duplicate,
 bool
 inline_call (struct cgraph_edge *e, bool update_original,
 	     vec<cgraph_edge_p> *new_edges,
-	     int *overall_size, bool update_overall_summary)
+	     int *overall_size, bool update_overall_summary,
+	     bool *callee_removed)
 {
   int old_size = 0, new_size = 0;
   struct cgraph_node *to = NULL;
@@ -260,6 +263,8 @@ inline_call (struct cgraph_edge *e, bool update_original,
 	    {
 	      next_alias = cgraph_alias_target (alias);
 	      cgraph_remove_node (alias);
+	      if (callee_removed)
+		*callee_removed = true;
 	      alias = next_alias;
 	    }
 	  else
@@ -336,7 +341,7 @@ save_inline_function_body (struct cgraph_node *node)
   /* first_clone will be turned into real function.  */
   first_clone = node->clones;
   first_clone->decl = copy_node (node->decl);
-  symtab_insert_node_to_hashtable (first_clone);
+  first_clone->decl->decl_with_vis.symtab_node = first_clone;
   gcc_assert (first_clone == cgraph_get_node (first_clone->decl));
 
   /* Now reshape the clone tree, so all other clones descends from
@@ -446,7 +451,7 @@ inline_transform (struct cgraph_node *node)
       next = e->next_callee;
       cgraph_redirect_edge_call_stmt_to_callee (e);
     }
-  ipa_remove_all_references (&node->ref_list);
+  node->remove_all_references ();
 
   timevar_push (TV_INTEGRATION);
   if (node->callees && optimize)

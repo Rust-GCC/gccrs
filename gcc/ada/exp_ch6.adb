@@ -165,6 +165,41 @@ package body Exp_Ch6 is
    --  the values are not changed for the call, we know immediately that
    --  we have an infinite recursion.
 
+   procedure Expand_Actuals (N : in out Node_Id; Subp : Entity_Id);
+   --  For each actual of an in-out or out parameter which is a numeric
+   --  (view) conversion of the form T (A), where A denotes a variable,
+   --  we insert the declaration:
+   --
+   --    Temp : T[ := T (A)];
+   --
+   --  prior to the call. Then we replace the actual with a reference to Temp,
+   --  and append the assignment:
+   --
+   --    A := TypeA (Temp);
+   --
+   --  after the call. Here TypeA is the actual type of variable A. For out
+   --  parameters, the initial declaration has no expression. If A is not an
+   --  entity name, we generate instead:
+   --
+   --    Var  : TypeA renames A;
+   --    Temp : T := Var;       --  omitting expression for out parameter.
+   --    ...
+   --    Var := TypeA (Temp);
+   --
+   --  For other in-out parameters, we emit the required constraint checks
+   --  before and/or after the call.
+   --
+   --  For all parameter modes, actuals that denote components and slices of
+   --  packed arrays are expanded into suitable temporaries.
+   --
+   --  For non-scalar objects that are possibly unaligned, add call by copy
+   --  code (copy in for IN and IN OUT, copy out for OUT and IN OUT).
+   --
+   --  The parameter N is IN OUT because in some cases, the expansion code
+   --  rewrites the call as an expression actions with the call inside. In
+   --  this case N is reset to point to the inside call so that the caller
+   --  can continue processing of this call.
+
    procedure Expand_Ctrl_Function_Call (N : Node_Id);
    --  N is a function call which returns a controlled object. Transform the
    --  call into a temporary which retrieves the returned object from the
@@ -939,7 +974,7 @@ package body Exp_Ch6 is
    -- Expand_Actuals --
    --------------------
 
-   procedure Expand_Actuals (N : Node_Id; Subp : Entity_Id) is
+   procedure Expand_Actuals (N : in out Node_Id; Subp : Entity_Id) is
       Loc       : constant Source_Ptr := Sloc (N);
       Actual    : Node_Id;
       Formal    : Entity_Id;
@@ -976,10 +1011,10 @@ package body Exp_Ch6 is
       --  the effect that this might lead to unaligned arguments.
 
       function Make_Var (Actual : Node_Id) return Entity_Id;
-      --  Returns an entity that refers to the given actual parameter,
-      --  Actual (not including any type conversion). If Actual is an
-      --  entity name, then this entity is returned unchanged, otherwise
-      --  a renaming is created to provide an entity for the actual.
+      --  Returns an entity that refers to the given actual parameter, Actual
+      --  (not including any type conversion). If Actual is an entity name,
+      --  then this entity is returned unchanged, otherwise a renaming is
+      --  created to provide an entity for the actual.
 
       procedure Reset_Packed_Prefix;
       --  The expansion of a packed array component reference is delayed in
@@ -1604,8 +1639,8 @@ package body Exp_Ch6 is
                   --  Also pass by copy if change of representation
 
                   or else not Same_Representation
-                               (Etype (Formal),
-                                Etype (Expression (Actual))))
+                                (Etype (Formal),
+                                 Etype (Expression (Actual))))
             then
                Add_Call_By_Copy_Code;
 
@@ -1809,7 +1844,7 @@ package body Exp_Ch6 is
                if In_Open_Scopes (Entity (Actual)) then
                   Rewrite (Actual,
                     (Make_Function_Call (Loc,
-                     Name => New_Occurrence_Of (RTE (RE_Self), Loc))));
+                       Name => New_Occurrence_Of (RTE (RE_Self), Loc))));
                   Analyze (Actual);
 
                --  A task type cannot otherwise appear as an actual
@@ -1831,36 +1866,93 @@ package body Exp_Ch6 is
          --  Cases where the call is not a member of a statement list
 
          if not Is_List_Member (N) then
-            declare
-               P :  Node_Id := Parent (N);
 
-            begin
-               --  In Ada 2012 the call may be a function call in an expression
-               --  (since OUT and IN OUT parameters are now allowed for such
-               --  calls. The write-back of (in)-out parameters is handled
-               --  by the back-end, but the constraint checks generated when
-               --  subtypes of formal and actual don't match must be inserted
-               --  in the form of assignments, at the nearest point after the
-               --  declaration or statement that contains the call.
+            --  In Ada 2012 the call may be a function call in an expression
+            --  (since OUT and IN OUT parameters are now allowed for such
+            --  calls). The write-back of (in)-out parameters is handled
+            --  by the back-end, but the constraint checks generated when
+            --  subtypes of formal and actual don't match must be inserted
+            --  in the form of assignments.
 
-               if Ada_Version >= Ada_2012
-                 and then Nkind (N) = N_Function_Call
-               then
-                  while Nkind (P) not in N_Declaration
-                    and then
-                      Nkind (P) not in N_Statement_Other_Than_Procedure_Call
-                  loop
-                     P := Parent (P);
-                  end loop;
+            if Ada_Version >= Ada_2012
+              and then Nkind (N) = N_Function_Call
+            then
+               --  We used to just do handle this by climbing up parents to
+               --  a non-statement/declaration and then simply making a call
+               --  to Insert_Actions_After (P, Post_Call), but that doesn't
+               --  work. If we are in the middle of an expression, e.g. the
+               --  condition of an IF, this call would insert after the IF
+               --  statement, which is much too late to be doing the write
+               --  back. For example:
 
-                  Insert_Actions_After (P, Post_Call);
+               --     if Clobber (X) then
+               --        Put_Line (X'Img);
+               --     else
+               --        goto Junk
+               --     end if;
 
-               --  If not the special Ada 2012 case of a function call, then
-               --  we must have the triggering statement of a triggering
-               --  alternative or an entry call alternative, and we can add
-               --  the post call stuff to the corresponding statement list.
+               --  Now assume Clobber changes X, if we put the write back
+               --  after the IF, the Put_Line gets the wrong value and the
+               --  goto causes the write back to be skipped completely.
 
-               else
+               --  To deal with this, we replace the call by
+
+               --    do
+               --       Tnnn : function-result-type renames function-call;
+               --       Post_Call actions
+               --    in
+               --       Tnnn;
+               --    end;
+
+               --  Note: this won't do in Modify_Tree_For_C mode, but we
+               --  will deal with that later (it will require creating a
+               --  declaration for Temp, using Insert_Declaration) ???
+
+               declare
+                  Tnnn  : constant Entity_Id := Make_Temporary (Loc, 'T');
+                  FRTyp : constant Entity_Id := Etype (N);
+                  Name  : constant Node_Id   := Relocate_Node (N);
+
+               begin
+                  Prepend_To (Post_Call,
+                    Make_Object_Renaming_Declaration (Loc,
+                      Defining_Identifier => Tnnn,
+                      Subtype_Mark        => New_Occurrence_Of (FRTyp, Loc),
+                      Name                => Name));
+
+                  Rewrite (N,
+                    Make_Expression_With_Actions (Loc,
+                      Actions    => Post_Call,
+                      Expression => New_Occurrence_Of (Tnnn, Loc)));
+
+                  --  We don't want to just blindly call Analyze_And_Resolve
+                  --  because that would cause unwanted recursion on the call.
+                  --  So for a moment set the call as analyzed to prevent that
+                  --  recursion, and get the rest analyzed properly, then reset
+                  --  the analyzed flag, so our caller can continue.
+
+                  Set_Analyzed (Name, True);
+                  Analyze_And_Resolve (N, FRTyp);
+                  Set_Analyzed (Name, False);
+
+                  --  Reset calling argument to point to function call inside
+                  --  the expression with actions so the caller can continue
+                  --  to process the call.
+
+                  N := Name;
+               end;
+
+            --  If not the special Ada 2012 case of a function call, then
+            --  we must have the triggering statement of a triggering
+            --  alternative or an entry call alternative, and we can add
+            --  the post call stuff to the corresponding statement list.
+
+            else
+               declare
+                  P : Node_Id;
+
+               begin
+                  P := Parent (N);
                   pragma Assert (Nkind_In (P, N_Triggering_Alternative,
                                               N_Entry_Call_Alternative));
 
@@ -1870,15 +1962,17 @@ package body Exp_Ch6 is
                   else
                      Set_Statements (P, Post_Call);
                   end if;
-               end if;
 
-            end;
+                  return;
+               end;
+            end if;
 
          --  Otherwise, normal case where N is in a statement sequence,
          --  just put the post-call stuff after the call statement.
 
          else
             Insert_Actions_After (N, Post_Call);
+            return;
          end if;
       end if;
 
@@ -2520,16 +2614,16 @@ package body Exp_Ch6 is
 
       --  Detect the following code in System.Finalization_Masters only on
       --  .NET/JVM targets:
-      --
+
       --    procedure Finalize (Master : in out Finalization_Master) is
       --    begin
       --       . . .
       --       begin
       --          Finalize (Curr_Ptr.all);
-      --
+
       --  Since .NET/JVM compilers lack address arithmetic and Deep_Finalize
-      --  cannot be named in library or user code, the compiler has to install
-      --  a kludge and transform the call to Finalize into Deep_Finalize.
+      --  cannot be named in library or user code, the compiler has to deal
+      --  with this by transforming the call to Finalize into Deep_Finalize.
 
       if VM_Target /= No_VM
         and then Chars (Subp) = Name_Finalize
@@ -4101,6 +4195,33 @@ package body Exp_Ch6 is
    -------------------------------
 
    procedure Expand_Ctrl_Function_Call (N : Node_Id) is
+      function Is_Element_Reference (N : Node_Id) return Boolean;
+      --  Determine whether node N denotes a reference to an Ada 2012 container
+      --  element.
+
+      --------------------------
+      -- Is_Element_Reference --
+      --------------------------
+
+      function Is_Element_Reference (N : Node_Id) return Boolean is
+         Ref : constant Node_Id := Original_Node (N);
+
+      begin
+         --  Analysis marks an element reference by setting the generalized
+         --  indexing attribute of an indexed component before the component
+         --  is rewritten into a function call.
+
+         return
+           Nkind (Ref) = N_Indexed_Component
+             and then Present (Generalized_Indexing (Ref));
+      end Is_Element_Reference;
+
+      --  Local variables
+
+      Is_Elem_Ref : constant Boolean := Is_Element_Reference (N);
+
+   --  Start of processing for Expand_Ctrl_Function_Call
+
    begin
       --  Optimization, if the returned value (which is on the sec-stack) is
       --  returned again, no need to copy/readjust/finalize, we can just pass
@@ -4122,12 +4243,17 @@ package body Exp_Ch6 is
 
       Remove_Side_Effects (N);
 
-      --  When the temporary function result appears inside a case or an if
-      --  expression, its lifetime must be extended to match that of the
-      --  context. If not, the function result would be finalized prematurely
-      --  and the evaluation of the expression could yield the wrong result.
+      --  When the temporary function result appears inside a case expression
+      --  or an if expression, its lifetime must be extended to match that of
+      --  the context. If not, the function result will be finalized too early
+      --  and the evaluation of the expression could yield incorrect result. An
+      --  exception to this rule are references to Ada 2012 container elements.
+      --  Such references must be finalized at the end of each iteration of the
+      --  related quantified expression, otherwise the container will remain
+      --  busy.
 
-      if Within_Case_Or_If_Expression (N)
+      if not Is_Elem_Ref
+        and then Within_Case_Or_If_Expression (N)
         and then Nkind (N) = N_Explicit_Dereference
       then
          Set_Is_Processed_Transient (Entity (Prefix (N)));
@@ -7056,6 +7182,26 @@ package body Exp_Ch6 is
    is
       Rec   : Node_Id;
 
+      procedure Freeze_Called_Function;
+      --  If it is a function call it can appear in elaboration code and
+      --  the called entity must be frozen before the call. This must be
+      --  done before the call is expanded, as the expansion may rewrite it
+      --  to something other than a call (e.g. a temporary initialized in a
+      --  transient block).
+
+      ----------------------------
+      -- Freeze_Called_Function --
+      ----------------------------
+
+      procedure Freeze_Called_Function is
+      begin
+         if Ekind (Subp) = E_Function then
+            Freeze_Expression (Name (N));
+         end if;
+      end Freeze_Called_Function;
+
+   --  Start of processing for Expand_Protected_Subprogram_Call
+
    begin
       --  If the protected object is not an enclosing scope, this is an inter-
       --  object function call. Inter-object procedure calls are expanded by
@@ -7076,6 +7222,7 @@ package body Exp_Ch6 is
             Rec := Prefix (Prefix (Name (N)));
          end if;
 
+         Freeze_Called_Function;
          Build_Protected_Subprogram_Call (N,
            Name     => New_Occurrence_Of (Subp, Sloc (N)),
            Rec      => Convert_Concurrent (Rec, Etype (Rec)),
@@ -7088,18 +7235,12 @@ package body Exp_Ch6 is
             return;
          end if;
 
+         Freeze_Called_Function;
          Build_Protected_Subprogram_Call (N,
            Name     => Name (N),
            Rec      => Rec,
            External => False);
 
-      end if;
-
-      --  If it is a function call it can appear in elaboration code and
-      --  the called entity must be frozen here.
-
-      if Ekind (Subp) = E_Function then
-         Freeze_Expression (Name (N));
       end if;
 
       --  Analyze and resolve the new call. The actuals have already been
@@ -7330,27 +7471,44 @@ package body Exp_Ch6 is
       --  Here if secondary stack is used
 
       else
-         --  Make sure that no surrounding block will reclaim the secondary
-         --  stack on which we are going to put the result. Not only may this
-         --  introduce secondary stack leaks but worse, if the reclamation is
-         --  done too early, then the result we are returning may get
-         --  clobbered.
+         --  Prevent the reclamation of the secondary stack by all enclosing
+         --  blocks and loops as well as the related function, otherwise the
+         --  result will be reclaimed too early or even clobbered. Due to a
+         --  possible mix of internally generated blocks, source blocks and
+         --  loops, the scope stack may not be contiguous as all labels are
+         --  inserted at the top level within the related function. Instead,
+         --  perform a parent-based traversal and mark all appropriate
+         --  constructs.
 
          declare
-            S : Entity_Id;
+            P : Node_Id;
+
          begin
-            S := Current_Scope;
-            while Ekind (S) = E_Block or else Ekind (S) = E_Loop loop
-               Set_Sec_Stack_Needed_For_Return (S, True);
-               S := Enclosing_Dynamic_Scope (S);
+            P := N;
+            while Present (P) loop
+
+               --  Mark the label of a source or internally generated block or
+               --  loop.
+
+               if Nkind_In (P, N_Block_Statement, N_Loop_Statement) then
+                  Set_Sec_Stack_Needed_For_Return (Entity (Identifier (P)));
+
+               --  Mark the enclosing function
+
+               elsif Nkind (P) = N_Subprogram_Body then
+                  if Present (Corresponding_Spec (P)) then
+                     Set_Sec_Stack_Needed_For_Return (Corresponding_Spec (P));
+                  else
+                     Set_Sec_Stack_Needed_For_Return (Defining_Entity (P));
+                  end if;
+
+                  --  Do not go beyond the enclosing function
+
+                  exit;
+               end if;
+
+               P := Parent (P);
             end loop;
-
-            --  The enclosing function itself must be marked as well, to
-            --  prevent premature secondary stack cleanup.
-
-            if Ekind (S) = E_Function then
-               Set_Sec_Stack_Needed_For_Return (Scope_Id);
-            end if;
          end;
 
          --  Optimize the case where the result is a function call. In this
@@ -8311,7 +8469,9 @@ package body Exp_Ch6 is
 
          --  Local variables
 
-         Loc    : constant Source_Ptr := Sloc (N);
+         Loc : constant Source_Ptr := Sloc (N);
+         --  Source location of subprogram contract
+
          Formal : Entity_Id;
          Typ    : Entity_Id;
 
@@ -8373,9 +8533,8 @@ package body Exp_Ch6 is
 
                if Predicate_Checks_OK (Typ) then
                   Append_Enabled_Item
-                    (Item =>
-                       Make_Predicate_Check
-                         (Typ, New_Occurrence_Of (Formal, Loc)),
+                    (Item => Make_Predicate_Check
+                                (Typ, New_Occurrence_Of (Formal, Loc)),
                      List => Stmts);
                end if;
             end if;
@@ -8520,6 +8679,12 @@ package body Exp_Ch6 is
          --  order reference. The body of _Postconditions must be placed after
          --  the declaration of Temp to preserve correct visibility.
 
+         --  Note that we set an explicit End_Label in order to override the
+         --  sloc of the implicit RETURN statement, and prevent it from
+         --  inheriting the sloc of one of the postconditions: this would cause
+         --  confusing debug info to be produced, interfering with coverage
+         --  analysis tools.
+
          Insert_Before_First_Source_Declaration (
            Make_Subprogram_Body (Loc,
              Specification              =>
@@ -8529,7 +8694,9 @@ package body Exp_Ch6 is
 
              Declarations               => Empty_List,
              Handled_Statement_Sequence =>
-               Make_Handled_Sequence_Of_Statements (Loc, Stmts)));
+               Make_Handled_Sequence_Of_Statements (Loc,
+                 Statements => Stmts,
+                 End_Label  => Make_Identifier (Loc, Chars (Proc_Id)))));
 
          --  Set the attributes of the related subprogram to capture the
          --  generated procedure.
@@ -10078,10 +10245,9 @@ package body Exp_Ch6 is
       Func_Call       : Node_Id := Function_Call;
       Function_Id     : Entity_Id;
       Pool_Actual     : Node_Id;
+      Ptr_Typ         : Entity_Id;
       Ptr_Typ_Decl    : Node_Id;
       Pass_Caller_Acc : Boolean := False;
-      New_Expr        : Node_Id;
-      Ref_Type        : Entity_Id;
       Res_Decl        : Node_Id;
       Result_Subt     : Entity_Id;
 
@@ -10120,6 +10286,53 @@ package body Exp_Ch6 is
       end if;
 
       Result_Subt := Etype (Function_Id);
+
+      --  Create an access type designating the function's result subtype. We
+      --  use the type of the original call because it may be a call to an
+      --  inherited operation, which the expansion has replaced with the parent
+      --  operation that yields the parent type. Note that this access type
+      --  must be declared before we establish a transient scope, so that it
+      --  receives the proper accessibility level.
+
+      Ptr_Typ := Make_Temporary (Loc, 'A');
+      Ptr_Typ_Decl :=
+        Make_Full_Type_Declaration (Loc,
+          Defining_Identifier => Ptr_Typ,
+          Type_Definition     =>
+            Make_Access_To_Object_Definition (Loc,
+              All_Present        => True,
+              Subtype_Indication =>
+                New_Occurrence_Of (Etype (Function_Call), Loc)));
+
+      --  The access type and its accompanying object must be inserted after
+      --  the object declaration in the constrained case, so that the function
+      --  call can be passed access to the object. In the unconstrained case,
+      --  or if the object declaration is for a return object, the access type
+      --  and object must be inserted before the object, since the object
+      --  declaration is rewritten to be a renaming of a dereference of the
+      --  access object. Note: we need to freeze Ptr_Typ explicitly, because
+      --  the result object is in a different (transient) scope, so won't
+      --  cause freezing.
+
+      if Is_Constrained (Underlying_Type (Result_Subt))
+        and then not Is_Return_Object (Defining_Identifier (Object_Decl))
+      then
+         Insert_After_And_Analyze (Object_Decl, Ptr_Typ_Decl);
+      else
+         Insert_Action (Object_Decl, Ptr_Typ_Decl);
+      end if;
+
+      --  Force immediate freezing of Ptr_Typ because Res_Decl will be
+      --  elaborated in an inner (transient) scope and thus won't cause
+      --  freezing by itself.
+
+      declare
+         Ptr_Typ_Freeze_Ref : constant Node_Id :=
+                                New_Occurrence_Of (Ptr_Typ, Loc);
+      begin
+         Set_Parent (Ptr_Typ_Freeze_Ref, Ptr_Typ_Decl);
+         Freeze_Expression (Ptr_Typ_Freeze_Ref);
+      end;
 
       --  If the the object is a return object of an enclosing build-in-place
       --  function, then the implicit build-in-place parameters of the
@@ -10253,53 +10466,22 @@ package body Exp_Ch6 is
       Add_Access_Actual_To_Build_In_Place_Call
         (Func_Call, Function_Id, Caller_Object, Is_Access => Pass_Caller_Acc);
 
-      --  Create an access type designating the function's result subtype. We
-      --  use the type of the original expression because it may be a call to
-      --  an inherited operation, which the expansion has replaced with the
-      --  parent operation that yields the parent type.
-
-      Ref_Type := Make_Temporary (Loc, 'A');
-
-      Ptr_Typ_Decl :=
-        Make_Full_Type_Declaration (Loc,
-          Defining_Identifier => Ref_Type,
-          Type_Definition     =>
-            Make_Access_To_Object_Definition (Loc,
-              All_Present        => True,
-              Subtype_Indication =>
-                New_Occurrence_Of (Etype (Function_Call), Loc)));
-
-      --  The access type and its accompanying object must be inserted after
-      --  the object declaration in the constrained case, so that the function
-      --  call can be passed access to the object. In the unconstrained case,
-      --  or if the object declaration is for a return object, the access type
-      --  and object must be inserted before the object, since the object
-      --  declaration is rewritten to be a renaming of a dereference of the
-      --  access object.
-
-      if Is_Constrained (Underlying_Type (Result_Subt))
-        and then not Is_Return_Object (Defining_Identifier (Object_Decl))
-      then
-         Insert_After_And_Analyze (Object_Decl, Ptr_Typ_Decl);
-      else
-         Insert_Action (Object_Decl, Ptr_Typ_Decl);
-      end if;
-
       --  Finally, create an access object initialized to a reference to the
       --  function call. We know this access value cannot be null, so mark the
       --  entity accordingly to suppress the access check.
 
-      New_Expr := Make_Reference (Loc, Relocate_Node (Func_Call));
-
-      Def_Id := Make_Temporary (Loc, 'R', New_Expr);
-      Set_Etype (Def_Id, Ref_Type);
+      Def_Id := Make_Temporary (Loc, 'R', Func_Call);
+      Set_Etype (Def_Id, Ptr_Typ);
       Set_Is_Known_Non_Null (Def_Id);
 
       Res_Decl :=
         Make_Object_Declaration (Loc,
           Defining_Identifier => Def_Id,
-          Object_Definition   => New_Occurrence_Of (Ref_Type, Loc),
-          Expression          => New_Expr);
+          Constant_Present    => True,
+          Object_Definition   => New_Occurrence_Of (Ptr_Typ, Loc),
+          Expression          =>
+            Make_Reference (Loc, Relocate_Node (Func_Call)));
+
       Insert_After_And_Analyze (Ptr_Typ_Decl, Res_Decl);
 
       --  If the result subtype of the called function is constrained and

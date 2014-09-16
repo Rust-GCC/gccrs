@@ -739,12 +739,10 @@ dump_prediction (FILE *file, enum br_predictor predictor, int probability,
 
   if (bb->count)
     {
-      fprintf (file, "  exec ");
-      fprintf (file, HOST_WIDEST_INT_PRINT_DEC, bb->count);
+      fprintf (file, "  exec %"PRId64, bb->count);
       if (e)
 	{
-	  fprintf (file, " hit ");
-	  fprintf (file, HOST_WIDEST_INT_PRINT_DEC, e->count);
+	  fprintf (file, " hit %"PRId64, e->count);
 	  fprintf (file, " (%.1f%%)", e->count * 100.0 / bb->count);
 	}
     }
@@ -1306,76 +1304,59 @@ predict_iv_comparison (struct loop *loop, basic_block bb,
       && tree_fits_shwi_p (compare_base))
     {
       int probability;
-      bool of, overflow = false;
-      double_int mod, compare_count, tem, loop_count;
-
-      double_int loop_bound = tree_to_double_int (loop_bound_var);
-      double_int compare_bound = tree_to_double_int (compare_var);
-      double_int base = tree_to_double_int (compare_base);
-      double_int compare_step = tree_to_double_int (compare_step_var);
+      bool overflow, overall_overflow = false;
+      widest_int compare_count, tem;
 
       /* (loop_bound - base) / compare_step */
-      tem = loop_bound.sub_with_overflow (base, &of);
-      overflow |= of;
-      loop_count = tem.divmod_with_overflow (compare_step,
-					      0, TRUNC_DIV_EXPR,
-					      &mod, &of);
-      overflow |= of;
+      tem = wi::sub (wi::to_widest (loop_bound_var),
+		     wi::to_widest (compare_base), SIGNED, &overflow);
+      overall_overflow |= overflow;
+      widest_int loop_count = wi::div_trunc (tem,
+					     wi::to_widest (compare_step_var),
+					     SIGNED, &overflow);
+      overall_overflow |= overflow;
 
-      if ((!compare_step.is_negative ())
+      if (!wi::neg_p (wi::to_widest (compare_step_var))
           ^ (compare_code == LT_EXPR || compare_code == LE_EXPR))
 	{
 	  /* (loop_bound - compare_bound) / compare_step */
-	  tem = loop_bound.sub_with_overflow (compare_bound, &of);
-	  overflow |= of;
-	  compare_count = tem.divmod_with_overflow (compare_step,
-						     0, TRUNC_DIV_EXPR,
-						     &mod, &of);
-	  overflow |= of;
+	  tem = wi::sub (wi::to_widest (loop_bound_var),
+			 wi::to_widest (compare_var), SIGNED, &overflow);
+	  overall_overflow |= overflow;
+	  compare_count = wi::div_trunc (tem, wi::to_widest (compare_step_var),
+					 SIGNED, &overflow);
+	  overall_overflow |= overflow;
 	}
       else
         {
 	  /* (compare_bound - base) / compare_step */
-	  tem = compare_bound.sub_with_overflow (base, &of);
-	  overflow |= of;
-          compare_count = tem.divmod_with_overflow (compare_step,
-						     0, TRUNC_DIV_EXPR,
-						     &mod, &of);
-	  overflow |= of;
+	  tem = wi::sub (wi::to_widest (compare_var),
+			 wi::to_widest (compare_base), SIGNED, &overflow);
+	  overall_overflow |= overflow;
+          compare_count = wi::div_trunc (tem, wi::to_widest (compare_step_var),
+					 SIGNED, &overflow);
+	  overall_overflow |= overflow;
 	}
       if (compare_code == LE_EXPR || compare_code == GE_EXPR)
 	++compare_count;
       if (loop_bound_code == LE_EXPR || loop_bound_code == GE_EXPR)
 	++loop_count;
-      if (compare_count.is_negative ())
-        compare_count = double_int_zero;
-      if (loop_count.is_negative ())
-        loop_count = double_int_zero;
-      if (loop_count.is_zero ())
+      if (wi::neg_p (compare_count))
+        compare_count = 0;
+      if (wi::neg_p (loop_count))
+        loop_count = 0;
+      if (loop_count == 0)
 	probability = 0;
-      else if (compare_count.scmp (loop_count) == 1)
+      else if (wi::cmps (compare_count, loop_count) == 1)
 	probability = REG_BR_PROB_BASE;
       else
         {
-	  /* If loop_count is too big, such that REG_BR_PROB_BASE * loop_count
-	     could overflow, shift both loop_count and compare_count right
-	     a bit so that it doesn't overflow.  Note both counts are known not
-	     to be negative at this point.  */
-	  int clz_bits = clz_hwi (loop_count.high);
-	  gcc_assert (REG_BR_PROB_BASE < 32768);
-	  if (clz_bits < 16)
-	    {
-	      loop_count.arshift (16 - clz_bits, HOST_BITS_PER_DOUBLE_INT);
-	      compare_count.arshift (16 - clz_bits, HOST_BITS_PER_DOUBLE_INT);
-	    }
-	  tem = compare_count.mul_with_sign (double_int::from_shwi
-					    (REG_BR_PROB_BASE), true, &of);
-	  gcc_assert (!of);
-	  tem = tem.divmod (loop_count, true, TRUNC_DIV_EXPR, &mod);
+	  tem = compare_count * REG_BR_PROB_BASE;
+	  tem = wi::udiv_trunc (tem, loop_count);
 	  probability = tem.to_uhwi ();
 	}
 
-      if (!overflow)
+      if (!overall_overflow)
         predict_edge (then_edge, PRED_LOOP_IV_COMPARE, probability);
 
       return;
@@ -1986,59 +1967,6 @@ expr_expected_value (tree expr, bitmap visited,
   return expr_expected_value_1 (TREE_TYPE (expr),
 				op0, code, op1, visited, predictor);
 }
-
-
-/* Get rid of all builtin_expect calls and GIMPLE_PREDICT statements
-   we no longer need.  */
-static unsigned int
-strip_predict_hints (void)
-{
-  basic_block bb;
-  gimple ass_stmt;
-  tree var;
-
-  FOR_EACH_BB_FN (bb, cfun)
-    {
-      gimple_stmt_iterator bi;
-      for (bi = gsi_start_bb (bb); !gsi_end_p (bi);)
-	{
-	  gimple stmt = gsi_stmt (bi);
-
-	  if (gimple_code (stmt) == GIMPLE_PREDICT)
-	    {
-	      gsi_remove (&bi, true);
-	      continue;
-	    }
-	  else if (is_gimple_call (stmt))
-	    {
-	      tree fndecl = gimple_call_fndecl (stmt);
-
-	      if ((fndecl
-		   && DECL_BUILT_IN_CLASS (fndecl) == BUILT_IN_NORMAL
-		   && DECL_FUNCTION_CODE (fndecl) == BUILT_IN_EXPECT
-		   && gimple_call_num_args (stmt) == 2)
-		  || (gimple_call_internal_p (stmt)
-		      && gimple_call_internal_fn (stmt) == IFN_BUILTIN_EXPECT))
-		{
-		  var = gimple_call_lhs (stmt);
-		  if (var)
-		    {
-		      ass_stmt
-			= gimple_build_assign (var, gimple_call_arg (stmt, 0));
-		      gsi_replace (&bi, ass_stmt, true);
-		    }
-		  else
-		    {
-		      gsi_remove (&bi, true);
-		      continue;
-		    }
-		}
-	    }
-	  gsi_next (&bi);
-	}
-    }
-  return 0;
-}
 
 /* Predict using opcode of the last statement in basic block.  */
 static void
@@ -2467,37 +2395,6 @@ tree_estimate_probability (void)
   estimate_bb_frequencies (false);
   free_dominance_info (CDI_POST_DOMINATORS);
   remove_fake_exit_edges ();
-}
-
-/* Predict branch probabilities and estimate profile of the tree CFG.
-   This is the driver function for PASS_PROFILE.  */
-
-static unsigned int
-tree_estimate_probability_driver (void)
-{
-  unsigned nb_loops;
-
-  loop_optimizer_init (LOOPS_NORMAL);
-  if (dump_file && (dump_flags & TDF_DETAILS))
-    flow_loops_dump (dump_file, NULL, 0);
-
-  mark_irreducible_loops ();
-
-  nb_loops = number_of_loops (cfun);
-  if (nb_loops > 1)
-    scev_initialize ();
-
-  tree_estimate_probability ();
-
-  if (nb_loops > 1)
-    scev_finalize ();
-
-  loop_optimizer_finalize ();
-  if (dump_file && (dump_flags & TDF_DETAILS))
-    gimple_dump_cfg (dump_file, dump_flags);
-  if (profile_status_for_fn (cfun) == PROFILE_ABSENT)
-    profile_status_for_fn (cfun) = PROFILE_GUESSED;
-  return 0;
 }
 
 /* Predict edges to successors of CUR whose sources are not postdominated by
@@ -3131,12 +3028,6 @@ compute_function_frequency (void)
     }
 }
 
-static bool
-gate_estimate_probability (void)
-{
-  return flag_guess_branch_prob;
-}
-
 /* Build PREDICT_EXPR.  */
 tree
 build_predict_expr (enum br_predictor predictor, enum prediction taken)
@@ -3153,6 +3044,8 @@ predictor_name (enum br_predictor predictor)
   return predictor_info[predictor].name;
 }
 
+/* Predict branch probabilities and estimate profile of the tree CFG. */
+
 namespace {
 
 const pass_data pass_data_profile =
@@ -3160,14 +3053,12 @@ const pass_data pass_data_profile =
   GIMPLE_PASS, /* type */
   "profile_estimate", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_BRANCH_PROB, /* tv_id */
   PROP_cfg, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  TODO_verify_ssa, /* todo_flags_finish */
+  0, /* todo_flags_finish */
 };
 
 class pass_profile : public gimple_opt_pass
@@ -3178,10 +3069,38 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_estimate_probability (); }
-  unsigned int execute () { return tree_estimate_probability_driver (); }
+  virtual bool gate (function *) { return flag_guess_branch_prob; }
+  virtual unsigned int execute (function *);
 
 }; // class pass_profile
+
+unsigned int
+pass_profile::execute (function *fun)
+{
+  unsigned nb_loops;
+
+  loop_optimizer_init (LOOPS_NORMAL);
+  if (dump_file && (dump_flags & TDF_DETAILS))
+    flow_loops_dump (dump_file, NULL, 0);
+
+  mark_irreducible_loops ();
+
+  nb_loops = number_of_loops (fun);
+  if (nb_loops > 1)
+    scev_initialize ();
+
+  tree_estimate_probability ();
+
+  if (nb_loops > 1)
+    scev_finalize ();
+
+  loop_optimizer_finalize ();
+  if (dump_file && (dump_flags & TDF_DETAILS))
+    gimple_dump_cfg (dump_file, dump_flags);
+ if (profile_status_for_fn (fun) == PROFILE_ABSENT)
+    profile_status_for_fn (fun) = PROFILE_GUESSED;
+  return 0;
+}
 
 } // anon namespace
 
@@ -3198,14 +3117,12 @@ const pass_data pass_data_strip_predict_hints =
   GIMPLE_PASS, /* type */
   "*strip_predict_hints", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  false, /* has_gate */
-  true, /* has_execute */
   TV_BRANCH_PROB, /* tv_id */
   PROP_cfg, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  TODO_verify_ssa, /* todo_flags_finish */
+  0, /* todo_flags_finish */
 };
 
 class pass_strip_predict_hints : public gimple_opt_pass
@@ -3217,9 +3134,61 @@ public:
 
   /* opt_pass methods: */
   opt_pass * clone () { return new pass_strip_predict_hints (m_ctxt); }
-  unsigned int execute () { return strip_predict_hints (); }
+  virtual unsigned int execute (function *);
 
 }; // class pass_strip_predict_hints
+
+/* Get rid of all builtin_expect calls and GIMPLE_PREDICT statements
+   we no longer need.  */
+unsigned int
+pass_strip_predict_hints::execute (function *fun)
+{
+  basic_block bb;
+  gimple ass_stmt;
+  tree var;
+
+  FOR_EACH_BB_FN (bb, fun)
+    {
+      gimple_stmt_iterator bi;
+      for (bi = gsi_start_bb (bb); !gsi_end_p (bi);)
+	{
+	  gimple stmt = gsi_stmt (bi);
+
+	  if (gimple_code (stmt) == GIMPLE_PREDICT)
+	    {
+	      gsi_remove (&bi, true);
+	      continue;
+	    }
+	  else if (is_gimple_call (stmt))
+	    {
+	      tree fndecl = gimple_call_fndecl (stmt);
+
+	      if ((fndecl
+		   && DECL_BUILT_IN_CLASS (fndecl) == BUILT_IN_NORMAL
+		   && DECL_FUNCTION_CODE (fndecl) == BUILT_IN_EXPECT
+		   && gimple_call_num_args (stmt) == 2)
+		  || (gimple_call_internal_p (stmt)
+		      && gimple_call_internal_fn (stmt) == IFN_BUILTIN_EXPECT))
+		{
+		  var = gimple_call_lhs (stmt);
+		  if (var)
+		    {
+		      ass_stmt
+			= gimple_build_assign (var, gimple_call_arg (stmt, 0));
+		      gsi_replace (&bi, ass_stmt, true);
+		    }
+		  else
+		    {
+		      gsi_remove (&bi, true);
+		      continue;
+		    }
+		}
+	    }
+	  gsi_next (&bi);
+	}
+    }
+  return 0;
+}
 
 } // anon namespace
 

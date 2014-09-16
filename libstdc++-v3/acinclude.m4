@@ -1052,8 +1052,8 @@ AC_DEFUN([GLIBCXX_ENABLE_C99], [
 	vscanf("%i", args);
 	vsnprintf(fmt, 0, "%i", args);
 	vsscanf(fmt, "%i", args);
-      }],
-     [snprintf("12", 0, "%i");],
+	snprintf(fmt, 0, "%i");
+      }], [],
      [glibcxx_cv_c99_stdio=yes], [glibcxx_cv_c99_stdio=no])
   ])
   AC_MSG_RESULT($glibcxx_cv_c99_stdio)
@@ -1989,6 +1989,9 @@ AC_DEFUN([GLIBCXX_ENABLE_CLOCALE], [
       darwin* | freebsd*)
 	enable_clocale_flag=darwin
 	;;
+      dragonfly*)
+	enable_clocale_flag=dragonfly
+	;;
       openbsd*)
 	enable_clocale_flag=newlib
 	;;
@@ -2072,6 +2075,23 @@ AC_DEFUN([GLIBCXX_ENABLE_CLOCALE], [
       CCODECVT_CC=config/locale/generic/codecvt_members.cc
       CCOLLATE_CC=config/locale/generic/collate_members.cc
       CCTYPE_CC=config/locale/darwin/ctype_members.cc
+      CMESSAGES_H=config/locale/generic/messages_members.h
+      CMESSAGES_CC=config/locale/generic/messages_members.cc
+      CMONEY_CC=config/locale/generic/monetary_members.cc
+      CNUMERIC_CC=config/locale/generic/numeric_members.cc
+      CTIME_H=config/locale/generic/time_members.h
+      CTIME_CC=config/locale/generic/time_members.cc
+      CLOCALE_INTERNAL_H=config/locale/generic/c++locale_internal.h
+      ;;
+
+    dragonfly)
+      AC_MSG_RESULT(dragonfly)
+
+      CLOCALE_H=config/locale/generic/c_locale.h
+      CLOCALE_CC=config/locale/dragonfly/c_locale.cc
+      CCODECVT_CC=config/locale/generic/codecvt_members.cc
+      CCOLLATE_CC=config/locale/generic/collate_members.cc
+      CCTYPE_CC=config/locale/dragonfly/ctype_members.cc
       CMESSAGES_H=config/locale/generic/messages_members.h
       CMESSAGES_CC=config/locale/generic/messages_members.cc
       CMONEY_CC=config/locale/generic/monetary_members.cc
@@ -3353,7 +3373,7 @@ changequote([,])dnl
 fi
 
 # For libtool versioning info, format is CURRENT:REVISION:AGE
-libtool_VERSION=6:20:0
+libtool_VERSION=6:21:0
 
 # Everything parsed; figure out what files and settings to use.
 case $enable_symvers in
@@ -3523,25 +3543,7 @@ AC_DEFUN([GLIBCXX_CHECK_GTHREADS], [
       #ifndef __GTHREADS_CXX0X
       #error
       #endif
-    ], [case $target_os in
-	  # gthreads support breaks symbol versioning on Solaris 9 (PR
-	  # libstdc++/52189).
-          solaris2.9*)
-	    if test x$enable_symvers = xno; then
-	      ac_has_gthreads=yes
-	    elif test x$enable_libstdcxx_threads = xyes; then
-	      AC_MSG_WARN([You have requested C++11 threads support, but])
-	      AC_MSG_WARN([this breaks symbol versioning.])
-	      ac_has_gthreads=yes
-	    else
-	      ac_has_gthreads=no
-	    fi
-	    ;;
-	  *)
-	    ac_has_gthreads=yes
-	    ;;
-        esac],
-       [ac_has_gthreads=no])
+    ], [ac_has_gthreads=yes], [ac_has_gthreads=no])
   else
     ac_has_gthreads=no
   fi
@@ -3804,7 +3806,7 @@ dnl Check to see if sys/sdt.h exists and that it is suitable for use.
 dnl Some versions of sdt.h were not compatible with C++11.
 dnl
 AC_DEFUN([GLIBCXX_CHECK_SDT_H], [
-  AC_MSG_RESULT([for suitable sys/sdt.h])
+  AC_MSG_CHECKING([for suitable sys/sdt.h])
   # Note that this test has to be run with the C language.
   # Otherwise, sdt.h will try to include some headers from
   # libstdc++ itself.

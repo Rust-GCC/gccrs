@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -484,8 +484,8 @@ package body Exp_Pakd is
       Expr : Node_Id) return Node_Id;
    --  The packed array code does unchecked conversions which in some cases
    --  may involve non-discrete types with differing sizes. The semantics of
-   --  such conversions is potentially endian dependent, and the effect we
-   --  want here for such a conversion is to do the conversion in size as
+   --  such conversions is potentially endianness dependent, and the effect
+   --  we want here for such a conversion is to do the conversion in size as
    --  though numeric items are involved, and we extend or truncate on the
    --  left side. This happens naturally in the little-endian case, but in
    --  the big endian case we can get left justification, when what we want
@@ -519,7 +519,7 @@ package body Exp_Pakd is
    --
    --    Atyp is the constrained array type (the actual subtype has been
    --    computed if necessary to obtain the constraints, but this is still
-   --    the original array type, not the Packed_Array_Type value).
+   --    the original array type, not the Packed_Array_Impl_Type value).
    --
    --    Obj is the object which is to be indexed. It is always of type Atyp.
    --
@@ -543,25 +543,19 @@ package body Exp_Pakd is
    --  array type on the fly). Such actions are inserted into the tree
    --  directly using Insert_Action.
 
-   function Byte_Swap
-     (N             : Node_Id;
-      Left_Justify  : Boolean := False;
-      Right_Justify : Boolean := False) return Node_Id;
-   --  Wrap N in a call to a byte swapping function, with appropriate type
-   --  conversions. If Left_Justify is set True, the value is left justified
-   --  before swapping. If Right_Justify is set True, the value is right
-   --  justified after swapping. The Etype of the returned node is an
-   --  integer type of an appropriate power-of-2 size.
+   function Revert_Storage_Order (N : Node_Id) return Node_Id;
+   --  Perform appropriate justification and byte ordering adjustments for N,
+   --  an element of a packed array type, when both the component type and
+   --  the enclosing packed array type have reverse scalar storage order.
+   --  On little-endian targets, the value is left justified before byte
+   --  swapping. The Etype of the returned expression is an integer type of
+   --  an appropriate power-of-2 size.
 
-   ---------------
-   -- Byte_Swap --
-   ---------------
+   --------------------------
+   -- Revert_Storage_Order --
+   --------------------------
 
-   function Byte_Swap
-     (N             : Node_Id;
-      Left_Justify  : Boolean := False;
-      Right_Justify : Boolean := False) return Node_Id
-   is
+   function Revert_Storage_Order (N : Node_Id) return Node_Id is
       Loc     : constant Source_Ptr := Sloc (N);
       T       : constant Entity_Id := Etype (N);
       T_Size  : constant Uint := RM_Size (T);
@@ -571,51 +565,59 @@ package body Exp_Pakd is
       Swap_T  : Entity_Id;
       --  Swapping function
 
-      Arg     : Node_Id;
-      Swapped : Node_Id;
-      Shift   : Uint;
+      Arg      : Node_Id;
+      Adjusted : Node_Id;
+      Shift    : Uint;
 
    begin
-      pragma Assert (T_Size > 8);
+      if T_Size <= 8 then
 
-      if T_Size <= 16 then
-         Swap_RE := RE_Bswap_16;
+         --  Array component size is less than a byte: no swapping needed
 
-      elsif T_Size <= 32 then
-         Swap_RE := RE_Bswap_32;
+         Swap_F := Empty;
+         Swap_T := RTE (RE_Unsigned_8);
 
-      else pragma Assert (T_Size <= 64);
-         Swap_RE := RE_Bswap_64;
+      else
+         --  Select byte swapping function depending on array component size
+
+         if T_Size <= 16 then
+            Swap_RE := RE_Bswap_16;
+
+         elsif T_Size <= 32 then
+            Swap_RE := RE_Bswap_32;
+
+         else pragma Assert (T_Size <= 64);
+            Swap_RE := RE_Bswap_64;
+         end if;
+
+         Swap_F := RTE (Swap_RE);
+         Swap_T := Etype (Swap_F);
+
       end if;
 
-      Swap_F := RTE (Swap_RE);
-      Swap_T := Etype (Swap_F);
       Shift := Esize (Swap_T) - T_Size;
 
       Arg := RJ_Unchecked_Convert_To (Swap_T, N);
 
-      if Left_Justify and then Shift > Uint_0 then
+      if not Bytes_Big_Endian and then Shift > Uint_0 then
          Arg :=
            Make_Op_Shift_Left (Loc,
              Left_Opnd  => Arg,
              Right_Opnd => Make_Integer_Literal (Loc, Shift));
       end if;
 
-      Swapped :=
-        Make_Function_Call (Loc,
-          Name                   => New_Occurrence_Of (Swap_F, Loc),
-          Parameter_Associations => New_List (Arg));
-
-      if Right_Justify and then Shift > Uint_0 then
-         Swapped :=
-           Make_Op_Shift_Right (Loc,
-             Left_Opnd  => Swapped,
-             Right_Opnd => Make_Integer_Literal (Loc, Shift));
+      if Present (Swap_F) then
+         Adjusted :=
+           Make_Function_Call (Loc,
+             Name                   => New_Occurrence_Of (Swap_F, Loc),
+             Parameter_Associations => New_List (Arg));
+      else
+         Adjusted := Arg;
       end if;
 
-      Set_Etype (Swapped, Swap_T);
-      return Swapped;
-   end Byte_Swap;
+      Set_Etype (Adjusted, Swap_T);
+      return Adjusted;
+   end Revert_Storage_Order;
 
    ------------------------------
    -- Compute_Linear_Subscript --
@@ -765,7 +767,7 @@ package body Exp_Pakd is
    begin
       Convert_To_Actual_Subtype (Aexp);
       Act_ST := Underlying_Type (Etype (Aexp));
-      Create_Packed_Array_Type (Act_ST);
+      Create_Packed_Array_Impl_Type (Act_ST);
 
       --  Just replace the etype with the packed array type. This works because
       --  the expression will not be further analyzed, and Gigi considers the
@@ -782,7 +784,7 @@ package body Exp_Pakd is
       --  more complex packed expressions in actuals is confused. Probably the
       --  problem only remains for actuals in calls.
 
-      Set_Etype (Aexp, Packed_Array_Type (Act_ST));
+      Set_Etype (Aexp, Packed_Array_Impl_Type (Act_ST));
 
       if Is_Entity_Name (Aexp)
         or else
@@ -795,10 +797,10 @@ package body Exp_Pakd is
    end Convert_To_PAT_Type;
 
    ------------------------------
-   -- Create_Packed_Array_Type --
+   -- Create_Packed_Array_Impl_Type --
    ------------------------------
 
-   procedure Create_Packed_Array_Type (Typ : Entity_Id) is
+   procedure Create_Packed_Array_Impl_Type (Typ : Entity_Id) is
       Loc      : constant Source_Ptr := Sloc (Typ);
       Ctyp     : constant Entity_Id  := Component_Type (Typ);
       Csize    : constant Uint       := Component_Size (Typ);
@@ -844,13 +846,12 @@ package body Exp_Pakd is
          --  the resulting type as an Itype in the packed array type field of
          --  the original type, so that no explicit declaration is required.
 
-         --  Note: the packed type is created in the scope of its parent
-         --  type. There are at least some cases where the current scope
-         --  is deeper, and so when this is the case, we temporarily reset
-         --  the scope for the definition. This is clearly safe, since the
-         --  first use of the packed array type will be the implicit
-         --  reference from the corresponding unpacked type when it is
-         --  elaborated.
+         --  Note: the packed type is created in the scope of its parent type.
+         --  There are at least some cases where the current scope is deeper,
+         --  and so when this is the case, we temporarily reset the scope
+         --  for the definition. This is clearly safe, since the first use
+         --  of the packed array type will be the implicit reference from
+         --  the corresponding unpacked type when it is elaborated.
 
          if Is_Itype (Typ) then
             Set_Parent (Decl, Associated_Node_For_Itype (Typ));
@@ -864,7 +865,7 @@ package body Exp_Pakd is
          end if;
 
          Set_Is_Itype (PAT, True);
-         Set_Packed_Array_Type (Typ, PAT);
+         Set_Packed_Array_Impl_Type (Typ, PAT);
          Analyze (Decl, Suppress => All_Checks);
 
          if Pushed_Scope then
@@ -890,13 +891,21 @@ package body Exp_Pakd is
          Init_Alignment                (PAT);
          Set_Parent                    (PAT, Empty);
          Set_Associated_Node_For_Itype (PAT, Typ);
-         Set_Is_Packed_Array_Type      (PAT, True);
+         Set_Is_Packed_Array_Impl_Type      (PAT, True);
          Set_Original_Array_Type       (PAT, Typ);
 
+         --  For a non-bit-packed array, propagate reverse storage order
+         --  flag from original base type to packed array base type.
+
+         if not Is_Bit_Packed_Array (Typ) then
+            Set_Reverse_Storage_Order
+              (Etype (PAT), Reverse_Storage_Order (Base_Type (Typ)));
+         end if;
+
          --  We definitely do not want to delay freezing for packed array
-         --  types. This is of particular importance for the itypes that
-         --  are generated for record components depending on discriminants
-         --  where there is no place to put the freeze node.
+         --  types. This is of particular importance for the itypes that are
+         --  generated for record components depending on discriminants where
+         --  there is no place to put the freeze node.
 
          Set_Has_Delayed_Freeze (PAT, False);
          Set_Has_Delayed_Freeze (Etype (PAT), False);
@@ -933,12 +942,12 @@ package body Exp_Pakd is
          end if;
       end Set_PB_Type;
 
-   --  Start of processing for Create_Packed_Array_Type
+   --  Start of processing for Create_Packed_Array_Impl_Type
 
    begin
       --  If we already have a packed array type, nothing to do
 
-      if Present (Packed_Array_Type (Typ)) then
+      if Present (Packed_Array_Impl_Type (Typ)) then
          return;
       end if;
 
@@ -954,9 +963,9 @@ package body Exp_Pakd is
          if Present (Ancest)
            and then Is_Array_Type (Ancest)
            and then Is_Constrained (Ancest)
-           and then Present (Packed_Array_Type (Ancest))
+           and then Present (Packed_Array_Impl_Type (Ancest))
          then
-            Set_Packed_Array_Type (Typ, Packed_Array_Type (Ancest));
+            Set_Packed_Array_Impl_Type (Typ, Packed_Array_Impl_Type (Ancest));
             return;
          end if;
       end if;
@@ -998,11 +1007,15 @@ package body Exp_Pakd is
          --    Natural range Enum_Type'Pos (Enum_Type'First) ..
          --                  Enum_Type'Pos (Enum_Type'Last);
 
+         --  Note that tttP is created even if no index subtype is a non
+         --  standard enumeration, because we still need to remove padding
+         --  normally inserted for component alignment.
+
          PAT :=
            Make_Defining_Identifier (Loc,
              Chars => New_External_Name (Chars (Typ), 'P'));
 
-         Set_Packed_Array_Type (Typ, PAT);
+         Set_Packed_Array_Impl_Type (Typ, PAT);
 
          declare
             Indexes   : constant List_Id := New_List;
@@ -1096,12 +1109,12 @@ package body Exp_Pakd is
             Decl :=
               Make_Full_Type_Declaration (Loc,
                 Defining_Identifier => PAT,
-                Type_Definition => Typedef);
+                Type_Definition     => Typedef);
          end;
 
          --  Set type as packed array type and install it
 
-         Set_Is_Packed_Array_Type (PAT);
+         Set_Is_Packed_Array_Impl_Type (PAT);
          Install_PAT;
          return;
 
@@ -1111,9 +1124,9 @@ package body Exp_Pakd is
       elsif not Is_Constrained (Typ) then
          PAT :=
            Make_Defining_Identifier (Loc,
-             Chars => Make_Packed_Array_Type_Name (Typ, Csize));
+             Chars => Make_Packed_Array_Impl_Type_Name (Typ, Csize));
 
-         Set_Packed_Array_Type (Typ, PAT);
+         Set_Packed_Array_Impl_Type (Typ, PAT);
          Set_PB_Type;
 
          Decl :=
@@ -1135,9 +1148,9 @@ package body Exp_Pakd is
       else
          PAT :=
            Make_Defining_Identifier (Loc,
-             Chars => Make_Packed_Array_Type_Name (Typ, Csize));
+             Chars => Make_Packed_Array_Impl_Type_Name (Typ, Csize));
 
-         Set_Packed_Array_Type (Typ, PAT);
+         Set_Packed_Array_Impl_Type (Typ, PAT);
 
          --  Build an expression for the length of the array in bits.
          --  This is the product of the length of each of the dimensions
@@ -1337,7 +1350,7 @@ package body Exp_Pakd is
             Set_Must_Be_On_Byte_Boundary (Typ);
          end if;
       end if;
-   end Create_Packed_Array_Type;
+   end Create_Packed_Array_Impl_Type;
 
    -----------------------------------
    -- Expand_Bit_Packed_Element_Set --
@@ -1411,7 +1424,7 @@ package body Exp_Pakd is
       Obj := Relocate_Node (Prefix (Lhs));
       Convert_To_Actual_Subtype (Obj);
       Atyp := Etype (Obj);
-      PAT  := Packed_Array_Type (Atyp);
+      PAT  := Packed_Array_Impl_Type (Atyp);
       Ctyp := Component_Type (Atyp);
       Csiz := UI_To_Int (Component_Size (Atyp));
 
@@ -2035,7 +2048,7 @@ package body Exp_Pakd is
       Obj := Relocate_Node (Prefix (N));
       Convert_To_Actual_Subtype (Obj);
       Atyp := Etype (Obj);
-      PAT  := Packed_Array_Type (Atyp);
+      PAT  := Packed_Array_Impl_Type (Atyp);
       Ctyp := Component_Type (Atyp);
       Csiz := UI_To_Int (Component_Size (Atyp));
 
@@ -2085,15 +2098,10 @@ package body Exp_Pakd is
          --  it back to its expected endianness after extraction.
 
          if Reverse_Storage_Order (Atyp)
-           and then Esize (Atyp) > 8
            and then (Is_Record_Type (Ctyp) or else Is_Array_Type (Ctyp))
            and then Reverse_Storage_Order (Ctyp)
          then
-            Arg :=
-              Byte_Swap
-                (Arg,
-                 Left_Justify  => not Bytes_Big_Endian,
-                 Right_Justify => False);
+            Arg := Revert_Storage_Order (Arg);
          end if;
 
          --  We needed to analyze this before we do the unchecked convert
@@ -2688,7 +2696,7 @@ package body Exp_Pakd is
       --  with its actual subtype. This actual subtype will have a packed array
       --  type with appropriate bounds.
 
-      if not Is_Constrained (Packed_Array_Type (Etype (Pfx))) then
+      if not Is_Constrained (Packed_Array_Impl_Type (Etype (Pfx))) then
          Convert_To_Actual_Subtype (Pfx);
       end if;
 
@@ -2717,7 +2725,7 @@ package body Exp_Pakd is
       Rewrite (N,
         Make_Indexed_Component (Sloc (N),
           Prefix      =>
-            Unchecked_Convert_To (Packed_Array_Type (Etype (Pfx)), Pfx),
+            Unchecked_Convert_To (Packed_Array_Impl_Type (Etype (Pfx)), Pfx),
           Expressions => Exprs));
 
       Analyze_And_Resolve (N, Typ);

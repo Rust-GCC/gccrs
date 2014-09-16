@@ -8,8 +8,19 @@
 #include "config.h"
 
 #include "runtime.h"
+#include "arch.h"
 #include "array.h"
-#include "go-panic.h"
+
+enum {
+	maxround = sizeof(uintptr),
+};
+
+// Keep a cached value to make gotraceback fast,
+// since we call it on every call to gentraceback.
+// The cached value is a uint32 in which the low bit
+// is the "crash" setting and the top 31 bits are the
+// gotraceback value.
+static uint32 traceback_cache = ~(uint32)0;
 
 // The GOTRACEBACK environment variable controls the
 // behavior of a Go program that is crashing and exiting.
@@ -21,18 +32,28 @@ int32
 runtime_gotraceback(bool *crash)
 {
 	const byte *p;
+	uint32 x;
 
 	if(crash != nil)
 		*crash = false;
-	p = runtime_getenv("GOTRACEBACK");
-	if(p == nil || p[0] == '\0')
-		return 1;	// default is on
-	if(runtime_strcmp((const char *)p, "crash") == 0) {
-		if(crash != nil)
-			*crash = true;
-		return 2;	// extra information
+	if(runtime_m()->traceback != 0)
+		return runtime_m()->traceback;
+	x = runtime_atomicload(&traceback_cache);
+	if(x == ~(uint32)0) {
+		p = runtime_getenv("GOTRACEBACK");
+		if(p == nil)
+			p = (const byte*)"";
+		if(p[0] == '\0')
+			x = 1<<1;
+		else if(runtime_strcmp((const char *)p, "crash") == 0)
+			x = (2<<1) | 1;
+		else
+			x = runtime_atoi(p)<<1;	
+		runtime_atomicstore(&traceback_cache, x);
 	}
-	return runtime_atoi(p);
+	if(crash != nil)
+		*crash = x&1;
+	return x>>1;
 }
 
 static int32	argc;
@@ -91,6 +112,8 @@ runtime_goenvs_unix(void)
 	syscall_Envs.__values = (void*)s;
 	syscall_Envs.__count = n;
 	syscall_Envs.__capacity = n;
+
+	traceback_cache = ~(uint32)0;
 }
 
 int32
@@ -221,15 +244,6 @@ runtime_tickspersecond(void)
 	return res;
 }
 
-int64 runtime_pprof_runtime_cyclesPerSecond(void)
-     __asm__ (GOSYM_PREFIX "runtime_pprof.runtime_cyclesPerSecond");
-
-int64
-runtime_pprof_runtime_cyclesPerSecond(void)
-{
-	return runtime_tickspersecond();
-}
-
 // Called to initialize a new m (including the bootstrap m).
 // Called on the parent thread (main thread in case of bootstrap), can allocate memory.
 void
@@ -282,9 +296,12 @@ static struct {
 	const char* name;
 	int32*	value;
 } dbgvar[] = {
+	{"allocfreetrace", &runtime_debug.allocfreetrace},
+	{"efence", &runtime_debug.efence},
 	{"gctrace", &runtime_debug.gctrace},
-	{"schedtrace", &runtime_debug.schedtrace},
+	{"gcdead", &runtime_debug.gcdead},
 	{"scheddetail", &runtime_debug.scheddetail},
+	{"schedtrace", &runtime_debug.schedtrace},
 };
 
 void
@@ -339,15 +356,11 @@ runtime_timediv(int64 v, int32 div, int32 *rem)
 
 uintptr runtime_maxstacksize = 1<<20; // enough until runtime.main sets it for real
 
-intgo runtime_debug_setMaxStack(intgo)
-	__asm__ (GOSYM_PREFIX "runtime_debug.setMaxStack");
+void memclrBytes(Slice)
+     __asm__ (GOSYM_PREFIX "runtime.memclrBytes");
 
-intgo
-runtime_debug_setMaxStack(intgo in)
+void
+memclrBytes(Slice s)
 {
-	intgo out;
-
-	out = runtime_maxstacksize;
-	runtime_maxstacksize = in;
-	return out;
+	runtime_memclr(s.__values, s.__count);
 }

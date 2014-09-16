@@ -297,8 +297,6 @@ enum c_tree_index
     CTI_C99_FUNCTION_NAME_DECL,
     CTI_SAVED_FUNCTION_NAME_DECLS,
 
-    CTI_VOID_ZERO,
-
     CTI_NULL,
 
     CTI_MAX
@@ -430,9 +428,6 @@ extern const unsigned int num_c_common_reswords;
 #define c99_function_name_decl_node		c_global_trees[CTI_C99_FUNCTION_NAME_DECL]
 #define saved_function_name_decls	c_global_trees[CTI_SAVED_FUNCTION_NAME_DECLS]
 
-/* A node for `((void) 0)'.  */
-#define void_zero_node                  c_global_trees[CTI_VOID_ZERO]
-
 /* The node for C++ `__null'.  */
 #define null_node                       c_global_trees[CTI_NULL]
 
@@ -440,7 +435,7 @@ extern GTY(()) tree c_global_trees[CTI_MAX];
 
 /* In a RECORD_TYPE, a sorted array of the fields of the type, not a
    tree for size reasons.  */
-struct GTY((variable_size)) sorted_fields_type {
+struct GTY(()) sorted_fields_type {
   int len;
   tree GTY((length ("%h.len"))) elts[1];
 };
@@ -624,6 +619,13 @@ extern const char *constant_string_class_name;
 /* C++ language option variables.  */
 
 
+/* Return TRUE if one of {flag_abi_version,flag_abi_compat_version} is
+   less than N and the other is at least N, for use by -Wabi.  */
+#define abi_version_crosses(N)			\
+  (abi_version_at_least(N)			\
+   != (flag_abi_compat_version == 0		\
+       || flag_abi_compat_version >= (N)))
+
 /* Nonzero means generate separate instantiation control files and
    juggle them at link time.  */
 
@@ -638,8 +640,10 @@ enum cxx_dialect {
   /* C++11  */
   cxx0x,
   cxx11 = cxx0x,
-  /* C++1y (C++17?) */
-  cxx1y
+  /* C++1y (C++14?) */
+  cxx1y,
+  /* C++1z (C++17?) */
+  cxx1z
 };
 
 /* The C++ dialect being used. C++98 is the default.  */
@@ -758,6 +762,7 @@ extern tree c_wrap_maybe_const (tree, bool);
 extern tree c_save_expr (tree);
 extern tree c_common_truthvalue_conversion (location_t, tree);
 extern void c_apply_type_quals_to_decl (int, tree);
+extern unsigned int min_align_of_type (tree);
 extern tree c_sizeof_or_alignof_type (location_t, tree, bool, bool, int);
 extern tree c_alignof_expr (location_t, tree);
 /* Print an error message for invalid operands to arith operation CODE.
@@ -776,6 +781,8 @@ extern void overflow_warning (location_t, tree);
 extern bool warn_if_unused_value (const_tree, location_t);
 extern void warn_logical_operator (location_t, enum tree_code, tree,
 				   enum tree_code, tree, enum tree_code, tree);
+extern void warn_logical_not_parentheses (location_t, enum tree_code, tree,
+					  tree);
 extern void check_main_parameter_types (tree decl);
 extern bool c_determine_visibility (tree);
 extern bool vector_types_compatible_elements_p (tree, tree);
@@ -830,6 +837,7 @@ extern bool c_common_post_options (const char **);
 extern bool c_common_init (void);
 extern void c_common_finish (void);
 extern void c_common_parse_file (void);
+extern FILE *get_dump_info (int, int *);
 extern alias_set_type c_common_get_alias_set (tree);
 extern void c_register_builtin_type (tree, const char*);
 extern bool c_promoting_integer_type_p (const_tree);
@@ -1004,6 +1012,7 @@ extern void warn_for_sign_compare (location_t,
 extern void do_warn_double_promotion (tree, tree, tree, const char *, 
 				      location_t);
 extern void set_underlying_type (tree);
+extern void record_types_used_by_current_var_decl (tree);
 extern void record_locally_defined_typedef (tree);
 extern void maybe_record_typedef_use (tree);
 extern void maybe_warn_unused_local_typedefs (void);
@@ -1012,6 +1021,10 @@ extern void release_tree_vector (vec<tree, va_gc> *);
 extern vec<tree, va_gc> *make_tree_vector_single (tree);
 extern vec<tree, va_gc> *make_tree_vector_from_list (tree);
 extern vec<tree, va_gc> *make_tree_vector_copy (const vec<tree, va_gc> *);
+
+/* Used for communication between c_common_type_for_mode and
+   c_register_builtin_type.  */
+extern GTY(()) tree registered_builtin_types;
 
 /* In c-gimplify.c  */
 extern void c_genericize (tree);
@@ -1207,11 +1220,6 @@ extern void c_omp_split_clauses (location_t, enum tree_code, omp_clause_mask,
 extern tree c_omp_declare_simd_clauses_to_numbers (tree, tree);
 extern void c_omp_declare_simd_clauses_to_decls (tree, tree);
 extern enum omp_clause_default_kind c_omp_predetermined_sharing (tree);
-
-/* Not in c-omp.c; provided by the front end.  */
-extern bool c_omp_sharing_predetermined (tree);
-extern tree c_omp_remap_decl (tree, bool);
-extern void record_types_used_by_current_var_decl (tree);
 
 /* Return next tree in the chain for chain_next walking of tree nodes.  */
 static inline tree

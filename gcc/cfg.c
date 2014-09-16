@@ -68,13 +68,13 @@ void
 init_flow (struct function *the_fun)
 {
   if (!the_fun->cfg)
-    the_fun->cfg = ggc_alloc_cleared_control_flow_graph ();
+    the_fun->cfg = ggc_cleared_alloc<control_flow_graph> ();
   n_edges_for_fn (the_fun) = 0;
   ENTRY_BLOCK_PTR_FOR_FN (the_fun)
-    = ggc_alloc_cleared_basic_block_def ();
+    = ggc_cleared_alloc<basic_block_def> ();
   ENTRY_BLOCK_PTR_FOR_FN (the_fun)->index = ENTRY_BLOCK;
   EXIT_BLOCK_PTR_FOR_FN (the_fun)
-    = ggc_alloc_cleared_basic_block_def ();
+    = ggc_cleared_alloc<basic_block_def> ();
   EXIT_BLOCK_PTR_FOR_FN (the_fun)->index = EXIT_BLOCK;
   ENTRY_BLOCK_PTR_FOR_FN (the_fun)->next_bb
     = EXIT_BLOCK_PTR_FOR_FN (the_fun);
@@ -123,7 +123,7 @@ basic_block
 alloc_block (void)
 {
   basic_block bb;
-  bb = ggc_alloc_cleared_basic_block_def ();
+  bb = ggc_cleared_alloc<basic_block_def> ();
   return bb;
 }
 
@@ -261,7 +261,7 @@ edge
 unchecked_make_edge (basic_block src, basic_block dst, int flags)
 {
   edge e;
-  e = ggc_alloc_cleared_edge_def ();
+  e = ggc_cleared_alloc<edge_def> ();
   n_edges_for_fn (cfun)++;
 
   e->src = src;
@@ -486,7 +486,7 @@ dump_edge_info (FILE *file, edge e, int flags, int do_succ)
   if (e->count && do_details)
     {
       fputs (" count:", file);
-      fprintf (file, HOST_WIDEST_INT_PRINT_DEC, e->count);
+      fprintf (file, "%"PRId64, e->count);
     }
 
   if (e->flags && do_details)
@@ -734,8 +734,8 @@ dump_bb_info (FILE *outf, basic_block bb, int indent, int flags,
       if (flags & TDF_DETAILS)
 	{
 	  struct function *fun = DECL_STRUCT_FUNCTION (current_function_decl);
-	  fprintf (outf, ", count " HOST_WIDEST_INT_PRINT_DEC,
-		   (HOST_WIDEST_INT) bb->count);
+	  fprintf (outf, ", count " "%"PRId64,
+		   (int64_t) bb->count);
 	  fprintf (outf, ", freq %i", bb->frequency);
 	  if (maybe_hot_bb_p (fun, bb))
 	    fputs (", maybe hot", outf);
@@ -743,11 +743,10 @@ dump_bb_info (FILE *outf, basic_block bb, int indent, int flags,
 	    fputs (", probably never executed", outf);
 	}
       fputc ('\n', outf);
-      if (TDF_DETAILS)
-	check_bb_profile (bb, outf, indent, flags);
 
       if (flags & TDF_DETAILS)
 	{
+	  check_bb_profile (bb, outf, indent, flags);
 	  if (flags & TDF_COMMENT)
 	    fputs (";; ", outf);
 	  fprintf (outf, "%s prev block ", s_indent);
@@ -962,7 +961,7 @@ scale_bbs_frequencies_int (basic_block *bbs, int nbbs, int num, int den)
 
 /* numbers smaller than this value are safe to multiply without getting
    64bit overflow.  */
-#define MAX_SAFE_MULTIPLIER (1 << (sizeof (HOST_WIDEST_INT) * 4 - 1))
+#define MAX_SAFE_MULTIPLIER (1 << (sizeof (int64_t) * 4 - 1))
 
 /* Multiply all frequencies of basic blocks in array BBS of length NBBS
    by NUM/DEN, in gcov_type arithmetic.  More accurate than previous
@@ -1039,11 +1038,11 @@ bb_copy_hasher::equal (const value_type *data, const compare_type *data2)
 
 /* Data structures used to maintain mapping between basic blocks and
    copies.  */
-static hash_table <bb_copy_hasher> bb_original;
-static hash_table <bb_copy_hasher> bb_copy;
+static hash_table<bb_copy_hasher> *bb_original;
+static hash_table<bb_copy_hasher> *bb_copy;
 
 /* And between loops and copies.  */
-static hash_table <bb_copy_hasher> loop_copy;
+static hash_table<bb_copy_hasher> *loop_copy;
 static alloc_pool original_copy_bb_pool;
 
 
@@ -1056,9 +1055,9 @@ initialize_original_copy_tables (void)
   original_copy_bb_pool
     = create_alloc_pool ("original_copy",
 			 sizeof (struct htab_bb_copy_original_entry), 10);
-  bb_original.create (10);
-  bb_copy.create (10);
-  loop_copy.create (10);
+  bb_original = new hash_table<bb_copy_hasher> (10);
+  bb_copy = new hash_table<bb_copy_hasher> (10);
+  loop_copy = new hash_table<bb_copy_hasher> (10);
 }
 
 /* Free the data structures to maintain mapping between blocks and
@@ -1067,9 +1066,12 @@ void
 free_original_copy_tables (void)
 {
   gcc_assert (original_copy_bb_pool);
-  bb_copy.dispose ();
-  bb_original.dispose ();
-  loop_copy.dispose ();
+  delete bb_copy;
+  bb_copy = NULL;
+  delete bb_original;
+  bb_copy = NULL;
+  delete loop_copy;
+  loop_copy = NULL;
   free_alloc_pool (original_copy_bb_pool);
   original_copy_bb_pool = NULL;
 }
@@ -1077,7 +1079,7 @@ free_original_copy_tables (void)
 /* Removes the value associated with OBJ from table TAB.  */
 
 static void
-copy_original_table_clear (hash_table <bb_copy_hasher> tab, unsigned obj)
+copy_original_table_clear (hash_table<bb_copy_hasher> *tab, unsigned obj)
 {
   htab_bb_copy_original_entry **slot;
   struct htab_bb_copy_original_entry key, *elt;
@@ -1086,12 +1088,12 @@ copy_original_table_clear (hash_table <bb_copy_hasher> tab, unsigned obj)
     return;
 
   key.index1 = obj;
-  slot = tab.find_slot (&key, NO_INSERT);
+  slot = tab->find_slot (&key, NO_INSERT);
   if (!slot)
     return;
 
   elt = *slot;
-  tab.clear_slot (slot);
+  tab->clear_slot (slot);
   pool_free (original_copy_bb_pool, elt);
 }
 
@@ -1099,7 +1101,7 @@ copy_original_table_clear (hash_table <bb_copy_hasher> tab, unsigned obj)
    Do nothing when data structures are not initialized.  */
 
 static void
-copy_original_table_set (hash_table <bb_copy_hasher> tab,
+copy_original_table_set (hash_table<bb_copy_hasher> *tab,
 			 unsigned obj, unsigned val)
 {
   struct htab_bb_copy_original_entry **slot;
@@ -1109,7 +1111,7 @@ copy_original_table_set (hash_table <bb_copy_hasher> tab,
     return;
 
   key.index1 = obj;
-  slot = tab.find_slot (&key, INSERT);
+  slot = tab->find_slot (&key, INSERT);
   if (!*slot)
     {
       *slot = (struct htab_bb_copy_original_entry *)
@@ -1137,7 +1139,7 @@ get_bb_original (basic_block bb)
   gcc_assert (original_copy_bb_pool);
 
   key.index1 = bb->index;
-  entry = bb_original.find (&key);
+  entry = bb_original->find (&key);
   if (entry)
     return BASIC_BLOCK_FOR_FN (cfun, entry->index2);
   else
@@ -1162,7 +1164,7 @@ get_bb_copy (basic_block bb)
   gcc_assert (original_copy_bb_pool);
 
   key.index1 = bb->index;
-  entry = bb_copy.find (&key);
+  entry = bb_copy->find (&key);
   if (entry)
     return BASIC_BLOCK_FOR_FN (cfun, entry->index2);
   else
@@ -1192,7 +1194,7 @@ get_loop_copy (struct loop *loop)
   gcc_assert (original_copy_bb_pool);
 
   key.index1 = loop->num;
-  entry = loop_copy.find (&key);
+  entry = loop_copy->find (&key);
   if (entry)
     return get_loop (cfun, entry->index2);
   else

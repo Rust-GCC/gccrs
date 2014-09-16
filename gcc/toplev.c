@@ -957,7 +957,7 @@ init_asm_output (const char *name)
 static void *
 realloc_for_line_map (void *ptr, size_t len)
 {
-  return GGC_RESIZEVAR (void, ptr, len);
+  return ggc_realloc (ptr, len);
 }
 
 /* A helper function: used as the allocator function for
@@ -1052,16 +1052,19 @@ output_stack_usage (void)
 
   if (warn_stack_usage >= 0)
     {
+      const location_t loc = DECL_SOURCE_LOCATION (current_function_decl);
+
       if (stack_usage_kind == DYNAMIC)
-	warning (OPT_Wstack_usage_, "stack usage might be unbounded");
+	warning_at (loc, OPT_Wstack_usage_, "stack usage might be unbounded");
       else if (stack_usage > warn_stack_usage)
 	{
 	  if (stack_usage_kind == DYNAMIC_BOUNDED)
-	    warning (OPT_Wstack_usage_, "stack usage might be %wd bytes",
-		     stack_usage);
+	    warning_at (loc,
+			OPT_Wstack_usage_, "stack usage might be %wd bytes",
+			stack_usage);
 	  else
-	    warning (OPT_Wstack_usage_, "stack usage is %wd bytes",
-		     stack_usage);
+	    warning_at (loc, OPT_Wstack_usage_, "stack usage is %wd bytes",
+			stack_usage);
 	}
     }
 }
@@ -1156,8 +1159,8 @@ general_init (const char *argv0)
      table.  */
   init_ggc ();
   init_stringpool ();
-  line_table = ggc_alloc_line_maps ();
-  linemap_init (line_table);
+  line_table = ggc_alloc<line_maps> ();
+  linemap_init (line_table, BUILTINS_LOCATION);
   line_table->reallocator = realloc_for_line_map;
   line_table->round_alloc_size = ggc_round_alloc_size;
   init_ttree ();
@@ -1290,11 +1293,11 @@ process_options (void)
     flag_ira_region
       = optimize_size || !optimize ? IRA_REGION_ONE : IRA_REGION_MIXED;
 
-  if (flag_strict_volatile_bitfields > 0 && !abi_version_at_least (2))
+  if (!abi_version_at_least (2))
     {
-      warning (0, "-fstrict-volatile-bitfields disabled; "
-	       "it is incompatible with ABI versions < 2");
-      flag_strict_volatile_bitfields = 0;
+      /* -fabi-version=1 support was removed after GCC 4.9.  */
+      error ("%<-fabi-version=1%> is no longer supported");
+      flag_abi_version = 2;
     }
 
   /* Unrolling all loops implies that standard loop unrolling must also
@@ -1583,14 +1586,6 @@ backend_init_target (void)
   /* Initialize alignment variables.  */
   init_alignments ();
 
-  /* This reinitializes hard_frame_pointer, and calls init_reg_modes_target()
-     to initialize reg_raw_mode[].  */
-  init_emit_regs ();
-
-  /* This invokes target hooks to set fixed_reg[] etc, which is
-     mode-dependent.  */
-  init_regs ();
-
   /* This depends on stack_pointer_rtx.  */
   init_fake_stack_mems ();
 
@@ -1600,6 +1595,9 @@ backend_init_target (void)
 
   /* Depends on HARD_FRAME_POINTER_REGNUM.  */
   init_reload ();
+
+  /* Depends on the enabled attribute.  */
+  recog_init ();
 
   /* The following initialization functions need to generate rtl, so
      provide a dummy function context for them.  */
@@ -1629,9 +1627,13 @@ backend_init (void)
   init_varasm_once ();
   save_register_info ();
 
-  /* Initialize the target-specific back end pieces.  */
-  ira_init_once ();
-  backend_init_target ();
+  /* Middle end needs this initialization for default mem attributes
+     used by early calls to make_decl_rtl.  */
+  init_emit_regs ();
+
+  /* Middle end needs this initialization for mode tables used to assign
+     modes to vector variables.  */
+  init_regs ();
 }
 
 /* Initialize excess precision settings.  */
@@ -1683,6 +1685,31 @@ lang_dependent_init_target (void)
      front end is initialized.  It also depends on the HAVE_xxx macros
      generated from the target machine description.  */
   init_optabs ();
+  this_target_rtl->lang_dependent_initialized = false;
+}
+
+/* Perform initializations that are lang-dependent or target-dependent.
+   but matters only for late optimizations and RTL generation.  */
+
+void
+initialize_rtl (void)
+{
+  static int initialized_once;
+
+  /* Initialization done just once per compilation, but delayed
+     till code generation.  */
+  if (!initialized_once)
+    ira_init_once ();
+  initialized_once = true;
+
+  /* Target specific RTL backend initialization.  */
+  if (!this_target_rtl->target_specific_initialized)
+    backend_init_target ();
+  this_target_rtl->target_specific_initialized = true;
+
+  if (this_target_rtl->lang_dependent_initialized)
+    return;
+  this_target_rtl->lang_dependent_initialized = true;
 
   /* The following initialization functions need to generate rtl, so
      provide a dummy function context for them.  */
@@ -1781,8 +1808,15 @@ target_reinit (void)
       regno_reg_rtx = NULL;
     }
 
-  /* Reinitialize RTL backend.  */
-  backend_init_target ();
+  this_target_rtl->target_specific_initialized = false;
+
+  /* This initializes hard_frame_pointer, and calls init_reg_modes_target()
+     to initialize reg_raw_mode[].  */
+  init_emit_regs ();
+
+  /* This invokes target hooks to set fixed_reg[] etc, which is
+     mode-dependent.  */
+  init_regs ();
 
   /* Reinitialize lang-dependent parts.  */
   lang_dependent_init_target ();
@@ -1891,6 +1925,7 @@ do_compile (void)
 	 predefined macros, such as __LDBL_MAX__, for targets using non
 	 default FP formats.  */
       init_adjust_machine_modes ();
+      init_derived_machine_modes ();
 
       /* Set up the back-end if requested.  */
       if (!no_backend)

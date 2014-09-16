@@ -164,13 +164,6 @@
 #  gas			Set to yes or no depending on whether the target
 #			system normally uses GNU as.
 #
-#  need_64bit_hwint	Set to yes if HOST_WIDE_INT must be 64 bits wide
-#			for this target.  This is true if this target
-#			supports "long" or "wchar_t" wider than 32 bits,
-#			or BITS_PER_WORD is wider than 32 bits.
-#			The setting made here must match the one made in
-#			other locations such as libcpp/configure.ac
-#
 #  configure_default_options
 #			Set to an initializer for configure_default_options
 #			in configargs.h, based on --with-cpu et cetera.
@@ -233,7 +226,6 @@ gnu_ld="$gnu_ld_flag"
 default_use_cxa_atexit=no
 default_gnu_indirect_function=no
 target_gtfiles=
-need_64bit_hwint=
 need_64bit_isa=
 native_system_header_dir=/usr/include
 target_type_format_char='@'
@@ -246,7 +238,6 @@ md_file=
 case ${target} in
    picochip-*				\
  | score-*				\
- | *-*-solaris2.9*			\
  )
     if test "x$enable_obsolete" != xyes; then
       echo "*** Configuration ${target} is obsolete." >&2
@@ -287,8 +278,8 @@ case ${target} in
  | *-*-rtemsaout*			\
  | *-*-rtemscoff*			\
  | *-*-solaris2				\
- | *-*-solaris2.[0-8]			\
- | *-*-solaris2.[0-8].*			\
+ | *-*-solaris2.[0-9]			\
+ | *-*-solaris2.[0-9].*			\
  | *-*-sysv*				\
  | vax-*-vms*				\
  )
@@ -311,14 +302,12 @@ m32c*-*-*)
         ;;
 aarch64*-*-*)
 	cpu_type=aarch64
-	need_64bit_hwint=yes
-	extra_headers="arm_neon.h"
+	extra_headers="arm_neon.h arm_acle.h"
 	extra_objs="aarch64-builtins.o aarch-common.o"
 	target_has_targetm_common=yes
 	;;
 alpha*-*-*)
 	cpu_type=alpha
-	need_64bit_hwint=yes
 	extra_options="${extra_options} g.opt"
 	;;
 am33_2.0-*-linux*)
@@ -334,7 +323,6 @@ arm*-*-*)
 	target_type_format_char='%'
 	c_target_objs="arm-c.o"
 	cxx_target_objs="arm-c.o"
-	need_64bit_hwint=yes
 	extra_options="${extra_options} arm/arm-tables.opt"
 	;;
 avr-*-*)
@@ -364,7 +352,6 @@ i[34567]86-*-*)
 	cpu_type=i386
 	c_target_objs="i386-c.o"
 	cxx_target_objs="i386-c.o"
-	need_64bit_hwint=yes
 	extra_options="${extra_options} fused-madd.opt"
 	extra_headers="cpuid.h mmintrin.h mm3dnow.h xmmintrin.h emmintrin.h
 		       pmmintrin.h tmmintrin.h ammintrin.h smmintrin.h
@@ -376,7 +363,8 @@ i[34567]86-*-*)
 		       rtmintrin.h xtestintrin.h rdseedintrin.h prfchwintrin.h
 		       adxintrin.h fxsrintrin.h xsaveintrin.h xsaveoptintrin.h
 		       avx512cdintrin.h avx512erintrin.h avx512pfintrin.h
-		       shaintrin.h"
+		       shaintrin.h clflushoptintrin.h xsavecintrin.h
+		       xsavesintrin.h"
 	;;
 x86_64-*-*)
 	cpu_type=i386
@@ -393,12 +381,11 @@ x86_64-*-*)
 		       rtmintrin.h xtestintrin.h rdseedintrin.h prfchwintrin.h
 		       adxintrin.h fxsrintrin.h xsaveintrin.h xsaveoptintrin.h
 		       avx512cdintrin.h avx512erintrin.h avx512pfintrin.h
-		       shaintrin.h"
-	need_64bit_hwint=yes
+		       shaintrin.h clflushoptintrin.h xsavecintrin.h
+		       xsavesintrin.h"
 	;;
 ia64-*-*)
 	extra_headers=ia64intrin.h
-	need_64bit_hwint=yes
 	extra_options="${extra_options} g.opt fused-madd.opt"
 	;;
 hppa*-*-*)
@@ -421,13 +408,13 @@ microblaze*-*-*)
         ;;
 mips*-*-*)
 	cpu_type=mips
-	need_64bit_hwint=yes
 	extra_headers="loongson.h"
 	extra_options="${extra_options} g.opt mips/mips-tables.opt"
 	;;
 nds32*)
 	cpu_type=nds32
 	extra_headers="nds32_intrinsic.h"
+	extra_objs="nds32-cost.o nds32-intrinsic.o nds32-isr.o nds32-md-auxiliary.o nds32-pipelines-auxiliary.o nds32-predicates.o nds32-memory-manipulation.o nds32-fp-as-gp.o"
 	;;
 nios2-*-*)
 	cpu_type=nios2
@@ -439,7 +426,6 @@ picochip-*-*)
 powerpc*-*-*)
 	cpu_type=rs6000
 	extra_headers="ppc-asm.h altivec.h spe.h ppu_intrinsics.h paired.h spu2vmx.h vec_types.h si2vmx.h htmintrin.h htmxlintrin.h"
-	need_64bit_hwint=yes
 	case x$with_cpu in
 	    xpowerpc64|xdefault64|x6[23]0|x970|xG5|xpower[345678]|xpower6x|xrs64a|xcell|xa2|xe500mc64|xe5500|Xe6500)
 		cpu_is_64bit=yes
@@ -448,7 +434,6 @@ powerpc*-*-*)
 	extra_options="${extra_options} g.opt fused-madd.opt rs6000/rs6000-tables.opt"
 	;;
 rs6000*-*-*)
-	need_64bit_hwint=yes
 	extra_options="${extra_options} g.opt fused-madd.opt rs6000/rs6000-tables.opt"
 	;;
 score*-*-*)
@@ -460,22 +445,18 @@ sparc*-*-*)
 	c_target_objs="sparc-c.o"
 	cxx_target_objs="sparc-c.o"
 	extra_headers="visintrin.h"
-	need_64bit_hwint=yes
 	;;
 spu*-*-*)
 	cpu_type=spu
-	need_64bit_hwint=yes
 	;;
 s390*-*-*)
 	cpu_type=s390
-	need_64bit_hwint=yes
 	extra_options="${extra_options} fused-madd.opt"
 	extra_headers="s390intrin.h htmintrin.h htmxlintrin.h"
 	;;
 # Note the 'l'; we need to be able to match e.g. "shle" or "shl".
 sh[123456789lbe]*-*-* | sh-*-*)
 	cpu_type=sh
-	need_64bit_hwint=yes
 	extra_options="${extra_options} fused-madd.opt"
 	extra_objs="${extra_objs} sh_treg_combine.o sh-mem.o sh_optimize_sett_clrt.o"
 	;;
@@ -492,11 +473,9 @@ xtensa*-*-*)
 	;;
 tilegx*-*-*)
 	cpu_type=tilegx
-	need_64bit_hwint=yes
 	;;
 tilepro*-*-*)
 	cpu_type=tilepro
-	need_64bit_hwint=yes
 	;;
 esac
 
@@ -643,6 +622,26 @@ case ${target} in
     "" | yes | posix) thread_file='posix' ;;
   esac
   ;;
+*-*-dragonfly*)
+  gas=yes
+  gnu_ld=yes
+  tmake_file="t-slibgcc"
+  case ${enable_threads} in
+    "" | yes | posix)
+      thread_file='posix'
+      ;;
+    no | single)
+      # Let these non-posix thread selections fall through if requested
+      ;;
+    *)
+      echo 'Unknown thread configuration for DragonFly BSD'
+      exit 1
+      ;;
+  esac
+  extra_options="$extra_options rpath.opt dragonfly.opt"
+  default_use_cxa_atexit=yes
+  use_gcc_stdint=wrap
+  ;;
 *-*-freebsd*)
   # This is the generic ELF configuration of FreeBSD.  Later
   # machine-specific sections may refine and add to this
@@ -684,7 +683,6 @@ case ${target} in
     *)
       default_use_cxa_atexit=yes;;
   esac
-  # need_64bit_hwint=yes # system compiler has this for all arch!
   use_gcc_stdint=wrap
   ;;
 *-*-linux* | frv-*-*linux* | *-*-kfreebsd*-gnu | *-*-knetbsd*-gnu | *-*-gnu* | *-*-kopensolaris*-gnu)
@@ -809,16 +807,10 @@ case ${target} in
 *-*-solaris2*)
   # i?86-*-solaris2* needs to insert headers between cpu default and
   # Solaris 2 specific ones.
-  sol2_tm_file="dbxelf.h elfos.h ${cpu_type}/sysv4.h sol2.h ${cpu_type}/sol2.h"
-  case ${target} in
-    *-*-solaris2.1[0-9]*)
-      sol2_tm_file="${sol2_tm_file} sol2-10.h"
-      use_gcc_stdint=wrap
-      ;;
-    *)
-      use_gcc_stdint=provide
-      ;;
-  esac
+  sol2_tm_file_head="dbxelf.h elfos.h ${cpu_type}/sysv4.h"
+  sol2_tm_file_tail="${cpu_type}/sol2.h sol2.h"
+  sol2_tm_file="${sol2_tm_file_head} ${sol2_tm_file_tail}"
+  use_gcc_stdint=wrap
   if test x$gnu_ld = xyes; then
     tm_file="usegld.h ${tm_file}"
   fi
@@ -1021,7 +1013,7 @@ arm*-*-linux-*)			# ARM GNU/Linux with ELF
 	    ;;
 	esac
 	tmake_file="${tmake_file} arm/t-arm arm/t-arm-elf arm/t-bpabi arm/t-linux-eabi"
-	tm_file="$tm_file arm/bpabi.h arm/linux-eabi.h arm/aout.h arm/arm.h"
+	tm_file="$tm_file arm/bpabi.h arm/linux-eabi.h arm/aout.h vxworks-dummy.h arm/arm.h"
 	# Define multilib configuration for arm-linux-androideabi.
 	case ${target} in
 	*-androideabi)
@@ -1129,8 +1121,7 @@ cris-*-elf | cris-*-none)
 	;;
 crisv32-*-linux* | cris-*-linux*)
 	tm_file="dbxelf.h elfos.h ${tm_file} gnu-user.h linux.h glibc-stdint.h cris/linux.h"
-	# We need to avoid using t-linux, so override default tmake_file
-	tmake_file="cris/t-cris cris/t-linux t-slibgcc t-linux"
+	tmake_file="${tmake_file} cris/t-cris cris/t-linux"
 	extra_options="${extra_options} cris/linux.opt"
 	case $target in
 	  cris-*-*)
@@ -1191,7 +1182,6 @@ hppa*64*-*-linux*)
 		 glibc-stdint.h pa/pa-linux.h pa/pa64-regs.h pa/pa-64.h \
 		 pa/pa64-linux.h"
 	gas=yes gnu_ld=yes
-	need_64bit_hwint=yes
 	;;
 hppa*-*-linux*)
 	target_cpu_default="MASK_PA_11|MASK_NO_SPACE_REGS"
@@ -1266,7 +1256,6 @@ hppa*64*-*-hpux11*)
 	esac
 	extra_options="${extra_options} pa/pa-hpux.opt \
 		       pa/pa-hpux1010.opt pa/pa64-hpux.opt hpux11.opt"
-	need_64bit_hwint=yes
 	tmake_file="t-slibgcc"
 	case x${enable_threads} in
 	x | xyes | xposix )
@@ -1352,6 +1341,14 @@ x86_64-*-rdos*)
     tm_file="${tm_file} i386/unix.h i386/att.h dbxelf.h elfos.h newlib-stdint.h i386/i386elf.h i386/x86-64.h i386/rdos.h i386/rdos64.h"
     tmake_file="i386/t-i386elf t-svr4"
     ;;
+i[34567]86-*-dragonfly*)
+	tm_file="${tm_file} i386/unix.h i386/att.h dbxelf.h elfos.h dragonfly.h dragonfly-stdint.h i386/dragonfly.h"
+	tmake_file="${tmake_file} i386/t-crtstuff"
+	;;
+x86_64-*-dragonfly*)
+	tm_file="${tm_file} i386/unix.h i386/att.h dbxelf.h elfos.h dragonfly.h dragonfly-stdint.h i386/x86-64.h i386/dragonfly.h"
+	tmake_file="${tmake_file} i386/t-crtstuff"
+	;;
 i[34567]86-*-freebsd*)
 	tm_file="${tm_file} i386/unix.h i386/att.h dbxelf.h elfos.h ${fbsd_tm_file} i386/freebsd.h"
 	;;
@@ -1523,45 +1520,29 @@ i[34567]86-*-rtems*)
 	tmake_file="${tmake_file} i386/t-rtems"
 	;;
 i[34567]86-*-solaris2* | x86_64-*-solaris2.1[0-9]*)
-	tm_file="${tm_file} i386/unix.h i386/att.h ${sol2_tm_file}"
 	# Set default arch_32 to pentium4, tune_32 to generic like the other
 	# i386 targets, although config.guess defaults to i386-pc-solaris2*.
-	case ${target} in
-	*-*-solaris2.9*)
-		# Solaris 9/x86 cannot execute SSE/SSE2 instructions by default.
-		with_arch_32=${with_arch_32:-pentiumpro}
-		;;
-	*)
-		with_arch_32=${with_arch_32:-pentium4}
-		;;
-	esac
+	with_arch_32=${with_arch_32:-pentium4}
 	with_tune_32=${with_tune_32:-generic}
-	case ${target} in
-	*-*-solaris2.9*)
-		tm_file="${tm_file} i386/sol2-9.h"
-		;;
-	*-*-solaris2.1[0-9]*)
-		tm_file="${tm_file} i386/x86-64.h i386/sol2-bi.h sol2-bi.h"
-		tm_defines="${tm_defines} TARGET_BI_ARCH=1"
-		tmake_file="$tmake_file i386/t-sol2-64"
-		need_64bit_isa=yes
-		if test x$with_cpu = x; then
-			if test x$with_cpu_64 = x; then
-				with_cpu_64=generic
-			fi
-		else
-			case " $x86_cpus $x86_archs $x86_64_archs " in
-			*" $with_cpu "*)
-				;;
-			*)
-				echo "Unsupported CPU used in --with-cpu=$with_cpu, supported values:" 1>&2
-				echo "$x86_cpus $x86_archs $x86_64_archs" 1>&2
-				exit 1
-				;;
-			esac
+	tm_file="${tm_file} i386/unix.h i386/att.h ${sol2_tm_file_head} i386/x86-64.h ${sol2_tm_file_tail}"
+	tm_defines="${tm_defines} TARGET_BI_ARCH=1"
+	tmake_file="$tmake_file i386/t-sol2"
+	need_64bit_isa=yes
+	if test x$with_cpu = x; then
+		if test x$with_cpu_64 = x; then
+			with_cpu_64=generic
 		fi
-		;;
-	esac
+	else
+		case " $x86_cpus $x86_archs $x86_64_archs " in
+		*" $with_cpu "*)
+			;;
+		*)
+			echo "Unsupported CPU used in --with-cpu=$with_cpu, supported values:" 1>&2
+			echo "$x86_cpus $x86_archs $x86_64_archs" 1>&2
+			exit 1
+			;;
+		esac
+	fi
 	;;
 i[4567]86-wrs-vxworks|i[4567]86-wrs-vxworksae)
 	tm_file="${tm_file} i386/unix.h i386/att.h elfos.h vx-common.h"
@@ -2115,7 +2096,6 @@ mipstx39-*-elf* | mipstx39el-*-elf*)
 	;;
 mmix-knuth-mmixware)
 	tm_file="${tm_file} newlib-stdint.h"
-	need_64bit_hwint=yes
 	use_gcc_stdint=wrap
 	;;
 mn10300-*-*)
@@ -2137,13 +2117,13 @@ nds32le-*-*)
 	target_cpu_default="0"
 	tm_defines="${tm_defines}"
 	tm_file="dbxelf.h elfos.h newlib-stdint.h ${tm_file}"
-	tmake_file="nds32/t-mlibs"
+	tmake_file="nds32/t-nds32 nds32/t-mlibs"
 	;;
 nds32be-*-*)
 	target_cpu_default="0|MASK_BIG_ENDIAN"
 	tm_defines="${tm_defines} TARGET_BIG_ENDIAN_DEFAULT=1"
 	tm_file="dbxelf.h elfos.h newlib-stdint.h ${tm_file}"
-	tmake_file="nds32/t-mlibs"
+	tmake_file="nds32/t-nds32 nds32/t-mlibs"
 	;;
 nios2-*-*)
 	tm_file="elfos.h ${tm_file}"
@@ -2333,7 +2313,7 @@ powerpc-wrs-vxworks|powerpc-wrs-vxworksae)
 	extra_headers=ppc-asm.h
 	case ${target} in
 	  *-vxworksae*)
-	    tm_file="${tm_file} vx-common.h vxworksae.h rs6000/vxworks.h rs6000/e500.h"
+	    tm_file="${tm_file} vx-common.h vxworksae.h rs6000/vxworks.h rs6000/e500.h rs6000/vxworksae.h"
 	    tmake_file="${tmake_file} rs6000/t-vxworksae"
 	    ;;
 	  *-vxworks*)
@@ -2684,7 +2664,7 @@ sparc-*-netbsdelf*)
 	tmake_file="${tmake_file} sparc/t-sparc"
 	;;
 sparc*-*-solaris2*)
-	tm_file="sparc/biarch64.h ${tm_file} ${sol2_tm_file} sol2-bi.h sparc/tso.h"
+	tm_file="sparc/biarch64.h ${tm_file} ${sol2_tm_file} sparc/tso.h"
 	case ${target} in
 	    sparc64-*-* | sparcv9-*-*)
 		tm_file="sparc/default-64.h ${tm_file}"
@@ -2693,7 +2673,7 @@ sparc*-*-solaris2*)
 		test x$with_cpu != x || with_cpu=v9
 		;;
 	esac
-	tmake_file="${tmake_file} sparc/t-sparc sparc/t-sol2-64"
+	tmake_file="${tmake_file} sparc/t-sparc sparc/t-sol2"
 	;;
 sparc-wrs-vxworks)
 	tm_file="${tm_file} elfos.h sparc/sysv4.h vx-common.h vxworks.h sparc/vxworks.h"
@@ -3580,7 +3560,13 @@ case "${target}" in
 		esac
 
 		if test "x$with_arch" != x && test "x$with_cpu" != x; then
-			echo "Warning: --with-arch overrides --with-cpu=$with_cpu" 1>&2
+			echo "Switch \"--with-arch\" may not be used with switch \"--with-cpu\""  1>&2
+			exit 1
+		fi
+
+		if test "x$with_cpu" != x && test "x$with_tune" != x; then
+			echo "Switch \"--with-tune\" may not be used with switch \"--with-cpu\""  1>&2
+			exit 1
 		fi
 
 		# Add extra multilibs
@@ -4107,6 +4093,8 @@ case ${target} in
 	i[34567]86-*-cygwin* | x86_64-*-cygwin*)
 		;;
 	i[34567]86-*-mingw* | x86_64-*-mingw*)
+		;;
+	i[34567]86-*-dragonfly* | x86_64-*-dragonfly*)
 		;;
 	i[34567]86-*-freebsd* | x86_64-*-freebsd*)
 		;;

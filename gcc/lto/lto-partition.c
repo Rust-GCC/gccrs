@@ -86,17 +86,17 @@ static void
 add_references_to_partition (ltrans_partition part, symtab_node *node)
 {
   int i;
-  struct ipa_ref *ref;
+  struct ipa_ref *ref = NULL;
 
   /* Add all duplicated references to the partition.  */
-  for (i = 0; ipa_ref_list_reference_iterate (&node->ref_list, i, ref); i++)
+  for (i = 0; node->iterate_reference (i, ref); i++)
     if (symtab_get_symbol_partitioning_class (ref->referred) == SYMBOL_DUPLICATE)
       add_symbol_to_partition (part, ref->referred);
     /* References to a readonly variable may be constant foled into its value.
        Recursively look into the initializers of the constant variable and add
        references, too.  */
-    else if (is_a <varpool_node> (ref->referred)
-	     && ctor_for_folding (ref->referred->decl) != error_mark_node
+    else if (is_a <varpool_node *> (ref->referred)
+	     && varpool_ctor_useable_for_folding_p (varpool (ref->referred))
 	     && !lto_symtab_encoder_in_partition_p (part->encoder, ref->referred))
       {
 	if (!part->initializers_visited)
@@ -113,7 +113,6 @@ static bool
 add_symbol_to_partition_1 (ltrans_partition part, symtab_node *node)
 {
   enum symbol_partitioning_class c = symtab_get_symbol_partitioning_class (node);
-  int i;
   struct ipa_ref *ref;
   symtab_node *node1;
 
@@ -146,7 +145,7 @@ add_symbol_to_partition_1 (ltrans_partition part, symtab_node *node)
     }
   node->aux = (void *)((size_t)node->aux + 1);
 
-  if (cgraph_node *cnode = dyn_cast <cgraph_node> (node))
+  if (cgraph_node *cnode = dyn_cast <cgraph_node *> (node))
     {
       struct cgraph_edge *e;
       if (!node->alias)
@@ -168,8 +167,9 @@ add_symbol_to_partition_1 (ltrans_partition part, symtab_node *node)
   add_references_to_partition (part, node);
 
   /* Add all aliases associated with the symbol.  */
-  for (i = 0; ipa_ref_list_referring_iterate (&node->ref_list, i, ref); i++)
-    if (ref->use == IPA_REF_ALIAS && !node->weakref)
+
+  FOR_EACH_ALIAS (node, ref)
+    if (!node->weakref)
       add_symbol_to_partition_1 (part, ref->referring);
 
   /* Ensure that SAME_COMDAT_GROUP lists all allways added in a group.  */
@@ -194,14 +194,14 @@ contained_in_symbol (symtab_node *node)
   /* Weakrefs are never contained in anything.  */
   if (node->weakref)
     return node;
-  if (cgraph_node *cnode = dyn_cast <cgraph_node> (node))
+  if (cgraph_node *cnode = dyn_cast <cgraph_node *> (node))
     {
       cnode = cgraph_function_node (cnode, NULL);
       if (cnode->global.inlined_to)
 	cnode = cnode->global.inlined_to;
       return cnode;
     }
-  else if (varpool_node *vnode = dyn_cast <varpool_node> (node))
+  else if (varpool_node *vnode = dyn_cast <varpool_node *> (node))
     return varpool_variable_node (vnode, NULL);
   return node;
 }
@@ -252,7 +252,7 @@ undo_partition (ltrans_partition partition, unsigned int n_nodes)
 	pointer_set_destroy (partition->initializers_visited);
       partition->initializers_visited = NULL;
 
-      if (!node->alias && (cnode = dyn_cast <cgraph_node> (node)))
+      if (!node->alias && (cnode = dyn_cast <cgraph_node *> (node)))
         partition->insns -= inline_summary (cnode)->self_size;
       lto_symtab_encoder_delete_node (partition->encoder, node);
       node->aux = (void *)((size_t)node->aux - 1);
@@ -415,7 +415,7 @@ varpool_node_cmp (const void *pa, const void *pb)
    and in-partition calls was reached.  */
 
 void
-lto_balanced_map (void)
+lto_balanced_map (int n_lto_partitions)
 {
   int n_nodes = 0;
   int n_varpool_nodes = 0, varpool_pos = 0, best_varpool_pos = 0;
@@ -472,7 +472,7 @@ lto_balanced_map (void)
     }
 
   /* Compute partition size and create the first partition.  */
-  partition_size = total_size / PARAM_VALUE (PARAM_LTO_PARTITIONS);
+  partition_size = total_size / n_lto_partitions;
   if (partition_size < PARAM_VALUE (MIN_PARTITION_SIZE))
     partition_size = PARAM_VALUE (MIN_PARTITION_SIZE);
   npartitions = 1;
@@ -516,17 +516,17 @@ lto_balanced_map (void)
 	 it and thus we need to subtract it from COST.  */
       while (last_visited_node < lto_symtab_encoder_size (partition->encoder))
 	{
-	  struct ipa_ref_list *refs;
+	  symtab_node *refs_node;
 	  int j;
-	  struct ipa_ref *ref;
+	  struct ipa_ref *ref = NULL;
 	  symtab_node *snode = lto_symtab_encoder_deref (partition->encoder,
 							last_visited_node);
 
-	  if (cgraph_node *node = dyn_cast <cgraph_node> (snode))
+	  if (cgraph_node *node = dyn_cast <cgraph_node *> (snode))
 	    {
 	      struct cgraph_edge *edge;
 
-	      refs = &node->ref_list;
+	      refs_node = node;
 
 	      last_visited_node++;
 
@@ -570,18 +570,18 @@ lto_balanced_map (void)
 	    }
 	  else
 	    {
-	      refs = &snode->ref_list;
+	      refs_node = snode;
 	      last_visited_node++;
 	    }
 
 	  /* Compute boundary cost of IPA REF edges and at the same time look into
 	     variables referenced from current partition and try to add them.  */
-	  for (j = 0; ipa_ref_list_reference_iterate (refs, j, ref); j++)
-	    if (is_a <varpool_node> (ref->referred))
+	  for (j = 0; refs_node->iterate_reference (j, ref); j++)
+	    if (is_a <varpool_node *> (ref->referred))
 	      {
 		int index;
 
-		vnode = ipa_ref_varpool_node (ref);
+		vnode = dyn_cast <varpool_node *> (ref->referred);
 		if (!vnode->definition)
 		  continue;
 		if (!symbol_partitioned_p (vnode) && flag_toplevel_reorder
@@ -599,7 +599,7 @@ lto_balanced_map (void)
 	      {
 		int index;
 
-		node = ipa_ref_node (ref);
+		node = dyn_cast <cgraph_node *> (ref->referred);
 		if (!node->definition)
 		  continue;
 		index = lto_symtab_encoder_lookup (partition->encoder,
@@ -610,12 +610,12 @@ lto_balanced_map (void)
 		else
 		  cost++;
 	      }
-	  for (j = 0; ipa_ref_list_referring_iterate (refs, j, ref); j++)
-	    if (is_a <varpool_node> (ref->referring))
+	  for (j = 0; refs_node->iterate_referring (j, ref); j++)
+	    if (is_a <varpool_node *> (ref->referring))
 	      {
 		int index;
 
-		vnode = ipa_ref_referring_varpool_node (ref);
+		vnode = dyn_cast <varpool_node *> (ref->referring);
 		gcc_assert (vnode->definition);
 		/* It is better to couple variables with their users, because it allows them
 		   to be removed.  Coupling with objects they refer to only helps to reduce
@@ -636,7 +636,7 @@ lto_balanced_map (void)
 	      {
 		int index;
 
-		node = ipa_ref_referring_node (ref);
+		node = dyn_cast <cgraph_node *> (ref->referring);
 		gcc_assert (node->definition);
 		index = lto_symtab_encoder_lookup (partition->encoder,
 						   node);
@@ -699,9 +699,8 @@ lto_balanced_map (void)
 
 	  /* Since the size of partitions is just approximate, update the size after
 	     we finished current one.  */
-	  if (npartitions < PARAM_VALUE (PARAM_LTO_PARTITIONS))
-	    partition_size = total_size
-	      / (PARAM_VALUE (PARAM_LTO_PARTITIONS) - npartitions);
+	  if (npartitions < n_lto_partitions)
+	    partition_size = total_size / (n_lto_partitions - npartitions);
 	  else
 	    partition_size = INT_MAX;
 
@@ -812,7 +811,7 @@ promote_symbol (symtab_node *node)
 static bool
 may_need_named_section_p (lto_symtab_encoder_t encoder, symtab_node *node)
 {
-  struct cgraph_node *cnode = dyn_cast <cgraph_node> (node);
+  struct cgraph_node *cnode = dyn_cast <cgraph_node *> (node);
   if (!cnode)
     return false;
   if (symtab_real_symbol_p (node))

@@ -123,7 +123,8 @@ SUBDIRS =@subdirs@ build
 
 # Selection of languages to be made.
 CONFIG_LANGUAGES = @all_selected_languages@
-LANGUAGES = c gcov$(exeext) gcov-dump$(exeext) $(CONFIG_LANGUAGES)
+LANGUAGES = c gcov$(exeext) gcov-dump$(exeext) gcov-tool$(exeext) \
+            $(CONFIG_LANGUAGES)
 
 # Default values for variables overridden in Makefile fragments.
 # CFLAGS is for the user to override to, e.g., do a cross build with -O2.
@@ -196,6 +197,9 @@ GCC_WARN_CXXFLAGS = $(LOOSE_WARN) $($(@D)-warn) $(NOCOMMON_FLAG) $($@-warn)
 # flex output may yield harmless "no previous prototype" warnings
 build/gengtype-lex.o-warn = -Wno-error
 gengtype-lex.o-warn = -Wno-error
+libgcov-util.o-warn = -Wno-error
+libgcov-driver-tool.o-warn = -Wno-error
+libgcov-merge-tool.o-warn = -Wno-error
 
 # All warnings have to be shut off in stage1 if the compiler used then
 # isn't gcc; configure determines that.  WARN_CFLAGS will be either
@@ -491,7 +495,7 @@ out_file=$(srcdir)/config/@out_file@
 out_object_file=@out_object_file@
 common_out_file=$(srcdir)/common/config/@common_out_file@
 common_out_object_file=@common_out_object_file@
-md_file=$(srcdir)/config/@md_file@
+md_file=$(srcdir)/common.md $(srcdir)/config/@md_file@
 tm_file_list=@tm_file_list@
 tm_include_list=@tm_include_list@
 tm_defines=@tm_defines@
@@ -769,6 +773,7 @@ GCC_INSTALL_NAME := $(shell echo gcc|sed '$(program_transform_name)')
 GCC_TARGET_INSTALL_NAME := $(target_noncanonical)-$(shell echo gcc|sed '$(program_transform_name)')
 CPP_INSTALL_NAME := $(shell echo cpp|sed '$(program_transform_name)')
 GCOV_INSTALL_NAME := $(shell echo gcov|sed '$(program_transform_name)')
+GCOV_TOOL_INSTALL_NAME := $(shell echo gcov-tool|sed '$(program_transform_name)')
 
 # Setup the testing framework, if you have one
 EXPECT = `if [ -f $${rootme}/../expect/expect ] ; then \
@@ -890,7 +895,7 @@ BASIC_BLOCK_H = basic-block.h $(PREDICT_H) $(VEC_H) $(FUNCTION_H) \
 GIMPLE_H = gimple.h gimple.def gsstruct.def pointer-set.h $(VEC_H) \
 	$(GGC_H) $(BASIC_BLOCK_H) $(TREE_H) tree-ssa-operands.h \
 	tree-ssa-alias.h $(INTERNAL_FN_H) $(HASH_TABLE_H) is-a.h
-GCOV_IO_H = gcov-io.h gcov-iov.h auto-host.h
+GCOV_IO_H = gcov-io.h gcov-iov.h auto-host.h gcov-counter.def
 RECOG_H = recog.h
 EMIT_RTL_H = emit-rtl.h
 FLAGS_H = flags.h flag-types.h $(OPTIONS_H)
@@ -905,7 +910,7 @@ CFGLOOP_H = cfgloop.h $(BASIC_BLOCK_H) double-int.h \
 IPA_UTILS_H = ipa-utils.h $(TREE_H) $(CGRAPH_H)
 IPA_REFERENCE_H = ipa-reference.h $(BITMAP_H) $(TREE_H)
 CGRAPH_H = cgraph.h $(VEC_H) $(TREE_H) $(BASIC_BLOCK_H) $(FUNCTION_H) \
-	cif-code.def ipa-ref.h ipa-ref-inline.h $(LINKER_PLUGIN_API_H) is-a.h
+	cif-code.def ipa-ref.h $(LINKER_PLUGIN_API_H) is-a.h
 DF_H = df.h $(BITMAP_H) $(REGSET_H) sbitmap.h $(BASIC_BLOCK_H) \
 	alloc-pool.h $(TIMEVAR_H)
 RESOURCE_H = resource.h hard-reg-set.h $(DF_H)
@@ -1250,6 +1255,7 @@ OBJS = \
 	graphite.o \
 	graphite-blocking.o \
 	graphite-clast-to-gimple.o \
+	graphite-isl-ast-to-gimple.o \
 	graphite-dependences.o \
 	graphite-interchange.o \
 	graphite-optimize-isl.o \
@@ -1269,6 +1275,8 @@ OBJS = \
 	ipa-devirt.o \
 	ipa-split.o \
 	ipa-inline.o \
+	ipa-comdats.o \
+	ipa-visibility.o \
 	ipa-inline-analysis.o \
 	ipa-inline-transform.o \
 	ipa-profile.o \
@@ -1294,7 +1302,6 @@ OBJS = \
 	loop-invariant.o \
 	loop-iv.o \
 	loop-unroll.o \
-	loop-unswitch.o \
 	lower-subreg.o \
 	lra.o \
 	lra-assigns.o \
@@ -1354,6 +1361,7 @@ OBJS = \
 	sel-sched-dump.o \
 	sel-sched.o \
 	sese.o \
+	shrink-wrap.o \
 	simplify-rtx.o \
 	sparseset.o \
 	sreal.o \
@@ -1465,6 +1473,8 @@ OBJS = \
 	vmsdbgout.o \
 	vtable-verify.o \
 	web.o \
+	wide-int.o \
+	wide-int-print.o \
 	xcoffout.o \
 	$(out_object_file) \
 	$(EXTRA_OBJS) \
@@ -1487,7 +1497,7 @@ ALL_HOST_FRONTEND_OBJS = $(foreach v,$(CONFIG_LANGUAGES),$($(v)_OBJS))
 ALL_HOST_BACKEND_OBJS = $(GCC_OBJS) $(OBJS) $(OBJS-libcommon) \
   $(OBJS-libcommon-target) @TREEBROWSER@ main.o c-family/cppspec.o \
   $(COLLECT2_OBJS) $(EXTRA_GCC_OBJS) $(GCOV_OBJS) $(GCOV_DUMP_OBJS) \
-  lto-wrapper.o
+  $(GCOV_TOOL_OBJS) lto-wrapper.o collect-utils.o
 
 # This lists all host object files, whether they are included in this
 # compilation or not.
@@ -1512,6 +1522,7 @@ MOSTLYCLEANFILES = insn-flags.h insn-config.h insn-codes.h \
  $(SPECS) collect2$(exeext) gcc-ar$(exeext) gcc-nm$(exeext) \
  gcc-ranlib$(exeext) \
  gcov-iov$(build_exeext) gcov$(exeext) gcov-dump$(exeext) \
+ gcov-tool$(exeect) \
  gengtype$(exeext) *.[0-9][0-9].* *.[si] *-checksum.c libbackend.a \
  libcommon-target.a libcommon.a libgcc.mk
 
@@ -1895,7 +1906,8 @@ gcc-ranlib.c: gcc-ar.c
 gcc-nm.c: gcc-ar.c
 	cp $^ $@
 
-COLLECT2_OBJS = collect2.o collect2-aix.o tlink.o vec.o ggc-none.o file-find.o
+COLLECT2_OBJS = collect2.o collect2-aix.o tlink.o vec.o ggc-none.o \
+  collect-utils.o file-find.o
 COLLECT2_LIBS = @COLLECT2_LIBS@
 collect2$(exeext): $(COLLECT2_OBJS) $(LIBDEPS)
 # Don't try modifying collect2 (aka ld) in place--it might be linking this.
@@ -1906,9 +1918,10 @@ collect2$(exeext): $(COLLECT2_OBJS) $(LIBDEPS)
 CFLAGS-collect2.o += -DTARGET_MACHINE=\"$(target_noncanonical)\" \
 	@TARGET_SYSTEM_ROOT_DEFINE@
 
-lto-wrapper$(exeext): lto-wrapper.o ggc-none.o libcommon-target.a $(LIBDEPS)
+LTO_WRAPPER_OBJS = lto-wrapper.o collect-utils.o ggc-none.o
+lto-wrapper$(exeext): $(LTO_WRAPPER_OBJS) libcommon-target.a $(LIBDEPS)
 	+$(LINKER) $(ALL_COMPILERFLAGS) $(LDFLAGS) -o T$@ \
-	    lto-wrapper.o ggc-none.o libcommon-target.a $(LIBS)
+	   $(LTO_WRAPPER_OBJS) libcommon-target.a $(LIBS)
 	mv -f T$@ $@
 
 # Files used by all variants of C or by the stand-alone pre-processor.
@@ -2230,7 +2243,7 @@ s-tm-texi: build/genhooks$(build_exeext) $(srcdir)/doc/tm.texi.in
 GTFILES = $(CPP_ID_DATA_H) $(srcdir)/input.h $(srcdir)/coretypes.h \
   $(host_xm_file_list) \
   $(tm_file_list) $(HASHTAB_H) $(SPLAY_TREE_H) $(srcdir)/bitmap.h \
-  $(srcdir)/alias.h $(srcdir)/coverage.c $(srcdir)/rtl.h \
+  $(srcdir)/wide-int.h $(srcdir)/alias.h $(srcdir)/coverage.c $(srcdir)/rtl.h \
   $(srcdir)/optabs.h $(srcdir)/tree.h $(srcdir)/tree-core.h \
   $(srcdir)/libfuncs.h $(SYMTAB_H) \
   $(srcdir)/real.h $(srcdir)/function.h $(srcdir)/insn-addr.h $(srcdir)/hwint.h \
@@ -2241,6 +2254,7 @@ GTFILES = $(CPP_ID_DATA_H) $(srcdir)/input.h $(srcdir)/coretypes.h \
   $(srcdir)/alias.c $(srcdir)/bitmap.c $(srcdir)/cselib.c $(srcdir)/cgraph.c \
   $(srcdir)/ipa-prop.c $(srcdir)/ipa-cp.c $(srcdir)/ipa-utils.h \
   $(srcdir)/dbxout.c \
+  $(srcdir)/signop.h \
   $(srcdir)/dwarf2out.h \
   $(srcdir)/dwarf2asm.c \
   $(srcdir)/dwarf2cfi.c \
@@ -2270,7 +2284,6 @@ GTFILES = $(CPP_ID_DATA_H) $(srcdir)/input.h $(srcdir)/coretypes.h \
   $(srcdir)/omp-low.c \
   $(srcdir)/targhooks.c $(out_file) $(srcdir)/passes.c $(srcdir)/cgraphunit.c \
   $(srcdir)/cgraphclones.c \
-  $(srcdir)/tree-ssa-propagate.c \
   $(srcdir)/tree-phinodes.c \
   $(srcdir)/tree-ssa-alias.h \
   $(srcdir)/tree-ssanames.h \
@@ -2443,10 +2456,9 @@ gengtype-state.o build/gengtype-state.o: gengtype-state.c $(SYSTEM_H) \
 gengtype-state.o: $(CONFIG_H)
 CFLAGS-gengtype-state.o += -DGENERATOR_FILE
 build/gengtype-state.o: $(BCONFIG_H)
-
 gengtype.o build/gengtype.o : gengtype.c $(SYSTEM_H) gengtype.h 	\
-  rtl.def insn-notes.def errors.h double-int.h version.h $(HASHTAB_H) \
-  $(OBSTACK_H) $(XREGEX_H)
+  rtl.def insn-notes.def errors.h double-int.h version.h     		\
+  $(HASHTAB_H) $(OBSTACK_H) $(XREGEX_H)
 gengtype.o: $(CONFIG_H)
 CFLAGS-gengtype.o += -DGENERATOR_FILE
 build/gengtype.o: $(BCONFIG_H)
@@ -2570,6 +2582,22 @@ GCOV_DUMP_OBJS = gcov-dump.o
 gcov-dump$(exeext): $(GCOV_DUMP_OBJS) $(LIBDEPS)
 	+$(LINKER) $(ALL_LINKERFLAGS) $(LDFLAGS) $(GCOV_DUMP_OBJS) \
 		$(LIBS) -o $@
+
+GCOV_TOOL_DEP_FILES = $(srcdir)/../libgcc/libgcov-util.c gcov-io.c $(GCOV_IO_H) \
+  $(srcdir)/../libgcc/libgcov-driver.c $(srcdir)/../libgcc/libgcov-driver-system.c \
+  $(srcdir)/../libgcc/libgcov-merge.c \
+  $(SYSTEM_H) coretypes.h $(TM_H) $(CONFIG_H) version.h intl.h $(DIAGNOSTIC_H)
+libgcov-util.o: $(srcdir)/../libgcc/libgcov-util.c $(GCOV_TOOL_DEP_FILES)
+	+$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) -o $@ $<
+libgcov-driver-tool.o: $(srcdir)/../libgcc/libgcov-driver.c $(GCOV_TOOL_DEP_FILES)
+	+$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
+	  -DIN_GCOV_TOOL=1 -o $@ $<
+libgcov-merge-tool.o: $(srcdir)/../libgcc/libgcov-merge.c $(GCOV_TOOL_DEP_FILES)
+	+$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
+	  -DIN_GCOV_TOOL=1 -o $@ $<
+GCOV_TOOL_OBJS = gcov-tool.o libgcov-util.o libgcov-driver-tool.o libgcov-merge-tool.o
+gcov-tool$(exeext): $(GCOV_TOOL_OBJS) $(LIBDEPS)
+	+$(LINKER) $(ALL_LINKERFLAGS) $(LDFLAGS) $(GCOV_TOOL_OBJS) $(LIBS) -o $@
 #
 # Build the include directories.  The stamp files are stmp-* rather than
 # s-* so that mostlyclean does not force the include directory to
@@ -2798,7 +2826,8 @@ TEXI_GCC_FILES = gcc.texi gcc-common.texi gcc-vers.texi frontends.texi	\
 	 contribute.texi compat.texi funding.texi gnu.texi gpl_v3.texi	\
 	 fdl.texi contrib.texi cppenv.texi cppopts.texi avr-mmcu.texi	\
 	 implement-c.texi implement-cxx.texi arm-neon-intrinsics.texi	\
-	 arm-acle-intrinsics.texi
+	 arm-acle-intrinsics.texi aarch64-acle-intrinsics.texi          \
+	 gcov-tool.texi
 
 # we explicitly use $(srcdir)/doc/tm.texi here to avoid confusion with
 # the generated tm.texi; the latter might have a more recent timestamp,
@@ -2919,7 +2948,8 @@ $(build_htmldir)/gccinstall/index.html: $(TEXI_GCCINSTALL_FILES)
 	DESTDIR=$(@D) \
 	$(SHELL) $(srcdir)/doc/install.texi2html
 
-MANFILES = doc/gcov.1 doc/cpp.1 doc/gcc.1 doc/gfdl.7 doc/gpl.7 doc/fsf-funding.7
+MANFILES = doc/gcov.1 doc/cpp.1 doc/gcc.1 doc/gfdl.7 doc/gpl.7 \
+           doc/fsf-funding.7 doc/gcov-tool.1
 
 generated-manpages: man
 
@@ -3206,6 +3236,13 @@ install-common: native lang.install-common installdirs
 	    rm -f $(DESTDIR)$(bindir)/$(GCOV_INSTALL_NAME)$(exeext); \
 	    $(INSTALL_PROGRAM) gcov$(exeext) $(DESTDIR)$(bindir)/$(GCOV_INSTALL_NAME)$(exeext); \
 	fi
+# Install gcov-tool if it was compiled.
+	-if [ -f gcov-tool$(exeext) ]; \
+	then \
+	    rm -f $(DESTDIR)$(bindir)/$(GCOV_TOOL_INSTALL_NAME)$(exeext); \
+	    $(INSTALL_PROGRAM) \
+	    gcov-tool$(exeext) $(DESTDIR)$(bindir)/$(GCOV_TOOL_INSTALL_NAME)$(exeext); \
+	fi
 
 # Install the driver program as $(target_noncanonical)-gcc,
 # $(target_noncanonical)-gcc-$(version), and also as gcc if native.
@@ -3307,6 +3344,11 @@ $(DESTDIR)$(man1dir)/$(CPP_INSTALL_NAME)$(man1ext): doc/cpp.1 installdirs
 	-chmod a-x $@
 
 $(DESTDIR)$(man1dir)/$(GCOV_INSTALL_NAME)$(man1ext): doc/gcov.1 installdirs
+	-rm -f $@
+	-$(INSTALL_DATA) $< $@
+	-chmod a-x $@
+
+$(DESTDIR)$(man1dir)/$(GCOV_TOOL_INSTALL_NAME)$(man1ext): doc/gcov-tool.1 installdirs
 	-rm -f $@
 	-$(INSTALL_DATA) $< $@
 	-chmod a-x $@
@@ -3753,7 +3795,7 @@ TAGS: lang.tags
 	    incs="$$incs --include $$dir/TAGS.sub";	\
 	  fi;						\
 	done;						\
-	etags -o TAGS.sub c-family/*.h c-family/*.c *.h *.c; \
+	etags -o TAGS.sub c-family/*.h c-family/*.c *.h *.c *.cc; \
 	etags --include TAGS.sub $$incs)
 
 # -----------------------------------------------------

@@ -100,7 +100,7 @@
   "
   [(set_attr "predicable" "yes")
    (set_attr "predicable_short_it" "yes,no,yes,no,no,no,no,no,no,no,no,no,no,no")
-   (set_attr "type" "mov_reg,mov_reg,mov_reg,mvn_reg,mov_reg,load1,load1,store1,store1,f_mcr,f_mrc,fmov,f_loads,f_stores")
+   (set_attr "type" "mov_reg,mov_reg,mov_reg,mvn_reg,mov_imm,load1,load1,store1,store1,f_mcr,f_mrc,fmov,f_loads,f_stores")
    (set_attr "length" "2,4,2,4,4,4,4,4,4,4,4,4,4,4")
    (set_attr "pool_range"     "*,*,*,*,*,1018,4094,*,*,*,*,*,1018,*")
    (set_attr "neg_pool_range" "*,*,*,*,*,   0,   0,*,*,*,*,*,1008,*")]
@@ -714,25 +714,30 @@
 
 ;; Division insns
 
+; VFP9 Erratum 760019: It's potentially unsafe to overwrite the input
+; operands, so mark the output as early clobber for VFPv2 on ARMv5 or
+; earlier.
 (define_insn "*divsf3_vfp"
-  [(set (match_operand:SF	  0 "s_register_operand" "=t")
-	(div:SF (match_operand:SF 1 "s_register_operand" "t")
-		(match_operand:SF 2 "s_register_operand" "t")))]
+  [(set (match_operand:SF	  0 "s_register_operand" "=&t,t")
+	(div:SF (match_operand:SF 1 "s_register_operand" "t,t")
+		(match_operand:SF 2 "s_register_operand" "t,t")))]
   "TARGET_32BIT && TARGET_HARD_FLOAT && TARGET_VFP"
   "fdivs%?\\t%0, %1, %2"
   [(set_attr "predicable" "yes")
    (set_attr "predicable_short_it" "no")
+   (set_attr "arch" "*,armv6_or_vfpv3")
    (set_attr "type" "fdivs")]
 )
 
 (define_insn "*divdf3_vfp"
-  [(set (match_operand:DF	  0 "s_register_operand" "=w")
-	(div:DF (match_operand:DF 1 "s_register_operand" "w")
-		(match_operand:DF 2 "s_register_operand" "w")))]
+  [(set (match_operand:DF	  0 "s_register_operand" "=&w,w")
+	(div:DF (match_operand:DF 1 "s_register_operand" "w,w")
+		(match_operand:DF 2 "s_register_operand" "w,w")))]
   "TARGET_32BIT && TARGET_HARD_FLOAT && TARGET_VFP_DOUBLE"
   "fdivd%?\\t%P0, %P1, %P2"
   [(set_attr "predicable" "yes")
    (set_attr "predicable_short_it" "no")
+   (set_attr "arch" "*,armv6_or_vfpv3")
    (set_attr "type" "fdivd")]
 )
 
@@ -1070,23 +1075,28 @@
 
 ;; Sqrt insns.
 
+; VFP9 Erratum 760019: It's potentially unsafe to overwrite the input
+; operands, so mark the output as early clobber for VFPv2 on ARMv5 or
+; earlier.
 (define_insn "*sqrtsf2_vfp"
-  [(set (match_operand:SF	   0 "s_register_operand" "=t")
-	(sqrt:SF (match_operand:SF 1 "s_register_operand" "t")))]
+  [(set (match_operand:SF	   0 "s_register_operand" "=&t,t")
+	(sqrt:SF (match_operand:SF 1 "s_register_operand" "t,t")))]
   "TARGET_32BIT && TARGET_HARD_FLOAT && TARGET_VFP"
   "fsqrts%?\\t%0, %1"
   [(set_attr "predicable" "yes")
    (set_attr "predicable_short_it" "no")
+   (set_attr "arch" "*,armv6_or_vfpv3")
    (set_attr "type" "fsqrts")]
 )
 
 (define_insn "*sqrtdf2_vfp"
-  [(set (match_operand:DF	   0 "s_register_operand" "=w")
-	(sqrt:DF (match_operand:DF 1 "s_register_operand" "w")))]
+  [(set (match_operand:DF	   0 "s_register_operand" "=&w,w")
+	(sqrt:DF (match_operand:DF 1 "s_register_operand" "w,w")))]
   "TARGET_32BIT && TARGET_HARD_FLOAT && TARGET_VFP_DOUBLE"
   "fsqrtd%?\\t%P0, %P1"
   [(set_attr "predicable" "yes")
    (set_attr "predicable_short_it" "no")
+   (set_attr "arch" "*,armv6_or_vfpv3")
    (set_attr "type" "fsqrtd")]
 )
 
@@ -1321,6 +1331,22 @@
   [(set_attr "type" "f_minmax<vfp_type>")
    (set_attr "conds" "unconditional")]
 )
+
+;; Write Floating-point Status and Control Register.
+(define_insn "set_fpscr"
+  [(unspec_volatile [(match_operand:SI 0 "register_operand" "r")] VUNSPEC_SET_FPSCR)]
+  "TARGET_VFP && TARGET_HARD_FLOAT"
+  "mcr\\tp10, 7, %0, cr1, cr0, 0\\t @SET_FPSCR"
+  [(set_attr "type" "mrs")])
+
+;; Read Floating-point Status and Control Register.
+(define_insn "get_fpscr"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (unspec_volatile:SI [(const_int 0)] VUNSPEC_GET_FPSCR))]
+  "TARGET_VFP && TARGET_HARD_FLOAT"
+  "mrc\\tp10, 7, %0, cr1, cr0, 0\\t @GET_FPSCR"
+  [(set_attr "type" "mrs")])
+
 
 ;; Unimplemented insns:
 ;; fldm*

@@ -1031,8 +1031,8 @@ destroy_loop_vec_info (loop_vec_info loop_vinfo, bool clean_stmts)
   LOOP_VINFO_REDUCTIONS (loop_vinfo).release ();
   LOOP_VINFO_REDUCTION_CHAINS (loop_vinfo).release ();
 
-  if (LOOP_VINFO_PEELING_HTAB (loop_vinfo).is_created ())
-    LOOP_VINFO_PEELING_HTAB (loop_vinfo).dispose ();
+  delete LOOP_VINFO_PEELING_HTAB (loop_vinfo);
+  LOOP_VINFO_PEELING_HTAB (loop_vinfo) = NULL;
 
   destroy_cost_data (LOOP_VINFO_TARGET_COST_DATA (loop_vinfo));
 
@@ -2987,7 +2987,7 @@ vect_estimate_min_profitable_iters (loop_vec_info loop_vinfo,
   /* vector version will never be profitable.  */
   else
     {
-      if (LOOP_VINFO_LOOP (loop_vinfo)->force_vect)
+      if (LOOP_VINFO_LOOP (loop_vinfo)->force_vectorize)
 	warning_at (vect_location, OPT_Wopenmp_simd, "vectorization "
 		    "did not happen for a simd loop");
 
@@ -3694,6 +3694,7 @@ get_initial_def_for_reduction (gimple stmt, tree init_val,
     {
       case WIDEN_SUM_EXPR:
       case DOT_PROD_EXPR:
+      case SAD_EXPR:
       case PLUS_EXPR:
       case MINUS_EXPR:
       case BIT_IOR_EXPR:
@@ -6114,19 +6115,17 @@ vect_transform_loop (loop_vec_info loop_vinfo)
   scale_loop_profile (loop, GCOV_COMPUTE_SCALE (1, vectorization_factor),
 		      expected_iterations / vectorization_factor);
   loop->nb_iterations_upper_bound
-    = loop->nb_iterations_upper_bound.udiv (double_int::from_uhwi (vectorization_factor),
-					    FLOOR_DIV_EXPR);
+    = wi::udiv_floor (loop->nb_iterations_upper_bound, vectorization_factor);
   if (LOOP_VINFO_PEELING_FOR_GAPS (loop_vinfo)
-      && loop->nb_iterations_upper_bound != double_int_zero)
-    loop->nb_iterations_upper_bound = loop->nb_iterations_upper_bound - double_int_one;
+      && loop->nb_iterations_upper_bound != 0)
+    loop->nb_iterations_upper_bound = loop->nb_iterations_upper_bound - 1;
   if (loop->any_estimate)
     {
       loop->nb_iterations_estimate
-        = loop->nb_iterations_estimate.udiv (double_int::from_uhwi (vectorization_factor),
-					     FLOOR_DIV_EXPR);
+        = wi::udiv_floor (loop->nb_iterations_estimate, vectorization_factor);
        if (LOOP_VINFO_PEELING_FOR_GAPS (loop_vinfo)
-	   && loop->nb_iterations_estimate != double_int_zero)
-	 loop->nb_iterations_estimate = loop->nb_iterations_estimate - double_int_one;
+	   && loop->nb_iterations_estimate != 0)
+	 loop->nb_iterations_estimate = loop->nb_iterations_estimate - 1;
     }
 
   if (dump_enabled_p ())

@@ -1,6 +1,79 @@
-2014-04-22  Release Manager
+2014-07-16  Dodji Seketeli  <dodji@redhat.com>
 
-	* GCC 4.9.0 released.
+	Support location tracking for built-in macro tokens
+	* include/line-map.h (line_maps::builtin_location): New data
+	member.
+	(line_map_init): Add a new parameter to initialize the new
+	line_maps::builtin_location data member.
+	* line-map.c (linemap_init): Initialize the
+	line_maps::builtin_location data member.
+	* macro.c (builtin_macro): Create a macro map and track the token
+	resulting from the expansion of a built-in macro.
+
+2014-07-10  Edward Smith-Rowland  <3dw4rd@verizon.net>
+	    Jonathan Wakely  <jwakely@redhat.com>
+
+	PR preprocessor/61389
+	* macro.c (_cpp_arguments_ok, parse_params, create_iso_definition):
+	Warning messages mention C++11 in c++ mode and C99 in c mode.
+	* lex.c (lex_identifier_intern, lex_identifier): Ditto
+
+2014-07-09  Edward Smith-Rowland  <3dw4rd@verizon.net>
+
+	PR c++/58155 - -Wliteral-suffix warns about tokens which are skipped
+	by preprocessor
+	* lex.c (lex_raw_string ()): Do not warn about invalid suffix
+	if skipping. (lex_string ()): Ditto.
+
+2014-06-04  Edward Smith-Rowland  <3dw4rd@verizon.net>
+
+	PR c++/61038
+	* macro.c (stringify_arg (cpp_reader *, macro_arg *)):
+	Combine user-defined escape logic with the other string and char logic.
+
+2014-05-26  Richard Biener  <rguenther@suse.de>
+
+	* configure.ac: Remove long long and __int64 type checks,
+	add check for uint64_t and fail if that wasn't found.
+	* include/cpplib.h (cpp_num_part): Use uint64_t.
+	* config.in: Regenerate.
+	* configure: Likewise.
+
+2014-05-21  Marek Polacek  <polacek@redhat.com>
+
+	PR c/61212
+	* files.c (find_file_in_dir): Add parens around &&.
+
+2014-05-20  Edward Smith-Rowland  <3dw4rd@verizon.net>
+
+	PR c++/61038
+	* macro.c (stringify_arg (cpp_reader *, macro_arg *)):
+	Check for user-defined literal strings and user-defined literal chars
+	to escape necessary characters.
+
+2014-05-20  Richard Biener  <rguenther@suse.de>
+
+	* configure.ac: Copy gcc logic of detecting a 64bit type.
+	Remove HOST_WIDE_INT define.
+	* include/cpplib.h: typedef cpp_num_part to a 64bit type,
+	similar to how hwint.h does it.
+	* config.in: Regenerate.
+	* configure: Likewise.
+
+2014-05-09  Joey Ye  <joey.ye@arm.com>
+
+	* files.c (find_file_in_dir): Always try to shorten for DOS
+	non-system headers.
+	* init.c (ENABLE_CANONICAL_SYSTEM_HEADERS): Default enabled for DOS.
+
+2014-05-07  Richard Biener  <rguenther@suse.de>
+
+	* configure.ac: Always set need_64bit_hwint to yes.
+	* configure: Regenerated.
+
+2014-04-22  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* lex.c: Remove Solaris 9 reference.
 
 2014-02-24  Walter Lee  <walt@tilera.com>
 

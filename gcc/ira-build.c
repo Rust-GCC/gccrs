@@ -515,6 +515,7 @@ ira_create_allocno (int regno, bool cap_p,
   ALLOCNO_CALL_FREQ (a) = 0;
   ALLOCNO_CALLS_CROSSED_NUM (a) = 0;
   ALLOCNO_CHEAP_CALLS_CROSSED_NUM (a) = 0;
+  CLEAR_HARD_REG_SET (ALLOCNO_CROSSED_CALLS_CLOBBERED_REGS (a));
 #ifdef STACK_REGS
   ALLOCNO_NO_STACK_REG_P (a) = false;
   ALLOCNO_TOTAL_NO_STACK_REG_P (a) = false;
@@ -913,6 +914,8 @@ create_cap_allocno (ira_allocno_t a)
 
   ALLOCNO_CALLS_CROSSED_NUM (cap) = ALLOCNO_CALLS_CROSSED_NUM (a);
   ALLOCNO_CHEAP_CALLS_CROSSED_NUM (cap) = ALLOCNO_CHEAP_CALLS_CROSSED_NUM (a);
+  IOR_HARD_REG_SET (ALLOCNO_CROSSED_CALLS_CLOBBERED_REGS (cap),
+		    ALLOCNO_CROSSED_CALLS_CLOBBERED_REGS (a));
   if (internal_flag_ira_verbose > 2 && ira_dump_file != NULL)
     {
       fprintf (ira_dump_file, "    Creating cap ");
@@ -2048,6 +2051,8 @@ propagate_allocno_info (void)
 	    += ALLOCNO_CALLS_CROSSED_NUM (a);
 	  ALLOCNO_CHEAP_CALLS_CROSSED_NUM (parent_a)
 	    += ALLOCNO_CHEAP_CALLS_CROSSED_NUM (a);
+ 	  IOR_HARD_REG_SET (ALLOCNO_CROSSED_CALLS_CLOBBERED_REGS (parent_a),
+ 			    ALLOCNO_CROSSED_CALLS_CLOBBERED_REGS (a));
 	  ALLOCNO_EXCESS_PRESSURE_POINTS_NUM (parent_a)
 	    += ALLOCNO_EXCESS_PRESSURE_POINTS_NUM (a);
 	  aclass = ALLOCNO_CLASS (a);
@@ -2428,6 +2433,9 @@ propagate_some_info_from_allocno (ira_allocno_t a, ira_allocno_t from_a)
   ALLOCNO_CALLS_CROSSED_NUM (a) += ALLOCNO_CALLS_CROSSED_NUM (from_a);
   ALLOCNO_CHEAP_CALLS_CROSSED_NUM (a)
     += ALLOCNO_CHEAP_CALLS_CROSSED_NUM (from_a);
+  IOR_HARD_REG_SET (ALLOCNO_CROSSED_CALLS_CLOBBERED_REGS (a),
+ 		    ALLOCNO_CROSSED_CALLS_CLOBBERED_REGS (from_a));
+
   ALLOCNO_EXCESS_PRESSURE_POINTS_NUM (a)
     += ALLOCNO_EXCESS_PRESSURE_POINTS_NUM (from_a);
   if (! ALLOCNO_BAD_SPILL_P (from_a))
@@ -2813,8 +2821,9 @@ sort_conflict_id_map (void)
       FOR_EACH_ALLOCNO_OBJECT (a, obj, oi)
 	ira_object_id_map[num++] = obj;
     }
-  qsort (ira_object_id_map, num, sizeof (ira_object_t),
-	 object_range_compare_func);
+  if (num > 1)
+    qsort (ira_object_id_map, num, sizeof (ira_object_t),
+	   object_range_compare_func);
   for (i = 0; i < num; i++)
     {
       ira_object_t obj = ira_object_id_map[i];
@@ -3059,6 +3068,8 @@ copy_info_to_removed_store_destinations (int regno)
 	+= ALLOCNO_CALLS_CROSSED_NUM (a);
       ALLOCNO_CHEAP_CALLS_CROSSED_NUM (parent_a)
 	+= ALLOCNO_CHEAP_CALLS_CROSSED_NUM (a);
+      IOR_HARD_REG_SET (ALLOCNO_CROSSED_CALLS_CLOBBERED_REGS (parent_a),
+ 			ALLOCNO_CROSSED_CALLS_CLOBBERED_REGS (a));
       ALLOCNO_EXCESS_PRESSURE_POINTS_NUM (parent_a)
 	+= ALLOCNO_EXCESS_PRESSURE_POINTS_NUM (a);
       merged_p = true;

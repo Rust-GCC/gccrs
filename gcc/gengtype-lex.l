@@ -52,12 +52,12 @@ update_lineno (const char *l, size_t len)
 CID	[[:alpha:]_][[:alnum:]_]*
 WS	[[:space:]]+
 HWS	[ \t\r\v\f]*
-IWORD	short|long|(un)?signed|char|int|HOST_WIDE_INT|HOST_WIDEST_INT|bool|size_t|BOOL_BITFIELD|CPPCHAR_SIGNED_T|ino_t|dev_t|HARD_REG_SET
+IWORD	short|long|(un)?signed|char|int|HOST_WIDE_INT|uint64_t|int64_t|bool|size_t|BOOL_BITFIELD|CPPCHAR_SIGNED_T|ino_t|dev_t|HARD_REG_SET
 ITYPE	{IWORD}({WS}{IWORD})*
     /* Include '::' in identifiers to capture C++ scope qualifiers.  */
 ID	{CID}({HWS}::{HWS}{CID})*
 EOID	[^[:alnum:]_]
-CXX_KEYWORD inline|public:|private:|protected:|template|operator|friend
+CXX_KEYWORD inline|public:|private:|protected:|template|operator|friend|static
 
 %x in_struct in_struct_comment in_comment
 %option warn noyywrap nounput nodefault perf-report
@@ -110,6 +110,7 @@ CXX_KEYWORD inline|public:|private:|protected:|template|operator|friend
 "const"/{EOID}			/* don't care */
 {CXX_KEYWORD}/{EOID}			|
 "~"					|
+"^"					|
 "&"					{
     *yylval = XDUPVAR (const char, yytext, yyleng, yyleng + 1);
     return IGNORABLE_CXX_KEYWORD;

@@ -68,6 +68,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-inline.h"
 #include "target.h"
 #include "tree-cfgcleanup.h"
+#include "builtins.h"
 
 /* Specifies types of loops that may be unrolled.  */
 
@@ -490,7 +491,7 @@ remove_exits_and_undefined_stmts (struct loop *loop, unsigned int npeeled)
 	 into unreachable (or trap when debugging experience is supposed
 	 to be good).  */
       if (!elt->is_exit
-	  && elt->bound.ult (double_int::from_uhwi (npeeled)))
+	  && wi::ltu_p (elt->bound, npeeled))
 	{
 	  gimple_stmt_iterator gsi = gsi_for_stmt (elt->stmt);
 	  gimple stmt = gimple_build_call
@@ -507,7 +508,7 @@ remove_exits_and_undefined_stmts (struct loop *loop, unsigned int npeeled)
 	}
       /* If we know the exit will be taken after peeling, update.  */
       else if (elt->is_exit
-	       && elt->bound.ule (double_int::from_uhwi (npeeled)))
+	       && wi::leu_p (elt->bound, npeeled))
 	{
 	  basic_block bb = gimple_bb (elt->stmt);
 	  edge exit_edge = EDGE_SUCC (bb, 0);
@@ -547,7 +548,7 @@ remove_redundant_iv_tests (struct loop *loop)
       /* Exit is pointless if it won't be taken before loop reaches
 	 upper bound.  */
       if (elt->is_exit && loop->any_upper_bound
-          && loop->nb_iterations_upper_bound.ult (elt->bound))
+          && wi::ltu_p (loop->nb_iterations_upper_bound, elt->bound))
 	{
 	  basic_block bb = gimple_bb (elt->stmt);
 	  edge exit_edge = EDGE_SUCC (bb, 0);
@@ -564,8 +565,8 @@ remove_redundant_iv_tests (struct loop *loop)
 	      || !integer_zerop (niter.may_be_zero)
 	      || !niter.niter
 	      || TREE_CODE (niter.niter) != INTEGER_CST
-	      || !loop->nb_iterations_upper_bound.ult
-		   (tree_to_double_int (niter.niter)))
+	      || !wi::ltu_p (loop->nb_iterations_upper_bound,
+			     wi::to_widest (niter.niter)))
 	    continue;
 	  
 	  if (dump_file && (dump_flags & TDF_DETAILS))
@@ -946,7 +947,7 @@ canonicalize_loop_induction_variables (struct loop *loop,
      by find_loop_niter_by_eval.  Be sure to keep it for future.  */
   if (niter && TREE_CODE (niter) == INTEGER_CST)
     {
-      record_niter_bound (loop, tree_to_double_int (niter),
+      record_niter_bound (loop, wi::to_widest (niter),
 			  exit == single_likely_exit (loop), true);
     }
 
@@ -1129,7 +1130,7 @@ tree_unroll_loops_completely_1 (bool may_increase_size, bool unroll_outer,
 
   /* Don't unroll #pragma omp simd loops until the vectorizer
      attempts to vectorize those.  */
-  if (loop->force_vect)
+  if (loop->force_vectorize)
     return false;
 
   /* Try to unroll this loop.  */
@@ -1256,21 +1257,6 @@ tree_unroll_loops_completely (bool may_increase_size, bool unroll_outer)
 
 /* Canonical induction variable creation pass.  */
 
-static unsigned int
-tree_ssa_loop_ivcanon (void)
-{
-  if (number_of_loops (cfun) <= 1)
-    return 0;
-
-  return canonicalize_induction_variables ();
-}
-
-static bool
-gate_tree_ssa_loop_ivcanon (void)
-{
-  return flag_tree_loop_ivcanon != 0;
-}
-
 namespace {
 
 const pass_data pass_data_iv_canon =
@@ -1278,8 +1264,6 @@ const pass_data pass_data_iv_canon =
   GIMPLE_PASS, /* type */
   "ivcanon", /* name */
   OPTGROUP_LOOP, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_TREE_LOOP_IVCANON, /* tv_id */
   ( PROP_cfg | PROP_ssa ), /* properties_required */
   0, /* properties_provided */
@@ -1296,10 +1280,19 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_tree_ssa_loop_ivcanon (); }
-  unsigned int execute () { return tree_ssa_loop_ivcanon (); }
+  virtual bool gate (function *) { return flag_tree_loop_ivcanon != 0; }
+  virtual unsigned int execute (function *fun);
 
 }; // class pass_iv_canon
+
+unsigned int
+pass_iv_canon::execute (function *fun)
+{
+  if (number_of_loops (fun) <= 1)
+    return 0;
+
+  return canonicalize_induction_variables ();
+}
 
 } // anon namespace
 
@@ -1311,23 +1304,6 @@ make_pass_iv_canon (gcc::context *ctxt)
 
 /* Complete unrolling of loops.  */
 
-static unsigned int
-tree_complete_unroll (void)
-{
-  if (number_of_loops (cfun) <= 1)
-    return 0;
-
-  return tree_unroll_loops_completely (flag_unroll_loops
-				       || flag_peel_loops
-				       || optimize >= 3, true);
-}
-
-static bool
-gate_tree_complete_unroll (void)
-{
-  return true;
-}
-
 namespace {
 
 const pass_data pass_data_complete_unroll =
@@ -1335,8 +1311,6 @@ const pass_data pass_data_complete_unroll =
   GIMPLE_PASS, /* type */
   "cunroll", /* name */
   OPTGROUP_LOOP, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_COMPLETE_UNROLL, /* tv_id */
   ( PROP_cfg | PROP_ssa ), /* properties_required */
   0, /* properties_provided */
@@ -1353,10 +1327,20 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_tree_complete_unroll (); }
-  unsigned int execute () { return tree_complete_unroll (); }
+  virtual unsigned int execute (function *);
 
 }; // class pass_complete_unroll
+
+unsigned int
+pass_complete_unroll::execute (function *fun)
+{
+  if (number_of_loops (fun) <= 1)
+    return 0;
+
+  return tree_unroll_loops_completely (flag_unroll_loops
+				       || flag_peel_loops
+				       || optimize >= 3, true);
+}
 
 } // anon namespace
 
@@ -1368,31 +1352,6 @@ make_pass_complete_unroll (gcc::context *ctxt)
 
 /* Complete unrolling of inner loops.  */
 
-static unsigned int
-tree_complete_unroll_inner (void)
-{
-  unsigned ret = 0;
-
-  loop_optimizer_init (LOOPS_NORMAL
-		       | LOOPS_HAVE_RECORDED_EXITS);
-  if (number_of_loops (cfun) > 1)
-    {
-      scev_initialize ();
-      ret = tree_unroll_loops_completely (optimize >= 3, false);
-      free_numbers_of_iterations_estimates ();
-      scev_finalize ();
-    }
-  loop_optimizer_finalize ();
-
-  return ret;
-}
-
-static bool
-gate_tree_complete_unroll_inner (void)
-{
-  return optimize >= 2;
-}
-
 namespace {
 
 const pass_data pass_data_complete_unrolli =
@@ -1400,14 +1359,12 @@ const pass_data pass_data_complete_unrolli =
   GIMPLE_PASS, /* type */
   "cunrolli", /* name */
   OPTGROUP_LOOP, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_COMPLETE_UNROLL, /* tv_id */
   ( PROP_cfg | PROP_ssa ), /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  TODO_verify_flow, /* todo_flags_finish */
+  0, /* todo_flags_finish */
 };
 
 class pass_complete_unrolli : public gimple_opt_pass
@@ -1418,10 +1375,29 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_tree_complete_unroll_inner (); }
-  unsigned int execute () { return tree_complete_unroll_inner (); }
+  virtual bool gate (function *) { return optimize >= 2; }
+  virtual unsigned int execute (function *);
 
 }; // class pass_complete_unrolli
+
+unsigned int
+pass_complete_unrolli::execute (function *fun)
+{
+  unsigned ret = 0;
+
+  loop_optimizer_init (LOOPS_NORMAL
+		       | LOOPS_HAVE_RECORDED_EXITS);
+  if (number_of_loops (fun) > 1)
+    {
+      scev_initialize ();
+      ret = tree_unroll_loops_completely (optimize >= 3, false);
+      free_numbers_of_iterations_estimates ();
+      scev_finalize ();
+    }
+  loop_optimizer_finalize ();
+
+  return ret;
+}
 
 } // anon namespace
 

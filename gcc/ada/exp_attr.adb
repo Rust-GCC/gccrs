@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -800,8 +800,8 @@ package body Exp_Attr is
          else
             pragma Assert
               (Nkind (Parent (Loop_Stmt)) = N_Handled_Sequence_Of_Statements
-                and then Nkind (Parent (Parent (Loop_Stmt))) =
-                                                      N_Block_Statement);
+                and then
+                  Nkind (Parent (Parent (Loop_Stmt))) = N_Block_Statement);
 
             Decls := Declarations (Parent (Parent (Loop_Stmt)));
          end if;
@@ -1022,6 +1022,19 @@ package body Exp_Attr is
 
       if Present (Result) then
          Rewrite (Loop_Stmt, Result);
+
+         --  The insertion of condition actions associated with an iteration
+         --  scheme is usually done by the expansion of loop statements. The
+         --  expansion of Loop_Entry however reuses the iteration scheme to
+         --  build an if statement. As a result any condition actions must be
+         --  inserted before the if statement to avoid references before
+         --  declaration.
+
+         if Present (Scheme) and then Present (Condition_Actions (Scheme)) then
+            Insert_Actions (Loop_Stmt, Condition_Actions (Scheme));
+            Set_Condition_Actions (Scheme, No_List);
+         end if;
+
          Analyze (Loop_Stmt);
 
       --  The conditional block was analyzed when a previous 'Loop_Entry was
@@ -2850,7 +2863,7 @@ package body Exp_Attr is
       when Attribute_First =>
 
          --  If the prefix type is a constrained packed array type which
-         --  already has a Packed_Array_Type representation defined, then
+         --  already has a Packed_Array_Impl_Type representation defined, then
          --  replace this attribute with a direct reference to 'First of the
          --  appropriate index subtype (since otherwise the back end will try
          --  to give us the value of 'First for this implementation type).
@@ -3012,6 +3025,73 @@ package body Exp_Attr is
          Analyze_And_Resolve (N, P_Type);
       end From_Any;
 
+      ----------------------
+      -- Has_Same_Storage --
+      ----------------------
+
+      when Attribute_Has_Same_Storage => Has_Same_Storage : declare
+            Loc : constant Source_Ptr := Sloc (N);
+
+            X   : constant Node_Id := Prefix (N);
+            Y   : constant Node_Id := First (Expressions (N));
+            --  The arguments
+
+            X_Addr, Y_Addr : Node_Id;
+            --  Rhe expressions for their addresses
+
+            X_Size, Y_Size : Node_Id;
+            --  Rhe expressions for their sizes
+
+      begin
+         --  The attribute is expanded as:
+
+         --    (X'address = Y'address)
+         --      and then (X'Size = Y'Size)
+
+         --  If both arguments have the same Etype the second conjunct can be
+         --  omitted.
+
+         X_Addr :=
+           Make_Attribute_Reference (Loc,
+                                     Attribute_Name => Name_Address,
+                                     Prefix         => New_Copy_Tree (X));
+
+         Y_Addr :=
+           Make_Attribute_Reference (Loc,
+                                     Attribute_Name => Name_Address,
+                                     Prefix         => New_Copy_Tree (Y));
+
+         X_Size :=
+           Make_Attribute_Reference (Loc,
+                                     Attribute_Name => Name_Size,
+                                     Prefix         => New_Copy_Tree (X));
+
+         Y_Size :=
+           Make_Attribute_Reference (Loc,
+                                     Attribute_Name => Name_Size,
+                                     Prefix         => New_Copy_Tree (Y));
+
+         if Etype (X) = Etype (Y) then
+            Rewrite (N,
+                     (Make_Op_Eq (Loc,
+                      Left_Opnd  => X_Addr,
+                      Right_Opnd => Y_Addr)));
+         else
+            Rewrite (N,
+                     Make_Op_And (Loc,
+                       Left_Opnd  =>
+                         Make_Op_Eq (Loc,
+                           Left_Opnd  => X_Addr,
+                           Right_Opnd => Y_Addr),
+                       Right_Opnd =>
+                         Make_Op_Eq (Loc,
+                           Left_Opnd  => X_Size,
+                           Right_Opnd => Y_Size)));
+         end if;
+
+         Analyze_And_Resolve (N, Standard_Boolean);
+      end Has_Same_Storage;
+
       --------------
       -- Identity --
       --------------
@@ -3158,6 +3238,22 @@ package body Exp_Attr is
          --  elsewhere, so here we just completely ignore the expansion.
 
          if No (U_Type) then
+            return;
+         end if;
+
+         --  Stream operations can appear in user code even if the restriction
+         --  No_Streams is active (for example, when instantiating a predefined
+         --  container). In that case rewrite the attribute as a Raise to
+         --  prevent any run-time use.
+
+         --  This is not an explicit raise, the Reason code is wrong, we most
+         --  likely need a new Reason code ???
+
+         if Restriction_Active (No_Streams) then
+            Rewrite (N,
+              Make_Raise_Program_Error (Sloc (N),
+                Reason => PE_Explicit_Raise));
+            Set_Etype (N, B_Type);
             return;
          end if;
 
@@ -3430,7 +3526,7 @@ package body Exp_Attr is
       when Attribute_Last =>
 
          --  If the prefix type is a constrained packed array type which
-         --  already has a Packed_Array_Type representation defined, then
+         --  already has a Packed_Array_Impl_Type representation defined, then
          --  replace this attribute with a direct reference to 'Last of the
          --  appropriate index subtype (since otherwise the back end will try
          --  to give us the value of 'Last for this implementation type).
@@ -3580,11 +3676,11 @@ package body Exp_Attr is
                return;
 
             --  If the prefix type is a constrained packed array type which
-            --  already has a Packed_Array_Type representation defined, then
-            --  replace this attribute with a direct reference to 'Range_Length
-            --  of the appropriate index subtype (since otherwise the back end
-            --  will try to give us the value of 'Length for this
-            --  implementation type).
+            --  already has a Packed_Array_Impl_Type representation defined,
+            --  then replace this attribute with a reference to 'Range_Length
+            --  of the appropriate index subtype (since otherwise the
+            --  back end will try to give us the value of 'Length for
+            --  this implementation type).s
 
             elsif Is_Constrained (Ptyp) then
                Rewrite (N,
@@ -3962,14 +4058,13 @@ package body Exp_Attr is
          Temp    : Entity_Id;
 
       begin
-         --  If assertions are disabled, no need to create the declaration
-         --  that preserves the value.
-
-         if not Assertions_Enabled then
-            return;
-         end if;
-
          Temp := Make_Temporary (Loc, 'T', Pref);
+
+         --  Set the entity kind now in order to mark the temporary as a
+         --  handler of attribute 'Old's prefix.
+
+         Set_Ekind (Temp, E_Constant);
+         Set_Stores_Attribute_Old_Prefix (Temp);
 
          --  Climb the parent chain looking for subprogram _Postconditions
 
@@ -3977,6 +4072,15 @@ package body Exp_Attr is
          while Present (Subp) loop
             exit when Nkind (Subp) = N_Subprogram_Body
               and then Chars (Defining_Entity (Subp)) = Name_uPostconditions;
+
+            --  If assertions are disabled, no need to create the declaration
+            --  that preserves the value. The postcondition pragma in which
+            --  'Old appears will be checked or disabled according to the
+            --  current policy in effect.
+
+            if Nkind (Subp) = N_Pragma and then not Is_Checked (Subp) then
+               return;
+            end if;
 
             Subp := Parent (Subp);
          end loop;
@@ -4136,6 +4240,19 @@ package body Exp_Attr is
             return;
          end if;
 
+         --  Stream operations can appear in user code even if the restriction
+         --  No_Streams is active (for example, when instantiating a predefined
+         --  container). In that case rewrite the attribute as a Raise to
+         --  prevent any run-time use.
+
+         if Restriction_Active (No_Streams) then
+            Rewrite (N,
+              Make_Raise_Program_Error (Sloc (N),
+                Reason => PE_Explicit_Raise));
+            Set_Etype (N, Standard_Void_Type);
+            return;
+         end if;
+
          --  If TSS for Output is present, just call it
 
          Pname := Find_Stream_Subprogram (P_Type, TSS_Stream_Output);
@@ -4179,10 +4296,9 @@ package body Exp_Attr is
                Analyze (N);
                return;
 
-            --  For elementary types, we call the W_xxx routine directly.
-            --  Note that the effect of Write and Output is identical for
-            --  the case of an elementary type, since there are no
-            --  discriminants or bounds.
+            --  For elementary types, we call the W_xxx routine directly. Note
+            --  that the effect of Write and Output is identical for the case
+            --  of an elementary type (there are no discriminants or bounds).
 
             elsif Is_Elementary_Type (U_Type) then
 
@@ -4439,7 +4555,8 @@ package body Exp_Attr is
       ----------
 
       --  1. Deal with enumeration types with holes
-      --  2. For floating-point, generate call to attribute function
+      --  2. For floating-point, generate call to attribute function and deal
+      --       with range checking if Check_Float_Overflow mode is set.
       --  3. For other cases, deal with constraint checking
 
       when Attribute_Pred => Pred :
@@ -4511,9 +4628,36 @@ package body Exp_Attr is
             Analyze_And_Resolve (N, Typ);
 
          --  For floating-point, we transform 'Pred into a call to the Pred
-         --  floating-point attribute function in Fat_xxx (xxx is root type)
+         --  floating-point attribute function in Fat_xxx (xxx is root type).
 
          elsif Is_Floating_Point_Type (Ptyp) then
+
+            --  Handle case of range check. The Do_Range_Check flag is set only
+            --  in Check_Float_Overflow mode, and what we need is a specific
+            --  check against typ'First, since that is the only overflow case.
+
+            declare
+               Expr : constant Node_Id := First (Exprs);
+            begin
+               if Do_Range_Check (Expr) then
+                  Set_Do_Range_Check (Expr, False);
+                  Insert_Action (N,
+                    Make_Raise_Constraint_Error (Loc,
+                      Condition =>
+                        Make_Op_Eq (Loc,
+                          Left_Opnd  => Duplicate_Subexpr (Expr),
+                          Right_Opnd =>
+                            Make_Attribute_Reference (Loc,
+                              Attribute_Name => Name_First,
+                              Prefix         =>
+                                New_Occurrence_Of (Base_Type (Ptyp), Loc))),
+                      Reason => CE_Overflow_Check_Failed),
+                  Suppress => All_Checks);
+               end if;
+            end;
+
+            --  Transform into call to attribute function
+
             Expand_Fpt_Attribute_R (N);
             Analyze_And_Resolve (N, Typ);
 
@@ -4733,6 +4877,19 @@ package body Exp_Attr is
          --  elsewhere, so here we just completely ignore the expansion.
 
          if No (U_Type) then
+            return;
+         end if;
+
+         --  Stream operations can appear in user code even if the restriction
+         --  No_Streams is active (for example, when instantiating a predefined
+         --  container). In that case rewrite the attribute as a Raise to
+         --  prevent any run-time use.
+
+         if Restriction_Active (No_Streams) then
+            Rewrite (N,
+              Make_Raise_Program_Error (Sloc (N),
+                Reason => PE_Explicit_Raise));
+            Set_Etype (N, B_Type);
             return;
          end if;
 
@@ -4959,73 +5116,6 @@ package body Exp_Attr is
 
       when Attribute_Rounding =>
          Expand_Fpt_Attribute_R (N);
-
-      ------------------
-      -- Same_Storage --
-      ------------------
-
-      when Attribute_Same_Storage => Same_Storage : declare
-         Loc : constant Source_Ptr := Sloc (N);
-
-         X   : constant Node_Id := Prefix (N);
-         Y   : constant Node_Id := First (Expressions (N));
-         --  The arguments
-
-         X_Addr, Y_Addr : Node_Id;
-         --  Rhe expressions for their addresses
-
-         X_Size, Y_Size : Node_Id;
-         --  Rhe expressions for their sizes
-
-      begin
-         --  The attribute is expanded as:
-
-         --    (X'address = Y'address)
-         --      and then (X'Size = Y'Size)
-
-         --  If both arguments have the same Etype the second conjunct can be
-         --  omitted.
-
-         X_Addr :=
-           Make_Attribute_Reference (Loc,
-             Attribute_Name => Name_Address,
-             Prefix         => New_Copy_Tree (X));
-
-         Y_Addr :=
-           Make_Attribute_Reference (Loc,
-             Attribute_Name => Name_Address,
-             Prefix         => New_Copy_Tree (Y));
-
-         X_Size :=
-           Make_Attribute_Reference (Loc,
-             Attribute_Name => Name_Size,
-             Prefix         => New_Copy_Tree (X));
-
-         Y_Size :=
-           Make_Attribute_Reference (Loc,
-             Attribute_Name => Name_Size,
-             Prefix         => New_Copy_Tree (Y));
-
-         if Etype (X) = Etype (Y) then
-            Rewrite (N,
-              (Make_Op_Eq (Loc,
-                 Left_Opnd  => X_Addr,
-                 Right_Opnd => Y_Addr)));
-         else
-            Rewrite (N,
-              Make_Op_And (Loc,
-                Left_Opnd  =>
-                  Make_Op_Eq (Loc,
-                    Left_Opnd  => X_Addr,
-                    Right_Opnd => Y_Addr),
-                Right_Opnd =>
-                  Make_Op_Eq (Loc,
-                    Left_Opnd  => X_Size,
-                    Right_Opnd => Y_Size)));
-         end if;
-
-         Analyze_And_Resolve (N, Standard_Boolean);
-      end Same_Storage;
 
       -------------
       -- Scaling --
@@ -5562,6 +5652,33 @@ package body Exp_Attr is
          --  floating-point attribute function in Fat_xxx (xxx is root type)
 
          elsif Is_Floating_Point_Type (Ptyp) then
+
+            --  Handle case of range check. The Do_Range_Check flag is set only
+            --  in Check_Float_Overflow mode, and what we need is a specific
+            --  check against typ'Last, since that is the only overflow case.
+
+            declare
+               Expr : constant Node_Id := First (Exprs);
+            begin
+               if Do_Range_Check (Expr) then
+                  Set_Do_Range_Check (Expr, False);
+                  Insert_Action (N,
+                    Make_Raise_Constraint_Error (Loc,
+                      Condition =>
+                        Make_Op_Eq (Loc,
+                          Left_Opnd  => Duplicate_Subexpr (Expr),
+                          Right_Opnd =>
+                            Make_Attribute_Reference (Loc,
+                              Attribute_Name => Name_Last,
+                              Prefix         =>
+                                New_Occurrence_Of (Base_Type (Ptyp), Loc))),
+                      Reason    => CE_Overflow_Check_Failed),
+                    Suppress => All_Checks);
+               end if;
+            end;
+
+            --  Transform into call to attribute function
+
             Expand_Fpt_Attribute_R (N);
             Analyze_And_Resolve (N, Typ);
 
@@ -6473,6 +6590,19 @@ package body Exp_Attr is
          --  elsewhere, so here we just completely ignore the expansion.
 
          if No (U_Type) then
+            return;
+         end if;
+
+         --  Stream operations can appear in user code even if the restriction
+         --  No_Streams is active (for example, when instantiating a predefined
+         --  container). In that case rewrite the attribute as a Raise to
+         --  prevent any run-time use.
+
+         if Restriction_Active (No_Streams) then
+            Rewrite (N,
+              Make_Raise_Program_Error (Sloc (N),
+                Reason => PE_Explicit_Raise));
+            Set_Etype (N, U_Type);
             return;
          end if;
 
@@ -7539,7 +7669,7 @@ package body Exp_Attr is
 
       return Is_Array_Type (Arr)
         and then Is_Constrained (Arr)
-        and then Present (Packed_Array_Type (Arr));
+        and then Present (Packed_Array_Impl_Type (Arr));
    end Is_Constrained_Packed_Array;
 
    ----------------------------------------

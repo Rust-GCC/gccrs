@@ -88,6 +88,10 @@ static int doloop_size, doloop_level;
 
 struct my_struct *evec;
 
+/* Keep track of association lists.  */
+
+static bool in_assoc_list;
+
 /* Entry point - run all passes for a namespace. */
 
 void
@@ -672,10 +676,10 @@ dummy_expr_callback (gfc_expr **e ATTRIBUTE_UNUSED, int *walk_subtrees,
 
 /* Dummy function for code callback, for use when we really
    don't want to do anything.  */
-static int
-dummy_code_callback (gfc_code **e ATTRIBUTE_UNUSED,
-		     int *walk_subtrees ATTRIBUTE_UNUSED,
-		     void *data ATTRIBUTE_UNUSED)
+int
+gfc_dummy_code_callback (gfc_code **e ATTRIBUTE_UNUSED,
+			 int *walk_subtrees ATTRIBUTE_UNUSED,
+			 void *data ATTRIBUTE_UNUSED)
 {
   return 0;
 }
@@ -820,6 +824,7 @@ optimize_namespace (gfc_namespace *ns)
   current_ns = ns;
   forall_level = 0;
   iterator_level = 0;
+  in_assoc_list = false;
   in_omp_workshare = false;
 
   gfc_code_walker (&ns->code, convert_do_while, dummy_expr_callback, NULL);
@@ -839,7 +844,8 @@ static void
 optimize_reduction (gfc_namespace *ns)
 {
   current_ns = ns;
-  gfc_code_walker (&ns->code, dummy_code_callback, callback_reduction, NULL);
+  gfc_code_walker (&ns->code, gfc_dummy_code_callback,
+		   callback_reduction, NULL);
 
 /* BLOCKs are handled in the expression walker below.  */
   for (ns = ns->contained; ns; ns = ns->sibling)
@@ -1052,6 +1058,11 @@ combine_array_constructor (gfc_expr *e)
 
   /* Array constructors have rank one.  */
   if (e->rank != 1)
+    return false;
+
+  /* Don't try to combine association lists, this makes no sense
+     and leads to an ICE.  */
+  if (in_assoc_list)
     return false;
 
   op1 = e->value.op.op1;
@@ -1940,8 +1951,17 @@ gfc_code_walker (gfc_code **c, walk_code_fn_t codefn, walk_expr_fn_t exprfn,
 
 	    case EXEC_BLOCK:
 	      WALK_SUBCODE (co->ext.block.ns->code);
-	      for (alist = co->ext.block.assoc; alist; alist = alist->next)
-		WALK_SUBEXPR (alist->target);
+	      if (co->ext.block.assoc)
+		{
+		  bool saved_in_assoc_list = in_assoc_list;
+
+		  in_assoc_list = true;
+		  for (alist = co->ext.block.assoc; alist; alist = alist->next)
+		    WALK_SUBEXPR (alist->target);
+
+		  in_assoc_list = saved_in_assoc_list;
+		}
+
 	      break;
 
 	    case EXEC_DO:
@@ -2112,6 +2132,7 @@ gfc_code_walker (gfc_code **c, walk_code_fn_t codefn, walk_expr_fn_t exprfn,
 
 	    case EXEC_OMP_PARALLEL:
 	    case EXEC_OMP_PARALLEL_DO:
+	    case EXEC_OMP_PARALLEL_DO_SIMD:
 	    case EXEC_OMP_PARALLEL_SECTIONS:
 
 	      in_omp_workshare = false;
@@ -2126,12 +2147,31 @@ gfc_code_walker (gfc_code **c, walk_code_fn_t codefn, walk_expr_fn_t exprfn,
 	      in_omp_workshare = true;
 
 	      /* Fall through  */
-	      
+
+	    case EXEC_OMP_DISTRIBUTE:
+	    case EXEC_OMP_DISTRIBUTE_PARALLEL_DO:
+	    case EXEC_OMP_DISTRIBUTE_PARALLEL_DO_SIMD:
+	    case EXEC_OMP_DISTRIBUTE_SIMD:
 	    case EXEC_OMP_DO:
+	    case EXEC_OMP_DO_SIMD:
 	    case EXEC_OMP_SECTIONS:
 	    case EXEC_OMP_SINGLE:
 	    case EXEC_OMP_END_SINGLE:
+	    case EXEC_OMP_SIMD:
+	    case EXEC_OMP_TARGET:
+	    case EXEC_OMP_TARGET_DATA:
+	    case EXEC_OMP_TARGET_TEAMS:
+	    case EXEC_OMP_TARGET_TEAMS_DISTRIBUTE:
+	    case EXEC_OMP_TARGET_TEAMS_DISTRIBUTE_PARALLEL_DO:
+	    case EXEC_OMP_TARGET_TEAMS_DISTRIBUTE_PARALLEL_DO_SIMD:
+	    case EXEC_OMP_TARGET_TEAMS_DISTRIBUTE_SIMD:
+	    case EXEC_OMP_TARGET_UPDATE:
 	    case EXEC_OMP_TASK:
+	    case EXEC_OMP_TEAMS:
+	    case EXEC_OMP_TEAMS_DISTRIBUTE:
+	    case EXEC_OMP_TEAMS_DISTRIBUTE_PARALLEL_DO:
+	    case EXEC_OMP_TEAMS_DISTRIBUTE_PARALLEL_DO_SIMD:
+	    case EXEC_OMP_TEAMS_DISTRIBUTE_SIMD:
 
 	      /* Come to this label only from the
 		 EXEC_OMP_PARALLEL_* cases above.  */
@@ -2140,10 +2180,27 @@ gfc_code_walker (gfc_code **c, walk_code_fn_t codefn, walk_expr_fn_t exprfn,
 
 	      if (co->ext.omp_clauses)
 		{
+		  gfc_omp_namelist *n;
+		  static int list_types[]
+		    = { OMP_LIST_ALIGNED, OMP_LIST_LINEAR, OMP_LIST_DEPEND,
+			OMP_LIST_MAP, OMP_LIST_TO, OMP_LIST_FROM };
+		  size_t idx;
 		  WALK_SUBEXPR (co->ext.omp_clauses->if_expr);
 		  WALK_SUBEXPR (co->ext.omp_clauses->final_expr);
 		  WALK_SUBEXPR (co->ext.omp_clauses->num_threads);
 		  WALK_SUBEXPR (co->ext.omp_clauses->chunk_size);
+		  WALK_SUBEXPR (co->ext.omp_clauses->safelen_expr);
+		  WALK_SUBEXPR (co->ext.omp_clauses->simdlen_expr);
+		  WALK_SUBEXPR (co->ext.omp_clauses->num_teams);
+		  WALK_SUBEXPR (co->ext.omp_clauses->device);
+		  WALK_SUBEXPR (co->ext.omp_clauses->thread_limit);
+		  WALK_SUBEXPR (co->ext.omp_clauses->dist_chunk_size);
+		  for (idx = 0;
+		       idx < sizeof (list_types) / sizeof (list_types[0]);
+		       idx++)
+		    for (n = co->ext.omp_clauses->lists[list_types[idx]];
+			 n; n = n->next)
+		      WALK_SUBEXPR (n->expr);
 		}
 	      break;
 	    default:

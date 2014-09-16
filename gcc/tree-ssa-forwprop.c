@@ -47,11 +47,13 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-pass.h"
 #include "langhooks.h"
 #include "flags.h"
+#include "diagnostic.h"
 #include "expr.h"
 #include "cfgloop.h"
 #include "optabs.h"
 #include "tree-ssa-propagate.h"
 #include "tree-ssa-dom.h"
+#include "builtins.h"
 
 /* This pass propagates the RHS of assignment statements into use
    sites of the LHS of the assignment.  It's basically a specialized
@@ -829,9 +831,9 @@ forward_propagate_addr_expr_1 (tree name, tree def_rhs,
       if ((def_rhs_base = get_addr_base_and_unit_offset (TREE_OPERAND (def_rhs, 0),
 							 &def_rhs_offset)))
 	{
-	  double_int off = mem_ref_offset (lhs);
+	  offset_int off = mem_ref_offset (lhs);
 	  tree new_ptr;
-	  off += double_int::from_shwi (def_rhs_offset);
+	  off += def_rhs_offset;
 	  if (TREE_CODE (def_rhs_base) == MEM_REF)
 	    {
 	      off += mem_ref_offset (def_rhs_base);
@@ -841,7 +843,7 @@ forward_propagate_addr_expr_1 (tree name, tree def_rhs,
 	    new_ptr = build_fold_addr_expr (def_rhs_base);
 	  TREE_OPERAND (lhs, 0) = new_ptr;
 	  TREE_OPERAND (lhs, 1)
-	    = double_int_to_tree (TREE_TYPE (TREE_OPERAND (lhs, 1)), off);
+	    = wide_int_to_tree (TREE_TYPE (TREE_OPERAND (lhs, 1)), off);
 	  tidy_after_forward_propagate_addr (use_stmt);
 	  /* Continue propagating into the RHS if this was not the only use.  */
 	  if (single_use_p)
@@ -920,9 +922,9 @@ forward_propagate_addr_expr_1 (tree name, tree def_rhs,
       if ((def_rhs_base = get_addr_base_and_unit_offset (TREE_OPERAND (def_rhs, 0),
 							 &def_rhs_offset)))
 	{
-	  double_int off = mem_ref_offset (rhs);
+	  offset_int off = mem_ref_offset (rhs);
 	  tree new_ptr;
-	  off += double_int::from_shwi (def_rhs_offset);
+	  off += def_rhs_offset;
 	  if (TREE_CODE (def_rhs_base) == MEM_REF)
 	    {
 	      off += mem_ref_offset (def_rhs_base);
@@ -932,7 +934,7 @@ forward_propagate_addr_expr_1 (tree name, tree def_rhs,
 	    new_ptr = build_fold_addr_expr (def_rhs_base);
 	  TREE_OPERAND (rhs, 0) = new_ptr;
 	  TREE_OPERAND (rhs, 1)
-	    = double_int_to_tree (TREE_TYPE (TREE_OPERAND (rhs, 1)), off);
+	    = wide_int_to_tree (TREE_TYPE (TREE_OPERAND (rhs, 1)), off);
 	  fold_stmt_inplace (use_stmt_gsi);
 	  tidy_after_forward_propagate_addr (use_stmt);
 	  return res;
@@ -1356,43 +1358,38 @@ simplify_gimple_switch_label_vec (gimple stmt, tree index_type)
 static bool
 simplify_gimple_switch (gimple stmt)
 {
-  tree cond = gimple_switch_index (stmt);
-  tree def, to, ti;
-  gimple def_stmt;
-
   /* The optimization that we really care about is removing unnecessary
      casts.  That will let us do much better in propagating the inferred
      constant at the switch target.  */
+  tree cond = gimple_switch_index (stmt);
   if (TREE_CODE (cond) == SSA_NAME)
     {
-      def_stmt = SSA_NAME_DEF_STMT (cond);
-      if (is_gimple_assign (def_stmt))
+      gimple def_stmt = SSA_NAME_DEF_STMT (cond);
+      if (gimple_assign_cast_p (def_stmt))
 	{
-	  if (gimple_assign_rhs_code (def_stmt) == NOP_EXPR)
+	  tree def = gimple_assign_rhs1 (def_stmt);
+	  if (TREE_CODE (def) != SSA_NAME)
+	    return false;
+
+	  /* If we have an extension or sign-change that preserves the
+	     values we check against then we can copy the source value into
+	     the switch.  */
+	  tree ti = TREE_TYPE (def);
+	  if (INTEGRAL_TYPE_P (ti)
+	      && TYPE_PRECISION (ti) <= TYPE_PRECISION (TREE_TYPE (cond)))
 	    {
-	      int need_precision;
-	      bool fail;
-
-	      def = gimple_assign_rhs1 (def_stmt);
-
-	      to = TREE_TYPE (cond);
-	      ti = TREE_TYPE (def);
-
-	      /* If we have an extension that preserves value, then we
-		 can copy the source value into the switch.  */
-
-	      need_precision = TYPE_PRECISION (ti);
-	      fail = false;
-	      if (! INTEGRAL_TYPE_P (ti))
-		fail = true;
-	      else if (TYPE_UNSIGNED (to) && !TYPE_UNSIGNED (ti))
-		fail = true;
-	      else if (!TYPE_UNSIGNED (to) && TYPE_UNSIGNED (ti))
-		need_precision += 1;
-	      if (TYPE_PRECISION (to) < need_precision)
-		fail = true;
-
-	      if (!fail)
+	      size_t n = gimple_switch_num_labels (stmt);
+	      tree min = NULL_TREE, max = NULL_TREE;
+	      if (n > 1)
+		{
+		  min = CASE_LOW (gimple_switch_label (stmt, 1));
+		  if (CASE_HIGH (gimple_switch_label (stmt, n - 1)))
+		    max = CASE_HIGH (gimple_switch_label (stmt, n - 1));
+		  else
+		    max = CASE_LOW (gimple_switch_label (stmt, n - 1));
+		}
+	      if ((!min || int_fits_type_p (min, ti))
+		  && (!max || int_fits_type_p (max, ti)))
 		{
 		  gimple_switch_set_index (stmt, def);
 		  simplify_gimple_switch_label_vec (stmt, ti);
@@ -1450,8 +1447,8 @@ constant_pointer_difference (tree p1, tree p2)
 		{
 		  p = TREE_OPERAND (q, 0);
 		  off = size_binop (PLUS_EXPR, off,
-				    double_int_to_tree (sizetype,
-							mem_ref_offset (q)));
+				    wide_int_to_tree (sizetype,
+						      mem_ref_offset (q)));
 		}
 	      else
 		{
@@ -2647,49 +2644,67 @@ associate_plusminus (gimple_stmt_iterator *gsi)
 		  gimple_set_modified (stmt, true);
 		}
 	    }
-	  else if (CONVERT_EXPR_CODE_P (def_code) && code == MINUS_EXPR
+	  else if (code == MINUS_EXPR
+		   && CONVERT_EXPR_CODE_P (def_code)
+		   && TREE_CODE (gimple_assign_rhs1 (def_stmt)) == SSA_NAME
 		   && TREE_CODE (rhs2) == SSA_NAME)
 	    {
-	      /* (T)(ptr + adj) - (T)ptr -> (T)adj.  */
+	      /* (T)(P + A) - (T)P -> (T)A.  */
 	      gimple def_stmt2 = SSA_NAME_DEF_STMT (rhs2);
-	      if (TREE_CODE (gimple_assign_rhs1 (def_stmt)) == SSA_NAME
-		  && is_gimple_assign (def_stmt2)
+	      if (is_gimple_assign (def_stmt2)
 		  && can_propagate_from (def_stmt2)
 		  && CONVERT_EXPR_CODE_P (gimple_assign_rhs_code (def_stmt2))
 		  && TREE_CODE (gimple_assign_rhs1 (def_stmt2)) == SSA_NAME)
 		{
-		  /* Now we have (T)A - (T)ptr.  */
-		  tree ptr = gimple_assign_rhs1 (def_stmt2);
+		  /* Now we have (T)X - (T)P.  */
+		  tree p = gimple_assign_rhs1 (def_stmt2);
 		  def_stmt2 = SSA_NAME_DEF_STMT (gimple_assign_rhs1 (def_stmt));
 		  if (is_gimple_assign (def_stmt2)
-		      && gimple_assign_rhs_code (def_stmt2) == POINTER_PLUS_EXPR
-		      && gimple_assign_rhs1 (def_stmt2) == ptr)
+		      && can_propagate_from (def_stmt2)
+		      && (gimple_assign_rhs_code (def_stmt2) == POINTER_PLUS_EXPR
+			  || gimple_assign_rhs_code (def_stmt2) == PLUS_EXPR)
+		      && gimple_assign_rhs1 (def_stmt2) == p)
 		    {
-		      /* And finally (T)(ptr + X) - (T)ptr.  */
-		      tree adj = gimple_assign_rhs2 (def_stmt2);
-		      /* If the conversion of the pointer adjustment to the
-		         final type requires a sign- or zero-extension we
-			 have to punt - it is not defined which one is
-			 correct.  */
+		      /* And finally (T)(P + A) - (T)P.  */
+		      tree a = gimple_assign_rhs2 (def_stmt2);
 		      if (TYPE_PRECISION (TREE_TYPE (rhs1))
-			  <= TYPE_PRECISION (TREE_TYPE (adj))
-			  || (TREE_CODE (adj) == INTEGER_CST
-			      && tree_int_cst_sign_bit (adj) == 0))
+			  <= TYPE_PRECISION (TREE_TYPE (a))
+			  /* For integer types, if A has a smaller type
+			     than T the result depends on the possible
+			     overflow in P + A.
+			     E.g. T=size_t, A=(unsigned)429497295, P>0.
+			     However, if an overflow in P + A would cause
+			     undefined behavior, we can assume that there
+			     is no overflow.  */
+			  || (INTEGRAL_TYPE_P (TREE_TYPE (p))
+			      && TYPE_OVERFLOW_UNDEFINED (TREE_TYPE (p)))
+			  /* For pointer types, if the conversion of A to the
+			     final type requires a sign- or zero-extension,
+			     then we have to punt - it is not defined which
+			     one is correct.  */
+			  || (POINTER_TYPE_P (TREE_TYPE (p))
+			      && TREE_CODE (a) == INTEGER_CST
+			      && tree_int_cst_sign_bit (a) == 0))
 			{
+			  if (issue_strict_overflow_warning
+			      (WARN_STRICT_OVERFLOW_MISC)
+			      && TYPE_PRECISION (TREE_TYPE (rhs1))
+				 > TYPE_PRECISION (TREE_TYPE (a))
+			      && INTEGRAL_TYPE_P (TREE_TYPE (p)))
+			    warning_at (gimple_location (stmt),
+					OPT_Wstrict_overflow,
+					"assuming signed overflow does not "
+					"occur when assuming that "
+					"(T)(P + A) - (T)P is always (T)A");
 			  if (useless_type_conversion_p (TREE_TYPE (rhs1),
-							 TREE_TYPE (adj)))
-			    {
-			      code = TREE_CODE (adj);
-			      rhs1 = adj;
-			    }
+							 TREE_TYPE (a)))
+			    code = TREE_CODE (a);
 			  else
-			    {
-			      code = NOP_EXPR;
-			      rhs1 = adj;
-			    }
+			    code = NOP_EXPR;
+			  rhs1 = a;
 			  rhs2 = NULL_TREE;
 			  gimple_assign_set_rhs_with_ops (gsi, code, rhs1,
-							  NULL_TREE);
+							  rhs2);
 			  gcc_assert (gsi_stmt (*gsi) == stmt);
 			  gimple_set_modified (stmt, true);
 			}
@@ -2842,7 +2857,7 @@ associate_pointerplus_align (gimple_stmt_iterator *gsi)
   if (gimple_assign_rhs1 (def_stmt) != ptr)
     return false;
 
-  algn = double_int_to_tree (TREE_TYPE (ptr), ~tree_to_double_int (algn));
+  algn = wide_int_to_tree (TREE_TYPE (ptr), wi::bit_not (algn));
   gimple_assign_set_rhs_with_ops (gsi, BIT_AND_EXPR, ptr, algn);
   fold_stmt_inplace (gsi);
   update_stmt (stmt);
@@ -3103,8 +3118,10 @@ combine_conversions (gimple_stmt_iterator *gsi)
 	  tree tem;
 	  tem = fold_build2 (BIT_AND_EXPR, inside_type,
 			     defop0,
-			     double_int_to_tree
-			       (inside_type, double_int::mask (inter_prec)));
+			     wide_int_to_tree
+			     (inside_type,
+			      wi::mask (inter_prec, false,
+					TYPE_PRECISION (inside_type))));
 	  if (!useless_type_conversion_p (type, inside_type))
 	    {
 	      tem = force_gimple_operand_gsi (gsi, tem, true, NULL_TREE, true,
@@ -3572,15 +3589,44 @@ simplify_mult (gimple_stmt_iterator *gsi)
 /* Main entry point for the forward propagation and statement combine
    optimizer.  */
 
-static unsigned int
-ssa_forward_propagate_and_combine (void)
+namespace {
+
+const pass_data pass_data_forwprop =
+{
+  GIMPLE_PASS, /* type */
+  "forwprop", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  TV_TREE_FORWPROP, /* tv_id */
+  ( PROP_cfg | PROP_ssa ), /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  TODO_update_ssa, /* todo_flags_finish */
+};
+
+class pass_forwprop : public gimple_opt_pass
+{
+public:
+  pass_forwprop (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_forwprop, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  opt_pass * clone () { return new pass_forwprop (m_ctxt); }
+  virtual bool gate (function *) { return flag_tree_forwprop; }
+  virtual unsigned int execute (function *);
+
+}; // class pass_forwprop
+
+unsigned int
+pass_forwprop::execute (function *fun)
 {
   basic_block bb;
   unsigned int todoflags = 0;
 
   cfg_changed = false;
 
-  FOR_EACH_BB_FN (bb, cfun)
+  FOR_EACH_BB_FN (bb, fun)
     {
       gimple_stmt_iterator gsi;
 
@@ -3665,7 +3711,7 @@ ssa_forward_propagate_and_combine (void)
 	  else if (TREE_CODE_CLASS (code) == tcc_comparison)
 	    {
 	      if (forward_propagate_comparison (&gsi))
-	        cfg_changed = true;
+		cfg_changed = true;
 	    }
 	  else
 	    gsi_next (&gsi);
@@ -3835,44 +3881,6 @@ ssa_forward_propagate_and_combine (void)
 
   return todoflags;
 }
-
-
-static bool
-gate_forwprop (void)
-{
-  return flag_tree_forwprop;
-}
-
-namespace {
-
-const pass_data pass_data_forwprop =
-{
-  GIMPLE_PASS, /* type */
-  "forwprop", /* name */
-  OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
-  TV_TREE_FORWPROP, /* tv_id */
-  ( PROP_cfg | PROP_ssa ), /* properties_required */
-  0, /* properties_provided */
-  0, /* properties_destroyed */
-  0, /* todo_flags_start */
-  ( TODO_update_ssa | TODO_verify_ssa ), /* todo_flags_finish */
-};
-
-class pass_forwprop : public gimple_opt_pass
-{
-public:
-  pass_forwprop (gcc::context *ctxt)
-    : gimple_opt_pass (pass_data_forwprop, ctxt)
-  {}
-
-  /* opt_pass methods: */
-  opt_pass * clone () { return new pass_forwprop (m_ctxt); }
-  bool gate () { return gate_forwprop (); }
-  unsigned int execute () { return ssa_forward_propagate_and_combine (); }
-
-}; // class pass_forwprop
 
 } // anon namespace
 

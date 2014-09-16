@@ -12,9 +12,19 @@ import (
 	"io"
 	"io/ioutil"
 	"net/textproto"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
+
+type errorReader struct {
+	err error
+}
+
+func (r *errorReader) Read(p []byte) (n int, err error) {
+	return 0, r.err
+}
 
 // transferWriter inspects the fields of a user-supplied Request or Response,
 // sanitizes them without changing the user object and provides methods for
@@ -52,14 +62,17 @@ func newTransferWriter(r interface{}) (t *transferWriter, err error) {
 			if t.ContentLength == 0 {
 				// Test to see if it's actually zero or just unset.
 				var buf [1]byte
-				n, _ := io.ReadFull(t.Body, buf[:])
-				if n == 1 {
+				n, rerr := io.ReadFull(t.Body, buf[:])
+				if rerr != nil && rerr != io.EOF {
+					t.ContentLength = -1
+					t.Body = &errorReader{rerr}
+				} else if n == 1 {
 					// Oh, guess there is data in this Body Reader after all.
 					// The ContentLength field just wasn't set.
 					// Stich the Body back together again, re-attaching our
 					// consumed byte.
 					t.ContentLength = -1
-					t.Body = io.MultiReader(bytes.NewBuffer(buf[:]), t.Body)
+					t.Body = io.MultiReader(bytes.NewReader(buf[:]), t.Body)
 				} else {
 					// Body is actually empty.
 					t.Body = nil
@@ -131,11 +144,10 @@ func (t *transferWriter) shouldSendContentLength() bool {
 	return false
 }
 
-func (t *transferWriter) WriteHeader(w io.Writer) (err error) {
+func (t *transferWriter) WriteHeader(w io.Writer) error {
 	if t.Close {
-		_, err = io.WriteString(w, "Connection: close\r\n")
-		if err != nil {
-			return
+		if _, err := io.WriteString(w, "Connection: close\r\n"); err != nil {
+			return err
 		}
 	}
 
@@ -143,43 +155,44 @@ func (t *transferWriter) WriteHeader(w io.Writer) (err error) {
 	// function of the sanitized field triple (Body, ContentLength,
 	// TransferEncoding)
 	if t.shouldSendContentLength() {
-		io.WriteString(w, "Content-Length: ")
-		_, err = io.WriteString(w, strconv.FormatInt(t.ContentLength, 10)+"\r\n")
-		if err != nil {
-			return
+		if _, err := io.WriteString(w, "Content-Length: "); err != nil {
+			return err
+		}
+		if _, err := io.WriteString(w, strconv.FormatInt(t.ContentLength, 10)+"\r\n"); err != nil {
+			return err
 		}
 	} else if chunked(t.TransferEncoding) {
-		_, err = io.WriteString(w, "Transfer-Encoding: chunked\r\n")
-		if err != nil {
-			return
+		if _, err := io.WriteString(w, "Transfer-Encoding: chunked\r\n"); err != nil {
+			return err
 		}
 	}
 
 	// Write Trailer header
 	if t.Trailer != nil {
-		// TODO: At some point, there should be a generic mechanism for
-		// writing long headers, using HTTP line splitting
-		io.WriteString(w, "Trailer: ")
-		needComma := false
+		keys := make([]string, 0, len(t.Trailer))
 		for k := range t.Trailer {
 			k = CanonicalHeaderKey(k)
 			switch k {
 			case "Transfer-Encoding", "Trailer", "Content-Length":
 				return &badStringError{"invalid Trailer key", k}
 			}
-			if needComma {
-				io.WriteString(w, ",")
-			}
-			io.WriteString(w, k)
-			needComma = true
+			keys = append(keys, k)
 		}
-		_, err = io.WriteString(w, "\r\n")
+		if len(keys) > 0 {
+			sort.Strings(keys)
+			// TODO: could do better allocation-wise here, but trailers are rare,
+			// so being lazy for now.
+			if _, err := io.WriteString(w, "Trailer: "+strings.Join(keys, ",")+"\r\n"); err != nil {
+				return err
+			}
+		}
 	}
 
-	return
+	return nil
 }
 
-func (t *transferWriter) WriteBody(w io.Writer) (err error) {
+func (t *transferWriter) WriteBody(w io.Writer) error {
+	var err error
 	var ncopy int64
 
 	// Write body
@@ -216,11 +229,16 @@ func (t *transferWriter) WriteBody(w io.Writer) (err error) {
 
 	// TODO(petar): Place trailer writer code here.
 	if chunked(t.TransferEncoding) {
+		// Write Trailer header
+		if t.Trailer != nil {
+			if err := t.Trailer.Write(w); err != nil {
+				return err
+			}
+		}
 		// Last chunk, empty trailer
 		_, err = io.WriteString(w, "\r\n")
 	}
-
-	return
+	return err
 }
 
 type transferReader struct {
@@ -250,6 +268,22 @@ func bodyAllowedForStatus(status int) bool {
 		return false
 	}
 	return true
+}
+
+var (
+	suppressedHeaders304    = []string{"Content-Type", "Content-Length", "Transfer-Encoding"}
+	suppressedHeadersNoBody = []string{"Content-Length", "Transfer-Encoding"}
+)
+
+func suppressedHeaders(status int) []string {
+	switch {
+	case status == 304:
+		// RFC 2616 section 10.3.5: "the response MUST NOT include other entity-headers"
+		return suppressedHeaders304
+	case !bodyAllowedForStatus(status):
+		return suppressedHeadersNoBody
+	}
+	return nil
 }
 
 // msg is *Request or *Response.
@@ -331,17 +365,17 @@ func readTransfer(msg interface{}, r *bufio.Reader) (err error) {
 		if noBodyExpected(t.RequestMethod) {
 			t.Body = eofReader
 		} else {
-			t.Body = &body{Reader: newChunkedReader(r), hdr: msg, r: r, closing: t.Close}
+			t.Body = &body{src: newChunkedReader(r), hdr: msg, r: r, closing: t.Close}
 		}
 	case realLength == 0:
 		t.Body = eofReader
 	case realLength > 0:
-		t.Body = &body{Reader: io.LimitReader(r, realLength), closing: t.Close}
+		t.Body = &body{src: io.LimitReader(r, realLength), closing: t.Close}
 	default:
 		// realLength < 0, i.e. "Content-Length" not mentioned in header
 		if t.Close {
 			// Close semantics (i.e. HTTP/1.0)
-			t.Body = &body{Reader: r, closing: t.Close}
+			t.Body = &body{src: r, closing: t.Close}
 		} else {
 			// Persistent connection (i.e. HTTP/1.1)
 			t.Body = eofReader
@@ -498,7 +532,7 @@ func fixTrailer(header Header, te []string) (Header, error) {
 		case "Transfer-Encoding", "Trailer", "Content-Length":
 			return nil, &badStringError{"bad trailer key", key}
 		}
-		trailer.Del(key)
+		trailer[key] = nil
 	}
 	if len(trailer) == 0 {
 		return nil, nil
@@ -514,11 +548,13 @@ func fixTrailer(header Header, te []string) (Header, error) {
 // Close ensures that the body has been fully read
 // and then reads the trailer if necessary.
 type body struct {
-	io.Reader
+	src     io.Reader
 	hdr     interface{}   // non-nil (Response or Request) value means read trailer
 	r       *bufio.Reader // underlying wire-format reader for the trailer
 	closing bool          // is the connection to be closed after reading body?
-	closed  bool
+
+	mu     sync.Mutex // guards closed, and calls to Read and Close
+	closed bool
 }
 
 // ErrBodyReadAfterClose is returned when reading a Request or Response
@@ -528,10 +564,17 @@ type body struct {
 var ErrBodyReadAfterClose = errors.New("http: invalid Read on closed Body")
 
 func (b *body) Read(p []byte) (n int, err error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	if b.closed {
 		return 0, ErrBodyReadAfterClose
 	}
-	n, err = b.Reader.Read(p)
+	return b.readLocked(p)
+}
+
+// Must hold b.mu.
+func (b *body) readLocked(p []byte) (n int, err error) {
+	n, err = b.src.Read(p)
 
 	if err == io.EOF {
 		// Chunked case. Read the trailer.
@@ -543,9 +586,20 @@ func (b *body) Read(p []byte) (n int, err error) {
 		} else {
 			// If the server declared the Content-Length, our body is a LimitedReader
 			// and we need to check whether this EOF arrived early.
-			if lr, ok := b.Reader.(*io.LimitedReader); ok && lr.N > 0 {
+			if lr, ok := b.src.(*io.LimitedReader); ok && lr.N > 0 {
 				err = io.ErrUnexpectedEOF
 			}
+		}
+	}
+
+	// If we can return an EOF here along with the read data, do
+	// so. This is optional per the io.Reader contract, but doing
+	// so helps the HTTP transport code recycle its connection
+	// earlier (since it will see this EOF itself), even if the
+	// client doesn't do future reads or Close.
+	if err == nil && n > 0 {
+		if lr, ok := b.src.(*io.LimitedReader); ok && lr.N == 0 {
+			err = io.EOF
 		}
 	}
 
@@ -610,14 +664,26 @@ func (b *body) readTrailer() error {
 	}
 	switch rr := b.hdr.(type) {
 	case *Request:
-		rr.Trailer = Header(hdr)
+		mergeSetHeader(&rr.Trailer, Header(hdr))
 	case *Response:
-		rr.Trailer = Header(hdr)
+		mergeSetHeader(&rr.Trailer, Header(hdr))
 	}
 	return nil
 }
 
+func mergeSetHeader(dst *Header, src Header) {
+	if *dst == nil {
+		*dst = src
+		return
+	}
+	for k, vv := range src {
+		(*dst)[k] = vv
+	}
+}
+
 func (b *body) Close() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	if b.closed {
 		return nil
 	}
@@ -629,10 +695,23 @@ func (b *body) Close() error {
 	default:
 		// Fully consume the body, which will also lead to us reading
 		// the trailer headers after the body, if present.
-		_, err = io.Copy(ioutil.Discard, b)
+		_, err = io.Copy(ioutil.Discard, bodyLocked{b})
 	}
 	b.closed = true
 	return err
+}
+
+// bodyLocked is a io.Reader reading from a *body when its mutex is
+// already held.
+type bodyLocked struct {
+	b *body
+}
+
+func (bl bodyLocked) Read(p []byte) (n int, err error) {
+	if bl.b.closed {
+		return 0, ErrBodyReadAfterClose
+	}
+	return bl.b.readLocked(p)
 }
 
 // parseContentLength trims whitespace from s and returns -1 if no value

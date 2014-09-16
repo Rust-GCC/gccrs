@@ -1703,12 +1703,16 @@ package body Sem_Ch10 is
       --  If the main unit is a subunit, then we are just performing semantic
       --  analysis on that subunit, and any other subunits of any parent unit
       --  should be ignored, except that if we are building trees for ASIS
-      --  usage we want to annotate the stub properly.
+      --  usage we want to annotate the stub properly. If the main unit is
+      --  itself a subunit, another subunit is irrelevant unless it is a
+      --  subunit of the current one.
 
       elsif Nkind (Unit (Cunit (Main_Unit))) = N_Subunit
         and then Subunit_Name /= Unit_Name (Main_Unit)
       then
-         if ASIS_Mode then
+         if ASIS_Mode
+           and then Scope (Defining_Entity (N)) = Cunit_Entity (Main_Unit)
+         then
             Optional_Subunit;
          end if;
 
@@ -1878,6 +1882,39 @@ package body Sem_Ch10 is
          Analyze_Proper_Body (N, Etype (Nam));
       end if;
    end Analyze_Protected_Body_Stub;
+
+   -------------------------------------------
+   -- Analyze_Subprogram_Body_Stub_Contract --
+   -------------------------------------------
+
+   procedure Analyze_Subprogram_Body_Stub_Contract (Stub_Id : Entity_Id) is
+      Stub_Decl : constant Node_Id   := Parent (Parent (Stub_Id));
+      Spec_Id   : constant Entity_Id := Corresponding_Spec_Of_Stub (Stub_Decl);
+
+   begin
+      --  A subprogram body stub may act as its own spec or as the completion
+      --  of a previous declaration. Depending on the context, the contract of
+      --  the stub may contain two sets of pragmas.
+
+      --  The stub is a completion, the applicable pragmas are:
+      --    Contract_Cases
+      --    Depends
+      --    Global
+      --    Postcondition
+      --    Precondition
+      --    Test_Case
+
+      if Present (Spec_Id) then
+         Analyze_Subprogram_Body_Contract (Stub_Id);
+
+      --  The stub acts as its own spec, the applicable pragmas are:
+      --    Refined_Depends
+      --    Refined_Global
+
+      else
+         Analyze_Subprogram_Contract (Stub_Id);
+      end if;
+   end Analyze_Subprogram_Body_Stub_Contract;
 
    ----------------------------------
    -- Analyze_Subprogram_Body_Stub --

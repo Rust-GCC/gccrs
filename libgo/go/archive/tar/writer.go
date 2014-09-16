@@ -218,8 +218,8 @@ func (tw *Writer) writeHeader(hdr *Header, allowPax bool) error {
 				tw.cString(prefixHeaderBytes, prefix, false, paxNone, nil)
 
 				// Use the ustar magic if we used ustar long names.
-				if len(prefix) > 0 {
-					copy(header[257:265], []byte("ustar\000"))
+				if len(prefix) > 0 && !tw.usedBinary {
+					copy(header[257:265], []byte("ustar\x00"))
 				}
 			}
 		}
@@ -234,6 +234,12 @@ func (tw *Writer) writeHeader(hdr *Header, allowPax bool) error {
 	if tw.err != nil {
 		// problem with header; probably integer too big for a field.
 		return tw.err
+	}
+
+	if allowPax {
+		for k, v := range hdr.Xattrs {
+			paxHeaders[paxXattr+k] = v
+		}
 	}
 
 	if len(paxHeaders) > 0 {

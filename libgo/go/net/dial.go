@@ -44,6 +44,12 @@ type Dialer struct {
 	// destination is a host name that has multiple address family
 	// DNS records.
 	DualStack bool
+
+	// KeepAlive specifies the keep-alive period for an active
+	// network connection.
+	// If zero, keep-alives are not enabled. Network protocols
+	// that do not support keep-alives ignore this field.
+	KeepAlive time.Duration
 }
 
 // Return either now+Timeout or Deadline, whichever comes first.
@@ -162,8 +168,18 @@ func (d *Dialer) Dial(network, address string) (Conn, error) {
 			return dialMulti(network, address, d.LocalAddr, ras, deadline)
 		}
 	}
-	return dial(network, ra.toAddr(), dialer, d.deadline())
+	c, err := dial(network, ra.toAddr(), dialer, d.deadline())
+	if d.KeepAlive > 0 && err == nil {
+		if tc, ok := c.(*TCPConn); ok {
+			tc.SetKeepAlive(true)
+			tc.SetKeepAlivePeriod(d.KeepAlive)
+			testHookSetKeepAlive()
+		}
+	}
+	return c, err
 }
+
+var testHookSetKeepAlive = func() {} // changed by dial_test.go
 
 // dialMulti attempts to establish connections to each destination of
 // the list of addresses. It will return the first established
@@ -172,7 +188,6 @@ func (d *Dialer) Dial(network, address string) (Conn, error) {
 func dialMulti(net, addr string, la Addr, ras addrList, deadline time.Time) (Conn, error) {
 	type racer struct {
 		Conn
-		Addr
 		error
 	}
 	// Sig controls the flow of dial results on lane. It passes a
@@ -184,7 +199,7 @@ func dialMulti(net, addr string, la Addr, ras addrList, deadline time.Time) (Con
 		go func(ra Addr) {
 			c, err := dialSingle(net, addr, la, ra, deadline)
 			if _, ok := <-sig; ok {
-				lane <- racer{c, ra, err}
+				lane <- racer{c, err}
 			} else if err == nil {
 				// We have to return the resources
 				// that belong to the other
@@ -195,7 +210,6 @@ func dialMulti(net, addr string, la Addr, ras addrList, deadline time.Time) (Con
 		}(ra.toAddr())
 	}
 	defer close(sig)
-	var failAddr Addr
 	lastErr := errTimeout
 	nracers := len(ras)
 	for nracers > 0 {
@@ -205,12 +219,11 @@ func dialMulti(net, addr string, la Addr, ras addrList, deadline time.Time) (Con
 			if racer.error == nil {
 				return racer.Conn, nil
 			}
-			failAddr = racer.Addr
 			lastErr = racer.error
 			nracers--
 		}
 	}
-	return nil, &OpError{Op: "dial", Net: net, Addr: failAddr, Err: lastErr}
+	return nil, lastErr
 }
 
 // dialSingle attempts to establish and returns a single connection to

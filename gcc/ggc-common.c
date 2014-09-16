@@ -174,22 +174,23 @@ ggc_mark_roots (void)
 
 /* Allocate a block of memory, then clear it.  */
 void *
-ggc_internal_cleared_alloc_stat (size_t size MEM_STAT_DECL)
+ggc_internal_cleared_alloc (size_t size, void (*f)(void *), size_t s, size_t n
+			    MEM_STAT_DECL)
 {
-  void *buf = ggc_internal_alloc_stat (size PASS_MEM_STAT);
+  void *buf = ggc_internal_alloc (size, f, s, n PASS_MEM_STAT);
   memset (buf, 0, size);
   return buf;
 }
 
 /* Resize a block of memory, possibly re-allocating it.  */
 void *
-ggc_realloc_stat (void *x, size_t size MEM_STAT_DECL)
+ggc_realloc (void *x, size_t size MEM_STAT_DECL)
 {
   void *r;
   size_t old_size;
 
   if (x == NULL)
-    return ggc_internal_alloc_stat (size PASS_MEM_STAT);
+    return ggc_internal_alloc (size PASS_MEM_STAT);
 
   old_size = ggc_get_size (x);
 
@@ -211,7 +212,7 @@ ggc_realloc_stat (void *x, size_t size MEM_STAT_DECL)
       return x;
     }
 
-  r = ggc_internal_alloc_stat (size PASS_MEM_STAT);
+  r = ggc_internal_alloc (size PASS_MEM_STAT);
 
   /* Since ggc_get_size returns the size of the pool, not the size of the
      individually allocated object, we'd access parts of the old object
@@ -232,7 +233,7 @@ ggc_cleared_alloc_htab_ignore_args (size_t c ATTRIBUTE_UNUSED,
 				    size_t n ATTRIBUTE_UNUSED)
 {
   gcc_assert (c * n == sizeof (struct htab));
-  return ggc_alloc_cleared_htab ();
+  return ggc_cleared_alloc<htab> ();
 }
 
 /* TODO: once we actually use type information in GGC, create a new tag
@@ -241,7 +242,7 @@ void *
 ggc_cleared_alloc_ptr_array_two_args (size_t c, size_t n)
 {
   gcc_assert (sizeof (PTR *) == n);
-  return ggc_internal_cleared_vec_alloc (sizeof (PTR *), c);
+  return ggc_cleared_vec_alloc<PTR *> (c);
 }
 
 /* These are for splay_tree_new_ggc.  */
@@ -319,7 +320,7 @@ saving_hasher::equal (const value_type *p1, const compare_type *p2)
   return p1->obj == p2;
 }
 
-static hash_table <saving_hasher> saving_htab;
+static hash_table<saving_hasher> *saving_htab;
 
 /* Register an object in the hash table.  */
 
@@ -333,7 +334,7 @@ gt_pch_note_object (void *obj, void *note_ptr_cookie,
     return 0;
 
   slot = (struct ptr_data **)
-    saving_htab.find_slot_with_hash (obj, POINTER_HASH (obj), INSERT);
+    saving_htab->find_slot_with_hash (obj, POINTER_HASH (obj), INSERT);
   if (*slot != NULL)
     {
       gcc_assert ((*slot)->note_ptr_fn == note_ptr_fn
@@ -364,7 +365,7 @@ gt_pch_note_reorder (void *obj, void *note_ptr_cookie,
     return;
 
   data = (struct ptr_data *)
-    saving_htab.find_with_hash (obj, POINTER_HASH (obj));
+    saving_htab->find_with_hash (obj, POINTER_HASH (obj));
   gcc_assert (data && data->note_ptr_cookie == note_ptr_cookie);
 
   data->reorder_fn = reorder_fn;
@@ -430,7 +431,7 @@ relocate_ptrs (void *ptr_p, void *state_p)
     return;
 
   result = (struct ptr_data *)
-    saving_htab.find_with_hash (*ptr, POINTER_HASH (*ptr));
+    saving_htab->find_with_hash (*ptr, POINTER_HASH (*ptr));
   gcc_assert (result);
   *ptr = result->new_addr;
 }
@@ -459,7 +460,7 @@ write_pch_globals (const struct ggc_root_tab * const *tab,
 	  else
 	    {
 	      new_ptr = (struct ptr_data *)
-		saving_htab.find_with_hash (ptr, POINTER_HASH (ptr));
+		saving_htab->find_with_hash (ptr, POINTER_HASH (ptr));
 	      if (fwrite (&new_ptr->new_addr, sizeof (void *), 1, state->f)
 		  != 1)
 		fatal_error ("can%'t write PCH file: %m");
@@ -493,7 +494,7 @@ gt_pch_save (FILE *f)
   gt_pch_save_stringpool ();
 
   timevar_push (TV_PCH_PTR_REALLOC);
-  saving_htab.create (50000);
+  saving_htab = new hash_table<saving_hasher> (50000);
 
   for (rt = gt_ggc_rtab; *rt; rt++)
     for (rti = *rt; rti->base != NULL; rti++)
@@ -509,7 +510,7 @@ gt_pch_save (FILE *f)
   state.f = f;
   state.d = init_ggc_pch ();
   state.count = 0;
-  saving_htab.traverse <traversal_state *, ggc_call_count> (&state);
+  saving_htab->traverse <traversal_state *, ggc_call_count> (&state);
 
   mmi.size = ggc_pch_total_size (state.d);
 
@@ -525,7 +526,7 @@ gt_pch_save (FILE *f)
   state.ptrs = XNEWVEC (struct ptr_data *, state.count);
   state.ptrs_i = 0;
 
-  saving_htab.traverse <traversal_state *, ggc_call_alloc> (&state);
+  saving_htab->traverse <traversal_state *, ggc_call_alloc> (&state);
   timevar_pop (TV_PCH_PTR_REALLOC);
 
   timevar_push (TV_PCH_PTR_SORT);
@@ -654,7 +655,8 @@ gt_pch_save (FILE *f)
 
   XDELETE (state.ptrs);
   XDELETE (this_object);
-  saving_htab.dispose ();
+  delete saving_htab;
+  saving_htab = NULL;
 }
 
 /* Read the state of the compiler back in from F.  */
@@ -938,7 +940,7 @@ loc_desc_hasher::equal (const value_type *d, const compare_type *d2)
 }
 
 /* Hashtable used for statistics.  */
-static hash_table <loc_desc_hasher> loc_hash;
+static hash_table<loc_desc_hasher> *loc_hash;
 
 struct ptr_hash_entry
 {
@@ -970,7 +972,7 @@ ptr_hash_hasher::equal (const value_type *p, const compare_type *p2)
 }
 
 /* Hashtable converting address of allocated field to loc descriptor.  */
-static hash_table <ptr_hash_hasher> ptr_hash;
+static hash_table<ptr_hash_hasher> *ptr_hash;
 
 /* Return descriptor for given call site, create new one if needed.  */
 static struct loc_descriptor *
@@ -982,10 +984,10 @@ make_loc_descriptor (const char *name, int line, const char *function)
   loc.file = name;
   loc.line = line;
   loc.function = function;
-  if (!loc_hash.is_created ())
-    loc_hash.create (10);
+  if (!loc_hash)
+    loc_hash = new hash_table<loc_desc_hasher> (10);
 
-  slot = loc_hash.find_slot (&loc, INSERT);
+  slot = loc_hash->find_slot (&loc, INSERT);
   if (*slot)
     return *slot;
   *slot = XCNEW (struct loc_descriptor);
@@ -1007,9 +1009,9 @@ ggc_record_overhead (size_t allocated, size_t overhead, void *ptr,
   p->ptr = ptr;
   p->loc = loc;
   p->size = allocated + overhead;
-  if (!ptr_hash.is_created ())
-    ptr_hash.create (10);
-  slot = ptr_hash.find_slot_with_hash (ptr, htab_hash_pointer (ptr), INSERT);
+  if (!ptr_hash)
+    ptr_hash = new hash_table<ptr_hash_hasher> (10);
+  slot = ptr_hash->find_slot_with_hash (ptr, htab_hash_pointer (ptr), INSERT);
   gcc_assert (!*slot);
   *slot = p;
 
@@ -1027,7 +1029,7 @@ ggc_prune_ptr (ptr_hash_entry **slot, void *b ATTRIBUTE_UNUSED)
   if (!ggc_marked_p (p->ptr))
     {
       p->loc->collected += p->size;
-      ptr_hash.clear_slot (slot);
+      ptr_hash->clear_slot (slot);
       free (p);
     }
   return 1;
@@ -1038,15 +1040,15 @@ ggc_prune_ptr (ptr_hash_entry **slot, void *b ATTRIBUTE_UNUSED)
 void
 ggc_prune_overhead_list (void)
 {
-  ptr_hash.traverse <void *, ggc_prune_ptr> (NULL);
+  ptr_hash->traverse <void *, ggc_prune_ptr> (NULL);
 }
 
 /* Notice that the pointer has been freed.  */
 void
 ggc_free_overhead (void *ptr)
 {
-  ptr_hash_entry **slot;
-  slot = ptr_hash.find_slot_with_hash (ptr, htab_hash_pointer (ptr), NO_INSERT);
+  ptr_hash_entry **slot
+    = ptr_hash->find_slot_with_hash (ptr, htab_hash_pointer (ptr), NO_INSERT);
   struct ptr_hash_entry *p;
   /* The pointer might be not found if a PCH read happened between allocation
      and ggc_free () call.  FIXME: account memory properly in the presence of
@@ -1055,7 +1057,7 @@ ggc_free_overhead (void *ptr)
       return;
   p = (struct ptr_hash_entry *) *slot;
   p->loc->freed += p->size;
-  ptr_hash.clear_slot (slot);
+  ptr_hash->clear_slot (slot);
   free (p);
 }
 
@@ -1119,12 +1121,12 @@ dump_ggc_loc_statistics (bool final)
   ggc_collect ();
 
   loc_array = XCNEWVEC (struct loc_descriptor *,
-			loc_hash.elements_with_deleted ());
+			loc_hash->elements_with_deleted ());
   fprintf (stderr, "-------------------------------------------------------\n");
   fprintf (stderr, "\n%-48s %10s       %10s       %10s       %10s       %10s\n",
 	   "source location", "Garbage", "Freed", "Leak", "Overhead", "Times");
   fprintf (stderr, "-------------------------------------------------------\n");
-  loc_hash.traverse <int *, ggc_add_statistics> (&nentries);
+  loc_hash->traverse <int *, ggc_add_statistics> (&nentries);
   qsort (loc_array, nentries, sizeof (*loc_array),
 	 final ? final_cmp_statistic : cmp_statistic);
   for (i = 0; i < nentries; i++)

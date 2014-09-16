@@ -290,7 +290,7 @@ default_cxx_get_cookie_size (tree type)
 
   sizetype_size = size_in_bytes (sizetype);
   type_align = size_int (TYPE_ALIGN_UNIT (type));
-  if (INT_CST_LT_UNSIGNED (type_align, sizetype_size))
+  if (tree_int_cst_lt (type_align, sizetype_size))
     cookie_size = sizetype_size;
   else
     cookie_size = type_align;
@@ -919,7 +919,6 @@ default_secondary_reload (bool in_p ATTRIBUTE_UNUSED, rtx x ATTRIBUTE_UNUSED,
       else if (icode != CODE_FOR_nothing)
 	{
 	  const char *insn_constraint, *scratch_constraint;
-	  char insn_letter, scratch_letter;
 	  enum reg_class insn_class, scratch_class;
 
 	  gcc_assert (insn_data[(int) icode].n_operands == 3);
@@ -933,11 +932,8 @@ default_secondary_reload (bool in_p ATTRIBUTE_UNUSED, rtx x ATTRIBUTE_UNUSED,
 		  gcc_assert (*insn_constraint == '=');
 		  insn_constraint++;
 		}
-	      insn_letter = *insn_constraint;
-	      insn_class
-		= (insn_letter == 'r' ? GENERAL_REGS
-		   : REG_CLASS_FROM_CONSTRAINT ((unsigned char) insn_letter,
-						insn_constraint));
+	      insn_class = (reg_class_for_constraint
+			    (lookup_constraint (insn_constraint)));
 	      gcc_assert (insn_class != NO_REGS);
 	    }
 
@@ -951,11 +947,8 @@ default_secondary_reload (bool in_p ATTRIBUTE_UNUSED, rtx x ATTRIBUTE_UNUSED,
 	  scratch_constraint++;
 	  if (*scratch_constraint == '&')
 	    scratch_constraint++;
-	  scratch_letter = *scratch_constraint;
-	  scratch_class
-	    = (scratch_letter == 'r' ? GENERAL_REGS
-	       : REG_CLASS_FROM_CONSTRAINT ((unsigned char) scratch_letter,
-					    scratch_constraint));
+	  scratch_class = (reg_class_for_constraint
+			   (lookup_constraint (scratch_constraint)));
 
 	  if (reg_class_subset_p (reload_class, insn_class))
 	    {
@@ -1073,8 +1066,8 @@ default_add_stmt_cost (void *data, int count, enum vect_cost_for_stmt kind,
   unsigned retval = 0;
 
   tree vectype = stmt_info ? stmt_vectype (stmt_info) : NULL_TREE;
-  int stmt_cost = default_builtin_vectorization_cost (kind, vectype,
-							  misalign);
+  int stmt_cost = targetm.vectorize.builtin_vectorization_cost (kind, vectype,
+								misalign);
    /* Statements in an inner loop relative to the loop being
       vectorized are weighted more heavily.  The value here is
       arbitrary and could potentially be improved with analysis.  */
@@ -1322,6 +1315,31 @@ default_have_conditional_execution (void)
 #endif
 }
 
+/* By default we assume that c99 functions are present at the runtime,
+   but sincos is not.  */
+bool
+default_libc_has_function (enum function_class fn_class)
+{
+  if (fn_class == function_c94
+      || fn_class == function_c99_misc
+      || fn_class == function_c99_math_complex)
+    return true;
+
+  return false;
+}
+
+bool
+gnu_libc_has_function (enum function_class fn_class ATTRIBUTE_UNUSED)
+{
+  return true;
+}
+
+bool
+no_c99_libc_has_function (enum function_class fn_class ATTRIBUTE_UNUSED)
+{
+  return false;
+}
+
 tree
 default_builtin_tm_load_store (tree ARG_UNUSED (type))
 {
@@ -1445,6 +1463,15 @@ enum machine_mode
 default_get_reg_raw_mode (int regno)
 {
   return reg_raw_mode[regno];
+}
+
+/* Return true if a leaf function should stay leaf even with profiling
+   enabled.  */
+
+bool
+default_keep_leaf_when_profiled ()
+{
+  return false;
 }
 
 /* Return true if the state of option OPTION should be stored in PCH files
@@ -1702,7 +1729,7 @@ std_gimplify_va_arg_expr (tree valist, tree type, gimple_seq *pre_p,
    not support nested low-overhead loops.  */
 
 bool
-can_use_doloop_if_innermost (double_int, double_int,
+can_use_doloop_if_innermost (const widest_int &, const widest_int &,
 			     unsigned int loop_depth, bool)
 {
   return loop_depth == 1;

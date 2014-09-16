@@ -66,6 +66,9 @@ along with GCC; see the file COPYING3.  If not see
 /* For a FUNCTION_DECL, nonzero if it was an implicit declaration.  */
 #define C_DECL_IMPLICIT(EXP) DECL_LANG_FLAG_2 (EXP)
 
+/* For a PARM_DECL, nonzero if it was declared as an array.  */
+#define C_ARRAY_PARAMETER(NODE) DECL_LANG_FLAG_0 (NODE)
+
 /* For FUNCTION_DECLs, evaluates true if the decl is built-in but has
    been declared.  */
 #define C_DECL_DECLARED_BUILTIN(EXP)		\
@@ -602,20 +605,19 @@ extern tree build_compound_expr (location_t, tree, tree);
 extern tree c_cast_expr (location_t, struct c_type_name *, tree);
 extern tree build_c_cast (location_t, tree, tree);
 extern void store_init_value (location_t, tree, tree, tree);
-extern void error_init (const char *);
-extern void pedwarn_init (location_t, int opt, const char *);
-extern void maybe_warn_string_init (tree, struct c_expr);
+extern void maybe_warn_string_init (location_t, tree, struct c_expr);
 extern void start_init (tree, tree, int);
 extern void finish_init (void);
 extern void really_start_incremental_init (tree);
-extern void push_init_level (int, struct obstack *);
-extern struct c_expr pop_init_level (int, struct obstack *);
-extern void set_init_index (tree, tree, struct obstack *);
-extern void set_init_label (tree, struct obstack *);
-extern void process_init_element (struct c_expr, bool, struct obstack *);
+extern void push_init_level (location_t, int, struct obstack *);
+extern struct c_expr pop_init_level (location_t, int, struct obstack *);
+extern void set_init_index (location_t, tree, tree, struct obstack *);
+extern void set_init_label (location_t, tree, struct obstack *);
+extern void process_init_element (location_t, struct c_expr, bool,
+				  struct obstack *);
 extern tree build_compound_literal (location_t, tree, tree, bool);
 extern void check_compound_literal_type (location_t, struct c_type_name *);
-extern tree c_start_case (location_t, location_t, tree);
+extern tree c_start_case (location_t, location_t, tree, bool);
 extern void c_finish_case (tree);
 extern tree build_asm_expr (location_t, tree, tree, tree, tree, tree, bool);
 extern tree build_asm_stmt (tree, tree);

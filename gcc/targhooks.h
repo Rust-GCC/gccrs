@@ -195,6 +195,7 @@ extern int default_jump_align_max_skip (rtx);
 extern section * default_function_section(tree decl, enum node_frequency freq,
 					  bool startup, bool exit);
 extern enum machine_mode default_get_reg_raw_mode (int);
+extern bool default_keep_leaf_when_profiled ();
 
 extern void *default_get_pch_validity (size_t *);
 extern const char *default_pch_valid_p (const void *, size_t);
@@ -206,5 +207,6 @@ extern bool default_member_type_forces_blk (const_tree, enum machine_mode);
 extern void default_atomic_assign_expand_fenv (tree *, tree *, tree *);
 extern tree build_va_arg_indirect_ref (tree);
 extern tree std_gimplify_va_arg_expr (tree, tree, gimple_seq *, gimple_seq *);
-extern bool can_use_doloop_if_innermost (double_int, double_int,
+extern bool can_use_doloop_if_innermost (const widest_int &,
+					 const widest_int &,
 					 unsigned int, bool);

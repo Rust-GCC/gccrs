@@ -51,10 +51,10 @@ typedef struct GTY (()) cp_token {
   ENUM_BITFIELD (pragma_kind) pragma_kind : 6;
   /* True if this token is from a context where it is implicitly extern "C" */
   BOOL_BITFIELD implicit_extern_c : 1;
-  /* True for a CPP_NAME token that is not a keyword (i.e., for which
-     KEYWORD is RID_MAX) iff this name was looked up and found to be
-     ambiguous.  An error has already been reported.  */
-  BOOL_BITFIELD ambiguous_p : 1;
+  /* True if an error has already been reported for this token, such as a
+     CPP_NAME token that is not a keyword (i.e., for which KEYWORD is
+     RID_MAX) iff this name was looked up and found to be ambiguous.  */
+  BOOL_BITFIELD error_reported : 1;
   /* True for a token that has been purged.  If a token is purged,
      it is no longer a valid token and it should be considered
      deleted.  */
@@ -149,7 +149,7 @@ typedef struct GTY(()) cp_default_arg_entry_d {
 } cp_default_arg_entry;
 
 
-/* An entry in a stack for member functions of local classes.  */
+/* An entry in a stack for member functions defined within their classes.  */
 
 typedef struct GTY(()) cp_unparsed_functions_entry_d {
   /* Functions with default arguments that require post-processing.
@@ -163,6 +163,10 @@ typedef struct GTY(()) cp_unparsed_functions_entry_d {
   /* Non-static data members with initializers that require post-processing.
      FIELD_DECLs appear in this list in declaration order.  */
   vec<tree, va_gc> *nsdmis;
+
+  /* Nested classes go in this vector, so that we can do some final
+     processing after parsing any NSDMIs.  */
+  vec<tree, va_gc> *classes;
 } cp_unparsed_functions_entry;
 
 

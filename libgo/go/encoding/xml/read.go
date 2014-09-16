@@ -112,7 +112,7 @@ import (
 // to a freshly allocated value and then mapping the element to that value.
 //
 func Unmarshal(data []byte, v interface{}) error {
-	return NewDecoder(bytes.NewBuffer(data)).Decode(v)
+	return NewDecoder(bytes.NewReader(data)).Decode(v)
 }
 
 // Decode works like xml.Unmarshal, except it reads the decoder
@@ -281,6 +281,15 @@ func (p *Decoder) unmarshal(val reflect.Value, start *StartElement) error {
 				start = &t
 				break
 			}
+		}
+	}
+
+	// Load value from interface, but only if the result will be
+	// usefully addressable.
+	if val.Kind() == reflect.Interface && !val.IsNil() {
+		e := val.Elem()
+		if e.Kind() == reflect.Ptr && !e.IsNil() {
+			val = e
 		}
 	}
 

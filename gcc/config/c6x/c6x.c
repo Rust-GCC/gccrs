@@ -57,6 +57,7 @@
 #include "regrename.h"
 #include "dumpfile.h"
 #include "gimple-expr.h"
+#include "builtins.h"
 
 /* Table of supported architecture variants.  */
 typedef struct
@@ -205,7 +206,7 @@ unsigned const dbx_register_map[FIRST_PSEUDO_REGISTER] =
 static struct machine_function *
 c6x_init_machine_status (void)
 {
-  return ggc_alloc_cleared_machine_function ();
+  return ggc_cleared_alloc<machine_function> ();
 }
 
 /* Implement TARGET_OPTION_OVERRIDE.  */
@@ -867,7 +868,7 @@ c6x_in_small_data_p (const_tree exp)
 
   if (TREE_CODE (exp) == VAR_DECL && DECL_SECTION_NAME (exp))
     {
-      const char *section = TREE_STRING_POINTER (DECL_SECTION_NAME (exp));
+      const char *section = DECL_SECTION_NAME (exp);
 
       if (strcmp (section, ".neardata") == 0
 	  || strncmp (section, ".neardata.", 10) == 0
@@ -985,7 +986,7 @@ c6x_elf_unique_section (tree decl, int reloc)
 {
   const char *prefix = NULL;
   /* We only need to use .gnu.linkonce if we don't have COMDAT groups.  */
-  bool one_only = DECL_ONE_ONLY (decl) && !HAVE_COMDAT_GROUP;
+  bool one_only = DECL_COMDAT_GROUP (decl) && !HAVE_COMDAT_GROUP;
 
   if (c6x_in_small_data_p (decl))
     {
@@ -1059,7 +1060,7 @@ c6x_elf_unique_section (tree decl, int reloc)
 
       string = ACONCAT ((linkonce, prefix, ".", name, NULL));
 
-      DECL_SECTION_NAME (decl) = build_string (strlen (string), string);
+      set_decl_section_name (decl, string);
       return;
     }
   default_unique_section (decl, reloc);
@@ -1202,7 +1203,7 @@ c6x_function_in_section_p (tree decl, section *section)
   if (!DECL_SECTION_NAME (decl))
     {
       /* Make sure that we will not create a unique section for DECL.  */
-      if (flag_function_sections || DECL_ONE_ONLY (decl))
+      if (flag_function_sections || DECL_COMDAT_GROUP (decl))
 	return false;
     }
 

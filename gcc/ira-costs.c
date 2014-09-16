@@ -167,7 +167,7 @@ cost_classes_hasher::remove (value_type *v)
 }
 
 /* Hash table of unique cost classes.  */
-static hash_table <cost_classes_hasher> cost_classes_htab;
+static hash_table<cost_classes_hasher> *cost_classes_htab;
 
 /* Map allocno class -> cost classes for pseudo of given allocno
    class.  */
@@ -188,7 +188,7 @@ initiate_regno_cost_classes (void)
 	  sizeof (cost_classes_t) * N_REG_CLASSES);
   memset (cost_classes_mode_cache, 0,
 	  sizeof (cost_classes_t) * MAX_MACHINE_MODE);
-  cost_classes_htab.create (200);
+  cost_classes_htab = new hash_table<cost_classes_hasher> (200);
 }
 
 /* Create new cost classes from cost classes FROM and set up members
@@ -262,7 +262,7 @@ setup_regno_cost_classes_by_aclass (int regno, enum reg_class aclass)
 	    }
 	  classes.classes[classes.num++] = cl;
 	}
-      slot = cost_classes_htab.find_slot (&classes, INSERT);
+      slot = cost_classes_htab->find_slot (&classes, INSERT);
       if (*slot == NULL)
 	{
 	  classes_ptr = setup_cost_classes (&classes);
@@ -301,7 +301,7 @@ setup_regno_cost_classes_by_mode (int regno, enum machine_mode mode)
 	    continue;
 	  classes.classes[classes.num++] = cl;
 	}
-      slot = cost_classes_htab.find_slot (&classes, INSERT);
+      slot = cost_classes_htab->find_slot (&classes, INSERT);
       if (*slot == NULL)
 	{
 	  classes_ptr = setup_cost_classes (&classes);
@@ -319,7 +319,8 @@ static void
 finish_regno_cost_classes (void)
 {
   ira_free (regno_cost_classes);
-  cost_classes_htab.dispose ();
+  delete cost_classes_htab;
+  cost_classes_htab = NULL;
 }
 
 
@@ -407,6 +408,8 @@ record_reg_classes (int n_alts, int n_ops, rtx *ops,
   int alt;
   int i, j, k;
   int insn_allows_mem[MAX_RECOG_OPERANDS];
+  move_table *move_in_cost, *move_out_cost;
+  short (*mem_cost)[2];
 
   for (i = 0; i < n_ops; i++)
     insn_allows_mem[i] = 0;
@@ -421,7 +424,7 @@ record_reg_classes (int n_alts, int n_ops, rtx *ops,
       int alt_fail = 0;
       int alt_cost = 0, op_cost_add;
 
-      if (!recog_data.alternative_enabled_p[alt])
+      if (!TEST_BIT (recog_data.enabled_alternatives, alt))
 	{
 	  for (i = 0; i < recog_data.n_operands; i++)
 	    constraints[i] = skip_alternative (constraints[i]);
@@ -517,41 +520,78 @@ record_reg_classes (int n_alts, int n_ops, rtx *ops,
 		  bool in_p = recog_data.operand_type[i] != OP_OUT;
 		  bool out_p = recog_data.operand_type[i] != OP_IN;
 		  enum reg_class op_class = classes[i];
-		  move_table *move_in_cost, *move_out_cost;
 
 		  ira_init_register_move_cost_if_necessary (mode);
 		  if (! in_p)
 		    {
 		      ira_assert (out_p);
-		      move_out_cost = ira_may_move_out_cost[mode];
-		      for (k = cost_classes_ptr->num - 1; k >= 0; k--)
+		      if (op_class == NO_REGS)
 			{
-			  rclass = cost_classes[k];
-			  pp_costs[k]
-			    = move_out_cost[op_class][rclass] * frequency;
+			  mem_cost = ira_memory_move_cost[mode];
+			  for (k = cost_classes_ptr->num - 1; k >= 0; k--)
+			    {
+			      rclass = cost_classes[k];
+			      pp_costs[k] = mem_cost[rclass][0] * frequency;
+			    }
+			}
+		      else
+			{
+			  move_out_cost = ira_may_move_out_cost[mode];
+			  for (k = cost_classes_ptr->num - 1; k >= 0; k--)
+			    {
+			      rclass = cost_classes[k];
+			      pp_costs[k]
+				= move_out_cost[op_class][rclass] * frequency;
+			    }
 			}
 		    }
 		  else if (! out_p)
 		    {
 		      ira_assert (in_p);
-		      move_in_cost = ira_may_move_in_cost[mode];
-		      for (k = cost_classes_ptr->num - 1; k >= 0; k--)
+		      if (op_class == NO_REGS)
 			{
-			  rclass = cost_classes[k];
-			  pp_costs[k]
-			    = move_in_cost[rclass][op_class] * frequency;
+			  mem_cost = ira_memory_move_cost[mode];
+			  for (k = cost_classes_ptr->num - 1; k >= 0; k--)
+			    {
+			      rclass = cost_classes[k];
+			      pp_costs[k] = mem_cost[rclass][1] * frequency;
+			    }
+			}
+		      else
+			{
+			  move_in_cost = ira_may_move_in_cost[mode];
+			  for (k = cost_classes_ptr->num - 1; k >= 0; k--)
+			    {
+			      rclass = cost_classes[k];
+			      pp_costs[k]
+				= move_in_cost[rclass][op_class] * frequency;
+			    }
 			}
 		    }
 		  else
 		    {
-		      move_in_cost = ira_may_move_in_cost[mode];
-		      move_out_cost = ira_may_move_out_cost[mode];
-		      for (k = cost_classes_ptr->num - 1; k >= 0; k--)
+		      if (op_class == NO_REGS)
 			{
-			  rclass = cost_classes[k];
-			  pp_costs[k] = ((move_in_cost[rclass][op_class]
-					  + move_out_cost[op_class][rclass])
-					 * frequency);
+			  mem_cost = ira_memory_move_cost[mode];
+			  for (k = cost_classes_ptr->num - 1; k >= 0; k--)
+			    {
+			      rclass = cost_classes[k];
+			      pp_costs[k] = ((mem_cost[rclass][0]
+					      + mem_cost[rclass][1])
+					     * frequency);
+			    }
+			}
+		      else
+			{
+			  move_in_cost = ira_may_move_in_cost[mode];
+			  move_out_cost = ira_may_move_out_cost[mode];
+			  for (k = cost_classes_ptr->num - 1; k >= 0; k--)
+			    {
+			      rclass = cost_classes[k];
+			      pp_costs[k] = ((move_in_cost[rclass][op_class]
+					      + move_out_cost[op_class][rclass])
+					     * frequency);
+			    }
 			}
 		    }
 
@@ -606,8 +646,6 @@ record_reg_classes (int n_alts, int n_ops, rtx *ops,
 	    {
 	      switch (c)
 		{
-		case ',':
-		  break;
 		case '*':
 		  /* Ignore the next letter for this pass.  */
 		  c = *++p;
@@ -615,92 +653,6 @@ record_reg_classes (int n_alts, int n_ops, rtx *ops,
 
 		case '?':
 		  alt_cost += 2;
-		case '!':  case '#':  case '&':
-		case '0':  case '1':  case '2':  case '3':  case '4':
-		case '5':  case '6':  case '7':  case '8':  case '9':
-		  break;
-
-		case 'p':
-		  allows_addr = 1;
-		  win = address_operand (op, GET_MODE (op));
-		  /* We know this operand is an address, so we want it
-		     to be allocated to a register that can be the
-		     base of an address, i.e. BASE_REG_CLASS.  */
-		  classes[i]
-		    = ira_reg_class_subunion[classes[i]]
-		      [base_reg_class (VOIDmode, ADDR_SPACE_GENERIC,
-				       ADDRESS, SCRATCH)];
-		  break;
-
-		case 'm':  case 'o':  case 'V':
-		  /* It doesn't seem worth distinguishing between
-		     offsettable and non-offsettable addresses
-		     here.  */
-		  insn_allows_mem[i] = allows_mem[i] = 1;
-		  if (MEM_P (op))
-		    win = 1;
-		  break;
-
-		case '<':
-		  if (MEM_P (op)
-		      && (GET_CODE (XEXP (op, 0)) == PRE_DEC
-			  || GET_CODE (XEXP (op, 0)) == POST_DEC))
-		    win = 1;
-		  break;
-
-		case '>':
-		  if (MEM_P (op)
-		      && (GET_CODE (XEXP (op, 0)) == PRE_INC
-			  || GET_CODE (XEXP (op, 0)) == POST_INC))
-		    win = 1;
-		  break;
-
-		case 'E':
-		case 'F':
-		  if (CONST_DOUBLE_AS_FLOAT_P (op) 
-		      || (GET_CODE (op) == CONST_VECTOR
-			  && (GET_MODE_CLASS (GET_MODE (op))
-			      == MODE_VECTOR_FLOAT)))
-		    win = 1;
-		  break;
-
-		case 'G':
-		case 'H':
-		  if (CONST_DOUBLE_AS_FLOAT_P (op) 
-		      && CONST_DOUBLE_OK_FOR_CONSTRAINT_P (op, c, p))
-		    win = 1;
-		  break;
-
-		case 's':
-		  if (CONST_SCALAR_INT_P (op)) 
-		    break;
-
-		case 'i':
-		  if (CONSTANT_P (op)
-		      && (! flag_pic || LEGITIMATE_PIC_OPERAND_P (op)))
-		    win = 1;
-		  break;
-
-		case 'n':
-		  if (CONST_SCALAR_INT_P (op)) 
-		    win = 1;
-		  break;
-
-		case 'I':
-		case 'J':
-		case 'K':
-		case 'L':
-		case 'M':
-		case 'N':
-		case 'O':
-		case 'P':
-		  if (CONST_INT_P (op)
-		      && CONST_OK_FOR_CONSTRAINT_P (INTVAL (op), c, p))
-		    win = 1;
-		  break;
-
-		case 'X':
-		  win = 1;
 		  break;
 
 		case 'g':
@@ -709,30 +661,38 @@ record_reg_classes (int n_alts, int n_ops, rtx *ops,
 			  && (! flag_pic || LEGITIMATE_PIC_OPERAND_P (op))))
 		    win = 1;
 		  insn_allows_mem[i] = allows_mem[i] = 1;
-		case 'r':
 		  classes[i] = ira_reg_class_subunion[classes[i]][GENERAL_REGS];
 		  break;
 
 		default:
-		  if (REG_CLASS_FROM_CONSTRAINT (c, p) != NO_REGS)
-		    classes[i] = ira_reg_class_subunion[classes[i]]
-		                 [REG_CLASS_FROM_CONSTRAINT (c, p)];
-#ifdef EXTRA_CONSTRAINT_STR
-		  else if (EXTRA_CONSTRAINT_STR (op, c, p))
-		    win = 1;
-
-		  if (EXTRA_MEMORY_CONSTRAINT (c, p))
+		  enum constraint_num cn = lookup_constraint (p);
+		  enum reg_class cl;
+		  switch (get_constraint_type (cn))
 		    {
+		    case CT_REGISTER:
+		      cl = reg_class_for_constraint (cn);
+		      if (cl != NO_REGS)
+			classes[i] = ira_reg_class_subunion[classes[i]][cl];
+		      break;
+
+		    case CT_CONST_INT:
+		      if (CONST_INT_P (op)
+			  && insn_const_int_ok_for_constraint (INTVAL (op), cn))
+			win = 1;
+		      break;
+
+		    case CT_MEMORY:
 		      /* Every MEM can be reloaded to fit.  */
 		      insn_allows_mem[i] = allows_mem[i] = 1;
 		      if (MEM_P (op))
 			win = 1;
-		    }
-		  if (EXTRA_ADDRESS_CONSTRAINT (c, p))
-		    {
+		      break;
+
+		    case CT_ADDRESS:
 		      /* Every address can be reloaded to fit.  */
 		      allows_addr = 1;
-		      if (address_operand (op, GET_MODE (op)))
+		      if (address_operand (op, GET_MODE (op))
+			  || constraint_satisfied_p (op, cn))
 			win = 1;
 		      /* We know this operand is an address, so we
 			 want it to be allocated to a hard register
@@ -742,8 +702,13 @@ record_reg_classes (int n_alts, int n_ops, rtx *ops,
 			= ira_reg_class_subunion[classes[i]]
 			  [base_reg_class (VOIDmode, ADDR_SPACE_GENERIC,
 					   ADDRESS, SCRATCH)];
+		      break;
+
+		    case CT_FIXED_FORM:
+		      if (constraint_satisfied_p (op, cn))
+			win = 1;
+		      break;
 		    }
-#endif
 		  break;
 		}
 	      p += CONSTRAINT_LEN (c, p);
@@ -762,10 +727,11 @@ record_reg_classes (int n_alts, int n_ops, rtx *ops,
 	     into that class.  */
 	  if (REG_P (op) && REGNO (op) >= FIRST_PSEUDO_REGISTER)
 	    {
-	      if (classes[i] == NO_REGS)
+	      if (classes[i] == NO_REGS && ! allows_mem[i])
 		{
 		  /* We must always fail if the operand is a REG, but
-		     we did not find a suitable class.
+		     we did not find a suitable class and memory is
+		     not allowed.
 
 		     Otherwise we may perform an uninitialized read
 		     from this_op_costs after the `continue' statement
@@ -782,51 +748,94 @@ record_reg_classes (int n_alts, int n_ops, rtx *ops,
 		  bool in_p = recog_data.operand_type[i] != OP_OUT;
 		  bool out_p = recog_data.operand_type[i] != OP_IN;
 		  enum reg_class op_class = classes[i];
-		  move_table *move_in_cost, *move_out_cost;
 
 		  ira_init_register_move_cost_if_necessary (mode);
 		  if (! in_p)
 		    {
 		      ira_assert (out_p);
-		      move_out_cost = ira_may_move_out_cost[mode];
-		      for (k = cost_classes_ptr->num - 1; k >= 0; k--)
+		      if (op_class == NO_REGS)
 			{
-			  rclass = cost_classes[k];
-			  pp_costs[k]
-			    = move_out_cost[op_class][rclass] * frequency;
+			  mem_cost = ira_memory_move_cost[mode];
+			  for (k = cost_classes_ptr->num - 1; k >= 0; k--)
+			    {
+			      rclass = cost_classes[k];
+			      pp_costs[k] = mem_cost[rclass][0] * frequency;
+			    }
+			}
+		      else
+			{
+			  move_out_cost = ira_may_move_out_cost[mode];
+			  for (k = cost_classes_ptr->num - 1; k >= 0; k--)
+			    {
+			      rclass = cost_classes[k];
+			      pp_costs[k]
+				= move_out_cost[op_class][rclass] * frequency;
+			    }
 			}
 		    }
 		  else if (! out_p)
 		    {
 		      ira_assert (in_p);
-		      move_in_cost = ira_may_move_in_cost[mode];
-		      for (k = cost_classes_ptr->num - 1; k >= 0; k--)
+		      if (op_class == NO_REGS)
 			{
-			  rclass = cost_classes[k];
-			  pp_costs[k]
-			    = move_in_cost[rclass][op_class] * frequency;
+			  mem_cost = ira_memory_move_cost[mode];
+			  for (k = cost_classes_ptr->num - 1; k >= 0; k--)
+			    {
+			      rclass = cost_classes[k];
+			      pp_costs[k] = mem_cost[rclass][1] * frequency;
+			    }
+			}
+		      else
+			{
+			  move_in_cost = ira_may_move_in_cost[mode];
+			  for (k = cost_classes_ptr->num - 1; k >= 0; k--)
+			    {
+			      rclass = cost_classes[k];
+			      pp_costs[k]
+				= move_in_cost[rclass][op_class] * frequency;
+			    }
 			}
 		    }
 		  else
 		    {
-		      move_in_cost = ira_may_move_in_cost[mode];
-		      move_out_cost = ira_may_move_out_cost[mode];
-		      for (k = cost_classes_ptr->num - 1; k >= 0; k--)
+		      if (op_class == NO_REGS)
 			{
-			  rclass = cost_classes[k];
-			  pp_costs[k] = ((move_in_cost[rclass][op_class]
-					  + move_out_cost[op_class][rclass])
-					 * frequency);
+			  mem_cost = ira_memory_move_cost[mode];
+			  for (k = cost_classes_ptr->num - 1; k >= 0; k--)
+			    {
+			      rclass = cost_classes[k];
+			      pp_costs[k] = ((mem_cost[rclass][0]
+					      + mem_cost[rclass][1])
+					     * frequency);
+			    }
+			}
+		      else
+			{
+			  move_in_cost = ira_may_move_in_cost[mode];
+			  move_out_cost = ira_may_move_out_cost[mode];
+			  for (k = cost_classes_ptr->num - 1; k >= 0; k--)
+			    {
+			      rclass = cost_classes[k];
+			      pp_costs[k] = ((move_in_cost[rclass][op_class]
+					      + move_out_cost[op_class][rclass])
+					     * frequency);
+			    }
 			}
 		    }
 
-		  /* If the alternative actually allows memory, make
-		     things a bit cheaper since we won't need an extra
-		     insn to load it.  */
-		  pp->mem_cost
-		    = ((out_p ? ira_memory_move_cost[mode][op_class][0] : 0)
-		       + (in_p ? ira_memory_move_cost[mode][op_class][1] : 0)
-		       - allows_mem[i]) * frequency;
+		  if (op_class == NO_REGS)
+		    /* Although we don't need insn to reload from
+		       memory, still accessing memory is usually more
+		       expensive than a register.  */
+		    pp->mem_cost = frequency;
+		  else
+		    /* If the alternative actually allows memory, make
+		       things a bit cheaper since we won't need an
+		       extra insn to load it.  */
+		    pp->mem_cost
+		      = ((out_p ? ira_memory_move_cost[mode][op_class][0] : 0)
+			 + (in_p ? ira_memory_move_cost[mode][op_class][1] : 0)
+			 - allows_mem[i]) * frequency;
 		  /* If we have assigned a class to this allocno in
 		     our first pass, add a cost to this alternative
 		     corresponding to what we would add if this
@@ -836,15 +845,28 @@ record_reg_classes (int n_alts, int n_ops, rtx *ops,
 		      enum reg_class pref_class = pref[COST_INDEX (REGNO (op))];
 
 		      if (pref_class == NO_REGS)
+			{
+			  if (op_class != NO_REGS)
+			    alt_cost
+			      += ((out_p
+				   ? ira_memory_move_cost[mode][op_class][0]
+				   : 0)
+				  + (in_p
+				     ? ira_memory_move_cost[mode][op_class][1]
+				     : 0));
+			}
+		      else if (op_class == NO_REGS)
 			alt_cost
 			  += ((out_p
-			       ? ira_memory_move_cost[mode][op_class][0] : 0)
+			       ? ira_memory_move_cost[mode][pref_class][1]
+			       : 0)
 			      + (in_p
-				 ? ira_memory_move_cost[mode][op_class][1]
+				 ? ira_memory_move_cost[mode][pref_class][0]
 				 : 0));
 		      else if (ira_reg_class_intersect[pref_class][op_class]
 			       == NO_REGS)
-			alt_cost += ira_register_move_cost[mode][pref_class][op_class];
+			alt_cost += (ira_register_move_cost
+				     [mode][pref_class][op_class]);
 		    }
 		}
 	    }
@@ -1179,8 +1201,8 @@ record_operand_costs (rtx insn, enum reg_class *pref)
 			     XEXP (recog_data.operand[i], 0),
 			     0, MEM, SCRATCH, frequency * 2);
       else if (constraints[i][0] == 'p'
-	       || EXTRA_ADDRESS_CONSTRAINT (constraints[i][0],
-					    constraints[i]))
+	       || (insn_extra_address_constraint
+		   (lookup_constraint (constraints[i]))))
 	record_address_regs (VOIDmode, ADDR_SPACE_GENERIC,
 			     recog_data.operand[i], 0, ADDRESS, SCRATCH,
 			     frequency * 2);
@@ -1855,7 +1877,7 @@ find_costs_and_classes (FILE *dump_file)
 
 /* Process moves involving hard regs to modify allocno hard register
    costs.  We can do this only after determining allocno class.  If a
-   hard register forms a register class, than moves with the hard
+   hard register forms a register class, then moves with the hard
    register are already taken into account in class costs for the
    allocno.  */
 static void
@@ -2142,6 +2164,7 @@ ira_tune_allocno_costs (void)
   ira_allocno_object_iterator oi;
   ira_object_t obj;
   bool skip_p;
+  HARD_REG_SET *crossed_calls_clobber_regs;
 
   FOR_EACH_ALLOCNO (a, ai)
     {
@@ -2176,17 +2199,24 @@ ira_tune_allocno_costs (void)
 		continue;
 	      rclass = REGNO_REG_CLASS (regno);
 	      cost = 0;
-	      if (ira_hard_reg_set_intersection_p (regno, mode, call_used_reg_set)
-		  || HARD_REGNO_CALL_PART_CLOBBERED (regno, mode))
-		cost += (ALLOCNO_CALL_FREQ (a)
-			 * (ira_memory_move_cost[mode][rclass][0]
-			    + ira_memory_move_cost[mode][rclass][1]));
+	      crossed_calls_clobber_regs
+		= &(ALLOCNO_CROSSED_CALLS_CLOBBERED_REGS (a));
+	      if (ira_hard_reg_set_intersection_p (regno, mode,
+						   *crossed_calls_clobber_regs))
+		{
+		  if (ira_hard_reg_set_intersection_p (regno, mode,
+						       call_used_reg_set)
+		      || HARD_REGNO_CALL_PART_CLOBBERED (regno, mode))
+		    cost += (ALLOCNO_CALL_FREQ (a)
+			     * (ira_memory_move_cost[mode][rclass][0]
+				+ ira_memory_move_cost[mode][rclass][1]));
 #ifdef IRA_HARD_REGNO_ADD_COST_MULTIPLIER
-	      cost += ((ira_memory_move_cost[mode][rclass][0]
-			+ ira_memory_move_cost[mode][rclass][1])
-		       * ALLOCNO_FREQ (a)
-		       * IRA_HARD_REGNO_ADD_COST_MULTIPLIER (regno) / 2);
+		  cost += ((ira_memory_move_cost[mode][rclass][0]
+			    + ira_memory_move_cost[mode][rclass][1])
+			   * ALLOCNO_FREQ (a)
+			   * IRA_HARD_REGNO_ADD_COST_MULTIPLIER (regno) / 2);
 #endif
+		}
 	      if (INT_MAX - cost < reg_costs[j])
 		reg_costs[j] = INT_MAX;
 	      else

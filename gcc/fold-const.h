@@ -85,7 +85,6 @@ extern void fold_defer_overflow_warnings (void);
 extern void fold_undefer_overflow_warnings (bool, const_gimple, int);
 extern void fold_undefer_and_ignore_overflow_warnings (void);
 extern bool fold_deferring_overflow_warnings_p (void);
-extern tree fold_fma (location_t, tree, tree, tree, tree);
 extern int operand_equal_p (const_tree, const_tree, unsigned int);
 extern int multiple_of_p (tree, const_tree, const_tree);
 #define omit_one_operand(T1,T2,T3)\
@@ -118,10 +117,10 @@ extern tree fold_indirect_ref_loc (location_t, tree);
 extern tree build_simple_mem_ref_loc (location_t, tree);
 #define build_simple_mem_ref(T)\
 	build_simple_mem_ref_loc (UNKNOWN_LOCATION, T)
-extern double_int mem_ref_offset (const_tree);
+extern offset_int mem_ref_offset (const_tree);
 extern tree build_invariant_address (tree, tree, HOST_WIDE_INT);
 extern tree constant_boolean_node (bool, tree);
-extern tree div_if_zero_remainder (enum tree_code, const_tree, const_tree);
+extern tree div_if_zero_remainder (const_tree, const_tree);
 
 extern bool tree_swap_operands_p (const_tree, const_tree, bool);
 extern enum tree_code swap_tree_comparison (enum tree_code);
@@ -145,7 +144,7 @@ extern tree combine_comparisons (location_t, enum tree_code, enum tree_code,
 extern void debug_fold_checksum (const_tree);
 extern bool may_negate_without_overflow_p (const_tree);
 #define round_up(T,N) round_up_loc (UNKNOWN_LOCATION, T, N)
-extern tree round_up_loc (location_t, tree, int);
+extern tree round_up_loc (location_t, tree, unsigned int);
 #define round_down(T,N) round_down_loc (UNKNOWN_LOCATION, T, N)
 extern tree round_down_loc (location_t, tree, int);
 extern tree size_int_kind (HOST_WIDE_INT, enum size_type_kind);

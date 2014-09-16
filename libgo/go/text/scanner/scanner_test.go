@@ -360,7 +360,7 @@ func TestScanSelectedMask(t *testing.T) {
 func TestScanNext(t *testing.T) {
 	const BOM = '\uFEFF'
 	BOMs := string(BOM)
-	s := new(Scanner).Init(bytes.NewBufferString(BOMs + "if a == bcd /* com" + BOMs + "ment */ {\n\ta += c\n}" + BOMs + "// line comment ending in eof"))
+	s := new(Scanner).Init(strings.NewReader(BOMs + "if a == bcd /* com" + BOMs + "ment */ {\n\ta += c\n}" + BOMs + "// line comment ending in eof"))
 	checkTok(t, s, 1, s.Scan(), Ident, "if") // the first BOM is ignored
 	checkTok(t, s, 1, s.Scan(), Ident, "a")
 	checkTok(t, s, 1, s.Scan(), '=', "=")
@@ -402,7 +402,7 @@ func TestScanWhitespace(t *testing.T) {
 }
 
 func testError(t *testing.T, src, pos, msg string, tok rune) {
-	s := new(Scanner).Init(bytes.NewBufferString(src))
+	s := new(Scanner).Init(strings.NewReader(src))
 	errorCalled := false
 	s.Error = func(s *Scanner, m string) {
 		if !errorCalled {
@@ -462,6 +462,33 @@ func TestError(t *testing.T) {
 	testError(t, `/*/`, "1:4", "comment not terminated", EOF)
 }
 
+// An errReader returns (0, err) where err is not io.EOF.
+type errReader struct{}
+
+func (errReader) Read(b []byte) (int, error) {
+	return 0, io.ErrNoProgress // some error that is not io.EOF
+}
+
+func TestIOError(t *testing.T) {
+	s := new(Scanner).Init(errReader{})
+	errorCalled := false
+	s.Error = func(s *Scanner, msg string) {
+		if !errorCalled {
+			if want := io.ErrNoProgress.Error(); msg != want {
+				t.Errorf("msg = %q, want %q", msg, want)
+			}
+			errorCalled = true
+		}
+	}
+	tok := s.Scan()
+	if tok != EOF {
+		t.Errorf("tok = %s, want EOF", TokenString(tok))
+	}
+	if !errorCalled {
+		t.Errorf("error handler not called")
+	}
+}
+
 func checkPos(t *testing.T, got, want Position) {
 	if got.Offset != want.Offset || got.Line != want.Line || got.Column != want.Column {
 		t.Errorf("got offset, line, column = %d, %d, %d; want %d, %d, %d",
@@ -491,13 +518,13 @@ func checkScanPos(t *testing.T, s *Scanner, offset, line, column int, char rune)
 
 func TestPos(t *testing.T) {
 	// corner case: empty source
-	s := new(Scanner).Init(bytes.NewBufferString(""))
+	s := new(Scanner).Init(strings.NewReader(""))
 	checkPos(t, s.Pos(), Position{Offset: 0, Line: 1, Column: 1})
 	s.Peek() // peek doesn't affect the position
 	checkPos(t, s.Pos(), Position{Offset: 0, Line: 1, Column: 1})
 
 	// corner case: source with only a newline
-	s = new(Scanner).Init(bytes.NewBufferString("\n"))
+	s = new(Scanner).Init(strings.NewReader("\n"))
 	checkPos(t, s.Pos(), Position{Offset: 0, Line: 1, Column: 1})
 	checkNextPos(t, s, 1, 2, 1, '\n')
 	// after EOF position doesn't change
@@ -509,7 +536,7 @@ func TestPos(t *testing.T) {
 	}
 
 	// corner case: source with only a single character
-	s = new(Scanner).Init(bytes.NewBufferString("本"))
+	s = new(Scanner).Init(strings.NewReader("本"))
 	checkPos(t, s.Pos(), Position{Offset: 0, Line: 1, Column: 1})
 	checkNextPos(t, s, 3, 1, 2, '本')
 	// after EOF position doesn't change
@@ -521,7 +548,7 @@ func TestPos(t *testing.T) {
 	}
 
 	// positions after calling Next
-	s = new(Scanner).Init(bytes.NewBufferString("  foo६४  \n\n本語\n"))
+	s = new(Scanner).Init(strings.NewReader("  foo६४  \n\n本語\n"))
 	checkNextPos(t, s, 1, 1, 2, ' ')
 	s.Peek() // peek doesn't affect the position
 	checkNextPos(t, s, 2, 1, 3, ' ')
@@ -546,7 +573,7 @@ func TestPos(t *testing.T) {
 	}
 
 	// positions after calling Scan
-	s = new(Scanner).Init(bytes.NewBufferString("abc\n本語\n\nx"))
+	s = new(Scanner).Init(strings.NewReader("abc\n本語\n\nx"))
 	s.Mode = 0
 	s.Whitespace = 0
 	checkScanPos(t, s, 0, 1, 1, 'a')

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2001-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2014, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -308,15 +308,6 @@ package body Switch.C is
                if not First_Switch then
                   Osint.Fail
                     ("-gnatc must be first if combined with other switches");
-               end if;
-
-               --  Not allowed if previous -gnatR given
-
-               if List_Representation_Info /= 0
-                 or else List_Representation_Info_Mechanisms
-               then
-                  Osint.Fail
-                    ("-gnatc not allowed since -gnatR given previously");
                end if;
 
                Ptr := Ptr + 1;
@@ -815,11 +806,6 @@ package body Switch.C is
                System_Extend_Unit := Empty;
                Warning_Mode := Treat_As_Error;
                Style_Check_Main := True;
-
-               --  Set Ada 2012 mode explicitly. We don't want to rely on the
-               --  implicit setting here, since for example, we want
-               --  Preelaborate_05 treated as Preelaborate
-
                Ada_Version          := Ada_2012;
                Ada_Version_Explicit := Ada_2012;
                Ada_Version_Pragma   := Empty;
@@ -1060,14 +1046,6 @@ package body Switch.C is
                if Debug_Generated_Code then
                   Osint.Fail
                     ("-gnatR not permitted since -gnatD given previously");
-               end if;
-
-               --  Not allowed if previous -gnatc was given, since we must
-               --  call the code generator to determine rep information.
-
-               if Operating_Mode = Check_Semantics then
-                  Osint.Fail
-                    ("-gnatR not permitted since -gnatc given previously");
                end if;
 
                --  Set to annotate rep info, and set default -gnatR mode

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -2436,10 +2436,11 @@ package body Sem_Ch9 is
 
       --  AI05-0225: the target protected object of a requeue must be a
       --  variable. This is a binding interpretation that applies to all
-      --  versions of the language.
+      --  versions of the language. Note that the subprogram does not have
+      --  to be a protected operation: it can be an primitive implemented
+      --  by entry with a formal that is a protected interface.
 
       if Present (Target_Obj)
-        and then Ekind (Scope (Entry_Id)) in Protected_Kind
         and then not Is_Variable (Target_Obj)
       then
          Error_Msg_N
@@ -3327,8 +3328,8 @@ package body Sem_Ch9 is
 
                if Present (Iface) then
                   Error_Msg_NE
-                    ("interface & not implemented by full type " &
-                     "(RM-2005 7.3 (7.3/2))", Priv_T, Iface);
+                    ("interface in partial view& not implemented by full "
+                     & "type (RM-2005 7.3 (7.3/2))", T, Iface);
                end if;
 
                Iface := Find_Hidden_Interface (Full_T_Ifaces, Priv_T_Ifaces);
@@ -3420,92 +3421,4 @@ package body Sem_Ch9 is
          Next_Entity (E);
       end loop;
    end Install_Declarations;
-
-   ---------------------------
-   -- Install_Discriminants --
-   ---------------------------
-
-   procedure Install_Discriminants (E : Entity_Id) is
-      Disc : Entity_Id;
-      Prev : Entity_Id;
-   begin
-      Disc := First_Discriminant (E);
-      while Present (Disc) loop
-         Prev := Current_Entity (Disc);
-         Set_Current_Entity (Disc);
-         Set_Is_Immediately_Visible (Disc);
-         Set_Homonym (Disc, Prev);
-         Next_Discriminant (Disc);
-      end loop;
-   end Install_Discriminants;
-
-   ------------------------------------------
-   -- Push_Scope_And_Install_Discriminants --
-   ------------------------------------------
-
-   procedure Push_Scope_And_Install_Discriminants (E : Entity_Id) is
-   begin
-      if Has_Discriminants (E) then
-         Push_Scope (E);
-         Install_Discriminants (E);
-      end if;
-   end Push_Scope_And_Install_Discriminants;
-
-   -----------------------------
-   -- Uninstall_Discriminants --
-   -----------------------------
-
-   procedure Uninstall_Discriminants (E : Entity_Id) is
-      Disc  : Entity_Id;
-      Prev  : Entity_Id;
-      Outer : Entity_Id;
-
-   begin
-      Disc := First_Discriminant (E);
-      while Present (Disc) loop
-         if Disc /= Current_Entity (Disc) then
-            Prev := Current_Entity (Disc);
-            while Present (Prev)
-              and then Present (Homonym (Prev))
-              and then Homonym (Prev) /= Disc
-            loop
-               Prev := Homonym (Prev);
-            end loop;
-         else
-            Prev := Empty;
-         end if;
-
-         Set_Is_Immediately_Visible (Disc, False);
-
-         Outer := Homonym (Disc);
-         while Present (Outer) and then Scope (Outer) = E loop
-            Outer := Homonym (Outer);
-         end loop;
-
-         --  Reset homonym link of other entities, but do not modify link
-         --  between entities in current scope, so that the back-end can have
-         --  a proper count of local overloadings.
-
-         if No (Prev) then
-            Set_Name_Entity_Id (Chars (Disc), Outer);
-
-         elsif Scope (Prev) /= Scope (Disc) then
-            Set_Homonym (Prev,  Outer);
-         end if;
-
-         Next_Discriminant (Disc);
-      end loop;
-   end Uninstall_Discriminants;
-
-   -------------------------------------------
-   -- Uninstall_Discriminants_And_Pop_Scope --
-   -------------------------------------------
-
-   procedure Uninstall_Discriminants_And_Pop_Scope (E : Entity_Id) is
-   begin
-      if Has_Discriminants (E) then
-         Uninstall_Discriminants (E);
-         Pop_Scope;
-      end if;
-   end Uninstall_Discriminants_And_Pop_Scope;
 end Sem_Ch9;

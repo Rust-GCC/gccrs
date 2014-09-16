@@ -42,6 +42,10 @@ void __gcov_init (struct gcov_info *p __attribute__ ((unused))) {}
 #endif
 
 #ifdef L_gcov
+
+/* A utility function for outputing errors.  */
+static int gcov_error (const char *, ...);
+
 #include "gcov-io.c"
 
 /* The following functions can be called from outside of this file.  */
@@ -77,7 +81,11 @@ set_gcov_list (struct gcov_info *head)
 }
 
 /* Size of the longest file name. */
-static size_t gcov_max_filename = 0;
+/* We need to expose this static variable when compiling for gcov-tool.  */
+#ifndef IN_GCOV_TOOL
+static
+#endif
+size_t gcov_max_filename = 0;
 
 /* Flag when the profile has already been dumped via __gcov_dump().  */
 static int gcov_dump_complete;
@@ -107,9 +115,6 @@ reset_gcov_dump_complete (void)
 {
   gcov_dump_complete = 0;
 }
-
-/* A utility function for outputing errors.  */
-static int gcov_error (const char *, ...);
 
 static struct gcov_fn_buffer *
 free_fn_data (const struct gcov_info *gi_ptr, struct gcov_fn_buffer *buffer,

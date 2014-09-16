@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -25,6 +25,7 @@
 
 with Atree;    use Atree;
 with Back_End; use Back_End;
+with Checks;
 with Comperr;
 with Csets;    use Csets;
 with Debug;    use Debug;
@@ -69,6 +70,7 @@ with Sprint;   use Sprint;
 with Stringt;
 with Stylesw;  use Stylesw;
 with Targparm; use Targparm;
+with Tbuild;
 with Tree_Gen;
 with Treepr;   use Treepr;
 with Ttypes;
@@ -80,6 +82,10 @@ with Usage;
 with Validsw;  use Validsw;
 
 with System.Assertions;
+
+--------------
+-- Gnat1drv --
+--------------
 
 procedure Gnat1drv is
    Main_Unit_Node : Node_Id;
@@ -104,6 +110,13 @@ procedure Gnat1drv is
    procedure Check_Rep_Info;
    --  Called when we are not generating code, to check if -gnatR was requested
    --  and if so, explain that we will not be honoring the request.
+
+   procedure Post_Compilation_Validation_Checks;
+   --  This procedure performs various validation checks that have to be left
+   --  to the end of the compilation process, after generating code but before
+   --  issuing error messages. In particular, these checks generally require
+   --  the information provided by the back end in back annotation of declared
+   --  entities (e.g. actual size and alignment values chosen by the back end).
 
    ----------------------------
    -- Adjust_Global_Switches --
@@ -350,6 +363,12 @@ procedure Gnat1drv is
          --  Comment is incomplete, SPARK semantics rely on static mode no???
 
          Dynamic_Elaboration_Checks := False;
+
+         --  Detect overflow on unconstrained floating-point types, such as
+         --  the predefined types Float, Long_Float and Long_Long_Float from
+         --  package Standard.
+
+         Check_Float_Overflow := True;
 
          --  Set STRICT mode for overflow checks if not set explicitly. This
          --  prevents suppressing of overflow checks by default, in code down
@@ -633,7 +652,6 @@ procedure Gnat1drv is
          Sname := Unit_Name (Main_Unit);
 
          --  If we do not already have a body name, then get the body name
-         --  (but how can we have a body name here???)
 
          if not Is_Body_Name (Sname) then
             Sname := Get_Body_Name (Sname);
@@ -651,19 +669,15 @@ procedure Gnat1drv is
          --  to include both in a partition, this is diagnosed at bind time. In
          --  Ada 83 mode this is not a warning case.
 
-         --  Note: if weird file names are being used, we can have a situation
-         --  where the file name that supposedly contains body in fact contains
-         --  a spec, or we can't tell what it contains. Skip the error message
-         --  in these cases.
-
-         --  Also ignore body that is nothing but pragma No_Body; (that's the
-         --  whole point of this pragma, to be used this way and to cause the
-         --  body file to be ignored in this context).
+         --  Note that in general we do not give the message if the file in
+         --  question does not look like a body. This includes weird cases,
+         --  but in particular means that if the file is just a No_Body pragma,
+         --  then we won't give the message (that's the whole point of this
+         --  pragma, to be used this way and to cause the body file to be
+         --  ignored in this context).
 
          if Src_Ind /= No_Source_File
-           and then Get_Expected_Unit_Type (Fname) = Expect_Body
-           and then not Source_File_Is_Subunit (Src_Ind)
-           and then not Source_File_Is_No_Body (Src_Ind)
+           and then Source_File_Is_Body (Src_Ind)
          then
             Errout.Finalize (Last_Call => False);
 
@@ -693,8 +707,8 @@ procedure Gnat1drv is
             else
                --  For generic instantiations, we never allow a body
 
-               if Nkind (Original_Node (Unit (Main_Unit_Node)))
-               in N_Generic_Instantiation
+               if Nkind (Original_Node (Unit (Main_Unit_Node))) in
+                                                    N_Generic_Instantiation
                then
                   Bad_Body_Error
                     ("generic instantiation for $$ does not allow a body");
@@ -746,6 +760,35 @@ procedure Gnat1drv is
       end if;
    end Check_Rep_Info;
 
+   ----------------------------------------
+   -- Post_Compilation_Validation_Checks --
+   ----------------------------------------
+
+   procedure Post_Compilation_Validation_Checks is
+   begin
+      --  Validate alignment check warnings. In some cases we generate warnings
+      --  about possible alignment errors because we don't know the alignment
+      --  that will be chosen by the back end. This routine is in charge of
+      --  getting rid of those warnings if we can tell they are not needed.
+
+      Checks.Validate_Alignment_Check_Warnings;
+
+      --  Validate unchecked conversions (using the values for size and
+      --  alignment annotated by the backend where possible).
+
+      Sem_Ch13.Validate_Unchecked_Conversions;
+
+      --  Validate address clauses (again using alignment values annotated
+      --  by the backend where possible).
+
+      Sem_Ch13.Validate_Address_Clauses;
+
+      --  Validate independence pragmas (again using values annotated by
+      --  the back end for component layout etc.)
+
+      Sem_Ch13.Validate_Independence;
+   end Post_Compilation_Validation_Checks;
+
 --  Start of processing for Gnat1drv
 
 begin
@@ -768,6 +811,7 @@ begin
       Scan_Compiler_Arguments;
       Osint.Add_Default_Search_Dirs;
 
+      Atree.Initialize;
       Nlists.Initialize;
       Sinput.Initialize;
       Sem.Initialize;
@@ -790,7 +834,7 @@ begin
 
       --  Acquire target parameters from system.ads (source of package System)
 
-      declare
+      Targparm_Acquire : declare
          use Sinput;
 
          S : Source_File_Index;
@@ -817,12 +861,17 @@ begin
          Targparm.Get_Target_Parameters
            (System_Text  => Source_Text  (S),
             Source_First => Source_First (S),
-            Source_Last  => Source_Last  (S));
+            Source_Last  => Source_Last  (S),
+            Make_Id      => Tbuild.Make_Id'Access,
+            Make_SC      => Tbuild.Make_SC'Access,
+            Set_RND      => Tbuild.Set_RND'Access);
 
          --  Acquire configuration pragma information from Targparm
 
          Restrict.Restrictions := Targparm.Restrictions_On_Target;
-      end;
+      end Targparm_Acquire;
+
+      --  Perform various adjustments and settings of global switches
 
       Adjust_Global_Switches;
 
@@ -891,9 +940,7 @@ begin
 
       if Compilation_Errors then
          Treepr.Tree_Dump;
-         Sem_Ch13.Validate_Unchecked_Conversions;
-         Sem_Ch13.Validate_Address_Clauses;
-         Sem_Ch13.Validate_Independence;
+         Post_Compilation_Validation_Checks;
          Errout.Output_Messages;
          Namet.Finalize;
 
@@ -1089,9 +1136,7 @@ begin
 
          Set_Standard_Output;
 
-         Sem_Ch13.Validate_Unchecked_Conversions;
-         Sem_Ch13.Validate_Address_Clauses;
-         Sem_Ch13.Validate_Independence;
+         Post_Compilation_Validation_Checks;
          Errout.Finalize (Last_Call => True);
          Errout.Output_Messages;
          Treepr.Tree_Dump;
@@ -1131,9 +1176,7 @@ begin
             or else Targparm.Frontend_Layout_On_Target
             or else Targparm.VM_Target /= No_VM)
       then
-         Sem_Ch13.Validate_Unchecked_Conversions;
-         Sem_Ch13.Validate_Address_Clauses;
-         Sem_Ch13.Validate_Independence;
+         Post_Compilation_Validation_Checks;
          Errout.Finalize (Last_Call => True);
          Errout.Output_Messages;
          Write_ALI (Object => False);
@@ -1183,20 +1226,9 @@ begin
 
       Exp_CG.Generate_CG_Output;
 
-      --  Validate unchecked conversions (using the values for size and
-      --  alignment annotated by the backend where possible).
+      --  Perform post compilation validation checks
 
-      Sem_Ch13.Validate_Unchecked_Conversions;
-
-      --  Validate address clauses (again using alignment values annotated
-      --  by the backend where possible).
-
-      Sem_Ch13.Validate_Address_Clauses;
-
-      --  Validate independence pragmas (again using values annotated by
-      --  the back end for component layout etc.)
-
-      Sem_Ch13.Validate_Independence;
+      Post_Compilation_Validation_Checks;
 
       --  Now we complete output of errors, rep info and the tree info. These
       --  are delayed till now, since it is perfectly possible for gigi to

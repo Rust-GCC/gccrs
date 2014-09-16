@@ -2336,15 +2336,20 @@ hash_rtx_cb (const_rtx x, enum machine_mode mode,
                + (unsigned int) INTVAL (x));
       return hash;
 
+    case CONST_WIDE_INT:
+      for (i = 0; i < CONST_WIDE_INT_NUNITS (x); i++)
+	hash += CONST_WIDE_INT_ELT (x, i);
+      return hash;
+
     case CONST_DOUBLE:
       /* This is like the general case, except that it only counts
 	 the integers representing the constant.  */
       hash += (unsigned int) code + (unsigned int) GET_MODE (x);
-      if (GET_MODE (x) != VOIDmode)
-	hash += real_hash (CONST_DOUBLE_REAL_VALUE (x));
-      else
+      if (TARGET_SUPPORTS_WIDE_INT == 0 && GET_MODE (x) == VOIDmode)
 	hash += ((unsigned int) CONST_DOUBLE_LOW (x)
 		 + (unsigned int) CONST_DOUBLE_HIGH (x));
+      else
+	hash += real_hash (CONST_DOUBLE_REAL_VALUE (x));
       return hash;
 
     case CONST_FIXED:
@@ -3779,6 +3784,7 @@ equiv_constant (rtx x)
 
       /* See if we previously assigned a constant value to this SUBREG.  */
       if ((new_rtx = lookup_as_function (x, CONST_INT)) != 0
+	  || (new_rtx = lookup_as_function (x, CONST_WIDE_INT)) != 0
           || (new_rtx = lookup_as_function (x, CONST_DOUBLE)) != 0
           || (new_rtx = lookup_as_function (x, CONST_FIXED)) != 0)
         return new_rtx;
@@ -6400,14 +6406,11 @@ cse_extended_basic_block (struct cse_basic_block_data *ebb_data)
 	 edge pointing to that bb.  */
       if (bb_has_eh_pred (bb))
 	{
-	  df_ref *def_rec;
+	  df_ref def;
 
-	  for (def_rec = df_get_artificial_defs (bb->index); *def_rec; def_rec++)
-	    {
-	      df_ref def = *def_rec;
-	      if (DF_REF_FLAGS (def) & DF_REF_AT_TOP)
-		invalidate (DF_REF_REG (def), GET_MODE (DF_REF_REG (def)));
-	    }
+	  FOR_EACH_ARTIFICIAL_DEF (def, bb->index)
+	    if (DF_REF_FLAGS (def) & DF_REF_AT_TOP)
+	      invalidate (DF_REF_REG (def), GET_MODE (DF_REF_REG (def)));
 	}
 
       optimize_this_for_speed_p = optimize_bb_for_speed_p (bb);
@@ -7457,12 +7460,6 @@ cse_condition_code_reg (void)
 /* Perform common subexpression elimination.  Nonzero value from
    `cse_main' means that jumps were simplified and some code may now
    be unreachable, so do jump optimization again.  */
-static bool
-gate_handle_cse (void)
-{
-  return optimize > 0;
-}
-
 static unsigned int
 rest_of_handle_cse (void)
 {
@@ -7497,15 +7494,12 @@ const pass_data pass_data_cse =
   RTL_PASS, /* type */
   "cse1", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_CSE, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  ( TODO_df_finish | TODO_verify_rtl_sharing
-    | TODO_verify_flow ), /* todo_flags_finish */
+  TODO_df_finish, /* todo_flags_finish */
 };
 
 class pass_cse : public rtl_opt_pass
@@ -7516,8 +7510,8 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_handle_cse (); }
-  unsigned int execute () { return rest_of_handle_cse (); }
+  virtual bool gate (function *) { return optimize > 0; }
+  virtual unsigned int execute (function *) { return rest_of_handle_cse (); }
 
 }; // class pass_cse
 
@@ -7529,12 +7523,6 @@ make_pass_cse (gcc::context *ctxt)
   return new pass_cse (ctxt);
 }
 
-
-static bool
-gate_handle_cse2 (void)
-{
-  return optimize > 0 && flag_rerun_cse_after_loop;
-}
 
 /* Run second CSE pass after loop optimizations.  */
 static unsigned int
@@ -7577,15 +7565,12 @@ const pass_data pass_data_cse2 =
   RTL_PASS, /* type */
   "cse2", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_CSE2, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  ( TODO_df_finish | TODO_verify_rtl_sharing
-    | TODO_verify_flow ), /* todo_flags_finish */
+  TODO_df_finish, /* todo_flags_finish */
 };
 
 class pass_cse2 : public rtl_opt_pass
@@ -7596,8 +7581,12 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_handle_cse2 (); }
-  unsigned int execute () { return rest_of_handle_cse2 (); }
+  virtual bool gate (function *)
+    {
+      return optimize > 0 && flag_rerun_cse_after_loop;
+    }
+
+  virtual unsigned int execute (function *) { return rest_of_handle_cse2 (); }
 
 }; // class pass_cse2
 
@@ -7607,12 +7596,6 @@ rtl_opt_pass *
 make_pass_cse2 (gcc::context *ctxt)
 {
   return new pass_cse2 (ctxt);
-}
-
-static bool
-gate_handle_cse_after_global_opts (void)
-{
-  return optimize > 0 && flag_rerun_cse_after_global_opts;
 }
 
 /* Run second CSE pass after loop optimizations.  */
@@ -7655,15 +7638,12 @@ const pass_data pass_data_cse_after_global_opts =
   RTL_PASS, /* type */
   "cse_local", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_CSE, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  ( TODO_df_finish | TODO_verify_rtl_sharing
-    | TODO_verify_flow ), /* todo_flags_finish */
+  TODO_df_finish, /* todo_flags_finish */
 };
 
 class pass_cse_after_global_opts : public rtl_opt_pass
@@ -7674,10 +7654,15 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_handle_cse_after_global_opts (); }
-  unsigned int execute () {
-    return rest_of_handle_cse_after_global_opts ();
-  }
+  virtual bool gate (function *)
+    {
+      return optimize > 0 && flag_rerun_cse_after_global_opts;
+    }
+
+  virtual unsigned int execute (function *)
+    {
+      return rest_of_handle_cse_after_global_opts ();
+    }
 
 }; // class pass_cse_after_global_opts
 

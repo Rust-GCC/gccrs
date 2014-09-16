@@ -978,8 +978,6 @@ enum data_align { align_abi, align_opt, align_both };
    On RS/6000, r1 is used for the stack.  On Darwin, r2 is available
    as a local register; for all other OS's r2 is the TOC pointer.
 
-   cr5 is not supposed to be used.
-
    On System V implementations, r13 is fixed and not available for use.  */
 
 #define FIXED_REGISTERS  \
@@ -987,7 +985,7 @@ enum data_align { align_abi, align_opt, align_both };
    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-   0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1,	   \
+   0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1,	   \
    /* AltiVec registers.  */			   \
    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
@@ -1048,7 +1046,8 @@ enum data_align { align_abi, align_opt, align_both };
 	fp13 - fp2	(not saved; incoming fp arg registers)
 	fp1		(not saved; return value)
 	fp31 - fp14	(saved; order given to save least number)
-	cr7, cr6	(not saved or special)
+	cr7, cr5	(not saved or special)
+	cr6		(not saved, but used for vector operations)
 	cr1		(not saved, but used for FP operations)
 	cr0		(not saved, but used for arithmetic operations)
 	cr4, cr3, cr2	(saved)
@@ -1061,7 +1060,7 @@ enum data_align { align_abi, align_opt, align_both };
 	r12		(not saved; if used for DImode or DFmode would use r13)
 	ctr		(not saved; when we have the choice ctr is better)
 	lr		(saved)
-	cr5, r1, r2, ap, ca (fixed)
+	r1, r2, ap, ca	(fixed)
 	v0 - v1		(not saved or used for anything)
 	v13 - v3	(not saved; incoming vector arg registers)
 	v2		(not saved; incoming vector arg reg; return value)
@@ -1099,14 +1098,14 @@ enum data_align { align_abi, align_opt, align_both };
    33,								\
    63, 62, 61, 60, 59, 58, 57, 56, 55, 54, 53, 52, 51,		\
    50, 49, 48, 47, 46,						\
-   75, 74, 69, 68, 72, 71, 70,					\
+   75, 73, 74, 69, 68, 72, 71, 70,				\
    MAYBE_R2_AVAILABLE						\
    9, 10, 8, 7, 6, 5, 4,					\
    3, EARLY_R12 11, 0,						\
    31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19,		\
    18, 17, 16, 15, 14, 13, LATE_R12				\
    66, 65,							\
-   73, 1, MAYBE_R2_FIXED 67, 76,				\
+   1, MAYBE_R2_FIXED 67, 76,					\
    /* AltiVec registers.  */					\
    77, 78,							\
    90, 89, 88, 87, 86, 85, 84, 83, 82, 81, 80,			\
@@ -1602,7 +1601,14 @@ extern enum reg_class rs6000_constraints[RS6000_CONSTRAINT_MAX];
 /* Define this if stack space is still allocated for a parameter passed
    in a register.  The value is the number of bytes allocated to this
    area.  */
-#define REG_PARM_STACK_SPACE(FNDECL) rs6000_reg_parm_stack_space((FNDECL))
+#define REG_PARM_STACK_SPACE(FNDECL) \
+  rs6000_reg_parm_stack_space ((FNDECL), false)
+
+/* Define this macro if space guaranteed when compiling a function body
+   is different to space required when making a call, a situation that
+   can arise with K&R style function definitions.  */
+#define INCOMING_REG_PARM_STACK_SPACE(FNDECL) \
+  rs6000_reg_parm_stack_space ((FNDECL), true)
 
 /* Define this if the above stack space is to be considered part of the
    space allocated by the caller.  */
@@ -2501,8 +2507,8 @@ extern int frame_pointer_needed;
 #define RS6000_BTC_SAT		RS6000_BTC_MISC	/* saturate sets VSCR.  */
 
 /* Builtin targets.  For now, we reuse the masks for those options that are in
-   target flags, and pick two random bits for SPE and paired which aren't in
-   target_flags.  */
+   target flags, and pick three random bits for SPE, paired and ldbl128 which
+   aren't in target_flags.  */
 #define RS6000_BTM_ALWAYS	0		/* Always enabled.  */
 #define RS6000_BTM_ALTIVEC	MASK_ALTIVEC	/* VMX/altivec vectors.  */
 #define RS6000_BTM_VSX		MASK_VSX	/* VSX (vector/scalar).  */
@@ -2519,6 +2525,7 @@ extern int frame_pointer_needed;
 #define RS6000_BTM_CELL		MASK_FPRND	/* Target is cell powerpc.  */
 #define RS6000_BTM_DFP		MASK_DFP	/* Decimal floating point.  */
 #define RS6000_BTM_HARD_FLOAT	MASK_SOFT_FLOAT	/* Hardware floating point.  */
+#define RS6000_BTM_LDBL128	MASK_MULTIPLE	/* 128-bit long double.  */
 
 #define RS6000_BTM_COMMON	(RS6000_BTM_ALTIVEC			\
 				 | RS6000_BTM_VSX			\
@@ -2532,7 +2539,8 @@ extern int frame_pointer_needed;
 				 | RS6000_BTM_POPCNTD			\
 				 | RS6000_BTM_CELL			\
 				 | RS6000_BTM_DFP			\
-				 | RS6000_BTM_HARD_FLOAT)
+				 | RS6000_BTM_HARD_FLOAT		\
+				 | RS6000_BTM_LDBL128)
 
 /* Define builtin enum index.  */
 
@@ -2689,3 +2697,4 @@ enum rs6000_builtin_type_index
 extern GTY(()) tree rs6000_builtin_types[RS6000_BTI_MAX];
 extern GTY(()) tree rs6000_builtin_decls[RS6000_BUILTIN_COUNT];
 
+#define TARGET_SUPPORTS_WIDE_INT 1

@@ -6,6 +6,18 @@
 #endif
 
 
+/* Define to the assembler option to enable compressed debug sections. */
+#ifndef USED_FOR_TARGET
+#undef AS_COMPRESS_DEBUG_OPTION
+#endif
+
+
+/* Define to the assembler option to disable compressed debug sections. */
+#ifndef USED_FOR_TARGET
+#undef AS_NO_COMPRESS_DEBUG_OPTION
+#endif
+
+
 /* Define as the number of bits in a byte, if `limits.h' doesn't. */
 #ifndef USED_FOR_TARGET
 #undef CHAR_BIT
@@ -172,6 +184,12 @@
 #endif
 
 
+/* Define to get calls to the valgrind runtime enabled. */
+#ifndef USED_FOR_TARGET
+#undef ENABLE_VALGRIND_ANNOTATIONS
+#endif
+
+
 /* Define if you want to run subprograms and generated programs through
    valgrind (a memory checker). This is extremely expensive. */
 #ifndef USED_FOR_TARGET
@@ -214,6 +232,13 @@
 /* Define if your assembler supports cmpb. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_AS_CMPB
+#endif
+
+
+/* Define to the level of your assembler's compressed debug section support.
+   */
+#ifndef USED_FOR_TARGET
+#undef HAVE_AS_COMPRESS_DEBUG
 #endif
 
 
@@ -882,6 +907,13 @@
 #endif
 
 
+/* Define to 1 if we found a declaration for 'strnlen', otherwise define to 0.
+   */
+#ifndef USED_FOR_TARGET
+#undef HAVE_DECL_STRNLEN
+#endif
+
+
 /* Define to 1 if we found a declaration for 'strsignal', otherwise define to
    0. */
 #ifndef USED_FOR_TARGET
@@ -1251,6 +1283,19 @@
 /* Define if your linker supports --build-id. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_LD_BUILDID
+#endif
+
+
+/* Define if the linker supports clearing hardware capabilities via mapfile.
+   */
+#ifndef USED_FOR_TARGET
+#undef HAVE_LD_CLEARCAP
+#endif
+
+
+/* Define to the level of your linker's compressed debug section support. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_LD_COMPRESS_DEBUG
 #endif
 
 
@@ -1649,12 +1694,6 @@
 #endif
 
 
-/* Define to 1 if the system has the type `__int64'. */
-#ifndef USED_FOR_TARGET
-#undef HAVE___INT64
-#endif
-
-
 /* Define if cloog is in use. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_cloog
@@ -1673,9 +1712,21 @@
 #endif
 
 
+/* Define if int64_t uses long as underlying type. */
+#ifndef USED_FOR_TARGET
+#undef INT64_T_IS_LONG
+#endif
+
+
 /* Define to the linker option to ignore unused dependencies. */
 #ifndef USED_FOR_TARGET
 #undef LD_AS_NEEDED_OPTION
+#endif
+
+
+/* Define to the linker option to enable compressed debug sections. */
+#ifndef USED_FOR_TARGET
+#undef LD_COMPRESS_DEBUG_OPTION
 #endif
 
 
@@ -1694,12 +1745,6 @@
 /* Define to the linker option to disable use of shared objects. */
 #ifndef USED_FOR_TARGET
 #undef LD_STATIC_OPTION
-#endif
-
-
-/* Define to the library containing __tls_get_addr/___tls_get_addr. */
-#ifndef USED_FOR_TARGET
-#undef LIB_TLS_SPEC
 #endif
 
 
@@ -1726,12 +1771,6 @@
 /* Define if host mkdir takes a single argument. */
 #ifndef USED_FOR_TARGET
 #undef MKDIR_TAKES_ONE_ARG
-#endif
-
-
-/* Define to 1 if HOST_WIDE_INT must be 64 bits wide (see hwint.h). */
-#ifndef USED_FOR_TARGET
-#undef NEED_64BIT_HOST_WIDE_INT
 #endif
 
 
@@ -1813,12 +1852,6 @@
 #endif
 
 
-/* The size of `__int64', as computed by sizeof. */
-#ifndef USED_FOR_TARGET
-#undef SIZEOF___INT64
-#endif
-
-
 /* Define to 1 if you have the ANSI C header files. */
 #ifndef USED_FOR_TARGET
 #undef STDC_HEADERS
@@ -1872,8 +1905,8 @@
 #endif
 
 
-/* Define to 1 if the 'long long' (or '__int64') is wider than 'long' but
-   still efficiently supported by the host hardware. */
+/* Define to 1 if the 'long long' type is wider than 'long' but still
+   efficiently supported by the host hardware. */
 #ifndef USED_FOR_TARGET
 #undef USE_LONG_LONG_FOR_WIDEST_FAST_INT
 #endif

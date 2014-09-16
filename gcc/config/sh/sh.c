@@ -73,6 +73,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-pass.h"
 #include "pass_manager.h"
 #include "context.h"
+#include "builtins.h"
 
 int code_for_indirect_jump_scratch = CODE_FOR_indirect_jump_scratch;
 
@@ -202,6 +203,13 @@ static void push_regs (HARD_REG_SET *, int);
 static int calc_live_regs (HARD_REG_SET *);
 static HOST_WIDE_INT rounded_frame_size (int);
 static bool sh_frame_pointer_required (void);
+static void sh_emit_mode_set (int, int, int, HARD_REG_SET);
+static int sh_mode_needed (int, rtx);
+static int sh_mode_after (int, int, rtx);
+static int sh_mode_entry (int);
+static int sh_mode_exit (int);
+static int sh_mode_priority (int entity, int n);
+
 static rtx mark_constant_pool_use (rtx);
 static tree sh_handle_interrupt_handler_attribute (tree *, tree, tree,
 						   int, bool *);
@@ -564,6 +572,24 @@ static const struct attribute_spec sh_attribute_table[] =
 #undef TARGET_FRAME_POINTER_REQUIRED
 #define TARGET_FRAME_POINTER_REQUIRED sh_frame_pointer_required
 
+#undef TARGET_MODE_EMIT
+#define TARGET_MODE_EMIT sh_emit_mode_set
+
+#undef TARGET_MODE_NEEDED
+#define TARGET_MODE_NEEDED sh_mode_needed
+
+#undef TARGET_MODE_AFTER
+#define TARGET_MODE_AFTER sh_mode_after
+
+#undef TARGET_MODE_ENTRY
+#define TARGET_MODE_ENTRY sh_mode_entry
+
+#undef TARGET_MODE_EXIT
+#define TARGET_MODE_EXIT sh_mode_exit
+
+#undef TARGET_MODE_PRIORITY
+#define TARGET_MODE_PRIORITY sh_mode_priority
+
 /* Return regmode weight for insn.  */
 #define INSN_REGMODE_WEIGHT(INSN, MODE)\
   regmode_weight[((MODE) == SImode) ? 0 : 1][INSN_UID (INSN)]
@@ -904,15 +930,16 @@ sh_option_override (void)
     sh_divsi3_libfunc = "__sdivsi3_1";
   else
     sh_divsi3_libfunc = "__sdivsi3";
+
   if (sh_branch_cost == -1)
     {
-      sh_branch_cost = 1;
-
       /*  The SH1 does not have delay slots, hence we get a pipeline stall
 	  at every branch.  The SH4 is superscalar, so the single delay slot
-	  is not sufficient to keep both pipelines filled.  */
-      if (! TARGET_SH2 || TARGET_HARD_SH4)
-	sh_branch_cost = 2;
+	  is not sufficient to keep both pipelines filled.
+	  In any case, set the default branch cost to '2', as it results in
+	  slightly overall smaller code and also enables some if conversions
+	  that are required for matching special T bit related insns.  */
+      sh_branch_cost = 2;
     }
 
   /* Set -mzdcbranch for SH4 / SH4A if not otherwise specified by the user.  */
@@ -1731,7 +1758,8 @@ prepare_move_operands (rtx operands[], enum machine_mode mode)
       else
 	opc = NULL_RTX;
 
-      if ((tls_kind = tls_symbolic_operand (op1, Pmode)) != TLS_MODEL_NONE)
+      if (! reload_in_progress && ! reload_completed
+	  && (tls_kind = tls_symbolic_operand (op1, Pmode)) != TLS_MODEL_NONE)
 	{
 	  rtx tga_op1, tga_ret, tmp, tmp2;
 
@@ -2062,12 +2090,11 @@ expand_cbranchdi4 (rtx *operands, enum rtx_code comparison)
 	    lsw_taken_prob = prob ? REG_BR_PROB_BASE : 0;
 	  else
 	    {
-	      gcc_assert (HOST_BITS_PER_WIDEST_INT >= 64);
 	      lsw_taken_prob
 		= (prob
 		   ? (REG_BR_PROB_BASE
-		      - ((HOST_WIDEST_INT) REG_BR_PROB_BASE * rev_prob
-			 / ((HOST_WIDEST_INT) prob << 32)))
+		      - ((gcov_type) REG_BR_PROB_BASE * rev_prob
+			 / ((gcov_type) prob << 32)))
 		   : 0);
 	    }
 	}
@@ -2224,7 +2251,12 @@ expand_cbranchdi4 (rtx *operands, enum rtx_code comparison)
 int
 sh_eval_treg_value (rtx op)
 {
-  enum rtx_code code = GET_CODE (op);
+  if (t_reg_operand (op, GET_MODE (op)))
+    return 1;
+  if (negt_reg_operand (op, GET_MODE (op)))
+    return 0;
+
+  rtx_code code = GET_CODE (op);
   if ((code != EQ && code != NE) || !CONST_INT_P (XEXP (op, 1)))
     return -1;
 
@@ -8809,6 +8841,54 @@ sh_callee_copies (cumulative_args_t cum, enum machine_mode mode,
 	      % SH_MIN_ALIGN_FOR_CALLEE_COPY == 0));
 }
 
+/* Round a register number up to a proper boundary for an arg of mode
+   MODE.
+   The SH doesn't care about double alignment, so we only
+   round doubles to even regs when asked to explicitly.  */
+static int
+sh_round_reg (const CUMULATIVE_ARGS& cum, machine_mode mode)
+{
+  /* FIXME: This used to be a macro and has been copy pasted into this
+     function as is.  Make this more readable.  */
+  return
+  (((TARGET_ALIGN_DOUBLE
+      || ((TARGET_SH4 || TARGET_SH2A_DOUBLE)
+	  && (mode == DFmode || mode == DCmode)
+	  && cum.arg_count[(int) SH_ARG_FLOAT] < NPARM_REGS (mode)))
+     && GET_MODE_UNIT_SIZE (mode) > UNITS_PER_WORD)
+    ? (cum.arg_count[(int) GET_SH_ARG_CLASS (mode)]
+       + (cum.arg_count[(int) GET_SH_ARG_CLASS (mode)] & 1))
+    : cum.arg_count[(int) GET_SH_ARG_CLASS (mode)]);
+}
+
+/* Return true if arg of the specified mode should be be passed in a register
+   or false otherwise.  */
+static bool
+sh_pass_in_reg_p (const CUMULATIVE_ARGS& cum, machine_mode mode,
+		  const_tree type)
+{
+  /* FIXME: This used to be a macro and has been copy pasted into this
+     function as is.  Make this more readable.  */
+  return
+  ((type == 0
+    || (! TREE_ADDRESSABLE (type)
+	&& (! (TARGET_HITACHI || cum.renesas_abi)
+	    || ! (AGGREGATE_TYPE_P (type)
+		  || (!TARGET_FPU_ANY
+		      && (GET_MODE_CLASS (mode) == MODE_FLOAT
+			  && GET_MODE_SIZE (mode) > GET_MODE_SIZE (SFmode)))))))
+   && ! cum.force_mem
+   && (TARGET_SH2E
+       ? ((mode) == BLKmode
+	  ? ((cum.arg_count[(int) SH_ARG_INT] * UNITS_PER_WORD
+	      + int_size_in_bytes (type))
+	     <= NPARM_REGS (SImode) * UNITS_PER_WORD)
+	  : ((sh_round_reg (cum, mode)
+	      + HARD_REGNO_NREGS (BASE_ARG_REG (mode), mode))
+	     <= NPARM_REGS (mode)))
+       : sh_round_reg (cum, mode) < NPARM_REGS (mode)));
+}
+
 static int
 sh_arg_partial_bytes (cumulative_args_t cum_v, enum machine_mode mode,
 		      tree type, bool named ATTRIBUTE_UNUSED)
@@ -8817,14 +8897,14 @@ sh_arg_partial_bytes (cumulative_args_t cum_v, enum machine_mode mode,
   int words = 0;
 
   if (!TARGET_SH5
-      && PASS_IN_REG_P (*cum, mode, type)
+      && sh_pass_in_reg_p (*cum, mode, type)
       && !(TARGET_SH4 || TARGET_SH2A_DOUBLE)
-      && (ROUND_REG (*cum, mode)
+      && (sh_round_reg (*cum, mode)
 	  + (mode != BLKmode
-	     ? ROUND_ADVANCE (GET_MODE_SIZE (mode))
-	     : ROUND_ADVANCE (int_size_in_bytes (type)))
+	     ? CEIL (GET_MODE_SIZE (mode), UNITS_PER_WORD)
+	     : CEIL (int_size_in_bytes (type), UNITS_PER_WORD))
 	  > NPARM_REGS (mode)))
-    words = NPARM_REGS (mode) - ROUND_REG (*cum, mode);
+    words = NPARM_REGS (mode) - sh_round_reg (*cum, mode);
 
   else if (!TARGET_SHCOMPACT
 	   && SH5_WOULD_BE_PARTIAL_NREGS (*cum, mode, type, named))
@@ -8861,23 +8941,23 @@ sh_function_arg (cumulative_args_t ca_v, enum machine_mode mode,
     return GEN_INT (ca->renesas_abi ? 1 : 0);
 
   if (! TARGET_SH5
-      && PASS_IN_REG_P (*ca, mode, type)
+      && sh_pass_in_reg_p (*ca, mode, type)
       && (named || ! (TARGET_HITACHI || ca->renesas_abi)))
     {
       int regno;
 
       if (mode == SCmode && TARGET_SH4 && TARGET_LITTLE_ENDIAN
-	  && (! FUNCTION_ARG_SCmode_WART || (ROUND_REG (*ca, mode) & 1)))
+	  && (! FUNCTION_ARG_SCmode_WART || (sh_round_reg (*ca, mode) & 1)))
 	{
 	  rtx r1 = gen_rtx_EXPR_LIST (VOIDmode,
 				      gen_rtx_REG (SFmode,
 						   BASE_ARG_REG (mode)
-						   + (ROUND_REG (*ca, mode) ^ 1)),
+						   + (sh_round_reg (*ca, mode) ^ 1)),
 				      const0_rtx);
 	  rtx r2 = gen_rtx_EXPR_LIST (VOIDmode,
 				      gen_rtx_REG (SFmode,
 						   BASE_ARG_REG (mode)
-						   + ((ROUND_REG (*ca, mode) + 1) ^ 1)),
+						   + ((sh_round_reg (*ca, mode) + 1) ^ 1)),
 				      GEN_INT (4));
 	  return gen_rtx_PARALLEL(SCmode, gen_rtvec(2, r1, r2));
 	}
@@ -8890,7 +8970,7 @@ sh_function_arg (cumulative_args_t ca_v, enum machine_mode mode,
 	  && mode == SFmode)
 	return gen_rtx_REG (mode, ca->free_single_fp_reg);
 
-      regno = (BASE_ARG_REG (mode) + ROUND_REG (*ca, mode))
+      regno = (BASE_ARG_REG (mode) + sh_round_reg (*ca, mode))
 	       ^ (mode == SFmode && TARGET_SH4
 		  && TARGET_LITTLE_ENDIAN
 		  && ! TARGET_HITACHI && ! ca->renesas_abi);
@@ -9070,20 +9150,20 @@ sh_function_arg_advance (cumulative_args_t ca_v, enum machine_mode mode,
 	 register, because the next SF value will use it, and not the
 	 SF that follows the DF.  */
       if (mode == DFmode
-	  && ROUND_REG (*ca, DFmode) != ROUND_REG (*ca, SFmode))
+	  && sh_round_reg (*ca, DFmode) != sh_round_reg (*ca, SFmode))
 	{
-	  ca->free_single_fp_reg = (ROUND_REG (*ca, SFmode)
+	  ca->free_single_fp_reg = (sh_round_reg (*ca, SFmode)
 				    + BASE_ARG_REG (mode));
 	}
     }
 
   if (! ((TARGET_SH4 || TARGET_SH2A) || ca->renesas_abi)
-      || PASS_IN_REG_P (*ca, mode, type))
+      || sh_pass_in_reg_p (*ca, mode, type))
     (ca->arg_count[(int) GET_SH_ARG_CLASS (mode)]
-     = (ROUND_REG (*ca, mode)
+     = (sh_round_reg (*ca, mode)
 	+ (mode == BLKmode
-	   ? ROUND_ADVANCE (int_size_in_bytes (type))
-	   : ROUND_ADVANCE (GET_MODE_SIZE (mode)))));
+	   ? CEIL (int_size_in_bytes (type), UNITS_PER_WORD)
+	   : CEIL (GET_MODE_SIZE (mode), UNITS_PER_WORD))));
 }
 
 /* The Renesas calling convention doesn't quite fit into this scheme since
@@ -9178,10 +9258,10 @@ sh_setup_incoming_varargs (cumulative_args_t ca,
     {
       int named_parm_regs, anon_parm_regs;
 
-      named_parm_regs = (ROUND_REG (*get_cumulative_args (ca), mode)
+      named_parm_regs = (sh_round_reg (*get_cumulative_args (ca), mode)
 			 + (mode == BLKmode
-			    ? ROUND_ADVANCE (int_size_in_bytes (type))
-			    : ROUND_ADVANCE (GET_MODE_SIZE (mode))));
+			    ? CEIL (int_size_in_bytes (type), UNITS_PER_WORD)
+			    : CEIL (GET_MODE_SIZE (mode), UNITS_PER_WORD)));
       anon_parm_regs = NPARM_REGS (SImode) - named_parm_regs;
       if (anon_parm_regs > 0)
 	*pretend_arg_size = anon_parm_regs * 4;
@@ -13499,6 +13579,55 @@ sh_try_omit_signzero_extend (rtx extended_op, rtx insn)
     return extended_op;
 
   return NULL_RTX;
+}
+
+static void
+sh_emit_mode_set (int entity ATTRIBUTE_UNUSED, int mode,
+		  int prev_mode, HARD_REG_SET regs_live)
+{
+  if ((TARGET_SH4A_FP || TARGET_SH4_300)
+      && prev_mode != FP_MODE_NONE && prev_mode != mode)
+    {
+      emit_insn (gen_toggle_pr ());
+      if (TARGET_FMOVD)
+	emit_insn (gen_toggle_sz ());
+    }
+  else
+    fpscr_set_from_mem (mode, regs_live);
+}
+
+static int
+sh_mode_needed (int entity ATTRIBUTE_UNUSED, rtx insn)
+{
+  return recog_memoized (insn) >= 0  ? get_attr_fp_mode (insn) : FP_MODE_NONE;
+}
+
+static int
+sh_mode_after (int entity ATTRIBUTE_UNUSED, int mode, rtx insn)
+{
+  if (TARGET_HITACHI && recog_memoized (insn) >= 0 &&
+      get_attr_fp_set (insn) != FP_SET_NONE)
+    return (int) get_attr_fp_set (insn);
+  else
+    return mode;
+}
+
+static int
+sh_mode_entry (int entity ATTRIBUTE_UNUSED)
+{
+  return NORMAL_MODE (entity);
+}
+
+static int
+sh_mode_exit (int entity ATTRIBUTE_UNUSED)
+{
+  return sh_cfun_attr_renesas_p () ? FP_MODE_NONE : NORMAL_MODE (entity);
+}
+
+static int
+sh_mode_priority (int entity ATTRIBUTE_UNUSED, int n)
+{
+  return ((TARGET_FPU_SINGLE != 0) ^ (n) ? FP_MODE_SINGLE : FP_MODE_DOUBLE);
 }
 
 #include "gt-sh.h"

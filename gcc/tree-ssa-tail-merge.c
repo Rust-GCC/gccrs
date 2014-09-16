@@ -481,7 +481,11 @@ same_succ_hash (const_same_succ e)
 	hashval = iterative_hash_hashval_t
 	  ((hashval_t) gimple_call_internal_fn (stmt), hashval);
       else
-	hashval = iterative_hash_expr (gimple_call_fn (stmt), hashval);
+	{
+	  hashval = iterative_hash_expr (gimple_call_fn (stmt), hashval);
+	  if (gimple_call_chain (stmt))
+	    hashval = iterative_hash_expr (gimple_call_chain (stmt), hashval);
+	}
       for (i = 0; i < gimple_call_num_args (stmt); i++)
 	{
 	  arg = gimple_call_arg (stmt, i);
@@ -639,7 +643,7 @@ same_succ_reset (same_succ same)
   same->succ_flags.truncate (0);
 }
 
-static hash_table <same_succ_def> same_succ_htab;
+static hash_table<same_succ_def> *same_succ_htab;
 
 /* Array that is used to store the edge flags for a successor.  */
 
@@ -660,7 +664,7 @@ extern void debug_same_succ (void);
 DEBUG_FUNCTION void
 debug_same_succ ( void)
 {
-  same_succ_htab.traverse <FILE *, ssa_same_succ_print_traverse> (stderr);
+  same_succ_htab->traverse <FILE *, ssa_same_succ_print_traverse> (stderr);
 }
 
 
@@ -727,7 +731,7 @@ find_same_succ_bb (basic_block bb, same_succ *same_p)
 
   same->hashval = same_succ_hash (same);
 
-  slot = same_succ_htab.find_slot_with_hash (same, same->hashval, INSERT);
+  slot = same_succ_htab->find_slot_with_hash (same, same->hashval, INSERT);
   if (*slot == NULL)
     {
       *slot = same;
@@ -770,7 +774,7 @@ static void
 init_worklist (void)
 {
   alloc_aux_for_blocks (sizeof (struct aux_bb_info));
-  same_succ_htab.create (n_basic_blocks_for_fn (cfun));
+  same_succ_htab = new hash_table<same_succ_def> (n_basic_blocks_for_fn (cfun));
   same_succ_edge_flags = XCNEWVEC (int, last_basic_block_for_fn (cfun));
   deleted_bbs = BITMAP_ALLOC (NULL);
   deleted_bb_preds = BITMAP_ALLOC (NULL);
@@ -790,7 +794,8 @@ static void
 delete_worklist (void)
 {
   free_aux_for_blocks ();
-  same_succ_htab.dispose ();
+  delete same_succ_htab;
+  same_succ_htab = NULL;
   XDELETEVEC (same_succ_edge_flags);
   same_succ_edge_flags = NULL;
   BITMAP_FREE (deleted_bbs);
@@ -820,7 +825,7 @@ same_succ_flush_bb (basic_block bb)
   same_succ same = BB_SAME_SUCC (bb);
   BB_SAME_SUCC (bb) = NULL;
   if (bitmap_single_bit_set_p (same->bbs))
-    same_succ_htab.remove_elt_with_hash (same, same->hashval);
+    same_succ_htab->remove_elt_with_hash (same, same->hashval);
   else
     bitmap_clear_bit (same->bbs, bb->index);
 }
@@ -1121,18 +1126,23 @@ gimple_equal_p (same_succ same_succ, gimple s1, gimple s2)
   switch (gimple_code (s1))
     {
     case GIMPLE_CALL:
-      if (gimple_call_num_args (s1) != gimple_call_num_args (s2))
-	return false;
       if (!gimple_call_same_target_p (s1, s2))
         return false;
+
+      t1 = gimple_call_chain (s1);
+      t2 = gimple_call_chain (s2);
+      if (!gimple_operand_equal_value_p (t1, t2))
+	return false;
+
+      if (gimple_call_num_args (s1) != gimple_call_num_args (s2))
+	return false;
 
       for (i = 0; i < gimple_call_num_args (s1); ++i)
 	{
 	  t1 = gimple_call_arg (s1, i);
 	  t2 = gimple_call_arg (s2, i);
-	  if (gimple_operand_equal_value_p (t1, t2))
-	    continue;
-	  return false;
+	  if (!gimple_operand_equal_value_p (t1, t2))
+	    return false;
 	}
 
       lhs1 = gimple_get_lhs (s1);
@@ -1656,18 +1666,7 @@ tail_merge_optimize (unsigned int todo)
   int max_iterations = PARAM_VALUE (PARAM_MAX_TAIL_MERGE_ITERATIONS);
 
   if (!flag_tree_tail_merge
-      || max_iterations == 0
-      /* We try to be conservative with respect to loop structure, since:
-	 - the cases where tail-merging could both affect loop structure and be
-	   beneficial are rare,
-	 - it prevents us from having to fixup the loops using
-	   loops_state_set (LOOPS_NEED_FIXUP), and
-	 - keeping loop structure may allow us to simplify the pass.
-	 In order to be conservative, we need loop information.	 In rare cases
-	 (about 7 test-cases in the g++ testsuite) there is none (because
-	 loop_optimizer_finalize has been called before tail-merge, and
-	 PROP_loops is not set), so we bail out.  */
-      || current_loops == NULL)
+      || max_iterations == 0)
     return 0;
 
   timevar_push (TV_TREE_TAIL_MERGE);
@@ -1716,7 +1715,7 @@ tail_merge_optimize (unsigned int todo)
 
   if (dump_file && (dump_flags & TDF_DETAILS))
     fprintf (dump_file, "htab collision / search: %f\n",
-	     same_succ_htab.collisions ());
+	     same_succ_htab->collisions ());
 
   if (nr_bbs_removed_total > 0)
     {
@@ -1732,7 +1731,6 @@ tail_merge_optimize (unsigned int todo)
 	  dump_function_to_file (current_function_decl, dump_file, dump_flags);
 	}
 
-      todo |= (TODO_verify_ssa | TODO_verify_stmts | TODO_verify_flow);
       mark_virtual_operands_for_renaming (cfun);
     }
 

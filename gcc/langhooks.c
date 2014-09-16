@@ -515,6 +515,13 @@ lhd_omp_assignment (tree clause ATTRIBUTE_UNUSED, tree dst, tree src)
   return build2 (MODIFY_EXPR, TREE_TYPE (dst), dst, src);
 }
 
+/* Finalize clause C.  */
+
+void
+lhd_omp_finish_clause (tree, gimple_seq *)
+{
+}
+
 /* Register language specific type size variables as potentially OpenMP
    firstprivate variables.  */
 
@@ -677,4 +684,13 @@ lhd_end_section (void)
       switch_to_section (saved_section);
       saved_section = NULL;
     }
+}
+
+/* Default implementation of enum_underlying_base_type using type_for_size.  */
+
+tree
+lhd_enum_underlying_base_type (const_tree enum_type)
+{
+  return lang_hooks.types.type_for_size (TYPE_PRECISION (enum_type),
+					 TYPE_UNSIGNED (enum_type));
 }

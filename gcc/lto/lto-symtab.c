@@ -34,6 +34,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "lto-streamer.h"
 #include "ipa-utils.h"
 #include "ipa-inline.h"
+#include "builtins.h"
 
 /* Replace the cgraph node NODE with PREVAILING_NODE in the cgraph, merging
    all edges and removing the old node.  */
@@ -83,19 +84,13 @@ lto_cgraph_replace_node (struct cgraph_node *node,
 	e->call_stmt_cannot_inline_p = 1;
     }
   /* Redirect incomming references.  */
-  ipa_clone_referring (prevailing_node, &node->ref_list);
+  prevailing_node->clone_referring (node);
 
   ipa_merge_profiles (prevailing_node, node);
   lto_free_function_in_decl_state_for_node (node);
 
   if (node->decl != prevailing_node->decl)
     cgraph_release_function_body (node);
-
-  /* Time profile merging */
-  if (node->tp_first_run)
-    prevailing_node->tp_first_run = prevailing_node->tp_first_run ?
-      MIN (prevailing_node->tp_first_run, node->tp_first_run) :
-      node->tp_first_run;
 
   /* Finally remove the replaced node.  */
   cgraph_remove_node (node);
@@ -111,7 +106,7 @@ lto_varpool_replace_node (varpool_node *vnode,
   gcc_assert (!vnode->definition || prevailing_node->definition);
   gcc_assert (!vnode->analyzed || prevailing_node->analyzed);
 
-  ipa_clone_referring (prevailing_node, &vnode->ref_list);
+  prevailing_node->clone_referring (vnode);
   if (vnode->force_output)
     prevailing_node->force_output = true;
   if (vnode->forced_by_abi)
@@ -121,6 +116,15 @@ lto_varpool_replace_node (varpool_node *vnode,
   if (DECL_INITIAL (vnode->decl)
       && vnode->decl != prevailing_node->decl)
     DECL_INITIAL (vnode->decl) = error_mark_node;
+
+  if (vnode->tls_model != prevailing_node->tls_model)
+    {
+      error_at (DECL_SOURCE_LOCATION (vnode->decl),
+		"%qD is defined as %s", vnode->decl, tls_model_names [vnode->tls_model]);
+      inform (DECL_SOURCE_LOCATION (prevailing_node->decl),
+	      "previously defined here as %s",
+	      tls_model_names [prevailing_node->tls_model]);
+    }
   /* Finally remove the replaced node.  */
   varpool_remove_node (vnode);
 }
@@ -453,7 +457,12 @@ lto_symtab_merge_decls_1 (symtab_node *first)
      cgraph or a varpool node.  */
   if (!prevailing)
     {
-      prevailing = first;
+      for (prevailing = first;
+	   prevailing; prevailing = prevailing->next_sharing_asm_name)
+	if (lto_symtab_symbol_p (prevailing))
+	  break;
+      if (!prevailing)
+	return;
       /* For variables chose with a priority variant with vnode
 	 attached (i.e. from unit where external declaration of
 	 variable is actually used).
@@ -566,10 +575,10 @@ lto_symtab_merge_symbols_1 (symtab_node *prevailing)
 
       if (!lto_symtab_symbol_p (e))
 	continue;
-      cgraph_node *ce = dyn_cast <cgraph_node> (e);
+      cgraph_node *ce = dyn_cast <cgraph_node *> (e);
       if (ce && !DECL_BUILT_IN (e->decl))
 	lto_cgraph_replace_node (ce, cgraph (prevailing));
-      if (varpool_node *ve = dyn_cast <varpool_node> (e))
+      if (varpool_node *ve = dyn_cast <varpool_node *> (e))
 	lto_varpool_replace_node (ve, varpool (prevailing));
     }
 
@@ -615,7 +624,7 @@ lto_symtab_merge_symbols (void)
 	    }
 	  node->aux = NULL;
 
-	  if (!(cnode = dyn_cast <cgraph_node> (node))
+	  if (!(cnode = dyn_cast <cgraph_node *> (node))
 	      || !cnode->clone_of
 	      || cnode->clone_of->decl != cnode->decl)
 	    {
@@ -630,11 +639,11 @@ lto_symtab_merge_symbols (void)
 	      /* The user defined assembler variables are also not unified by their
 		 symbol name (since it is irrelevant), but we need to unify symbol
 		 nodes if tree merging occured.  */
-	      if ((vnode = dyn_cast <varpool_node> (node))
+	      if ((vnode = dyn_cast <varpool_node *> (node))
 		  && DECL_HARD_REGISTER (vnode->decl)
 		  && (node2 = symtab_get_node (vnode->decl))
 		  && node2 != node)
-		lto_varpool_replace_node (dyn_cast <varpool_node> (node2),
+		lto_varpool_replace_node (dyn_cast <varpool_node *> (node2),
 					  vnode);
 	  
 
@@ -645,7 +654,7 @@ lto_symtab_merge_symbols (void)
 		       && cnode2 != cnode)
 		cgraph_remove_node (cnode2);
 
-	      symtab_insert_node_to_hashtable (node);
+	      node->decl->decl_with_vis.symtab_node = node;
 	    }
 	}
     }

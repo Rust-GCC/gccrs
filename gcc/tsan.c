@@ -715,14 +715,6 @@ tsan_pass (void)
   return 0;
 }
 
-/* The pass's gate.  */
-
-static bool
-tsan_gate (void)
-{
-  return (flag_sanitize & SANITIZE_THREAD) != 0;
-}
-
 /* Inserts __tsan_init () into the list of CTORs.  */
 
 void
@@ -747,14 +739,12 @@ const pass_data pass_data_tsan =
   GIMPLE_PASS, /* type */
   "tsan", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_NONE, /* tv_id */
   ( PROP_ssa | PROP_cfg ), /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  ( TODO_verify_all | TODO_update_ssa ), /* todo_flags_finish */
+  TODO_update_ssa, /* todo_flags_finish */
 };
 
 class pass_tsan : public gimple_opt_pass
@@ -766,8 +756,12 @@ public:
 
   /* opt_pass methods: */
   opt_pass * clone () { return new pass_tsan (m_ctxt); }
-  bool gate () { return tsan_gate (); }
-  unsigned int execute () { return tsan_pass (); }
+  virtual bool gate (function *)
+{
+  return (flag_sanitize & SANITIZE_THREAD) != 0;
+}
+
+  virtual unsigned int execute (function *) { return tsan_pass (); }
 
 }; // class pass_tsan
 
@@ -779,12 +773,6 @@ make_pass_tsan (gcc::context *ctxt)
   return new pass_tsan (ctxt);
 }
 
-static bool
-tsan_gate_O0 (void)
-{
-  return (flag_sanitize & SANITIZE_THREAD) != 0 && !optimize;
-}
-
 namespace {
 
 const pass_data pass_data_tsan_O0 =
@@ -792,14 +780,12 @@ const pass_data pass_data_tsan_O0 =
   GIMPLE_PASS, /* type */
   "tsan0", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_NONE, /* tv_id */
   ( PROP_ssa | PROP_cfg ), /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  ( TODO_verify_all | TODO_update_ssa ), /* todo_flags_finish */
+  TODO_update_ssa, /* todo_flags_finish */
 };
 
 class pass_tsan_O0 : public gimple_opt_pass
@@ -810,8 +796,12 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return tsan_gate_O0 (); }
-  unsigned int execute () { return tsan_pass (); }
+  virtual bool gate (function *)
+    {
+      return (flag_sanitize & SANITIZE_THREAD) != 0 && !optimize;
+    }
+
+  virtual unsigned int execute (function *) { return tsan_pass (); }
 
 }; // class pass_tsan_O0
 

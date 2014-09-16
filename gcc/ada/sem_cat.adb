@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -277,7 +277,7 @@ package body Sem_Cat is
            and then Is_Preelaborated (Depended_Entity)
          then
             Error_Msg_NE
-              ("<must use private with clause for preelaborated unit& ",
+              ("<<must use private with clause for preelaborated unit& ",
                N, Depended_Entity);
 
          --  Subunit case
@@ -291,7 +291,7 @@ package body Sem_Cat is
 
          else
             Error_Msg_NE
-              ("<cannot depend on& " &
+              ("<<cannot depend on& " &
                "(wrong categorization)", N, Depended_Entity);
          end if;
 
@@ -299,7 +299,7 @@ package body Sem_Cat is
 
          if Unit_Category = Pure then
             Error_Msg_NE
-              ("\<pure unit cannot depend on non-pure unit",
+              ("\<<pure unit cannot depend on non-pure unit",
                N, Depended_Entity);
 
          elsif Is_Preelaborated (Unit_Entity)
@@ -307,7 +307,7 @@ package body Sem_Cat is
            and then not Is_Pure (Depended_Entity)
          then
             Error_Msg_NE
-              ("\<preelaborated unit cannot depend on "
+              ("\<<preelaborated unit cannot depend on "
                & "non-preelaborated unit",
                N, Depended_Entity);
          end if;
@@ -1102,7 +1102,7 @@ package body Sem_Cat is
 
                Error_Msg_Warn := GNAT_Mode;
                Error_Msg_N
-                 ("<statements not allowed in preelaborated unit", Item);
+                 ("<<statements not allowed in preelaborated unit", Item);
 
                exit;
             end if;
@@ -2048,7 +2048,8 @@ package body Sem_Cat is
    ---------------------------------
 
    procedure Validate_Static_Object_Name (N : Node_Id) is
-      E : Entity_Id;
+      E   : Entity_Id;
+      Val : Node_Id;
 
       function Is_Primary (N : Node_Id) return Boolean;
       --  Determine whether node is syntactically a primary in an expression
@@ -2151,7 +2152,8 @@ package body Sem_Cat is
          elsif Ekind (Entity (N)) = E_Constant
            and then not Is_Static_Expression (N)
          then
-            E := Entity (N);
+            E   := Entity (N);
+            Val := Constant_Value (E);
 
             if Is_Internal_File_Name (Unit_File_Name (Get_Source_Unit (N)))
               and then
@@ -2162,10 +2164,25 @@ package body Sem_Cat is
                                    and then Is_Entity_Name (Renamed_Object (E))
                                    and then
                                      (Is_Preelaborated
-                                       (Scope (Renamed_Object (E)))
-                                         or else
-                                           Is_Pure (Scope
-                                             (Renamed_Object (E))))))
+                                        (Scope (Renamed_Object (E)))
+                                       or else
+                                         Is_Pure
+                                           (Scope (Renamed_Object (E))))))
+            then
+               null;
+
+            --  If the value of the constant is a local variable that renames
+            --  an aggregate, this is in itself legal. The aggregate may be
+            --  expanded into a loop, but this does not affect preelaborability
+            --  in itself. If some aggregate components are non-static, that is
+            --  to say if they involve non static primaries, they will be
+            --  flagged when analyzed.
+
+            elsif Present (Val)
+              and then Is_Entity_Name (Val)
+              and then Is_Array_Type (Etype (Val))
+              and then not Comes_From_Source (Val)
+              and then Nkind (Original_Node (Val)) = N_Aggregate
             then
                null;
 

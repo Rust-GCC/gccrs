@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -186,6 +186,10 @@ package Freeze is
    --  of an object declaration or an assignment. Function is a noop and
    --  returns false in other contexts.
 
+   procedure Explode_Initialization_Compound_Statement (E : Entity_Id);
+   --  If Initialization_Statements (E) is an N_Compound_Statement, insert its
+   --  actions in the enclosing list and reset the attribute.
+
    function Freeze_Entity (E : Entity_Id; N : Node_Id) return List_Id;
    --  Freeze an entity, and return Freeze nodes, to be inserted at the point
    --  of call. N is a node whose source location corresponds to the freeze
@@ -195,7 +199,7 @@ package Freeze is
    --  Returns No_List if no freeze nodes needed.
 
    procedure Freeze_All (From : Entity_Id; After : in out Node_Id);
-   --  Before a non-instance body, or at the end of a declarative part
+   --  Before a non-instance body, or at the end of a declarative part,
    --  freeze all entities therein that are not yet frozen. Calls itself
    --  recursively to catch types in inner packages that were not frozen
    --  at the inner level because they were not yet completely defined.

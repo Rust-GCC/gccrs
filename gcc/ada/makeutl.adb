@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2004-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2014, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -309,15 +309,27 @@ package body Makeutl is
                      if Replacement /= No_File then
                         if Verbose_Mode then
                            Write_Line
-                             ("source file" &
-                              Get_Name_String (SD.Sfile) &
-                              " has been replaced by " &
-                              Get_Name_String (Replacement));
+                             ("source file"
+                              & Get_Name_String (SD.Sfile)
+                              & " has been replaced by "
+                              & Get_Name_String (Replacement));
                         end if;
 
                         return No_Name;
                      end if;
                   end;
+               end if;
+
+               --  Check that a dependent source for a unit that is from a
+               --  project is indeed a source of this unit.
+
+               Unit_Name := SD.Unit_Name;
+
+               if Unit_Name /= No_Name
+                 and then not Fname.Is_Internal_File_Name (SD.Sfile)
+                 and then File_Not_A_Source_Of (Tree, Unit_Name, SD.Sfile)
+               then
+                  return No_Name;
                end if;
 
             else
@@ -648,10 +660,10 @@ package body Makeutl is
                         if Sw (J) = Directory_Separator then
                            Switch :=
                              new String'
-                               (Sw (1 .. Start - 1) &
-                                Parent &
-                                Directory_Separator &
-                                Sw (Start .. Sw'Last));
+                               (Sw (1 .. Start - 1)
+                                & Parent
+                                & Directory_Separator
+                                & Sw (Start .. Sw'Last));
                            return;
                         end if;
                      end loop;
@@ -659,10 +671,10 @@ package body Makeutl is
                   else
                      Switch :=
                        new String'
-                         (Sw (1 .. Start - 1) &
-                          Parent &
-                          Directory_Separator &
-                          Sw (Start .. Sw'Last));
+                         (Sw (1 .. Start - 1)
+                          & Parent
+                          & Directory_Separator
+                          & Sw (Start .. Sw'Last));
                   end if;
                end if;
 
@@ -1732,7 +1744,7 @@ package body Makeutl is
                --  no need to process them in turn.
 
                J := Names.Last;
-               loop
+               Main_Loop : loop
                   declare
                      File        : Main_Info       := Names.Table (J);
                      Main_Id     : File_Name_Type  := File.File;
@@ -1798,16 +1810,53 @@ package body Makeutl is
                         --  search for the base name though, and if needed
                         --  check later that we found the correct file.
 
-                        Source := Find_Source
-                          (In_Tree          => File.Tree,
-                           Project          => File.Project,
-                           Base_Name        => Main_Id,
-                           Index            => File.Index,
-                           In_Imported_Only => True);
+                        declare
+                           Sources : constant Source_Ids :=
+                                       Find_All_Sources
+                                         (In_Tree          => File.Tree,
+                                          Project          => File.Project,
+                                          Base_Name        => Main_Id,
+                                          Index            => File.Index,
+                                          In_Imported_Only => True);
+
+                        begin
+                           if Is_Absolute then
+                              for J in Sources'Range loop
+                                 if File_Name_Type (Sources (J).Path.Name) =
+                                                                    File.File
+                                 then
+                                    Source := Sources (J);
+                                    exit;
+                                 end if;
+                              end loop;
+
+                           elsif Sources'Length > 1 then
+
+                              --  This is only allowed if the units are from
+                              --  the same multi-unit source file.
+
+                              Source := Sources (1);
+
+                              for J in 2 .. Sources'Last loop
+                                 if Sources (J).Path /= Source.Path
+                                   or else Sources (J).Index = Source.Index
+                                 then
+                                    Error_Msg_File_1 := Main_Id;
+                                    Prj.Err.Error_Msg
+                                      (Flags, "several main sources {",
+                                       No_Location, File.Project);
+                                    exit Main_Loop;
+                                 end if;
+                              end loop;
+
+                           elsif Sources'Length = 1 then
+                              Source := Sources (Sources'First);
+                           end if;
+                        end;
 
                         if Source = No_Source then
                            Source := Find_File_Add_Extension
-                             (File.Tree, Get_Name_String (Main_Id));
+                                       (File.Tree, Get_Name_String (Main_Id));
                         end if;
 
                         if Is_Absolute
@@ -1883,8 +1932,8 @@ package body Makeutl is
                   end;
 
                   J := J - 1;
-                  exit when J < Names.First;
-               end loop;
+                  exit Main_Loop when J < Names.First;
+               end loop Main_Loop;
             end if;
 
             if Total_Errors_Detected > 0 then
@@ -1962,8 +2011,8 @@ package body Makeutl is
                      if Project.Library then
                         Fail_Program
                           (Tree,
-                           "cannot specify a main program " &
-                           "for a library project file");
+                           "cannot specify a main program "
+                           & "for a library project file");
                      end if;
 
                      Add_Main (Name     => Get_Name_String (Element.Value),
@@ -2081,8 +2130,8 @@ package body Makeutl is
             if Names.Last = 0 then
                Fail_Program
                  (Project_Tree,
-                  "cannot specify a multi-unit index but no main " &
-                  "on the command line");
+                  "cannot specify a multi-unit index but no main "
+                  & "on the command line");
 
             elsif Names.Last > 1 then
                Fail_Program
@@ -3116,10 +3165,10 @@ package body Makeutl is
          if Current_Verbosity = High then
             Debug_Output ("compilation phases: "
                           & " compile=" & Data.Need_Compilation'Img
-                          & " bind=" & Data.Need_Binding'Img
-                          & " link=" & Data.Need_Linking'Img
+                          & " bind="    & Data.Need_Binding'Img
+                          & " link="    & Data.Need_Linking'Img
                           & " closure=" & Data.Closure_Needed'Img
-                          & " mains=" & Data.Number_Of_Mains'Img,
+                          & " mains="   & Data.Number_Of_Mains'Img,
                           Project.Name);
          end if;
       end Do_Compute;
@@ -3136,7 +3185,7 @@ package body Makeutl is
 
    procedure Compute_Builder_Switches
      (Project_Tree        : Project_Tree_Ref;
-      Root_Environment    : in out Prj.Tree.Environment;
+      Env                 : in out Prj.Tree.Environment;
       Main_Project        : Project_Id;
       Only_For_Lang       : Name_Id := No_Name)
    is
@@ -3275,14 +3324,13 @@ package body Makeutl is
            and then Default_Switches_Array /= No_Array
          then
             Prj.Err.Error_Msg
-              (Root_Environment.Flags,
-               "Default_Switches forbidden in presence of " &
-               "Global_Compilation_Switches. Use Switches instead.",
+              (Env.Flags,
+               "Default_Switches forbidden in presence of "
+               & "Global_Compilation_Switches. Use Switches instead.",
                Project_Tree.Shared.Arrays.Table
                  (Default_Switches_Array).Location);
             Fail_Program
-              (Project_Tree,
-               "*** illegal combination of Builder attributes");
+              (Project_Tree, "*** illegal combination of Builder attributes");
          end if;
 
          if Lang /= No_Name then
@@ -3395,15 +3443,15 @@ package body Makeutl is
                      Name_Len := Name_Len + Name_Len;
 
                      Prj.Err.Error_Msg
-                       (Root_Environment.Flags,
-                        '"' & Name_Buffer (1 .. Name_Len) &
-                        """ is not a builder switch. Consider moving " &
-                        "it to Global_Compilation_Switches.",
+                       (Env.Flags,
+                        '"' & Name_Buffer (1 .. Name_Len)
+                        & """ is not a builder switch. Consider moving "
+                        & "it to Global_Compilation_Switches.",
                         Element.Location);
                      Fail_Program
                        (Project_Tree,
-                        "*** illegal switch """ &
-                        Get_Name_String (Element.Value) & '"');
+                        "*** illegal switch """
+                        & Get_Name_String (Element.Value) & '"');
                   end if;
                end if;
 

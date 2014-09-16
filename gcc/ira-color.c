@@ -53,7 +53,7 @@ struct allocno_hard_regs
   HARD_REG_SET set;
   /* Overall (spilling) cost of all allocnos with given register
      set.  */
-  HOST_WIDEST_INT cost;
+  int64_t cost;
 };
 
 typedef struct allocno_hard_regs_node *allocno_hard_regs_node_t;
@@ -222,13 +222,13 @@ allocno_hard_regs_hasher::equal (const value_type *hv1, const compare_type *hv2)
 }
 
 /* Hash table of unique allocno hard registers.  */
-static hash_table <allocno_hard_regs_hasher> allocno_hard_regs_htab;
+static hash_table<allocno_hard_regs_hasher> *allocno_hard_regs_htab;
 
 /* Return allocno hard registers in the hash table equal to HV.  */
 static allocno_hard_regs_t
 find_hard_regs (allocno_hard_regs_t hv)
 {
-  return allocno_hard_regs_htab.find (hv);
+  return allocno_hard_regs_htab->find (hv);
 }
 
 /* Insert allocno hard registers HV in the hash table (if it is not
@@ -236,7 +236,7 @@ find_hard_regs (allocno_hard_regs_t hv)
 static allocno_hard_regs_t
 insert_hard_regs (allocno_hard_regs_t hv)
 {
-  allocno_hard_regs **slot = allocno_hard_regs_htab.find_slot (hv, INSERT);
+  allocno_hard_regs **slot = allocno_hard_regs_htab->find_slot (hv, INSERT);
 
   if (*slot == NULL)
     *slot = hv;
@@ -248,13 +248,14 @@ static void
 init_allocno_hard_regs (void)
 {
   allocno_hard_regs_vec.create (200);
-  allocno_hard_regs_htab.create (200);
+  allocno_hard_regs_htab
+    = new hash_table<allocno_hard_regs_hasher> (200);
 }
 
 /* Add (or update info about) allocno hard registers with SET and
    COST.  */
 static allocno_hard_regs_t
-add_allocno_hard_regs (HARD_REG_SET set, HOST_WIDEST_INT cost)
+add_allocno_hard_regs (HARD_REG_SET set, int64_t cost)
 {
   struct allocno_hard_regs temp;
   allocno_hard_regs_t hv;
@@ -286,7 +287,8 @@ finish_allocno_hard_regs (void)
        allocno_hard_regs_vec.iterate (i, &hv);
        i++)
     ira_free (hv);
-  allocno_hard_regs_htab.dispose ();
+  delete allocno_hard_regs_htab;
+  allocno_hard_regs_htab = NULL;
   allocno_hard_regs_vec.release ();
 }
 
@@ -519,7 +521,7 @@ print_hard_regs_subforest (FILE *f, allocno_hard_regs_node_t roots,
 	fprintf (f, " ");
       fprintf (f, "%d:(", node->preorder_num);
       print_hard_reg_set (f, node->hard_regs->set, false);
-      fprintf (f, ")@" HOST_WIDEST_INT_PRINT_DEC "\n", node->hard_regs->cost);
+      fprintf (f, ")@%"PRId64"\n", node->hard_regs->cost);
       print_hard_regs_subforest (f, node->first, level + 1);
     }
 }
@@ -1599,7 +1601,6 @@ check_hard_reg_p (ira_allocno_t a, int hard_regno,
     }
   return j == nregs;
 }
-#ifndef HONOR_REG_ALLOC_ORDER
 
 /* Return number of registers needed to be saved and restored at
    function prologue/epilogue if we allocate HARD_REGNO to hold value
@@ -1618,7 +1619,6 @@ calculate_saved_nregs (int hard_regno, enum machine_mode mode)
       nregs++;
   return nregs;
 }
-#endif
 
 /* Choose a hard register for allocno A.  If RETRY_P is TRUE, it means
    that the function called from function
@@ -1653,11 +1653,9 @@ assign_hard_reg (ira_allocno_t a, bool retry_p)
   enum reg_class aclass;
   enum machine_mode mode;
   static int costs[FIRST_PSEUDO_REGISTER], full_costs[FIRST_PSEUDO_REGISTER];
-#ifndef HONOR_REG_ALLOC_ORDER
   int saved_nregs;
   enum reg_class rclass;
   int add_cost;
-#endif
 #ifdef STACK_REGS
   bool no_stack_reg_p;
 #endif
@@ -1823,19 +1821,20 @@ assign_hard_reg (ira_allocno_t a, bool retry_p)
 	continue;
       cost = costs[i];
       full_cost = full_costs[i];
-#ifndef HONOR_REG_ALLOC_ORDER
-      if ((saved_nregs = calculate_saved_nregs (hard_regno, mode)) != 0)
-	/* We need to save/restore the hard register in
-	   epilogue/prologue.  Therefore we increase the cost.  */
+      if (!HONOR_REG_ALLOC_ORDER)
 	{
-	  rclass = REGNO_REG_CLASS (hard_regno);
-	  add_cost = ((ira_memory_move_cost[mode][rclass][0]
-		       + ira_memory_move_cost[mode][rclass][1])
-		      * saved_nregs / hard_regno_nregs[hard_regno][mode] - 1);
-	  cost += add_cost;
-	  full_cost += add_cost;
+	  if ((saved_nregs = calculate_saved_nregs (hard_regno, mode)) != 0)
+	  /* We need to save/restore the hard register in
+	     epilogue/prologue.  Therefore we increase the cost.  */
+	  {
+	    rclass = REGNO_REG_CLASS (hard_regno);
+	    add_cost = ((ira_memory_move_cost[mode][rclass][0]
+		         + ira_memory_move_cost[mode][rclass][1])
+		        * saved_nregs / hard_regno_nregs[hard_regno][mode] - 1);
+	    cost += add_cost;
+	    full_cost += add_cost;
+	  }
 	}
-#endif
       if (min_cost > cost)
 	min_cost = cost;
       if (min_full_cost > full_cost)

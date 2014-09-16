@@ -32,7 +32,6 @@ through the macros defined in the @file{.h} file.
 * Type Layout::         Defining sizes and properties of basic user data types.
 * Registers::           Naming and describing the hardware registers.
 * Register Classes::    Defining the classes of hardware registers.
-* Old Constraints::     The old way to define machine-specific constraints.
 * Stack and Calling::   Defining which way the stack grows and by how much.
 * Varargs::             Defining the varargs macros.
 * Trampolines::         Code set up at run time to enter a nested function.
@@ -1011,7 +1010,7 @@ the default value is @code{BIGGEST_ALIGNMENT}.
 
 On systems that use ELF, the default (in @file{config/elfos.h}) is
 the largest supported 32-bit ELF section alignment representable on
-a 32-bit host e.g. @samp{(((unsigned HOST_WIDEST_INT) 1 << 28) * 8)}.
+a 32-bit host e.g. @samp{(((uint64_t) 1 << 28) * 8)}.
 On 32-bit ELF the largest supported section alignment in bits is
 @samp{(0x80000000 * 8)}, but this is not representable on 32-bit hosts.
 @end defmac
@@ -1849,8 +1848,8 @@ Normally, IRA tries to estimate the costs for saving a register in the
 prologue and restoring it in the epilogue.  This discourages it from
 using call-saved registers.  If a machine wants to ensure that IRA
 allocates registers in the order given by REG_ALLOC_ORDER even if some
-call-saved registers appear earlier than call-used ones, this macro
-should be defined.
+call-saved registers appear earlier than call-used ones, then define this
+macro as a C expression to nonzero. Default is 0.
 @end defmac
 
 @defmac IRA_HARD_REGNO_ADD_COST_MULTIPLIER (@var{regno})
@@ -2551,153 +2550,6 @@ as below:
 
 @hook TARGET_CSTORE_MODE
 
-@node Old Constraints
-@section Obsolete Macros for Defining Constraints
-@cindex defining constraints, obsolete method
-@cindex constraints, defining, obsolete method
-
-Machine-specific constraints can be defined with these macros instead
-of the machine description constructs described in @ref{Define
-Constraints}.  This mechanism is obsolete.  New ports should not use
-it; old ports should convert to the new mechanism.
-
-@defmac CONSTRAINT_LEN (@var{char}, @var{str})
-For the constraint at the start of @var{str}, which starts with the letter
-@var{c}, return the length.  This allows you to have register class /
-constant / extra constraints that are longer than a single letter;
-you don't need to define this macro if you can do with single-letter
-constraints only.  The definition of this macro should use
-DEFAULT_CONSTRAINT_LEN for all the characters that you don't want
-to handle specially.
-There are some sanity checks in genoutput.c that check the constraint lengths
-for the md file, so you can also use this macro to help you while you are
-transitioning from a byzantine single-letter-constraint scheme: when you
-return a negative length for a constraint you want to re-use, genoutput
-will complain about every instance where it is used in the md file.
-@end defmac
-
-@defmac REG_CLASS_FROM_LETTER (@var{char})
-A C expression which defines the machine-dependent operand constraint
-letters for register classes.  If @var{char} is such a letter, the
-value should be the register class corresponding to it.  Otherwise,
-the value should be @code{NO_REGS}.  The register letter @samp{r},
-corresponding to class @code{GENERAL_REGS}, will not be passed
-to this macro; you do not need to handle it.
-@end defmac
-
-@defmac REG_CLASS_FROM_CONSTRAINT (@var{char}, @var{str})
-Like @code{REG_CLASS_FROM_LETTER}, but you also get the constraint string
-passed in @var{str}, so that you can use suffixes to distinguish between
-different variants.
-@end defmac
-
-@defmac CONST_OK_FOR_LETTER_P (@var{value}, @var{c})
-A C expression that defines the machine-dependent operand constraint
-letters (@samp{I}, @samp{J}, @samp{K}, @dots{} @samp{P}) that specify
-particular ranges of integer values.  If @var{c} is one of those
-letters, the expression should check that @var{value}, an integer, is in
-the appropriate range and return 1 if so, 0 otherwise.  If @var{c} is
-not one of those letters, the value should be 0 regardless of
-@var{value}.
-@end defmac
-
-@defmac CONST_OK_FOR_CONSTRAINT_P (@var{value}, @var{c}, @var{str})
-Like @code{CONST_OK_FOR_LETTER_P}, but you also get the constraint
-string passed in @var{str}, so that you can use suffixes to distinguish
-between different variants.
-@end defmac
-
-@defmac CONST_DOUBLE_OK_FOR_LETTER_P (@var{value}, @var{c})
-A C expression that defines the machine-dependent operand constraint
-letters that specify particular ranges of @code{const_double} values
-(@samp{G} or @samp{H}).
-
-If @var{c} is one of those letters, the expression should check that
-@var{value}, an RTX of code @code{const_double}, is in the appropriate
-range and return 1 if so, 0 otherwise.  If @var{c} is not one of those
-letters, the value should be 0 regardless of @var{value}.
-
-@code{const_double} is used for all floating-point constants and for
-@code{DImode} fixed-point constants.  A given letter can accept either
-or both kinds of values.  It can use @code{GET_MODE} to distinguish
-between these kinds.
-@end defmac
-
-@defmac CONST_DOUBLE_OK_FOR_CONSTRAINT_P (@var{value}, @var{c}, @var{str})
-Like @code{CONST_DOUBLE_OK_FOR_LETTER_P}, but you also get the constraint
-string passed in @var{str}, so that you can use suffixes to distinguish
-between different variants.
-@end defmac
-
-@defmac EXTRA_CONSTRAINT (@var{value}, @var{c})
-A C expression that defines the optional machine-dependent constraint
-letters that can be used to segregate specific types of operands, usually
-memory references, for the target machine.  Any letter that is not
-elsewhere defined and not matched by @code{REG_CLASS_FROM_LETTER} /
-@code{REG_CLASS_FROM_CONSTRAINT}
-may be used.  Normally this macro will not be defined.
-
-If it is required for a particular target machine, it should return 1
-if @var{value} corresponds to the operand type represented by the
-constraint letter @var{c}.  If @var{c} is not defined as an extra
-constraint, the value returned should be 0 regardless of @var{value}.
-
-For example, on the ROMP, load instructions cannot have their output
-in r0 if the memory reference contains a symbolic address.  Constraint
-letter @samp{Q} is defined as representing a memory address that does
-@emph{not} contain a symbolic address.  An alternative is specified with
-a @samp{Q} constraint on the input and @samp{r} on the output.  The next
-alternative specifies @samp{m} on the input and a register class that
-does not include r0 on the output.
-@end defmac
-
-@defmac EXTRA_CONSTRAINT_STR (@var{value}, @var{c}, @var{str})
-Like @code{EXTRA_CONSTRAINT}, but you also get the constraint string passed
-in @var{str}, so that you can use suffixes to distinguish between different
-variants.
-@end defmac
-
-@defmac EXTRA_MEMORY_CONSTRAINT (@var{c}, @var{str})
-A C expression that defines the optional machine-dependent constraint
-letters, amongst those accepted by @code{EXTRA_CONSTRAINT}, that should
-be treated like memory constraints by the reload pass.
-
-It should return 1 if the operand type represented by the constraint
-at the start of @var{str}, the first letter of which is the letter @var{c},
-comprises a subset of all memory references including
-all those whose address is simply a base register.  This allows the reload
-pass to reload an operand, if it does not directly correspond to the operand
-type of @var{c}, by copying its address into a base register.
-
-For example, on the S/390, some instructions do not accept arbitrary
-memory references, but only those that do not make use of an index
-register.  The constraint letter @samp{Q} is defined via
-@code{EXTRA_CONSTRAINT} as representing a memory address of this type.
-If the letter @samp{Q} is marked as @code{EXTRA_MEMORY_CONSTRAINT},
-a @samp{Q} constraint can handle any memory operand, because the
-reload pass knows it can be reloaded by copying the memory address
-into a base register if required.  This is analogous to the way
-an @samp{o} constraint can handle any memory operand.
-@end defmac
-
-@defmac EXTRA_ADDRESS_CONSTRAINT (@var{c}, @var{str})
-A C expression that defines the optional machine-dependent constraint
-letters, amongst those accepted by @code{EXTRA_CONSTRAINT} /
-@code{EXTRA_CONSTRAINT_STR}, that should
-be treated like address constraints by the reload pass.
-
-It should return 1 if the operand type represented by the constraint
-at the start of @var{str}, which starts with the letter @var{c}, comprises
-a subset of all memory addresses including
-all those that consist of just a base register.  This allows the reload
-pass to reload an operand, if it does not directly correspond to the operand
-type of @var{str}, by copying it into a base register.
-
-Any constraint marked as @code{EXTRA_ADDRESS_CONSTRAINT} can only
-be used with the @code{address_operand} predicate.  It is treated
-analogously to the @samp{p} constraint.
-@end defmac
-
 @node Stack and Calling
 @section Stack Layout and Calling Conventions
 @cindex calling conventions
@@ -2720,6 +2572,7 @@ This describes the stack layout and calling conventions.
 * Profiling::
 * Tail Calls::
 * Stack Smashing Protection::
+* Miscellaneous Register Hooks::
 @end menu
 
 @node Frame Layout
@@ -3498,6 +3351,13 @@ which.
 @c above is overfull.  not sure what to do.  --mew 5feb93  did
 @c something, not sure if it looks good.  --mew 10feb93
 
+@defmac INCOMING_REG_PARM_STACK_SPACE (@var{fndecl})
+Like @code{REG_PARM_STACK_SPACE}, but for incoming register arguments.
+Define this macro if space guaranteed when compiling a function body
+is different to space required when making a call, a situation that
+can arise with K&R style function definitions.
+@end defmac
+
 @defmac OUTGOING_REG_PARM_STACK_SPACE (@var{fntype})
 Define this to a nonzero value if it is the responsibility of the
 caller to allocate the area reserved for arguments passed in registers
@@ -3963,6 +3823,8 @@ Define this macro if the code for function profiling should come before
 the function prologue.  Normally, the profiling code comes after.
 @end defmac
 
+@hook TARGET_KEEP_LEAF_WHEN_PROFILED
+
 @node Tail Calls
 @subsection Permitting tail calls
 @cindex tail calls
@@ -3984,6 +3846,12 @@ the function prologue.  Normally, the profiling code comes after.
 @hook TARGET_STACK_PROTECT_FAIL
 
 @hook TARGET_SUPPORTS_SPLIT_STACK
+
+@node Miscellaneous Register Hooks
+@subsection Miscellaneous register hooks
+@cindex miscellaneous register hooks
+
+@hook TARGET_CALL_FUSAGE_CONTAINS_NON_CALLEE_CLOBBERS
 
 @node Varargs
 @section Implementing the Varargs Macros
@@ -5009,8 +4877,6 @@ them: try the first ones in this list first.
 @hook TARGET_SCHED_NEEDS_BLOCK_P
 
 @hook TARGET_SCHED_GEN_SPEC_CHECK
-
-@hook TARGET_SCHED_FIRST_CYCLE_MULTIPASS_DFA_LOOKAHEAD_GUARD_SPEC
 
 @hook TARGET_SCHED_SET_SCHED_FLAGS
 
@@ -7353,18 +7219,6 @@ Returns the negative of the floating point value @var{x}.
 Returns the absolute value of @var{x}.
 @end deftypefn
 
-@deftypefn Macro void REAL_VALUE_TO_INT (HOST_WIDE_INT @var{low}, HOST_WIDE_INT @var{high}, REAL_VALUE_TYPE @var{x})
-Converts a floating point value @var{x} into a double-precision integer
-which is then stored into @var{low} and @var{high}.  If the value is not
-integral, it is truncated.
-@end deftypefn
-
-@deftypefn Macro void REAL_VALUE_FROM_INT (REAL_VALUE_TYPE @var{x}, HOST_WIDE_INT @var{low}, HOST_WIDE_INT @var{high}, enum machine_mode @var{mode})
-Converts a double-precision integer found in @var{low} and @var{high},
-into a floating point value which is then stored into @var{x}.  The
-value is truncated to fit in mode @var{mode}.
-@end deftypefn
-
 @node Mode Switching
 @section Mode Switching Instructions
 @cindex mode switching
@@ -7386,9 +7240,9 @@ You can have multiple entities that are mode-switched, and select at run time
 which entities actually need it.  @code{OPTIMIZE_MODE_SWITCHING} should
 return nonzero for any @var{entity} that needs mode-switching.
 If you define this macro, you also have to define
-@code{NUM_MODES_FOR_MODE_SWITCHING}, @code{MODE_NEEDED},
-@code{MODE_PRIORITY_TO_MODE} and @code{EMIT_MODE_SET}.
-@code{MODE_AFTER}, @code{MODE_ENTRY}, and @code{MODE_EXIT}
+@code{NUM_MODES_FOR_MODE_SWITCHING}, @code{TARGET_MODE_NEEDED},
+@code{TARGET_MODE_PRIORITY} and @code{TARGET_MODE_EMIT}.
+@code{TARGET_MODE_AFTER}, @code{TARGET_MODE_ENTRY}, and @code{TARGET_MODE_EXIT}
 are optional.
 @end defmac
 
@@ -7405,49 +7259,17 @@ represented as numbers 0 @dots{} N @minus{} 1.  N is used to specify that no mod
 switch is needed / supplied.
 @end defmac
 
-@defmac MODE_NEEDED (@var{entity}, @var{insn})
-@var{entity} is an integer specifying a mode-switched entity.  If
-@code{OPTIMIZE_MODE_SWITCHING} is defined, you must define this macro to
-return an integer value not larger than the corresponding element in
-@code{NUM_MODES_FOR_MODE_SWITCHING}, to denote the mode that @var{entity} must
-be switched into prior to the execution of @var{insn}.
-@end defmac
+@hook TARGET_MODE_EMIT
 
-@defmac MODE_AFTER (@var{entity}, @var{mode}, @var{insn})
-@var{entity} is an integer specifying a mode-switched entity.  If
-this macro is defined, it is evaluated for every @var{insn} during
-mode switching.  It determines the mode that an insn results in (if
-different from the incoming mode).
-@end defmac
+@hook TARGET_MODE_NEEDED
 
-@defmac MODE_ENTRY (@var{entity})
-If this macro is defined, it is evaluated for every @var{entity} that needs
-mode switching.  It should evaluate to an integer, which is a mode that
-@var{entity} is assumed to be switched to at function entry.  If @code{MODE_ENTRY}
-is defined then @code{MODE_EXIT} must be defined.
-@end defmac
+@hook TARGET_MODE_AFTER
 
-@defmac MODE_EXIT (@var{entity})
-If this macro is defined, it is evaluated for every @var{entity} that needs
-mode switching.  It should evaluate to an integer, which is a mode that
-@var{entity} is assumed to be switched to at function exit.  If @code{MODE_EXIT}
-is defined then @code{MODE_ENTRY} must be defined.
-@end defmac
+@hook TARGET_MODE_ENTRY
 
-@defmac MODE_PRIORITY_TO_MODE (@var{entity}, @var{n})
-This macro specifies the order in which modes for @var{entity} are processed.
-0 is the highest priority, @code{NUM_MODES_FOR_MODE_SWITCHING[@var{entity}] - 1} the
-lowest.  The value of the macro should be an integer designating a mode
-for @var{entity}.  For any fixed @var{entity}, @code{mode_priority_to_mode}
-(@var{entity}, @var{n}) shall be a bijection in 0 @dots{}
-@code{num_modes_for_mode_switching[@var{entity}] - 1}.
-@end defmac
+@hook TARGET_MODE_EXIT
 
-@defmac EMIT_MODE_SET (@var{entity}, @var{mode}, @var{hard_regs_live})
-Generate one or more insns to set @var{entity} to @var{mode}.
-@var{hard_reg_live} is the set of hard registers live at the point where
-the insn(s) are to be inserted.
-@end defmac
+@hook TARGET_MODE_PRIORITY
 
 @node Target Attributes
 @section Defining target-specific uses of @code{__attribute__}
@@ -7565,9 +7387,6 @@ later in the function.
 Another note: according to the MIPS spec, coprocessor 1 (if present) is
 the FPU@.  One accesses COP1 registers through standard mips
 floating-point support; they are not included in this mechanism.
-
-There is one macro used in defining the MIPS coprocessor interface which
-you may want to override in subtargets; it is described below.
 
 @node PCH Target
 @section Parameters for Precompiled Header Validity Checking
@@ -8414,3 +8233,49 @@ and the associated definitions of those functions.
 @hook TARGET_ATOMIC_ALIGN_FOR_MODE
 
 @hook TARGET_ATOMIC_ASSIGN_EXPAND_FENV
+
+@defmac TARGET_SUPPORTS_WIDE_INT
+
+On older ports, large integers are stored in @code{CONST_DOUBLE} rtl
+objects.  Newer ports define @code{TARGET_SUPPORTS_WIDE_INT} to be nonzero
+to indicate that large integers are stored in
+@code{CONST_WIDE_INT} rtl objects.  The @code{CONST_WIDE_INT} allows
+very large integer constants to be represented.  @code{CONST_DOUBLE}
+is limited to twice the size of the host's @code{HOST_WIDE_INT}
+representation.
+
+Converting a port mostly requires looking for the places where
+@code{CONST_DOUBLE}s are used with @code{VOIDmode} and replacing that
+code with code that accesses @code{CONST_WIDE_INT}s.  @samp{"grep -i
+const_double"} at the port level gets you to 95% of the changes that
+need to be made.  There are a few places that require a deeper look.
+
+@itemize @bullet
+@item
+There is no equivalent to @code{hval} and @code{lval} for
+@code{CONST_WIDE_INT}s.  This would be difficult to express in the md
+language since there are a variable number of elements.
+
+Most ports only check that @code{hval} is either 0 or -1 to see if the
+value is small.  As mentioned above, this will no longer be necessary
+since small constants are always @code{CONST_INT}.  Of course there
+are still a few exceptions, the alpha's constraint used by the zap
+instruction certainly requires careful examination by C code.
+However, all the current code does is pass the hval and lval to C
+code, so evolving the c code to look at the @code{CONST_WIDE_INT} is
+not really a large change.
+
+@item
+Because there is no standard template that ports use to materialize
+constants, there is likely to be some futzing that is unique to each
+port in this code.
+
+@item
+The rtx costs may have to be adjusted to properly account for larger
+constants that are represented as @code{CONST_WIDE_INT}.
+@end itemize
+
+All and all it does not take long to convert ports that the
+maintainer is familiar with.
+
+@end defmac

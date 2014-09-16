@@ -57,11 +57,15 @@
 //
 // Build Constraints
 //
-// A build constraint is a line comment beginning with the directive +build
+// A build constraint, also known as a build tag, is a line comment that begins
+//
+//	// +build
+//
 // that lists the conditions under which a file should be included in the package.
 // Constraints may appear in any kind of source file (not just Go), but
 // they must appear near the top of the file, preceded
-// only by blank lines and other line comments.
+// only by blank lines and other line comments. These rules mean that in Go
+// files a build constraint must appear before the package clause.
 //
 // To distinguish build constraints from package documentation, a series of
 // build constraints must be followed by a blank line.
@@ -95,6 +99,7 @@
 //	- "cgo", if ctxt.CgoEnabled is true
 //	- "go1.1", from Go version 1.1 onward
 //	- "go1.2", from Go version 1.2 onward
+//	- "go1.3", from Go version 1.3 onward
 //	- any additional words listed in ctxt.BuildTags
 //
 // If a file's name, after stripping the extension and a possible _test suffix,

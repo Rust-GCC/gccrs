@@ -60,7 +60,7 @@ type PrivateKey struct {
 
 type PrecomputedValues struct {
 	Dp, Dq *big.Int // D mod (P-1) (or mod Q-1)
-	Qinv   *big.Int // Q^-1 mod Q
+	Qinv   *big.Int // Q^-1 mod P
 
 	// CRTValues is used for the 3rd and subsequent primes. Due to a
 	// historical accident, the CRT for the first two primes is handled
@@ -120,16 +120,18 @@ func (priv *PrivateKey) Validate() error {
 	return nil
 }
 
-// GenerateKey generates an RSA keypair of the given bit size.
+// GenerateKey generates an RSA keypair of the given bit size using the
+// random source random (for example, crypto/rand.Reader).
 func GenerateKey(random io.Reader, bits int) (priv *PrivateKey, err error) {
 	return GenerateMultiPrimeKey(random, 2, bits)
 }
 
 // GenerateMultiPrimeKey generates a multi-prime RSA keypair of the given bit
-// size, as suggested in [1]. Although the public keys are compatible
-// (actually, indistinguishable) from the 2-prime case, the private keys are
-// not. Thus it may not be possible to export multi-prime private keys in
-// certain formats or to subsequently import them into other code.
+// size and the given random source, as suggested in [1]. Although the public
+// keys are compatible (actually, indistinguishable) from the 2-prime case,
+// the private keys are not. Thus it may not be possible to export multi-prime
+// private keys in certain formats or to subsequently import them into other
+// code.
 //
 // Table 1 in [2] suggests maximum numbers of primes for a given size.
 //

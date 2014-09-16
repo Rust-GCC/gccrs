@@ -108,9 +108,22 @@ enum aarch64_symbol_type
    cost models and vectors for address cost calculations, register
    move costs and memory move costs.  */
 
+/* Scaled addressing modes can vary cost depending on the mode of the
+   value to be loaded/stored.  QImode values cannot use scaled
+   addressing modes.  */
+
+struct scale_addr_mode_cost
+{
+  const int hi;
+  const int si;
+  const int di;
+  const int ti;
+};
+
 /* Additional cost for addresses.  */
 struct cpu_addrcost_table
 {
+  const struct scale_addr_mode_cost addr_scale_costs;
   const int pre_modify;
   const int post_modify;
   const int register_offset;
@@ -167,6 +180,7 @@ bool aarch64_cannot_change_mode_class (enum machine_mode,
 enum aarch64_symbol_type
 aarch64_classify_symbolic_expression (rtx, enum aarch64_symbol_context);
 bool aarch64_constant_address_p (rtx);
+bool aarch64_expand_movmem (rtx *);
 bool aarch64_float_const_zero_rtx_p (rtx);
 bool aarch64_function_arg_regno_p (unsigned);
 bool aarch64_gen_movmemqi (rtx *);
@@ -175,6 +189,8 @@ bool aarch64_is_extend_from_extract (enum machine_mode, rtx, rtx);
 bool aarch64_is_long_call_p (rtx);
 bool aarch64_label_mentioned_p (rtx);
 bool aarch64_legitimate_pic_operand_p (rtx);
+bool aarch64_modes_tieable_p (enum machine_mode mode1,
+			      enum machine_mode mode2);
 bool aarch64_move_imm (HOST_WIDE_INT, enum machine_mode);
 bool aarch64_mov_operand_p (rtx, enum aarch64_symbol_context,
 			    enum machine_mode);
@@ -200,6 +216,8 @@ enum aarch64_symbol_type aarch64_classify_symbol (rtx,
 enum aarch64_symbol_type aarch64_classify_tls_symbol (rtx);
 enum reg_class aarch64_regno_regclass (unsigned);
 int aarch64_asm_preferred_eh_data_format (int, int);
+enum machine_mode aarch64_hard_regno_caller_save_mode (unsigned, unsigned,
+						       enum machine_mode);
 int aarch64_hard_regno_mode_ok (unsigned, enum machine_mode);
 int aarch64_hard_regno_nregs (unsigned, enum machine_mode);
 int aarch64_simd_attr_length_move (rtx);
@@ -227,6 +245,7 @@ void aarch64_init_cumulative_args (CUMULATIVE_ARGS *, const_tree, rtx,
 void aarch64_init_expanders (void);
 void aarch64_print_operand (FILE *, rtx, char);
 void aarch64_print_operand_address (FILE *, rtx);
+void aarch64_emit_call_insn (rtx);
 
 /* Initialize builtins for SIMD intrinsics.  */
 void init_aarch64_simd_builtins (void);
@@ -289,4 +308,5 @@ extern void aarch64_split_combinev16qi (rtx operands[3]);
 extern void aarch64_expand_vec_perm (rtx target, rtx op0, rtx op1, rtx sel);
 extern bool
 aarch64_expand_vec_perm_const (rtx target, rtx op0, rtx op1, rtx sel);
+void aarch64_atomic_assign_expand_fenv (tree *, tree *, tree *);
 #endif /* GCC_AARCH64_PROTOS_H */

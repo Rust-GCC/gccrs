@@ -228,7 +228,7 @@ add_equal_note (rtx insns, rtx target, enum rtx_code code, rtx op0, rtx op1)
       return 0;
     }
 
-  set = single_set (last_insn);
+  set = set_for_reg_notes (last_insn);
   if (set == NULL_RTX)
     return 1;
 
@@ -297,6 +297,25 @@ widened_mode (enum machine_mode to_mode, rtx op0, rtx op1)
   return result;
 }
 
+/* Like optab_handler, but for widening_operations that have a
+   TO_MODE and a FROM_MODE.  */
+
+enum insn_code
+widening_optab_handler (optab op, enum machine_mode to_mode,
+			enum machine_mode from_mode)
+{
+  unsigned scode = (op << 16) | to_mode;
+  if (to_mode != from_mode && from_mode != VOIDmode)
+    {
+      /* ??? Why does find_widening_optab_handler_and_mode attempt to
+	 widen things that can't be widened?  E.g. add_optab... */
+      if (op > LAST_CONV_OPTAB)
+	return CODE_FOR_nothing;
+      scode |= from_mode << 8;
+    }
+  return raw_optab_handler (scode);
+}
+
 /* Find a widening optab even if it doesn't widen as much as we want.
    E.g. if from_mode is HImode, and to_mode is DImode, and there is no
    direct HI->SI insn, then return SI->DI, if that exists.
@@ -464,6 +483,9 @@ optab_for_tree_code (enum tree_code code, const_tree type,
 
     case DOT_PROD_EXPR:
       return TYPE_UNSIGNED (type) ? udot_prod_optab : sdot_prod_optab;
+
+    case SAD_EXPR:
+      return TYPE_UNSIGNED (type) ? usad_optab : ssad_optab;
 
     case WIDEN_MULT_PLUS_EXPR:
       return (TYPE_UNSIGNED (type)
@@ -854,7 +876,8 @@ expand_subword_shift (enum machine_mode op1_mode, optab binoptab,
   if (CONSTANT_P (op1) || shift_mask >= BITS_PER_WORD)
     {
       carries = outof_input;
-      tmp = immed_double_const (BITS_PER_WORD, 0, op1_mode);
+      tmp = immed_wide_int_const (wi::shwi (BITS_PER_WORD,
+					    op1_mode), op1_mode);
       tmp = simplify_expand_binop (op1_mode, sub_optab, tmp, op1,
 				   0, true, methods);
     }
@@ -869,13 +892,15 @@ expand_subword_shift (enum machine_mode op1_mode, optab binoptab,
 			      outof_input, const1_rtx, 0, unsignedp, methods);
       if (shift_mask == BITS_PER_WORD - 1)
 	{
-	  tmp = immed_double_const (-1, -1, op1_mode);
+	  tmp = immed_wide_int_const
+	    (wi::minus_one (GET_MODE_PRECISION (op1_mode)), op1_mode);
 	  tmp = simplify_expand_binop (op1_mode, xor_optab, op1, tmp,
 				       0, true, methods);
 	}
       else
 	{
-	  tmp = immed_double_const (BITS_PER_WORD - 1, 0, op1_mode);
+	  tmp = immed_wide_int_const (wi::shwi (BITS_PER_WORD - 1,
+						op1_mode), op1_mode);
 	  tmp = simplify_expand_binop (op1_mode, sub_optab, tmp, op1,
 				       0, true, methods);
 	}
@@ -1038,7 +1063,7 @@ expand_doubleword_shift (enum machine_mode op1_mode, optab binoptab,
      is true when the effective shift value is less than BITS_PER_WORD.
      Set SUPERWORD_OP1 to the shift count that should be used to shift
      OUTOF_INPUT into INTO_TARGET when the condition is false.  */
-  tmp = immed_double_const (BITS_PER_WORD, 0, op1_mode);
+  tmp = immed_wide_int_const (wi::shwi (BITS_PER_WORD, op1_mode), op1_mode);
   if (!CONSTANT_P (op1) && shift_mask == BITS_PER_WORD - 1)
     {
       /* Set CMP1 to OP1 & BITS_PER_WORD.  The result is zero iff OP1
@@ -2891,7 +2916,6 @@ expand_absneg_bit (enum rtx_code code, enum machine_mode mode,
   const struct real_format *fmt;
   int bitpos, word, nwords, i;
   enum machine_mode imode;
-  double_int mask;
   rtx temp, insns;
 
   /* The format has to have a simple sign bit.  */
@@ -2927,7 +2951,7 @@ expand_absneg_bit (enum rtx_code code, enum machine_mode mode,
       nwords = (GET_MODE_BITSIZE (mode) + BITS_PER_WORD - 1) / BITS_PER_WORD;
     }
 
-  mask = double_int_zero.set_bit (bitpos);
+  wide_int mask = wi::set_bit_in_zero (bitpos, GET_MODE_PRECISION (imode));
   if (code == ABS)
     mask = ~mask;
 
@@ -2949,7 +2973,7 @@ expand_absneg_bit (enum rtx_code code, enum machine_mode mode,
 	    {
 	      temp = expand_binop (imode, code == ABS ? and_optab : xor_optab,
 				   op0_piece,
-				   immed_double_int_const (mask, imode),
+				   immed_wide_int_const (mask, imode),
 				   targ_piece, 1, OPTAB_LIB_WIDEN);
 	      if (temp != targ_piece)
 		emit_move_insn (targ_piece, temp);
@@ -2967,7 +2991,7 @@ expand_absneg_bit (enum rtx_code code, enum machine_mode mode,
     {
       temp = expand_binop (imode, code == ABS ? and_optab : xor_optab,
 			   gen_lowpart (imode, op0),
-			   immed_double_int_const (mask, imode),
+			   immed_wide_int_const (mask, imode),
 		           gen_lowpart (imode, target), 1, OPTAB_LIB_WIDEN);
       target = lowpart_subreg_maybe_copy (mode, temp, imode);
 
@@ -3571,8 +3595,6 @@ expand_copysign_absneg (enum machine_mode mode, rtx op0, rtx op1, rtx target,
     }
   else
     {
-      double_int mask;
-
       if (GET_MODE_SIZE (mode) <= UNITS_PER_WORD)
 	{
 	  imode = int_mode_for_mode (mode);
@@ -3593,10 +3615,9 @@ expand_copysign_absneg (enum machine_mode mode, rtx op0, rtx op1, rtx target,
 	  op1 = operand_subword_force (op1, word, mode);
 	}
 
-      mask = double_int_zero.set_bit (bitpos);
-
+      wide_int mask = wi::set_bit_in_zero (bitpos, GET_MODE_PRECISION (imode));
       sign = expand_binop (imode, and_optab, op1,
-			   immed_double_int_const (mask, imode),
+			   immed_wide_int_const (mask, imode),
 			   NULL_RTX, 1, OPTAB_LIB_WIDEN);
     }
 
@@ -3640,7 +3661,6 @@ expand_copysign_bit (enum machine_mode mode, rtx op0, rtx op1, rtx target,
 		     int bitpos, bool op0_is_abs)
 {
   enum machine_mode imode;
-  double_int mask;
   int word, nwords, i;
   rtx temp, insns;
 
@@ -3664,7 +3684,7 @@ expand_copysign_bit (enum machine_mode mode, rtx op0, rtx op1, rtx target,
       nwords = (GET_MODE_BITSIZE (mode) + BITS_PER_WORD - 1) / BITS_PER_WORD;
     }
 
-  mask = double_int_zero.set_bit (bitpos);
+  wide_int mask = wi::set_bit_in_zero (bitpos, GET_MODE_PRECISION (imode));
 
   if (target == 0
       || target == op0
@@ -3686,12 +3706,11 @@ expand_copysign_bit (enum machine_mode mode, rtx op0, rtx op1, rtx target,
 	      if (!op0_is_abs)
 		op0_piece
 		  = expand_binop (imode, and_optab, op0_piece,
-				  immed_double_int_const (~mask, imode),
+				  immed_wide_int_const (~mask, imode),
 				  NULL_RTX, 1, OPTAB_LIB_WIDEN);
-
 	      op1 = expand_binop (imode, and_optab,
 				  operand_subword_force (op1, i, mode),
-				  immed_double_int_const (mask, imode),
+				  immed_wide_int_const (mask, imode),
 				  NULL_RTX, 1, OPTAB_LIB_WIDEN);
 
 	      temp = expand_binop (imode, ior_optab, op0_piece, op1,
@@ -3711,13 +3730,13 @@ expand_copysign_bit (enum machine_mode mode, rtx op0, rtx op1, rtx target,
   else
     {
       op1 = expand_binop (imode, and_optab, gen_lowpart (imode, op1),
-		          immed_double_int_const (mask, imode),
+		          immed_wide_int_const (mask, imode),
 		          NULL_RTX, 1, OPTAB_LIB_WIDEN);
 
       op0 = gen_lowpart (imode, op0);
       if (!op0_is_abs)
 	op0 = expand_binop (imode, and_optab, op0,
-			    immed_double_int_const (~mask, imode),
+			    immed_wide_int_const (~mask, imode),
 			    NULL_RTX, 1, OPTAB_LIB_WIDEN);
 
       temp = expand_binop (imode, ior_optab, op0, op1,
@@ -6156,7 +6175,7 @@ set_optab_libfunc (optab op, enum machine_mode mode, const char *name)
     val = 0;
   slot = (struct libfunc_entry **) htab_find_slot (libfunc_hash, &e, INSERT);
   if (*slot == NULL)
-    *slot = ggc_alloc_libfunc_entry ();
+    *slot = ggc_alloc<libfunc_entry> ();
   (*slot)->op = op;
   (*slot)->mode1 = mode;
   (*slot)->mode2 = VOIDmode;
@@ -6184,7 +6203,7 @@ set_conv_libfunc (convert_optab optab, enum machine_mode tmode,
     val = 0;
   slot = (struct libfunc_entry **) htab_find_slot (libfunc_hash, &e, INSERT);
   if (*slot == NULL)
-    *slot = ggc_alloc_libfunc_entry ();
+    *slot = ggc_alloc<libfunc_entry> ();
   (*slot)->op = optab;
   (*slot)->mode1 = tmode;
   (*slot)->mode2 = fmode;
@@ -6277,8 +6296,7 @@ init_tree_optimization_optabs (tree optnode)
   if (tmp_optabs)
     memset (tmp_optabs, 0, sizeof (struct target_optabs));
   else
-    tmp_optabs = (struct target_optabs *)
-      ggc_alloc_atomic (sizeof (struct target_optabs));
+    tmp_optabs = ggc_alloc<target_optabs> ();
 
   /* Generate a new set of optabs into tmp_optabs.  */
   init_all_optabs (tmp_optabs);

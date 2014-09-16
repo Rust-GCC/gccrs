@@ -59,6 +59,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "pretty-print.h"
 #include "params.h"
 #include "dumpfile.h"
+#include "builtins.h"
 
 
 /* Functions and data structures for expanding case statements.  */
@@ -285,10 +286,6 @@ parse_output_constraint (const char **constraint_p, int operand_num,
 	  }
 	break;
 
-      case 'V':  case TARGET_MEM_CONSTRAINT:  case 'o':
-	*allows_mem = true;
-	break;
-
       case '?':  case '!':  case '*':  case '&':  case '#':
       case 'E':  case 'F':  case 'G':  case 'H':
       case 's':  case 'i':  case 'n':
@@ -314,19 +311,14 @@ parse_output_constraint (const char **constraint_p, int operand_num,
 	*allows_mem = true;
 	break;
 
-      case 'p': case 'r':
-	*allows_reg = true;
-	break;
-
       default:
 	if (!ISALPHA (*p))
 	  break;
-	if (REG_CLASS_FROM_CONSTRAINT (*p, p) != NO_REGS)
+	enum constraint_num cn = lookup_constraint (p);
+	if (reg_class_for_constraint (cn) != NO_REGS
+	    || insn_extra_address_constraint (cn))
 	  *allows_reg = true;
-#ifdef EXTRA_CONSTRAINT_STR
-	else if (EXTRA_ADDRESS_CONSTRAINT (*p, p))
-	  *allows_reg = true;
-	else if (EXTRA_MEMORY_CONSTRAINT (*p, p))
+	else if (insn_extra_memory_constraint (cn))
 	  *allows_mem = true;
 	else
 	  {
@@ -336,7 +328,6 @@ parse_output_constraint (const char **constraint_p, int operand_num,
 	    *allows_reg = true;
 	    *allows_mem = true;
 	  }
-#endif
 	break;
       }
 
@@ -382,10 +373,6 @@ parse_input_constraint (const char **constraint_p, int input_num,
 	    error ("%<%%%> constraint used with last operand");
 	    return false;
 	  }
-	break;
-
-      case 'V':  case TARGET_MEM_CONSTRAINT:  case 'o':
-	*allows_mem = true;
 	break;
 
       case '<':  case '>':
@@ -438,10 +425,6 @@ parse_input_constraint (const char **constraint_p, int input_num,
 	}
 	/* Fall through.  */
 
-      case 'p':  case 'r':
-	*allows_reg = true;
-	break;
-
       case 'g':  case 'X':
 	*allows_reg = true;
 	*allows_mem = true;
@@ -453,13 +436,11 @@ parse_input_constraint (const char **constraint_p, int input_num,
 	    error ("invalid punctuation %qc in constraint", constraint[j]);
 	    return false;
 	  }
-	if (REG_CLASS_FROM_CONSTRAINT (constraint[j], constraint + j)
-	    != NO_REGS)
+	enum constraint_num cn = lookup_constraint (constraint + j);
+	if (reg_class_for_constraint (cn) != NO_REGS
+	    || insn_extra_address_constraint (cn))
 	  *allows_reg = true;
-#ifdef EXTRA_CONSTRAINT_STR
-	else if (EXTRA_ADDRESS_CONSTRAINT (constraint[j], constraint + j))
-	  *allows_reg = true;
-	else if (EXTRA_MEMORY_CONSTRAINT (constraint[j], constraint + j))
+	else if (insn_extra_memory_constraint (cn))
 	  *allows_mem = true;
 	else
 	  {
@@ -469,7 +450,6 @@ parse_input_constraint (const char **constraint_p, int input_num,
 	    *allows_reg = true;
 	    *allows_mem = true;
 	  }
-#endif
 	break;
       }
 
@@ -774,24 +754,20 @@ static void
 dump_case_nodes (FILE *f, struct case_node *root,
 		 int indent_step, int indent_level)
 {
-  HOST_WIDE_INT low, high;
-
   if (root == 0)
     return;
   indent_level++;
 
   dump_case_nodes (f, root->left, indent_step, indent_level);
 
-  low = tree_to_shwi (root->low);
-  high = tree_to_shwi (root->high);
-
   fputs (";; ", f);
-  if (high == low)
-    fprintf (f, "%*s" HOST_WIDE_INT_PRINT_DEC,
-	     indent_step * indent_level, "", low);
-  else
-    fprintf (f, "%*s" HOST_WIDE_INT_PRINT_DEC " ... " HOST_WIDE_INT_PRINT_DEC,
-	     indent_step * indent_level, "", low, high);
+  fprintf (f, "%*s", indent_step * indent_level, "");
+  print_dec (root->low, f, TYPE_SIGN (TREE_TYPE (root->low)));
+  if (!tree_int_cst_equal (root->low, root->high))
+    {
+      fprintf (f, " ... ");
+      print_dec (root->high, f, TYPE_SIGN (TREE_TYPE (root->high)));
+    }
   fputs ("\n", f);
 
   dump_case_nodes (f, root->right, indent_step, indent_level);
@@ -1237,9 +1213,7 @@ expand_case (gimple stmt)
 	 original type.  Make sure to drop overflow flags.  */
       low = fold_convert (index_type, low);
       if (TREE_OVERFLOW (low))
-	low = build_int_cst_wide (index_type,
-				  TREE_INT_CST_LOW (low),
-				  TREE_INT_CST_HIGH (low));
+	low = wide_int_to_tree (index_type, low);
 
       /* The canonical from of a case label in GIMPLE is that a simple case
 	 has an empty CASE_HIGH.  For the casesi and tablejump expanders,
@@ -1248,9 +1222,7 @@ expand_case (gimple stmt)
 	high = low;
       high = fold_convert (index_type, high);
       if (TREE_OVERFLOW (high))
-	high = build_int_cst_wide (index_type,
-				   TREE_INT_CST_LOW (high),
-				   TREE_INT_CST_HIGH (high));
+	high = wide_int_to_tree (index_type, high);
 
       basic_block case_bb = label_to_block_fn (cfun, lab);
       edge case_edge = find_edge (bb, case_bb);

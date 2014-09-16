@@ -135,7 +135,7 @@ func (s *Scanner) Scan() bool {
 		}
 		// Must read more data.
 		// First, shift data to beginning of buffer if there's lots of empty space
-		// or space is neded.
+		// or space is needed.
 		if s.start > 0 && (s.end == len(s.buf) || s.start > len(s.buf)/2) {
 			copy(s.buf, s.buf[s.start:s.end])
 			s.end -= s.start
@@ -172,7 +172,7 @@ func (s *Scanner) Scan() bool {
 				break
 			}
 			loop++
-			if loop > 100 {
+			if loop > maxConsecutiveEmptyReads {
 				s.setErr(io.ErrNoProgress)
 				break
 			}
@@ -306,7 +306,7 @@ func isSpace(r rune) bool {
 		return true
 	}
 	switch r {
-	case '\u1680', '\u180e', '\u2028', '\u2029', '\u202f', '\u205f', '\u3000':
+	case '\u1680', '\u2028', '\u2029', '\u202f', '\u205f', '\u3000':
 		return true
 	}
 	return false

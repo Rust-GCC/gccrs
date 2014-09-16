@@ -819,7 +819,10 @@ extern int cpp_defined (cpp_reader *, const unsigned char *, int);
 
 /* A preprocessing number.  Code assumes that any unused high bits of
    the double integer are set to zero.  */
-typedef unsigned HOST_WIDE_INT cpp_num_part;
+
+/* This type has to be equal to unsigned HOST_WIDE_INT, see
+   gcc/c-family/c-lex.c.  */
+typedef uint64_t cpp_num_part;
 typedef struct cpp_num cpp_num;
 struct cpp_num
 {

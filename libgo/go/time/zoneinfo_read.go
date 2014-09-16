@@ -68,7 +68,7 @@ func loadZoneData(bytes []byte) (l *Location, err error) {
 
 	// 1-byte version, then 15 bytes of padding
 	var p []byte
-	if p = d.read(16); len(p) != 16 || p[0] != 0 && p[0] != '2' {
+	if p = d.read(16); len(p) != 16 || p[0] != 0 && p[0] != '2' && p[0] != '3' {
 		return nil, badData
 	}
 
@@ -123,7 +123,7 @@ func loadZoneData(bytes []byte) (l *Location, err error) {
 		return nil, badData
 	}
 
-	// If version == 2, the entire file repeats, this time using
+	// If version == 2 or 3, the entire file repeats, this time using
 	// 8-byte ints for txtimes and leap seconds.
 	// We won't need those until 2106.
 
@@ -173,7 +173,7 @@ func loadZoneData(bytes []byte) (l *Location, err error) {
 	if len(tx) == 0 {
 		// Build fake transition to cover all time.
 		// This happens in fixed locations like "Etc/GMT0".
-		tx = append(tx, zoneTrans{when: -1 << 63, index: 0})
+		tx = append(tx, zoneTrans{when: alpha, index: 0})
 	}
 
 	// Committed to succeed.
@@ -185,7 +185,7 @@ func loadZoneData(bytes []byte) (l *Location, err error) {
 	for i := range tx {
 		if tx[i].when <= sec && (i+1 == len(tx) || sec < tx[i+1].when) {
 			l.cacheStart = tx[i].when
-			l.cacheEnd = 1<<63 - 1
+			l.cacheEnd = omega
 			if i+1 < len(tx) {
 				l.cacheEnd = tx[i+1].when
 			}

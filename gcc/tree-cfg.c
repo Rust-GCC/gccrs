@@ -68,6 +68,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-ssa-live.h"
 #include "omp-low.h"
 #include "tree-cfgcleanup.h"
+#include "wide-int.h"
+#include "wide-int-print.h"
 
 /* This file contains functions for building the Control Flow Graph (CFG)
    for a function tree.  */
@@ -141,7 +143,7 @@ locus_discrim_hasher::equal (const value_type *a, const compare_type *b)
   return LOCATION_LINE (a->locus) == LOCATION_LINE (b->locus);
 }
 
-static hash_table <locus_discrim_hasher> discriminator_per_locus;
+static hash_table<locus_discrim_hasher> *discriminator_per_locus;
 
 /* Basic blocks and flowgraphs.  */
 static void make_blocks (gimple_seq);
@@ -242,17 +244,18 @@ build_gimple_cfg (gimple_seq seq)
   group_case_labels ();
 
   /* Create the edges of the flowgraph.  */
-  discriminator_per_locus.create (13);
+  discriminator_per_locus = new hash_table<locus_discrim_hasher> (13);
   make_edges ();
   assign_discriminators ();
   cleanup_dead_labels ();
-  discriminator_per_locus.dispose ();
+  delete discriminator_per_locus;
+  discriminator_per_locus = NULL;
 }
 
 
-/* Search for ANNOTATE call with annot_expr_ivdep_kind; if found, remove
-   it and set loop->safelen to INT_MAX.  We assume that the annotation
-   comes immediately before the condition.  */
+/* Look for ANNOTATE calls with loop annotation kind; if found, remove
+   them and propagate the information to the loop.  We assume that the
+   annotations come immediately before the condition of the loop.  */
 
 static void
 replace_loop_annotate ()
@@ -266,50 +269,62 @@ replace_loop_annotate ()
     {
       gsi = gsi_last_bb (loop->header);
       stmt = gsi_stmt (gsi);
-      if (stmt && gimple_code (stmt) == GIMPLE_COND)
+      if (!(stmt && gimple_code (stmt) == GIMPLE_COND))
+	continue;
+      for (gsi_prev_nondebug (&gsi); !gsi_end_p (gsi); gsi_prev (&gsi))
 	{
-	  gsi_prev_nondebug (&gsi);
-	  if (gsi_end_p (gsi))
-	    continue;
 	  stmt = gsi_stmt (gsi);
 	  if (gimple_code (stmt) != GIMPLE_CALL)
-		continue;
+	    break;
 	  if (!gimple_call_internal_p (stmt)
-		  || gimple_call_internal_fn (stmt) != IFN_ANNOTATE)
-	    continue;
-	  if ((annot_expr_kind) tree_to_shwi (gimple_call_arg (stmt, 1))
-	      != annot_expr_ivdep_kind)
-	    continue;
+	      || gimple_call_internal_fn (stmt) != IFN_ANNOTATE)
+	    break;
+	  switch ((annot_expr_kind) tree_to_shwi (gimple_call_arg (stmt, 1)))
+	    {
+	    case annot_expr_ivdep_kind:
+	      loop->safelen = INT_MAX;
+	      break;
+	    case annot_expr_no_vector_kind:
+	      loop->dont_vectorize = true;
+	      break;
+	    case annot_expr_vector_kind:
+	      loop->force_vectorize = true;
+	      cfun->has_force_vectorize_loops = true;
+	      break;
+	    default:
+	      gcc_unreachable ();
+	    }
 	  stmt = gimple_build_assign (gimple_call_lhs (stmt),
 				      gimple_call_arg (stmt, 0));
 	  gsi_replace (&gsi, stmt, true);
-	  loop->safelen = INT_MAX;
 	}
     }
 
-  /* Remove IFN_ANNOTATE. Safeguard for the case loop->latch == NULL.  */
+  /* Remove IFN_ANNOTATE.  Safeguard for the case loop->latch == NULL.  */
   FOR_EACH_BB_FN (bb, cfun)
     {
-      gsi = gsi_last_bb (bb);
-      stmt = gsi_stmt (gsi);
-      if (stmt && gimple_code (stmt) == GIMPLE_COND)
-	gsi_prev_nondebug (&gsi);
-      if (gsi_end_p (gsi))
-	continue;
-      stmt = gsi_stmt (gsi);
-      if (gimple_code (stmt) != GIMPLE_CALL)
-	continue;
-      if (!gimple_call_internal_p (stmt)
-	  || gimple_call_internal_fn (stmt) != IFN_ANNOTATE)
-	continue;
-      if ((annot_expr_kind) tree_to_shwi (gimple_call_arg (stmt, 1))
-	  != annot_expr_ivdep_kind)
-	continue;
-      warning_at (gimple_location (stmt), 0, "ignoring %<GCC ivdep%> "
-		  "annotation");
-      stmt = gimple_build_assign (gimple_call_lhs (stmt),
-				  gimple_call_arg (stmt, 0));
-      gsi_replace (&gsi, stmt, true);
+      for (gsi = gsi_last_bb (bb); !gsi_end_p (gsi); gsi_prev (&gsi))
+	{
+	  stmt = gsi_stmt (gsi);
+	  if (gimple_code (stmt) != GIMPLE_CALL)
+	    break;
+	  if (!gimple_call_internal_p (stmt)
+	      || gimple_call_internal_fn (stmt) != IFN_ANNOTATE)
+	    break;
+	  switch ((annot_expr_kind) tree_to_shwi (gimple_call_arg (stmt, 1)))
+	    {
+	    case annot_expr_ivdep_kind:
+	    case annot_expr_no_vector_kind:
+	    case annot_expr_vector_kind:
+	      break;
+	    default:
+	      gcc_unreachable ();
+	    }
+	  warning_at (gimple_location (stmt), 0, "ignoring loop annotation");
+	  stmt = gimple_build_assign (gimple_call_lhs (stmt),
+				      gimple_call_arg (stmt, 0));
+	  gsi_replace (&gsi, stmt, true);
+	}
     }
 }
 
@@ -339,14 +354,12 @@ const pass_data pass_data_build_cfg =
   GIMPLE_PASS, /* type */
   "cfg", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  false, /* has_gate */
-  true, /* has_execute */
   TV_TREE_CFG, /* tv_id */
   PROP_gimple_leh, /* properties_required */
   ( PROP_cfg | PROP_loops ), /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  TODO_verify_stmts, /* todo_flags_finish */
+  0, /* todo_flags_finish */
 };
 
 class pass_build_cfg : public gimple_opt_pass
@@ -357,7 +370,7 @@ public:
   {}
 
   /* opt_pass methods: */
-  unsigned int execute () { return execute_build_cfg (); }
+  virtual unsigned int execute (function *) { return execute_build_cfg (); }
 
 }; // class pass_build_cfg
 
@@ -750,8 +763,11 @@ make_edges (void)
 	      fallthru = false;
 	      break;
 	    case GIMPLE_RETURN:
-	      make_edge (bb, EXIT_BLOCK_PTR_FOR_FN (cfun), 0);
-	      fallthru = false;
+	      {
+		edge e = make_edge (bb, EXIT_BLOCK_PTR_FOR_FN (cfun), 0);
+		e->goto_locus = gimple_location (last);
+		fallthru = false;
+	      }
 	      break;
 	    case GIMPLE_COND:
 	      make_cond_expr_edges (bb);
@@ -922,7 +938,7 @@ next_discriminator_for_locus (location_t locus)
 
   item.locus = locus;
   item.discriminator = 0;
-  slot = discriminator_per_locus.find_slot_with_hash (
+  slot = discriminator_per_locus->find_slot_with_hash (
       &item, LOCATION_LINE (locus), INSERT);
   gcc_assert (slot);
   if (*slot == HTAB_EMPTY_ENTRY)
@@ -1531,12 +1547,12 @@ group_case_labels_stmt (gimple stmt)
 	{
 	  tree merge_case = gimple_switch_label (stmt, i);
 	  basic_block merge_bb = label_to_block (CASE_LABEL (merge_case));
-	  double_int bhp1 = tree_to_double_int (base_high) + double_int_one;
+	  wide_int bhp1 = wi::add (base_high, 1);
 
 	  /* Merge the cases if they jump to the same place,
 	     and their ranges are consecutive.  */
 	  if (merge_bb == base_bb
-	      && tree_to_double_int (CASE_LOW (merge_case)) == bhp1)
+	      && wi::eq_p (CASE_LOW (merge_case), bhp1))
 	    {
 	      base_high = CASE_HIGH (merge_case) ?
 		  CASE_HIGH (merge_case) : CASE_LOW (merge_case);
@@ -1864,6 +1880,15 @@ gimple_merge_blocks (basic_block a, basic_block b)
 	}
     }
 
+  /* When merging two BBs, if their counts are different, the larger count
+     is selected as the new bb count. This is to handle inconsistent
+     profiles.  */
+  if (a->loop_father == b->loop_father)
+    {
+      a->count = MAX (a->count, b->count);
+      a->frequency = MAX (a->frequency, b->frequency);
+    }
+
   /* Merge the sequences.  */
   last = gsi_last_bb (a);
   gsi_insert_seq_after (&last, bb_seq (b), GSI_NEW_STMT);
@@ -1947,7 +1972,7 @@ remove_bb (basic_block bb)
       fprintf (dump_file, "Removing basic block %d\n", bb->index);
       if (dump_flags & TDF_DETAILS)
 	{
-	  dump_bb (dump_file, bb, 0, dump_flags);
+	  dump_bb (dump_file, bb, 0, TDF_BLOCKS);
 	  fprintf (dump_file, "\n");
 	}
     }
@@ -3640,7 +3665,7 @@ verify_gimple_assign_binary (gimple stmt)
 	   only allow shifting by a constant multiple of the element size.  */
 	if (!INTEGRAL_TYPE_P (TREE_TYPE (rhs1_type))
 	    && (TREE_CODE (rhs2) != INTEGER_CST
-		|| !div_if_zero_remainder (EXACT_DIV_EXPR, rhs2,
+		|| !div_if_zero_remainder (rhs2,
 					   TYPE_SIZE (TREE_TYPE (rhs1_type)))))
 	  {
 	    error ("non-element sized vector shift of floating point vector");
@@ -3937,6 +3962,36 @@ verify_gimple_assign_ternary (gimple stmt)
 	     != GET_MODE_BITSIZE (TYPE_MODE (TREE_TYPE (rhs1_type))))
 	{
 	  error ("invalid mask type in vector permute expression");
+	  debug_generic_expr (lhs_type);
+	  debug_generic_expr (rhs1_type);
+	  debug_generic_expr (rhs2_type);
+	  debug_generic_expr (rhs3_type);
+	  return true;
+	}
+
+      return false;
+
+    case SAD_EXPR:
+      if (!useless_type_conversion_p (rhs1_type, rhs2_type)
+	  || !useless_type_conversion_p (lhs_type, rhs3_type)
+	  || 2 * GET_MODE_BITSIZE (GET_MODE_INNER
+				     (TYPE_MODE (TREE_TYPE (rhs1_type))))
+	       > GET_MODE_BITSIZE (GET_MODE_INNER
+				     (TYPE_MODE (TREE_TYPE (lhs_type)))))
+	{
+	  error ("type mismatch in sad expression");
+	  debug_generic_expr (lhs_type);
+	  debug_generic_expr (rhs1_type);
+	  debug_generic_expr (rhs2_type);
+	  debug_generic_expr (rhs3_type);
+	  return true;
+	}
+
+      if (TREE_CODE (rhs1_type) != VECTOR_TYPE
+	  || TREE_CODE (rhs2_type) != VECTOR_TYPE
+	  || TREE_CODE (rhs3_type) != VECTOR_TYPE)
+	{
+	  error ("vector types expected in sad expression");
 	  debug_generic_expr (lhs_type);
 	  debug_generic_expr (rhs1_type);
 	  debug_generic_expr (rhs2_type);
@@ -4774,7 +4829,7 @@ collect_subblocks (pointer_set_t *blocks, tree block)
 /* Verify the GIMPLE statements in the CFG of FN.  */
 
 DEBUG_FUNCTION void
-verify_gimple_in_cfg (struct function *fn)
+verify_gimple_in_cfg (struct function *fn, bool verify_nothrow)
 {
   basic_block bb;
   bool err = false;
@@ -4910,16 +4965,17 @@ verify_gimple_in_cfg (struct function *fn)
 	     that they cannot throw, that we update other data structures
 	     to match.  */
 	  lp_nr = lookup_stmt_eh_lp (stmt);
-	  if (lp_nr != 0)
+	  if (lp_nr > 0)
 	    {
 	      if (!stmt_could_throw_p (stmt))
 		{
-		  error ("statement marked for throw, but doesn%'t");
-		  err2 |= true;
+		  if (verify_nothrow)
+		    {
+		      error ("statement marked for throw, but doesn%'t");
+		      err2 |= true;
+		    }
 		}
-	      else if (lp_nr > 0
-		       && !gsi_one_before_end_p (gsi)
-		       && stmt_can_throw_internal (stmt))
+	      else if (!gsi_one_before_end_p (gsi))
 		{
 		  error ("statement marked for throw in middle of block");
 		  err2 |= true;
@@ -6882,7 +6938,7 @@ move_sese_region_to_fn (struct function *dest_cfun, basic_block entry_bb,
     }
 
   /* Initialize an empty loop tree.  */
-  struct loops *loops = ggc_alloc_cleared_loops ();
+  struct loops *loops = ggc_cleared_alloc<struct loops> ();
   init_loops_structure (dest_cfun, loops, 1);
   loops->state = LOOPS_MAY_HAVE_MULTIPLE_LATCHES;
   set_loops_for_fn (dest_cfun, loops);
@@ -6967,7 +7023,7 @@ move_sese_region_to_fn (struct function *dest_cfun, basic_block entry_bb,
     outer->num_nodes -= num_nodes;
   loop0->num_nodes -= bbs.length () - num_nodes;
 
-  if (saved_cfun->has_simduid_loops || saved_cfun->has_force_vect_loops)
+  if (saved_cfun->has_simduid_loops || saved_cfun->has_force_vectorize_loops)
     {
       struct loop *aloop;
       for (i = 0; vec_safe_iterate (loops->larray, i, &aloop); i++)
@@ -6979,8 +7035,8 @@ move_sese_region_to_fn (struct function *dest_cfun, basic_block entry_bb,
 					   d.to_context);
 		dest_cfun->has_simduid_loops = true;
 	      }
-	    if (aloop->force_vect)
-	      dest_cfun->has_force_vect_loops = true;
+	    if (aloop->force_vectorize)
+	      dest_cfun->has_force_vectorize_loops = true;
 	  }
     }
 
@@ -7317,13 +7373,13 @@ print_loop (FILE *file, struct loop *loop, int indent, int verbosity)
   if (loop->any_upper_bound)
     {
       fprintf (file, ", upper_bound = ");
-      dump_double_int (file, loop->nb_iterations_upper_bound, true);
+      print_decu (loop->nb_iterations_upper_bound, file);
     }
 
   if (loop->any_estimate)
     {
       fprintf (file, ", estimate = ");
-      dump_double_int (file, loop->nb_iterations_estimate, true);
+      print_decu (loop->nb_iterations_estimate, file);
     }
   fprintf (file, ")\n");
 
@@ -8072,14 +8128,12 @@ const pass_data pass_data_split_crit_edges =
   GIMPLE_PASS, /* type */
   "crited", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  false, /* has_gate */
-  true, /* has_execute */
   TV_TREE_SPLIT_EDGES, /* tv_id */
   PROP_cfg, /* properties_required */
   PROP_no_crit_edges, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  TODO_verify_flow, /* todo_flags_finish */
+  0, /* todo_flags_finish */
 };
 
 class pass_split_crit_edges : public gimple_opt_pass
@@ -8090,7 +8144,7 @@ public:
   {}
 
   /* opt_pass methods: */
-  unsigned int execute () { return split_critical_edges (); }
+  virtual unsigned int execute (function *) { return split_critical_edges (); }
 
   opt_pass * clone () { return new pass_split_crit_edges (m_ctxt); }
 }; // class pass_split_crit_edges
@@ -8155,64 +8209,6 @@ gimplify_build1 (gimple_stmt_iterator *gsi, enum tree_code code, tree type,
 
 
 
-/* Emit return warnings.  */
-
-static unsigned int
-execute_warn_function_return (void)
-{
-  source_location location;
-  gimple last;
-  edge e;
-  edge_iterator ei;
-
-  if (!targetm.warn_func_return (cfun->decl))
-    return 0;
-
-  /* If we have a path to EXIT, then we do return.  */
-  if (TREE_THIS_VOLATILE (cfun->decl)
-      && EDGE_COUNT (EXIT_BLOCK_PTR_FOR_FN (cfun)->preds) > 0)
-    {
-      location = UNKNOWN_LOCATION;
-      FOR_EACH_EDGE (e, ei, EXIT_BLOCK_PTR_FOR_FN (cfun)->preds)
-	{
-	  last = last_stmt (e->src);
-	  if ((gimple_code (last) == GIMPLE_RETURN
-	       || gimple_call_builtin_p (last, BUILT_IN_RETURN))
-	      && (location = gimple_location (last)) != UNKNOWN_LOCATION)
-	    break;
-	}
-      if (location == UNKNOWN_LOCATION)
-	location = cfun->function_end_locus;
-      warning_at (location, 0, "%<noreturn%> function does return");
-    }
-
-  /* If we see "return;" in some basic block, then we do reach the end
-     without returning a value.  */
-  else if (warn_return_type
-	   && !TREE_NO_WARNING (cfun->decl)
-	   && EDGE_COUNT (EXIT_BLOCK_PTR_FOR_FN (cfun)->preds) > 0
-	   && !VOID_TYPE_P (TREE_TYPE (TREE_TYPE (cfun->decl))))
-    {
-      FOR_EACH_EDGE (e, ei, EXIT_BLOCK_PTR_FOR_FN (cfun)->preds)
-	{
-	  gimple last = last_stmt (e->src);
-	  if (gimple_code (last) == GIMPLE_RETURN
-	      && gimple_return_retval (last) == NULL
-	      && !gimple_no_warning_p (last))
-	    {
-	      location = gimple_location (last);
-	      if (location == UNKNOWN_LOCATION)
-		  location = cfun->function_end_locus;
-	      warning_at (location, OPT_Wreturn_type, "control reaches end of non-void function");
-	      TREE_NO_WARNING (cfun->decl) = 1;
-	      break;
-	    }
-	}
-    }
-  return 0;
-}
-
-
 /* Given a basic block B which ends with a conditional and has
    precisely two successors, determine which of the edges is taken if
    the conditional is true and which is taken if the conditional is
@@ -8237,6 +8233,8 @@ extract_true_false_edges_from_block (basic_block b,
     }
 }
 
+/* Emit return warnings.  */
+
 namespace {
 
 const pass_data pass_data_warn_function_return =
@@ -8244,8 +8242,6 @@ const pass_data pass_data_warn_function_return =
   GIMPLE_PASS, /* type */
   "*warn_function_return", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  false, /* has_gate */
-  true, /* has_execute */
   TV_NONE, /* tv_id */
   PROP_cfg, /* properties_required */
   0, /* properties_provided */
@@ -8262,9 +8258,64 @@ public:
   {}
 
   /* opt_pass methods: */
-  unsigned int execute () { return execute_warn_function_return (); }
+  virtual unsigned int execute (function *);
 
 }; // class pass_warn_function_return
+
+unsigned int
+pass_warn_function_return::execute (function *fun)
+{
+  source_location location;
+  gimple last;
+  edge e;
+  edge_iterator ei;
+
+  if (!targetm.warn_func_return (fun->decl))
+    return 0;
+
+  /* If we have a path to EXIT, then we do return.  */
+  if (TREE_THIS_VOLATILE (fun->decl)
+      && EDGE_COUNT (EXIT_BLOCK_PTR_FOR_FN (fun)->preds) > 0)
+    {
+      location = UNKNOWN_LOCATION;
+      FOR_EACH_EDGE (e, ei, EXIT_BLOCK_PTR_FOR_FN (fun)->preds)
+	{
+	  last = last_stmt (e->src);
+	  if ((gimple_code (last) == GIMPLE_RETURN
+	       || gimple_call_builtin_p (last, BUILT_IN_RETURN))
+	      && (location = gimple_location (last)) != UNKNOWN_LOCATION)
+	    break;
+	}
+      if (location == UNKNOWN_LOCATION)
+	location = cfun->function_end_locus;
+      warning_at (location, 0, "%<noreturn%> function does return");
+    }
+
+  /* If we see "return;" in some basic block, then we do reach the end
+     without returning a value.  */
+  else if (warn_return_type
+	   && !TREE_NO_WARNING (fun->decl)
+	   && EDGE_COUNT (EXIT_BLOCK_PTR_FOR_FN (fun)->preds) > 0
+	   && !VOID_TYPE_P (TREE_TYPE (TREE_TYPE (fun->decl))))
+    {
+      FOR_EACH_EDGE (e, ei, EXIT_BLOCK_PTR_FOR_FN (fun)->preds)
+	{
+	  gimple last = last_stmt (e->src);
+	  if (gimple_code (last) == GIMPLE_RETURN
+	      && gimple_return_retval (last) == NULL
+	      && !gimple_no_warning_p (last))
+	    {
+	      location = gimple_location (last);
+	      if (location == UNKNOWN_LOCATION)
+		location = fun->function_end_locus;
+	      warning_at (location, OPT_Wreturn_type, "control reaches end of non-void function");
+	      TREE_NO_WARNING (fun->decl) = 1;
+	      break;
+	    }
+	}
+    }
+  return 0;
+}
 
 } // anon namespace
 
@@ -8339,19 +8390,6 @@ do_warn_unused_result (gimple_seq seq)
     }
 }
 
-static unsigned int
-run_warn_unused_result (void)
-{
-  do_warn_unused_result (gimple_body (current_function_decl));
-  return 0;
-}
-
-static bool
-gate_warn_unused_result (void)
-{
-  return flag_warn_unused_result;
-}
-
 namespace {
 
 const pass_data pass_data_warn_unused_result =
@@ -8359,8 +8397,6 @@ const pass_data pass_data_warn_unused_result =
   GIMPLE_PASS, /* type */
   "*warn_unused_result", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_NONE, /* tv_id */
   PROP_gimple_any, /* properties_required */
   0, /* properties_provided */
@@ -8377,8 +8413,12 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_warn_unused_result (); }
-  unsigned int execute () { return run_warn_unused_result (); }
+  virtual bool gate (function *) { return flag_warn_unused_result; }
+  virtual unsigned int execute (function *)
+    {
+      do_warn_unused_result (gimple_body (current_function_decl));
+      return 0;
+    }
 
 }; // class pass_warn_unused_result
 
@@ -8403,7 +8443,7 @@ execute_fixup_cfg (void)
 {
   basic_block bb;
   gimple_stmt_iterator gsi;
-  int todo = gimple_in_ssa_p (cfun) ? TODO_verify_ssa : 0;
+  int todo = 0;
   gcov_type count_scale;
   edge e;
   edge_iterator ei;
@@ -8424,7 +8464,7 @@ execute_fixup_cfg (void)
   FOR_EACH_BB_FN (bb, cfun)
     {
       bb->count = apply_scale (bb->count, count_scale);
-      for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
+      for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi);)
 	{
 	  gimple stmt = gsi_stmt (gsi);
 	  tree decl = is_gimple_call (stmt)
@@ -8450,9 +8490,46 @@ execute_fixup_cfg (void)
 		todo |= TODO_cleanup_cfg;
 	     }
 
+	  /* Remove stores to variables we marked write-only.
+	     Keep access when store has side effect, i.e. in case when source
+	     is volatile.  */
+	  if (gimple_store_p (stmt)
+	      && !gimple_has_side_effects (stmt))
+	    {
+	      tree lhs = get_base_address (gimple_get_lhs (stmt));
+
+	      if (TREE_CODE (lhs) == VAR_DECL
+		  && (TREE_STATIC (lhs) || DECL_EXTERNAL (lhs))
+		  && varpool_get_node (lhs)->writeonly)
+		{
+		  unlink_stmt_vdef (stmt);
+		  gsi_remove (&gsi, true);
+		  release_defs (stmt);
+	          todo |= TODO_update_ssa | TODO_cleanup_cfg;
+	          continue;
+		}
+	    }
+	  /* For calls we can simply remove LHS when it is known
+	     to be write-only.  */
+	  if (is_gimple_call (stmt)
+	      && gimple_get_lhs (stmt))
+	    {
+	      tree lhs = get_base_address (gimple_get_lhs (stmt));
+
+	      if (TREE_CODE (lhs) == VAR_DECL
+		  && (TREE_STATIC (lhs) || DECL_EXTERNAL (lhs))
+		  && varpool_get_node (lhs)->writeonly)
+		{
+		  gimple_call_set_lhs (stmt, NULL);
+		  update_stmt (stmt);
+	          todo |= TODO_update_ssa | TODO_cleanup_cfg;
+		}
+	    }
+
 	  if (maybe_clean_eh_stmt (stmt)
 	      && gimple_purge_dead_eh_edges (bb))
 	    todo |= TODO_cleanup_cfg;
+	  gsi_next (&gsi);
 	}
 
       FOR_EACH_EDGE (e, ei, bb->succs)
@@ -8502,8 +8579,6 @@ const pass_data pass_data_fixup_cfg =
   GIMPLE_PASS, /* type */
   "*free_cfg_annotations", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  false, /* has_gate */
-  true, /* has_execute */
   TV_NONE, /* tv_id */
   PROP_cfg, /* properties_required */
   0, /* properties_provided */
@@ -8521,7 +8596,7 @@ public:
 
   /* opt_pass methods: */
   opt_pass * clone () { return new pass_fixup_cfg (m_ctxt); }
-  unsigned int execute () { return execute_fixup_cfg (); }
+  virtual unsigned int execute (function *) { return execute_fixup_cfg (); }
 
 }; // class pass_fixup_cfg
 

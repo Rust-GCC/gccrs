@@ -227,7 +227,7 @@ check_format_string (tree fntype, unsigned HOST_WIDE_INT format_num,
 static bool
 get_constant (tree expr, unsigned HOST_WIDE_INT *value, int validated_p)
 {
-  if (TREE_CODE (expr) != INTEGER_CST || TREE_INT_CST_HIGH (expr) != 0)
+  if (!tree_fits_uhwi_p (expr))
     {
       gcc_assert (!validated_p);
       return false;
@@ -2418,7 +2418,9 @@ check_format_types (format_wanted_type *types)
 	 a second level of indirection.  */
       if (TREE_CODE (wanted_type) == INTEGER_TYPE
 	  && TREE_CODE (cur_type) == INTEGER_TYPE
-	  && (!pedantic || i == 0 || (i == 1 && char_type_flag))
+	  && ((!pedantic && !warn_format_signedness)
+	      || (i == 0 && !warn_format_signedness)
+	      || (i == 1 && char_type_flag))
 	  && (TYPE_UNSIGNED (wanted_type)
 	      ? wanted_type == c_common_unsigned_type (cur_type)
 	      : wanted_type == c_common_signed_type (cur_type)))

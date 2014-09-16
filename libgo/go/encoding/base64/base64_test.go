@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -113,7 +114,7 @@ func TestDecode(t *testing.T) {
 
 func TestDecoder(t *testing.T) {
 	for _, p := range pairs {
-		decoder := NewDecoder(StdEncoding, bytes.NewBufferString(p.encoded))
+		decoder := NewDecoder(StdEncoding, strings.NewReader(p.encoded))
 		dbuf := make([]byte, StdEncoding.DecodedLen(len(p.encoded)))
 		count, err := decoder.Read(dbuf)
 		if err != nil && err != io.EOF {
@@ -130,7 +131,7 @@ func TestDecoder(t *testing.T) {
 
 func TestDecoderBuffering(t *testing.T) {
 	for bs := 1; bs <= 12; bs++ {
-		decoder := NewDecoder(StdEncoding, bytes.NewBufferString(bigtest.encoded))
+		decoder := NewDecoder(StdEncoding, strings.NewReader(bigtest.encoded))
 		buf := make([]byte, len(bigtest.decoded)+12)
 		var total int
 		for total = 0; total < len(bigtest.decoded); {
@@ -149,9 +150,13 @@ func TestDecodeCorrupt(t *testing.T) {
 	}{
 		{"", -1},
 		{"!!!!", 0},
+		{"====", 0},
 		{"x===", 1},
+		{"=AAA", 0},
+		{"A=AA", 1},
 		{"AA=A", 2},
-		{"AAA=AAAA", 3},
+		{"AA==A", 4},
+		{"AAA=AAAA", 4},
 		{"AAAAA", 4},
 		{"AAAAAA", 4},
 		{"A=", 1},
@@ -161,6 +166,7 @@ func TestDecodeCorrupt(t *testing.T) {
 		{"AAA=", -1},
 		{"AAAA", -1},
 		{"AAAAAA=", 7},
+		{"YWJjZA=====", 8},
 	}
 	for _, tc := range testCases {
 		dbuf := make([]byte, StdEncoding.DecodedLen(len(tc.input)))
@@ -308,13 +314,13 @@ bqbPb06551Y4
 `
 	encodedShort := strings.Replace(encoded, "\n", "", -1)
 
-	dec := NewDecoder(StdEncoding, bytes.NewBufferString(encoded))
+	dec := NewDecoder(StdEncoding, strings.NewReader(encoded))
 	res1, err := ioutil.ReadAll(dec)
 	if err != nil {
 		t.Errorf("ReadAll failed: %v", err)
 	}
 
-	dec = NewDecoder(StdEncoding, bytes.NewBufferString(encodedShort))
+	dec = NewDecoder(StdEncoding, strings.NewReader(encodedShort))
 	var res2 []byte
 	res2, err = ioutil.ReadAll(dec)
 	if err != nil {
@@ -323,5 +329,16 @@ bqbPb06551Y4
 
 	if !bytes.Equal(res1, res2) {
 		t.Error("Decoded results not equal")
+	}
+}
+
+func TestDecoderIssue7733(t *testing.T) {
+	s, err := StdEncoding.DecodeString("YWJjZA=====")
+	want := CorruptInputError(8)
+	if !reflect.DeepEqual(want, err) {
+		t.Errorf("Error = %v; want CorruptInputError(8)", err)
+	}
+	if string(s) != "abcd" {
+		t.Errorf("DecodeString = %q; want abcd", s)
 	}
 }

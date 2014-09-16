@@ -544,7 +544,7 @@ gimple_build_asm_1 (const char *string, unsigned ninputs, unsigned noutputs,
      enforced by the front end.  */
   gcc_assert (nlabels == 0 || noutputs == 0);
 
-  p = as_a <gimple_statement_asm> (
+  p = as_a <gimple_statement_asm *> (
         gimple_build_with_ops (GIMPLE_ASM, ERROR_MARK,
 			       ninputs + noutputs + nclobbers + nlabels));
 
@@ -671,7 +671,7 @@ gimple_build_try (gimple_seq eval, gimple_seq cleanup,
   gimple_statement_try *p;
 
   gcc_assert (kind == GIMPLE_TRY_CATCH || kind == GIMPLE_TRY_FINALLY);
-  p = as_a <gimple_statement_try> (gimple_alloc (GIMPLE_TRY, 0));
+  p = as_a <gimple_statement_try *> (gimple_alloc (GIMPLE_TRY, 0));
   gimple_set_subcode (p, kind);
   if (eval)
     gimple_try_set_eval (p, eval);
@@ -702,7 +702,7 @@ gimple
 gimple_build_resx (int region)
 {
   gimple_statement_resx *p =
-    as_a <gimple_statement_resx> (
+    as_a <gimple_statement_resx *> (
       gimple_build_with_ops (GIMPLE_RESX, ERROR_MARK, 0));
   p->region = region;
   return p;
@@ -752,7 +752,7 @@ gimple
 gimple_build_eh_dispatch (int region)
 {
   gimple_statement_eh_dispatch *p =
-    as_a <gimple_statement_eh_dispatch> (
+    as_a <gimple_statement_eh_dispatch *> (
       gimple_build_with_ops (GIMPLE_EH_DISPATCH, ERROR_MARK, 0));
   p->region = region;
   return p;
@@ -829,15 +829,13 @@ gimple_build_omp_for (gimple_seq body, int kind, tree clauses, size_t collapse,
 		      gimple_seq pre_body)
 {
   gimple_statement_omp_for *p =
-    as_a <gimple_statement_omp_for> (gimple_alloc (GIMPLE_OMP_FOR, 0));
+    as_a <gimple_statement_omp_for *> (gimple_alloc (GIMPLE_OMP_FOR, 0));
   if (body)
     gimple_omp_set_body (p, body);
   gimple_omp_for_set_clauses (p, clauses);
   gimple_omp_for_set_kind (p, kind);
   p->collapse = collapse;
-  p->iter =  static_cast <struct gimple_omp_for_iter *> (
-   ggc_internal_cleared_vec_alloc_stat (sizeof (*p->iter),
-					collapse MEM_STAT_INFO));
+  p->iter =  ggc_cleared_vec_alloc<gimple_omp_for_iter> (collapse);
 
   if (pre_body)
     gimple_omp_for_set_pre_body (p, pre_body);
@@ -1664,12 +1662,9 @@ gimple_copy (gimple stmt)
 	  gimple_omp_for_set_clauses (copy, t);
 	  {
 	    gimple_statement_omp_for *omp_for_copy =
-	      as_a <gimple_statement_omp_for> (copy);
-	    omp_for_copy->iter =
-	      static_cast <struct gimple_omp_for_iter *> (
-		  ggc_internal_vec_alloc_stat (sizeof (struct gimple_omp_for_iter),
-					       gimple_omp_for_collapse (stmt)
-					       MEM_STAT_INFO));
+	      as_a <gimple_statement_omp_for *> (copy);
+	    omp_for_copy->iter = ggc_vec_alloc<gimple_omp_for_iter>
+	      ( gimple_omp_for_collapse (stmt));
           }
 	  for (i = 0; i < gimple_omp_for_collapse (stmt); i++)
 	    {
@@ -1939,6 +1934,7 @@ get_gimple_rhs_num_ops (enum tree_code code)
       || (SYM) == WIDEN_MULT_PLUS_EXPR					    \
       || (SYM) == WIDEN_MULT_MINUS_EXPR					    \
       || (SYM) == DOT_PROD_EXPR						    \
+      || (SYM) == SAD_EXPR						    \
       || (SYM) == REALIGN_LOAD_EXPR					    \
       || (SYM) == VEC_COND_EXPR						    \
       || (SYM) == VEC_PERM_EXPR                                             \
@@ -2376,7 +2372,7 @@ validate_type (tree type1, tree type2)
    a decl of a builtin function.  */
 
 bool
-gimple_builtin_call_types_compatible_p (gimple stmt, tree fndecl)
+gimple_builtin_call_types_compatible_p (const_gimple stmt, tree fndecl)
 {
   gcc_checking_assert (DECL_BUILT_IN_CLASS (fndecl) != NOT_BUILT_IN);
 
@@ -2405,7 +2401,7 @@ gimple_builtin_call_types_compatible_p (gimple stmt, tree fndecl)
 /* Return true when STMT is builtins call.  */
 
 bool
-gimple_call_builtin_p (gimple stmt)
+gimple_call_builtin_p (const_gimple stmt)
 {
   tree fndecl;
   if (is_gimple_call (stmt)
@@ -2418,7 +2414,7 @@ gimple_call_builtin_p (gimple stmt)
 /* Return true when STMT is builtins call to CLASS.  */
 
 bool
-gimple_call_builtin_p (gimple stmt, enum built_in_class klass)
+gimple_call_builtin_p (const_gimple stmt, enum built_in_class klass)
 {
   tree fndecl;
   if (is_gimple_call (stmt)
@@ -2431,7 +2427,7 @@ gimple_call_builtin_p (gimple stmt, enum built_in_class klass)
 /* Return true when STMT is builtins call to CODE of CLASS.  */
 
 bool
-gimple_call_builtin_p (gimple stmt, enum built_in_function code)
+gimple_call_builtin_p (const_gimple stmt, enum built_in_function code)
 {
   tree fndecl;
   if (is_gimple_call (stmt)
@@ -2565,8 +2561,8 @@ infer_nonnull_range (gimple stmt, tree op, bool dereference, bool attribute)
 	    {
 	      for (unsigned int i = 0; i < gimple_call_num_args (stmt); i++)
 		{
-		  if (operand_equal_p (op, gimple_call_arg (stmt, i), 0)
-		      && POINTER_TYPE_P (TREE_TYPE (gimple_call_arg (stmt, i))))
+		  if (POINTER_TYPE_P (TREE_TYPE (gimple_call_arg (stmt, i)))
+		      && operand_equal_p (op, gimple_call_arg (stmt, i), 0))
 		    return true;
 		}
 	      return false;
@@ -2777,11 +2773,7 @@ preprocess_case_label_vec_for_gimple (vec<tree> labels,
 		  low = CASE_HIGH (labels[i - 1]);
 		  if (!low)
 		    low = CASE_LOW (labels[i - 1]);
-		  if ((TREE_INT_CST_LOW (low) + 1
-		       != TREE_INT_CST_LOW (high))
-		      || (TREE_INT_CST_HIGH (low)
-			  + (TREE_INT_CST_LOW (high) == 0)
-			  != TREE_INT_CST_HIGH (high)))
+		  if (wi::add (low, 1) != high)
 		    break;
 		}
 	      if (i == len)

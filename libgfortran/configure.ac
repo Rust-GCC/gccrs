@@ -139,12 +139,13 @@ AM_PROG_CC_C_O
 # Add -Wall -fno-repack-arrays -fno-underscoring if we are using GCC.
 if test "x$GCC" = "xyes"; then
   AM_FCFLAGS="-I . -Wall -Werror -fimplicit-none -fno-repack-arrays -fno-underscoring"
-  ## We like to use C99 routines when available.  This makes sure that
+  ## We like to use C11 and C99 routines when available.  This makes
+  ## sure that
   ## __STDC_VERSION__ is set such that libc includes make them available.
-  AM_CFLAGS="-std=gnu99 -Wall -Wstrict-prototypes -Wmissing-prototypes -Wold-style-definition -Wextra -Wwrite-strings"
+  AM_CFLAGS="-std=gnu11 -Wall -Wstrict-prototypes -Wmissing-prototypes -Wold-style-definition -Wextra -Wwrite-strings"
   ## Compile the following tests with the same system header contents
   ## that we'll encounter when compiling our own source files.
-  CFLAGS="-std=gnu99 $CFLAGS"
+  CFLAGS="-std=gnu11 $CFLAGS"
 fi
 AC_SUBST(AM_FCFLAGS)
 AC_SUBST(AM_CFLAGS)
@@ -272,6 +273,8 @@ if test "x${with_newlib}" = "xyes"; then
    AC_DEFINE(HAVE_VSNPRINTF, 1, [Define if you have vsnprintf.])
    AC_DEFINE(HAVE_LOCALTIME_R, 1, [Define if you have localtime_r.])
    AC_DEFINE(HAVE_GMTIME_R, 1, [Define if you have gmtime_r.])
+   AC_DEFINE(HAVE_STRNLEN, 1, [Define if you have strnlen.])
+   AC_DEFINE(HAVE_STRNDUP, 1, [Define if you have strndup.])
 
    # At some point, we should differentiate between architectures
    # like x86, which have long double versions, and alpha/powerpc/etc.,
@@ -286,7 +289,7 @@ else
    strcasestr getrlimit gettimeofday stat fstat lstat getpwuid vsnprintf dup \
    getcwd localtime_r gmtime_r getpwuid_r ttyname_r clock_gettime \
    readlink getgid getpid getppid getuid geteuid umask getegid \
-   secure_getenv __secure_getenv mkostemp)
+   secure_getenv __secure_getenv mkostemp strnlen strndup)
 fi
 
 # Check strerror_r, cannot be above as versions with two and three arguments exist
@@ -510,7 +513,7 @@ AC_CHECK_LIB([m],[feenableexcept],[have_feenableexcept=yes AC_DEFINE([HAVE_FEENA
 # test is copied from libgomp, and modified to not link in -lrt as
 # libgfortran calls clock_gettime via a weak reference if it's found
 # in librt.
-if test $ac_cv_func_clock_gettime = no; then
+if test "$ac_cv_func_clock_gettime" = no; then
   AC_CHECK_LIB(rt, clock_gettime,
     [AC_DEFINE(HAVE_CLOCK_GETTIME_LIBRT, 1,
                [Define to 1 if you have the `clock_gettime' function in librt.])])
@@ -518,8 +521,18 @@ fi
 
 # Check for SysV fpsetmask
 LIBGFOR_CHECK_FPSETMASK
-AC_CHECK_TYPES([fp_except,fp_except_t], [], [], [[#include <ieeefp.h>]])
-AC_CHECK_TYPES([fp_rnd,fp_rnd_t], [], [], [[#include <ieeefp.h>]])
+AC_CHECK_TYPES([fp_except,fp_except_t], [], [], [[
+#include <ieeefp.h>
+#include <math.h>
+]])
+AC_CHECK_TYPES([fp_rnd,fp_rnd_t], [], [], [[
+#include <ieeefp.h>
+#include <math.h>
+]])
+
+# Check whether we have fpsetsticky or fpresetsticky
+AC_CHECK_FUNC([fpsetsticky],[have_fpsetsticky=yes AC_DEFINE([HAVE_FPSETSTICKY],[1],[fpsetsticky is present])])
+AC_CHECK_FUNC([fpresetsticky],[have_fpresetsticky=yes AC_DEFINE([HAVE_FPRESETSTICKY],[1],[fpresetsticky is present])])
 
 # Check for AIX fp_trap and fp_enable
 AC_CHECK_FUNC([fp_trap],[have_fp_trap=yes AC_DEFINE([HAVE_FP_TRAP],[1],[fp_trap is present])])
@@ -530,8 +543,13 @@ AC_CHECK_FUNC([fp_enable],[have_fp_enable=yes AC_DEFINE([HAVE_FP_ENABLE],[1],[fp
 # build chain.
 . ${srcdir}/configure.host
 AC_MSG_NOTICE([FPU dependent file will be ${fpu_host}.h])
+AC_MSG_NOTICE([Support for IEEE modules: ${ieee_support}])
 FPU_HOST_HEADER=config/${fpu_host}.h
 AC_SUBST(FPU_HOST_HEADER)
+
+# Whether we will build the IEEE modules
+AM_CONDITIONAL(IEEE_SUPPORT,[test x${ieee_support} = xyes])
+AC_SUBST(IEEE_SUPPORT)
 
 # Some targets require additional compiler options for IEEE compatibility.
 IEEE_FLAGS="${ieee_flags}"

@@ -30,6 +30,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-pretty-print.h"
 #include "tree-iterator.h"
 #include "diagnostic.h"
+#include "wide-int-print.h"
 
 /* The pretty-printer code is primarily designed to closely follow
    (GNU) C and C++ grammars.  That is to be contrasted with spaghetti
@@ -905,6 +906,15 @@ pp_c_string_literal (c_pretty_printer *pp, tree s)
   pp_doublequote (pp);
 }
 
+/* Pretty-print a VOID_CST (void_node).  */
+
+static void
+pp_c_void_constant (c_pretty_printer *pp)
+{
+  pp_c_type_cast (pp, void_type_node);
+  pp_string (pp, "0");
+}
+
 /* Pretty-print an INTEGER literal.  */
 
 static void
@@ -923,16 +933,14 @@ pp_c_integer_constant (c_pretty_printer *pp, tree i)
     pp_unsigned_wide_integer (pp, tree_to_uhwi (i));
   else
     {
-      unsigned HOST_WIDE_INT low = TREE_INT_CST_LOW (i);
-      HOST_WIDE_INT high = TREE_INT_CST_HIGH (i);
-      if (tree_int_cst_sgn (i) < 0)
+      wide_int wi = i;
+
+      if (wi::lt_p (i, 0, TYPE_SIGN (TREE_TYPE (i))))
 	{
 	  pp_minus (pp);
-	  high = ~high + !low;
-	  low = -low;
+	  wi = -wi;
 	}
-      sprintf (pp_buffer (pp)->digit_buffer, HOST_WIDE_INT_PRINT_DOUBLE_HEX,
-	       (unsigned HOST_WIDE_INT) high, (unsigned HOST_WIDE_INT) low);
+      print_hex (wi, pp_buffer (pp)->digit_buffer);
       pp_string (pp, pp_buffer (pp)->digit_buffer);
     }
   if (TYPE_UNSIGNED (type))
@@ -1137,6 +1145,10 @@ c_pretty_printer::constant (tree e)
 
   switch (code)
     {
+    case VOID_CST:
+      pp_c_void_constant (this);
+      break;
+
     case INTEGER_CST:
       {
 	tree type = TREE_TYPE (e);
@@ -1242,6 +1254,7 @@ c_pretty_printer::primary_expression (tree e)
       translate_string ("<return-value>");
       break;
 
+    case VOID_CST:
     case INTEGER_CST:
     case REAL_CST:
     case FIXED_CST:
@@ -2132,6 +2145,10 @@ c_pretty_printer::expression (tree e)
 {
   switch (TREE_CODE (e))
     {
+    case VOID_CST:
+      pp_c_void_constant (this);
+      break;
+
     case INTEGER_CST:
       pp_c_integer_constant (this, e);
       break;

@@ -1,3 +1,155 @@
+2014-07-13  Tobias Burnus  <burnus@net-b.de>
+
+	* testsuite/libgomp.fortran/pr34020.f90: Make compile
+	with TS 18508/Fortran 2015
+
+2014-07-06  Marek Polacek  <polacek@redhat.com>
+
+	PR c/6940
+	* testsuite/libgomp.c/appendix-a/a.29.1.c (f): Add dg-warnings.
+
+2014-07-03  Jakub Jelinek  <jakub@redhat.com>
+
+	* testsuite/lib/libgomp.exp (libgomp_target_compile): If $source
+	matches regex $lang_source_re, add $lang_include_flags to options.
+	* testsuite/libgomp.c/c.exp: Unset lang_include_flags.
+	* testsuite/libgomp.c++/c++.exp: Likewise.
+	* testsuite/libgomp.fortran/fortran.exp: Likewise.  Set lang_source_re
+	and lang_include_flags instead of adding -fintrinsic-modules-path= to
+	ALWAYS_CFLAGS.
+	* testsuite/libgomp.graphite/graphite.exp: Unset lang_include_flags.
+
+2014-07-03  Thomas Schwinge  <thomas@codesourcery.com>
+
+	* testsuite/libgomp.fortran/fortran.exp: Explain
+	gfortran-dg-runtest usage.
+
+2014-06-25  Jakub Jelinek  <jakub@redhat.com>
+
+	* testsuite/libgomp.fortran/simd5.f90: New test.
+	* testsuite/libgomp.fortran/simd6.f90: New test.
+	* testsuite/libgomp.fortran/simd7.f90: New test.
+
+2014-06-24  Jakub Jelinek  <jakub@redhat.com>
+
+	* testsuite/libgomp.c/for-2.c: Define SC to static for
+	#pragma omp for simd testing.
+	* testsuite/libgomp.c/for-2.h (SC): Define if not defined.
+	(N(f5), N(f6), N(f7), N(f8), N(f10), N(f12), N(f14)): Use
+	SC macro.
+	* testsuite/libgomp.c/simd-14.c: New test.
+	* testsuite/libgomp.c/simd-15.c: New test.
+	* testsuite/libgomp.c/simd-16.c: New test.
+	* testsuite/libgomp.c/simd-17.c: New test.
+	* testsuite/libgomp.c++/for-10.C: Define SC to static for
+	#pragma omp for simd testing.
+	* testsuite/libgomp.c++/simd10.C: New test.
+	* testsuite/libgomp.c++/simd11.C: New test.
+	* testsuite/libgomp.c++/simd12.C: New test.
+	* testsuite/libgomp.c++/simd13.C: New test.
+
+	* testsuite/libgomp.fortran/aligned1.f03: New test.
+	* testsuite/libgomp.fortran/nestedfn5.f90: New test.
+	* testsuite/libgomp.fortran/target7.f90: Surround loop spawning
+	tasks with !$omp parallel !$omp single.
+	* testsuite/libgomp.fortran/target8.f90: New test.
+	* testsuite/libgomp.fortran/udr4.f90 (foo UDR, bar UDR): Adjust
+	not to use trim in the combiner, instead call elemental function.
+	(fn): New elemental function.
+	* testsuite/libgomp.fortran/udr6.f90 (do_add, dp_add, dp_init):
+	Make elemental.
+	* testsuite/libgomp.fortran/udr7.f90 (omp_priv, omp_orig, omp_out,
+	omp_in): Likewise.
+	* testsuite/libgomp.fortran/udr12.f90: New test.
+	* testsuite/libgomp.fortran/udr13.f90: New test.
+	* testsuite/libgomp.fortran/udr14.f90: New test.
+	* testsuite/libgomp.fortran/udr15.f90: New test.
+
+2014-06-18  Jakub Jelinek  <jakub@redhat.com>
+
+	* omp_lib.f90.in (openmp_version): Set to 201307.
+	* omp_lib.h.in (openmp_version): Likewise.
+	* testsuite/libgomp.c/target-8.c: New test.
+	* testsuite/libgomp.fortran/declare-simd-1.f90: Add notinbranch
+	and inbranch clauses.
+	* testsuite/libgomp.fortran/depend-3.f90: New test.
+	* testsuite/libgomp.fortran/openmp_version-1.f: Adjust for new
+	openmp_version.
+	* testsuite/libgomp.fortran/openmp_version-2.f90: Likewise.
+	* testsuite/libgomp.fortran/target1.f90: New test.
+	* testsuite/libgomp.fortran/target2.f90: New test.
+	* testsuite/libgomp.fortran/target3.f90: New test.
+	* testsuite/libgomp.fortran/target4.f90: New test.
+	* testsuite/libgomp.fortran/target5.f90: New test.
+	* testsuite/libgomp.fortran/target6.f90: New test.
+	* testsuite/libgomp.fortran/target7.f90: New test.
+
+2014-06-10  Jakub Jelinek  <jakub@redhat.com>
+
+	PR fortran/60928
+	* testsuite/libgomp.fortran/allocatable9.f90: New test.
+	* testsuite/libgomp.fortran/allocatable10.f90: New test.
+	* testsuite/libgomp.fortran/allocatable11.f90: New test.
+	* testsuite/libgomp.fortran/allocatable12.f90: New test.
+	* testsuite/libgomp.fortran/alloc-comp-1.f90: New test.
+	* testsuite/libgomp.fortran/alloc-comp-2.f90: New test.
+	* testsuite/libgomp.fortran/alloc-comp-3.f90: New test.
+	* testsuite/libgomp.fortran/associate1.f90: New test.
+	* testsuite/libgomp.fortran/associate2.f90: New test.
+	* testsuite/libgomp.fortran/procptr1.f90: New test.
+
+2014-06-06  Jakub Jelinek  <jakub@redhat.com>
+
+	* testsuite/libgomp.fortran/simd1.f90: New test.
+	* testsuite/libgomp.fortran/udr1.f90: New test.
+	* testsuite/libgomp.fortran/udr2.f90: New test.
+	* testsuite/libgomp.fortran/udr3.f90: New test.
+	* testsuite/libgomp.fortran/udr4.f90: New test.
+	* testsuite/libgomp.fortran/udr5.f90: New test.
+	* testsuite/libgomp.fortran/udr6.f90: New test.
+	* testsuite/libgomp.fortran/udr7.f90: New test.
+	* testsuite/libgomp.fortran/udr8.f90: New test.
+	* testsuite/libgomp.fortran/udr9.f90: New test.
+	* testsuite/libgomp.fortran/udr10.f90: New test.
+	* testsuite/libgomp.fortran/udr11.f90: New test.
+
+2014-05-27  Uros Bizjak  <ubizjak@gmail.com>
+
+	* testsuite/libgomp.fortran/declare-simd-1.f90: Require
+	vect_simd_clones effective target.
+	* testsuite/libgomp.fortran/declare-simd-2.f90: Ditto.
+
+2014-05-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/61252
+	* testsuite/libgomp.c++/simd-9.C: New test.
+
+2014-05-18  Uros Bizjak  <ubizjak@gmail.com>
+
+	* libgomp.texi (Runitme Library Routines): Remove multiple @menu.
+	(Environment Variables) Move OMP_PROC_BIND and OMP_STACKSIZE node
+	texts according to their @menu entry positions.
+
+2014-05-11  Jakub Jelinek  <jakub@redhat.com>
+
+	* testsuite/libgomp.fortran/cancel-do-1.f90: New test.
+	* testsuite/libgomp.fortran/cancel-do-2.f90: New test.
+	* testsuite/libgomp.fortran/cancel-parallel-1.f90: New test.
+	* testsuite/libgomp.fortran/cancel-parallel-3.f90: New test.
+	* testsuite/libgomp.fortran/cancel-sections-1.f90: New test.
+	* testsuite/libgomp.fortran/cancel-taskgroup-2.f90: New test.
+	* testsuite/libgomp.fortran/declare-simd-1.f90: New test.
+	* testsuite/libgomp.fortran/declare-simd-2.f90: New test.
+	* testsuite/libgomp.fortran/declare-simd-3.f90: New test.
+	* testsuite/libgomp.fortran/depend-1.f90: New test.
+	* testsuite/libgomp.fortran/depend-2.f90: New test.
+	* testsuite/libgomp.fortran/omp_atomic5.f90: New test.
+	* testsuite/libgomp.fortran/simd1.f90: New test.
+	* testsuite/libgomp.fortran/simd2.f90: New test.
+	* testsuite/libgomp.fortran/simd3.f90: New test.
+	* testsuite/libgomp.fortran/simd4.f90: New test.
+	* testsuite/libgomp.fortran/taskgroup1.f90: New test.
+
 2014-05-02  Jakub Jelinek  <jakub@redhat.com>
 
 	* testsuite/libgomp.c/simd-10.c: New test.
@@ -16,10 +168,6 @@
 	* testsuite/libgomp.c/simd-8.c: New test.
 	* testsuite/libgomp.c/simd-9.c: New test.
 	* testsuite/libgomp.c/loop-16.c: New test.
-
-2014-04-22  Release Manager
-
-	* GCC 4.9.0 released.
 
 2014-04-02  Richard Henderson  <rth@redhat.com>
 

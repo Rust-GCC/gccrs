@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---             Copyright (C) 2013, Free Software Foundation, Inc.           --
+--          Copyright (C) 2013-2014, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -38,7 +38,10 @@ package body Ada.Containers.Indefinite_Holders is
 
    function "=" (Left, Right : Holder) return Boolean is
    begin
-      if Left.Reference = null and Right.Reference = null then
+      if Left.Reference = Right.Reference then
+
+         --  Covers both null and not null but the same shared object cases
+
          return True;
 
       elsif Left.Reference /= null and Right.Reference /= null then
@@ -56,10 +59,32 @@ package body Ada.Containers.Indefinite_Holders is
    overriding procedure Adjust (Container : in out Holder) is
    begin
       if Container.Reference /= null then
-         Reference (Container.Reference);
+         if Container.Busy = 0 then
+
+            --  Container is not locked, reuse existing internal shared object
+
+            Reference (Container.Reference);
+         else
+            --  Otherwise, create copy of both internal shared object and
+            --  element.
+
+            Container.Reference :=
+               new Shared_Holder'
+                 (Counter => <>,
+                  Element =>
+                     new Element_Type'(Container.Reference.Element.all));
+         end if;
       end if;
 
       Container.Busy := 0;
+   end Adjust;
+
+   overriding procedure Adjust (Control : in out Reference_Control_Type) is
+   begin
+      if Control.Container /= null then
+         Reference (Control.Container.Reference);
+         Control.Container.Busy := Control.Container.Busy + 1;
+      end if;
    end Adjust;
 
    ------------
@@ -99,6 +124,41 @@ package body Ada.Containers.Indefinite_Holders is
       Container.Reference := null;
    end Clear;
 
+   ------------------------
+   -- Constant_Reference --
+   ------------------------
+
+   function Constant_Reference
+     (Container : aliased Holder) return Constant_Reference_Type is
+   begin
+      if Container.Reference = null then
+         raise Constraint_Error with "container is empty";
+
+      elsif Container.Busy = 0
+        and then not System.Atomic_Counters.Is_One
+                       (Container.Reference.Counter)
+      then
+         --  Container is not locked and internal shared object is used by
+         --  other container, create copy of both internal shared object and
+         --  element.
+
+         Container'Unrestricted_Access.Reference :=
+            new Shared_Holder'
+              (Counter => <>,
+               Element => new Element_Type'(Container.Reference.Element.all));
+      end if;
+
+      declare
+         Ref : constant Constant_Reference_Type :=
+                 (Element => Container.Reference.Element.all'Access,
+                  Control => (Controlled with Container'Unrestricted_Access));
+      begin
+         Reference (Ref.Control.Container.Reference);
+         Ref.Control.Container.Busy := Ref.Control.Container.Busy + 1;
+         return Ref;
+      end;
+   end Constant_Reference;
+
    ----------
    -- Copy --
    ----------
@@ -106,11 +166,25 @@ package body Ada.Containers.Indefinite_Holders is
    function Copy (Source : Holder) return Holder is
    begin
       if Source.Reference = null then
-         return (AF.Controlled with null, 0);
-      else
+         return (Controlled with null, 0);
+
+      elsif Source.Busy = 0 then
+
+         --  Container is not locked, reuse internal shared object
+
          Reference (Source.Reference);
 
-         return (AF.Controlled with Source.Reference, 0);
+         return (Controlled with Source.Reference, 0);
+
+      else
+         --  Otherwise, create copy of both internal shared object and element
+
+         return
+           (Controlled with
+              new Shared_Holder'
+                (Counter => <>,
+                 Element => new Element_Type'(Source.Reference.Element.all)),
+               0);
       end if;
    end Copy;
 
@@ -140,6 +214,15 @@ package body Ada.Containers.Indefinite_Holders is
       if Container.Reference /= null then
          Unreference (Container.Reference);
          Container.Reference := null;
+      end if;
+   end Finalize;
+
+   overriding procedure Finalize (Control : in out Reference_Control_Type) is
+   begin
+      if Control.Container /= null then
+         Unreference (Control.Container.Reference);
+         Control.Container.Busy := Control.Container.Busy - 1;
+         Control.Container := null;
       end if;
    end Finalize;
 
@@ -189,6 +272,19 @@ package body Ada.Containers.Indefinite_Holders is
    begin
       if Container.Reference = null then
          raise Constraint_Error with "container is empty";
+
+      elsif Container.Busy = 0
+        and then
+          not System.Atomic_Counters.Is_One (Container.Reference.Counter)
+      then
+         --  Container is not locked and internal shared object is used by
+         --  other container, create copy of both internal shared object and
+         --  element.
+
+         Container'Unrestricted_Access.Reference :=
+            new Shared_Holder'
+              (Counter => <>,
+               Element => new Element_Type'(Container.Reference.Element.all));
       end if;
 
       B := B + 1;
@@ -223,6 +319,22 @@ package body Ada.Containers.Indefinite_Holders is
       end if;
    end Read;
 
+   procedure Read
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : out Constant_Reference_Type)
+   is
+   begin
+      raise Program_Error with "attempt to stream reference";
+   end Read;
+
+   procedure Read
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : out Reference_Type)
+   is
+   begin
+      raise Program_Error with "attempt to stream reference";
+   end Read;
+
    ---------------
    -- Reference --
    ---------------
@@ -230,6 +342,38 @@ package body Ada.Containers.Indefinite_Holders is
    procedure Reference (Item : not null Shared_Holder_Access) is
    begin
       System.Atomic_Counters.Increment (Item.Counter);
+   end Reference;
+
+   function Reference
+     (Container : aliased in out Holder) return Reference_Type
+   is
+   begin
+      if Container.Reference = null then
+         raise Constraint_Error with "container is empty";
+
+      elsif Container.Busy = 0
+        and then
+          not System.Atomic_Counters.Is_One (Container.Reference.Counter)
+      then
+         --  Container is not locked and internal shared object is used by
+         --  other container, create copy of both internal shared object and
+         --  element.
+
+         Container.Reference :=
+            new Shared_Holder'
+              (Counter => <>,
+               Element => new Element_Type'(Container.Reference.Element.all));
+      end if;
+
+      declare
+         Ref : constant Reference_Type :=
+                 (Element => Container.Reference.Element.all'Access,
+                  Control => (Controlled with Container'Unrestricted_Access));
+      begin
+         Reference (Ref.Control.Container.Reference);
+         Ref.Control.Container.Busy := Ref.Control.Container.Busy + 1;
+         return Ref;
+      end;
    end Reference;
 
    ---------------------
@@ -287,7 +431,7 @@ package body Ada.Containers.Indefinite_Holders is
 
    begin
       return
-        (AF.Controlled with
+        (Controlled with
             new Shared_Holder'
               (Counter => <>,
                Element => new Element_Type'(New_Item)), 0);
@@ -316,14 +460,27 @@ package body Ada.Containers.Indefinite_Holders is
    --------------------
 
    procedure Update_Element
-     (Container : Holder;
+     (Container : in out Holder;
       Process   : not null access procedure (Element : in out Element_Type))
    is
-      B : Natural renames Container'Unrestricted_Access.Busy;
+      B : Natural renames Container.Busy;
 
    begin
       if Container.Reference = null then
          raise Constraint_Error with "container is empty";
+
+      elsif Container.Busy = 0
+        and then
+          not System.Atomic_Counters.Is_One (Container.Reference.Counter)
+      then
+         --  Container is not locked and internal shared object is used by
+         --  other container, create copy of both internal shared object and
+         --  element.
+
+         Container'Unrestricted_Access.Reference :=
+            new Shared_Holder'
+              (Counter => <>,
+               Element => new Element_Type'(Container.Reference.Element.all));
       end if;
 
       B := B + 1;
@@ -353,6 +510,22 @@ package body Ada.Containers.Indefinite_Holders is
       if Container.Reference /= null then
          Element_Type'Output (Stream, Container.Reference.Element.all);
       end if;
+   end Write;
+
+   procedure Write
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : Reference_Type)
+   is
+   begin
+      raise Program_Error with "attempt to stream reference";
+   end Write;
+
+   procedure Write
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : Constant_Reference_Type)
+   is
+   begin
+      raise Program_Error with "attempt to stream reference";
    end Write;
 
 end Ada.Containers.Indefinite_Holders;

@@ -228,10 +228,6 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
 
-/* Define to the widest efficient host integer type at least as wide as the
-   target's size_t type. */
-#undef HOST_WIDE_INT
-
 /* Define as const if the declaration of iconv() needs const. */
 #undef ICONV_CONST
 
@@ -332,6 +328,11 @@
 /* Define to 1 if you need to in order for `stat' and other things to work. */
 #undef _POSIX_SOURCE
 
+/* Define for Solaris 2.5.1 so the uint64_t typedef from <sys/synch.h>,
+   <pthread.h>, or <semaphore.h> is not used. If the typedef were allowed, the
+   #define below would cause a syntax error. */
+#undef _UINT64_T
+
 /* Define to empty if `const' does not conform to ANSI C. */
 #undef const
 
@@ -352,6 +353,10 @@
 
 /* Define to `int' if <sys/types.h> does not define. */
 #undef ssize_t
+
+/* Define to the type of an unsigned integer type of width exactly 64 bits if
+   such a type exists and the standard includes do not define it. */
+#undef uint64_t
 
 /* Define to the type of an unsigned integer type wide enough to hold a
    pointer, if such a type exists, and if the system does not define it. */

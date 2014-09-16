@@ -129,7 +129,7 @@ st_expr_hasher::equal (const value_type *ptr1, const compare_type *ptr2)
 }
 
 /* Hashtable for the load/store memory refs.  */
-static hash_table <st_expr_hasher> store_motion_mems_table;
+static hash_table<st_expr_hasher> *store_motion_mems_table;
 
 /* This will search the st_expr list for a matching expression. If it
    doesn't find one, we create one and initialize it.  */
@@ -147,7 +147,7 @@ st_expr_entry (rtx x)
 		   NULL,  /*have_reg_qty=*/false);
 
   e.pattern = x;
-  slot = store_motion_mems_table.find_slot_with_hash (&e, hash, INSERT);
+  slot = store_motion_mems_table->find_slot_with_hash (&e, hash, INSERT);
   if (*slot)
     return *slot;
 
@@ -183,8 +183,8 @@ free_st_expr_entry (struct st_expr * ptr)
 static void
 free_store_motion_mems (void)
 {
-  if (store_motion_mems_table.is_created ())
-    store_motion_mems_table.dispose ();
+  delete store_motion_mems_table;
+  store_motion_mems_table = NULL;
 
   while (store_motion_mems)
     {
@@ -645,13 +645,13 @@ compute_store_table (void)
   unsigned regno;
 #endif
   rtx insn, tmp;
-  df_ref *def_rec;
+  df_ref def;
   int *last_set_in, *already_set;
   struct st_expr * ptr, **prev_next_ptr_ptr;
   unsigned int max_gcse_regno = max_reg_num ();
 
   store_motion_mems = NULL;
-  store_motion_mems_table.create (13);
+  store_motion_mems_table = new hash_table<st_expr_hasher> (13);
   last_set_in = XCNEWVEC (int, max_gcse_regno);
   already_set = XNEWVEC (int, max_gcse_regno);
 
@@ -665,8 +665,8 @@ compute_store_table (void)
 	  if (! NONDEBUG_INSN_P (insn))
 	    continue;
 
-	  for (def_rec = DF_INSN_DEFS (insn); *def_rec; def_rec++)
-	    last_set_in[DF_REF_REGNO (*def_rec)] = INSN_UID (insn);
+	  FOR_EACH_INSN_DEF (def, insn)
+	    last_set_in[DF_REF_REGNO (def)] = INSN_UID (insn);
 	}
 
       /* Now find the stores.  */
@@ -676,16 +676,16 @@ compute_store_table (void)
 	  if (! NONDEBUG_INSN_P (insn))
 	    continue;
 
-	  for (def_rec = DF_INSN_DEFS (insn); *def_rec; def_rec++)
-	    already_set[DF_REF_REGNO (*def_rec)] = INSN_UID (insn);
+	  FOR_EACH_INSN_DEF (def, insn)
+	    already_set[DF_REF_REGNO (def)] = INSN_UID (insn);
 
 	  /* Now that we've marked regs, look for stores.  */
 	  find_moveable_store (insn, already_set, last_set_in);
 
 	  /* Unmark regs that are no longer set.  */
-	  for (def_rec = DF_INSN_DEFS (insn); *def_rec; def_rec++)
-	    if (last_set_in[DF_REF_REGNO (*def_rec)] == INSN_UID (insn))
-	      last_set_in[DF_REF_REGNO (*def_rec)] = 0;
+	  FOR_EACH_INSN_DEF (def, insn)
+	    if (last_set_in[DF_REF_REGNO (def)] == INSN_UID (insn))
+	      last_set_in[DF_REF_REGNO (def)] = 0;
 	}
 
 #ifdef ENABLE_CHECKING
@@ -713,7 +713,7 @@ compute_store_table (void)
       if (! ptr->avail_stores)
 	{
 	  *prev_next_ptr_ptr = ptr->next;
-	  store_motion_mems_table.remove_elt_with_hash (ptr, ptr->hash_index);
+	  store_motion_mems_table->remove_elt_with_hash (ptr, ptr->hash_index);
 	  free_st_expr_entry (ptr);
 	}
       else
@@ -1068,12 +1068,12 @@ build_store_vectors (void)
       FOR_BB_INSNS (bb, insn)
 	if (NONDEBUG_INSN_P (insn))
 	  {
-	    df_ref *def_rec;
-	    for (def_rec = DF_INSN_DEFS (insn); *def_rec; def_rec++)
+	    df_ref def;
+	    FOR_EACH_INSN_DEF (def, insn)
 	      {
-		unsigned int ref_regno = DF_REF_REGNO (*def_rec);
+		unsigned int ref_regno = DF_REF_REGNO (def);
 		if (ref_regno < max_gcse_regno)
-		  regs_set_in_block[DF_REF_REGNO (*def_rec)] = 1;
+		  regs_set_in_block[DF_REF_REGNO (def)] = 1;
 	      }
 	  }
 
@@ -1152,7 +1152,8 @@ one_store_motion_pass (void)
   num_stores = compute_store_table ();
   if (num_stores == 0)
     {
-      store_motion_mems_table.dispose ();
+      delete store_motion_mems_table;
+      store_motion_mems_table = NULL;
       end_alias_analysis ();
       return 0;
     }
@@ -1223,15 +1224,6 @@ one_store_motion_pass (void)
 }
 
 
-static bool
-gate_rtl_store_motion (void)
-{
-  return optimize > 0 && flag_gcse_sm
-    && !cfun->calls_setjmp
-    && optimize_function_for_speed_p (cfun)
-    && dbg_cnt (store_motion);
-}
-
 static unsigned int
 execute_rtl_store_motion (void)
 {
@@ -1248,15 +1240,12 @@ const pass_data pass_data_rtl_store_motion =
   RTL_PASS, /* type */
   "store_motion", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_LSM, /* tv_id */
   PROP_cfglayout, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  ( TODO_df_finish | TODO_verify_rtl_sharing
-    | TODO_verify_flow ), /* todo_flags_finish */
+  TODO_df_finish, /* todo_flags_finish */
 };
 
 class pass_rtl_store_motion : public rtl_opt_pass
@@ -1267,10 +1256,22 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_rtl_store_motion (); }
-  unsigned int execute () { return execute_rtl_store_motion (); }
+  virtual bool gate (function *);
+  virtual unsigned int execute (function *)
+    {
+      return execute_rtl_store_motion ();
+    }
 
 }; // class pass_rtl_store_motion
+
+bool
+pass_rtl_store_motion::gate (function *fun)
+{
+  return optimize > 0 && flag_gcse_sm
+    && !fun->calls_setjmp
+    && optimize_function_for_speed_p (fun)
+    && dbg_cnt (store_motion);
+}
 
 } // anon namespace
 

@@ -784,8 +784,11 @@ gfc_trans_sync (gfc_code *code, gfc_exec_op type)
       else
 	{
 	  tree cond2;
+	  tmp = build_call_expr_loc (input_location, gfor_fndecl_caf_num_images,
+				     2, integer_zero_node,
+				     build_int_cst (integer_type_node, -1));
 	  cond = fold_build2_loc (input_location, GT_EXPR, boolean_type_node,
-				  images, gfort_gvar_caf_num_images);
+				  images, tmp);
 	  cond2 = fold_build2_loc (input_location, LT_EXPR, boolean_type_node,
 				   images,
 				   build_int_cst (TREE_TYPE (images), 1));
@@ -1164,13 +1167,16 @@ trans_associate_var (gfc_symbol *sym, gfc_wrapped_block *block)
     {
       gfc_se se;
       tree desc;
+      bool cst_array_ctor;
 
       desc = sym->backend_decl;
+      cst_array_ctor = e->expr_type == EXPR_ARRAY
+	      && gfc_constant_array_constructor_p (e->value.constructor);
 
       /* If association is to an expression, evaluate it and create temporary.
 	 Otherwise, get descriptor of target for pointer assignment.  */
       gfc_init_se (&se, NULL);
-      if (sym->assoc->variable || e->expr_type == EXPR_ARRAY)
+      if (sym->assoc->variable || cst_array_ctor)
 	{
 	  se.direct_byref = 1;
 	  se.use_offset = 1;
@@ -1181,7 +1187,7 @@ trans_associate_var (gfc_symbol *sym, gfc_wrapped_block *block)
 
       /* If we didn't already do the pointer assignment, set associate-name
 	 descriptor to the one generated for the temporary.  */
-      if (!sym->assoc->variable && e->expr_type != EXPR_ARRAY)
+      if (!sym->assoc->variable && !cst_array_ctor)
 	{
 	  int dim;
 

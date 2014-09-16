@@ -1582,14 +1582,20 @@ alternatives of this form often allows GCC to produce better code
 when only some of the inputs can be affected by the earlyclobber.
 See, for example, the @samp{mulsi3} insn of the ARM@.
 
-@samp{&} does not obviate the need to write @samp{=}.
+Furthermore, if the @dfn{earlyclobber} operand is also read/write operand, then
+that operand is modified only after it's used.
+
+@samp{&} does not obviate the need to write @samp{=} or @samp{+}.
 
 @cindex @samp{%} in constraint
 @item %
 Declares the instruction to be commutative for this operand and the
 following operand.  This means that the compiler may interchange the
 two operands if that is the cheapest way to make all operands fit the
-constraints.
+constraints.  @samp{%} applies to all alternatives and must appear as
+the first character in the constraint.  Only input operands can use
+@samp{%}.
+
 @ifset INTERNALS
 This is often used in patterns for addition instructions
 that really have only two operands: the result must go in one of the
@@ -4094,11 +4100,11 @@ Unsigned constant valid for BccUI instructions
 @subsection Disable insn alternatives using the @code{enabled} attribute
 @cindex enabled
 
-The @code{enabled} insn attribute may be used to disable certain insn
-alternatives for machine-specific reasons.  This is useful when adding
-new instructions to an existing pattern which are only available for
-certain cpu architecture levels as specified with the @code{-march=}
-option.
+The @code{enabled} insn attribute may be used to disable insn
+alternatives that are not available for the current subtarget.
+This is useful when adding new instructions to an existing pattern
+which are only available for certain cpu architecture levels as
+specified with the @code{-march=} option.
 
 If an insn alternative is disabled, then it will never be used.  The
 compiler treats the constraints for the disabled alternative as
@@ -4112,6 +4118,10 @@ in the machine description files:
 A definition of the @code{enabled} insn attribute.  The attribute is
 defined as usual using the @code{define_attr} command.  This
 definition should be based on other insn attributes and/or target flags.
+The attribute must be a static property of the subtarget; that is, it
+must not depend on the current operands or any other dynamic context
+(for example, the location of the insn within the body of a loop).
+
 The @code{enabled} attribute is a numeric attribute and should evaluate to
 @code{(const_int 1)} for an enabled alternative and to
 @code{(const_int 0)} otherwise.
@@ -4348,16 +4358,8 @@ Use this for constraints that should not appear in @code{asm} statements.
 It is occasionally useful to test a constraint from C code rather than
 implicitly via the constraint string in a @code{match_operand}.  The
 generated file @file{tm_p.h} declares a few interfaces for working
-with machine-specific constraints.  None of these interfaces work with
-the generic constraints described in @ref{Simple Constraints}.  This
-may change in the future.
-
-@strong{Warning:} @file{tm_p.h} may declare other functions that
-operate on constraints, besides the ones documented here.  Do not use
-those functions from machine-dependent code.  They exist to implement
-the old constraint interface that machine-independent components of
-the compiler still expect.  They will change or disappear in the
-future.
+with constraints.  At present these are defined for all constraints
+except @code{g} (which is equivalent to @code{general_operand}).
 
 Some valid constraint names are not valid C identifiers, so there is a
 mangling scheme for referring to them from C@.  Constraint names that
@@ -4384,17 +4386,14 @@ the variable @var{m} is a mangled constraint name (usually as part of
 a larger identifier).
 
 @deftp Enum constraint_num
-For each machine-specific constraint, there is a corresponding
+For each constraint except @code{g}, there is a corresponding
 enumeration constant: @samp{CONSTRAINT_} plus the mangled name of the
 constraint.  Functions that take an @code{enum constraint_num} as an
 argument expect one of these constants.
-
-Machine-independent constraints do not have associated constants.
-This may change in the future.
 @end deftp
 
 @deftypefun {inline bool} satisfies_constraint_@var{m} (rtx @var{exp})
-For each machine-specific, non-register constraint @var{m}, there is
+For each non-register constraint @var{m} except @code{g}, there is
 one of these functions; it returns @code{true} if @var{exp} satisfies the
 constraint.  These functions are only visible if @file{rtl.h} was included
 before @file{tm_p.h}.
@@ -4407,7 +4406,7 @@ specifies a register constraint, this function will always return
 @code{false}.
 @end deftypefun
 
-@deftypefun {enum reg_class} regclass_for_constraint (enum constraint_num @var{c})
+@deftypefun {enum reg_class} reg_class_for_constraint (enum constraint_num @var{c})
 Returns the register class associated with @var{c}.  If @var{c} is not
 a register constraint, or those registers are not available for the
 currently selected subtarget, returns @code{NO_REGS}.
@@ -4839,17 +4838,27 @@ and the scalar result is stored in the least significant bits of operand 0
 @cindex @code{sdot_prod@var{m}} instruction pattern
 @item @samp{sdot_prod@var{m}}
 @cindex @code{udot_prod@var{m}} instruction pattern
-@item @samp{udot_prod@var{m}}
+@itemx @samp{udot_prod@var{m}}
 Compute the sum of the products of two signed/unsigned elements.
 Operand 1 and operand 2 are of the same mode. Their product, which is of a
 wider mode, is computed and added to operand 3. Operand 3 is of a mode equal or
 wider than the mode of the product. The result is placed in operand 0, which
 is of the same mode as operand 3.
 
+@cindex @code{ssad@var{m}} instruction pattern
+@item @samp{ssad@var{m}}
+@cindex @code{usad@var{m}} instruction pattern
+@item @samp{usad@var{m}}
+Compute the sum of absolute differences of two signed/unsigned elements.
+Operand 1 and operand 2 are of the same mode. Their absolute difference, which
+is of a wider mode, is computed and added to operand 3. Operand 3 is of a mode
+equal or wider than the mode of the absolute difference. The result is placed
+in operand 0, which is of the same mode as operand 3.
+
 @cindex @code{ssum_widen@var{m3}} instruction pattern
 @item @samp{ssum_widen@var{m3}}
 @cindex @code{usum_widen@var{m3}} instruction pattern
-@item @samp{usum_widen@var{m3}}
+@itemx @samp{usum_widen@var{m3}}
 Operands 0 and 2 are of the same mode, which is wider than the mode of
 operand 1. Add operand 1 to operand 2 and place the widened result in
 operand 0. (This is used express accumulation of elements into an accumulator
@@ -6222,7 +6231,6 @@ A typical @code{ctrap} pattern looks like
 
 @cindex @code{prefetch} instruction pattern
 @item @samp{prefetch}
-
 This pattern, if defined, emits code for a non-faulting data prefetch
 instruction.  Operand 0 is the address of the memory to prefetch.  Operand 1
 is a constant 1 if the prefetch is preparing for a write to the memory
@@ -6238,7 +6246,6 @@ the values of operands 1 and 2.
 
 @cindex @code{blockage} instruction pattern
 @item @samp{blockage}
-
 This pattern defines a pseudo insn that prevents the instruction
 scheduler and other passes from moving instructions and using register
 equivalences across the boundary defined by the blockage insn.
@@ -6246,7 +6253,6 @@ This needs to be an UNSPEC_VOLATILE pattern or a volatile ASM.
 
 @cindex @code{memory_barrier} instruction pattern
 @item @samp{memory_barrier}
-
 If the target memory model is not fully synchronous, then this pattern
 should be defined to an instruction that orders both loads and stores
 before the instruction with respect to loads and stores after the instruction.
@@ -6254,7 +6260,6 @@ This pattern has no operands.
 
 @cindex @code{sync_compare_and_swap@var{mode}} instruction pattern
 @item @samp{sync_compare_and_swap@var{mode}}
-
 This pattern, if defined, emits code for an atomic compare-and-swap
 operation.  Operand 1 is the memory on which the atomic operation is
 performed.  Operand 2 is the ``old'' value to be compared against the
@@ -6303,7 +6308,6 @@ interruptable locking.
 @item @samp{sync_add@var{mode}}, @samp{sync_sub@var{mode}}
 @itemx @samp{sync_ior@var{mode}}, @samp{sync_and@var{mode}}
 @itemx @samp{sync_xor@var{mode}}, @samp{sync_nand@var{mode}}
-
 These patterns emit code for an atomic operation on memory.
 Operand 0 is the memory on which the atomic operation is performed.
 Operand 1 is the second operand to the binary operator.
@@ -6325,7 +6329,6 @@ from a compare-and-swap operation, if defined.
 @item @samp{sync_old_add@var{mode}}, @samp{sync_old_sub@var{mode}}
 @itemx @samp{sync_old_ior@var{mode}}, @samp{sync_old_and@var{mode}}
 @itemx @samp{sync_old_xor@var{mode}}, @samp{sync_old_nand@var{mode}}
-
 These patterns emit code for an atomic operation on memory,
 and return the value that the memory contained before the operation.
 Operand 0 is the result value, operand 1 is the memory on which the
@@ -6349,14 +6352,12 @@ from a compare-and-swap operation, if defined.
 @item @samp{sync_new_add@var{mode}}, @samp{sync_new_sub@var{mode}}
 @itemx @samp{sync_new_ior@var{mode}}, @samp{sync_new_and@var{mode}}
 @itemx @samp{sync_new_xor@var{mode}}, @samp{sync_new_nand@var{mode}}
-
 These patterns are like their @code{sync_old_@var{op}} counterparts,
 except that they return the value that exists in the memory location
 after the operation, rather than before the operation.
 
 @cindex @code{sync_lock_test_and_set@var{mode}} instruction pattern
 @item @samp{sync_lock_test_and_set@var{mode}}
-
 This pattern takes two forms, based on the capabilities of the target.
 In either case, operand 0 is the result of the operand, operand 1 is
 the memory on which the atomic operation is performed, and operand 2
@@ -6381,7 +6382,6 @@ a compare-and-swap operation, if defined.
 
 @cindex @code{sync_lock_release@var{mode}} instruction pattern
 @item @samp{sync_lock_release@var{mode}}
-
 This pattern, if defined, releases a lock set by
 @code{sync_lock_test_and_set@var{mode}}.  Operand 0 is the memory
 that contains the lock; operand 1 is the value to store in the lock.
@@ -6471,7 +6471,6 @@ compare and swap loop.
 @item @samp{atomic_add@var{mode}}, @samp{atomic_sub@var{mode}}
 @itemx @samp{atomic_or@var{mode}}, @samp{atomic_and@var{mode}}
 @itemx @samp{atomic_xor@var{mode}}, @samp{atomic_nand@var{mode}}
-
 These patterns emit code for an atomic operation on memory with memory
 model semantics. Operand 0 is the memory on which the atomic operation is
 performed.  Operand 1 is the second operand to the binary operator.
@@ -6490,7 +6489,6 @@ none of these are available a compare-and-swap loop will be used.
 @item @samp{atomic_fetch_add@var{mode}}, @samp{atomic_fetch_sub@var{mode}}
 @itemx @samp{atomic_fetch_or@var{mode}}, @samp{atomic_fetch_and@var{mode}}
 @itemx @samp{atomic_fetch_xor@var{mode}}, @samp{atomic_fetch_nand@var{mode}}
-
 These patterns emit code for an atomic operation on memory with memory
 model semantics, and return the original value. Operand 0 is an output 
 operand which contains the value of the memory location before the 
@@ -6511,7 +6509,6 @@ loop will be used.
 @item @samp{atomic_add_fetch@var{mode}}, @samp{atomic_sub_fetch@var{mode}}
 @itemx @samp{atomic_or_fetch@var{mode}}, @samp{atomic_and_fetch@var{mode}}
 @itemx @samp{atomic_xor_fetch@var{mode}}, @samp{atomic_nand_fetch@var{mode}}
-
 These patterns emit code for an atomic operation on memory with memory
 model semantics and return the result after the operation is performed.
 Operand 0 is an output operand which contains the value after the
@@ -6527,7 +6524,6 @@ used.
 
 @cindex @code{atomic_test_and_set} instruction pattern
 @item @samp{atomic_test_and_set}
-
 This pattern emits code for @code{__builtin_atomic_test_and_set}.
 Operand 0 is an output operand which is set to true if the previous
 previous contents of the byte was "set", and false otherwise.  Operand 1
@@ -6574,7 +6570,6 @@ with @var{mode} intended to be @code{Pmode}.
 
 @cindex @code{stack_protect_set} instruction pattern
 @item @samp{stack_protect_set}
-
 This pattern, if defined, moves a @code{ptr_mode} value from the memory
 in operand 1 to the memory in operand 0 without leaving the value in
 a register afterward.  This is to avoid leaking the value some place
@@ -6585,7 +6580,6 @@ If this pattern is not defined, then a plain move pattern is generated.
 
 @cindex @code{stack_protect_test} instruction pattern
 @item @samp{stack_protect_test}
-
 This pattern, if defined, compares a @code{ptr_mode} value from the
 memory in operand 1 with the memory in operand 0 without leaving the
 value in a register afterward and branches to operand 2 if the values
@@ -6596,7 +6590,6 @@ conditional branch pattern is used.
 
 @cindex @code{clear_cache} instruction pattern
 @item @samp{clear_cache}
-
 This pattern, if defined, flushes the instruction cache for a region of
 memory.  The region is bounded to by the Pmode pointers in operand 0
 inclusive and operand 1 exclusive.

@@ -73,6 +73,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "graphite-poly.h"
 #include "graphite-scop-detection.h"
 #include "graphite-clast-to-gimple.h"
+#include "graphite-isl-ast-to-gimple.h"
 #include "graphite-sese-to-poly.h"
 #include "graphite-htab.h"
 
@@ -269,7 +270,6 @@ graphite_transform_loops (void)
   scop_p scop;
   bool need_cfg_cleanup_p = false;
   vec<scop_p> scops = vNULL;
-  bb_pbb_htab_type bb_pbb_mapping;
   isl_ctx *ctx;
 
   /* If a function is parallel it was most probably already run through graphite
@@ -291,8 +291,7 @@ graphite_transform_loops (void)
       print_global_statistics (dump_file);
     }
 
-  bb_pbb_mapping.create (10);
-
+  bb_pbb_htab_type bb_pbb_mapping (10);
   FOR_EACH_VEC_ELT (scops, i, scop)
     if (dbg_cnt (graphite_scop))
       {
@@ -301,11 +300,13 @@ graphite_transform_loops (void)
 
 	if (POLY_SCOP_P (scop)
 	    && apply_poly_transforms (scop)
-	    && gloog (scop, bb_pbb_mapping))
+	    && (((flag_graphite_code_gen == FGRAPHITE_CODE_GEN_ISL)
+	    && graphite_regenerate_ast_isl (scop))
+	    || ((flag_graphite_code_gen == FGRAPHITE_CODE_GEN_CLOOG)
+	    && graphite_regenerate_ast_cloog (scop, &bb_pbb_mapping))))
 	  need_cfg_cleanup_p = true;
       }
 
-  bb_pbb_mapping.dispose ();
   free_scops (scops);
   graphite_finalize (need_cfg_cleanup_p);
   the_isl_ctx = NULL;
@@ -324,9 +325,9 @@ graphite_transform_loops (void)
 
 
 static unsigned int
-graphite_transforms (void)
+graphite_transforms (struct function *fun)
 {
-  if (!current_loops)
+  if (number_of_loops (fun) <= 1)
     return 0;
 
   graphite_transform_loops ();
@@ -357,8 +358,6 @@ const pass_data pass_data_graphite =
   GIMPLE_PASS, /* type */
   "graphite0", /* name */
   OPTGROUP_LOOP, /* optinfo_flags */
-  true, /* has_gate */
-  false, /* has_execute */
   TV_GRAPHITE, /* tv_id */
   ( PROP_cfg | PROP_ssa ), /* properties_required */
   0, /* properties_provided */
@@ -375,7 +374,7 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_graphite_transforms (); }
+  virtual bool gate (function *) { return gate_graphite_transforms (); }
 
 }; // class pass_graphite
 
@@ -394,8 +393,6 @@ const pass_data pass_data_graphite_transforms =
   GIMPLE_PASS, /* type */
   "graphite", /* name */
   OPTGROUP_LOOP, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_GRAPHITE_TRANSFORMS, /* tv_id */
   ( PROP_cfg | PROP_ssa ), /* properties_required */
   0, /* properties_provided */
@@ -412,8 +409,8 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_graphite_transforms (); }
-  unsigned int execute () { return graphite_transforms (); }
+  virtual bool gate (function *) { return gate_graphite_transforms (); }
+  virtual unsigned int execute (function *fun) { return graphite_transforms (fun); }
 
 }; // class pass_graphite_transforms
 

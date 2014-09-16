@@ -184,7 +184,7 @@ mem_ref_hasher::equal (const value_type *mem1, const compare_type *obj2)
 static struct
 {
   /* The hash table of memory references accessed in loops.  */
-  hash_table <mem_ref_hasher> refs;
+  hash_table<mem_ref_hasher> *refs;
 
   /* The list of memory references.  */
   vec<mem_ref_p> refs_list;
@@ -609,7 +609,7 @@ mem_ref_in_stmt (gimple stmt)
   gcc_assert (!store);
 
   hash = iterative_hash_expr (*mem, 0);
-  ref = memory_accesses.refs.find_with_hash (*mem, hash);
+  ref = memory_accesses.refs->find_with_hash (*mem, hash);
 
   gcc_assert (ref != NULL);
   return ref;
@@ -719,18 +719,31 @@ determine_max_movement (gimple stmt, bool must_preserve_exec)
       FOR_EACH_PHI_ARG (use_p, stmt, iter, SSA_OP_USE)
 	{
 	  val = USE_FROM_PTR (use_p);
+
 	  if (TREE_CODE (val) != SSA_NAME)
-	    continue;
+	    {
+	      /* Assign const 1 to constants.  */
+	      min_cost = MIN (min_cost, 1);
+	      total_cost += 1;
+	      continue;
+	    }
 	  if (!add_dependency (val, lim_data, loop, false))
 	    return false;
-	  def_data = get_lim_data (SSA_NAME_DEF_STMT (val));
-	  if (def_data)
+
+	  gimple def_stmt = SSA_NAME_DEF_STMT (val);
+	  if (gimple_bb (def_stmt)
+	      && gimple_bb (def_stmt)->loop_father == loop)
 	    {
-	      min_cost = MIN (min_cost, def_data->cost);
-	      total_cost += def_data->cost;
+	      def_data = get_lim_data (def_stmt);
+	      if (def_data)
+		{
+		  min_cost = MIN (min_cost, def_data->cost);
+		  total_cost += def_data->cost;
+		}
 	    }
 	}
 
+      min_cost = MIN (min_cost, total_cost);
       lim_data->cost += min_cost;
 
       if (gimple_phi_num_args (stmt) > 1)
@@ -1472,7 +1485,7 @@ gather_mem_refs_stmt (struct loop *loop, gimple stmt)
   else
     {
       hash = iterative_hash_expr (*mem, 0);
-      slot = memory_accesses.refs.find_slot_with_hash (*mem, hash, INSERT);
+      slot = memory_accesses.refs->find_slot_with_hash (*mem, hash, INSERT);
       if (*slot)
 	{
 	  ref = (mem_ref_p) *slot;
@@ -1601,7 +1614,7 @@ mem_refs_may_alias_p (mem_ref_p mem1, mem_ref_p mem2,
   /* Perform BASE + OFFSET analysis -- if MEM1 and MEM2 are based on the same
      object and their offset differ in such a way that the locations cannot
      overlap, then they cannot alias.  */
-  double_int size1, size2;
+  widest_int size1, size2;
   aff_tree off1, off2;
 
   /* Perform basic offset and type-based disambiguation.  */
@@ -1617,7 +1630,7 @@ mem_refs_may_alias_p (mem_ref_p mem1, mem_ref_p mem2,
   get_inner_reference_aff (mem2->mem.ref, &off2, &size2);
   aff_combination_expand (&off1, ttae_cache);
   aff_combination_expand (&off2, ttae_cache);
-  aff_combination_scale (&off1, double_int_minus_one);
+  aff_combination_scale (&off1, -1);
   aff_combination_add (&off2, &off1);
 
   if (aff_comb_cannot_overlap_p (&off2, size1, size2))
@@ -2423,7 +2436,7 @@ tree_ssa_lim_initialize (void)
 
   alloc_aux_for_edges (0);
 
-  memory_accesses.refs.create (100);
+  memory_accesses.refs = new hash_table<mem_ref_hasher> (100);
   memory_accesses.refs_list.create (100);
   /* Allocate a special, unanalyzable mem-ref with ID zero.  */
   memory_accesses.refs_list.quick_push
@@ -2473,7 +2486,8 @@ tree_ssa_lim_finalize (void)
   bitmap_obstack_release (&lim_bitmap_obstack);
   pointer_map_destroy (lim_aux_data_map);
 
-  memory_accesses.refs.dispose ();
+  delete memory_accesses.refs;
+  memory_accesses.refs = NULL;
 
   FOR_EACH_VEC_ELT (memory_accesses.refs_list, i, ref)
     memref_free (ref);
@@ -2525,21 +2539,6 @@ tree_ssa_lim (void)
 
 /* Loop invariant motion pass.  */
 
-static unsigned int
-tree_ssa_loop_im (void)
-{
-  if (number_of_loops (cfun) <= 1)
-    return 0;
-
-  return tree_ssa_lim ();
-}
-
-static bool
-gate_tree_ssa_loop_im (void)
-{
-  return flag_tree_loop_im != 0;
-}
-
 namespace {
 
 const pass_data pass_data_lim =
@@ -2547,8 +2546,6 @@ const pass_data pass_data_lim =
   GIMPLE_PASS, /* type */
   "lim", /* name */
   OPTGROUP_LOOP, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_LIM, /* tv_id */
   PROP_cfg, /* properties_required */
   0, /* properties_provided */
@@ -2566,10 +2563,19 @@ public:
 
   /* opt_pass methods: */
   opt_pass * clone () { return new pass_lim (m_ctxt); }
-  bool gate () { return gate_tree_ssa_loop_im (); }
-  unsigned int execute () { return tree_ssa_loop_im (); }
+  virtual bool gate (function *) { return flag_tree_loop_im != 0; }
+  virtual unsigned int execute (function *);
 
 }; // class pass_lim
+
+unsigned int
+pass_lim::execute (function *fun)
+{
+  if (number_of_loops (fun) <= 1)
+    return 0;
+
+  return tree_ssa_lim ();
+}
 
 } // anon namespace
 
