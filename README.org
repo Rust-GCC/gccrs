@@ -1,8 +1,6 @@
 * Rust Front-End to GCC
 This is an implementation of Rust ontop of GCC.
 
-[[https://travis-ci.org/redbrain/gccrs.png?branch=master]]
-
 ** Building
 Building gccrs is fairly confsing to most people who haven't built
 GCC before:
@@ -55,5 +53,5 @@ if you were compiling C with GCC all target specific options will
 work etc.
 
 ** Status
-Very early
+Very early and out of date
 
